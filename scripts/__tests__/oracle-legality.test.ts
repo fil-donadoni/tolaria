@@ -9,12 +9,20 @@ import {
     buildLegalityFile,
     buildPremodernLegalNames,
     LEGALITY_GENERATOR,
+    legalityContentHash,
     serializeLegalityFile,
     type OracleLegalityFile,
 } from "../oracle-legality";
 import type { CorpusCard, CorpusPin } from "../oracle-corpus";
 
+/** `poolIn` defaults to mirror `legalIn` unless a caller overrides it
+ *  explicitly — every EXISTING fixture in this file only ever set `legalIn`
+ *  to control premodern inclusion, and `buildPremodernLegalNames` now gates
+ *  on `poolIn` (issue #2695 review, finding 3), so this keeps every one of
+ *  those cases behaviourally identical. Tests exercising the pool-vs-legal
+ *  DISTINCTION set `poolIn` explicitly, separate from `legalIn`. */
 function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {
+    const legalIn = overrides.legalIn ?? ["premodern", "legacy"];
     return {
         oracleId: "00000000-0000-0000-0000-000000000001",
         name: "Test Bear",
@@ -24,7 +32,8 @@ function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {
         power: "2",
         toughness: "2",
         layout: "normal",
-        legalIn: ["premodern", "legacy"],
+        legalIn,
+        poolIn: legalIn,
         ...overrides,
     };
 }
@@ -52,11 +61,46 @@ describe("buildPremodernLegalNames — corpus -> name set (issue #2695)", () => 
         expect(names).toEqual([]);
     });
 
-    it("excludes a name with an EMPTY legalIn (banned/unsupported everywhere)", () => {
+    it("excludes a name genuinely outside the pool (empty legalIn AND empty poolIn — Scryfall not_legal/absent)", () => {
         const names = buildPremodernLegalNames([
-            corpusCard({ name: "Test Bomb", legalIn: [] }),
+            corpusCard({ name: "Test Bomb", legalIn: [], poolIn: [] }),
         ]);
         expect(names).toEqual([]);
+    });
+
+    describe("pool membership, not bare legality (issue #2695 review, finding 3)", () => {
+        it("includes a name that is BANNED, not legal — poolIn drives inclusion, legalIn does not", () => {
+            const names = buildPremodernLegalNames([
+                corpusCard({
+                    name: "Test Banned Card",
+                    legalIn: [], // Scryfall legalities.premodern === "banned", not "legal"
+                    poolIn: ["premodern"],
+                }),
+            ]);
+            expect(names).toEqual(["Test Banned Card"]);
+        });
+
+        it("includes a name that is RESTRICTED", () => {
+            const names = buildPremodernLegalNames([
+                corpusCard({
+                    name: "Test Restricted Card",
+                    legalIn: [],
+                    poolIn: ["premodern"],
+                }),
+            ]);
+            expect(names).toEqual(["Test Restricted Card"]);
+        });
+
+        it("excludes a name that is NOT_LEGAL even if it happens to be legalIn for another format", () => {
+            const names = buildPremodernLegalNames([
+                corpusCard({
+                    name: "Test Modern Card",
+                    legalIn: ["modern"],
+                    poolIn: ["modern"], // no "premodern" entry at all
+                }),
+            ]);
+            expect(names).toEqual([]);
+        });
     });
 
     it("UNION by name: two oracle ids sharing a name are legal if EITHER is (never last-write-wins)", () => {
@@ -138,11 +182,12 @@ describe("buildLegalityFile / serializeLegalityFile — shape + byte determinism
         }),
     ];
 
-    it("builds the documented shape: generator, corpus pin, premodern[]", () => {
+    it("builds the documented shape: generator, corpus pin, contentHash, premodern[]", () => {
         const file = buildLegalityFile(corpus, PIN);
         expect(file).toEqual<OracleLegalityFile>({
             generator: LEGALITY_GENERATOR,
             corpus: PIN,
+            contentHash: legalityContentHash(["Test Bear"]),
             premodern: ["Test Bear"],
         });
     });
@@ -159,7 +204,47 @@ describe("buildLegalityFile / serializeLegalityFile — shape + byte determinism
         expect(JSON.parse(text)).toEqual({
             generator: LEGALITY_GENERATOR,
             corpus: PIN,
+            contentHash: legalityContentHash(["Test Bear"]),
             premodern: ["Test Bear"],
         });
+    });
+});
+
+describe("legalityContentHash — self-integrity for the offline drift-guard tier (issue #2695 review, finding 4)", () => {
+    it("is deterministic for the same array", () => {
+        expect(legalityContentHash(["Alpha", "Bravo"])).toBe(
+            legalityContentHash(["Alpha", "Bravo"])
+        );
+    });
+
+    it("changes when a name is removed — the exact tamper the review demonstrated slipping past pin agreement alone", () => {
+        const before = legalityContentHash(["Alpha", "Bravo", "Charlie"]);
+        const after = legalityContentHash(["Alpha", "Charlie"]);
+        expect(after).not.toBe(before);
+    });
+
+    it("changes when a name is added", () => {
+        const before = legalityContentHash(["Alpha", "Bravo"]);
+        const after = legalityContentHash(["Alpha", "Bravo", "Charlie"]);
+        expect(after).not.toBe(before);
+    });
+
+    it("is sensitive to order (premodern[] is a committed, sorted array — reordering IS a content change)", () => {
+        const a = legalityContentHash(["Alpha", "Bravo"]);
+        const b = legalityContentHash(["Bravo", "Alpha"]);
+        expect(a).not.toBe(b);
+    });
+
+    it("buildLegalityFile's contentHash always matches legalityContentHash(premodern) exactly", () => {
+        const corpus = [
+            corpusCard({ name: "Test Bear", legalIn: ["premodern"] }),
+            corpusCard({
+                oracleId: "00000000-0000-0000-0000-000000000099",
+                name: "Test Faerie",
+                legalIn: ["premodern"],
+            }),
+        ];
+        const file = buildLegalityFile(corpus, PIN);
+        expect(file.contentHash).toBe(legalityContentHash(file.premodern));
     });
 });

@@ -88,6 +88,22 @@ export interface CorpusCard extends CorpusFace {
     layout: string;
     /** Formats (of REPORTED_FORMATS) in which this oracle id is legal. */
     legalIn: ReportedFormat[];
+    /**
+     * Formats in which this oracle id is a POOL MEMBER — Scryfall
+     * `legalities[format]` is `legal`, `banned` or `restricted`, as opposed
+     * to `not_legal`/absent (the format simply does not support the card at
+     * all — e.g. a card printed after Scourge, for Premodern).
+     *
+     * Deliberately INCLUDES banned/restricted cards, unlike `legalIn` — a
+     * generated legality artifact built from `legalIn` alone conflates "not
+     * in the pool" with "banned", which means a banlist can only ever ADD a
+     * ban (removing one needs a corpus re-pin + code release, since the name
+     * would still be absent from the map). Pool membership and ban status
+     * are orthogonal questions; `checkBanned` (`convex/formats.ts`) is the
+     * sole, overridable authority on the latter (issue #2695 review finding
+     * 3, ADR 0057).
+     */
+    poolIn: ReportedFormat[];
     faces?: CorpusFace[];
 }
 
@@ -145,6 +161,11 @@ const EXCLUDED_LAYOUTS = new Set([
     "planar",
 ]);
 
+// Scryfall's four legality values (API docs): "legal", "not_legal",
+// "restricted", "banned". Pool membership (`CorpusCard.poolIn`) is everything
+// except "not_legal"/absent.
+const IN_POOL = new Set(["legal", "banned", "restricted"]);
+
 function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
     const oracleId = raw.oracle_id;
     if (typeof oracleId !== "string" || oracleId.length === 0) return null;
@@ -155,6 +176,7 @@ function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
         oracleId,
         layout: String(raw.layout ?? "normal"),
         legalIn: REPORTED_FORMATS.filter((f) => legalities[f] === "legal"),
+        poolIn: REPORTED_FORMATS.filter((f) => IN_POOL.has(legalities[f])),
     };
     const faces = raw.card_faces;
     if (Array.isArray(faces) && faces.length > 0) {

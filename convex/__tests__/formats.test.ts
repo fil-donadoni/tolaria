@@ -232,11 +232,14 @@ describe("Premodern validator — Scryfall legality (ADR 0036, issue #2695)", ()
             rarity: "common",
             isBasic: true,
         },
-        // Necropotence's canonical id — on PREMODERN_BANNED (the code seed).
-        // Also happens to be illegal-by-Scryfall today (Wizards' real
-        // Premodern banlist bans it too), so both "premodern-illegal" and
-        // "banned" fire together — the test only asserts the seed's own
-        // reason still surfaces, not that it fires in isolation.
+        // Necropotence's canonical id — on PREMODERN_BANNED (the code seed)
+        // AND `legalities.premodern === "banned"` on Scryfall (verified
+        // directly against the live API, 2026-08-25) — i.e. genuinely IN the
+        // Premodern pool, merely banned. `PREMODERN_LEGAL_NAMES` is built from
+        // POOL membership (legal ∪ banned ∪ restricted), not "legal" alone
+        // (issue #2695 review, finding 3), specifically so this case reports
+        // ONLY "banned" — never "premodern-illegal" too, which would make an
+        // admin un-ban (removing the DB/seed row) insufficient on its own.
         "necro-print": {
             cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
             name: "Necropotence",
@@ -279,6 +282,39 @@ describe("Premodern validator — Scryfall legality (ADR 0036, issue #2695)", ()
         const { isLegal, reasons } = validateDeck(deck, "premodern", pmResolve);
         expect(isLegal).toBe(false);
         expect(reasons.some((r) => r.code === "banned")).toBe(true);
+    });
+
+    it("a banned-but-in-pool card reports ONLY 'banned', never also 'premodern-illegal' (issue #2695 review, finding 3)", () => {
+        // Necropotence is a pool member (Scryfall lists it `banned`, not
+        // `not_legal`) — the pool-membership check must not ALSO reject it,
+        // or an admin un-banning it (clearing the banlist override) could
+        // never make it legal again without a corpus re-pin + code release.
+        const deck: ValidatableDeck = {
+            cards: [...repeat("necro-print", 1), ...repeat("island", 59)],
+        };
+        const { reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(reasons.some((r) => r.code === "banned")).toBe(true);
+        expect(reasons.some((r) => r.code === "premodern-illegal")).toBe(false);
+    });
+
+    it("un-banning via an injected banlist override makes the pool-member card legal again, with no re-pin needed", () => {
+        // Simulates PRD #1138/#1143's live banlist sync: an empty `banned`
+        // override (the un-ban) must be sufficient on its own — the pool-
+        // membership map must never independently re-enforce the ban.
+        const deck: ValidatableDeck = {
+            cards: [...repeat("necro-print", 1), ...repeat("island", 59)],
+        };
+        const { isLegal, reasons } = validateDeck(
+            deck,
+            "premodern",
+            pmResolve,
+            {
+                banned: new Set(),
+                restricted: new Set(),
+            }
+        );
+        expect(reasons).toEqual([]);
+        expect(isLegal).toBe(true);
     });
 
     it("enforces the 4-copy limit and has no restricted list", () => {
@@ -896,8 +932,9 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
 // an allowed-set printing from #980's fix), but the block now ALSO proves the
 // stronger claim #980's own fix could not: a card whose ONLY built printing
 // is in a non-Premodern-legal set (never patched with a reprint) validates
-// too — the "moot by construction" case. #980 is commented as superseded, not
-// closed (its own historical fix stays correct and harmless).
+// too — the "moot by construction" case. #980 was already CLOSED before this
+// change; it is commented as superseded (its own historical fix stays correct
+// and harmless), not reopened.
 describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue #2695, supersedes #980)", () => {
     const COUNTERSPELL_TMP = "dacdd380-71cf-4832-bd02-3697501325f3";
     const BOLT_4ED = "9521375e-0bc1-45ef-b513-6d332a25f9d2";
@@ -907,10 +944,18 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
     const COUNTERSPELL_DEF = "0df55e3f-14de-46ef-b6b1-616618724d9e";
     const BOLT_DEF = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
     const BALL_LIGHTNING_DEF = "c1ba83ab-83f5-421d-bba1-0f925870b5c8";
-    // Animate Dead's ONLY built printing (lea) — never received a #980-style
-    // reprint, so `lea` never entered PREMODERN_LEGAL_SETS for it. A real,
-    // well-known Premodern staple that #980's per-card fix never touched.
-    const ANIMATE_DEAD_LEA = "8fd7861d-925f-4b4c-a4ab-60be6f43d50b";
+    // City of Brass's ONLY built printing (arn) — verified against
+    // `data/card-index.json` and `convex/cards/sets/**` to have no second
+    // CardDefinition/reprint anywhere in the catalogue, so `resolveDeckCardMeta`
+    // can never resolve it to an allowed-set printing (unlike Animate Dead,
+    // which this block used to cite here but which ALSO has a built `4ed`
+    // print — `convex/cards/sets/4ed/black.ts` — so its printing-gap claim was
+    // false; `4ed` is in PREMODERN_LEGAL_SETS, making the old assertion pass
+    // for a reason unrelated to the class it claimed to prove — issue #2695
+    // review, finding 2). City of Brass genuinely has no allowed-set printing
+    // at all: a real, well-known Premodern utility land the OLD checkSets-based
+    // validator would have rejected outright.
+    const CITY_OF_BRASS_ARN = "f4e32327-380d-471e-813b-4c27477787ce";
 
     it("resolves each reprint printId to its canonical definition (unaffected by the legality change)", () => {
         const cs = resolveDeckCardMeta(COUNTERSPELL_TMP);
@@ -930,19 +975,24 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
         expect(PREMODERN_LEGAL_NAMES.has("counterspell")).toBe(true);
         expect(PREMODERN_LEGAL_NAMES.has("lightning bolt")).toBe(true);
         expect(PREMODERN_LEGAL_NAMES.has("ball lightning")).toBe(true);
-        expect(PREMODERN_LEGAL_NAMES.has("animate dead")).toBe(true);
+        expect(PREMODERN_LEGAL_NAMES.has("city of brass")).toBe(true);
     });
 
     it("MOOT BY CONSTRUCTION: a card whose only built printing sits outside the legal-set list still validates", () => {
-        // Animate Dead's only printing is `lea` — pre-4th-Edition, never in
-        // PREMODERN_LEGAL_SETS and never patched with a reprint. The OLD
+        // City of Brass's only built printing is `arn`, which is NOT in
+        // PREMODERN_LEGAL_SETS and never received a reprint into an allowed
+        // set (unlike this block's other three examples). The OLD
         // checkSets-based validator would have rejected this deck outright;
         // #2695's name-based legality does not care which set it was built
-        // in at all.
-        expect(resolveDeckCardMeta(ANIMATE_DEAD_LEA)?.setCode).toBe("lea");
+        // in at all. `setCode !== "arn"` here would mean this test stopped
+        // proving what it claims (e.g. if a future `4ed`/`ice` reprint of
+        // City of Brass were added) — assert it explicitly so that drift
+        // fails loudly instead of silently, exactly the shape of bug finding
+        // 2 caught in the Animate Dead version of this test.
+        expect(resolveDeckCardMeta(CITY_OF_BRASS_ARN)?.setCode).toBe("arn");
         const deck: ValidatableDeck = {
             cards: [
-                card(ANIMATE_DEAD_LEA, "Animate Dead"),
+                card(CITY_OF_BRASS_ARN, "City of Brass"),
                 ...Array.from({ length: 59 }, () => card(MOUNTAIN, "Mountain")),
             ],
         };

@@ -60,6 +60,62 @@ describe("matchesFormatSets — per-format set narrowing (issue #514)", () => {
         });
     });
 
+    describe("Premodern — name-based pool legality overrides the set gate (issue #2695 review, finding 1)", () => {
+        const legalNames = new Set(["city of brass", "lightning bolt"]);
+
+        it("shows a card whose ONLY printing sits outside PREMODERN_LEGAL_SETS, when its NAME is pool-legal", () => {
+            // City of Brass real-world shape: built only in `arn`, which is
+            // NOT in PREMODERN_LEGAL_SETS — the set gate alone would hide it
+            // even though the real validator (checkOracleLegality) accepts it.
+            expect(
+                matchesFormatSets(prints("arn"), [], allowed("premodern"), {
+                    name: "City of Brass",
+                    legalNames,
+                })
+            ).toBe(true);
+        });
+
+        it("is case-insensitive on the name (matches PREMODERN_LEGAL_NAMES' own folding)", () => {
+            expect(
+                matchesFormatSets(prints("arn"), [], allowed("premodern"), {
+                    name: "CITY OF BRASS",
+                    legalNames,
+                })
+            ).toBe(true);
+        });
+
+        it("hides a card whose name is absent from the legal set, even from an allowed-set printing", () => {
+            expect(
+                matchesFormatSets(prints("4ed"), [], allowed("premodern"), {
+                    name: "Not A Real Card",
+                    legalNames,
+                })
+            ).toBe(false);
+        });
+
+        it("always shows basic lands regardless of the name gate", () => {
+            expect(
+                matchesFormatSets(prints("xyz"), ["Basic", "Land"], null, {
+                    name: "Not A Real Card",
+                    legalNames,
+                })
+            ).toBe(true);
+        });
+
+        it("ignores allowedSets entirely once a name gate is supplied (no double-gating)", () => {
+            // Even an allowedSets value that WOULD reject every one of the
+            // card's printings must not matter once the name gate is active —
+            // the whole point is that Premodern search stops reading the set
+            // list at all.
+            expect(
+                matchesFormatSets(prints("unrelated-set"), [], [], {
+                    name: "City of Brass",
+                    legalNames,
+                })
+            ).toBe(true);
+        });
+    });
+
     describe("Old School — the allowed sets", () => {
         const sets = allowed("old-school");
 

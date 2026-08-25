@@ -31,13 +31,21 @@
  *
  * Also guards `data/oracle-legality.json` (issue #2695), the sibling artifact
  * `convex/formats.ts` consumes for Premodern deck legality. It has no
- * "compiler source" to hash (its only input is the corpus), so its tiers are
- * a subset: pin agreement offline, full regenerate-and-diff when the corpus
- * cache is present. A production-consumed artifact with no drift guard at all
- * would silently rot the moment the corpus is re-pinned without re-running
- * `oracle:legality` — sharing this file's `check:oracle` wiring (rather than
- * a second package.json script) keeps the gate surface from growing per
- * artifact.
+ * "compiler source" to hash (its only input is the corpus), so its tiers are:
+ * a self-contained CONTENT-HASH check offline (always — no corpus, no pin,
+ * just the committed file re-hashing its own `premodern[]` and comparing
+ * against its own committed `contentHash`), pin agreement offline (when
+ * `data/oracle-corpus.pin.json` is present), and full regenerate-and-diff
+ * when the corpus cache is present. The content-hash tier exists because pin
+ * agreement alone is content-blind: it proves the file CLAIMS to come from a
+ * given Scryfall snapshot, never that `premodern[]` itself still matches that
+ * claim — a hand-edit or a bad merge-conflict resolution touching only the
+ * array used to pass with exit 0 on a clean checkout (no corpus cache, the
+ * NORMAL state — issue #2695 review finding 4). A production-consumed
+ * artifact with no drift guard at all would silently rot the moment the
+ * corpus is re-pinned without re-running `oracle:legality` — sharing this
+ * file's `check:oracle` wiring (rather than a second package.json script)
+ * keeps the gate surface from growing per artifact.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -45,6 +53,7 @@ import { dirname, join } from "node:path";
 import { buildLockfile } from "./oracle-compile";
 import {
     buildLegalityFile,
+    legalityContentHash,
     serializeLegalityFile,
     type OracleLegalityFile,
 } from "./oracle-legality";
@@ -177,6 +186,21 @@ function checkLegality(): void {
         readFileSync(LEGALITY_PATH, "utf8")
     ) as OracleLegalityFile;
 
+    // Tier "content hash" — always, offline, no corpus/pin needed. Proves
+    // `premodern[]` matches its own committed `contentHash`; see the file
+    // header for why pin agreement alone cannot catch this.
+    const expectedContentHash = legalityContentHash(legality.premodern);
+    if (legality.contentHash !== expectedContentHash) {
+        fail(
+            "oracle legality",
+            `content-hash mismatch — data/oracle-legality.json's premodern[] array ` +
+                `does not match its own committed contentHash (hand-edited or corrupted)\n` +
+                `    committed: ${legality.contentHash}\n` +
+                `    computed:  ${expectedContentHash}`,
+            "bun run oracle:legality"
+        );
+    }
+
     // Tier "pin agreement" — offline.
     const pin = readPin();
     if (pin !== null && pin.sha256 !== legality.corpus.sha256) {
@@ -202,14 +226,14 @@ function checkLegality(): void {
             );
         }
         process.stdout.write(
-            `${GREEN}✓ oracle legality${RESET} ${DIM}(pin + full regenerate-and-diff, ` +
+            `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin + full regenerate-and-diff, ` +
                 `${legality.premodern.length} Premodern names)${RESET}\n`
         );
         return;
     }
 
     process.stdout.write(
-        `${GREEN}✓ oracle legality${RESET} ${DIM}(pin; corpus cache absent, ` +
+        `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin; corpus cache absent, ` +
             `run \`bun run oracle:corpus\` for the full regenerate-and-diff)${RESET}\n`
     );
 }

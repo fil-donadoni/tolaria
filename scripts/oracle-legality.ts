@@ -48,6 +48,23 @@
  * (unspecified, sort-order-dependent) row order instead of being a genuine
  * union.
  *
+ * ── Pool membership, not "legal" (issue #2695 review, finding 3) ──────────
+ *
+ * The `premodern` array gates on `CorpusCard.poolIn` (legal OR banned OR
+ * restricted), NOT `legalIn` (legal only). A card the DB banlist bans is
+ * still IN this set — banning is `checkBanned`'s job (`convex/formats.ts`,
+ * ADR 0057's DB sync), never this file's. Building the set from `legalIn`
+ * alone would conflate "outside the pool" with "banned": every
+ * `PREMODERN_BANLIST_SEED` name would then be absent from the map too, so
+ * `checkOracleLegality` would enforce those bans a SECOND time, independently
+ * of and on top of the injected/DB banlist — at which point an admin un-ban
+ * (removing a row from the DB/seed) could no longer make the card legal
+ * again without also re-pinning the corpus and shipping a code release,
+ * exactly the toil PRD #1138/#1143 closed. Keeping this map to pool
+ * membership only means a card's illegality reason is either
+ * "outside the pool" (`premodern-illegal`, this file) or "banned"
+ * (`checkBanned`, the banlist), never both at once for the same cause.
+ *
  * ── Determinism ─────────────────────────────────────────────────────────
  *
  * Names are deduped case-insensitively (matching the lookup's own folding)
@@ -63,6 +80,7 @@
  *   bun scripts/oracle-legality.ts --check    # regenerate into memory and diff
  */
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
@@ -75,7 +93,11 @@ import {
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 export const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 
-export const LEGALITY_GENERATOR = "oracle-legality@1";
+// @2: `premodern` now gates on pool membership (legal ∪ banned ∪ restricted),
+// not `legalIn` (legal only) — issue #2695 review finding 3 — and the file
+// carries a `contentHash` self-check (finding 4). Both are schema/semantics
+// changes over @1, hence the bump.
+export const LEGALITY_GENERATOR = "oracle-legality@2";
 
 /** The one format this ticket (#2695) consumes. Extending to the rest of
  *  `REPORTED_FORMATS` is straightforward (the corpus already carries every
@@ -87,10 +109,24 @@ export interface OracleLegalityFile {
      *  drift guard) tell whether the committed artifact still matches the
      *  committed corpus pin without needing the corpus cache itself. */
     readonly corpus: CorpusPin;
-    /** Card names (Scryfall `name`, original casing) Premodern-legal per
-     *  `legalities.premodern === "legal"` on at least one oracle id sharing
-     *  the name. Sorted, deduped case-insensitively. Consumed by
-     *  `checkOracleLegality` (`convex/formats.ts`), case-folded at lookup. */
+    /**
+     * sha256 of `JSON.stringify(premodern)` (see `legalityContentHash`). A
+     * self-contained integrity check independent of the corpus cache (issue
+     * #2695 review, finding 4): the `corpus` pin above proves the file
+     * CLAIMS to come from a given Scryfall snapshot, but never confirms
+     * `premodern[]` itself still matches that claim — a hand-edit (or a bad
+     * merge-conflict resolution) that touches only the array passes the pin
+     * check silently. This catches exactly that, on every checkout, corpus
+     * cache present or not.
+     */
+    readonly contentHash: string;
+    /** Card names (Scryfall `name`, original casing) that are Premodern POOL
+     *  MEMBERS — `legalities.premodern` is `legal`, `banned` or `restricted`
+     *  (never `not_legal`/absent) on at least one oracle id sharing the name.
+     *  Deliberately NOT "legal only" — see the file header's "Pool
+     *  membership, not legal" section. Sorted, deduped case-insensitively.
+     *  Consumed by `checkOracleLegality` (`convex/formats.ts`) for POOL
+     *  membership only; `checkBanned` remains the sole ban authority. */
     readonly premodern: readonly string[];
 }
 
@@ -99,14 +135,15 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 /**
  * Union-by-name (see file header). PURE — no I/O, so a fixture corpus (a
  * deliberately duplicated name, one legal one not) can prove the union
- * behaviour directly.
+ * behaviour directly. Gates on `poolIn`, not `legalIn` — see the file
+ * header's "Pool membership, not legal" section.
  */
 export function buildPremodernLegalNames(
     corpus: readonly CorpusCard[]
 ): string[] {
     const byKey = new Map<string, string>(); // lower(name) -> original-cased name
     for (const card of corpus) {
-        if (!card.legalIn.includes("premodern")) continue;
+        if (!card.poolIn.includes("premodern")) continue;
         const trimmed = card.name.trim();
         if (!trimmed) continue;
         const key = trimmed.toLowerCase();
@@ -115,14 +152,24 @@ export function buildPremodernLegalNames(
     return [...byKey.values()].sort(cmp);
 }
 
+/** sha256 hex digest of the exact JSON the `premodern` array serializes to.
+ *  Pure and order-sensitive by design — `premodern` is already a fixed,
+ *  sorted array, so two builds from the same logical set hash identically,
+ *  and a hand-edit (add/remove/reorder a name) changes the digest. */
+export function legalityContentHash(premodern: readonly string[]): string {
+    return createHash("sha256").update(JSON.stringify(premodern)).digest("hex");
+}
+
 export function buildLegalityFile(
     corpus: readonly CorpusCard[],
     pin: CorpusPin
 ): OracleLegalityFile {
+    const premodern = buildPremodernLegalNames(corpus);
     return {
         generator: LEGALITY_GENERATOR,
         corpus: pin,
-        premodern: buildPremodernLegalNames(corpus),
+        contentHash: legalityContentHash(premodern),
+        premodern,
     };
 }
 
@@ -133,6 +180,7 @@ export function serializeLegalityFile(file: OracleLegalityFile): string {
     const ordered: OracleLegalityFile = {
         generator: file.generator,
         corpus: file.corpus,
+        contentHash: file.contentHash,
         premodern: file.premodern,
     };
     return JSON.stringify(ordered, null, 4) + "\n";
