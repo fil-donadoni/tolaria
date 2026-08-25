@@ -25,8 +25,19 @@ import { goldOracleCard } from "../gold";
 import type { OracleCard } from "../types";
 import { oracleCard } from "./fixtures";
 
-/** A clause no v0 slot can read — verified as such below, not assumed. */
-const UNREADABLE_CLAUSE = "It can't be regenerated.";
+/**
+ * A clause no v0 slot can read — verified as such below, not assumed.
+ *
+ * It was `"It can't be regenerated."` until #2697, which taught the activated
+ * slot to read that sentence as a modifier of the destroy in front of it
+ * (CR 701.19c). Every destroy card then "survived" the perturbation, and the
+ * test went red — correctly: the clause had stopped being unreadable, so the
+ * perturbation had stopped perturbing. That is the maintenance contract of this
+ * file. A grammar change that makes this clause readable must replace it, and
+ * the replacement must fail the `is genuinely unreadable on its own` case
+ * below before it is trusted here.
+ */
+const UNREADABLE_CLAUSE = "Exile it at the beginning of the next end step.";
 
 function mutate(card: OracleCard, oracleText: string): OracleCard {
     return { ...card, oracleText };
@@ -129,6 +140,44 @@ describe("all-consuming invariant — targeted residue shapes", () => {
     });
 
     const cases: [string, OracleCard, string][] = [
+        // ── activated abilities (#2697) ────────────────────────────────────
+        // A trailing QUALIFIER inside a target filter: the difference between
+        // "target creature" and "target creature you don't control" is the
+        // whole card, and reading the prefix is the defect this file exists
+        // to catch.
+        [
+            "activated ability + unreadable target qualifier",
+            land,
+            "{T}: Tap target land you don't control.",
+        ],
+        [
+            "activated ability + a trailing sentence",
+            land,
+            "{T}: Tap target land. It doesn't untap during its controller's next untap step.",
+        ],
+        [
+            "activated ability + an unreadable duration",
+            creature,
+            "{1}: This creature gets +1/+1 for as long as you control an Island.",
+        ],
+        // A COST atom the engine has no field for. Dropping a cost atom makes
+        // an illegal activation legal, so it must fail the whole line.
+        [
+            "activated ability + unreadable cost atom",
+            creature,
+            "{T}, Reveal a Goblin card from your hand: Draw a card.",
+        ],
+        [
+            "activated ability + unreadable second cost atom",
+            creature,
+            "{T}, Return this creature to its owner's hand: Draw a card.",
+        ],
+        // A restriction sentence that is not one of the printed templatings.
+        [
+            "activated ability + unreadable restriction",
+            creature,
+            "{T}: Draw a card. Activate only if you control an Island.",
+        ],
         // A trailing FILTER on a keyword line — the competitor's largest bucket.
         [
             "keyword line + trailing prose",
@@ -174,5 +223,35 @@ describe("all-consuming invariant — targeted residue shapes", () => {
         expect(compileCard(mutate(land, "{T}: Add {G}.")).state).not.toBe(
             "unparsed"
         );
+        // #2697: without these the activated cases above would pass vacuously,
+        // on a slot that had simply stopped matching anything.
+        expect(
+            compileCard(mutate(land, "{T}: Tap target land.")).state
+        ).not.toBe("unparsed");
+        expect(
+            compileCard(
+                mutate(
+                    creature,
+                    "{1}: This creature gets +1/+1 until end of turn."
+                )
+            ).state
+        ).not.toBe("unparsed");
+        expect(
+            compileCard(mutate(creature, "{T}: Draw a card.")).state
+        ).not.toBe("unparsed");
+    });
+
+    it("a partially-read activated line lowers NO definition at all", () => {
+        // The card-level half of the invariant (`compile.ts`): one unreadable
+        // line fails the whole card, so the OTHER, perfectly readable ability
+        // never reaches a definition either.
+        const outcome = compileCard(
+            mutate(
+                land,
+                "{T}: Add {G}.\n{T}: Tap target land you don't control."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+        expect(Object.keys(outcome).sort()).toEqual(["gaps", "state"]);
     });
 });

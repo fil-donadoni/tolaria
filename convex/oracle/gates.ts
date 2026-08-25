@@ -35,7 +35,11 @@
  */
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
-import { planSmokeTest } from "../gre/effects/scenarioGenerator";
+import { registerTokenDefinition } from "../cards/registry";
+import {
+    FILLER_CARD_DEFINITION,
+    planSmokeTest,
+} from "../gre/effects/scenarioGenerator";
 import { validateEffectScript } from "../gre/effects/validate";
 import type { EffectOp } from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
@@ -119,6 +123,15 @@ export function runGates(input: GateInput): GateResult {
     //     throw does not fail one card, it aborts a 35,000-card run, and the
     //     visible symptom would be a lockfile that simply stops.
     if (errors.length === 0) {
+        // The generator only REFERENCES the filler card's id; every caller
+        // registers the definition itself (see `FILLER_CARD_DEFINITION`), and
+        // the catalogue sweeps do it at module load. Skipping it here made the
+        // planner throw `Card not found: gen-scenario-filler` for every script
+        // that needs a target, which the catch below then recorded as a
+        // quarantine reason — so a correctly compiled card was quarantined for
+        // a missing fixture rather than for anything about the card.
+        // `registerTokenDefinition` is idempotent (`cards/registry.ts`).
+        registerTokenDefinition(FILLER_CARD_DEFINITION);
         for (const script of collectScripts(definition)) {
             try {
                 const plan = planSmokeTest(script);

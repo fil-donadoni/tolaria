@@ -1,14 +1,13 @@
-// Grammar v0: keyword lines (CR 702.1), mana abilities (CR 605.1a), the slot
-// router's unique dispatch, and the fail-closed behaviour of every stub.
+// Grammar v0: keyword lines (CR 702.1), mana abilities (CR 605.1a), activated
+// abilities (CR 602.1a), the slot router's unique dispatch, and the fail-closed
+// behaviour of every remaining stub.
+//
+// Per-SUB-GRAMMAR range tests live in `subGrammars.test.ts` — this file tests
+// the SLOTS, which is where the router's exactly-one-hit rule is observable.
 
 import { describe, expect, it } from "vitest";
 import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { conditionRule } from "../grammar/shared/condition";
-import { durationRule } from "../grammar/shared/duration";
-import { playerRefRule } from "../grammar/shared/playerRef";
-import { quantityRule } from "../grammar/shared/quantity";
-import { targetFilterRule } from "../grammar/shared/targetFilter";
-import { zoneRefRule } from "../grammar/shared/zoneRef";
 import { activatedSlot } from "../grammar/slots/activated";
 import {
     keywordLineSlot,
@@ -121,7 +120,7 @@ describe("mana ability slot (CR 605.1a)", () => {
         const r = manaAbilitySlot.run("{T}: Add {G}.", land);
         expect(r.ok).toBe(true);
         if (r.ok && r.value.kind === "mana-ability") {
-            expect(r.value.cost).toEqual({ tap: true });
+            expect(r.value.cost).toEqual({ atoms: [{ kind: "tap" }] });
             expect(r.value.produces).toEqual({ kind: "fixed", mana: { G: 1 } });
         }
     });
@@ -138,7 +137,9 @@ describe("mana ability slot (CR 605.1a)", () => {
         const r = manaAbilitySlot.run("{2}, {T}: Add {W}.", land);
         expect(r.ok).toBe(true);
         if (r.ok && r.value.kind === "mana-ability") {
-            expect(r.value.cost).toEqual({ tap: true, mana: { X: 2 } });
+            expect(r.value.cost).toEqual({
+                atoms: [{ kind: "mana", mana: { X: 2 } }, { kind: "tap" }],
+            });
         }
     });
 
@@ -285,18 +286,179 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
     });
 });
 
+describe("activated ability slot (CR 602.1a)", () => {
+    const creature = parseContext();
+    const land = parseContext(
+        oracleCard({
+            typeLine: "Land",
+            manaCost: "",
+            power: undefined,
+            toughness: undefined,
+        })
+    );
+
+    function ir(line: string, ctx = creature) {
+        const r = activatedSlot.run(line, ctx);
+        if (!r.ok) throw new Error(`${line} -> ${r.reason}`);
+        if (r.value.kind !== "activated") throw new Error("wrong IR kind");
+        return r.value;
+    }
+
+    it("reads a tap cost and a targeted effect", () => {
+        const parsed = ir("{1}, {T}: Tap target land.", land);
+        expect(parsed.cost.atoms).toEqual([
+            { kind: "mana", mana: { X: 1 } },
+            { kind: "tap" },
+        ]);
+        expect(parsed.effects).toEqual([
+            {
+                kind: "tap-untap",
+                action: "tap",
+                subject: {
+                    kind: "target",
+                    requirement: { type: "Land", count: 1 },
+                },
+            },
+        ]);
+    });
+
+    it("reads a non-mana cost atom the mana slot also uses", () => {
+        const parsed = ir(
+            "{3}, {T}, Sacrifice a land: Destroy target nonbasic land.",
+            land
+        );
+        expect(parsed.cost.atoms.map((a) => a.kind)).toEqual([
+            "mana",
+            "tap",
+            "sacrifice-other",
+        ]);
+    });
+
+    it("keeps a trailing restriction sentence (CR 602.5d)", () => {
+        const parsed = ir(
+            "{T}: Draw a card. Activate only as a sorcery.",
+            creature
+        );
+        expect(parsed.effects).toHaveLength(1);
+        expect(parsed.restrictions).toEqual([{ kind: "sorcery-only" }]);
+    });
+
+    it('attaches "It can\'t be regenerated." to the destroy it follows', () => {
+        const parsed = ir(
+            "{T}: Destroy target creature. It can't be regenerated."
+        );
+        expect(parsed.effects).toEqual([
+            {
+                kind: "destroy",
+                cantBeRegenerated: true,
+                subject: {
+                    kind: "target",
+                    requirement: { type: "Creature", count: 1 },
+                },
+            },
+        ]);
+    });
+
+    it("refuses a modifier with no sentence in front of it", () => {
+        const r = activatedSlot.run("{T}: It can't be regenerated.", creature);
+        expect(r.ok).toBe(false);
+    });
+
+    it("refuses an effect sentence AFTER a restriction (CR 602.5)", () => {
+        const r = activatedSlot.run(
+            "{T}: Activate only as a sorcery. Draw a card.",
+            creature
+        );
+        expect(r.ok).toBe(false);
+    });
+
+    it("refuses a trailing clause it cannot read, rather than the prefix", () => {
+        expect(activatedSlot.run("{T}: Tap target land.", land).ok).toBe(true);
+        expect(
+            activatedSlot.run(
+                "{T}: Tap target land. It doesn't untap during its controller's next untap step.",
+                land
+            ).ok
+        ).toBe(false);
+        expect(
+            activatedSlot.run("{T}: Tap target land you don't control.", land)
+                .ok
+        ).toBe(false);
+    });
+
+    it("refuses a cost atom it cannot read, rather than the atoms it can", () => {
+        expect(
+            activatedSlot.run(
+                "{T}, Reveal a Goblin card from your hand: Draw a card.",
+                creature
+            ).ok
+        ).toBe(false);
+    });
+
+    it("refuses an activated ability on a non-permanent (CR 602.1a)", () => {
+        const sorcery = parseContext(
+            oracleCard({
+                typeLine: "Sorcery",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(activatedSlot.run("{T}: Draw a card.", sorcery).ok).toBe(false);
+    });
+});
+
+describe("the activated and mana-ability slots do not overlap (CR 605.1a)", () => {
+    const land = parseContext(
+        oracleCard({
+            typeLine: "Land",
+            manaCost: "",
+            power: undefined,
+            toughness: undefined,
+        })
+    );
+
+    // The router requires EXACTLY ONE slot per line, so a grammar that read
+    // "Add" at both slots would turn every mana ability in the corpus into an
+    // ambiguity. Both directions are asserted, because only asserting the
+    // router's verdict would still pass if BOTH slots stopped matching.
+    it("a mana line is consumed by the mana slot and refused by the activated one", () => {
+        expect(manaAbilitySlot.run("{T}: Add {G}.", land).ok).toBe(true);
+        expect(activatedSlot.run("{T}: Add {G}.", land).ok).toBe(false);
+        const routed = routeLine("{T}: Add {G}.", land);
+        expect(routed.ok).toBe(true);
+        if (routed.ok) expect(routed.value.slot).toBe("mana-ability");
+    });
+
+    it("a non-mana line is consumed by the activated slot and refused by the mana one", () => {
+        expect(activatedSlot.run("{1}, {T}: Tap target land.", land).ok).toBe(
+            true
+        );
+        expect(manaAbilitySlot.run("{1}, {T}: Tap target land.", land).ok).toBe(
+            false
+        );
+        const routed = routeLine("{1}, {T}: Tap target land.", land);
+        expect(routed.ok).toBe(true);
+        if (routed.ok) expect(routed.value.slot).toBe("activated");
+    });
+
+    it("a line that adds mana AND does something else is consumed by neither", () => {
+        const line = "{T}: Add {C}{C}. Draw a card.";
+        expect(manaAbilitySlot.run(line, land).ok).toBe(false);
+        expect(activatedSlot.run(line, land).ok).toBe(false);
+        expect(routeLine(line, land).ok).toBe(false);
+    });
+});
+
 describe("stubs fail closed", () => {
     const ctx = parseContext();
 
     it("every unimplemented SLOT fails on representative input", () => {
         const cases: [string, string][] = [
-            ["activated", "{2}, {T}: Draw a card."],
             ["triggered", "When this creature enters, draw a card."],
             ["static", "Creatures you control get +1/+1."],
             ["spell", "Destroy target creature."],
         ];
         const rules = {
-            activated: activatedSlot,
             triggered: triggeredSlot,
             static: staticSlot,
             spell: spellSlot,
@@ -304,31 +466,13 @@ describe("stubs fail closed", () => {
         for (const [name, line] of cases) {
             const r = rules[name as keyof typeof rules].run(line, ctx);
             expect(r.ok).toBe(false);
-            if (!r.ok) expect(r.reason).toMatch(/#(2697|2698|2699|2700)/);
+            if (!r.ok) expect(r.reason).toMatch(/#(2698|2699|2700)/);
         }
     });
 
-    it("every shared SUB-GRAMMAR fails on representative input", () => {
-        const cases: [ReturnType<typeof String>, string][] = [
-            ["targetFilter", "target creature an opponent controls"],
-            ["quantity", "for each Forest you control"],
-            ["duration", "until end of turn"],
-            ["condition", "if you control a creature"],
-            ["playerRef", "each opponent"],
-            ["zoneRef", "your graveyard"],
-        ];
-        const rules = {
-            targetFilter: targetFilterRule,
-            quantity: quantityRule,
-            duration: durationRule,
-            condition: conditionRule,
-            playerRef: playerRefRule,
-            zoneRef: zoneRefRule,
-        };
-        for (const [name, input] of cases) {
-            const r = rules[name as keyof typeof rules].run(input, ctx);
-            expect(r.ok).toBe(false);
-            if (!r.ok) expect(r.reason).toMatch(/#269[78]/);
-        }
+    it("the CONDITION sub-grammar still fails closed (#2698)", () => {
+        const r = conditionRule.run("if you control a creature", ctx);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.reason).toMatch(/#2698/);
     });
 });
