@@ -130,7 +130,7 @@ describe("Shallow Grave (CR 404.3 ordered graveyard, CR 400.7 reanimation, CR 70
         ]);
     });
 
-    it("is a clean no-op on an empty graveyard (CR 608.2b)", () => {
+    it("is a clean no-op on an empty graveyard (CR 608.2b) — no delayed-trigger residue either (issue #2490)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -140,5 +140,11 @@ describe("Shallow Grave (CR 404.3 ordered graveyard, CR 400.7 reanimation, CR 70
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(gyIds(state.players[0].graveyard, spell.id)).toEqual([]);
         expect(state.stack).toHaveLength(0);
+        // The bug: `moveZone` found nothing so `$revived` never bound, but
+        // the `delayedTrigger` Op used to schedule its "exile it" trigger
+        // unconditionally anyway — an inert entry in `delayedTriggers[]`
+        // that would fire at the next end step and exile nothing. A clean
+        // no-op leaves NO residue at all (issue #2490).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
     });
 });

@@ -335,5 +335,12 @@ describe("Emperor of Bones (CR 603.6a combat trigger, CR 701.46 adapt, CR 607 li
         expect(onStack?.triggeredAbilityId).toBe("emperor-of-bones-reanimate");
         expect(() => resolveTopOfStack(state)).not.toThrow();
         expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["emp4"]);
+        // `$reanimated` never bound (nothing was exiled with Emperor), so the
+        // `delayedTrigger` Op does not schedule a "sacrifice it" instance
+        // with nothing to act on (CR 608.2b, issue #2490) — before the fix
+        // it scheduled anyway, leaving inert `delayedTriggers[]` residue that
+        // would fire and sacrifice nothing at the next end step (the exact
+        // Shallow Grave bug, `mir/black.ts`, shares this script shape).
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
     });
 });

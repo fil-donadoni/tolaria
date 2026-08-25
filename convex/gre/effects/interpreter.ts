@@ -4802,6 +4802,9 @@ export const OP_EXECUTORS: {
     // `SpellContext.scheduleDelayedTrigger` (one execution path, ADR 0045).
     delayedTrigger(ctx, op) {
         const payload: Record<string, string | string[]> = {};
+        // Set when a SCALAR capture (ref/target, never a literal string or a
+        // list `select`) fails to resolve — see the guard below the loop.
+        let unresolvedScalarCapture = false;
         for (const [name, source] of Object.entries(op.capture ?? {})) {
             // Persisted payload keys must NOT start with '$': Convex reserves
             // that sigil for object field names and rejects the whole DB write
@@ -4815,6 +4818,11 @@ export const OP_EXECUTORS: {
             // `string[]` list binding. An empty list stays OUT of the payload
             // (like an unresolvable scalar) — the body's forEach then iterates
             // nothing (CR 608.2b), same as a captured-but-since-emptied list.
+            // NOT treated as "unresolved" below: the selector (e.g.
+            // `combatPartners`) ran against LIVE state and legitimately
+            // computed zero members (Venomous Breath vs. an unblocked
+            // target) — a real trigger whose body correctly does nothing,
+            // not a trigger whose referent was never created.
             if (typeof source === "object" && "select" in source) {
                 const list = resolveCaptureListSource(ctx, source.select);
                 if (list.length > 0) payload[key] = list;
@@ -4824,8 +4832,38 @@ export const OP_EXECUTORS: {
             // An unresolvable capture (target slot gone, binding never made)
             // stays OUT of the payload: the body binding is uncaptured and
             // Ops reading it skip at fire time (CR 608.2b).
-            if (value !== undefined) payload[key] = value;
+            if (value !== undefined) {
+                payload[key] = value;
+            } else {
+                // `resolveCaptureSource` only returns undefined for a
+                // ref/target source — a literal string always resolves, so
+                // reaching here means this was a bare `$x` (or `.controller`)
+                // binding that an EARLIER Op in this same script was
+                // supposed to `bind`, and didn't (Shallow Grave: `moveZone`
+                // found no creature in the graveyard, so `$revived` was
+                // never bound; issue #2490). Flag it — see the guard below.
+                unresolvedScalarCapture = true;
+            }
         }
+        // CR 603.7a / 608.2b — a delayed triggered ability whose only reason
+        // to exist is to act on an object THIS SAME SCRIPT was supposed to
+        // establish (via an earlier `bind`) must not be scheduled if that
+        // object was never established: every body Op reading the failed
+        // capture will find it uncaptured and skip, so the "trigger" would
+        // fire and do nothing, forever (issue #2490 — Shallow Grave cast
+        // into a creature-less graveyard still scheduled "exile it", which
+        // then always exiled nothing). This is the missing third member of
+        // the family below it (unresolved `targetPlayer`, unresolved
+        // `watch`): a capture is required context exactly like those two,
+        // and CR 603.7a's own example ("the creature in question leaves the
+        // battlefield before the spell... resolves. In this case, the
+        // delayed ability never triggers") is this same shape — the
+        // referent was never there for the ability to act on. Does NOT fire
+        // on a legitimately-empty LIST capture (handled above, before this
+        // point is reached) — that selector resolved fine, it just found
+        // nothing live, which is a meaningful outcome the scheduled body is
+        // correct to encode (Venomous Breath with an unblocked target).
+        if (unresolvedScalarCapture) return;
         const targetPlayerId =
             op.targetPlayer !== undefined
                 ? resolvePlayerRef(ctx, op.targetPlayer)

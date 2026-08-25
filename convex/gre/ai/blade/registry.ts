@@ -1035,6 +1035,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #1887 negative control for the activated-ability shape: with a 3/3 Golem token out the same activation adds a +1/+1 counter and trample — a real delta the probe must find, so the move survives enumeration and the search takes the free upside.",
     },
+    {
+        label: "dominance: does not cast Shallow Grave into a creature-less graveyard",
+        spec: {
+            cards: [{ name: "Shallow Grave", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1000 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Shallow Grave" }] },
+        note: "Issue #2490. `moveZone`'s positional scan finds no creature to return, so `$revived` never binds — the `grantAbility`/`delayedTrigger` Ops that read it skip in turn (CR 608.2b). Before the fix the `delayedTrigger` Op scheduled \"exile it\" regardless, leaving an INERT `delayedTriggers[]` entry (would fire at the next end step and exile nothing) as the only difference from `pass` — residue that defeated this exact dominance proof and let the bot spend the card, the mana and the turn for nothing. The wider budget/seed set (vs. the 200/5-seed Damnation shape) is load-bearing here, not decoration: at 200 iterations x 5 seeds the pre-fix bug happened not to surface (measured — all 5 landed on the `pass` side of the tie); at 1000 x 10 seeds the pre-fix code chose the futile cast on 7 of 10 (verified by hand, reverting the interpreter fix — see PR #2490's receipt).",
+    },
+    {
+        label: "dominance NEGATIVE CONTROL: still casts Shallow Grave onto a creature in the graveyard",
+        spec: {
+            // Griselbrand (also the GRE per-card test's reanimation target,
+            // `mir/black.test.ts`): a hasty 7/7 flier that can pay life to
+            // draw 7 cards with NO combat required, so the payoff is visible
+            // to `evaluate` immediately — not contingent on rollout depth
+            // reaching an actual attack step before the end-of-turn exile.
+            cards: [
+                { name: "Shallow Grave", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) => pruningKeepsACast(state),
+            describe: "the dominance pruner leaves a castable Shallow Grave",
+        },
+        note: "Issue #2490 negative control, pair (b): reanimating Griselbrand is a genuine board-state delta (independent of the delayedTriggers fix), so the cast survives dominance pruning. Asserted on the surviving legal set rather than the chosen move because Shallow Grave is an INSTANT (ADR 0021 hold-the-trick) — the same reasoning as the Edict negative control above; at this budget the search is not required to prefer proactively reanimating over holding the instant.",
+    },
+    {
+        label: "dominance NEGATIVE CONTROL: a delayed-trigger card whose residue is NOT inert still casts (Battle Cry)",
+        spec: {
+            cards: [{ name: "Battle Cry", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) => pruningKeepsACast(state),
+            describe: "the dominance pruner leaves a castable Battle Cry",
+        },
+        note: 'Issue #2490 negative control against the OTHER wrong fix considered and rejected for this issue: blanket-adding `delayedTriggers` to `IGNORED_STATE_KEYS` in dominance.ts. With no white creature on the caster\'s battlefield, "untap all white creatures you control" iterates an empty set — the ENTIRE delta from `pass` is the scheduled "this-turn-creature-blocks" repeating delayed trigger itself (no `capture`, so the #2490 fix cannot touch it either): a real, armed effect, not residue. Blanket-ignoring the field would make this indistinguishable from `pass` and wrongly prune it — verified by hand: injecting that exact change into `IGNORED_STATE_KEYS` made the dominance unit test (`dominance.bot.test.ts`) fail on exactly this shape. Asserted on the surviving legal set rather than the chosen move because Battle Cry is an INSTANT: holding it for a real combat is legitimate play (ADR 0021 hold-the-trick), same reasoning as the Edict negative control above.',
+    },
 
     // ── Cast-variant ranking (issue #1888) ────────────────────────────────
     // `enumerateCastMoves` emits one move per (mode × X × target-tuple), so

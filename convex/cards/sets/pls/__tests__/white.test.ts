@@ -1408,15 +1408,14 @@ describe("Surprise Deployment (combat-only instant; put a nonwhite creature from
         expect(state.players[0].hand.map((c) => c.id)).toContain(
             "declined-bear"
         );
-        // The delayed trigger is still SCHEDULED (the script has no branch
-        // construct to skip it), but its capture never bound anything (no
-        // creature entered) — firing it at the next end step is a no-op
-        // rather than an error (CR 608.2b — the effect does as much as it
-        // can), exactly the "if you do" idiom Spinal Embrace already relies
-        // on (`inv/multicolor.ts`).
-        expect(state.delayedTriggers).toHaveLength(1);
+        // `$deployed` never bound (no creature entered), so the
+        // `delayedTrigger` Op does not schedule an instance with nothing to
+        // act on (CR 608.2b, issue #2490) — before the fix it scheduled
+        // anyway, leaving inert `delayedTriggers[]` residue that would fire
+        // and return nothing at the next end step.
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
         fireDelayedTriggers(state, "next-end-step");
-        resolveTopOfStack(state);
+        if (state.stack.length > 0) resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain(
             "declined-bear"
         );
