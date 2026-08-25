@@ -151,6 +151,156 @@ function resolveCardId(raw: unknown, ctx?: ExpandCtx): string {
     return spec !== undefined ? spec : pooled;
 }
 
+/** Optional `CardInstanceState` keys that round-trip through `compactCard` /
+ *  `expandCard` — the card-level counterpart to `PERSISTED_OPTIONAL_KEYS`
+ *  below, mechanically derived (not hand-transcribed) by cross-referencing
+ *  every optional key of `CardInstanceState` (`convex/gre/state.ts`) against
+ *  the `card.<field>` reads in `compactCard` and the `result.<field>` /
+ *  `item.<field>` writes in `expandCard` — all 109 are currently handled in
+ *  both directions (issue #2255; `indefiniteSubtypeSet` was the sole gap).
+ *  Purely a classification list for the compile-time guard below — unlike
+ *  `PERSISTED_OPTIONAL_KEYS`, `compactCard`/`expandCard` do NOT loop over
+ *  this array (each card field needs its own default/shape check), so
+ *  adding a name here documents intent but does not itself wire the field —
+ *  pair every addition with the actual `compactCard`/`expandCard` branch and
+ *  a round-trip test, exactly like the fix in this issue. */
+export const CARD_PERSISTED_OPTIONAL_KEYS = [
+    "abilitiesSuppressedBy",
+    "activationsThisTurn",
+    "animation",
+    "attachedTo",
+    "attackedDuringLastTurn",
+    "bestowed",
+    "canAttackDespiteDefenderThisTurn",
+    "canBlockAdditional",
+    "cantAttackThisTurn",
+    "cantBeBlockedBySubtypesThisTurn",
+    "cantBeBlockedThisTurn",
+    "cantBeRegeneratedThisTurn",
+    "cantBlockThisTurn",
+    "castFromExileWithoutPayingManaCost",
+    "castFromGraveyardExilesOnResolve",
+    "castFromGraveyardWithoutPayingManaCost",
+    "castOffSorceryTiming",
+    "castableFromExileBy",
+    "castableFromExileIncludesLand",
+    "castableFromExileUntilTurn",
+    "castableFromGraveyardBy",
+    "castableFromGraveyardUntilTurn",
+    "chosenMana",
+    "chosenModeId",
+    "chosenName",
+    "chosenPlayerId",
+    "chosenSubtypes",
+    "chosenXOnCast",
+    "colorOverride",
+    "controlChanges",
+    "copiedFrom",
+    "counters",
+    "countersAtLeave",
+    "createdBy",
+    "damageLockThisTurn",
+    "damageMarked",
+    "damagedBySources",
+    "dashed",
+    "dealtDamageToOpponentThisTurn",
+    "dealtDeathtouchDamage",
+    "echoPending",
+    "enteredOnTurn",
+    "escaped",
+    "evoked",
+    "exileOnDeath",
+    "exileOnLeave",
+    "exiledBySourceId",
+    "faceDown",
+    "faceDownOf",
+    "grantedActivatedAbilities",
+    "grantedColors",
+    "grantedEnchantRestriction",
+    "grantedFlashback",
+    "grantedStaticAbilities",
+    "grantedSubtypes",
+    "grantedSubtypesAdd",
+    "grantedSupertypes",
+    "grantedTriggeredAbilities",
+    "grantedTypes",
+    "hasAttackedThisTurn",
+    "hasBlockedThisTurn",
+    "imagePrintId",
+    "indefiniteSubtypeSet",
+    "isAttacking",
+    "isBlocking",
+    "isSummoningSick",
+    "isToken",
+    "kickerPayments",
+    "knownTo",
+    "lifePaidThisTap",
+    "linkedTokenId",
+    "loyaltyActivatedThisTurn",
+    "madnessExiled",
+    "madnessTriggerPending",
+    "manaCommitted",
+    "manaCostOverride",
+    "manaCounterRemoval",
+    "manaPaidThisTap",
+    "mustAttackThisTurn",
+    "mustBlockAllThisTurn",
+    "notedMana",
+    "notedManaSpentOnCast",
+    "pileLabel",
+    "power",
+    "printedSubtypes",
+    "reboundExiled",
+    "regenerationShields",
+    "removedKeywords",
+    "removedSupertypes",
+    "skipNextUntap",
+    "sourceTappedPTMods",
+    "startedTurnUntapped",
+    "staticSeq",
+    "suppressedTypes",
+    "tapBonusMana",
+    "tapTriggerCommitted",
+    "temporaryColorOverride",
+    "temporaryPTMods",
+    "temporaryPTSet",
+    "temporaryRemovedKeywords",
+    "temporarySubtypeChange",
+    "textChanges",
+    "toughness",
+    "transformed",
+    "transformedFrom",
+    "triggersThisTurn",
+    "untapLockedBy",
+    "wasKicked",
+    "worldSeq",
+] as const;
+
+/** Optional `CardInstanceState` keys deliberately NOT persisted through
+ *  `compactCard`/`expandCard` — empty today (every optional card field
+ *  round-trips). A future entry needs a one-line reason on its own line,
+ *  mirroring `TRANSIENT_KEYS` below. Kept as a literal tuple (`as const`),
+ *  not `string[]` — a widened element type would make the exhaustiveness
+ *  check below vacuously pass for every field. */
+export const CARD_TRANSIENT_KEYS = [] as const;
+
+// Compile-time card-level drift guard (issue #2255) — NOT a runtime check.
+// tsc computes every optional key of CardInstanceState, subtracts
+// CARD_PERSISTED_OPTIONAL_KEYS and CARD_TRANSIENT_KEYS, and the assignment
+// below type-checks only when nothing is left over. A newly added optional
+// CardInstanceState field that is classified in neither list fails
+// `tsc -b` (part of `bun run check:all`), naming the field in the reported
+// type: `["unlisted CardInstanceState keys:", "someNewField"]`. The mapped
+// type is repeated inline (not hoisted to a named alias) on purpose — tsc
+// only expands an anonymous mapped-type union in an error message, not one
+// reached through a type alias, generic or not (verified by hand while
+// building this guard).
+// prettier-ignore
+const _cardKeysExhaustive: Exclude<{ [K in keyof CardInstanceState]-?: object extends Pick<CardInstanceState, K> ? K : never }[keyof CardInstanceState], (typeof CARD_PERSISTED_OPTIONAL_KEYS)[number] | (typeof CARD_TRANSIENT_KEYS)[number]> extends never
+    ? true
+    : ["unlisted CardInstanceState keys:", Exclude<{ [K in keyof CardInstanceState]-?: object extends Pick<CardInstanceState, K> ? K : never }[keyof CardInstanceState], (typeof CARD_PERSISTED_OPTIONAL_KEYS)[number] | (typeof CARD_TRANSIENT_KEYS)[number]>] = true;
+void _cardKeysExhaustive;
+
 function compactCard(
     card: CardInstanceState,
     opts: { ownerId: string },
@@ -247,6 +397,14 @@ function compactCard(
     }
     if (card.temporarySubtypeChange) {
         out.temporarySubtypeChange = card.temporarySubtypeChange;
+    }
+    // CR 400.7 / 611.2a (issue #1746) — indefinite subtype-set restore anchor.
+    // No duration ticks this out; its only end is the permanent leaving the
+    // battlefield (`resetBattlefieldTransientState`). Must round-trip or a
+    // save/load boundary loses the anchor while the mutated `subtypes` array
+    // (which IS persisted) survives — the permanent never reverts (#2255).
+    if (card.indefiniteSubtypeSet) {
+        out.indefiniteSubtypeSet = card.indefiniteSubtypeSet;
     }
     if (card.temporaryColorOverride) {
         out.temporaryColorOverride = card.temporaryColorOverride;
@@ -663,6 +821,10 @@ function expandCard(
     if (compact.temporarySubtypeChange) {
         result.temporarySubtypeChange =
             compact.temporarySubtypeChange as CardInstanceState["temporarySubtypeChange"];
+    }
+    if (compact.indefiniteSubtypeSet) {
+        result.indefiniteSubtypeSet =
+            compact.indefiniteSubtypeSet as CardInstanceState["indefiniteSubtypeSet"];
     }
     if (compact.temporaryColorOverride) {
         result.temporaryColorOverride =

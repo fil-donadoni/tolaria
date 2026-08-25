@@ -787,7 +787,7 @@ export type CardInstanceState = {
         restoreSubtypes: string[];
         duration: Duration;
     };
-    /** CR 400.7 / 611.2b (issue #1746) — provenance for an INDEFINITE subtype
+    /** CR 400.7 / 611.2a (issue #1746) — provenance for an INDEFINITE subtype
      *  REPLACEMENT (`SpellContext.setSubtypes` — Figure of Destiny's "becomes a
      *  Kithkin Spirit", Living Lands). The replacement mutates `subtypes` in
      *  place and has no duration to tick it out, so this records the line to
@@ -11192,7 +11192,7 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // permanent that has re-entered the battlefield as a new object.
     delete card.countersAtLeave;
     delete card.temporaryPTMods;
-    // CR 400.7 / 611.2b (issue #1746) — a layer-7b base-P/T SET and a subtype
+    // CR 400.7 / 611.2a (issue #1746) — a layer-7b base-P/T SET and a subtype
     // REPLACEMENT both survive a phase boundary when they are indefinite (and
     // the timed forms outlive a zone change too, which is equally wrong), so
     // they must be undone here or a bounced Figure of Destiny comes back an 8/8
