@@ -278,9 +278,13 @@ describe("landscape-compact nameplate never clips the life total (round-3 review
     // the clipped end) + dropping the name span in landscape-compact, where
     // it already renders unreadable (~8px after `truncate`) the moment a
     // badge is live. Portrait's box is unconstrained, so it keeps the name.
+    // Matches BOTH compact variants: portrait keeps `flex-nowrap` (its band
+    // height is reserved for exactly one row), landscape-compact switched to
+    // `flex-wrap` in issue #1969 (see the wrap test below), so the selector
+    // must not name either.
     function findCompactRow(container: HTMLElement) {
         return container.querySelector<HTMLElement>(
-            ".flex.flex-nowrap.items-center"
+            ".flex.items-center.justify-start"
         )!;
     }
 
@@ -295,6 +299,69 @@ describe("landscape-compact nameplate never clips the life total (round-3 review
         const row = findCompactRow(container);
         expect(row.className).toContain("justify-start");
         expect(row.className).not.toContain("justify-center");
+    });
+
+    // MEASURED, issue #1969 review round 1 finding 4. With all three badges
+    // live (poison + energy + experience) the one-row landscape-compact form
+    // overflowed its 48px box by 86px at 844x390: hand-driven CDP reported the
+    // poison badge at visibleFrac 0.553 and BOTH the energy and experience
+    // badges at visibleFrac 0 — rendered, hit-testing to nothing, invisible.
+    // Nothing in the repo could see it: `scripts/ui-gate/budgets.json` lists
+    // `game-board` as `unwalked`, and happy-dom (this very file) has no layout
+    // engine. So this test pins the CLASS CONTRACT the fix rests on, which is
+    // the part happy-dom CAN see; the pixel proof lives in the PR body.
+    //
+    // The two variants must differ here and the assertion says so in both
+    // directions: landscape's box is width-capped
+    // (`calc(var(--landscape-side-gutter)-1rem)`) but has no reserved height —
+    // it is absolutely positioned inside the 4rem rail every band is already
+    // inset by, so wrapping grows into rail space no card can occupy.
+    // Portrait is the mirror: unconstrained width, and a height budget
+    // (`PORTRAIT_NAMEPLATE_BAND_H`) that a second row would blow.
+    it("landscape-compact WRAPS the row so a third badge cannot be clipped away; portrait still does not", () => {
+        viewportHolder.mode = "landscape-compact";
+        portrait = false;
+        const landscape = renderSpatial(
+            makePlayer("p2", {
+                life: 20,
+                poisonCounters: 9,
+                energyCounters: 12,
+                experienceCounters: 13,
+            }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const landscapeRow = findCompactRow(landscape.container);
+        expect(landscapeRow.className).toContain("flex-wrap");
+        expect(landscapeRow.className).not.toContain("flex-nowrap");
+        // All three badges are still IN the row — wrapping moves them, it
+        // never drops one.
+        for (const label of [
+            "9 poison counters",
+            "12 energy counters",
+            "13 experience counters",
+        ]) {
+            expect(
+                landscapeRow.querySelector(`[aria-label="${label}"]`)
+            ).not.toBeNull();
+        }
+        landscape.unmount();
+
+        viewportHolder.mode = "desktop";
+        portrait = true;
+        const { container } = renderSpatial(
+            makePlayer("p2", {
+                life: 20,
+                poisonCounters: 9,
+                energyCounters: 12,
+                experienceCounters: 13,
+            }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const portraitRow = findCompactRow(container);
+        expect(portraitRow.className).toContain("flex-nowrap");
+        expect(portraitRow.className).not.toContain("flex-wrap");
     });
 
     it("landscape-compact: drops the name span entirely — no room for it once a badge is live", () => {

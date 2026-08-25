@@ -236,11 +236,6 @@ export type CardType =
     | "Battle"
     | "Kindred";
 
-/** Permanent types that can be dealt damage (CR 120.3) and the set of
- *  permanent types matched by a `"any target"` spell (CR 115.4). Lives here in
- *  the leaf `types` module (no runtime imports) so card sets can reference it
- *  without forming a registry import cycle (`cards/index → set → constants →
- *  cards/index`). Re-exported from `gre/constants` for back-compat. */
 /** The counter kinds that sit on a PLAYER rather than on an object (CR 122.1
  *  — "A counter is a marker placed on an object or player"). Each is a
  *  DEDICATED scalar on `PlayerState` (ADR 0032 — never an entry in a generic
@@ -269,6 +264,11 @@ export const PLAYER_COUNTER_KINDS = ["poison", "energy", "experience"] as const;
 /** One of {@link PLAYER_COUNTER_KINDS}. */
 export type PlayerCounterKind = (typeof PLAYER_COUNTER_KINDS)[number];
 
+/** Permanent types that can be dealt damage (CR 120.3) and the set of
+ *  permanent types matched by a `"any target"` spell (CR 115.4). Lives here in
+ *  the leaf `types` module (no runtime imports) so card sets can reference it
+ *  without forming a registry import cycle (`cards/index → set → constants →
+ *  cards/index`). Re-exported from `gre/constants` for back-compat. */
 export const DAMAGEABLE_PERMANENT_TYPES = [
     "Creature",
     "Planeswalker",
@@ -2909,7 +2909,7 @@ export interface SpellContext {
     /** CR 122.1 — "A counter is a marker placed on an object or player": adds
      *  `n` counters of `kind` to a player. THE player-counter write primitive;
      *  every kind (`poison`/`energy`/`experience`) mutates its own dedicated
-     *  `PlayerState` scalar via `PLAYER_COUNTER_FIELD` (`gre/constants.ts`),
+     *  `PlayerState` scalar via `PLAYER_COUNTER_FIELD` (`gre/playerCounters.ts`),
      *  never an object counter map (ADR 0032). No cap on any kind; poison's
      *  "ten or more loses the game" (CR 704.5c) is an SBA (`checkGameOverSBA`),
      *  not a clamp here. `n <= 0` is a no-op (CR 122 — putting ≤0 counters does
