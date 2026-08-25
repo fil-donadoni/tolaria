@@ -296,7 +296,7 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
     });
 });
 
-describe("Urza's Rage kicked (CR 615.12 reaching CR 702.16e)", () => {
+describe("Urza's Rage — unpreventable damage vs protection (CR 702.16e)", () => {
     it("kicked damage is dealt through protection from red", () => {
         const bear = makeInstance(crawWurm.id, {
             id: "bear",
