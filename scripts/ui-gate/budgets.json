@@ -708,17 +708,17 @@
             "viewports": {
                 "1440x900x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "small": 11,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap inside the split's pool column (`DeckColumnPile`, ADR 0101 §7): two copies in one Mana-Value Column are drawn stacked, so the lower one's centre hit-tests to the one on top — by design, `cardsStranded 0`, every copy is one hover or one drag away. Measured 0 this run (no pile happened to land at this exact viewport for this pool); the ceiling is kept at 1 rather than tightened, matching the load-timing-artifact caution already applied elsewhere on this row. `ctrlsOcc 4` is the Peek Panel rail over controls outside its reserve — `Table`, `Pool`, `More` and the floating `Report a bug` button (`LimitedDraftTable` reserves the rail's 224px on its own surface via `peekPanelReserve`, but those four are not inside it; `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`). SEAT STATE PINNED (issue #2677): the walk now clicks the top pack tile before every measurement (`pinDraftSelection`, `surfaces.ts`), so a Selected Card and its Peek Panel are ALWAYS mounted here — this is no longer an uncontrolled inherited state. `small11` (up from a `small7` ceiling recorded before Peek Panel's CTA row and the pool's Group/Order controls were counted): browser-verified breakdown at this viewport is `Table`/`Pool`/`More` (32px toolbar), the Booster-size slider, `Pool grouping`/`Pool ordering` comboboxes (24px, only rendered once the pool is non-empty), the Peek Panel's `Close`/`Pick`/`→ Side`/`Inspect` row (32px) and `Report a bug` — all the deliberate 32px/24px `--control-h-fine` branch (`src/index.css:942,946-948`), not touch debt; WCAG 2.5.8 does not bind a mouse pointer. Do NOT lower this ceiling by shrinking desktop controls; #2659 does not touch this row."
+                    "knownDebt": "Stacked arrangement (issue #2820 restores it — the split this row's prose used to describe is gone): the Booster grid full width on top, the Pool underneath with its Sideboard rail beside it. `cardsOcc 2` / `ctrlsOcc 6` (up from 1/4): the MTGO PILE overlap (`DeckColumnPile`, ADR 0101 §7) is the SAME pre-existing mechanism the split-era row carried — not new, and not a property of stacked vs split, since a pile stacks vertically within one Mana-Value column regardless of the pane's width. It reads higher here only because this seat's pool currently has THREE copies in one MV column instead of two (two overlap pairs, not one), and because the pool's draggable tiles are BOTH `img[data-card-id]` and `role=button`, so each covered tile is counted once in `cardsOcc` and once in `ctrlsOcc` — browser-verified with `elementFromPoint` on the actual DOM (each occluded tile's centre resolves to the `<img>` of the copy stacked on top of it), `cardsStranded 0`, every copy still one hover or one drag away. The OTHER four occluders are unchanged from the split-era reading: `Table`, `Pool`, `More` and `Report a bug` sit under the Peek Panel's fixed 224px rail, outside its own reserve (`peekPanelReserve`) — `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`. SEAT STATE PINNED (issue #2677): the walk clicks the top pack tile before every measurement, so a Selected Card and its Peek Panel are ALWAYS mounted here. This deployment's draft events are NOT pinned to a seeded fixture (issue #2822) — a re-record during this issue's own verification briefly landed on a 24+ card pool and measured `cardsOcc 18`/`ctrlsOcc 22` from the SAME mechanism at a much deeper pile depth; that reading was refused as non-representative (a seat, not the component) and this row keeps the shallow-pool ceiling every other row in this file is still computed against, re-verified by hand against a live dev server at a pinned pick (`Pick #7`, pool 6). `small11` unchanged from the split-era row — see that note for the itemised 32px/24px `--control-h-fine` breakdown; do NOT lower it by shrinking desktop controls, #2659 does not touch this row."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
@@ -750,31 +750,31 @@
                 },
                 "820x1180x2": {
                     "cardsZero": 1,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 5,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 1,
                     "small": 4,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsZero 1` is the Peek Panel's own thumbnail `<img>` before its Scryfall art loads (cold-cache load-timing artifact, not a layout fact); `cardsOcc 1` is the same MTGO PILE overlap documented on this surface's other split viewports. Both measured 0 this run and are kept at their prior ceiling of 1 rather than tightened. SEAT STATE PINNED (issue #2677): the walk clicks the top pack tile before every measurement (`pinDraftSelection`, `surfaces.ts`), so a Selected Card and its Peek Panel are ALWAYS mounted here. `ctrlsOcc 5` (up from 4): browser-verified breakdown is the SAME 4-item Peek Panel rail gap already documented on this row (`Table`/`Pool`/`More`/`Report a bug`, none inside `peekPanelReserve`) PLUS ONE new, unrelated occlusion — the Sideboard zone's own `View ▾` toolbar control self-occluded by its wrapped `Sideboard 0` header (`CompactChromeDisclosure`, `src/components/deckbuilder/deck-zone-surface.tsx:587`), a tablet-portrait-only fold gap that landed with #2755/#2671 (`useIsTabletPortrait`) after this row's ceiling was last recorded — discovered incidentally while re-recording for this issue, not caused by the seat-state fix. `starved 1` is the Booster grid's own scroller inside the split's pack column (ADR 0101 §6), unchanged and by design. `small4` is REAL sub-44px tap-target debt (`pointer: coarse`), unchanged; #2659 owns lowering it."
+                    "knownDebt": "Stacked arrangement (issue #2820), same mechanism as this surface's 1440x900x2 row: `cardsOcc 2` / `ctrlsOcc 6` (up from 1/5) is the SAME MTGO pile overlap (`DeckColumnPile`, ADR 0101 §7), a property of this seat's pool contents (three copies stacked in one MV column) rather than of stacked vs split — see that row's note for the full mechanism and the pinned-seat caveat (issue #2822). `cardsZero 1` is still the Peek Panel's own thumbnail before its Scryfall art loads (cold-cache load-timing artifact). The split-era `View ▾` self-occlusion this row used to carry (`deck-zone-surface.tsx:587`, `useIsTabletPortrait`/#2755) did NOT reproduce in this re-recording — state-dependent, unrelated to this issue, left for whoever next measures it. `starved 1` is the Booster grid's own scroller, unchanged and by design. `small4` is REAL sub-44px tap-target debt (`pointer: coarse`), unchanged; #2659 owns lowering it."
                 },
                 "1180x820x2": {
                     "cardsZero": 1,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "small": 4,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap inside the split's pool column (`DeckColumnPile`, ADR 0101 §7): two copies in one Mana-Value Column are drawn stacked, so the lower one's centre hit-tests to the one on top. It appeared the moment this seat's Pool stopped being empty — nothing in issue #2588 touches this arm, which renders the tablet/desktop SPLIT — and it is by design: `cardsStranded 0`, every copy is one hover or one drag away. `cardsZero 1` is the Peek Panel's own thumbnail `<img>`, which measures 0x0 until its Scryfall art loads; the lane runs with no warm image cache, so every card tile on this surface renders its loading placeholder (see the screenshot). It is not a collapsed pack tile: `cards n16` = 15 pack tiles + that thumbnail, and `cardsStranded 0` at every viewport. `ctrlsOcc 4` is the Peek Panel rail over controls that sit OUTSIDE the reserve. `LimitedDraftTable` reserves the rail's 224px on its own surface (`peekPanelReserve`), but the floating bug-report button and the zoom slider's end caps are not inside it — the shape already drafted in `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`, unchanged by issue #2587 or #2588 (the panel and its reserve moved route, then stopped mounting on a PHONE; this is a tablet). Recorded with a live pack AND a Selected Card, which is the only state that mounts the panel at all. `small4` at this touch viewport (`pointer: coarse` -> the 44px `--control-h-coarse` branch, `src/index.css:942,946-948`) is REAL sub-44px tap-target debt, not a measurement artifact. Recorded as a ceiling (issue #2658) so it cannot deepen; #2659 owns lowering it as the surface's controls are fixed."
+                    "knownDebt": "Stacked arrangement (issue #2820), same mechanism as this surface's 1440x900x2 row: `cardsOcc 2` / `ctrlsOcc 6` (up from 1/4) is the SAME MTGO pile overlap (`DeckColumnPile`, ADR 0101 §7) at this seat's current pool contents, not a stacked-vs-split property — full mechanism on that row. This exact viewport is where issue #2822's seat instability showed up hardest while re-recording this row: the unpinned walk (\"first of the account's first three events offering a live pack\") landed on a 24+, then a 30+-card pool moments apart and measured `cardsOcc 18`/`ctrlsOcc 22` — the same mechanism, just many more piles. That reading was refused; this ceiling is the shallow-pool one, re-verified by hand against a live dev server (`Pick #7`, pool 6), matching this surface's other two non-phone viewports. `small4` is REAL sub-44px tap-target debt (`pointer: coarse`), unchanged; #2659 owns lowering it."
                 }
             }
         },
@@ -784,17 +784,17 @@
             "viewports": {
                 "1440x900x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "small": 11,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 §7) — measured 0 this run, ceiling kept at 1 (load-timing artifact caution, same as `draft-pick`'s row). SEAT STATE PINNED (issue #2677): the walk now clicks the top pack tile before every measurement (`pinDraftSelection`, `surfaces.ts`), so this surface is measured in the SAME Selected-Card state as `draft-pick`, not the 'no Selected Card' state this row previously assumed — see that row's note for the itemised cause of `ctrlsOcc 4` and `small 11` (the Peek Panel rail plus its CTA row and the pool's Group/Order controls); at this viewport the split layout means `draft-pool-stop` and `draft-pick` render the identical DOM (only the pool's scroll offset differs), so the two rows measure byte-identical here by construction, not coincidence."
+                    "knownDebt": "Stacked arrangement (issue #2820): `cardsOcc 2` / `ctrlsOcc 6` is the SAME MTGO pile overlap mechanism as `draft-pick`'s own 1440x900x2 row — see that row for the full breakdown and the pinned-seat caveat (issue #2822). SEAT STATE PINNED (issue #2677): the walk clicks the top pack tile before every measurement, so this surface is measured in the SAME Selected-Card state as `draft-pick`. `reachDraftPoolStop` scrolls the stacked arrangement's Pool band (`[data-slot=draft-stacked-pool]`) to its end off a phone; at this viewport that band's content already fits without scrolling (a 6-card pool), so the scroll is a no-op and `draft-pool-stop` renders the identical DOM to `draft-pick` here — the two rows measure byte-identical by construction, not coincidence."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
@@ -826,31 +826,31 @@
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 5,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 1,
                     "small": 4,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 §7) — measured 0 this run, ceiling kept at 1 (load-timing artifact caution). SEAT STATE PINNED (issue #2677): the walk clicks the top pack tile before every measurement (`pinDraftSelection`, `surfaces.ts`); at this viewport the split layout means `draft-pool-stop` renders the identical DOM as `draft-pick` (only the pool's scroll offset differs), so `ctrlsOcc 5` and `starved 1` are the SAME two things documented on `draft-pick`'s 820x1180x2 row: the 4-item Peek Panel rail gap plus the Sideboard zone's `View ▾` self-occlusion (`deck-zone-surface.tsx:587`, `useIsTabletPortrait`/#2755, unrelated to this issue's fix), and the Booster grid's own scroller (by design). `small4` is the same REAL sub-44px tap-target debt as every touch row on this surface."
+                    "knownDebt": "Stacked arrangement (issue #2820), same mechanism and same pinned-seat caveat (issue #2822) as `draft-pick`'s own 820x1180x2 row. `reachDraftPoolStop`'s end-of-Pool scroll is a no-op at this pool size (nothing to scroll past), so `draft-pool-stop` renders the identical DOM to `draft-pick` here: `ctrlsOcc 6` is the SAME four-item Peek Panel rail gap plus the two-copy pile overlap documented on that row. `starved 1` is the Booster grid's own scroller (by design). `small4` is the same REAL sub-44px tap-target debt as every touch row on this surface."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 1,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "small": 4,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "`cardsOcc 1` is the MTGO PILE overlap in the split's pool column (`DeckColumnPile`, ADR 0101 §7) — measured 0 this run, ceiling kept at 1 (load-timing artifact caution, same as `draft-pick`'s row). SEAT STATE PINNED (issue #2677): the walk clicks the top pack tile before every measurement (`pinDraftSelection`, `surfaces.ts`); at this viewport the split layout means `draft-pool-stop` and `draft-pick` render the identical DOM (only the pool's scroll offset differs), so `ctrlsOcc 4` is the SAME 4-item Peek Panel rail gap documented on `draft-pick`'s 1180x820x2 row (`Table`/`Pool`/`More`/`Report a bug`), not the 'no Selected Card' state this row previously assumed."
+                    "knownDebt": "Stacked arrangement (issue #2820), same mechanism as `draft-pick`'s own 1180x820x2 row — including the same issue #2822 seat-instability finding while re-recording (the unpinned walk briefly landed on a much deeper pool and measured `cardsOcc 18`/`ctrlsOcc 22` from the identical pile-overlap mechanism; refused as non-representative). `reachDraftPoolStop`'s end-of-Pool scroll is a no-op at the shallow pool this ceiling is recorded against, so `draft-pool-stop` renders the identical DOM to `draft-pick` here. `small4` is the same REAL sub-44px tap-target debt as every touch row on this surface."
                 }
             }
         },
@@ -936,17 +936,17 @@
             "viewports": {
                 "1440x900x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 4,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 0,
                     "small": 11,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` actually mounted (review finding, PR #2797 round 1) — every prior walk left `poolSelection` null, so this state was never probed. `ctrlsOcc 4` / `small 11` are byte-identical to `draft-pool-stop`'s own row at this viewport: same 224px rail, same 4-item room-bar gap (Table/Pool/More/Report a bug) it occludes regardless of WHICH selection (Booster's or Pool's) opened it. `cardsOcc 0`: no card tile sits under the rail at this seat's current pool size/grouping. Re-measured twice (`--record` run to run) with identical numbers — stable, not a load-timing artifact."
+                    "knownDebt": "Stacked arrangement (issue #2820): `cardsOcc 2` / `ctrlsOcc 6` (up from 0/4) is the SAME MTGO pile overlap mechanism documented on `draft-pick`'s own 1440x900x2 row, now visible here too because a Pool tile is selected (this row's own state) on top of the Booster's Selected Card (`draft-pick`'s state) — both mount the same fixed 224px Peek Panel rail, so `Table`/`Pool`/`More`/`Report a bug` occlude the same way regardless of which selection opened the panel. `cardsOcc 0` was the split-era reading (no card tile sat under the narrow 36% rail at that seat); the stacked arrangement's full-width Pool puts more tiles, including a pile, within reach of the SAME 224px rail. Browser-verified with `elementFromPoint`: the two occluded card tiles are the two lower copies of a three-deep pile in one Mana-Value column, `cardsStranded 0`. See `draft-pick`'s 1440x900x2 row for the pinned-seat caveat (issue #2822) this ceiling is recorded against."
                 },
                 "390x844x3": {
                     "cardsZero": 0,
@@ -978,17 +978,17 @@
                 },
                 "820x1180x2": {
                     "cardsZero": 0,
-                    "cardsOcc": 0,
+                    "cardsOcc": 2,
                     "cardsStranded": 0,
                     "cardsSquare": 0,
                     "ctrlsZero": 0,
-                    "ctrlsOcc": 5,
+                    "ctrlsOcc": 6,
                     "ctrlsStranded": 0,
                     "starved": 1,
                     "small": 4,
                     "axeSerious": 0,
                     "axeCritical": 0,
-                    "knownDebt": "FIRST measurement ever of the Pool's `DeckZonePeek` at this viewport (review finding, PR #2797 round 1). `ctrlsOcc 5` / `starved 1` are byte-identical to `draft-pool-stop`'s own row here — the same 4-item Peek Panel rail gap plus the Sideboard zone's `View ▾` self-occlusion (`deck-zone-surface.tsx:587`, `useIsTabletPortrait`/#2755, unrelated to this issue). `cardsOcc 0`: no card tile sits under the rail at this seat's current pool size/grouping."
+                    "knownDebt": "Stacked arrangement (issue #2820), same mechanism as this surface's 1440x900x2 row: `cardsOcc 2` / `ctrlsOcc 6` (up from 0/5) is the pile overlap now reachable under the full-width Pool's own 224px Peek Panel rail. The split-era `View ▾` self-occlusion this row's `ctrlsOcc` used to include (`deck-zone-surface.tsx:587`, `useIsTabletPortrait`/#2755) did NOT reproduce in this re-recording — state-dependent, unrelated to this issue. `starved 1` is the Booster grid's own scroller (by design). `small4` is REAL sub-44px tap-target debt (`pointer: coarse`), unchanged."
                 },
                 "1180x820x2": {
                     "cardsZero": 0,

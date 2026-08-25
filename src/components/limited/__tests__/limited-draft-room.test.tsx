@@ -219,13 +219,27 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         expect(navigateMock).not.toHaveBeenCalled();
     });
 
-    it("resolves the layout regime for the table — one branch, three arrangements (issue #2588)", () => {
+    it("resolves the layout regime for the table — one branch, three arrangements (issue #2820)", () => {
         // Issue #2587 shipped this as a binary (desktop split vs
-        // everything-else stacked), which folded the two phone regimes
-        // together. This is the assertion that they are no longer the same
-        // arrangement.
+        // everything-else stacked), and issue #2588 gave the two phone
+        // regimes their own arrangement — but, as a side effect, ALSO turned
+        // the non-phone arm into the horizontal split, which was never
+        // intended (issue #2820). This is the assertion that desktop is back
+        // to stacked, and that the two phone regimes still get their own
+        // arrangement (i.e. are not folded together with each other or with
+        // desktop).
         mountRoom(draftRow());
-        expect(document.querySelector("[data-slot=draft-split]")).toBeTruthy();
+        const desktopSurface = document.querySelector(
+            "[data-slot=draft-surface]"
+        )!;
+        expect(desktopSurface.getAttribute("data-layout")).toBe("stacked");
+        // The stacked arrangement's distinguishing structure: the Booster
+        // full width on top, the Pool in its own scrolling band underneath —
+        // never the split's narrow side pane.
+        expect(
+            document.querySelector("[data-slot=draft-stacked-pool]")
+        ).toBeTruthy();
+        expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
         expect(
             document.querySelector("[data-slot=draft-snap-scroller]")
         ).toBeNull();
@@ -238,7 +252,15 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
                 .querySelector("[data-slot=draft-snap-scroller]")!
                 .getAttribute("data-orientation")
         ).toBe("portrait");
+        expect(
+            document
+                .querySelector("[data-slot=draft-surface]")!
+                .getAttribute("data-layout")
+        ).toBe("phone-portrait");
         expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
+        expect(
+            document.querySelector("[data-slot=draft-stacked-pool]")
+        ).toBeNull();
 
         cleanup();
         viewportMode = "landscape-compact";
@@ -248,6 +270,11 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
                 .querySelector("[data-slot=draft-snap-scroller]")!
                 .getAttribute("data-orientation")
         ).toBe("landscape");
+        expect(
+            document
+                .querySelector("[data-slot=draft-surface]")!
+                .getAttribute("data-layout")
+        ).toBe("phone-landscape");
     });
 
     it("gives the phone body a FIXED box, not a scroller — a snap pane needs a definite height", () => {

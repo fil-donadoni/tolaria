@@ -86,7 +86,7 @@ beforeAll(() => installDndJsdomShims());
 
 afterEach(() => cleanup());
 
-type Layout = "phone-portrait" | "phone-landscape" | "split" | "stacked";
+type Layout = "phone-portrait" | "phone-landscape" | "stacked";
 
 type Options = {
     selectedPickId?: string;
@@ -530,7 +530,7 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
     });
 
     it("mounts the Peek Panel OFF the phone regimes only", () => {
-        renderTable("split", { selectedPickId: "r0-p0-c1" });
+        renderTable("stacked", { selectedPickId: "r0-p0-c1" });
         expect(document.querySelectorAll("[data-peek-panel]").length).toBe(1);
         cleanup();
         renderTable("phone-landscape", { selectedPickId: "r0-p0-c1" });
@@ -655,7 +655,7 @@ describe("the pack grid's density toggle (issue #2588, ADR 0101 §6)", () => {
     });
 
     it("leaves the desktop grid on its auto-fill tracks and its zoom slider", () => {
-        renderTable("split", { packSize: 15 });
+        renderTable("stacked", { packSize: 15 });
         expect(
             document.querySelector("[data-slot=draft-density-toggle]")
         ).toBeNull();

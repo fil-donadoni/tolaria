@@ -119,20 +119,25 @@ export default function LimitedDraftTable({
     manager?: DragDropManager;
     /** Which arrangement of the Booster and the Pool to draw (ADR 0101 §6).
      *
-     *  - `"split"` — tablet / desktop: side by side, the Peek Panel supplying
-     *    the preview rail.
+     *  - `"stacked"` — tablet / desktop: the Booster grid full width above
+     *    the Pool (with its Sideboard rail beside it), each in its own
+     *    scrolling band so a long Pool never pushes the Booster off screen.
+     *    The pre-#2587 arrangement, restored by issue #2820 after #2588
+     *    accidentally widened the phone split to cover this arm too — and
+     *    the neutral default: it is what this component renders when the
+     *    caller expresses no preference, which is the configuration its own
+     *    gesture tests use because those gestures are layout-independent.
      *  - `"phone-portrait"` / `"phone-landscape"` — the two-stop snap surface
      *    (issue #2588). These are the fork this component exists to keep
      *    HONEST: they change the panes only. The `DragDropProvider`, the
      *    `DragOverlay`, the Inspect Overlay and the pick context menu are
      *    mounted ONCE, below, outside every branch — two providers or two
      *    overlays on different arms is a bug that passes every unit test.
-     *  - `"stacked"` — one above the other. The pre-#2587 arrangement and the
-     *    neutral default: no host selects it now (the room resolves one of
-     *    the three above), and it is what this component renders when the
-     *    caller expresses no preference, which is the configuration its own
-     *    gesture tests use because those gestures are layout-independent. */
-    layout?: "stacked" | "split" | "phone-portrait" | "phone-landscape";
+     *
+     *  There is no `"split"` value any more (issue #2820): a fourth layout
+     *  nothing resolved to was unreachable code the moment the Draft Room's
+     *  own resolution stopped selecting it. */
+    layout?: "stacked" | "phone-portrait" | "phone-landscape";
     /** The Draft Room's pool toggle. The Pool pane is unmounted, not hidden:
      *  it renders every pooled card through `DeckZoneSurface`, and a
      *  `display:none` copy of that would keep paying for images the player
@@ -731,32 +736,29 @@ export default function LimitedDraftTable({
                     <DraftPortraitPanes {...phonePanes} />
                 ) : phoneOrientation === "landscape" ? (
                     <DraftLandscapePanes {...phonePanes} />
-                ) : layout === "split" ? (
-                    // Tablet / desktop (ADR 0101 §6): a vertical split, pack
-                    // beside pool. Each half scrolls on its own so a long
-                    // Pool never pushes the Booster off the screen — the
-                    // exact failure the stacked layout has on a short
-                    // viewport. The preview RAIL is the Peek Panel: it is
-                    // `fixed`, and the reserve above already pays for its
-                    // width, so the split is measured against what is left.
-                    <div
-                        data-slot="draft-split"
-                        className="flex min-h-0 flex-1 gap-3"
-                    >
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+                ) : (
+                    // Tablet / desktop (ADR 0101 §6, restored by issue
+                    // #2820): the Booster grid full width on top, the Pool
+                    // (with its Sideboard rail beside it, `arrange="row"`,
+                    // the `LimitedDraftPool` default) beneath. The Booster
+                    // band is `shrink-0` — a pack is bounded to one booster's
+                    // worth of cards, so it never needs to scroll and must
+                    // never be squeezed to make room for the Pool below it.
+                    // The Pool band is `min-h-0 flex-1 overflow-y-auto`: it
+                    // absorbs whatever height the Booster didn't use and
+                    // scrolls WITHIN that band, so a long Pool never pushes
+                    // the Booster off screen — the same each-half-scrolls-
+                    // on-its-own discipline the (now-removed) split arm used,
+                    // just stacked vertically instead of side by side.
+                    <>
+                        <div className="flex shrink-0 flex-col gap-3">
                             {packPane}
                         </div>
                         {showPool && (
-                            <div className="flex min-h-0 w-[36%] shrink-0 flex-col overflow-y-auto border-l border-border-accent/20 pl-3">
-                                {poolPane}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        {packPane}
-                        {showPool && (
-                            <div className="min-h-0 flex-1 border-t border-border-accent/20 pt-3">
+                            <div
+                                data-slot="draft-stacked-pool"
+                                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto border-t border-border-accent/20 pt-3"
+                            >
                                 {poolPane}
                             </div>
                         )}
