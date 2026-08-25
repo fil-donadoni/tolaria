@@ -15,13 +15,34 @@
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { Database } from "bun:sqlite";
+import { createRequire } from "node:module";
+import type { Database } from "bun:sqlite";
 import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
 import type { GracefulPriority } from "./loop-status";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
+
+/**
+ * `bun:sqlite` is a Bun-only builtin with no Node equivalent — a top-level
+ * `import { Database } from "bun:sqlite"` makes importing THIS MODULE fail
+ * outright under the `node` vitest project (#2623), regardless of whether a
+ * store ever gets opened. `createRequire` defers resolution to the one call
+ * site that actually needs it, and that call site only runs when
+ * `existsSync(DB_PATH)` is true — never the case for a fresh worktree/test
+ * environment with no `.claude/telemetry/telemetry.db`, so `handleRequest`'s
+ * route test never touches the Bun-only builtin at all. Kept synchronous
+ * (a `require`, not a dynamic `import()`) so `requireDb()` and every route
+ * that calls it stay synchronous — no cascading async refactor.
+ */
+const requireModule = createRequire(import.meta.url);
+function openDatabase(path: string): Database {
+    const { Database: DatabaseCtor } = requireModule(
+        "bun:sqlite"
+    ) as typeof import("bun:sqlite");
+    return new DatabaseCtor(path, { readonly: true });
+}
 
 /**
  * `telemetry.db` is built by `telemetry:ingest` and goes stale/absent between
@@ -33,9 +54,7 @@ const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
  * always starts, and only the DB-BACKED routes fail, with a clear message
  * naming the fix, when there is nothing to query.
  */
-let db: Database | null = existsSync(DB_PATH)
-    ? new Database(DB_PATH, { readonly: true })
-    : null;
+let db: Database | null = existsSync(DB_PATH) ? openDatabase(DB_PATH) : null;
 
 /** Thrown by `requireDb()` — caught once, in the route dispatcher, and
  *  turned into a 503 rather than the generic 400 every other query error
@@ -49,7 +68,7 @@ function requireDb(): Database {
     // restart — cheap to check, and `existsSync` is the same test the
     // startup path already used.
     if (existsSync(DB_PATH)) {
-        db = new Database(DB_PATH, { readonly: true });
+        db = openDatabase(DB_PATH);
         return db;
     }
     throw new NoTelemetryStoreError(
@@ -430,60 +449,112 @@ function getLoopStatusCached(): Promise<unknown> {
     return promise;
 }
 
-const portArg = process.argv.indexOf("--port");
-const port = portArg > -1 ? Number(process.argv[portArg + 1]) : 5174;
+/**
+ * Per-request dependencies `handleRequest` closes over — today just the
+ * loop-status gather, which is the one route a route test must be able to
+ * answer WITHOUT shelling out to `gh`/`git` (#2623). Defaults to the real,
+ * TTL-cached gather; a test passes a stub instead. This is parameter
+ * injection, the same seam shape `GatherLoopStatusOptions.claimsRunner` /
+ * `queueRunner` already use in `loop-status.ts` — never `vi.mock`, which
+ * would leave leaked module state for sibling files sharing this worker
+ * (the `node` project runs with `isolate: false` on that exact promise).
+ */
+export interface TelemetryDeps {
+    getLoopStatus: () => Promise<unknown>;
+}
 
-const server = Bun.serve({
-    port,
-    hostname: "127.0.0.1",
-    async fetch(req) {
-        const url = new URL(req.url);
-        try {
-            // Reads no DB — must work even when telemetry.db is absent or
-            // stale (#2519), so it is dispatched before any DB-backed route.
-            if (url.pathname === "/api/loop-status") {
-                return Response.json(await getLoopStatusCached());
-            }
-            if (url.pathname === "/api/meta") {
-                return Response.json(meta());
-            }
-            if (url.pathname === "/api/sessions") {
-                const from = dayParam(url, "from", "1970-01-01");
-                const to = dayParam(url, "to", "9999-12-31");
-                return Response.json({ rows: sessionsView(from, to) });
-            }
-            if (url.pathname === "/api/issues") {
-                const from = dayParam(url, "from", "1970-01-01");
-                const to = dayParam(url, "to", "9999-12-31");
-                return Response.json(issuesView(from, to));
-            }
-            if (url.pathname === "/api/families") {
-                const from = dayParam(url, "from", "1970-01-01");
-                const to = dayParam(url, "to", "9999-12-31");
-                return Response.json({ rows: familiesView(from, to) });
-            }
-            if (url.pathname === "/api/runs") {
-                return Response.json({ rows: runsView(url) });
-            }
-            if (url.pathname === "/api/q" && req.method === "POST") {
-                // `req.json()` is `unknown` by design — every field it carries is
-                // re-validated against the DIMENSIONS/METRICS allow-lists inside
-                // runQuery, so the cast asserts shape, not trust.
-                return Response.json(runQuery((await req.json()) as QueryBody));
-            }
-            if (url.pathname === "/" || url.pathname === "/index.html") {
-                return new Response(Bun.file(HTML_PATH), {
-                    headers: { "content-type": "text/html; charset=utf-8" },
-                });
-            }
-            return new Response("not found", { status: 404 });
-        } catch (err) {
-            if (err instanceof NoTelemetryStoreError) {
-                return Response.json({ error: err.message }, { status: 503 });
-            }
-            return Response.json({ error: String(err) }, { status: 400 });
+const defaultDeps: TelemetryDeps = { getLoopStatus: getLoopStatusCached };
+
+/**
+ * The whole route table, extracted from the `Bun.serve` listener (#2623) so
+ * every route is callable with an in-memory `Request` — no socket, no
+ * port, and (routes that take `deps`) no `gh`/`git` call either. Byte-
+ * identical to the inline closure this replaced; `startServer` below is the
+ * only thing that binds it to a real port.
+ */
+export async function handleRequest(
+    req: Request,
+    deps: TelemetryDeps = defaultDeps
+): Promise<Response> {
+    const url = new URL(req.url);
+    try {
+        // Reads no DB — must work even when telemetry.db is absent or
+        // stale (#2519), so it is dispatched before any DB-backed route.
+        if (url.pathname === "/api/loop-status") {
+            return Response.json(await deps.getLoopStatus());
         }
-    },
-});
+        if (url.pathname === "/api/meta") {
+            return Response.json(meta());
+        }
+        if (url.pathname === "/api/sessions") {
+            const from = dayParam(url, "from", "1970-01-01");
+            const to = dayParam(url, "to", "9999-12-31");
+            return Response.json({ rows: sessionsView(from, to) });
+        }
+        if (url.pathname === "/api/issues") {
+            const from = dayParam(url, "from", "1970-01-01");
+            const to = dayParam(url, "to", "9999-12-31");
+            return Response.json(issuesView(from, to));
+        }
+        if (url.pathname === "/api/families") {
+            const from = dayParam(url, "from", "1970-01-01");
+            const to = dayParam(url, "to", "9999-12-31");
+            return Response.json({ rows: familiesView(from, to) });
+        }
+        if (url.pathname === "/api/runs") {
+            return Response.json({ rows: runsView(url) });
+        }
+        if (url.pathname === "/api/q" && req.method === "POST") {
+            // `req.json()` is `unknown` by design — every field it carries is
+            // re-validated against the DIMENSIONS/METRICS allow-lists inside
+            // runQuery, so the cast asserts shape, not trust.
+            return Response.json(runQuery((await req.json()) as QueryBody));
+        }
+        if (url.pathname === "/" || url.pathname === "/index.html") {
+            return new Response(Bun.file(HTML_PATH), {
+                headers: { "content-type": "text/html; charset=utf-8" },
+            });
+        }
+        return new Response("not found", { status: 404 });
+    } catch (err) {
+        if (err instanceof NoTelemetryStoreError) {
+            return Response.json({ error: err.message }, { status: 503 });
+        }
+        return Response.json({ error: String(err) }, { status: 400 });
+    }
+}
 
-console.log(`telemetry dashboard → http://127.0.0.1:${server.port}`);
+/**
+ * `TELEMETRY_SERVE_PORT` exists only so the bootstrap-guard test can pick a
+ * port that is guaranteed not to collide with a real `bun run telemetry:dash`
+ * an operator may already have open on the well-known default (#2623) —
+ * production always launches with it unset, so `bun run telemetry:dash`'s
+ * behaviour (port 5174 absent a `--port` flag) is unchanged.
+ */
+function resolvePort(): number {
+    const portArg = process.argv.indexOf("--port");
+    if (portArg > -1) return Number(process.argv[portArg + 1]);
+    const envPort = process.env.TELEMETRY_SERVE_PORT;
+    return envPort ? Number(envPort) : 5174;
+}
+
+/**
+ * Binds `handleRequest` to a real loopback socket. The ONLY caller in
+ * production is the `import.meta.main` guard below — so importing this
+ * module (as the test file does) never opens a port (#2623). Bun has no
+ * `require.main === module`; `import.meta.main` is the idiomatic
+ * equivalent and reads `false` for a module reached via `import()`.
+ */
+export function startServer(port: number = resolvePort()) {
+    const server = Bun.serve({
+        port,
+        hostname: "127.0.0.1",
+        fetch: (req) => handleRequest(req),
+    });
+    console.log(`telemetry dashboard → http://127.0.0.1:${server.port}`);
+    return server;
+}
+
+if (import.meta.main) {
+    startServer();
+}
