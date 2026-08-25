@@ -73,3 +73,39 @@ describe("LimitedEventListItem — viewer match record (issue #2357)", () => {
         expect(screen.getByText(/1-0-1/)).toBeTruthy();
     });
 });
+
+// The row's stable DOM handle (issue #2822). `bun run check:ui`'s Limited
+// walks used to select their subject by LIST POSITION, because nothing in the
+// rendered DOM addressed one specific event — `key={event._id}` is a React
+// key, not an attribute. These assertions read the attribute off the rendered
+// element (`container.querySelector`), so they go red if the attribute is
+// renamed, dropped, or emitted on the wrong node.
+describe("LimitedEventListItem — fixture label handle (issue #2822)", () => {
+    it("renders the seeded event's label as data-limited-event-label", () => {
+        const { container } = render(
+            <LimitedEventListItem
+                event={makeEvent({ label: "ui-gate/draft" })}
+                viewerHasSeat
+                onOpen={vi.fn()}
+            />
+        );
+        expect(
+            container.querySelector(
+                '[data-limited-event-label="ui-gate/draft"]'
+            )
+        ).toBeTruthy();
+    });
+
+    it("emits no label attribute for a player-created event (no label)", () => {
+        const { container } = render(
+            <LimitedEventListItem
+                event={makeEvent({})}
+                viewerHasSeat
+                onOpen={vi.fn()}
+            />
+        );
+        expect(
+            container.querySelector("[data-limited-event-label]")
+        ).toBeNull();
+    });
+});

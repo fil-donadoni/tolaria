@@ -124,6 +124,16 @@ const joinRoute = createRoute({
 type LimitedEventsSearch = {
     mine?: true;
     status?: LimitedEventStatusChip;
+    /** Fixture-label PREFIX filter (issue #2822): `/limited?label=ui-gate/`
+     *  narrows the list to seeded fixture events
+     *  (`convex/limitedFixtures.ts`) and nothing else. It exists so
+     *  `bun run check:ui`'s two list surfaces measure a row set the LANE
+     *  fixes, instead of however many events this deployment's account
+     *  happens to be able to see — with no new product chrome: there is no
+     *  control that produces this URL, only the walk (and a human debugging
+     *  it) types it. A player-created event carries no label, so it can
+     *  never match. */
+    label?: string;
 };
 
 const limitedEventsRoute = createRoute({
@@ -142,6 +152,14 @@ const limitedEventsRoute = createRoute({
         }
         if (isLimitedEventStatusChip(search.status)) {
             out.status = search.status;
+        }
+        // Non-empty strings only — TanStack's default `parseSearch`
+        // JSON-parses each value, so a numeric-looking label would arrive as a
+        // number and an empty `?label=` as `""`; neither is a label, and
+        // keeping `""` would filter the list down to nothing rather than
+        // leaving it unfiltered.
+        if (typeof search.label === "string" && search.label !== "") {
+            out.label = search.label;
         }
         return out;
     },

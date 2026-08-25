@@ -569,6 +569,16 @@ export default defineSchema({
     // migration when that lands.
     limitedEvents: defineTable({
         createdBy: v.id("users"),
+        // FIXTURE handle (issue #2822) — the only way anything addresses ONE
+        // specific event without knowing its id. Absent on every event a
+        // player creates: it is written exclusively by
+        // `convex/limitedFixtures.ts`'s seeder, which the `check:ui` lane's
+        // Limited/Draft walks navigate to by label instead of taking "the
+        // first row of whatever this account can see". Same shape and same
+        // deployment-local tradeoff as a `debugScenarios` label
+        // (`seedScenarioDirect`): not captured in git, seeded per deployment,
+        // upserted by label.
+        label: v.optional(v.string()),
         type: v.union(v.literal("sealed"), v.literal("draft")),
         // Event lifecycle (PRD #1628, ADR 0076 — which reverses ADR 0055
         // decision 1's "the event ends at the built Deck"):
@@ -813,7 +823,10 @@ export default defineSchema({
         updatedAt: v.number(),
     })
         .index("by_status", ["status"])
-        .index("by_createdBy", ["createdBy"]),
+        .index("by_createdBy", ["createdBy"])
+        // Upsert-by-label for the `check:ui` fixtures (issue #2822). Sparse in
+        // practice — only fixture rows carry a `label` at all.
+        .index("by_label", ["label"]),
     // One seat's HEAVY card payload, split out of `limitedEvents.seats[]`.
     //
     // Why a child table when ADR 0076 deliberately EMBEDDED `rounds` in the

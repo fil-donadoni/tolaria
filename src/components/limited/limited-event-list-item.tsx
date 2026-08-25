@@ -42,7 +42,18 @@ export default function LimitedEventListItem({
     const record = formatLimitedMatchRecord(event.viewerMatchRecord);
 
     return (
-        <div className="flex items-center justify-between rounded-sm border border-border-subtle/40 px-4 py-3">
+        <div
+            // The row's stable DOM handle (issue #2822). `key={event._id}` is
+            // a React key, not an attribute — nothing in the DOM addressed one
+            // specific event before this, which is why `bun run check:ui`'s
+            // walks had to pick their subject by LIST POSITION and silently
+            // started measuring a different event whenever the deployment
+            // gained one. Emitted only for a labelled (seeded) event
+            // (`convex/limitedFixtures.ts`); a player-created row has no label
+            // and gets no attribute.
+            data-limited-event-label={event.label}
+            className="flex items-center justify-between rounded-sm border border-border-subtle/40 px-4 py-3"
+        >
             <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium text-text">
                     {limitedEventName(event)}

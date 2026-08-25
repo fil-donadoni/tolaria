@@ -196,6 +196,48 @@ the ActionSheet). Every in-game dialog is a `GameDialog`, so this is the Panel
 frame under measurement. With the dialog open, 10-12 controls behind the scrim
 measure as occluded — that is what a modal is, not a defect.
 
+## The seeded Limited fixture the lane walks (2026-08-26)
+
+`bun run check:ui`'s Limited and Draft surfaces do **not** walk whatever event
+this deployment happens to hold. They address two SEEDED events by label
+(issue #2822) — because `listOpenLimitedEvents` returns every open event on the
+deployment to everyone, so both the row count of `/limited` and which seat the
+Draft Room walks measured used to be functions of the account's own data, and
+`budgets.json` rotted with no `src/` change.
+
+| Label           | Shape                                                                           | Serves                                                              |
+| --------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ui-gate/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`                                               |
+| `ui-gate/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `limited-build` |
+
+Seed (or re-seed — it is an upsert by label, and the rows are deployment-local,
+nothing in git):
+
+```bash
+bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'
+```
+
+Addressing it by hand:
+
+- `/limited?label=ui-gate/` — the list, narrowed by a **prefix** match on the
+  event's `label` to exactly the fixture rows. No product control produces this
+  URL; it exists so the two list surfaces measure a row set the lane fixes.
+  `/limited/events?label=ui-gate/` carries the same filter through the redirect.
+- `[data-limited-event-label="ui-gate/draft"]` — the row's own handle in the
+  DOM (`limited-event-list-item.tsx`); click the `View` button inside it.
+  A player-created event has no `label` and therefore no attribute.
+
+`ui-gate/open` is OPEN specifically because that is the one event state whose
+detail page neither redirects into the Draft Room (`useDraftRoomRedirect` needs
+a pending pick) nor auto-opens the deck builder (`useAutoOpenLimitedBuilder`
+needs a final pool). Both of those are **one-shot per tab**, so any fixture
+that tripped one would land on the antechamber at some viewports and on a
+different screen at others.
+
+The fixture's cards are pinned BY NAME in `convex/limitedFixtures.ts`, not
+dealt by `startDraft`: a seeded deal is only as stable as the set's implemented
+card list, which grows every time a card ships.
+
 ## Reach the Limited antechamber (2026-08-20)
 
 The event detail page (issue #2590): a compact avatar row (who is sitting
@@ -204,43 +246,54 @@ Start / Cancel-or-Close, and the Share/Copy link. The full per-seat detail
 (pool counts, pack-passing direction) is no longer inline — it opens as the
 Table Ring dialog.
 
-1. `navigate_page` → `http://localhost:5173/limited`
-2. Click `View` on any event row (a "mine" one shows the full action set; an
-   open one you haven't joined shows just Join). The route becomes
-   `/limited/<eventId>`.
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/open`
+2. Click `View` inside `[data-limited-event-label="ui-gate/open"]`. The route
+   becomes `/limited/<eventId>`. (Any event row works by hand; the LANE walks
+   the fixture, for the reasons in the section above.)
 3. `snapshot`. The avatar row sits above a `View Table` button — click it to
    open the Ring dialog (`title="The Table"`), then close it (`Escape` or the
    `✕`) to confirm the antechamber underneath is unaffected.
 
 A seated Draft event redirects here straight past to the Draft Room while a
-Pick is pending (`useDraftRoomRedirect`, see below) — walk a SEALED event, or
-a Draft event past `draftCompletedAt`, to land on the antechamber itself.
+Pick is pending (`useDraftRoomRedirect`, see below), and a seat whose pool is
+FINAL with no deck yet gets sent to the builder (`useAutoOpenLimitedBuilder`) —
+which is why the fixture for this surface is an event whose seating is still
+open.
 
 ## Reach the Limited deck builder (2026-08-17)
 
 The pool builder is where a Sealed/Draft pool becomes a deck, and it is the
 screen the mobile-occlusion bug lives on.
 
-1. `navigate_page` → `http://localhost:5173/limited`
-2. Click `View` on one of your seated events. The route becomes
-   `/limited/<eventId>`.
-3. Click `Build Deck` (in the "Your Pool is ready" box). The route becomes
-   `/limited/<eventId>/build`.
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/draft`
+2. Click `View` inside `[data-limited-event-label="ui-gate/draft"]`, and read
+   the `<eventId>` off the URL.
+3. `navigate_page` → `http://localhost:5173/limited/<eventId>/build`.
+
+The builder needs only a dealt, non-empty pool (`pool-deck-builder.tsx`), so a
+MID-DRAFT seat reaches it by URL — that is how the lane walks it, and it is
+what took `limited-build` out of `unwalked` in issue #2822. From an event whose
+pool is FINAL there is also a `Build Deck` button in the "Your Pool is ready"
+box on the event page (`Edit Deck` once a deck exists).
 
 The build screen carries: ADD BASIC steppers, `Maindeck N` with
 All/Creatures/Non-creatures + colour filters, `Pool (Sideboard) N` with the
 same, a curve strip, and a fixed footer with the legality verdict, the deck
 name field and `Done`.
 
-No event in the list? A new one is `+ Create Event` on `/limited` — that flow
-is not written up yet.
+No fixture on this deployment? Seed it with the command in the section above.
+A real event is `+ Create Event` on `/limited` — that flow is not written up
+yet.
 
 ## Reach the Draft Room (2026-08-20)
 
 Since issue #2587 the pick screen is its OWN immersive route,
 `/limited/<eventId>/draft` — it is no longer part of the event detail page.
 
-1. `navigate_page` → `http://localhost:5173/limited/<eventId>`. While a Pick
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/draft` and
+   click `View` inside `[data-limited-event-label="ui-gate/draft"]` (that is
+   what the lane does — see "The seeded Limited fixture the lane walks"), or go
+   straight to `http://localhost:5173/limited/<eventId>`. While a Pick
    is pending, a seated player is redirected straight to
    `/limited/<eventId>/draft`. That redirect is **one-shot per event per tab**
    (`sessionStorage` key `tolaria:limited:draftRoom:<eventId>` — clear it to

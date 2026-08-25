@@ -123,7 +123,7 @@ async function clickIfVisible(
 }
 
 /**
- * Open the n-th event under YOUR CURRENT EVENTS on `/limited`.
+ * Open an event's page from `/limited`.
  *
  * The row's `View` is a BUTTON that navigates programmatically, not an
  * anchor — harvesting `a[href^='/limited/']` finds nothing and reports "no
@@ -131,6 +131,41 @@ async function clickIfVisible(
  * the runbook names.
  */
 const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
+
+/**
+ * THE SEEDED FIXTURE (issue #2822). Every Limited/Draft walk below addresses
+ * ONE labelled event, never "the first row of whatever this account can see".
+ *
+ * The disease this cures: `listOpenLimitedEvents` returns every open event on
+ * the deployment to everyone, so both the ROW COUNT of `/limited` and WHICH
+ * SEAT the Draft Room walks measured were functions of a month of hand-made
+ * events rather than of the code under test — `budgets.json` ceilings rotted
+ * with no `src/` change, twice, with byte-identical numbers
+ * (`docs/findings/2671-limited-list-budgets-drifted.md`). Giving the lane its
+ * own account would not have bounded the list; addressing a fixture does.
+ *
+ * The rows are seeded by `convex/limitedFixtures.ts` and are DEPLOYMENT-LOCAL
+ * (nothing in git, same tradeoff as a `debugScenarios` label). A missing
+ * fixture is therefore an expected state, and it reports UNWALKED carrying
+ * `SEED_FIXTURES_COMMAND` — never a fallback walk of some other event, which
+ * is precisely what used to make a PASS mean less than it read.
+ */
+const FIXTURE_LABEL_PREFIX = "ui-gate/";
+const FIXTURE_OPEN_LABEL = "ui-gate/open";
+const FIXTURE_DRAFT_LABEL = "ui-gate/draft";
+const SEED_FIXTURES_COMMAND = `bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'`;
+
+/** The list, narrowed to the fixture rows by the `?label=` prefix filter
+ *  (`src/router.tsx`). This is what makes the two list surfaces' row count a
+ *  function of the LANE (two seeded events) instead of the deployment. */
+const FIXTURE_LIST_PATH = `/limited?label=${FIXTURE_LABEL_PREFIX}`;
+
+/** The row handle `limited-event-list-item.tsx` renders for a labelled event.
+ *  `key={event._id}` is a React key, not an attribute — before this there was
+ *  nothing in the DOM to select one specific event with. */
+function fixtureRow(label: string): string {
+    return `[data-limited-event-label="${label}"]`;
+}
 
 /** A pack tile in the Draft Room. Two traps in one selector:
  *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
@@ -215,42 +250,38 @@ async function pinDraftSelection(page: Page): Promise<void> {
  * about what "the room" means OR what seat state they measure in.
  */
 async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
-    const count = await limitedEventCount(page, ctx);
-    if (count === 0) {
+    const landed = await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+    if (landed === "event") {
+        if (
+            !(await clickIfVisible(
+                page,
+                "a:has-text('Enter the Draft Room')",
+                4000
+            ))
+        ) {
+            throw new Unreachable(
+                `the "${FIXTURE_DRAFT_LABEL}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+            );
+        }
+        await page
+            .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
+            .catch(() => {});
+        await settle(page);
+    }
+    if (!page.url().endsWith("/draft")) {
         throw new Unreachable(
-            "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+            `the "${FIXTURE_DRAFT_LABEL}" fixture did not land in the Draft Room — the page is at ${page.url()}`
         );
     }
-    for (let i = 0; i < Math.min(count, 3); i++) {
-        const landed = await openLimitedEvent(page, ctx, i);
-        if (landed === null) continue;
-        if (landed === "event") {
-            if (
-                !(await clickIfVisible(
-                    page,
-                    "a:has-text('Enter the Draft Room')",
-                    4000
-                ))
-            ) {
-                continue;
-            }
-            await page
-                .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
-                .catch(() => {});
-            await settle(page);
-        }
-        if (!page.url().endsWith("/draft")) continue;
-        // The room renders for a Sealed seat too (reveal mode), so reaching
-        // the URL is not enough: the surface these rows budget is the PICK
-        // screen, and its tiles are the proof.
-        if (await visible(page, DRAFT_PICK_TILE, 4000)) {
-            await pinDraftSelection(page);
-            return;
-        }
+    // The room renders for a Sealed seat too (reveal mode), so reaching the
+    // URL is not enough: the surface these rows budget is the PICK screen, and
+    // its tiles are the proof.
+    if (!(await visible(page, DRAFT_PICK_TILE, 4000))) {
+        throw new Unreachable(
+            `the "${FIXTURE_DRAFT_LABEL}" fixture's Draft Room rendered no pack tile for this seat. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+        );
     }
-    throw new Unreachable(
-        "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
-    );
+    await pinDraftSelection(page);
 }
 
 /**
@@ -397,16 +428,30 @@ async function assertTwoSnapStops(page: Page): Promise<void> {
     }
 }
 
-async function limitedEventCount(
-    page: Page,
-    ctx: WalkContext
-): Promise<number> {
-    await goto(page, ctx, "/limited");
-    return await page.locator(EVENT_VIEW).count();
+/**
+ * Land on the fixture-filtered `/limited` list and assert the fixture is
+ * actually seeded on this deployment.
+ *
+ * Returns the number of fixture rows, which is a constant of
+ * `convex/limitedFixtures.ts` — that is the whole point: the list surfaces
+ * measure a row set the lane fixes.
+ */
+async function reachFixtureList(page: Page, ctx: WalkContext): Promise<number> {
+    await goto(page, ctx, FIXTURE_LIST_PATH);
+    if (!(await visible(page, "main, [role=main]", 10_000))) {
+        throw new Unreachable("/limited rendered no main region");
+    }
+    const rows = await page.locator("[data-limited-event-label]").count();
+    if (rows === 0) {
+        throw new Unreachable(
+            `no seeded Limited fixture on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+        );
+    }
+    return rows;
 }
 
 /**
- * Open the nth event from `/limited`, and report where it landed.
+ * Open the fixture event with this label, and report where it landed.
  *
  * Since issue #2587 the event page REDIRECTS a seated player into the Draft
  * Room (`/limited/<id>/draft`) while a Pick is pending — one-shot per tab, so
@@ -414,16 +459,26 @@ async function limitedEventCount(
  * not. Both are legitimate landings, which is why this returns the pathname
  * shape rather than a boolean "did we reach the event page": a walk that
  * demanded the old URL would report a drafting event as unreachable.
+ *
+ * `null` is never "try the next row" any more (issue #2822) — there is no
+ * next row. It means this fixture's own View control led somewhere
+ * unrecognised, and every caller turns that into UNWALKED.
  */
-async function openLimitedEvent(
+async function openFixtureEvent(
     page: Page,
     ctx: WalkContext,
-    index: number
+    label: string
 ): Promise<"event" | "draft" | null> {
-    await goto(page, ctx, "/limited");
-    const views = page.locator(EVENT_VIEW);
-    if (index >= (await views.count())) return null;
-    await views.nth(index).click({ timeout: STEP_TIMEOUT });
+    await goto(page, ctx, `/limited?label=${label}`);
+    const row = page.locator(fixtureRow(label));
+    if ((await row.count()) === 0) {
+        throw new Unreachable(
+            `the seeded Limited fixture "${label}" is not on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+        );
+    }
+    await row.first().locator(EVENT_VIEW).first().click({
+        timeout: STEP_TIMEOUT,
+    });
     await page
         .waitForURL(/\/limited\/[^/]+(\/draft)?$/, { timeout: NAV_TIMEOUT })
         .catch(() => {});
@@ -432,6 +487,20 @@ async function openLimitedEvent(
     if (/^\/limited\/[^/]+\/draft$/.test(path)) return "draft";
     if (/^\/limited\/[^/]+$/.test(path)) return "event";
     return null;
+}
+
+/** The event id the page is currently on — how a walk reaches a route that
+ *  has no link from the event page (`/limited/<id>/build` for a seat still
+ *  mid-draft). Derived from the URL the fixture's own row navigated to, so it
+ *  is still the fixture being addressed, never a positional guess. */
+function currentEventId(page: Page): string {
+    const match = /^\/limited\/([^/]+)/.exec(new URL(page.url()).pathname);
+    if (!match) {
+        throw new Unreachable(
+            `expected to be on a /limited/<id> route, but the page is at ${page.url()}`
+        );
+    }
+    return match[1];
 }
 
 /**
@@ -762,12 +831,15 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-list",
-        label: "Limited events list (/limited)",
+        // Issue #2822: the list is walked FILTERED to the seeded fixture
+        // (`?label=ui-gate/`). Unfiltered, this row measured however many
+        // events the deployment happened to hold — 14 at the time, each one
+        // adding interactive controls to the `small` count and pushing
+        // `<main>` past the starvation threshold — so the ceiling moved
+        // without a line of `src/` changing.
+        label: "Limited events list (/limited, fixture-filtered)",
         async walk(page, ctx) {
-            await goto(page, ctx, "/limited");
-            if (!(await visible(page, "main, [role=main]", 10_000))) {
-                throw new Unreachable("/limited rendered no main region");
-            }
+            await reachFixtureList(page, ctx);
         },
     },
     {
@@ -780,7 +852,15 @@ export const SURFACES: readonly Surface[] = [
         // also satisfy).
         label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
         async walk(page, ctx) {
-            await goto(page, ctx, "/limited/events");
+            // The `label` param rides through the redirect (issue #2822, see
+            // `limited-your-events.route.tsx`) — a redirect that dropped it
+            // would land this surface back on the unbounded list, which is the
+            // bug.
+            await goto(
+                page,
+                ctx,
+                `/limited/events?label=${FIXTURE_LABEL_PREFIX}`
+            );
             // The redirect target's query string is `?mine=true`, not
             // `?mine=1` — `stringifySearch` serializes the boolean, it never
             // emits the numeric literal a hand-typed/bookmarked URL would use
@@ -801,6 +881,13 @@ export const SURFACES: readonly Surface[] = [
                     "/limited/events redirected, but /limited rendered no main region"
                 );
             }
+            if (
+                (await page.locator("[data-limited-event-label]").count()) === 0
+            ) {
+                throw new Unreachable(
+                    `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. Seed it with: ${SEED_FIXTURES_COMMAND}`
+                );
+            }
         },
     },
     {
@@ -813,53 +900,58 @@ export const SURFACES: readonly Surface[] = [
         // below), not this one.
         label: "Limited event antechamber (/limited/<id>)",
         async walk(page, ctx) {
-            const count = await limitedEventCount(page, ctx);
-            if (count === 0) {
+            // The `ui-gate/open` fixture, specifically (issue #2822): seating
+            // still open is the one event state whose detail page neither
+            // redirects into the Draft Room (`useDraftRoomRedirect` needs a
+            // pending pick) nor auto-opens the deck builder
+            // (`useAutoOpenLimitedBuilder` needs a final pool). Both of those
+            // are ONE-SHOT PER TAB, so a fixture that tripped either would
+            // measure the antechamber at some viewports and a different screen
+            // at others.
+            if (
+                (await openFixtureEvent(page, ctx, FIXTURE_OPEN_LABEL)) !==
+                "event"
+            ) {
                 throw new Unreachable(
-                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                    `the "${FIXTURE_OPEN_LABEL}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). Re-seed it: ${SEED_FIXTURES_COMMAND}`
                 );
             }
-            for (let i = 0; i < Math.min(count, 3); i++) {
-                if ((await openLimitedEvent(page, ctx, i)) !== "event") {
-                    continue;
-                }
-                if (await visible(page, "main, [role=main]", 10_000)) return;
+            if (!(await visible(page, "main, [role=main]", 10_000))) {
+                throw new Unreachable(
+                    "the Limited event antechamber rendered no main region"
+                );
             }
-            throw new Unreachable(
-                "no Limited event landed on its antechamber (every seated event redirected straight to the Draft Room)"
-            );
         },
     },
     {
         id: "limited-build",
+        // Issue #2822 lifted this out of `unwalked`. It used to need "an
+        // event whose seat offers Build Deck", which no event on the
+        // deployment had; the mid-draft fixture supplies one — the builder
+        // route needs only a dealt, non-empty pool
+        // (`pool-deck-builder.tsx`), which is exactly what
+        // `ui-gate/draft`'s seat 0 carries.
         label: "Limited pool builder (/limited/<id>/build)",
         async walk(page, ctx) {
-            const count = await limitedEventCount(page, ctx);
-            if (count === 0) {
+            // Reached by URL rather than by a click: mid-draft there is no
+            // Build Deck control on the event page (it appears once the pool
+            // is FINAL), and the id comes from the fixture's own row, so this
+            // is still label-addressed.
+            await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+            const eventId = currentEventId(page);
+            await goto(page, ctx, `/limited/${eventId}/build`);
+            // A CARD TILE, not the "Build Limited Deck" heading: on a short
+            // viewport `DeckBuilderHeader` hides the whole Back+title band by
+            // design (`short-viewport:hidden`), so a title assertion reports
+            // the builder unreachable at 844x390 while it is rendering fine.
+            // A tile also distinguishes the real builder from
+            // `PoolDeckBuilder`'s "No Pool has been generated for your seat
+            // yet" empty state, which is the failure actually worth catching.
+            if (!(await visible(page, "[data-card-tile]", 10_000))) {
                 throw new Unreachable(
-                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                    `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. Re-seed it: ${SEED_FIXTURES_COMMAND}`
                 );
             }
-            for (let i = 0; i < Math.min(count, 3); i++) {
-                if ((await openLimitedEvent(page, ctx, i)) !== "event")
-                    continue;
-                if (
-                    await clickIfVisible(
-                        page,
-                        "a:has-text('Build Deck'), button:has-text('Build Deck')",
-                        4000
-                    )
-                ) {
-                    await page
-                        .waitForURL(/\/build$/, { timeout: NAV_TIMEOUT })
-                        .catch(() => {});
-                    await settle(page);
-                    if (page.url().endsWith("/build")) return;
-                }
-            }
-            throw new Unreachable(
-                "no Limited event offered Build Deck (none has a ready pool for this seat)"
-            );
         },
     },
     {
@@ -896,11 +988,21 @@ export const SURFACES: readonly Surface[] = [
             // surface is `draft-pool-stop` plus the one gesture that was
             // missing: select a Pool tile and measure with the panel open.
             await reachDraftPoolStop(page, ctx);
-            if (!(await clickIfVisible(page, DRAFT_POOL_TILE, STEP_TIMEOUT))) {
+            // The LAST tile, not the first (issue #2822). The pool renders as
+            // OVERLAID column piles (ADR 0075), so on a full pool the first
+            // tile of a pile is covered by the ones stacked on top of it and
+            // Playwright's actionability check waits out its whole timeout on
+            // it — measured, as a walk-threw UNWALKED at 1440x900x2, the
+            // moment the fixture gave this seat a realistic 24-card pool. The
+            // last tile is the top of its own pile at every viewport.
+            const poolTile = page.locator(DRAFT_POOL_TILE).last();
+            if ((await page.locator(DRAFT_POOL_TILE).count()) === 0) {
                 throw new Unreachable(
                     "reached the Draft Room's pool stop but found no Pool card tile to select — this surface needs the same NON-EMPTY pool `draft-pool-stop` does"
                 );
             }
+            await poolTile.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+            await poolTile.click({ timeout: STEP_TIMEOUT });
             if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
