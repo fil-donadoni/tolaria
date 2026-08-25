@@ -55,12 +55,25 @@ export const SLOTS: readonly Slot[] = [
     { name: SPELL_SLOT, rule: spellSlot },
 ];
 
-export function routeLine(
+/**
+ * The router proper, over an INJECTED slot list.
+ *
+ * The slot list is a parameter and not a closed-over constant for one reason:
+ * the 2+ branch below is the PR's headline guarantee and, with four of six
+ * slots still stubs, no real line can reach it. A guarantee whose branch no
+ * test can enter is a guarantee nobody has watched hold — the mutation
+ * `hits.length === 1` → `hits.length >= 1` turns this router into exactly the
+ * priority ladder the header rejects, and left every test in this directory
+ * green. Synthetic slots make the branch reachable today, so the regression is
+ * caught now rather than when #2697–#2700 make it reachable for real.
+ */
+export function routeLineWith(
+    slots: readonly Slot[],
     line: string,
     ctx: ParseContext
 ): RuleResult<LineParse> {
     const hits: LineParse[] = [];
-    for (const slot of SLOTS) {
+    for (const slot of slots) {
         const r = slot.rule.run(line, ctx);
         if (r.ok) hits.push({ line, slot: slot.name, ir: r.value });
     }
@@ -75,6 +88,14 @@ export function routeLine(
             .join(" and ")} both consumed it`,
         line
     );
+}
+
+/** Route a line through every slot the compiler knows. */
+export function routeLine(
+    line: string,
+    ctx: ParseContext
+): RuleResult<LineParse> {
+    return routeLineWith(SLOTS, line, ctx);
 }
 
 /**

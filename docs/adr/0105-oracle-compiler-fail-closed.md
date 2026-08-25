@@ -197,6 +197,22 @@ costs one redundant regeneration and never misses a real one.
   is available, rather than faked inside the gate.
 - Every grammar rule carries a one-line CR citation; `cr:lint` covers this
   module like the rest of the engine.
+- **`check:oracle` lives in the SHARED `check:all:inner`, so a Mechanics
+  Registry edit reds the gate for every lane** — the registry hash is an input
+  to the lockfile, and any PR adding a keyword or flipping a row's status must
+  regenerate. That is the guard working, but the remedy has to be reachable
+  offline-first, because `data/oracle-corpus.json.gz` is gitignored:
+  `bun run oracle:compile` on a machine that has never fetched the corpus exits
+  1 on the missing cache, and a contributor is left inferring a bootstrap step
+  from a hash mismatch. So the fix line printed by
+  `scripts/check-oracle-lockfile.ts` is corpus-aware — when the cache is absent
+  it names the one-off `bun run oracle:corpus` fetch FIRST, then
+  `oracle:compile`. Same problem and the same shape of answer as
+  `catalogue:ensure` (`scripts/ensure-full-catalogue.mjs`): a generated artefact
+  that is not in git must name its bootstrap at the point of failure. The one
+  difference is deliberate — `catalogue:ensure` runs its generator itself, and
+  this check must not, because the gate is offline by contract: a check may TELL
+  you to hit the network and may never do it for you.
 
 ## Alternatives considered
 

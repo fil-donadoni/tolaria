@@ -18,7 +18,15 @@ import { manaAbilitySlot } from "../grammar/slots/manaAbility";
 import { spellSlot } from "../grammar/slots/spell";
 import { staticSlot } from "../grammar/slots/staticSlot";
 import { triggeredSlot } from "../grammar/slots/triggered";
-import { explainLine, routeLine, SLOTS } from "../grammar/router";
+import type { SlotIR } from "../grammar/ir";
+import type { Slot } from "../grammar/router";
+import {
+    explainLine,
+    routeLine,
+    routeLineWith,
+    SLOTS,
+} from "../grammar/router";
+import { ok, rule } from "../rule";
 import { oracleCard, parseContext } from "./fixtures";
 
 describe("keyword line slot (CR 702.1)", () => {
@@ -223,6 +231,46 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
         for (const v of verdicts.filter((v) => v.slot !== "keyword-line")) {
             expect(v.verdict).not.toBe("consumed");
         }
+    });
+
+    it("REFUSES a line two slots both consume, rather than taking the first", () => {
+        // The 2+ branch is unreachable through `SLOTS` while four of six slots
+        // are stubs, so it is exercised through injected slots instead. This
+        // is the guard on the PR's headline invariant (ADR 0105: no priority
+        // ladder, no catch-all): mutating `hits.length === 1` to `>= 1` makes
+        // the router first-slot-wins, and nothing else in this directory
+        // notices.
+        const always = (name: string): Slot => ({
+            name,
+            rule: rule<SlotIR>(name, () =>
+                ok({ kind: "keywords", keywords: [] })
+            ),
+        });
+        const r = routeLineWith(
+            [always("zebra-slot"), always("alpha-slot")],
+            "Flying",
+            ctx
+        );
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(r.reason).toMatch(/ambiguous/);
+            // Sorted, so slot ORDER cannot reach the lockfile.
+            expect(r.reason).toContain("alpha-slot and zebra-slot");
+        }
+    });
+
+    it("routes through the injected list, so a single hit still wins", () => {
+        // Without this the test above would also pass on a router that failed
+        // unconditionally.
+        const only: Slot = {
+            name: "only-slot",
+            rule: rule<SlotIR>("only-slot", () =>
+                ok({ kind: "keywords", keywords: [] })
+            ),
+        };
+        const r = routeLineWith([only], "Flying", ctx);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.slot).toBe("only-slot");
     });
 
     it("has NO catch-all: spell text is refused, not best-effort parsed", () => {

@@ -46,9 +46,34 @@ const GREEN = "\x1b[32m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
+/**
+ * Fail with a remedy the reader can actually run.
+ *
+ * `bun run oracle:compile` alone is a dead end on a machine that has never
+ * fetched the corpus: `data/oracle-corpus.json.gz` is gitignored, so the
+ * compile exits 1 on a missing cache and the reader is left reverse-engineering
+ * a bootstrap step out of a hash mismatch. So the fix line names the ONE-OFF
+ * `oracle:corpus` fetch explicitly whenever the cache is absent.
+ *
+ * Same problem, and the same shape of answer, as `catalogue:ensure`
+ * (`scripts/ensure-full-catalogue.mjs`): a generated artefact that is not in
+ * git needs its bootstrap named at the point of failure, not in a doc the
+ * reader would have to already know to open. The difference is that
+ * `catalogue:ensure` can run its generator itself, and this one must not — the
+ * gate is offline by contract (CLAUDE.md), so a check may TELL you to hit the
+ * network and may never do it for you.
+ */
 function fail(message: string): never {
     process.stderr.write(`${RED}✗ oracle lockfile — ${message}${RESET}\n`);
-    process.stderr.write(`${DIM}  fix: bun run oracle:compile${RESET}\n`);
+    if (corpusIsCached()) {
+        process.stderr.write(`${DIM}  fix: bun run oracle:compile${RESET}\n`);
+    } else {
+        process.stderr.write(
+            `${DIM}  fix: bun run oracle:corpus   # one-off Scryfall fetch — ` +
+                `data/oracle-corpus.json.gz is gitignored and absent here\n` +
+                `       then: bun run oracle:compile${RESET}\n`
+        );
+    }
     process.exit(1);
 }
 
