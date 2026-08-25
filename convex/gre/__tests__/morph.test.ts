@@ -233,8 +233,8 @@ describe("morph — the turn-face-up special action (CR 702.37e / 116.2b)", () =
         )!;
         expect(after.faceDown).toBeUndefined();
         expect(getEffectivePower(state, after)).toBe(4);
-        // CR 702.37e — "pay that cost": all four Plains are tapped for {2}{W}{W}
-        // and nothing is left floating.
+        // CR 702.37e says "pay that cost", and the morph cost here is
+        // {2}{W}{W}: all four Plains go down for it, with nothing floating.
         expect(
             state.players[0].battlefield.filter(
                 (c) => c.id.startsWith("plains") && c.isTapped

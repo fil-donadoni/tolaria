@@ -1,5 +1,6 @@
-// Frontend wiring (SURFACE) test for the MORPH face-down cast option
-// (CR 702.37a, issue #2705). Mirrors `bestow-alt-cost.test.ts`:
+// Frontend wiring (SURFACE) test for the morph face-down cast option
+// (CR 702.37a — morph, issue #2705). Same shape as the sibling
+// `bestow-alt-cost.test.ts`.
 // `affordableAltCostsForCard` (src/lib/card-utils.ts) is the gate
 // `useHandCardCommit` consults to decide whether to open the `AltCostPicker`,
 // and it delegates to the server predicate `affordableAlternativeCosts`.

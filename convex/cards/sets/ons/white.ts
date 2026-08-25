@@ -21,8 +21,8 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 //
 // resolve() justification (ADR 0045 DSL-first, precedent-twin): the lifegain
 // clause is the EXACT El-Hajjâj / Horned Cheetah shape (`arn/black.ts`,
-// `inv/multicolor.ts`) — `damageDealtTrigger({ source: "self", resolve:
-// (ctx, event) => ctx.gainLife(ctx.controller, event.amount) })`. The same
+// `inv/multicolor.ts`) — a `damageDealtTrigger` scoped to `"self"` whose
+// imperative body is `ctx.gainLife(ctx.controller, event.amount)`. The same
 // documented gap applies: `event.amount` has no `EffectValue` grammar member
 // / `$event` field row, so the trigger cannot be written as an Effect Script.
 // Not an invented shortcut and not a new primitive.

@@ -14824,12 +14824,13 @@ export interface CardDefinition {
      *  counter clause nothing enforces. A megamorph card needs its own
      *  sibling field and its own turn-up clause, out of scope here.
      *
-     *  A card carrying `morph` is CONSTRAINED by `morphCards.test.ts`: it must
-     *  be a creature card with no `targetRequirement`, no `additionalCosts`,
-     *  no modes, no X and no kicker/buyback — because CR 702.37c gives the
-     *  face-down spell "no text", so none of those clauses may apply to the
-     *  face-down cast, and the guard fails closed rather than letting a future
-     *  card ship with a clause silently applied to the wrong object. */
+     *  A card carrying `morph` is CONSTRAINED by `morphCards.test.ts`. Per
+     *  CR 702.37c the face-down morph spell has "no text", so none of the
+     *  printed card's cast-time clauses may apply to it, and a shipped morph
+     *  card must therefore be a creature card declaring no `targetRequirement`,
+     *  no `additionalCosts`, no modes, no X, no kickers and no buyback. The
+     *  guard fails closed rather than letting a future card ship with one of
+     *  those clauses silently applied to the wrong object. */
     morph?: ManaCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
