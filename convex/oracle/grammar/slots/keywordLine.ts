@@ -58,7 +58,7 @@ const keyword: Rule<KeywordIR> = atom("keyword ability", KEYWORD_VOCABULARY);
 /** `"Flying, vigilance"` — a comma-separated run of keywords. */
 const commaRun: Rule<KeywordIR[]> = listOf("keyword run", ", ", keyword);
 
-/** `"Flying; banding"` — semicolon groups, each a comma run (CR 702.1). */
+/** `"Flying; banding"` — semicolon groups, each a comma run. */
 const semicolonGroups: Rule<KeywordIR[][]> = listOf(
     "keyword groups",
     "; ",
