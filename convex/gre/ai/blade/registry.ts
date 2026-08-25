@@ -2050,6 +2050,81 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2248 negative control 2 — 'sorcery-speed cast with real reward'. 3 x Craw Wurm already on board is 18 power, short of the opponent's 20 life; Raging Kavu's Flash makes it structurally match `isSorcerySpeedTrickDump` shape 3 (a non-Instant flash permanent, cast by the active player at a main phase) exactly the way the fix entry's Containment Priest does, but Kavu also has HASTE — casting it THIS main phase adds 3 power to THIS combat and crosses lethal (21 into 20), where holding it for the opponent's end step forfeits the attack entirely and pushes the kill a full turn later against an opponent who gets to act in between. That gap is far outside `OUTCOME_EPS`, so the tie-break's own mean-reward gate must not fire: the position proves the fix is a preference among outcome-equal lines, never a rule that redirects a decisively-better cast to `pass`.",
     },
+    {
+        // MORPH — the face-down cast (CR 702.37a, issue #2705). Exalted Angel
+        // costs {4}{W}{W}; the bot has THREE lands. The printed cast is not on
+        // the table at all, so the only thing that can put a body on an empty
+        // board this turn is the morph alternative cost — "{3} rather than
+        // paying its mana cost". A 2/2 for three with the whole board empty
+        // beats passing on the same develop tie-break the positive control
+        // rides, and nothing in the position argues for holding the mana (no
+        // instant, no untapped-mana payoff, nothing to respond to).
+        //
+        // Its job is to prove the cast is REACHABLE by the bot end to end:
+        // enumerated with a synthesized `alternativeCostId`, tap-planned
+        // against the {3}, and applied in-tree as a face-down 2/2 rather than
+        // as a 4/5 flier. Before issue #2705 this entry could not even be
+        // written — `enumerateCastMoves` emitted nothing for an unaffordable
+        // printed cost.
+        label: "morph: casts Exalted Angel face down for {3} on three lands",
+        spec: {
+            cards: [
+                { name: "Exalted Angel", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Exalted Angel" }] },
+        note: "CR 702.37a face-down cast: the printed {4}{W}{W} is unaffordable, so the morph alternative cost is the only cast in the position.",
+    },
+    {
+        // MORPH — the turn-face-up special action (CR 116.2b / 702.37e, issue
+        // #2705). The bot controls a face-down Exalted Angel and four untapped
+        // Plains, with nothing in hand and nothing on the stack. Paying
+        // {2}{W}{W} turns a 2/2 vanilla into a 4/5 flier that gains life
+        // whenever it deals damage — a strict, unconditional board upgrade,
+        // with no mana sink competing for the four lands and no reason to hold
+        // up an instant it does not have.
+        //
+        // The matcher names no card on purpose: a face-down permanent presents
+        // the `FACE_DOWN_CARD_ID` sentinel, which is registered in the lookup
+        // map only and is deliberately NOT in the name registry — resolving
+        // "Exalted Angel" against this board would find nothing, exactly as it
+        // should (that hiddenness is the mechanic). `{ kind: "turn-face-up" }`
+        // is unambiguous here regardless: there is only one face-down
+        // permanent in the position.
+        label: "morph: turns a face-down Exalted Angel face up for its morph cost",
+        spec: {
+            cards: [
+                {
+                    name: "Exalted Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    faceDown: true,
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { moves: [{ kind: "turn-face-up" }] },
+        note: "CR 702.37e special action: 2/2 vanilla → 4/5 lifegain flier for {2}{W}{W}, with no competing use for the mana.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

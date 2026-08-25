@@ -223,9 +223,15 @@ describe("game.ts cast-commit sites all route through payCastManaCost (issue #23
                 ? [i]
                 : []
         );
-        // Exactly two survive: the one inside `payCastManaCost` itself, and
-        // the companion summon — a special action that puts a card in HAND,
-        // never a spell on the stack, so it has nothing to note onto.
+        // Two CATEGORIES survive: the call inside `payCastManaCost` itself,
+        // and the CR 116 SPECIAL ACTIONS — which pay a mana cost but push no
+        // stack item, so they have nothing to note the spend onto (the
+        // companion summon puts a card in hand; the morph turn-face-up flips a
+        // permanent already on the battlefield, issue #2705). The exemption
+        // keys on the phrase "special action" in the call's own comment
+        // paragraph rather than on a hand-maintained list of cost constants:
+        // a third special action must then DECLARE itself as one to be
+        // exempt, instead of being added to a list nobody re-reads.
         // The shared seam's own body, as a line range: from its signature to
         // the first line that closes a top-level declaration.
         const seamStart = lines.findIndex((line) =>
@@ -238,9 +244,11 @@ describe("game.ts cast-commit sites all route through payCastManaCost (issue #23
                 .slice(seamStart)
                 .findIndex((line, i) => i > 0 && line === "}");
         const offenders = callLines.filter((i) => {
-            const context = lines.slice(i, i + 4).join("\n");
+            // Look BEHIND as well as ahead: the declaration lives in the
+            // comment above the call, not after it.
+            const context = lines.slice(Math.max(0, i - 4), i + 4).join("\n");
             return (
-                !/COMPANION_SUMMON_COST/.test(context) &&
+                !/special action/i.test(context) &&
                 !(i > seamStart && i < seamEnd)
             );
         });

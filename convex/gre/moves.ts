@@ -94,6 +94,7 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
+import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
@@ -220,6 +221,27 @@ export type Move =
           kind: "summon-companion";
       }
     | {
+          /** CR 116.2b / 702.37e (issue #2705) — the `turn-face-up` special
+           *  action: turn a face-down permanent you control with a morph
+           *  ability face up by paying its morph cost. The engine's SECOND
+           *  special action, and deliberately not shaped like the first:
+           *  where `summon-companion` is per-PLAYER, fixed-cost and once per
+           *  game, this one is per-PERMANENT (hence `cardInstanceId`),
+           *  VARIABLE-cost (the permanent's own printed morph cost, read
+           *  through `faceDownOf`), repeatable, and available to EITHER
+           *  player at ANY priority — CR 116.2b grants it with no timing
+           *  restriction at all, which is the whole point of the mechanic.
+           *
+           *  No tap plan, for the same reason `summon-companion` carries
+           *  none: the cost is solved and applied server-side in one shot by
+           *  the shared auto-tap solver (`canTurnFaceUp` /
+           *  `morphTurnUpPaymentPlan`, gre/morph.ts, and the
+           *  `turnPermanentFaceUp` mutation in game.ts), so there is no
+           *  coloured-pip choice for the executor to replay. */
+          kind: "turn-face-up";
+          cardInstanceId: string;
+      }
+    | {
           kind: "cast-spell";
           cardInstanceId: string;
           chosenModeId?: string;
@@ -318,6 +340,34 @@ export type Move =
           /** blocker → the single attacker it blocks (single-block this slice). */
           assignments: { blockerId: string; attackerId: string }[];
       };
+
+/** CR 116.2 — the SPECIAL ACTIONS this engine models as `Move` kinds.
+ *
+ *  A special action is a game action that "doesn't use the stack and can't be
+ *  responded to" (CR 116): nothing is put on the stack, the pass cycle resets,
+ *  and priority stays with the player who took it. Those three consequences are
+ *  identical for every member, which is why they are a SET rather than three
+ *  copies of one `case` — the engine's first special action
+ *  (`summon-companion`, ADR 0064) hardcoded them, and morph's `turn-face-up`
+ *  (issue #2705) is what forced the shape out into the open.
+ *
+ *  What is deliberately NOT shared is legality or cost: `play-land` is once per
+ *  turn at sorcery speed (CR 116.2a), `summon-companion` is once per game for a
+ *  fixed {3} (CR 116.2g), and `turn-face-up` is unlimited, at any priority, for
+ *  a cost that differs per permanent (CR 116.2b). Each keeps its own predicate;
+ *  only the "no stack, no response, keeps priority" consequence is common.
+ *
+ *  The remaining CR 116.2 actions (suspend, foretell, plot, the planar die,
+ *  unlock, the two effect-granted forms) are not modelled — none has a shipped
+ *  card that reaches them. */
+export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
+    // CR 116.2a — playing a land.
+    "play-land",
+    // CR 116.2g / 702.139a — putting a chosen companion into hand for {3}.
+    "summon-companion",
+    // CR 116.2b / 702.37e — turning a face-down permanent face up.
+    "turn-face-up",
+]);
 
 /** Upper bound on combinations emitted per combinatorial window. Keeps a
  *  20-creature board from emitting 2^20 attacker subsets. Small real/test
@@ -1167,6 +1217,50 @@ function enumerateCastMoves(
             }
         }
     }
+
+    // CR 702.37a/c — the MORPH cast mode: "You may cast this card as a 2/2
+    // face-down creature with no text, no name, no subtypes, and no mana cost
+    // by paying {3} rather than paying its mana cost." A third variant axis
+    // beside the printed-cost loop and Bestow, and for the same reason Bestow
+    // is one: it replaces the base cost (the rule's flat {3}, never the
+    // printed one) AND the object cast (a face-down 2/2 with no text, hence
+    // no targets, no modes and no X — `morphCards.test.ts` enforces that a
+    // morph card declares none of those, so there is nothing here to thread).
+    //
+    // The Bot needs this variant for the same reason it needed Bestow: every
+    // other alternative cost only changes what the caster PAYS, so skipping
+    // one is merely suboptimal, while skipping this one puts a whole class of
+    // board state — a face-down creature, and the unmorph line that follows —
+    // permanently out of reach.
+    const morphCast = morphCastAlternativeCost(def ?? undefined);
+    if (morphCast) {
+        const morphCost = normalizeManaCost(morphCast.mana ?? {}, {
+            chosenX: 0,
+        });
+        foldFlashSurchargeCost(morphCost, flashSurcharge, flashSurchargeOwed);
+        // CR 601.2f — the same battlefield cost modifiers every other cast
+        // branch folds. A face-down spell is a colourless creature spell with
+        // no name, so a modifier keyed on the printed card's characteristics
+        // legitimately may not apply to it; `getCostModifiers` reads the
+        // instance, which at enumeration time is still face up. That is a
+        // known simplification of CR 702.37c's "any effects … that would apply
+        // to casting a card with these characteristics", and it is unreachable
+        // in the shipped pool: no cost modifier in the catalogue keys on a
+        // characteristic a face-down spell loses.
+        const morphModifiers = getCostModifiers(state, card, "spell");
+        applyCostModifiers(morphCost, morphModifiers);
+        const morphTapPlan = planManaPayment(state, player, morphCost);
+        if (morphTapPlan !== null) {
+            moves.push({
+                kind: "cast-spell",
+                cardInstanceId: card.id,
+                alternativeCostId: morphCast.id,
+                targets: [],
+                confirmTargets: false,
+                tapPlan: morphTapPlan,
+            });
+        }
+    }
     return moves;
 }
 
@@ -1888,6 +1982,16 @@ export function enumerateMoves(
     // (legalActions.ts, via this enumerator).
     if (canSummonCompanion(state, player)) {
         moves.push({ kind: "summon-companion" });
+    }
+    // CR 116.2b / 702.37e — the turn-face-up special action, one Move per
+    // face-down permanent this player controls that has an affordable morph
+    // cost. Same single-source-of-truth arrangement as the companion line
+    // above: the predicate behind `turnableFaceUpPermanents` (`canTurnFaceUp`,
+    // gre/morph.ts) is the one the `turnPermanentFaceUp` mutation and the wire
+    // affordance flag also read, so the Bot can never enumerate an action the
+    // server would reject.
+    for (const faceDown of turnableFaceUpPermanents(state, player)) {
+        moves.push({ kind: "turn-face-up", cardInstanceId: faceDown.id });
     }
     for (const card of player.hand) {
         const actions = getLegalActions(state, player, card);

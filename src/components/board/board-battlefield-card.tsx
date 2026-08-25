@@ -1,6 +1,7 @@
 import type { CardInstance } from "~/types/game";
 import type { CardVisualState, ActivatableAbility } from "./battlefield-card";
 import { useGameContext } from "~/hooks/useGameContext";
+import TurnFaceUpButton from "./turn-face-up-button";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
@@ -491,6 +492,18 @@ export default function BoardBattlefieldCard({
                         ) : null
                     }
                 />
+            )}
+            {/* CR 116.2b / 702.37e (issue #2705) — the morph turn-face-up
+                special action. Rendered from the server-derived
+                `canTurnFaceUp` wire flag, which is only ever set on the
+                controller's own projection, and OUTSIDE `data-tap-visual` so
+                it stays upright and clickable on a tapped permanent — turning
+                up a tapped attacker mid-combat is a normal line. Not part of
+                the activated-ability menu below: a special action is not an
+                ability (CR 116), and a face-down permanent has no abilities
+                for that menu to show. */}
+            {!phased && card.canTurnFaceUp && (
+                <TurnFaceUpButton cardInstanceId={card.id} />
             )}
             {/* Host paints above the peek-stack (which is z-0) — a plain
                 stacking wrapper, NOT the rotation layer itself (issue #1994

@@ -53,7 +53,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
-import { turnFaceDown } from "./faceDown";
+import { turnFaceDown, turnFaceUp } from "./faceDown";
 import {
     revertTransform,
     stampBackFaceForEntry,
@@ -2255,6 +2255,21 @@ export type PendingCast = {
      *  `evoked`/`dashed` above, and the same reason: the choice is made at
      *  announcement (CR 601.2b) but the stack item is not built until commit. */
     bestowed?: boolean;
+    /** CR 702.37a/c — true iff the alternative cost chosen for this cast is the
+     *  card's MORPH face-down cast (`isMorphCastAlternativeCost` at
+     *  announcement). Carried through the parked cast so the deferred commit
+     *  (`tryAutoCommitPendingCast`) can still turn the resulting stack item
+     *  FACE DOWN once the {3} is covered. Same shape and same reason as
+     *  `bestowed` above — the choice is made at announcement (CR 601.2b), the
+     *  stack item is not built until commit — and, like `bestowed`, this is not
+     *  a marker for a later trigger but a rewrite of the object put on the
+     *  stack (CR 702.37c: "Put it onto the stack (as a face-down spell with the
+     *  same characteristics)").
+     *
+     *  The parked cast leaks nothing: `PendingCast` carries only a
+     *  `cardInstanceId`, and the card is still in the caster's HAND while the
+     *  payment is open, where the opponent's projection nulls it. */
+    morphed?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -6363,6 +6378,15 @@ function shuffleAfterGraveyardBoundLibraryRedirect(
  *  default destination. */
 function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     const owner = getPlayer(state, item.ownerId);
+    // CR 708.9 (issue #2705) — "If a face-down spell moves from the stack to
+    // any zone other than the battlefield, its owner must reveal it to all
+    // players as they move it." A countered / fizzled face-down morph spell
+    // reaches the graveyard as its real card, not as the 2/2 sentinel. The
+    // battlefield-side half of the same rule lives in `removePermanentTo`;
+    // this chokepoint covers every stack departure that is NOT a resolution
+    // onto the battlefield (which is CR 708.4's face-down permanent and must
+    // stay face down).
+    turnFaceUp(item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,
@@ -9587,6 +9611,20 @@ export function removePermanentTo(
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
     revertCopy(creature);
+    // CR 708.9 (issue #2705) — "If a face-down permanent … moves from the
+    // battlefield to any other zone, its owner must reveal it to all players
+    // as they move it." The morph/Illusionary Mask sibling of the copy revert
+    // directly above, deliberately at the same site and for the same reason:
+    // this is the single battlefield-departure funnel, so it is where a
+    // face-down permanent stops presenting the 2/2 sentinel. Without it a dead
+    // morph creature sits in the graveyard as "Face-down creature" — invisible
+    // to reanimation by name, unmatchable by type or subtype, and shown as the
+    // sentinel to BOTH players rather than revealed to all.
+    //
+    // AFTER the LKI snapshots above, exactly like `revertCopy`: a death
+    // trigger reads the moment-of-death 2/2, which is what the permanent was
+    // when it died (CR 603.10).
+    turnFaceUp(creature);
     // CR 712.8a — while a double-faced card is outside the game or in a zone
     // other than the battlefield or the stack, it has only the characteristics
     // of its FRONT face. The transform sibling of the CR 707.2 copy revert
@@ -14984,6 +15022,20 @@ export function buildSpellContext(
             if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
                 return;
             const [item] = state.stack.splice(idx, 1);
+            // CR 708.9 (issue #2705) — "If a face-down spell moves from the
+            // stack to any zone other than the battlefield, its owner must
+            // reveal it to all players as they move it." Placed on the LINE
+            // AFTER the splice, i.e. before the ability-vanish early return and
+            // before every `destination` branch, so ALL FOUR destinations are
+            // covered by one call: exile, library-top (Memory Lapse) and hand
+            // (Remand) move the card themselves, and only the `graveyard`
+            // default reaches `sendStackItemToGraveyard`'s own reveal. Without
+            // it a countered morph spell reaches a HIDDEN zone still wearing
+            // the 2/2 sentinel — its identity is destroyed, not merely
+            // unrevealed, so it can never be drawn, cast or matched as itself
+            // again. A face-up spell and an ability (which has no card at all)
+            // are both no-ops here.
+            turnFaceUp(item);
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
             // triggered (CR 113.7a) and delayed-triggered abilities all just
@@ -15051,6 +15103,11 @@ export function buildSpellContext(
             const idx = state.stack.findIndex((s) => s.id === target.id);
             if (idx === -1) return; // no longer on the stack (CR 608.2b) — no-op.
             const [item] = state.stack.splice(idx, 1);
+            // CR 708.9 (issue #2705) — the same stack-departure reveal as
+            // `counter`, on the same line relative to the splice and for the
+            // same reason: the library is a hidden zone, so a face-down morph
+            // spell put there by Subtlety would lose its identity outright.
+            turnFaceUp(item);
             // An ability on the stack is not a card (CR 113.7a) — it just
             // ceases to exist, like a countered ability.
             if (

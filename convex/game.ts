@@ -434,6 +434,13 @@ import {
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
 import {
+    canTurnFaceUp,
+    getMorphCost,
+    isMorphCastAlternativeCost,
+    morphTurnUpPaymentPlan,
+} from "./gre/morph";
+import { turnFaceDown, turnFaceUp } from "./gre/faceDown";
+import {
     applyPlayLand,
     applyPlayLandFromExile,
     applyPlayLandFromGraveyard,
@@ -3814,6 +3821,14 @@ export function tryAutoCommitPendingCast(
     // itself is written by `applyBestowCharacteristics`, alongside the type
     // line it rewrites, so the two can never be set apart from each other.
     if (state.pendingCast.bestowed) applyBestowCharacteristics(stackItem);
+    // CR 702.37c (issue #2705) — a MORPH cast puts a FACE-DOWN 2/2 on the
+    // stack, not the printed card. The choice rode here on
+    // `PendingCast.morphed` (set at announcement, the `evoked`/`dashed`/
+    // `bestowed` shape); this is the branch a real morph cast reaches, since
+    // the {3} is almost never already floating. Turned down BEFORE the push and
+    // before `emitSpellCastEvent` below, so no viewer and no cast trigger ever
+    // observes the face-up card on the stack.
+    if (state.pendingCast.morphed) turnFaceDown(stackItem);
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -5927,6 +5942,127 @@ export const summonCompanion = mutation({
     },
 });
 
+/** CR 116.2b / 702.37e (issue #2705) — the `turn-face-up` special action:
+ *  "Any time you have priority, you may turn a face-down permanent you control
+ *  with a morph ability face up. This is a special action; it doesn't use the
+ *  stack. To do this, show all players what the permanent's morph cost would be
+ *  if it were face up, pay that cost, then turn the permanent face up."
+ *
+ *  The engine's SECOND special action, and deliberately not a copy of the
+ *  first: `summonCompanion` is per-player, fixed {3}, once per game and gated
+ *  to sorcery timing, where this one is per-PERMANENT, VARIABLE-cost (the
+ *  permanent's own printed morph cost), repeatable and legal at ANY priority —
+ *  CR 116.2b attaches no timing restriction whatever, and unmorphing as a
+ *  blocker or in response to removal is the mechanic's whole point.
+ *
+ *  Legality is the single `canTurnFaceUp` predicate (gre/morph.ts), shared with
+ *  the Bot's move enumerator (moves.ts) and with the wire affordance flag
+ *  (`projectBattlefieldCard`), so the button, the Bot and the server can never
+ *  disagree. The cost is solved and applied SYNCHRONOUSLY here by the shared
+ *  auto-tap solver, the same one-shot shape `summonCompanion` uses: the action
+ *  offers the player no choices, so a second payment round-trip would buy
+ *  nothing (a player who wants specific lands tapped can float the mana first —
+ *  the solver spends pool mana before it taps anything).
+ *
+ *  CR 708.8 / 702.37e's last sentence — "Any abilities relating to the permanent
+ *  entering the battlefield don't trigger when it's turned face up and don't
+ *  have any effect, because the permanent has already entered the battlefield"
+ *  — needs no suppression flag: `turnFaceUp` mutates the permanent IN PLACE and
+ *  never runs the enter-the-battlefield path, so no ETB event is emitted for
+ *  the permanent's own triggers or for another permanent's ETB watchers to
+ *  see. SBAs run afterwards because the turn-up changes toughness (CR 704.5f
+ *  can kill a permanent whose real toughness is at or below its marked
+ *  damage — or spare a 2/2 with 2 damage that turns into a 4/5). */
+export const turnPermanentFaceUp = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+        assertNoPendingChoices(state);
+        applyTurnPermanentFaceUp(state, args.playerId, args.cardInstanceId);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+    },
+});
+
+/** The whole of the CR 116.2b / 702.37e special action, as a PURE state
+ *  transition: re-check legality, pay the morph cost, turn the permanent face
+ *  up, restart the pass cycle, run SBAs. Split out of the mutation above (the
+ *  `recordConvokeCreaturePick` shape) so the full path is reachable from a test
+ *  without a Convex context — the mutation adds only auth, the clone and the
+ *  save. Throws on every illegal input; the caller has already asserted
+ *  priority and the absence of pending choices. */
+export function applyTurnPermanentFaceUp(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): void {
+    const player = getPlayer(state, playerId);
+    const permanent = player.battlefield.find((c) => c.id === cardInstanceId);
+    if (!permanent) throw new Error("Permanent not found");
+
+    if (!canTurnFaceUp(state, player, permanent)) {
+        throw new Error("Can't turn that permanent face up right now");
+    }
+
+    const plan = morphTurnUpPaymentPlan(state, player, permanent);
+    if (plan === null) throw new Error("Can't afford the morph cost");
+    // CR 702.37e — the morph cost is SHOWN to all players as it is paid. Read
+    // from the real card behind `faceDownOf`, never from the sentinel def
+    // (which has no mana cost at all).
+    const morphCost = normalizeManaCost(getMorphCost(permanent) ?? {});
+
+    // Tap the planned lands and add their mana (CR 605.1a), mirroring
+    // `summonCompanion`'s auto-tap-and-commit sequence.
+    const subs = getManaSubstitutions(state, player.id);
+    const sources = buildAutoTapSources(
+        player.battlefield,
+        manaGateBattlefields(state)
+    );
+    const tappedIds = new Set(plan.map((step) => step.cardId));
+    for (const src of player.battlefield) {
+        if (tappedIds.has(src.id)) src.isTapped = true;
+    }
+    const produced = manaFromPlan(sources, plan);
+    for (const color of MANA_COLORS) {
+        const amount = produced[color];
+        if (amount) {
+            player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+        }
+    }
+    // CR 702.37e — pay the morph cost. No card/restricted-mana eligibility: a
+    // special action is not a spell cast, so restricted mana never applies (the
+    // same reasoning `summonCompanion` records for its {3}).
+    payManaCostForSpell(player, morphCost, [], subs);
+    commitLandsForCost(player, morphCost);
+
+    // CR 702.37e — "then turn the permanent face up. The morph effect on it
+    // ends, and it regains its normal characteristics." One primitive, shared
+    // with ADR 0013's replacement-driven turn-up.
+    turnFaceUp(permanent);
+
+    // CR 116 — a special action puts nothing on the stack and cannot be
+    // responded to, but it IS a game action: the pass cycle restarts and
+    // priority stays with the player who took it (CR 117.3c).
+    state.passCount = 0;
+    checkStateBasedActions(state);
+}
+
 /** Resolves an activated ability id on a battlefield card against its
  *  post-layer effective set ({@link getEffectiveActivatedAbilities}). Returns
  *  the template and, when the ability was granted to this permanent by
@@ -6222,8 +6358,20 @@ export function assertFlashSurchargeDeclaration(
 function castAdjustedTargetRequirement(
     cardDef: CardDefinition,
     kickerPayments: KickerPayments | undefined,
-    isBestowCost: boolean
+    isBestowCost: boolean,
+    isMorphCost: boolean
 ): TargetRequirement | undefined {
+    // CR 702.37c — a face-down spell has "no text", so none of the card's
+    // printed clauses apply to it, including a target requirement. Checked
+    // FIRST and unconditionally: this is a characteristic-defining property of
+    // the object on the stack, not a preference among requirements.
+    //
+    // `morphCards.test.ts` already forbids a morph card from declaring a
+    // `targetRequirement` at all, so today this branch returns what the
+    // fallthrough would. It is here because the guard proves a fact about the
+    // CATALOGUE and this proves a fact about the RULE — and only the second one
+    // still holds when the catalogue changes.
+    if (isMorphCost) return undefined;
     if (isBestowCost) return BESTOW_TARGET_REQUIREMENT;
     if (
         totalKickerCount(kickerPayments) > 0 &&
@@ -7801,6 +7949,13 @@ export const announceCast = mutation({
         // stack item it eventually becomes is rewritten into an Aura
         // enchantment at the commit (`applyBestowCharacteristics`).
         const isBestowCost = isBestowAlternativeCost(cardDef, chosenAltCost);
+        // CR 702.37a/c (issue #2705) — the chosen alt cost IS this card's morph
+        // face-down cast. Like Bestow and unlike evoke/dash it is not a plain
+        // marker: it strips the spell's target requirement (a face-down spell
+        // has "no text", CR 702.37c — `castAdjustedTargetRequirement` below)
+        // and it REWRITES the object put on the stack into a face-down 2/2
+        // (`turnFaceDown` at each commit below).
+        const isMorphCost = isMorphCastAlternativeCost(cardDef, chosenAltCost);
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -8048,7 +8203,8 @@ export const announceCast = mutation({
             castAdjustedTargetRequirement(
                 cardDef,
                 kickerPayments,
-                isBestowCost
+                isBestowCost,
+                isMorphCost
             );
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
@@ -8355,6 +8511,16 @@ export const announceCast = mutation({
                     // Stamped anyway, fail-closed: the flag is cheap and a
                     // silently dropped cast mode is not.
                     ...(isBestowCost ? { bestowed: true } : {}),
+                    // CR 702.37c (issue #2705) — a morph cast REACHES this
+                    // branch whenever the {3} isn't already covered by the
+                    // pool: the face-down spell takes no targets, so it is
+                    // always the no-target path, and the payment park is the
+                    // ordinary case (three lands tapped one at a time). The
+                    // flag rides to `tryAutoCommitPendingCast`, which turns the
+                    // stack item face down there. The card itself stays in HAND
+                    // while parked and so is never exposed to the opponent by
+                    // `pendingCast` (which carries only a `cardInstanceId`).
+                    ...(isMorphCost ? { morphed: true } : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -8441,6 +8607,14 @@ export const announceCast = mutation({
                 delete stackItem.bestowed;
                 applyBestowCharacteristics(stackItem);
             }
+            // CR 702.37c (issue #2705) — "Put it onto the stack (as a face-down
+            // spell with the same characteristics)". The turn-down happens
+            // BEFORE the push and before `emitSpellCastEvent` below, so a
+            // "whenever a player casts a spell" trigger sees the face-down 2/2
+            // with no name — which is what the spell IS at that moment — and so
+            // the projection can never observe a face-up morph spell on the
+            // stack even for one intermediate state.
+            if (isMorphCost) turnFaceDown(stackItem);
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);

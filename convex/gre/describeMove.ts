@@ -115,6 +115,13 @@ export function describeMove(move: Move, state: GameState): string {
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "summon-companion":
             return "summon companion";
+        // CR 116.2b / 702.37e — the turn-face-up special action. Names the
+        // permanent by its FACE-DOWN identity ("face-down creature"), which is
+        // what `instanceName` reads off the sentinel def: a trace line that
+        // printed the real card would leak the very identity the mechanic
+        // hides, and traces are read while a game is live.
+        case "turn-face-up":
+            return `turn face up ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";

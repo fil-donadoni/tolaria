@@ -54,6 +54,8 @@ const FULL_CAST: Required<PendingCast> = {
     payLife: 0,
     chosenModeId: "m",
     additionalCostLegId: "leg-life",
+    // CR 702.37a/c — the morph face-down cast-mode marker (issue #2705).
+    morphed: false,
     actingPlayerId: P1,
     additionalCost: { kind: "exile", filter: {}, pickedId: undefined },
     sacrificeSelection: {

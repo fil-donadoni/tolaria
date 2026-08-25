@@ -14795,6 +14795,43 @@ export interface CardDefinition {
      *  By convention this card's `AlternativeCost.id` is `"bestow"`. Used by
      *  Springheart Nantuko (MH3). */
     bestow?: AlternativeCost;
+    /** CR 702.37 — Morph. The card's printed MORPH COST, i.e. the cost paid to
+     *  turn the face-down permanent face up as a special action (CR 702.37e /
+     *  116.2b), NOT the cost of casting it face down. The face-down cast is
+     *  always "{3} rather than paying its mana cost" (CR 702.37a) and is
+     *  therefore a CONSTANT, synthesized for every morph card by
+     *  `morphCastAlternativeCost` (`convex/gre/morph.ts`) rather than declared
+     *  per card — a card that declared it could disagree with the rule.
+     *
+     *  Declared as a bare {@link ManaCost} sibling field rather than as an
+     *  `alternativeCosts[]` entry or a `staticAbilities[]` keyword string,
+     *  for the same reason `flashSurcharge` is: an `AlternativeCost` REPLACES
+     *  a mana cost at CAST time, and this cost is paid at neither cast time
+     *  nor by a spell — it buys a special action on a permanent already on
+     *  the battlefield.
+     *
+     *  Presence of this field is the whole of the CR 702.37e parenthetical
+     *  ("If the permanent wouldn't have a morph cost if it were face up, it
+     *  can't be turned face up this way"): `getMorphCost` reads it off the
+     *  face-down permanent's `faceDownOf` definition, and a face-down
+     *  permanent whose real card has no `morph` offers no special action —
+     *  which is exactly what keeps an Illusionary Mask creature (CR 708.2,
+     *  ADR 0013) from being unmorphable.
+     *
+     *  Megamorph (CR 702.37b — the same face-down cast plus a +1/+1 counter
+     *  as the permanent is turned face up) is deliberately NOT modelled: no
+     *  shipped card has one, and half-wiring it would ship a keyword whose
+     *  counter clause nothing enforces. A megamorph card needs its own
+     *  sibling field and its own turn-up clause, out of scope here.
+     *
+     *  A card carrying `morph` is CONSTRAINED by `morphCards.test.ts`. Per
+     *  CR 702.37c the face-down morph spell has "no text", so none of the
+     *  printed card's cast-time clauses may apply to it, and a shipped morph
+     *  card must therefore be a creature card declaring no `targetRequirement`,
+     *  no `additionalCosts`, no modes, no X, no kickers and no buyback. The
+     *  guard fails closed rather than letting a future card ship with one of
+     *  those clauses silently applied to the wrong object. */
+    morph?: ManaCost;
     /** CR 702.34 — Flashback. A static ability that functions while the card
      *  is in its owner's graveyard: "You may cast this card from your graveyard
      *  by paying [this cost] rather than its mana cost", and "If the flashback

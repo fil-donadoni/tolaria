@@ -36,6 +36,7 @@ function engineMutations(state: GameState): MoveMutations {
             applyPlayLand(state, p, cardInstanceId);
         },
         summonCompanion: reject,
+        turnPermanentFaceUp: reject,
         announceCast: reject,
         selectTarget: reject,
         selectTargets: reject,

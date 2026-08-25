@@ -15,6 +15,7 @@ function fakeMutations() {
     const m: Record<keyof MoveMutations, ReturnType<typeof vi.fn>> = {
         playCard: vi.fn().mockResolvedValue(null),
         summonCompanion: vi.fn().mockResolvedValue(null),
+        turnPermanentFaceUp: vi.fn().mockResolvedValue(null),
         announceCast: vi.fn().mockResolvedValue(null),
         selectTarget: vi.fn().mockResolvedValue(null),
         selectTargets: vi.fn().mockResolvedValue(null),
@@ -144,6 +145,20 @@ describe("executeMove (issue #110)", () => {
     it("summon-companion → summonCompanion on the bot seat, no card id (#1391)", async () => {
         const m = await run({ kind: "summon-companion" });
         expect(m.summonCompanion).toHaveBeenCalledWith(GP);
+    });
+
+    it("turn-face-up → turnPermanentFaceUp with the permanent's id (CR 116.2b / 702.37e, issue #2705)", async () => {
+        const m = await run({
+            kind: "turn-face-up",
+            cardInstanceId: "morphed",
+        });
+        expect(m.turnPermanentFaceUp).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "morphed",
+        });
+        // A special action is ONE mutation: no announce, no tap round-trip.
+        expect(m.announceCast).not.toHaveBeenCalled();
+        expect(m.tapForPayment).not.toHaveBeenCalled();
     });
 
     it("cast-spell → announce, batch-select all targets, then batch-tap all lands (issue #1779)", async () => {

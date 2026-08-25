@@ -52,6 +52,7 @@ import {
     enumerateMoves,
     enumerateBlockerMoves,
     MAX_COMBINATIONS,
+    SPECIAL_ACTION_MOVE_KINDS,
     type Move,
 } from "./moves";
 import { computeHardSkipFilters, effectivePermanentView } from "./phases";
@@ -72,6 +73,11 @@ export type PriorityMove = Extract<
             | "mulligan"
             | "play-land"
             | "summon-companion"
+            // CR 116.2b / 702.37e (issue #2705) — the morph turn-face-up
+            // special action. Legal at ANY priority, so unlike its
+            // `summon-companion` neighbour it belongs to every priority
+            // window, not just the actor's own main phase.
+            | "turn-face-up"
             | "cast-spell"
             | "activate-ability"
             | "declare-attackers";
@@ -548,8 +554,14 @@ function blockersActions(
 const PRIORITY_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "pass",
     "mulligan",
-    "play-land",
-    "summon-companion",
+    // CR 116.2 — every modelled SPECIAL ACTION is a priority-window action by
+    // definition ("a player can take this action any time they have
+    // priority"), so this reads the shared set rather than restating its
+    // members: the engine's first two special actions were listed by hand
+    // here, and a third (`turn-face-up`) listed in one place and forgotten in
+    // the other would be enumerated by the Bot and then classified as an
+    // action of no window at all.
+    ...SPECIAL_ACTION_MOVE_KINDS,
     "cast-spell",
     "activate-ability",
     "declare-attackers",

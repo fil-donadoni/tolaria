@@ -321,12 +321,21 @@ export function useHandCardCommit(
         // rule: with Gush on top under a Citadel this picker rendered "Return
         // two Islands" and selecting it threw. The gate belongs where the
         // option is OFFERED; the server throw stays as defense-in-depth.
+        // CR 702.37a (issue #2705) — Morph is an alternative cost too ("pay {3}
+        // rather than pay its mana cost … This follows the rules for paying
+        // alternative costs"), but unlike evoke/dash/bestow the COST is not a
+        // field on the card: the {3} belongs to the rule, and
+        // `affordableAlternativeCosts` synthesizes it from `def.morph` (the
+        // printed TURN-UP cost). So the gate keys on `def.morph` while the
+        // offered option comes back from the shared server helper, exactly as
+        // for the other three.
         if (
             !cardInstance.castManaCostReplaced &&
             ((def.alternativeCosts && def.alternativeCosts.length > 0) ||
                 def.evoke ||
                 def.dash ||
-                def.bestow)
+                def.bestow ||
+                def.morph)
         ) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,

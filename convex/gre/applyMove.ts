@@ -90,6 +90,8 @@ import { evaluate } from "./evaluate";
 import { tryGetDefinition, getInstanceManaCost } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
+import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
+import { turnFaceDown, turnFaceUp } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
 import { genericManaShortfall } from "./rules";
@@ -738,6 +740,35 @@ export function applyMoveForSearch(
             return next;
         }
 
+        case "turn-face-up": {
+            // CR 116.2b / 702.37e — the turn-face-up special action. Same
+            // coarse mana model as `summon-companion` above (taps a
+            // representative source set without draining the pool coin-exact):
+            // legality AND affordability were already established by
+            // `canTurnFaceUp` at enumeration time, so this leaf only needs to
+            // move the position forward for evaluation.
+            //
+            // CR 708.8 — the permanent is mutated IN PLACE by `turnFaceUp` and
+            // never re-enters the battlefield, so no ETB trigger of its own or
+            // of any other permanent fires. That is structural, not a
+            // suppression flag: there is no enter-the-battlefield path here to
+            // suppress.
+            const permanent = player.battlefield.find(
+                (c) => c.id === move.cardInstanceId
+            );
+            if (permanent) {
+                const plan = morphTurnUpPaymentPlan(next, player, permanent);
+                if (plan) {
+                    const tapped = new Set(plan.map((step) => step.cardId));
+                    for (const src of player.battlefield) {
+                        if (tapped.has(src.id)) src.isTapped = true;
+                    }
+                }
+                turnFaceUp(permanent);
+            }
+            return next;
+        }
+
         case "cast-spell": {
             // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
             // the tap plan runs (see `applyDelveExileForSearch`'s doc — its
@@ -845,6 +876,27 @@ export function applyMoveForSearch(
                     )?.bestow?.id
             ) {
                 applyBestowCharacteristics(stackItem);
+            }
+            // CR 702.37c (issue #2705) — a MORPH variant of this move puts a
+            // FACE-DOWN 2/2 on the stack, not the printed card: "It becomes a
+            // 2/2 face-down creature card with no text, no name, no subtypes,
+            // and no mana cost … Put it onto the stack (as a face-down spell
+            // with the same characteristics) … When the spell resolves, it
+            // enters the battlefield with the same characteristics the spell
+            // had." The sandbox resolves the item immediately below, so
+            // without this the search would evaluate every morph line as
+            // though the real creature had entered — valuing a hidden 2/2 at
+            // the price of a 4/5 flier, and never seeing that the unmorph
+            // still has to be paid for.
+            if (
+                isMorphCastId(
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    ) ?? undefined,
+                    move.alternativeCostId
+                )
+            ) {
+                turnFaceDown(stackItem);
             }
             next.stack.push(stackItem);
             resolveTopOfStack(next);
