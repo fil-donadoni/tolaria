@@ -100,7 +100,14 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
 // keys on the raw registry/token object, so tokens (`maybeSynthesizeToken`,
 // `createTokenCopyOf`) expand through the same seam as printed cards.
 const expansionCache = new WeakMap<CardDefinition, CardDefinition>();
-const expandDefinition = (base: CardDefinition): CardDefinition => {
+/** Exported for the Oracle compiler's gold harness (`convex/oracle/gold.ts`),
+ *  which must compare a COMPILED definition against a hand-written one after
+ *  the same expansion the engine applies — otherwise every implicit-keyword
+ *  card (exalted, prowess, fading N, …) reads as a compiler bug because the
+ *  hand-written side has injected abilities the compiled side has not yet been
+ *  through the seam to receive. Re-implementing the chain in the harness would
+ *  be a second seam that drifts (ADR 0046). */
+export const expandDefinition = (base: CardDefinition): CardDefinition => {
     const cached = expansionCache.get(base);
     if (cached) return cached;
     // ADR 0054 — chained keyword expansions. Each is a no-op unless its keyword

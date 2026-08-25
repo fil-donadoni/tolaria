@@ -43,6 +43,12 @@ data/worklists/*.resolved.jsonl
 # — the production build must not depend on a Scryfall bulk download. Refresh it
 # with `bun run catalogue:build` when a set ships.
 data/full-catalogue.json.gz
+# Oracle corpus cache (ADR 0105). The reduced Scryfall `oracle_cards` bulk —
+# ~24 MB of third-party data that changes weekly. The repo's source of truth is
+# the LOCKFILE it produces (data/oracle-compiled.json, committed) and the PIN
+# that identifies it (data/oracle-corpus.pin.json, committed); the input itself
+# is regenerable with `bun run oracle:corpus`.
+data/oracle-corpus.json.gz
 .claude/telemetry/
 # Subagent receipts (issue #2182) — batch-scoped run artifacts, not source. The
 # durable record of a batch is the merged PRs; these are the telemetry the
