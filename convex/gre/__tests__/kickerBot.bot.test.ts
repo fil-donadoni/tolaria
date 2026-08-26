@@ -33,7 +33,6 @@ const BOT = "p1";
 const OPP = "p2";
 
 const BURST_LIGHTNING = getCardByName("Burst Lightning").id;
-const BLOODCHIEFS_THIRST = getCardByName("Bloodchief's Thirst").id;
 const MAGMA_BURST = getCardByName("Magma Burst").id;
 const PHYREXIAN_SCUTA = getCardByName("Phyrexian Scuta").id;
 const CORPSE_DANCE = getCardByName("Corpse Dance").id;
