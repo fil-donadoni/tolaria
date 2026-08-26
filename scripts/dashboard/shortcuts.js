@@ -1,6 +1,7 @@
 import { esc } from "./format.js";
 import { viewFromParams, switchView } from "./tabs.js";
 import { refreshLoopStatus } from "./now-loop-status.js";
+import { trapFocus as trapFocusIn } from "./dialog.js";
 
 /**
  * The dashboard's keyboard layer (#2635, PRD #2621 D5/user stories 31-36):
@@ -226,12 +227,6 @@ function toggleSheet() {
     else openSheet();
 }
 
-/** Elements a keyboard user can land on — used only by `trapFocus` below,
- *  not a general utility (a `<details>`/`<summary>` or a `<video>` control
- *  strip would need more than this, but the sheet contains neither). */
-const FOCUSABLE_SELECTOR =
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 /**
  * A real focus trap for the sheet (round 2 review, medium). `aria-modal`
  * declares that nothing behind the dialog is reachable, but nothing
@@ -244,22 +239,14 @@ const FOCUSABLE_SELECTOR =
  * focusable), so this degrades to "Tab always returns to the close button",
  * exactly the right trap for a one-control dialog, and stays correct if a
  * later change adds a second one.
+ *
+ * Thin wrapper over the shared `dialog.js` trap (#2636) — this sheet's own
+ * contribution is only "which element is the dialog root right now", looked
+ * up from module state; the Tab-cycling mechanics live there so the
+ * action-confirmation dialog does not duplicate them.
  */
 function trapFocus(e, doc) {
-    if (e.key !== "Tab") return;
-    const root = sheetEl?.querySelector(".shortcuts-sheet");
-    const focusables = root
-        ? [...root.querySelectorAll(FOCUSABLE_SELECTOR)]
-        : [];
-    if (!focusables.length) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = doc.activeElement;
-    const inside = root.contains(active);
-    if (e.shiftKey ? active === first || !inside : active === last || !inside) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-    }
+    trapFocusIn(sheetEl?.querySelector(".shortcuts-sheet"), e, doc);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

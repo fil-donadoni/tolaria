@@ -524,12 +524,33 @@ export interface LoopFinding {
     detail: string;
 }
 
+/**
+ * The two reversible driver operations `/api/action` exposes that a VERDICT
+ * (as opposed to a single claim row) can ever name (#2636). `claim.release`
+ * is deliberately not a member here — it acts on one claim, not on the
+ * driver, so it is offered per-row on the claims table instead
+ * (`c.verdict.state === "orphan"`), never from the verdict band.
+ */
+export type RemedyAction = "driver.stop" | "driver.resume";
+
 export interface LoopVerdict {
     state: LoopVerdictState;
     /** One plain-English sentence naming the CAUSE. */
     sentence: string;
     /** What to do next, naming the command. */
     remedy: string;
+    /**
+     * Which reversible driver operation, if any, `remedy` is describing in
+     * prose — a STRUCTURAL discriminator (#2636), not something a renderer
+     * derives by pattern-matching `remedy`'s text. A dashboard button wired
+     * to "does the sentence look like a stop/resume command" would silently
+     * drift the day a remedy is reworded; this field is set at the same call
+     * site that chose the remedy's WORDING, from the same fixed vocabulary
+     * (`REMEDY_ACTION` below), so the two can never disagree. `null` when no
+     * reversible action makes sense for this verdict (`reads`/`orphans`/
+     * `feed`) — the remedy stays a copy-only command in that case.
+     */
+    remedyAction: RemedyAction | null;
     /** The evidence behind the verdict — reported whichever state won, so a
      *  `STOPPED` loop still says how many claims are outstanding. */
     findings: LoopFinding[];
@@ -612,6 +633,38 @@ export const REMEDY = {
     none: "nothing to do — `bun run loop:afk --stop` asks the driver to stop after the current pass",
     feed: "label issues `ready-for-agent` to give the loop work",
 } as const;
+
+/**
+ * Which `REMEDY` keys name a reversible driver operation the action endpoint
+ * exposes (#2636) — the single place that decision is made, so every call
+ * site below picks a `remedy` and its `remedyAction` together via
+ * `pickRemedy` rather than restating the mapping.
+ *
+ * `start`/`resume`/`arm` all collapse to `"driver.resume"`: the backend
+ * operation behind it (`sh scripts/loop-handoff.sh --resume`) arms the loop
+ * if needed AND starts a driver unconditionally, clearing any stop-file —
+ * so it is the correct action whichever of the three worded the sentence
+ * (an unarmed, a stopped, or an armed-but-driverless loop). `none` (the
+ * driver IS running) is the only shape where stopping it is sensible.
+ * `reads`/`orphans`/`feed` name no reversible driver operation — `orphans`'s
+ * remedy is a per-CLAIM action instead, wired on the claims table
+ * (`c.verdict.state === "orphan"`), never the verdict band.
+ */
+const REMEDY_ACTION: Partial<Record<keyof typeof REMEDY, RemedyAction>> = {
+    start: "driver.resume",
+    resume: "driver.resume",
+    arm: "driver.resume",
+    none: "driver.stop",
+};
+
+/** Selects a `remedy` and its `remedyAction` together, from the same key —
+ *  the two can never disagree because nothing ever sets one without the
+ *  other. */
+function pickRemedy(
+    key: keyof typeof REMEDY
+): Pick<LoopVerdict, "remedy" | "remedyAction"> {
+    return { remedy: REMEDY[key], remedyAction: REMEDY_ACTION[key] ?? null };
+}
 
 /**
  * PRECEDENCE (#2624): `NEEDS ATTENTION` > `STALLED` > `STOPPED` > `RUNNING` >
@@ -708,7 +761,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
             sentence: readFinding
                 ? "The loop's own reads failed, so this screen cannot tell you whether the loop is healthy."
                 : `${orphans.length} claimed issue(s) are orphaned — claimed with nothing to show, and nothing left to release them.`,
-            remedy: readFinding ? REMEDY.reads : REMEDY.orphans,
+            ...pickRemedy(readFinding ? "reads" : "orphans"),
             findings,
         };
     }
@@ -721,7 +774,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
             sentence: d.armed
                 ? `The loop is armed but no driver is running, and there is still work outstanding (queue ${queueTotal}, claimed ${claims.length}).`
                 : `No driver is running and the loop is not armed, yet ${claims.length} issue(s) are still claimed (queue ${queueTotal}) — that work will not move on its own.`,
-            remedy: d.armed ? REMEDY.start : REMEDY.arm,
+            ...pickRemedy(d.armed ? "start" : "arm"),
             findings,
         };
     }
@@ -731,7 +784,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
             state: "STOPPED",
             sentence:
                 "A stop-file is present — nothing will start until it is removed.",
-            remedy: REMEDY.resume,
+            ...pickRemedy("resume"),
             findings,
         };
     }
@@ -740,7 +793,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
         return {
             state: "RUNNING",
             sentence: `The driver is running (pid ${d.pid}), working through the queue (${queueTotal} unclaimed, ${claims.length} claimed).`,
-            remedy: REMEDY.none,
+            ...pickRemedy("none"),
             findings,
         };
     }
@@ -749,7 +802,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
         return {
             state: "IDLE",
             sentence: `The loop is not armed — the end-of-pass handoff will not fire, and ${queueTotal} issue(s) are waiting.`,
-            remedy: REMEDY.arm,
+            ...pickRemedy("arm"),
             findings,
         };
     }
@@ -758,7 +811,7 @@ export function deriveLoopVerdict(input: LoopVerdictInput): LoopVerdict {
         state: "IDLE",
         sentence:
             "The loop is armed, nothing is claimed and the queue is empty — there is nothing to do.",
-        remedy: REMEDY.feed,
+        ...pickRemedy("feed"),
         findings,
     };
 }

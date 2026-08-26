@@ -366,15 +366,20 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         expect(NOW_MODULES).toContain("format.js");
     });
 
-    it("Now reads /api/loop-status and nothing else — no database route, direct or transitive", () => {
+    it("Now reads /api/loop-status and posts to /api/action, and nothing else — no database route, direct or transitive", () => {
+        // `/api/action` (#2628) joined the allow-list in #2636: the Now
+        // view's action buttons (`actions.js`, reached from `main.js` via
+        // `now-loop-status.js`) POST the three reversible driver operations
+        // there. It reads no DB — same guarantee `/api/loop-status` gives —
+        // so admitting it here does not reopen the thing this guard exists
+        // to prevent (a DB-backed route reachable without telemetry.db).
+        const ALLOWED = new Set(["/api/loop-status", "/api/action"]);
         for (const name of NOW_MODULES) {
             const src = stripComments(
                 readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
             );
             for (const m of src.matchAll(/\/api\/[a-z-]+/g)) {
-                expect(m[0], `${name} reaches ${m[0]}`).toBe(
-                    "/api/loop-status"
-                );
+                expect(ALLOWED.has(m[0]), `${name} reaches ${m[0]}`).toBe(true);
             }
         }
     });

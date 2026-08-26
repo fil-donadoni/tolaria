@@ -1160,6 +1160,117 @@ describe("loop-status — verdict precedence (#2624)", () => {
 });
 
 /**
+ * `remedyAction` (#2636) — the STRUCTURAL discriminator a dashboard button
+ * consumes to decide whether "Stop driver" / "Resume driver" is offered,
+ * named at the SAME call site that picked the remedy's wording so the two
+ * can never disagree (`pickRemedy`). One row per reachable verdict shape,
+ * including every remedy that offers NO action — those rows are as load-
+ * bearing as the two that do, since a dashboard wiring a button by pattern-
+ * matching prose would have gotten those wrong first.
+ */
+describe("loop-status — deriveLoopVerdict remedyAction (#2636)", () => {
+    it("STOPPED (a stop-file is present) → driver.resume", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, stopFilePresent: true },
+            })
+        );
+        expect(v.state).toBe("STOPPED");
+        expect(v.remedyAction).toBe("driver.resume");
+    });
+
+    it("RUNNING (pid alive) → driver.stop", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: {
+                    ...EMPTY_DRIVER,
+                    armed: true,
+                    pid: 7,
+                    pidAlive: true,
+                },
+            })
+        );
+        expect(v.state).toBe("RUNNING");
+        expect(v.remedyAction).toBe("driver.stop");
+    });
+
+    it("STALLED, armed (REMEDY.start) → driver.resume — `--resume` starts just as well as it resumes", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: true },
+                queueDepth: queue(3),
+            })
+        );
+        expect(v.state).toBe("STALLED");
+        expect(v.remedy).toContain("starts a detached driver");
+        expect(v.remedyAction).toBe("driver.resume");
+    });
+
+    it("STALLED, not armed (REMEDY.arm), via claims-held → driver.resume — `--resume` arms too", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                driver: { ...EMPTY_DRIVER, armed: false },
+                claims: [
+                    {
+                        issue: 1,
+                        title: "t",
+                        stage: "claimed",
+                        verdict: { state: "live", reason: "" },
+                        priority: null,
+                        ageHours: 1,
+                    },
+                ],
+            })
+        );
+        expect(v.state).toBe("STALLED");
+        expect(v.remedy).toContain("arms the loop");
+        expect(v.remedyAction).toBe("driver.resume");
+    });
+
+    it("IDLE, not armed (REMEDY.arm) → driver.resume", () => {
+        const v = deriveLoopVerdict(verdictInput({ queueDepth: queue(3) }));
+        expect(v.state).toBe("IDLE");
+        expect(v.remedy).toContain("arms the loop");
+        expect(v.remedyAction).toBe("driver.resume");
+    });
+
+    it("IDLE, armed and empty (REMEDY.feed) → no action — labelling issues is not a driver operation", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({ driver: { ...EMPTY_DRIVER, armed: true } })
+        );
+        expect(v.state).toBe("IDLE");
+        expect(v.remedy).toContain("ready-for-agent");
+        expect(v.remedyAction).toBeNull();
+    });
+
+    it("NEEDS ATTENTION via failed reads (REMEDY.reads) → no action", () => {
+        const v = deriveLoopVerdict(verdictInput({ claimsError: "gh: 502" }));
+        expect(v.state).toBe("NEEDS ATTENTION");
+        expect(v.remedyAction).toBeNull();
+    });
+
+    it("NEEDS ATTENTION via orphaned claims (REMEDY.orphans) → no action — release is a PER-CLAIM action on the claims table, never a verdict-level button", () => {
+        const v = deriveLoopVerdict(
+            verdictInput({
+                claims: [
+                    {
+                        issue: 2582,
+                        title: "t",
+                        stage: "claimed",
+                        verdict: { state: "orphan", reason: "" },
+                        priority: null,
+                        ageHours: 30,
+                    },
+                ],
+            })
+        );
+        expect(v.state).toBe("NEEDS ATTENTION");
+        expect(v.remedy).toContain("loop:doctor");
+        expect(v.remedyAction).toBeNull();
+    });
+});
+
+/**
  * The night this module exists for (PRD #2621): the driver died at 00:58
  * holding five claims and stayed dead for eight hours, and both surfaces
  * rendered it as `armed · no driver pid · no stop-file`.
@@ -1247,6 +1358,7 @@ describe("loop-status — renderVerdictLines (#2624)", () => {
             state: "NEEDS ATTENTION",
             sentence: "s",
             remedy: "r",
+            remedyAction: null,
             findings: [{ code: "orphaned-claims", detail: "2 orphaned" }],
         });
         expect(lines).toContain("  findings:");

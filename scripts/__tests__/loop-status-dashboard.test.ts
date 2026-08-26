@@ -13,6 +13,8 @@ import {
     verdictTone,
     verdictBandHtml,
     remedyHtml,
+    actionButtonHtml,
+    ACTION_BUTTON_LABEL,
 } from "../dashboard/now-verdict-band.js";
 // @ts-expect-error — see above; pure, so the `node` project can call them.
 import {
@@ -595,6 +597,39 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
     });
 });
 
+describe("telemetry dashboard — claims-table release action (#2636)", () => {
+    it("an orphaned claim's row offers a Release button naming its own issue", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [claim("orphan", 2582)] })
+        ) as string;
+        expect(html).toContain('data-action="claim.release"');
+        expect(html).toContain('data-issue="2582"');
+        expect(html).toContain(">Release<");
+    });
+
+    it("a button whose action is not currently sensible is not shown — live and suspect claims get no release button", () => {
+        for (const state of ["live", "suspect"]) {
+            const html = nowBodyHtml(
+                payload({ claims: [claim(state, 2582)] })
+            ) as string;
+            expect(html, `state=${state}`).not.toContain("claim.release");
+        }
+    });
+
+    it("two orphaned rows each get their OWN release button, keyed on their own issue", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [claim("orphan", 2582), claim("orphan", 2583)],
+            })
+        ) as string;
+        expect(html).toContain('data-issue="2582"');
+        expect(html).toContain('data-issue="2583"');
+        expect([...html.matchAll(/data-action="claim\.release"/g)].length).toBe(
+            2
+        );
+    });
+});
+
 describe("telemetry dashboard — Now batch heading (#2632)", () => {
     it("reads as a number and a start time, with the UUID behind a tooltip and copyable", () => {
         const html = nowBodyHtml(
@@ -779,6 +814,76 @@ describe("telemetry dashboard — remedy copy labels tell the truth (PR #2837 re
         const copies = labelled.map((l) => l.copy);
         expect(copies).toContain("in-progress");
         expect(copies).toContain("ready-for-agent");
+    });
+});
+
+describe("telemetry dashboard — verdict-band action button (#2636)", () => {
+    it("renders a Stop-driver button for driver.stop, alongside the existing copy-command fallback", () => {
+        const html = verdictBandHtml({
+            state: "RUNNING",
+            sentence: "The driver is running.",
+            remedy: "nothing to do — `bun run loop:afk --stop` asks the driver to stop after the current pass",
+            remedyAction: "driver.stop",
+            findings: [],
+        }) as string;
+        expect(html).toContain('data-action="driver.stop"');
+        expect(html).toContain(">Stop driver<");
+        // The fallback the AC requires on a refused/failed action is not
+        // built by the button — it is the copy affordance ALREADY there.
+        expect(html).toContain('data-copy="bun run loop:afk --stop"');
+        expect(html).toContain("ls-copy");
+    });
+
+    it("renders a Resume-driver button for driver.resume", () => {
+        const html = verdictBandHtml({
+            state: "STOPPED",
+            sentence: "A stop-file is present.",
+            remedy: "`bun run loop:afk --resume` clears the stop-file",
+            remedyAction: "driver.resume",
+            findings: [],
+        }) as string;
+        expect(html).toContain('data-action="driver.resume"');
+        expect(html).toContain(">Resume driver<");
+    });
+
+    it("renders NO action button when remedyAction is null — a button whose action is not currently sensible is not shown", () => {
+        const html = verdictBandHtml({
+            state: "IDLE",
+            sentence: "s",
+            remedy: "label issues `ready-for-agent` to give the loop work",
+            remedyAction: null,
+            findings: [],
+        }) as string;
+        expect(html).not.toContain("ls-action");
+    });
+
+    it("renders NO action button when remedyAction is absent (a fixture predating #2636) — undefined must not accidentally match a lookup key", () => {
+        const html = verdictBandHtml({
+            state: "IDLE",
+            sentence: "s",
+            remedy: "r",
+            findings: [],
+        }) as string;
+        expect(html).not.toContain("ls-action");
+    });
+
+    it("renders no action button for an unrecognised remedyAction — unknown must never render as an offered action", () => {
+        const html = verdictBandHtml({
+            state: "IDLE",
+            sentence: "s",
+            remedy: "r",
+            remedyAction: "some-future-action",
+            findings: [],
+        }) as string;
+        expect(html).not.toContain("ls-action");
+    });
+
+    it("actionButtonHtml names every ACTION_BUTTON_LABEL key — the two stay in lockstep", () => {
+        for (const [action, label] of Object.entries(ACTION_BUTTON_LABEL)) {
+            const html = actionButtonHtml(action) as string;
+            expect(html).toContain(`data-action="${action}"`);
+            expect(html).toContain(`>${label}<`);
+        }
     });
 });
 

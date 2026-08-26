@@ -73,13 +73,39 @@ export function remedyHtml(remedy) {
         .join("");
 }
 
+/**
+ * The two verdict-level actions `/api/action` exposes (#2636) —
+ * `verdict.remedyAction` (`scripts/lib/loop-status.ts`) is the STRUCTURAL
+ * discriminator `deriveLoopVerdict` sets alongside the remedy's wording, so
+ * this stays a lookup rather than pattern-matching `verdict.remedy`'s prose.
+ * A verdict whose `remedyAction` is `null` renders no button — the remedy
+ * stays copy-only, exactly as before #2636 — and an unrecognised value
+ * (a fixture from an older shape, or a future one this map has not caught up
+ * with) renders nothing rather than guessing, the same "unknown must never
+ * look like an offered action" posture `verdictTone`'s `bad` fallback takes
+ * for an unrecognised STATE.
+ */
+export const ACTION_BUTTON_LABEL = {
+    "driver.stop": "Stop driver",
+    "driver.resume": "Resume driver",
+};
+
+export function actionButtonHtml(action) {
+    const label = ACTION_BUTTON_LABEL[action];
+    if (!label) return "";
+    return (
+        ` <button type="button" class="ls-action" data-action="${esc(action)}" ` +
+        `aria-label="${esc(label)}">${esc(label)}</button>`
+    );
+}
+
 export function verdictBandHtml(verdict) {
     if (!verdict) return "";
     return (
         `<div class="ls-verdict">` +
         `<span class="ls-verdict-state ${verdictTone(verdict.state)}">${esc(verdict.state)}</span>` +
         `<span class="ls-verdict-sentence">${esc(verdict.sentence)}</span>` +
-        `<span class="ls-verdict-remedy">→ ${remedyHtml(verdict.remedy)}</span>` +
+        `<span class="ls-verdict-remedy">→ ${remedyHtml(verdict.remedy)}${actionButtonHtml(verdict.remedyAction)}</span>` +
         `</div>` +
         (verdict.findings ?? [])
             .map(
