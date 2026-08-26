@@ -31,8 +31,8 @@ import type {
     SpellKickedEvent,
     TargetRequirement,
 } from "../cards/types";
-import type { GameState, PlayerState } from "./state";
-import { normalizeManaCost } from "./state";
+import type { CardInstanceState, GameState, PlayerState } from "./state";
+import { getStaticAdditionalSacrifices, normalizeManaCost } from "./state";
 import {
     buildCostLegsPermanentChoice,
     buildCostLegsHandChoice,
@@ -40,6 +40,7 @@ import {
     canAffordCostLegsPermanents,
 } from "./alternativeCost";
 import type { SacrificeSelection } from "./sacrificeChoice";
+import { getInstanceManaCost } from "../cards/registry";
 
 /** CR 702.33 — how many times each of a spell's Kickers was paid as it was cast,
  *  keyed by `KickerCost.id`. An absent/0 entry means that Kicker was not paid.
@@ -532,6 +533,50 @@ export function kickedTargetRequirement(
 // cast enumerates paying it — tracked by the same guard that already fails a
 // shipped-but-inert mechanic (Guard A, `.claude/rules/gre-development.md`).
 
+/** CR 601.2f / 601.2h (issue #2081 fixup, review round 1) — would offering
+ *  `payments` as a Move collide with the cast's OWN permanent-cost sacrifice
+ *  slot, the same one-slot rule `assertKickerPermanentSlotFree` enforces at
+ *  announcement (`game.ts`)? `canPayKickerLegs` only checks that the paid
+ *  Kicker's OWN legs are affordable — it says nothing about whether the cast
+ *  ALSO owes a sacrifice of its own, so without this check the enumerator
+ *  could emit a kicked cast `announceCast`'s prelude gate then rejects
+ *  (`assertKickerAnnouncementLegal` throwing "This spell's kicker cost cannot
+ *  be paid alongside its other additional costs") — live, that is the bot
+ *  stalling on a move it generated itself (AC #3).
+ *
+ *  Mirrors `buildCastSacrificeSelection`'s TWO own-sacrifice sources that
+ *  matter here (`game.ts`), read through exports that live outside `game.ts`
+ *  so this needs no edit there:
+ *   - the card's OWN `additionalCosts.sacrificeFilter` (CR 601.2f / 118.5) —
+ *     none of the catalogue's 7 permanent-leg Kicker cards declare one today
+ *     (census, issue #2081), so this branch is defence-in-depth for the next
+ *     one that does;
+ *   - a board-wide STATIC additional sacrifice (Drought, CR 118.5), scanned
+ *     via the SAME `getStaticAdditionalSacrifices` (`gre/state.ts`)
+ *     `buildCastSacrificeSelection` calls — the live trigger today (Drought +
+ *     Bog Down).
+ *  `buildCastSacrificeSelection`'s THIRD source — a flashback-only "Sacrifice
+ *  a <filter>" cost (CR 702.34a), added only when `castFromZone ===
+ *  "graveyard"` — is deliberately NOT modelled: no Flashback/Escape cast is
+ *  enumerated by the Bot at all yet (`docs/findings/2358-graveyard-cast-moves.md`),
+ *  so there is no live call site where this function could even see a
+ *  graveyard cast. It must grow that branch the day flashback casts are
+ *  enumerated. */
+export function kickerPermanentSlotWouldCollide(
+    state: GameState,
+    cardDef: CardDefinition,
+    card: CardInstanceState,
+    payments: KickerPayments | undefined
+): boolean {
+    if (!hasKickerPermanentLeg(cardDef, payments)) return false;
+    if (cardDef.additionalCosts?.sacrificeFilter) return true;
+    const rawManaCost = getInstanceManaCost(card);
+    return (
+        getStaticAdditionalSacrifices(state, rawManaCost, card, "spell")
+            .length > 0
+    );
+}
+
 /** How many DISTINCT repeat counts (beyond 0) a MULTIKICKER leg samples,
  *  bounded rather than searched to the affordable maximum. See the bound
  *  rationale above. */
@@ -554,13 +599,18 @@ const MAX_KICKER_COMBINATIONS = 16;
  *  the caller (`foldKickerCosts`) into the ordinary per-(mode, X) tap-plan
  *  loop, which already drops an unaffordable combination exactly like every
  *  other cost axis it crosses. A HAND-leg combo is skipped outright (fail
- *  CLOSED — see the file-level bound comment above). */
+ *  CLOSED — see the file-level bound comment above). A combo whose PERMANENT
+ *  leg would collide with the cast's own additional-cost sacrifice slot is
+ *  likewise skipped outright ({@link kickerPermanentSlotWouldCollide} — issue
+ *  #2081 fixup, review round 1: AC #3 previously let such a combo through and
+ *  `announceCast` rejected it live). */
 export function enumerateKickerVariants(
     state: GameState,
     player: PlayerState,
     cardDef: CardDefinition,
-    castInstanceId: string
+    card: CardInstanceState
 ): (KickerPayments | undefined)[] {
+    const castInstanceId = card.id;
     const kickers = cardDef.kickers ?? [];
     if (kickers.length === 0) return [undefined];
 
@@ -605,6 +655,13 @@ export function enumerateKickerVariants(
         seen.add(key);
         // Fail CLOSED on a hand leg — see the file-level bound comment.
         if (kickerCostLegs(cardDef, canonical).some((leg) => leg.hand)) {
+            continue;
+        }
+        // Fail CLOSED on a permanent-cost-slot collision with the cast's own
+        // additional-cost sacrifice (own `additionalCosts.sacrificeFilter` or
+        // a board-wide static one, Drought) — see
+        // `kickerPermanentSlotWouldCollide`'s doc.
+        if (kickerPermanentSlotWouldCollide(state, cardDef, card, canonical)) {
             continue;
         }
         if (

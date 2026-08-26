@@ -23,6 +23,7 @@ import { applyMoveInSearch, searchWithTrace } from "../search";
 import { enumerateKickerVariants } from "../kicker";
 import { getPlayer, type GameState } from "../state";
 import { describeMove } from "../describeMove";
+import { assertKickerAnnouncementLegal } from "../../game";
 import {
     makeInstance,
     makePlayer,
@@ -42,6 +43,8 @@ const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const SWAMP = getCardByName("Swamp").id;
 const FOREST = getCardByName("Forest").id;
+const DROUGHT = getCardByName("Drought").id;
+const BOG_DOWN = getCardByName("Bog Down").id;
 
 function bf(cardId: string, id: string, owner: string, extra = {}) {
     return makeInstance(cardId, {
@@ -422,7 +425,7 @@ describe("the BOUND — Multikicker's repetition axis is a fixed sample, not the
             state,
             getPlayer(state, BOT),
             def,
-            "efc"
+            getPlayer(state, BOT).hand[0]
         );
         expect(variants).toEqual([undefined, { kicker: 1 }, { kicker: 2 }]);
     });
@@ -447,6 +450,121 @@ describe("the BOUND — Multikicker's repetition axis is a fixed sample, not the
             priorityPlayerId: BOT,
         });
         expect(castMoves(state, "efc")).toHaveLength(3);
+    });
+});
+
+describe("AC #3 fixup (review round 1) — a permanent-leg Kicker never collides with a board-wide static additional sacrifice (Drought + Bog Down)", () => {
+    // Before this fix, `enumerateKickerVariants` only checked the Kicker's
+    // OWN legs for affordability (`canPayKickerLegs`) — nothing checked
+    // whether the cast ALSO owed a sacrifice of its own, so it happily
+    // offered a kicked Bog Down cast under Drought. `announceCast`'s prelude
+    // gate (`assertKickerAnnouncementLegal` -> `assertKickerPermanentSlotFree`,
+    // `game.ts`) then rejected it — live, `executeMove`'s promise rejects,
+    // the driver retries to `BOT_SUBMIT_RETRY_LIMIT`, and the watchdog takes
+    // the window: the bot stalling on a move it generated itself (AC #3).
+    // Drought's board-wide "Sacrifice a Swamp" (CR 118.5, one per black mana
+    // symbol) collides with Bog Down's own permanent Kicker leg ("Kicker —
+    // Sacrifice two lands") because the cast has exactly ONE permanent-cost
+    // selection slot (`assertKickerPermanentSlotFree`'s own doc).
+    function board() {
+        return makeState({
+            players: [
+                makePlayer(BOT, {
+                    hand: [
+                        makeInstance(BOG_DOWN, {
+                            id: "bogdown",
+                            zone: "hand",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                    ],
+                    battlefield: [
+                        bf(DROUGHT, "drought1", BOT),
+                        // {2}{B} printed cost — 3 Swamps covers it.
+                        ...lands(SWAMP, 3, "swp"),
+                        // Extra lands to sacrifice for the Kicker's OWN
+                        // "Sacrifice two lands" leg, distinct from the mana
+                        // lands above.
+                        ...lands(FOREST, 2, "for"),
+                    ],
+                }),
+                makePlayer(OPP),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+        });
+    }
+
+    it("enumerateMoves offers NO kicked Bog Down cast, but still offers the unkicked one", () => {
+        const moves = castMoves(board(), "bogdown");
+        // The unkicked cast is still legal and still offered — this is a
+        // refusal of the COLLIDING variant only, never a blanket "Bog Down
+        // is uncastable under Drought".
+        expect(moves.length).toBeGreaterThan(0);
+        expect(
+            moves.every((m) => m.kind === "cast-spell" && !m.kickerPayments)
+        ).toBe(true);
+    });
+
+    it("proves the premise: announceCast's own prelude gate (game.ts) DOES reject the payment the enumerator used to offer here", () => {
+        const state = board();
+        const def = getCardByName("Bog Down");
+        const player = getPlayer(state, BOT);
+        const cardInHand = player.hand[0];
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                def,
+                cardInHand,
+                player,
+                { kicker: 1 },
+                "hand",
+                def.additionalCosts
+            )
+        ).toThrow(
+            "This spell's kicker cost cannot be paid alongside its other additional costs"
+        );
+    });
+
+    it("enumerateKickerVariants itself refuses the kicked payment on this board", () => {
+        const state = board();
+        const def = getCardByName("Bog Down");
+        const card = getPlayer(state, BOT).hand[0];
+        const variants = enumerateKickerVariants(
+            state,
+            getPlayer(state, BOT),
+            def,
+            card
+        );
+        expect(variants).toEqual([undefined]);
+    });
+
+    it("without Drought on the battlefield, the SAME kicked Bog Down cast IS offered (the collision, not Kicker itself, is what's refused)", () => {
+        const state = makeState({
+            players: [
+                makePlayer(BOT, {
+                    hand: [
+                        makeInstance(BOG_DOWN, {
+                            id: "bogdown",
+                            zone: "hand",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                    ],
+                    battlefield: [
+                        ...lands(SWAMP, 3, "swp"),
+                        ...lands(FOREST, 2, "for"),
+                    ],
+                }),
+                makePlayer(OPP),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+        });
+        const moves = castMoves(state, "bogdown");
+        expect(
+            moves.some((m) => m.kind === "cast-spell" && m.kickerPayments)
+        ).toBe(true);
     });
 });
 

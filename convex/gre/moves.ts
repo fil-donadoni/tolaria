@@ -1332,7 +1332,7 @@ function enumerateCastMoves(
     // yields the single `undefined` variant, leaving every non-Kicker card's
     // enumeration byte-identical.
     const kickerVariants: (KickerPayments | undefined)[] = def
-        ? enumerateKickerVariants(state, player, def, card.id)
+        ? enumerateKickerVariants(state, player, def, card)
         : [undefined];
     // CR 702.27a (issue #2081) — Buyback is a simple binary axis: pay the flat
     // extra mana cost, or don't. No shipped card combines Buyback with a
