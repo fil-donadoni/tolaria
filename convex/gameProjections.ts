@@ -449,9 +449,11 @@ function projectLibrary(
  *  engine still enforced the face-down 2/2, the exact Karakas-style divergence
  *  the issue fixes. The controller's identification affordance (they may look
  *  at their own face-down card) rides the SEPARATE `knownCardId` field
- *  instead, which no id-derived filter reads. Every other viewer gets neither
- *  `knownCardId` nor the internal `faceDownOf` marker, so the real identity
- *  never crosses the wire to them. */
+ *  instead, which no id-derived filter reads — `faceDownOf` ALSO still rides
+ *  the wire for the controller (unchanged, pre-existing behaviour) carrying
+ *  the same real id, so nothing downstream that already reads it regresses.
+ *  Every other viewer gets neither field, so the real identity never crosses
+ *  the wire to them. */
 function projectBattlefieldCard(
     card: CardInstanceState,
     viewerId: string,
@@ -479,17 +481,21 @@ function projectBattlefieldCard(
             ? { ...slim, canTurnFaceUp: true }
             : slim;
     if (!card.faceDown) return slimCard(card);
-    // slimCard returns a fresh object, so deleting the internal marker below
-    // never mutates live state. `card.card.id` is ALREADY the sentinel in raw
-    // state (turnFaceDown swaps it there, not per-viewer) — the sentinel needs
-    // no special-casing here, only `faceDownOf` needs stripping/redirecting.
+    // slimCard returns a fresh object, so deleting the marker below never
+    // mutates live state. `card.card.id` is ALREADY the sentinel in raw state
+    // (turnFaceDown swaps it there, not per-viewer) — it needs no
+    // special-casing here at all, only `faceDownOf` is viewer-gated.
     const slimmed = slimCard(card);
-    delete (slimmed as { faceDownOf?: string }).faceDownOf;
     if (viewerId === card.controllerId && card.faceDownOf) {
-        // The controller knows what they cast — expose the real id ONLY as
-        // the identification affordance, never as `card.card.id` itself.
+        // The controller knows what they cast — `faceDownOf` keeps carrying
+        // the real id (pre-existing wire shape, unchanged), and `knownCardId`
+        // is the SAME value under the name every id-derived filter is
+        // guaranteed never to read, so a future filter reusing the "obvious"
+        // field name can't reintroduce this bug.
         return decorate({ ...slimmed, knownCardId: card.faceDownOf });
     }
+    // Opponents/spectators: hide the true identity entirely.
+    delete (slimmed as { faceDownOf?: string }).faceDownOf;
     return decorate(slimmed);
 }
 
@@ -503,7 +509,9 @@ function projectBattlefieldCard(
  *  spell-target filter registry resolve characteristics off this id, and a
  *  restored real id there reproduces the same Karakas-style divergence #1735
  *  fixed on the battlefield, one zone over. The caster's identification
- *  affordance rides `knownCardId` instead, exactly like the battlefield.
+ *  affordance rides `knownCardId` (a new field, alongside the pre-existing
+ *  `faceDownOf`, both carrying the same real id) instead, exactly like the
+ *  battlefield.
  *
  *  Also applied to `pendingTriggerBatch` (the off-stack CR 603.3b ordering
  *  batch). A triggered ability is not itself a face-down OBJECT, but its
@@ -518,12 +526,13 @@ function projectBattlefieldCard(
 function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
     if (!item.faceDown) return slimCard(item);
     const slimmed = slimCard(item);
-    delete (slimmed as { faceDownOf?: string }).faceDownOf;
     if (viewerId === item.castById && item.faceDownOf) {
-        // The caster knows what they cast — expose the real id ONLY as the
-        // identification affordance, never as `card.card.id` itself.
+        // The caster knows what they cast — `faceDownOf` keeps carrying the
+        // real id (pre-existing wire shape, unchanged) and `knownCardId` is
+        // the same value under the name id-derived filters never read.
         return { ...slimmed, knownCardId: item.faceDownOf };
     }
+    delete (slimmed as { faceDownOf?: string }).faceDownOf;
     return slimmed;
 }
 

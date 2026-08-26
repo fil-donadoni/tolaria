@@ -447,19 +447,27 @@ export interface CardInstance {
      *  `card.id` is the `FACE_DOWN_CARD_ID` sentinel, which is what makes
      *  `CardImage` render a card back. Mirrors `CardInstanceState.faceDown`. */
     faceDown?: boolean;
+    /** CR 708.2 — the REAL definition id behind a face-down object. Present
+     *  ONLY in the controller's / caster's own projection: `projectBattlefieldCard`
+     *  and `projectStackItem` (`convex/gameProjections.ts`) keep it (pre-existing
+     *  wire shape, unchanged by issue #1735) for them and delete it for every
+     *  other viewer, so a client that reads it can never be reading an
+     *  opponent's secret. Superseded by `knownCardId` below for any NEW
+     *  identification read — kept on the wire only so existing consumers of
+     *  this field don't regress. */
+    faceDownOf?: string;
     /** CR 708.2 (issue #1735) — the REAL definition id behind a face-down
      *  object, present ONLY on the controller's / caster's own projection of
-     *  their own face-down permanent or spell. `card.card.id` itself is
-     *  ALWAYS the `FACE_DOWN_CARD_ID` sentinel, for every viewer including the
-     *  controller — every id-derived rules read (colour/MV/supertype filters,
-     *  activated-ability affordance) must resolve off that honest sentinel, or
-     *  the engine's own 2/2 vanilla creature diverges from what the client
-     *  offers as a legal target/ability. `knownCardId` exists SOLELY for the
-     *  identification affordance (rendering the controller's own card's real
-     *  art/name) — read it ONLY for display, never for a rules computation.
-     *  `projectBattlefieldCard` / `projectStackItem` (`convex/gameProjections.ts`)
-     *  set it for the controller/caster and omit it for every other viewer, so
-     *  a client that reads it can never be reading an opponent's secret. */
+     *  their own face-down permanent or spell (the SAME value as `faceDownOf`
+     *  above, under a name no rules computation has ever read). `card.card.id`
+     *  itself is ALWAYS the `FACE_DOWN_CARD_ID` sentinel, for every viewer
+     *  including the controller — every id-derived rules read (colour/MV/
+     *  supertype filters, activated-ability affordance) must resolve off that
+     *  honest sentinel, or the engine's own 2/2 vanilla creature diverges from
+     *  what the client offers as a legal target/ability. `knownCardId` exists
+     *  SOLELY for the identification affordance (rendering the controller's
+     *  own card's real art/name) — read it ONLY for display, never for a
+     *  rules computation. */
     knownCardId?: string;
     /** CR 116.2b / 702.37e (issue #2705) — the controller may take the morph
      *  turn-face-up special action on this permanent right now. Server-derived
