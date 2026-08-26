@@ -34,6 +34,15 @@ import { handCardMatchesFilter } from "./alternativeCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import { payableAdditionalCostLegs } from "./additionalCost";
 import {
+    enumerateKickerVariants,
+    foldBuybackCost,
+    foldKickerCosts,
+    kickedTargetRequirement,
+    kickerLegPermanentSlotWouldCollide,
+    kickerLifeCost,
+    type KickerPayments,
+} from "./kicker";
+import {
     getLegalActions,
     canCastSpellsFromTopOfLibrary,
     isCastableLibraryTopSpell,
@@ -298,6 +307,20 @@ export type Move =
            *  `executor.ts` names it to `announceCast`, so the Bot's valuation
            *  and the server's payment see the same cost. */
           additionalCostLegId?: string;
+          /** CR 702.33 (issue #2081) — how many times EACH of this card's
+           *  Kickers this variant pays, keyed by `KickerCost.id` (absent =
+           *  not kicked at all). One Move per BOUNDED payment combination —
+           *  see the bound rationale on `enumerateKickerVariants`
+           *  (`gre/kicker.ts`). Forwarded verbatim to `announceCast
+           *  .kickerPayments`; the MANA leg is already folded into `tapPlan`
+           *  and the LIFE leg into `payLife` below, both at enumeration time,
+           *  so the search values the payment it actually charges. */
+          kickerPayments?: KickerPayments;
+          /** CR 702.27a (issue #2081) — whether this variant pays the card's
+           *  Buyback cost (absent/false = not paid). The extra mana is already
+           *  folded into `tapPlan`. Forwarded verbatim to `announceCast
+           *  .buyback`. */
+          buybackPaid?: boolean;
           chosenX?: number;
           targets: TargetSelection[];
           /** Variable-count targets (CR 601.2c "up to"/X) need an explicit
@@ -306,10 +329,11 @@ export type Move =
           /** Lands to tap, in order, to cover the cost (pool mana is auto-used
            *  by the server at commit and needs no tap). */
           tapPlan: ManaTap[];
-          /** CR 107.4f — total life paid for this cast's Phyrexian pips ({C/P})
-           *  chosen to be paid with life (2 per pip). The mana-paid pips are
-           *  already folded into `tapPlan`. Absent / 0 for a non-Phyrexian cast
-           *  or an all-mana Phyrexian split. Deducted in `applyMove`. */
+          /** CR 107.4f / 702.33a — total life paid for this cast: Phyrexian
+           *  pips ({C/P}) chosen to be paid with life (2 per pip) plus any paid
+           *  Kicker's LIFE leg (CR 119.4). The mana-paid pips are already
+           *  folded into `tapPlan`. Absent / 0 when neither applies. Deducted
+           *  in `applyMove`. */
           payLife?: number;
       }
     | {
@@ -1248,18 +1272,23 @@ function enumerateCastMoves(
     //    to the card level. A ternary yielded `undefined` for every mode, so
     //    the Bot emitted one zero-target cast per colour and the executor's
     //    next `tapForPayment` threw the same `expect: "priority"` stall.
-    //    `castAdjustedTargetRequirement` reduces to `cardDef
-    //    .targetRequirement` here because this enumerator never pays kicker
-    //    (no `kickerPayments` anywhere in this file), so the fallback is
-    //    identical for every move it can emit.
+    //    `castAdjustedTargetRequirement` is mirrored here by
+    //    `kickedTargetRequirement` (`gre/kicker.ts`) — a Kicker payment can no
+    //    longer collapse to the base requirement (issue #2081): the fallback
+    //    now reads whichever `kickerPayments` THIS variant actually pays.
     //  - extra    ← `chosenMode?.additionalTargetRequirements ??
     //    cardDef.additionalTargetRequirements ?? []` (game.ts
     //    `additionalRequirements`) — textually the same chain.
-    const groupsFor = (mode?: {
-        targetRequirement?: TargetRequirement;
-        additionalTargetRequirements?: TargetRequirement[];
-    }): (TargetRequirement | undefined)[] => {
-        const primary = mode?.targetRequirement ?? def?.targetRequirement;
+    const groupsFor = (
+        mode?: {
+            targetRequirement?: TargetRequirement;
+            additionalTargetRequirements?: TargetRequirement[];
+        },
+        kickerPayments?: KickerPayments
+    ): (TargetRequirement | undefined)[] => {
+        const primary =
+            mode?.targetRequirement ??
+            (def ? kickedTargetRequirement(def, kickerPayments) : undefined);
         const extra =
             mode?.additionalTargetRequirements ??
             def?.additionalTargetRequirements ??
@@ -1272,13 +1301,13 @@ function enumerateCastMoves(
     // enumerating one Move per mode here would generate moves the mutation
     // throws on. The pick is answered later, at the CR 614 chokepoint, through
     // the ordinary `option-pick` PendingChoice the Brain already realises.
-    const modeVariants =
+    const modeShapes =
         def?.modes && def.modes.length > 0 && !declaresAsEntersMode(def)
             ? def.modes.map((m) => ({
                   modeId: m.id as string | undefined,
-                  groups: groupsFor(m),
+                  mode: m,
               }))
-            : [{ modeId: undefined, groups: groupsFor() }];
+            : [{ modeId: undefined, mode: undefined }];
 
     // CR 601.2b / 118.8 / 601.2h — a CASTER-CHOSEN additional cost is a real
     // decision with real board consequences (discard a card vs lose 3 life), so
@@ -1298,8 +1327,52 @@ function enumerateCastMoves(
         );
         return payable.length > 0 ? payable.map((l) => l.id) : [undefined];
     })();
+    // CR 702.33 (issue #2081) — one Move per BOUNDED Kicker-payment variant
+    // (see the bound rationale on `enumerateKickerVariants`, gre/kicker.ts),
+    // always including `undefined` (not kicked). A card with no `kickers`
+    // yields the single `undefined` variant, leaving every non-Kicker card's
+    // enumeration byte-identical.
+    const kickerVariants: (KickerPayments | undefined)[] = def
+        ? enumerateKickerVariants(state, player, def, card)
+        : [undefined];
+    // CR 702.27a (issue #2081) — Buyback is a simple binary axis: pay the flat
+    // extra mana cost, or don't. No shipped card combines Buyback with a
+    // Kicker (catalogue census, issue #2081 investigation), so this axis and
+    // `kickerVariants` are never both non-trivial for the same card — the
+    // cross product below stays cheap regardless.
+    const buybackVariants: boolean[] = def?.buyback ? [false, true] : [false];
+    // CR 601.2f / 601.2h (issue #2081 fixup, review round 2) — a paid
+    // Kicker's permanent leg can ALSO collide with the specific `oneOf` leg a
+    // given (leg, kickerPayments) pairing carries, not just with the card's
+    // BASE `additionalCosts.sacrificeFilter` (`enumerateKickerVariants`
+    // already filtered that half, and the board-wide static-sacrifice half,
+    // before `kickerVariants` above was built — neither depends on which
+    // leg gets chosen). This second check runs HERE, below the leg
+    // cross-product, because only here is the paired leg known —
+    // `kickerLegPermanentSlotWouldCollide`'s doc (`gre/kicker.ts`) has the
+    // full rationale.
     const announceVariants = legVariants.flatMap((additionalCostLegId) =>
-        modeVariants.map((v) => ({ ...v, additionalCostLegId }))
+        kickerVariants
+            .filter(
+                (kickerPayments) =>
+                    !def ||
+                    !kickerLegPermanentSlotWouldCollide(
+                        def,
+                        kickerPayments,
+                        additionalCostLegId
+                    )
+            )
+            .flatMap((kickerPayments) =>
+                buybackVariants.flatMap((buybackPaid) =>
+                    modeShapes.map(({ modeId, mode }) => ({
+                        modeId,
+                        additionalCostLegId,
+                        kickerPayments,
+                        buybackPaid,
+                        groups: groupsFor(mode, kickerPayments),
+                    }))
+                )
+            )
     );
 
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
@@ -1387,7 +1460,13 @@ function enumerateCastMoves(
     const flashSurcharge = flashSurchargeOf(card);
 
     const moves: Move[] = [];
-    for (const { modeId, groups, additionalCostLegId } of announceVariants) {
+    for (const {
+        modeId,
+        groups,
+        additionalCostLegId,
+        kickerPayments,
+        buybackPaid,
+    } of announceVariants) {
         // CR 601.2c — the executor sends every announced target in ONE batched
         // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
         // A fixed-count group auto-advances inside that batch
@@ -1405,6 +1484,18 @@ function enumerateCastMoves(
         const lastReq = groups[groups.length - 1];
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
+            // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
+            // joins the total ON TOP of the printed cost (CR 702.33a), folded
+            // BEFORE the flash surcharge and cost modifiers, mirroring
+            // `game.ts`'s cast-commit fold order exactly (`foldKickerCosts`
+            // called before `foldFlashSurchargeCost`/`applyCostModifiers`
+            // there). No-op for the `undefined` (unkicked) variant and for
+            // every card without `kickers`.
+            if (def) foldKickerCosts(normCost, def, kickerPayments);
+            // CR 702.27a / 601.2f (issue #2081) — mirrors the fold above for
+            // Buyback's flat extra mana cost. No-op unless this variant's
+            // `buybackPaid` axis chose to pay it.
+            if (def) foldBuybackCost(normCost, def, buybackPaid);
             // CR 601.3c / 601.2f — the surcharge is an ADDITIONAL cost, so it
             // joins the total BEFORE cost modifiers apply, exactly where
             // `announceCast` / `finalizeTargetSelection` fold it (they call the
@@ -1440,7 +1531,14 @@ function enumerateCastMoves(
             // the permission replaced starts its life leg at the substituted
             // amount; a Phyrexian split (below) can only add to it, and no
             // shipped card combines the two.
-            let payLife = lifeInsteadOfMana ?? 0;
+            //
+            // CR 702.33a / 119.4 (issue #2081) — a paid Kicker's LIFE leg
+            // (Phyrexian Scuta's "pay 3 life") joins the same total; no
+            // shipped card combines a life-leg Kicker with either of the
+            // replacements above.
+            let payLife =
+                (lifeInsteadOfMana ?? 0) +
+                (def ? kickerLifeCost(def, kickerPayments) : 0);
             if (phyPips > 0) {
                 const split = solvePhyrexianSplit(
                     player,
@@ -1506,6 +1604,8 @@ function enumerateCastMoves(
                     cardInstanceId: card.id,
                     chosenModeId: modeId,
                     ...(additionalCostLegId ? { additionalCostLegId } : {}),
+                    ...(kickerPayments ? { kickerPayments } : {}),
+                    ...(buybackPaid ? { buybackPaid } : {}),
                     chosenX: x,
                     targets,
                     // Only the LAST group can be variable (guarded above), so
