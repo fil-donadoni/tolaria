@@ -21,13 +21,17 @@ export default function DivideTargetStepper({
     // mattered for the old fixed height) so the glyph stays centred.
     //
     // v4 (ADR 0103 §3/§5, issue #2730): the dial was a fully bespoke recipe
-    // (`bg-accent-soft`/`shadow-[...]` glow, `font-beleren` count) — quiet
-    // hairline chrome instead: a hairline plate (same `--hairline`/`bg-surface`
-    // pair as `V4_PLATE`, kept literal here rather than imported since the
-    // shape is a pill, not `V4_PLATE`'s panel radius) with the count in the
-    // chrome display face, never Beleren (confined to the card domain).
+    // (`bg-accent-soft`/`shadow-[...]` glow, the retired card-domain count
+    // face) — quiet hairline chrome for the outer plate, but the two `<button>`
+    // edges below are `border-border-strong`, NOT the hairline pair: a
+    // control boundary needs >=3:1 contrast against `surface`
+    // (`--color-border-strong` 3.38:1) — `--hairline-strong` (2.37:1) reads
+    // fine on a decorative panel frame but fails WCAG 1.4.11 on an
+    // interactive edge (`control-edge-usage.test.ts`, issue #2727 round-2
+    // review — the sweep cannot see a lowercase local like this one, so this
+    // is a by-hand fix, not one the guard caught).
     const btn =
-        "flex w-11 h-11 items-center justify-center rounded-full text-sm border border-[var(--hairline-strong)] bg-surface text-text-muted hover:border-accent hover:text-text disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer";
+        "flex w-11 h-11 items-center justify-center rounded-full text-sm border border-border-strong bg-surface text-text-muted hover:border-accent hover:text-text disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer";
     const stop = (fn: () => void) => (e: React.MouseEvent) => {
         e.stopPropagation();
         fn();

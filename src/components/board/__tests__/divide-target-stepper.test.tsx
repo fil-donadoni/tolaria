@@ -2,11 +2,11 @@
 // dial rendered at `w-6 h-6` (24px) — well under the 44px floor.
 //
 // v4 re-skin (issue #2730, ADR 0103 §3/§5): `bg-accent-soft`/
-// `shadow-[...]` glow, `font-beleren` count → quiet hairline chrome, the
-// chrome display face. The second `describe` below covers that slice —
-// added on top of, never replacing, the #1770 touch-target coverage above
-// (a correction to issue #2730's working map, which had listed this file as
-// untested).
+// `shadow-[...]` glow, the retired card-domain count face → quiet hairline
+// chrome, the chrome display face. The second `describe` below covers that
+// slice — added on top of, never replacing, the #1770 touch-target coverage
+// above (a correction to issue #2730's working map, which had listed this
+// file as untested).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import DivideTargetStepper from "../divide-target-stepper";

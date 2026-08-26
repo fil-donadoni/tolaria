@@ -1,8 +1,9 @@
 // Per-attacker MANA attack tax prompt (CR 508.1c/1g — Propaganda / Ghostly
 // Prison). No dom test existed before issue #2730's v4 re-skin (`Panel` +
-// `font-beleren` → the chrome display face) — covers the title, the mana
-// pips and the Auto-tap/Cancel actions, and pins the display-face title so a
-// revert to Beleren (ADR 0103 §4: confined to the card domain) is caught.
+// the retired card-domain title face → the chrome display face) — covers
+// the title, the mana pips and the Auto-tap/Cancel actions, and pins the
+// display-face title so a revert to Beleren (ADR 0103 §4: confined to the
+// card domain) is caught.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";

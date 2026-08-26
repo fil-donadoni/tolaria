@@ -121,12 +121,13 @@ describe("Banner — content slots", () => {
     });
 
     // Issue #2730 — the sharpest defect this slice fixes: EVERY prompt-bar
-    // title in the app was `font-beleren`, and ADR 0103 §4 confines Beleren
-    // to the card domain. `TargetSelectionBanner` was the one correct
-    // example (`.text-display`); this primitive's own `title` lead-in was
-    // still the small-caps `font-semibold uppercase` recipe, so every OTHER
-    // consumer inherited the wrong face for free. Guards the fix at its
-    // single source rather than at each of the seven callers.
+    // title in the app used the retired card-domain typeface, and ADR 0103
+    // §4 confines that face to the card domain. `TargetSelectionBanner` was
+    // the one correct example (`.text-display`); this primitive's own
+    // `title` lead-in was still the small-caps `font-semibold uppercase`
+    // recipe, so every OTHER consumer inherited the wrong face for free.
+    // Guards the fix at its single source rather than at each of the seven
+    // callers.
     it("renders the title lead-in in the chrome display face, not the retired card-domain face", () => {
         render(
             <Banner tone="info" title="Incompleteness Notice">

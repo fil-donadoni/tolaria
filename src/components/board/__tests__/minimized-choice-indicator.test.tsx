@@ -1,8 +1,10 @@
-// Collapsed stand-in for a minimized blocking choice dialog (issue #315). No
-// dom test existed before issue #2730's v4 re-skin (`border-accent
-// bg-accent-soft shadow-[...] animate-pulse` gold glow + `font-beleren` →
-// the quiet HUD chip with a `dot-pulse-ring` status dot). Pins the new
-// classes so a revert to the retired recipe is caught here.
+// Collapsed stand-in for a minimized blocking choice dialog (issue #315).
+// `minimize-choice.test.tsx` already covers the minimize/restore contract;
+// this file is narrower and newer — issue #2730's v4 re-skin retired the
+// `border-accent bg-accent-soft shadow-[...] animate-pulse` gold glow and
+// the card-domain title face for the quiet HUD chip with a `dot-pulse-ring`
+// status dot. Pins the new classes AND the absence of the retired ones, so
+// a revert to the old recipe is caught here.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { PendingChoice } from "~/types/game";
