@@ -17,6 +17,7 @@ import {
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, registerTokenDefinition } from "../../../index";
+import type { Color } from "../../../types";
 
 // Throwaway vanilla creature fixture, power 4 — deliberately NOT a
 // `vaultbornTyrant` instance: reusing the card's own id would give the
@@ -343,7 +344,7 @@ describe("Ancient Cornucopia (may gain life = colours of a cast spell, once/turn
 
     function castSpell(
         state: GameState,
-        spellColors: string[],
+        spellColors: Color[],
         casterId = "p1"
     ): void {
         state.pendingEvents = [
