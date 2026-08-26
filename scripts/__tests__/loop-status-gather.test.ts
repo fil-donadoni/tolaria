@@ -37,6 +37,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                 );
             },
             queueRunner: () => "[]",
+            openIssuesRunner: () => "[]",
         });
         expect(result.claims).toBeNull();
         expect(result.claimsError).toContain("rate limit");
@@ -52,6 +53,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
             queueRunner: () => {
                 throw new Error("GraphQL: API rate limit already exceeded");
             },
+            openIssuesRunner: () => "[]",
         });
         expect(result.queueDepth).toBeNull();
         expect(result.queueDepthError).toContain("rate limit");
@@ -77,6 +79,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                           { number: 101, labels: [{ name: "in-progress" }] },
                       ])
                     : "[]",
+            openIssuesRunner: () => "[]",
         });
         // Claims: unavailable.
         expect(result.claims).toBeNull();
@@ -97,6 +100,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                     ? claimedIssuesJson()
                     : "[]",
             queueRunner: () => JSON.stringify([{ number: 200, labels: [] }]),
+            openIssuesRunner: () => "[]",
         });
         expect(result.claimsError).toBeNull();
         expect(result.queueDepthError).toBeNull();
@@ -115,6 +119,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                     "GraphQL: API rate limit already exceeded for user ID 117459688"
                 );
             },
+            openIssuesRunner: () => "[]",
         });
         expect(result.recentMerges).toBeNull();
         expect(result.recentMergesError).toContain("rate limit");
@@ -143,6 +148,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                         mergedAt: new Date().toISOString(),
                     },
                 ]),
+            openIssuesRunner: () => "[]",
         });
         expect(result.recentMergesError).toBeNull();
         expect(result.recentMerges).toEqual([
@@ -163,6 +169,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
             queueRunner: () => {
                 throw new Error("boom");
             },
+            openIssuesRunner: () => "[]",
         });
         expect(Array.isArray(result.timelinePasses)).toBe(true);
     });
@@ -310,12 +317,14 @@ function gathered(
         queueDepthError: null,
         receiptsSummary: EMPTY_RECEIPTS_SUMMARY,
         batch: null,
+        batchStartedAt: null,
         priorityWarning: null,
         receiptErrors: [],
         timelinePasses: [],
         recentMerges: [],
         recentMergesError: null,
         recentMergesTruncated: false,
+        dependentsError: null,
         ...overrides,
     };
 }
@@ -367,6 +376,7 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
             noPriority: true,
             claimsRunner: () => "[]",
             queueRunner: () => "[]",
+            openIssuesRunner: () => "[]",
         });
         expect(result.verdict).toBeDefined();
         expect(typeof result.verdict.sentence).toBe("string");
@@ -381,6 +391,7 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
                 throw new Error("GraphQL: API rate limit already exceeded");
             },
             queueRunner: () => "[]",
+            openIssuesRunner: () => "[]",
         });
         expect(result.verdict.state).toBe("NEEDS ATTENTION");
         expect(result.verdict.findings.map((f) => f.code)).toContain(

@@ -330,10 +330,14 @@ tbody tr:hover {
     font-size: 11px;
     color: var(--muted);
 }
+/* Claim verdict marks (#2632) — words ("orphaned"/"unsure"/"working"), not
+   the `×`/`?`/`·` symbols they replace, so `width: 14px; text-align: center`
+   (sized for one glyph) no longer applies. */
 .ls-mark {
     display: inline-block;
-    width: 14px;
-    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 .ls-mark.orphan {
     color: var(--state-bad);
@@ -352,6 +356,30 @@ tbody tr:hover {
     border: 1px solid var(--border);
     font-size: 11px;
     color: var(--text-secondary);
+    white-space: nowrap;
+}
+/* Claim age (#2632) — amber past `classifyClaim`'s own `minAgeHours`
+   threshold (`now-claims-table.js`'s `MIN_AGE_HOURS`, mirroring
+   `DEFAULT_MIN_AGE_HOURS` in `loop-doctor.ts`), the same number the
+   verdict itself already turns on. */
+.ls-age.amber {
+    color: var(--state-warn);
+    font-weight: 600;
+}
+/* `blocks N others` badge (#2632) — the claims table's "blast radius": how
+   many OPEN issues declare this claim a blocker. Always the loud tone,
+   regardless of the row's own verdict — a claim blocking others is worth
+   flagging plainly even while it is still `live`. */
+.ls-blocks {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--state-bad) 10%, var(--plane));
+    border: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--state-bad);
     white-space: nowrap;
 }
 .ls-empty {

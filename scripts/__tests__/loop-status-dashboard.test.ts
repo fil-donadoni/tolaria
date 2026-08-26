@@ -2,6 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { LOOP_VERDICT_STATES, REMEDY } from "../lib/loop-status";
+import { DEFAULT_MIN_AGE_HOURS } from "../loop-doctor";
+// @ts-expect-error — see below; pure, so the `node` project can call it.
+import { MIN_AGE_HOURS } from "../dashboard/now-claims-table.js";
 // @ts-expect-error — a browser ES module with no type declarations; it is
 // deliberately plain JS (no build step on the dashboard, #2625) and pure, so
 // the `node` vitest project can import and CALL it.
@@ -408,6 +411,212 @@ describe("telemetry dashboard — Now traffic lights (#2630)", () => {
     });
 });
 
+describe("telemetry dashboard — Now claims table wording (#2632)", () => {
+    it("the dashboard's mirrored age threshold matches the classifier's own constant", () => {
+        // `now-claims-table.js` cannot import `loop-doctor.ts` at runtime (a
+        // plain browser ES module, no bundler, #2625) — `MIN_AGE_HOURS` is a
+        // SEPARATE literal, and this is the guard that keeps it from
+        // drifting away from `DEFAULT_MIN_AGE_HOURS`, mirroring
+        // `now-timeline.test.ts`'s `WINDOW_HOURS`/`TIMELINE_WINDOW_HOURS`
+        // parity test for the identical reason.
+        expect(MIN_AGE_HOURS).toBe(DEFAULT_MIN_AGE_HOURS);
+    });
+
+    it("renders verdict marks as words, with the specific reason in a title, not the `×`/`?`/`·` symbols", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [
+                    {
+                        ...claim("orphan"),
+                        verdict: {
+                            state: "orphan",
+                            reason: "no branch, no PR, untouched for 24h",
+                        },
+                    },
+                ],
+            })
+        ) as string;
+        expect(html).toContain("orphaned");
+        expect(html).toContain('title="no branch, no PR, untouched for 24h"');
+        // The symbol this replaces must be gone from the claims table's own
+        // markup — not merely coexisting with the word.
+        expect(html).not.toMatch(/ls-mark[^>]*>×</);
+    });
+
+    it("suspect and live verdicts render as 'unsure' / 'working'", () => {
+        const suspectHtml = nowBodyHtml(
+            payload({ claims: [claim("suspect")] })
+        ) as string;
+        expect(suspectHtml).toContain("unsure");
+        const liveHtml = nowBodyHtml(
+            payload({ claims: [claim("live")] })
+        ) as string;
+        expect(liveHtml).toContain("working");
+    });
+
+    it("the priority column header reads 'Priority', not 'pri'", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [claim("live")] })
+        ) as string;
+        expect(html).toContain("<th>Priority</th>");
+        expect(html).not.toContain("<th>pri</th>");
+    });
+
+    it("a stage renders as a sentence naming what is done AND what is missing", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [{ ...claim("live"), stage: "branch pushed" }],
+            })
+        ) as string;
+        expect(html).toContain("Branch pushed, no PR yet");
+    });
+
+    it("every CLAIM_STAGES value has its own sentence — none silently falls back to the raw key", () => {
+        // `CLAIM_STAGES` (`lib/loop-status.ts`) is the runtime source of
+        // truth for stage values; this drives the SAME reducer for each so a
+        // stage added there without a sentence here shows up as a failing
+        // row rather than a silent raw-key fallback.
+        const stages = [
+            "claimed",
+            "worktree",
+            "branch pushed",
+            "PR open",
+            "merging",
+        ];
+        for (const stage of stages) {
+            const html = nowBodyHtml(
+                payload({ claims: [{ ...claim("live"), stage }] })
+            ) as string;
+            // A sentence is prose: it is strictly longer than the raw
+            // internal stage key it replaces, and it is never JUST the key
+            // re-wrapped in a span.
+            expect(
+                html.includes(
+                    `<span class="ls-stage" data-term="stage.${stage}">${stage}</span>`
+                ),
+                `stage "${stage}" must not render as its own raw key`
+            ).toBe(false);
+        }
+    });
+
+    it("a claim's age is amber at and past the classifier's own threshold, not below it", () => {
+        const below = nowBodyHtml(
+            payload({
+                claims: [{ ...claim("live"), ageHours: MIN_AGE_HOURS - 0.5 }],
+            })
+        ) as string;
+        expect(below).not.toContain('class="ls-age amber"');
+        const atThreshold = nowBodyHtml(
+            payload({
+                claims: [{ ...claim("live"), ageHours: MIN_AGE_HOURS }],
+            })
+        ) as string;
+        expect(atThreshold).toContain('class="ls-age amber"');
+    });
+
+    it("age reads as elapsed time — '23h ago' / 'Nm ago' — not a raw '23.8h'", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [{ ...claim("live"), ageHours: 23.8 }] })
+        ) as string;
+        expect(html).toContain("24h ago");
+        expect(html).not.toContain("23.8h");
+    });
+
+    it("a claim with dependents carries a 'blocks N others' badge", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [{ ...claim("orphan"), dependents: 9 }] })
+        ) as string;
+        expect(html).toContain("blocks 9 others");
+    });
+
+    it("singular phrasing for exactly one dependent — 'blocks 1 other', not 'others'", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [{ ...claim("orphan"), dependents: 1 }] })
+        ) as string;
+        expect(html).toContain("blocks 1 other<");
+    });
+
+    it("a bare claim (0 dependents) carries no badge at all", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [{ ...claim("live"), dependents: 0 }] })
+        ) as string;
+        expect(html).not.toContain("ls-blocks");
+        expect(html).not.toContain("blocks 0");
+    });
+
+    it("a failed blocked-by read renders an explicit unavailable note and NO badge — distinct from 'blocks nothing'", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [{ ...claim("orphan"), dependents: null }],
+                dependentsError: "gh: rate limit exceeded",
+            })
+        ) as string;
+        expect(html).toContain("blocked-by counts unavailable");
+        expect(html).toContain("gh: rate limit exceeded");
+        expect(html).not.toContain("ls-blocks");
+    });
+
+    it("PROOF-OF-FAILURE SHAPE: a claim whose dependents were never checked (undefined) shows no badge, same as a genuine zero", () => {
+        // `claim()` fixtures elsewhere in this suite predate `dependents` —
+        // this pins that an absent field degrades to "no badge", not a
+        // thrown error or a stray "blocks undefined others".
+        const html = nowBodyHtml(
+            payload({ claims: [claim("live")] })
+        ) as string;
+        expect(html).not.toContain("blocks undefined");
+        expect(html).not.toContain("ls-blocks");
+    });
+});
+
+describe("telemetry dashboard — Now batch heading (#2632)", () => {
+    it("reads as a number and a start time, with the UUID behind a tooltip and copyable", () => {
+        const html = nowBodyHtml(
+            payload({
+                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
+                batchStartedAt: Math.floor(
+                    new Date("2026-08-20T22:24:00").getTime() / 1000
+                ),
+                receiptsSummary: { total: 389, counts: [], interesting: [] },
+            })
+        ) as string;
+        expect(html).toContain("Batch #389");
+        expect(html).toContain("started 22:24");
+        expect(html).toContain('title="cfa2cdaf-591a-4b8f-9926-613d3e8543d6"');
+        expect(html).toContain(
+            'data-copy="cfa2cdaf-591a-4b8f-9926-613d3e8543d6"'
+        );
+        expect(html).toContain('class="ls-copy"');
+    });
+
+    it("renders 'No batch has recorded receipts yet' — not 'Batch #0' — when nothing has run", () => {
+        const html = nowBodyHtml(payload({ batch: null })) as string;
+        expect(html).toContain("No batch has recorded receipts yet.");
+        expect(html).not.toContain("Batch #0");
+    });
+
+    it("receipt counts read as a sentence, never 'missing missing: N'", () => {
+        const html = nowBodyHtml(
+            payload({
+                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
+                batchStartedAt: null,
+                receiptsSummary: {
+                    total: 389,
+                    counts: [
+                        { role: "implement", outcome: "pr-open", count: 4 },
+                        { role: "review", outcome: "approve", count: 2 },
+                        { role: "missing", outcome: "missing", count: 383 },
+                    ],
+                    interesting: [],
+                },
+            })
+        ) as string;
+        expect(html).toContain(
+            "389 receipts · 4 implement, 2 review, 383 missing session markers"
+        );
+        expect(html).not.toContain("missing missing:");
+    });
+});
+
 describe("telemetry dashboard — Now timeline (#2631)", () => {
     it("is wired to the LIVE payload, not a constant, and sits BETWEEN the lights and the driver/queue/batch grid (PRD #2621 D2)", () => {
         const src = stripLineComments(NOW);
@@ -631,12 +840,15 @@ describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 revie
             },
         });
         renderLoopStatus(withRemedy);
-        const copy = body.querySelector(".ls-copy");
+        const copy = body.querySelector(".ls-verdict-remedy .ls-copy");
         expect(copy, "the remedy renders a copy button").toBeTruthy();
         copy.focus();
         expect(doc.activeElement).toBe(copy);
 
-        // A verdict whose remedy names no command has no copy button at all.
+        // A verdict whose remedy names no command has no REMEDY copy button
+        // — scoped to `.ls-verdict-remedy`, not the whole body, since #2632
+        // gave the batch heading its own, unrelated `.ls-copy` (the UUID
+        // copy affordance) that persists across every verdict.
         renderLoopStatus(
             payload({
                 verdict: {
@@ -647,7 +859,7 @@ describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 revie
                 },
             })
         );
-        expect(body.querySelector(".ls-copy")).toBeNull();
+        expect(body.querySelector(".ls-verdict-remedy .ls-copy")).toBeNull();
         expect(doc.activeElement.className ?? "").not.toContain("ls-light");
     });
 
