@@ -377,6 +377,12 @@ export default function GameStack({
                                     }
                                     allPlayers={allPlayers}
                                     viewerId={playerId}
+                                    stack={stack}
+                                    // Phone panels only (issue #2727): both
+                                    // of these cover the board the arrows
+                                    // cross, so the row names its targets in
+                                    // text there and nowhere else.
+                                    showTargetLine={!!narrow || !!landscape}
                                 />
                             );
                         })}

@@ -12,19 +12,27 @@ import type { ControllerActionTone } from "~/hooks/useControllerActions";
  *  Semantic tokens only: `accent*` for a call-to-action, `danger*` for anything
  *  that ends the player's turn or cancels their own spell. */
 
-/** The morphing primary call-to-action. `primary` is the solid gold pill (the
- *  one control the player is meant to hit); `destructive` is an outlined
- *  surface, deliberately quieter than the gold so a Cancel / Pass Turn that
- *  wins the slot never reads as the recommended move. */
+/** The morphing primary call-to-action. `primary` is v4's ONE opaque **ivory
+ *  plate** with dark text (ADR 0103 §3, issue #2727 — the gold gradient it
+ *  replaces was the v3 brand accent, and v4's chrome carries no brand hue);
+ *  `destructive` is a hairline edge over the base surface, deliberately quieter
+ *  than the plate so a Cancel / Pass Turn that wins the slot never reads as the
+ *  recommended move.
+ *
+ *  `bg-accent` IS the ivory (`--color-accent: #efe9da`); `text-surface-base` is
+ *  the graphite it sits on. The pair is re-derived by
+ *  `design-tokens.test.ts`'s plate-label rung (≥4.5:1), so a future value edit
+ *  cannot quietly make this unreadable. */
 export const CONTROLLER_PRIMARY_TONE: Record<ControllerActionTone, string> = {
-    primary: "bg-gradient-to-b from-accent-strong to-accent text-surface-base",
+    primary: "bg-accent text-surface-base hover:bg-accent-strong",
     destructive:
         "border border-danger/60 bg-surface-base/90 text-danger-strong backdrop-blur-md",
 };
 
-/** Side pills — everything the centre slot did not take. Outlined on the base
- *  surface in both tones: a side pill is never the recommended move. */
+/** Side pills — everything the centre slot did not take. A hairline edge on the
+ *  base surface in both tones: a side pill is never the recommended move, so it
+ *  never gets the plate. */
 export const CONTROLLER_SECONDARY_TONE: Record<ControllerActionTone, string> = {
-    primary: "border-border-accent/50 bg-surface-base/85 text-accent-strong",
+    primary: "border-[var(--hairline-strong)] bg-surface-base/85 text-text",
     destructive: "border-danger/50 bg-surface-base/85 text-danger-strong",
 };

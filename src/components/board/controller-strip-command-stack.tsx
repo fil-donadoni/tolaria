@@ -70,7 +70,7 @@ export default function ControllerStripCommandStack({
                     type="button"
                     onClick={statusPill.onClick}
                     disabled={statusPill.disabled}
-                    className={`${PRIMARY_SLOT} truncate border border-border-subtle bg-surface-base/85 font-beleren text-xs tracking-wide text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
+                    className={`${PRIMARY_SLOT} truncate border border-[var(--hairline-strong)] bg-surface-base/85 text-display text-xs text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
                 >
                     {statusPill.label}
                 </button>
@@ -79,7 +79,7 @@ export default function ControllerStripCommandStack({
                     type="button"
                     onClick={primary?.onClick}
                     disabled={!primary || primary.disabled}
-                    className={`${PRIMARY_SLOT} truncate font-beleren text-xs font-bold tracking-wide shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
+                    className={`${PRIMARY_SLOT} truncate text-display text-xs shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
                         CONTROLLER_PRIMARY_TONE[primary?.tone ?? "primary"]
                     }`}
                 >
@@ -94,7 +94,11 @@ export default function ControllerStripCommandStack({
                 aria-label="Pass Turn"
                 onClick={passTurn?.onClick}
                 disabled={!passTurn || passTurn.disabled}
-                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-danger/40 bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-danger-strong shadow-lg backdrop-blur-md disabled:opacity-40"
+                // Hairline, not `danger` (ADR 0103 §3, issue #2727): passing the
+                // turn is the most routine action on the board and never
+                // deserved a warning edge. The one loud control in this stack
+                // is the ivory plate above.
+                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-[var(--hairline-strong)] bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text disabled:opacity-40"
             >
                 <FastForward className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Pass Turn

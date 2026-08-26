@@ -5,6 +5,7 @@ import { useInertialScroll } from "~/hooks/useInertialScroll";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { GameContext } from "~/hooks/useGameContext";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { V4_COUNT_BADGE } from "~/lib/board-chrome-v4";
 import {
     PILE_TILE_BOX,
     PILE_GRID_COMPACT_BREAKPOINT_PX,
@@ -61,7 +62,7 @@ function EmptyPilePlaceholder({
 }) {
     return (
         <div
-            className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle card-corner`}
+            className={`group ${PILE_TILE_BOX} card-corner flex items-center justify-center border border-[var(--hairline-strong)] p-2 text-center`}
         >
             {zoneIcon ? (
                 <span
@@ -800,7 +801,28 @@ export default function CardsPile({
                             emptyLabel={emptyLabel}
                         />
                     ) : (
-                        pileCards
+                        <>
+                            {pileCards}
+                            {/* Count badge (ADR 0103, issue #2727): "piles as
+                                card thumbs with a count badge" — the depth of
+                                a zone used to be legible only by opening it
+                                (or, on portrait, from the separate chip row).
+                                The ivory pill is the one opaque element on the
+                                tile, per §3, and `pointer-events-none` keeps
+                                the whole tile a single click target for the
+                                browse dialog. Anchored against the CALLER's
+                                `relative` wrapper — the same positioned
+                                ancestor the absolutely-placed pile cards above
+                                resolve against — so it costs the tile no
+                                layout of its own. */}
+                            <span
+                                data-pile-count
+                                aria-hidden
+                                className={`pointer-events-none absolute -right-1.5 -bottom-1.5 z-10 shadow-[0_2px_6px_rgba(0,0,0,0.6)] ${V4_COUNT_BADGE}`}
+                            >
+                                {cards.length}
+                            </span>
+                        </>
                     )}
                 </div>
             )}

@@ -30,11 +30,11 @@ export default function ControllerPhaseList({
         <div
             role="dialog"
             aria-label="Turn phases"
-            className="flex w-[248px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-2xl backdrop-blur-md"
+            className="flex w-[248px] flex-col overflow-hidden rounded-[var(--panel-radius)] border border-[var(--hairline)] bg-surface shadow-2xl backdrop-blur-md"
             style={{ maxHeight: "calc(100dvh - 24px)" }}
         >
-            <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
-                <span className="font-beleren text-xs text-accent-strong">
+            <div className="flex items-center justify-between border-b border-[var(--hairline)] px-3 py-2">
+                <span className="text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-text-muted">
                     Turn {turn} — Phases
                 </span>
                 <button

@@ -38,7 +38,7 @@ export default function ControllerLifeTab({
         >
             <span
                 data-controller-self-life
-                className="flex items-baseline gap-1 font-beleren text-lg font-bold leading-none text-text"
+                className="flex items-baseline gap-1 font-display text-lg font-semibold leading-none tracking-[-0.025em] tabular-nums text-text"
             >
                 <Heart
                     className={`h-3 w-3 self-center ${

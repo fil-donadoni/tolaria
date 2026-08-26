@@ -15,6 +15,12 @@ export default function StackChip({
     onToggle: () => void;
 }) {
     if (count === 0) return null;
+    // Deliberately the SAME `PileChip` primitive the zone chips use, not a
+    // second chip that merely looks like one: on the phone bar the stack sits
+    // beside GY / LIB / EXL and any drift between them reads as a bug. The v4
+    // pass re-skins the primitive once (hairline edge, eyebrow label, ivory
+    // count badge) and this affordance follows — it is a re-skin of a shipped
+    // control, not a new one.
     return (
         <PileChip
             label={open ? "STACK ▾" : "STACK"}

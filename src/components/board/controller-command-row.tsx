@@ -13,6 +13,14 @@ import {
  *  ellipsises the label — so it can never push Pass Turn off-screen. */
 const CENTRE_SLOT = "h-11 min-w-[11rem] rounded-full px-6";
 
+/** The quiet siblings of the ivory plate (ADR 0103 §3, issue #2727): a
+ *  hairline edge over the base surface. Pass Turn used to be a `danger`-edged
+ *  circle, which read as a warning for the single most routine action on the
+ *  board; in v4 it is a hairline, and the one loud control in the row is the
+ *  plate. */
+const HAIRLINE_PILL =
+    "border border-[var(--hairline-strong)] bg-surface-base/85 backdrop-blur-md";
+
 /** The command row floating above the portrait tab bar (variant D, #1759).
  *
  *  Arena's model: ONE morphing primary call-to-action in a fixed centre slot
@@ -79,7 +87,7 @@ export default function ControllerCommandRow({
                         type="button"
                         onClick={statusPill.onClick}
                         disabled={statusPill.disabled}
-                        className={`${CENTRE_SLOT} flex items-center justify-center truncate border border-border-subtle bg-surface-base/85 font-beleren text-sm tracking-wide text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
+                        className={`${CENTRE_SLOT} ${HAIRLINE_PILL} flex items-center justify-center truncate text-display text-sm text-text-muted shadow-lg disabled:opacity-70`}
                     >
                         {statusPill.label}
                     </button>
@@ -88,7 +96,7 @@ export default function ControllerCommandRow({
                         type="button"
                         onClick={primary?.onClick}
                         disabled={!primary || primary.disabled}
-                        className={`${CENTRE_SLOT} truncate font-beleren text-sm font-bold tracking-wide shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
+                        className={`${CENTRE_SLOT} truncate text-display text-sm shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
                             CONTROLLER_PRIMARY_TONE[primary?.tone ?? "primary"]
                         }`}
                     >
@@ -101,7 +109,7 @@ export default function ControllerCommandRow({
                     aria-label="Pass Turn"
                     onClick={passTurn?.onClick}
                     disabled={!passTurn || passTurn.disabled}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-danger/40 bg-surface-base/85 text-danger-strong shadow-lg backdrop-blur-md disabled:opacity-40"
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${HAIRLINE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
                 >
                     <FastForward className="h-4 w-4" aria-hidden />
                 </button>

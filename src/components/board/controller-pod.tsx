@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
+import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
 import ActionButton from "./action-button";
 import ControllerCueBadge from "./controller-cue-badge";
 import ControllerPhasePanel from "./controller-phase-panel";
@@ -39,20 +40,21 @@ export default function ControllerPod({
         // clears the pile row height in the corner.
         <div
             data-controller-pod
-            className={`fixed bottom-32 right-4 z-hud flex w-52 flex-col gap-2 rounded-2xl border bg-surface-base p-2.5 shadow-2xl backdrop-blur-md ${
-                isMyTurn
-                    ? "border-signal-self/60 shadow-signal-self/10"
-                    : "border-signal-opponent/40 shadow-signal-opponent/10"
-            }`}
+            // v4 (ADR 0103 §5, issue #2727): a HAIRLINE plate, not a heavy
+            // rounded box with a seat-coloured frame. The turn-ownership
+            // signal moves to the strip below and to the pill inside — the
+            // frame itself is quiet, which is the whole register.
+            className={`fixed bottom-32 right-4 z-hud flex w-52 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
         >
             {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
              *  was too faint to read at a glance, so whose turn it is now reads
              *  as a full-width colored pill plus a matching pod border. */}
             <div
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+                data-controller-turn-strip
+                className={`flex items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
                     isMyTurn
-                        ? "bg-signal-self/20 text-signal-self-strong"
-                        : "bg-signal-opponent/20 text-signal-opponent-strong"
+                        ? "bg-signal-self/15 text-signal-self-strong"
+                        : "bg-signal-opponent/15 text-signal-opponent-strong"
                 }`}
             >
                 <span
@@ -69,13 +71,16 @@ export default function ControllerPod({
                 onClick={() => setExpanded((v) => !v)}
                 aria-expanded={expanded}
                 aria-label="Toggle phase list"
-                className="flex items-center gap-2 rounded-xl bg-surface-elevated px-2.5 py-2 text-left hover:bg-surface-elevated cursor-pointer"
+                className="flex cursor-pointer items-center gap-2 rounded-sm border border-[var(--hairline)] bg-surface-elevated px-2.5 py-2 text-left transition-colors hover:border-[var(--hairline-strong)]"
             >
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[8px] uppercase tracking-wider text-text-disabled">
+                {/* Eyebrow TURN over the display-face phase (ADR 0103 §4):
+                    the small uppercase label says which turn and which group,
+                    the big Geist line says the step the player is in. */}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className={V4_EYEBROW}>
                         T{turn} · {phaseGroupLabel(phase)}
                     </span>
-                    <span className="truncate font-beleren text-sm font-bold text-accent-strong">
+                    <span className="truncate text-display text-base text-text">
                         {phaseLabel(phase)}
                     </span>
                 </div>
@@ -98,7 +103,7 @@ export default function ControllerPod({
                                 type="button"
                                 onClick={action.onClick}
                                 disabled={action.disabled}
-                                className="rounded-sm border border-border-accent/40 bg-surface-elevated px-3 py-2 text-center text-xs font-beleren tracking-wide text-text-muted shadow-md transition-colors hover:bg-surface-elevated disabled:cursor-default disabled:opacity-70"
+                                className="rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
                             >
                                 {action.label}
                             </button>
