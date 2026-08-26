@@ -31,6 +31,7 @@ import { renderFamiliesTable } from "../dashboard/history-families-table.js";
  * than merely reading oddly.
  */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = globalThis as any;
 
 function mountPage(bodyHtml: string) {
