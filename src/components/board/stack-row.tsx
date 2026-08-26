@@ -17,6 +17,8 @@ import {
     resolveCardImageId,
 } from "~/lib/images";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
+import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
 import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
@@ -43,7 +45,7 @@ function ControllerChip({
         allPlayers.find((p) => p.id === item.castById)?.name ?? item.castById;
     return (
         <span
-            className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold ${
+            className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 mine
                     ? "bg-signal-self/15 text-signal-self-strong"
                     : "bg-signal-opponent/15 text-signal-opponent-strong"
@@ -63,9 +65,21 @@ function ControllerChip({
  *  tile + resolve-order badge, name + mana pips + controller chip, chosen-mode
  *  lines and FULL oracle text (never truncated).
  *
- *  Targets are NOT listed as text chips: the board-crossing SVG arrows
- *  (`board-arrows.tsx`) are the single representation of "what this targets" —
- *  a name chip duplicated the information without saying WHERE the target is. */
+ *  Targets are NOT listed as chips: the board-crossing SVG arrows
+ *  (`board-arrows.tsx`) are the representation of "what this targets", which a
+ *  chip cannot be — it says the name without saying WHERE. That decision is
+ *  pinned by `game-stack-order.test.tsx` ("targets are arrows, not text
+ *  chips") and this slice does not relitigate it: on desktop the row prints no
+ *  target name, exactly as before.
+ *
+ *  `showTargetLine` (issue #2727) is the ONE case that decision did not cover.
+ *  The desktop panel floats beside a board where the arrow is fully visible;
+ *  the PHONE panels are not that. In portrait the panel spans the viewer's
+ *  whole half (`PORTRAIT_STACK_PANEL_TOP` → `NARROW_BOTTOM_CLASS`) and in
+ *  landscape-compact it covers the right rail, so while the panel is open the
+ *  arrow's far end is behind it. There the line is not a duplicate of the
+ *  arrow — it is the only representation the player can see. See
+ *  `stackTargetNames`. */
 export default function StackRow({
     item,
     order,
@@ -77,6 +91,8 @@ export default function StackRow({
     arrived,
     allPlayers,
     viewerId,
+    stack,
+    showTargetLine = false,
 }: {
     item: StackItem;
     /** 1-based resolve order — 1 resolves first (top of stack). */
@@ -90,6 +106,13 @@ export default function StackRow({
     arrived: boolean;
     allPlayers: Player[];
     viewerId: string;
+    /** The whole stack — the only way to name a `spell`-type target (CR
+     *  601.2c), which is another item on this same stack. */
+    stack: StackItem[];
+    /** Print the muted target line under the header. Set only by the phone
+     *  stack panels, where the panel occludes the arrows — see the doc block
+     *  above for why desktop deliberately stays without it. */
+    showTargetLine?: boolean;
 }) {
     const reduceMotion = useReducedMotion();
     const kind = stackAbilityKindOf(item);
@@ -125,6 +148,9 @@ export default function StackRow({
     // resolving on `item.card.id` regardless is still correct since neither
     // has a registered `imagePrintFace` (issue #1595).
     const imageFace = resolveCardImageFace(item.card.id);
+    const targetNames = showTargetLine
+        ? stackTargetNames(item, allPlayers, stack)
+        : [];
 
     return (
         // The shared-layout flight identity lives on the CARD TILE below, not on
@@ -144,10 +170,17 @@ export default function StackRow({
                 onPointerEnter={() => onHoverSeed(true)}
                 onPointerLeave={() => onHoverSeed(false)}
                 onClick={onSelect}
-                className={`flex w-full gap-3 rounded-sm border p-2 text-left ${
+                // v4 (ADR 0103 §5): a quiet row on the panel corner. The TOP
+                // row — the one about to resolve — is the only one that gets
+                // the ivory accent edge, so "what happens next" is the single
+                // thing the eye lands on. The row is a targetable BUTTON, so
+                // its resting edge is `border-strong` (WCAG 1.4.11's 3:1 for a
+                // control boundary), not the decorative `--hairline` pair
+                // (round-2 review; `.btn-base` in `src/index.css`).
+                className={`flex w-full gap-3 rounded-[var(--panel-radius)] border p-2 text-left ${
                     isTop
-                        ? "border-accent/60 bg-accent-soft/15 shadow-[0_0_12px_color-mix(in_srgb,var(--color-accent)_20%,transparent)]"
-                        : "border-border-subtle"
+                        ? "border-accent/50 bg-accent-soft/40"
+                        : "border-border-strong"
                 } ${
                     isTargetable
                         ? "cursor-pointer ring-2 ring-signal-target/60 hover:ring-signal-target-strong"
@@ -200,14 +233,14 @@ export default function StackRow({
                             />
                         </motion.span>
                     )}
-                    <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent font-beleren text-[10px] font-bold text-primary-foreground">
+                    <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent font-display text-[10px] font-bold tabular-nums text-surface-base">
                         {order}
                     </span>
                 </span>
 
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="text-xs font-semibold text-text">
+                        <span className="text-display text-sm text-text">
                             {name}
                         </span>
                         {def?.manaCost && (
@@ -223,6 +256,19 @@ export default function StackRow({
                             viewerId={viewerId}
                         />
                     </span>
+
+                    {/* Target line (issue #2727), phone panels only — see
+                        the component doc for why desktop keeps the
+                        arrows-only rule this row has always followed. */}
+                    {targetNames.length > 0 && (
+                        <span
+                            data-stack-target-line
+                            className="truncate text-[11px] leading-tight text-text-muted"
+                        >
+                            <span aria-hidden>→ </span>
+                            {targetNames.join(", ")}
+                        </span>
+                    )}
 
                     {modeLines?.map((line) => (
                         <span
@@ -243,9 +289,7 @@ export default function StackRow({
                     ))}
 
                     {kindLabel && (
-                        <span className="text-[9px] font-semibold tracking-wider text-text-muted uppercase">
-                            {kindLabel}
-                        </span>
+                        <span className={V4_EYEBROW_FAINT}>{kindLabel}</span>
                     )}
                     {oracle && !modeLines && (
                         <span className="text-[11px] leading-snug whitespace-pre-line text-text-muted">

@@ -49,9 +49,19 @@ export default function DeckShelfTile({
             data-selected={selected}
             className={cn(
                 "relative w-32 shrink-0 overflow-hidden rounded-[var(--panel-radius)] border bg-surface transition",
+                // Same control edge as the sibling `lobby-mode-tile.tsx`, and
+                // for the same reason (#2847 round-3): this wrapper's border is
+                // the tile's only bound — the art stops at `aspect-[16/10]` and
+                // the name foot below it is `bg-surface` on a `surface` panel,
+                // a 1:1 field. The usage sweep does not flag this one, because
+                // the border sits on the presentational wrapper rather than on
+                // the `<button>` it contains (see the sweep's hole list); that
+                // is a DOM accident with no design meaning, and letting it
+                // decide the frame weight would split the two art-tile families
+                // that sit one above the other in the same lobby column.
                 selected
                     ? "border-accent shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_16%,transparent)]"
-                    : "border-[var(--hairline)] hover:border-[var(--hairline-strong)]"
+                    : "border-border-strong hover:border-accent/60"
             )}
         >
             <button

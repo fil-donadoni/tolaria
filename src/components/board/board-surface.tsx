@@ -17,6 +17,7 @@ import {
     type LandscapeCardMetrics,
 } from "~/lib/landscape-board-bands";
 import { rightPilesWidth } from "~/lib/right-piles-width";
+import { isCombatLineHot } from "~/lib/board-chrome-v4";
 import {
     fanLayout,
     CARD_WIDTH,
@@ -35,6 +36,7 @@ import BoardHandPortrait from "./board-hand-portrait";
 import BoardPiles from "./board-piles";
 import BoardPortraitChips from "./board-portrait-chips";
 import BoardArrows from "./board-arrows";
+import BoardMidLine from "./board-mid-line";
 import GameStack from "./game-stack";
 import PriorityIndicator from "./priority-indicator";
 
@@ -208,6 +210,18 @@ export default function BoardSurface({
                             } as CSSProperties
                         }
                     >
+                        {/* The mid-board line (ADR 0103 §1, #2727) — FIRST
+                    child so it paints under every card and
+                    every piece of chrome. Absolutely
+                    positioned and `pointer-events-none`, so
+                    it costs no band any height and steals no
+                    tap; see `board-mid-line.tsx`. */}
+                        <BoardMidLine
+                            isPortrait={isPortrait}
+                            landscapeCompact={landscapeCompact}
+                            hot={isCombatLineHot(combat)}
+                        />
+
                         {/* Opponent: hand on the top edge,
                     battlefield below it — same layout
                     math, mirrored to the top half. */}

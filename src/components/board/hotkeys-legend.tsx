@@ -31,13 +31,15 @@ export default function HotkeysLegend() {
     return (
         <Popover>
             <PopoverTrigger
-                className="bg-black/60 hover:bg-black/80 text-white/80 p-2 rounded-lg text-sm transition-colors shadow-lg hidden md:inline-flex"
+                className="hidden rounded-sm border border-border-strong bg-surface-elevated p-2 text-sm text-text-muted shadow-lg transition-colors hover:text-text md:inline-flex"
                 aria-label="Show hotkeys"
             >
                 <Keyboard className="w-4 h-4" />
             </PopoverTrigger>
             <PopoverContent>
-                <div className="font-semibold mb-2 text-white/90">Hotkeys</div>
+                <div className="mb-2 text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-text-muted">
+                    Hotkeys
+                </div>
                 <div className="flex flex-col gap-1.5">
                     {HOTKEYS.map((row) => (
                         <div
@@ -48,17 +50,17 @@ export default function HotkeysLegend() {
                                 {row.keys.map((k, i) => (
                                     <span key={i} className="inline-flex">
                                         {i > 0 && (
-                                            <span className="text-white/40 mr-1">
+                                            <span className="mr-1 text-text-disabled">
                                                 +
                                             </span>
                                         )}
-                                        <kbd className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[10px] font-mono text-white/90">
+                                        <kbd className="inline-flex items-center rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text">
                                             {k}
                                         </kbd>
                                     </span>
                                 ))}
                             </div>
-                            <span className="text-white/70">{row.label}</span>
+                            <span className="text-text-muted">{row.label}</span>
                         </div>
                     ))}
                 </div>

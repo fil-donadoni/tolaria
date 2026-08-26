@@ -1,5 +1,7 @@
 import type { Player } from "~/types/game";
 import { usePlayerInteractionHook } from "~/hooks/usePlayerInteractionContext";
+import { useGameContext } from "~/hooks/useGameContext";
+import { isUnderAttack } from "~/lib/board-chrome-v4";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
@@ -101,6 +103,12 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
     const interaction = useInteraction(player);
     const isPortrait = useIsPortrait();
     const landscapeCompact = useViewportMode() === "landscape-compact";
+    // CR 506.2 — the `attacked` plaque state (ADR 0103, issue #2727). Derived
+    // HERE rather than inside the presentational `PlayerNameplate`, which is
+    // also rendered by the provider-free classic chrome (`player-life.tsx`):
+    // this component already reads the game context for everything else.
+    const { combat, activePlayerId } = useGameContext();
+    const underAttack = isUnderAttack(combat, player.id, activePlayerId);
     // Relative wrapper so the floating mana-pool indicator anchors to the
     // nameplate (its absolute `bottom-full` / `top-full` need a positioned
     // ancestor), mirroring how the classic `player-side-row` pairs the pool with
@@ -132,6 +140,7 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
                 // isn't), so the nameplate needs to know WHICH seam gave it
                 // `compact`, not just that it did.
                 landscapeCompact={landscapeCompact}
+                underAttack={underAttack}
             />
         </div>
     );

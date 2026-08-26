@@ -9,6 +9,7 @@ import {
     PILE_GRID_TILE_PX,
     PILE_GRID_GAP_PX,
     PILE_GRID_TILE_W,
+    PILE_TILE_BOX,
 } from "~/lib/card-layout";
 import CardsPile from "../cards-pile";
 
@@ -585,4 +586,84 @@ describe("CardsPile — sibling cost/target-picker dialogs share the tile consta
             expect(source).not.toContain("w-24 sm:w-28");
         }
     );
+});
+
+describe("CardsPile — the count badge's containing block is a full tile box (issue #2727, round-2 review)", () => {
+    // Regression, found by MEASUREMENT in headless Chrome, not by this suite:
+    // the badge is `absolute -right-1.5 -bottom-1.5`, so it lands wherever its
+    // nearest POSITIONED ancestor's border box ends. Every in-flow child of
+    // the collapsed-stack wrapper is itself `absolute`, so before the fix that
+    // wrapper (and the caller's `relative` div above it) measured ZERO height
+    // and `-bottom-1.5` resolved against a zero-height line at the TOP of the
+    // tile: badge at y=106..126 against a tile at y=120..200 — 14 of its 20px
+    // above the thumb, i.e. at the board's top edge on the opponent rail.
+    //
+    // **What this test does NOT prove.** happy-dom has no layout engine —
+    // `getBoundingClientRect()` is all zeroes — and both board surfaces are
+    // `unwalked` in `scripts/ui-gate/budgets.json`, so neither this project
+    // nor `check:ui` can re-measure those pixels. What it DOES prove is the
+    // class contract that produced them: the first ancestor establishing a
+    // containing block for the badge is sized to a whole `PILE_TILE_BOX`.
+    // That is exactly the property that was false, and it is falsifiable
+    // (drop `relative` or `PILE_TILE_BOX` from the wrapper and it goes red).
+    const POSITIONED = /(^|\s)(relative|absolute|fixed|sticky)($|\s)/;
+
+    function containingBlockOf(el: HTMLElement): HTMLElement | null {
+        let node = el.parentElement;
+        while (node) {
+            if (POSITIONED.test(node.className)) return node;
+            node = node.parentElement;
+        }
+        return null;
+    }
+
+    it("anchors the badge against a positioned ancestor sized to PILE_TILE_BOX", () => {
+        const { baseElement } = render(
+            <CardsPile
+                cards={[makeCard("a"), makeCard("b"), makeCard("c")]}
+                isFaceDown={false}
+                title="Graveyard"
+            />
+        );
+
+        const badge =
+            baseElement.querySelector<HTMLElement>("[data-pile-count]");
+        expect(
+            badge,
+            "count badge renders on a populated collapsed pile"
+        ).not.toBeNull();
+        expect(badge!.textContent).toBe("3");
+        // The badge only reads as a CORNER badge if it is corner-anchored.
+        expect(badge!.className).toContain("absolute");
+        expect(badge!.className).toContain("-right-1.5");
+        expect(badge!.className).toContain("-bottom-1.5");
+
+        const block = containingBlockOf(badge!);
+        expect(block, "badge has a positioned ancestor").not.toBeNull();
+        // `PILE_TILE_BOX` is `w-(--card-w-sm) aspect-5/7` — a tile-sized box.
+        // Assert the constant itself so a rename cannot silently pass.
+        for (const cls of PILE_TILE_BOX.split(/\s+/)) {
+            expect(
+                block!.className,
+                `badge's containing block carries ${cls}`
+            ).toContain(cls);
+        }
+    });
+
+    it("gives the pile cards the SAME containing block as the badge", () => {
+        // The badge must not be anchored one level out from the thumbs it
+        // annotates — that is the same bug wearing a different hat.
+        const { baseElement } = render(
+            <CardsPile
+                cards={[makeCard("only")]}
+                isFaceDown={false}
+                title="Exile"
+            />
+        );
+
+        const badge =
+            baseElement.querySelector<HTMLElement>("[data-pile-count]")!;
+        const thumb = findCardWrapper(baseElement as HTMLElement, "only")!;
+        expect(containingBlockOf(badge)).toBe(containingBlockOf(thumb));
+    });
 });

@@ -66,7 +66,12 @@ export default function OpenTablesStrip({
                             }
                             className={cn(
                                 "flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm transition",
-                                "border-[var(--hairline)] bg-surface/70 text-text hover:border-[var(--hairline-strong)]",
+                                // A control edge, not decoration (`.btn-base` in
+                                // `src/index.css`): the row's field is `surface/70`
+                                // on a `surface` panel, so the border is the ONLY
+                                // thing bounding it and the decorative hairline
+                                // would leave it at 1.34:1, under WCAG 1.4.11's 3:1.
+                                "border-border-strong bg-surface/70 text-text hover:border-accent/60",
                                 "disabled:cursor-not-allowed disabled:opacity-40"
                             )}
                         >

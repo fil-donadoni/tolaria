@@ -131,7 +131,14 @@ export default function DashboardLimitedBox({
                                             "flex items-center justify-between gap-2 rounded-sm border px-3 py-2 text-sm transition",
                                             isPrimary
                                                 ? "border-accent bg-accent/10 text-text"
-                                                : "border-[var(--hairline)] bg-surface/70 text-text hover:border-[var(--hairline-strong)]"
+                                                : // A control edge, not decoration
+                                                  // (`.btn-base` in `src/index.css`):
+                                                  // the row's field is `surface/70` on a
+                                                  // `surface` panel, so the border is the
+                                                  // ONLY thing bounding it and the
+                                                  // decorative hairline would leave it at
+                                                  // 1.34:1, under WCAG 1.4.11's 3:1.
+                                                  "border-border-strong bg-surface/70 text-text hover:border-accent/60"
                                         )}
                                     >
                                         <span className="flex min-w-0 items-center gap-2 font-medium">

@@ -85,9 +85,9 @@ export default function ControllerPhaseRow({
                 )}
             </span>
             <span
-                className={`flex flex-1 items-baseline justify-center gap-1 text-center text-xs font-beleren ${
+                className={`flex flex-1 items-baseline justify-center gap-1 text-center text-xs ${
                     isCurrent
-                        ? "font-bold text-accent-strong"
+                        ? "text-display text-text"
                         : isPast
                           ? "text-text-disabled"
                           : "text-text"

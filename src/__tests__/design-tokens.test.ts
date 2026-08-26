@@ -691,7 +691,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
     // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
     // at which point this row and its constant are deleted with it.
-    const BELEREN_RESIDUAL_CEILING = 75;
+    const BELEREN_RESIDUAL_CEILING = 62;
 
     /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
      *  the class in its own assertions and would otherwise count itself. */

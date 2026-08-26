@@ -13,7 +13,41 @@ import {
     describeTargetProgress,
     formatTargetLabel,
 } from "~/lib/target-progress";
+import { V4_CHIP } from "~/lib/board-chrome-v4";
 import DivideTargetList from "./divide-target-list";
+
+/** How the target COUNT reads on the prompt's chip.
+ *
+ *  The v4 prototype showed a "2 legal" chip — the number of legal targets still
+ *  on the board. That number is **not on the wire**: `PendingTarget` carries the
+ *  target FILTERS (colour / subtype / power / …), never a resolved candidate
+ *  list.
+ *
+ *  It is NOT barred by ADR 0074 (a round-2 review corrected this note's first
+ *  version, which claimed it was). The client already re-derives target
+ *  legality every render — `matchesTargetRequirement` +
+ *  `matchesPermanentTargetFilters` (`card-utils.ts`) are what make a card
+ *  clickable, and they run through the SAME shared filter registry the server
+ *  uses (ADR 0068), so they are not a drifting copy. ADR 0074 bars client
+ *  AUTHORITY, not a client-side display count.
+ *
+ *  The real reason the chip counts PROGRESS instead is coverage: a legal-target
+ *  count has to span players, the stack and graveyards, and the client's sweep
+ *  is permanent-only — `hasBattlefieldTargetCandidate` (`card-utils.ts`)
+ *  explicitly FAILS OPEN on `player` / `spell` / `spell-or-permanent` / `card`
+ *  and on any non-battlefield `zone`. A chip reading "2 legal" while silently
+ *  counting only one of four target spaces is worse than no chip. What the
+ *  prompt DOES know exactly, for every requirement shape, is the player's
+ *  progress against it (CR 601.2c), so that is what the chip says. Recorded
+ *  deviation, issue #2727. */
+function targetCountLabel(
+    count: PendingTarget["count"],
+    selected: number
+): string {
+    if (typeof count === "number") return `${selected} / ${count}`;
+    if (count.max !== undefined) return `${selected} / up to ${count.max}`;
+    return `${selected} / ${count.min}+`;
+}
 
 export default function TargetSelectionBanner({
     pendingTarget,
@@ -100,17 +134,31 @@ export default function TargetSelectionBanner({
                     className="flex flex-col gap-3 px-5 py-3"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="text-sm">
-                            <span className="font-beleren tracking-wide text-parchment">
+                        {/* v4 (ADR 0103 §4): the SOURCE in the display face,
+                            the instruction as a quiet muted line under it —
+                            the player reads "what am I aiming" first and "how
+                            many of what" second. */}
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <span className="truncate text-display text-base text-text">
                                 {cardName}
                             </span>
-                            <br />
-                            <span className="text-text-muted ml-2">
+                            <span className="text-xs text-text-muted">
                                 {divide.active
                                     ? `Divide ${divide.kind === "prevent" ? "prevented damage" : "damage"} — ${divide.remaining} left`
                                     : hint}
                             </span>
                         </div>
+                        {!divide.active && (
+                            <span
+                                data-target-count-chip
+                                className={`${V4_CHIP} border-signal-target/60 tabular-nums text-signal-target-strong`}
+                            >
+                                {targetCountLabel(
+                                    pendingTarget.count,
+                                    pendingTarget.selected.length
+                                )}
+                            </span>
+                        )}
                         {divide.active ? (
                             // CR 601.2d — divide-as-you-choose: each target below
                             // carries its own [−] N [+] stepper (dialed independently);

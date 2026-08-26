@@ -5,6 +5,7 @@ import { useInertialScroll } from "~/hooks/useInertialScroll";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { GameContext } from "~/hooks/useGameContext";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { V4_COUNT_BADGE } from "~/lib/board-chrome-v4";
 import {
     PILE_TILE_BOX,
     PILE_GRID_COMPACT_BREAKPOINT_PX,
@@ -61,7 +62,7 @@ function EmptyPilePlaceholder({
 }) {
     return (
         <div
-            className={`group ${PILE_TILE_BOX} flex justify-center items-center text-center p-2 border border-border-subtle card-corner`}
+            className={`group ${PILE_TILE_BOX} card-corner flex items-center justify-center border border-[var(--hairline-strong)] p-2 text-center`}
         >
             {zoneIcon ? (
                 <span
@@ -786,7 +787,25 @@ export default function CardsPile({
                 unreachable, and rendering it would duplicate every card image. */}
             {!forceOpen && (!controlled || hasContextMenu) && (
                 <div
-                    className="cursor-pointer"
+                    // `relative ${PILE_TILE_BOX}` (round-2 review fixup,
+                    // issue #2727): the count badge below is positioned
+                    // against THIS element, so it has to be both positioned
+                    // AND the size of a tile. Every in-flow child here is
+                    // `absolute`, so without a box of its own this wrapper —
+                    // and the caller's `relative` wrapper above it — measure
+                    // ZERO height, and `-bottom-1.5` then resolves against a
+                    // zero-height line at the TOP of the tile: measured in
+                    // headless Chrome, the badge landed at y=106..126 against
+                    // a tile occupying y=120..200, i.e. 14 of its 20px above
+                    // the thumb (at the board's top edge on the opponent
+                    // rail). Layout-neutral: the grandparent
+                    // (`player-graveyard.tsx` et al.) is already exactly
+                    // `w-(--card-w-sm) aspect-5/7`, so filling it changes no
+                    // band and no rail geometry — it only gives the absolute
+                    // children the containing block they always meant to
+                    // resolve against. Guarded by `cards-pile.test.tsx` §
+                    // "the count badge's containing block is a full tile box".
+                    className={`cursor-pointer relative ${PILE_TILE_BOX}`}
                     // `hasContextMenu` — no handler at all, so the click
                     // bubbles untouched to the ancestor's `ContextMenuTrigger`
                     // (see the prop doc). Opening the browse dialog is then
@@ -800,7 +819,30 @@ export default function CardsPile({
                             emptyLabel={emptyLabel}
                         />
                     ) : (
-                        pileCards
+                        <>
+                            {pileCards}
+                            {/* Count badge (ADR 0103, issue #2727): "piles as
+                                card thumbs with a count badge" — the depth of
+                                a zone used to be legible only by opening it
+                                (or, on portrait, from the separate chip row).
+                                The ivory pill is the one opaque element on the
+                                tile, per §3, and `pointer-events-none` keeps
+                                the whole tile a single click target for the
+                                browse dialog. Anchored against the wrapper
+                                right above — a `relative` element sized to a
+                                full `PILE_TILE_BOX`, the same positioned
+                                ancestor the absolutely-placed pile cards
+                                resolve against — so the pill sits on the
+                                tile's bottom-right corner and costs the tile
+                                no layout of its own. */}
+                            <span
+                                data-pile-count
+                                aria-hidden
+                                className={`pointer-events-none absolute -right-1.5 -bottom-1.5 z-10 shadow-[0_2px_6px_rgba(0,0,0,0.6)] ${V4_COUNT_BADGE}`}
+                            >
+                                {cards.length}
+                            </span>
+                        </>
                     )}
                 </div>
             )}

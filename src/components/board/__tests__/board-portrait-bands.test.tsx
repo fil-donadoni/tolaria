@@ -210,3 +210,31 @@ describe("portrait bands never run under the hand strip (#1760)", () => {
         expect(bf.className).not.toContain("var(--portrait-midline)");
     });
 });
+
+describe("the mid-board line is drawn without spending band budget (#2727)", () => {
+    beforeEach(() => {
+        cleanup();
+        ho.portrait = true;
+    });
+
+    // ADR 0103 asks for a mid-board hairline; before #2727 the midline existed
+    // ONLY as `--portrait-midline`, the arithmetic boundary the two battlefield
+    // bands tile against, with nothing painting it. The wrong way to add it is
+    // a flex/flow child between the bands: that steals height from the budget
+    // this whole file exists to protect. This asserts the mount AND that it
+    // stays out of flow — the band classes above are unchanged either way, so
+    // only the node's own position property can tell the two apart.
+    it("mounts inside the board root, absolutely positioned and un-hit-testable", () => {
+        renderBoard();
+        const line = boardRoot().querySelector<HTMLElement>(
+            "[data-board-mid-line]"
+        );
+        expect(line).toBeTruthy();
+        expect(line!.className).toContain("absolute");
+        expect(line!.className).toContain("h-px");
+        expect(line!.className).toContain("pointer-events-none");
+        // It follows the SAME var the bands tile against, not a hand-picked
+        // offset that could drift from the boundary it claims to draw.
+        expect(line!.className).toContain(`var(${PORTRAIT_MIDLINE_VAR})`);
+    });
+});

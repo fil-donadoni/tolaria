@@ -7,8 +7,13 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "~/components/ui/context-menu";
-import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
+import {
+    V4_EYEBROW,
+    plaqueState,
+    type PlaqueState,
+} from "~/lib/board-chrome-v4";
 import AnimatedLifeTotal from "./animated-life-total";
+import PlayerSeatPlate from "./player-seat-plate";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
 import PlayerExperienceCounters from "./player-experience-counters";
@@ -33,15 +38,25 @@ type PlayerNameplateProps = {
      *  poison OR energy badge is live, so landscape drops it outright rather
      *  than spend width on it. Portrait keeps the name — it has the room. */
     landscapeCompact?: boolean;
+    /** CR 506.2 — attackers are declared and this seat is the defending
+     *  player, so the plaque wears the `attacked` state (ADR 0103 §3: the
+     *  signal hues are the only colour left on the chrome, and they carry
+     *  meaning). Derived by the caller from the projected combat state
+     *  (`isUnderAttack`, `~/lib/board-chrome-v4`) rather than read from a
+     *  context here, so the presentational component stays renderable without
+     *  a game provider — the classic `player-life.tsx` chrome simply omits it
+     *  and gets the resting plaque. */
+    underAttack?: boolean;
 };
 
 /** Box-shadow ring/glow for the nameplate, by interaction state, using only
- *  semantic tokens (ADR 0007 — no chromatic Tailwind). Precedence: an
- *  actionable targeting / damage-assignment state (accent-strong, matching the
- *  target arrows) wins over the seat-coloured priority ring (accent = you,
- *  secondary-accent = opponent). */
+ *  semantic tokens (ADR 0007 / 0103 §3 — no chromatic Tailwind). Precedence: an
+ *  actionable targeting / damage-assignment state (accent-strong ivory, matching
+ *  the target arrows) wins over every ambient plaque state, because it is the
+ *  only one the player can act on; below it the three ambient states rank
+ *  attacked → low life → active ({@link plaqueState}). */
 function nameplateShadow(
-    hasPriority: boolean,
+    state: PlaqueState,
     isTargetable: boolean,
     isDamagePickable: boolean,
     isPlayerPicked: boolean
@@ -55,9 +70,20 @@ function nameplateShadow(
             ? `0 0 0 3px ${STRONG}, 0 0 20px 2px color-mix(in oklab, ${STRONG} 55%, transparent)`
             : `0 0 0 2px ${STRONG}, 0 0 16px 1px color-mix(in oklab, ${STRONG} 45%, transparent)`;
     }
-    if (hasPriority) {
+    if (state === "attacked") {
+        // The same hue the incoming attack arrows and the warm mid-board line
+        // use, so "an attack is aimed at this seat" reads as one signal.
+        const ring = "var(--color-signal-opponent)";
+        return `0 0 0 2px ${ring}, 0 0 18px 1px color-mix(in oklab, ${ring} 45%, transparent)`;
+    }
+    if (state === "low") {
+        const ring = "var(--color-danger)";
+        return `0 0 0 2px ${ring}, 0 0 18px 1px color-mix(in oklab, ${ring} 40%, transparent)`;
+    }
+    if (state === "active") {
         // Teal for both seats — the gold priority ring read as too close to the
-        // accent-strong life total to notice.
+        // accent-strong life total to notice, and v4's ivory accent would be
+        // indistinguishable from the targeting ring above.
         const ring = "var(--color-secondary-accent)";
         return `0 0 0 2px ${ring}, 0 0 18px 1px color-mix(in oklab, ${ring} 40%, transparent)`;
     }
@@ -101,6 +127,7 @@ export default function PlayerNameplate({
     className = "",
     compact = false,
     landscapeCompact = false,
+    underAttack = false,
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
 
@@ -213,8 +240,15 @@ export default function PlayerNameplate({
 
     const interactive =
         (isTargetable && !interaction.isDivideTarget) || isDamageTargetPickable;
-    const boxShadow = nameplateShadow(
+    // The three ambient plaque states of ADR 0103 / issue #2727, ranked once in
+    // a pure helper so the precedence is unit-testable away from React.
+    const state = plaqueState({
         hasPriority,
+        underAttack,
+        life: player.life,
+    });
+    const boxShadow = nameplateShadow(
+        state,
         isTargetable,
         isDamageTargetPickable,
         interaction.isPlayerPicked
@@ -223,6 +257,7 @@ export default function PlayerNameplate({
     const box = (
         <div
             data-arrow-anchor-player={player.id}
+            data-plaque-state={state ?? undefined}
             onClick={interaction.handleClick}
             onWheel={onLifeWheel ? (e) => onLifeWheel(e.deltaY) : undefined}
             style={{ boxShadow }}
@@ -275,16 +310,21 @@ export default function PlayerNameplate({
             // below is what makes the life total — always the FIRST child —
             // safe from `overflow-hidden` by construction; only content
             // AFTER it can ever be clipped.
-            className={`relative shrink-0 overflow-hidden rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
-                compact ? "px-1.5 py-0.5" : "px-5 py-2"
+            //
+            // v4 skin (ADR 0103 §5, issue #2727): the frame is a HAIRLINE —
+            // 1px `--hairline` (ivory/12) on the panel corner, over a
+            // translucent graphite fill — and the corner filigree that used to
+            // overlay this box is gone, per §5 ("no corner brackets"). The box
+            // arithmetic the portrait band budget mirrors is UNTOUCHED by that
+            // swap: the border is still 1px on two edges
+            // (`PORTRAIT_NAMEPLATE_BORDER_PX`), the compact padding is still
+            // `py-0.5` (`PORTRAIT_NAMEPLATE_PADDING_PX`), and the filigree was
+            // an `absolute` overlay that never contributed height in the first
+            // place.
+            className={`relative shrink-0 overflow-hidden rounded-[var(--panel-radius)] border border-[var(--hairline)] bg-surface/85 text-center backdrop-blur-md transition-shadow duration-200 ${
+                compact ? "px-1.5 py-0.5" : "px-3 py-2"
             } ${interactive ? "cursor-pointer" : ""} ${className}`}
         >
-            {/* Nit (#1814 round-3 review): the compact box is a 24px-tall
-             *  (border + py-0.5 + one 18px row) container — a size-14 corner
-             *  filigree's arcs overlap each other inside it. size=8 fits the
-             *  smaller box without the overlap; the full (non-compact) box
-             *  keeps size=14. */}
-            <CornerFiligreeFrame overlay size={compact ? 8 : 14} subtle />
             {/* key by player.id so a solo-mode viewer swap (different player
              *  rendered at the same seat position) remounts the animator with a
              *  fresh baseline instead of animating a phantom life delta — the
@@ -357,17 +397,42 @@ export default function PlayerNameplate({
                     />
                 </div>
             ) : (
-                <>
-                    {lifeRow(false)}
-                    <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                        {player.name}
+                // FULL plaque (desktop / classic chrome), v4 shape (ADR 0103
+                // §1/§4): a 44px seat plate, then an eyebrow NAME over the
+                // display-face life total — name small and quiet above, number
+                // large and bright below, which is the read order a player
+                // actually wants (they scan for the number and only then check
+                // whose it is). Counters sit under the life total rather than
+                // stacking their own full-width rows, so the plaque stays one
+                // compact block whatever is live on it.
+                //
+                // No band reads this variant's height: portrait and
+                // landscape-compact both render the `compact` branch above,
+                // and desktop's chrome is corner-anchored with no reservation
+                // to blow.
+                <div className="flex items-center gap-3">
+                    <PlayerSeatPlate name={player.name} />
+                    <div className="flex min-w-0 flex-col items-start gap-1">
+                        <span
+                            className={`max-w-32 truncate ${V4_EYEBROW}`}
+                            data-plaque-name
+                        >
+                            {player.name}
+                        </span>
+                        {lifeRow(false)}
+                        <span className="flex flex-wrap items-center gap-1">
+                            <PlayerPoisonCounters
+                                count={player.poisonCounters}
+                            />
+                            <PlayerEnergyCounters
+                                count={player.energyCounters}
+                            />
+                            <PlayerExperienceCounters
+                                count={player.experienceCounters}
+                            />
+                        </span>
                     </div>
-                    <PlayerPoisonCounters count={player.poisonCounters} />
-                    <PlayerEnergyCounters count={player.energyCounters} />
-                    <PlayerExperienceCounters
-                        count={player.experienceCounters}
-                    />
-                </>
+                </div>
             )}
             {/* The Monarch designation moved off the nameplate to a marker-card
              *  tile beside the piles (`player-monarch-tile.tsx`, #1305). */}
