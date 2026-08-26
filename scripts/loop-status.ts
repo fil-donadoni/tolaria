@@ -256,8 +256,14 @@ export function fetchRecentMergedPrs(
     }[];
     const prs = raw
         .filter(
-            (pr): pr is { number: number; title: string; mergedAt: string } =>
-                pr.mergedAt !== null && Date.parse(pr.mergedAt) >= cutoffMs
+            (
+                pr
+            ): pr is {
+                number: number;
+                title: string;
+                mergedAt: string;
+                updatedAt: string;
+            } => pr.mergedAt !== null && Date.parse(pr.mergedAt) >= cutoffMs
         )
         .map((pr) => ({
             number: pr.number,
