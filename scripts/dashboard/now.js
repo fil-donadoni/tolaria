@@ -110,9 +110,14 @@ function receiptSentence(summary) {
     });
     const parts = roles.map((role) => {
         const count = byRole.get(role);
+        // NOT `esc(role)` here — the caller (`batchSectionHtml`) `esc()`s
+        // this whole sentence already; escaping twice is harmless only
+        // because a role is a fixed enum with no HTML-special characters,
+        // but it is still double work on every render (#2632 review finding
+        // 8).
         return role === "missing"
             ? `${count} missing session ${plural(count, "marker", "markers")}`
-            : `${count} ${esc(role)}`;
+            : `${count} ${role}`;
     });
     return (
         `${summary.total} ${plural(summary.total, "receipt", "receipts")}` +

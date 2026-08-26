@@ -160,6 +160,35 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
         ]);
     });
 
+    it("reports dependentsError set and every claim's dependents null — never `blocks 0 others` — when the open-issues read throws (#2632)", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: (cmd, args) =>
+                cmd === "gh" && args[1] === "list" && args.includes("--search")
+                    ? claimedIssuesJson()
+                    : "[]",
+            queueRunner: () => "[]",
+            openIssuesRunner: () => {
+                throw new Error(
+                    "GraphQL: API rate limit already exceeded for user ID 117459688"
+                );
+            },
+        });
+        expect(result.dependentsError).toContain("rate limit");
+        // The historical bug this guards: a swallowed failure defaulting
+        // `dependentCounts` to `{}` reads every claim as `dependents: 0`
+        // ("blocks 0 others") — structurally indistinguishable from a
+        // healthy read that genuinely found no dependents. `null` is the
+        // only shape that cannot be confused with that.
+        expect(result.claims).not.toBeNull();
+        for (const claim of result.claims ?? []) {
+            expect(claim.dependents).toBeNull();
+        }
+        // The failure is isolated to ITS OWN section — claims themselves
+        // (as opposed to their `dependents` field) stay healthy.
+        expect(result.claimsError).toBeNull();
+    });
+
     it("timelinePasses is always an array (a local FS read, never UNAVAILABLE) even when nothing else is knowable (#2631)", () => {
         const result = gatherLoopStatus({
             noPriority: true,

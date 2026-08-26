@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { LOOP_VERDICT_STATES, REMEDY } from "../lib/loop-status";
+import { CLAIM_STAGES, LOOP_VERDICT_STATES, REMEDY } from "../lib/loop-status";
 import { DEFAULT_MIN_AGE_HOURS } from "../loop-doctor";
 // @ts-expect-error — see below; pure, so the `node` project can call it.
 import { MIN_AGE_HOURS } from "../dashboard/now-claims-table.js";
@@ -475,15 +475,10 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
         // `CLAIM_STAGES` (`lib/loop-status.ts`) is the runtime source of
         // truth for stage values; this drives the SAME reducer for each so a
         // stage added there without a sentence here shows up as a failing
-        // row rather than a silent raw-key fallback.
-        const stages = [
-            "claimed",
-            "worktree",
-            "branch pushed",
-            "PR open",
-            "merging",
-        ];
-        for (const stage of stages) {
+        // row rather than a silent raw-key fallback. Imported, not
+        // hardcoded — a hardcoded copy of today's five values would stay
+        // green forever even after a sixth stage shipped with no sentence.
+        for (const stage of CLAIM_STAGES) {
             const html = nowBodyHtml(
                 payload({ claims: [{ ...claim("live"), stage }] })
             ) as string;
@@ -518,8 +513,22 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
         const html = nowBodyHtml(
             payload({ claims: [{ ...claim("live"), ageHours: 23.8 }] })
         ) as string;
-        expect(html).toContain("24h ago");
+        // FLOORED, not rounded (#2632 review finding 8): 23.8h has not yet
+        // completed 24 whole hours, so "24h ago" overstates the claim's age
+        // by rounding up — the AC's own worked example. Scoped to the `.ls-
+        // age` span specifically: the (unrelated) 24h timeline axis tick
+        // legitimately renders the literal string "24h ago".
+        expect(html).toContain('class="ls-age amber">23h ago<');
+        expect(html).not.toContain('class="ls-age amber">24h ago<');
         expect(html).not.toContain("23.8h");
+    });
+
+    it("age under an hour floors to minutes — 0.99h reads '59m ago', never a rounded-up '60m ago'", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [{ ...claim("live"), ageHours: 0.99 }] })
+        ) as string;
+        expect(html).toContain("59m ago");
+        expect(html).not.toContain("60m ago");
     });
 
     it("a claim with dependents carries a 'blocks N others' badge", () => {
@@ -904,6 +913,34 @@ describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 revie
         expect(doc.activeElement).not.toBe(doc.body);
         expect(doc.activeElement.className).toContain("ls-tl-pass");
         expect(doc.activeElement.getAttribute("data-pass")).toBe("7");
+    });
+
+    it("keeps focus on the same claim's stage across a poll — `.ls-stage`'s data-term makes tooltip.js give it a tabindex, reintroducing the poll-drops-focus bug once per claim row (#2632 review finding 4)", () => {
+        renderLoopStatus(payload({ claims: [claim("live", 2582)] }));
+        const before = body.querySelector('.ls-stage[data-issue="2582"]');
+        expect(before, "the claim's stage renders").toBeTruthy();
+        before.focus();
+        expect(doc.activeElement).toBe(before);
+
+        // A DIFFERENT field changes (queue depth) — the claim's own stage is
+        // identical, but the whole claims table markup is regenerated on
+        // every write, so this is NOT the "unchanged write" skip path; it
+        // must go through the restore-by-identity path.
+        renderLoopStatus(
+            payload({
+                claims: [claim("live", 2582)],
+                queueDepth: {
+                    P0: 9,
+                    P1: 9,
+                    P2: 9,
+                    unprioritized: 9,
+                    total: 36,
+                },
+            })
+        );
+        expect(doc.activeElement).not.toBe(doc.body);
+        expect(doc.activeElement.className).toContain("ls-stage");
+        expect(doc.activeElement.getAttribute("data-issue")).toBe("2582");
     });
     /* eslint-enable @typescript-eslint/no-explicit-any */
 });

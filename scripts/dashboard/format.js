@@ -47,8 +47,13 @@ export function fmtNum(n, integral = false) {
  *  identical to one that is 55 minutes old. */
 export function fmtAgo(hours) {
     if (hours == null) return "—";
-    if (hours < 1) return `${Math.round(hours * 60)}m ago`;
-    return `${Math.round(hours)}h ago`;
+    // FLOOR, not round (#2632 review finding 8) — "23h ago" must mean "at
+    // least 23 whole hours have elapsed", the reading the AC's own example
+    // (23.8h → "23h ago") states; rounding instead reports a claim as one
+    // hour (or minute) OLDER than it has actually been alive, which is the
+    // wrong direction for a staleness/amber signal to lie in.
+    if (hours < 1) return `${Math.floor(hours * 60)}m ago`;
+    return `${Math.floor(hours)}h ago`;
 }
 
 /** Unix SECONDS → a 24h `HH:MM` clock reading, in the viewer's own local

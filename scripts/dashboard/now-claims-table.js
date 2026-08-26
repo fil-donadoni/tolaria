@@ -76,9 +76,13 @@ function verdictMarkHtml(c) {
     );
 }
 
-function stageHtml(stage) {
+function stageHtml(stage, issue) {
     const sentence = STAGE_SENTENCE[stage] ?? stage;
-    return `<span class="ls-stage" data-term="stage.${esc(stage)}">${esc(sentence)}</span>`;
+    // `data-issue` gives `nowControlKey` (`now-loop-status.js`) a per-row
+    // identity for the focus-preserving poll write — the SAME reason
+    // `.ls-tl-claim` carries `data-issue` rather than keying off the stage
+    // VALUE, which is not unique across rows (#2632 review finding 4).
+    return `<span class="ls-stage" data-term="stage.${esc(stage)}" data-issue="${esc(issue)}">${esc(sentence)}</span>`;
 }
 
 /** Amber past `MIN_AGE_HOURS` — the same threshold `classifyClaim` uses to
@@ -103,7 +107,13 @@ function blocksBadgeHtml(c) {
     const n = c.dependents;
     if (typeof n !== "number" || n <= 0) return "";
     const label = `blocks ${n} ${plural(n, "other", "others")}`;
-    const title = `${n} open ${plural(n, "issue names", "issues name")} #${c.issue} in its own "Blocked by" section`;
+    // `countDependents` reuses `parseDependencies` (`lib/queue-plan.ts`) —
+    // ONE parser, correctly, but it also matches prose keywords ("depends
+    // on #N", "requires #N", "after #N") anywhere in the body, not only an
+    // explicit `## Blocked by` list item. The tooltip must not claim a
+    // stricter form than what was actually counted (#2632 review finding
+    // 7), so it names both.
+    const title = `${n} open ${plural(n, "issue names", "issues name")} #${c.issue} as a blocker — a "Blocked by" entry or blocking language ("depends on"/"requires"/"after") elsewhere in the body`;
     return ` <span class="ls-blocks" title="${esc(title)}">${esc(label)}</span>`;
 }
 
@@ -138,7 +148,7 @@ function claimsBodyHtml(data) {
             .map((c) => {
                 return (
                     `<tr><td>${verdictMarkHtml(c)}</td><td>#${c.issue}</td><td>${esc(c.priority ?? "—")}</td>` +
-                    `<td>${stageHtml(c.stage)}</td>` +
+                    `<td>${stageHtml(c.stage, c.issue)}</td>` +
                     `<td>${ageHtml(c.ageHours)}</td>` +
                     `<td>${esc(c.title)}${blocksBadgeHtml(c)}</td></tr>`
                 );
