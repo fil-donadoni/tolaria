@@ -10,8 +10,12 @@
 // contract the pure signature promises.
 
 import { describe, expect, it } from "vitest";
-import { buildStateFromScenario } from "../scenarioBuilder";
-import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { buildStateFromScenario, specFromState } from "../scenarioBuilder";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
@@ -19,6 +23,7 @@ import { fear } from "../../cards/sets/lea/black";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectPublicState } from "../../gameProjections";
+import type { GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
@@ -602,5 +607,331 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         expect(synthesized?.imagePrintId).toBe(
             findTokenSpec("Wasp")!.imagePrintId
         );
+    });
+});
+
+// specFromState — lower a live position into a ScenarioSpec (issue #2148).
+// The round-trip property test is the trust mechanism the issue asks for:
+// `buildStateFromScenario(base, specFromState(s).spec)` must agree with `s`
+// on every field the table in `buildStateFromScenario` consumes. The
+// fingerprint helpers below read GROUND TRUTH directly off the GameState
+// (never through `specFromState` itself) precisely so deleting a lowered
+// field in `lowerCard` shows up as a real mismatch here, not as two
+// consistently-wrong sides silently agreeing with each other.
+
+function battlefieldFingerprint(state: GameState, seatIdx: 0 | 1): string[] {
+    const bothBattlefields = [
+        ...state.players[0].battlefield,
+        ...state.players[1].battlefield,
+    ];
+    return state.players[seatIdx].battlefield
+        .map((c) => {
+            const host = c.attachedTo
+                ? bothBattlefields.find((h) => h.id === c.attachedTo)
+                : undefined;
+            return JSON.stringify({
+                defId: (c.card as { id?: string }).id ?? "",
+                isToken: c.isToken ?? false,
+                tapped: c.isTapped,
+                counters: c.counters ?? {},
+                damageMarked: c.damageMarked ?? 0,
+                attackedLastTurn: c.attackedDuringLastTurn ?? false,
+                summoningSick: c.isSummoningSick ?? false,
+                faceDown: c.faceDown ?? false,
+                copiedFrom: c.copiedFrom ?? null,
+                attachedToDefId: host
+                    ? ((host.card as { id?: string }).id ?? "")
+                    : null,
+            });
+        })
+        .sort();
+}
+
+function zoneFingerprint(
+    state: GameState,
+    seatIdx: 0 | 1,
+    zone: "hand" | "graveyard" | "exile"
+): string[] {
+    const player = state.players[seatIdx];
+    const list =
+        zone === "hand"
+            ? player.hand
+            : zone === "graveyard"
+              ? player.graveyard
+              : player.exile;
+    return list
+        .map((c) =>
+            JSON.stringify({
+                defId: (c.card as { id?: string }).id ?? "",
+                castableFromExile:
+                    zone === "exile"
+                        ? Boolean(c.castableFromExileBy)
+                        : undefined,
+                includesLand:
+                    zone === "exile"
+                        ? Boolean(c.castableFromExileIncludesLand)
+                        : undefined,
+                faceDownExile:
+                    zone === "exile"
+                        ? Boolean(c.knownTo?.includes(player.id))
+                        : undefined,
+            })
+        )
+        .sort();
+}
+
+describe("specFromState (issue #2148)", () => {
+    function buildComprehensiveState(): {
+        base: GameState;
+        state: GameState;
+    } {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    tapped: true,
+                    counters: { "+1/+1": 2 },
+                    damageMarked: 1,
+                    attackedLastTurn: true,
+                },
+                { name: fear.name, owner: "me", attachedTo: grizzlyBears.name },
+                { name: shivanDragon.name, owner: "me", faceDown: true },
+                { name: forest.name, owner: "me", copyOf: shivanDragon.name },
+                {
+                    name: "Wasp",
+                    owner: "me",
+                    token: true,
+                    tapped: true,
+                    counters: { "+1/+1": 1 },
+                    summoningSick: true,
+                },
+                { name: fear.name, owner: "me", attachedTo: "Wasp" },
+                { name: grizzlyBears.name, owner: "opp", tapped: true },
+                { name: shivanDragon.name, owner: "opp", summoningSick: true },
+                { name: forest.name, owner: "me", zone: "hand" },
+                { name: fear.name, owner: "me", zone: "hand" },
+                { name: shivanDragon.name, owner: "me", zone: "graveyard" },
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                    castableFromExileIncludesLand: true,
+                },
+                { name: fear.name, owner: "opp", zone: "hand" },
+                { name: forest.name, owner: "opp", zone: "graveyard" },
+                {
+                    name: shivanDragon.name,
+                    owner: "opp",
+                    zone: "exile",
+                    castableFromExile: true,
+                },
+            ],
+            turn: 5,
+            phase: "POSTCOMBAT_MAIN",
+            rngSeed: 777,
+            poison: { me: 3, opp: 2 },
+            life: { me: 12, opp: 8 },
+            experience: { me: 2, opp: 1 },
+            markLastDrawn: true,
+            companion: { name: shivanDragon.name, owner: "me", used: false },
+        };
+        const state = buildStateFromScenario(base, spec);
+        return { base, state };
+    }
+
+    it("round-trips battlefield/hand/graveyard/exile, tapped, counters, attachments, damage, phase, turn, poison, life, experience and companion", () => {
+        const { base, state } = buildComprehensiveState();
+        const mySeatId = state.players[0].id;
+
+        const { spec: lowered, dropped } = specFromState(state, {
+            mySeatId,
+        });
+        const rebuilt = buildStateFromScenario(base, lowered);
+
+        // Nothing in this position is genuinely unlowerable — `dropped` must
+        // stay empty. It must be silent EXACTLY when nothing was silently
+        // lost (the flip side of the feature: see the `dropped`-reporting
+        // tests below for the case where it must NOT be empty).
+        expect(dropped).toEqual([]);
+
+        expect(battlefieldFingerprint(rebuilt, 0)).toEqual(
+            battlefieldFingerprint(state, 0)
+        );
+        expect(battlefieldFingerprint(rebuilt, 1)).toEqual(
+            battlefieldFingerprint(state, 1)
+        );
+        for (const zone of ["hand", "graveyard", "exile"] as const) {
+            expect(zoneFingerprint(rebuilt, 0, zone)).toEqual(
+                zoneFingerprint(state, 0, zone)
+            );
+            expect(zoneFingerprint(rebuilt, 1, zone)).toEqual(
+                zoneFingerprint(state, 1, zone)
+            );
+        }
+
+        expect(rebuilt.turn).toBe(state.turn);
+        expect(rebuilt.phase).toBe(state.phase);
+        expect(rebuilt.players[0].poisonCounters).toBe(
+            state.players[0].poisonCounters
+        );
+        expect(rebuilt.players[1].poisonCounters).toBe(
+            state.players[1].poisonCounters
+        );
+        expect(rebuilt.players[0].life).toBe(state.players[0].life);
+        expect(rebuilt.players[1].life).toBe(state.players[1].life);
+        expect(rebuilt.players[0].experienceCounters).toBe(
+            state.players[0].experienceCounters
+        );
+        expect(rebuilt.players[1].experienceCounters).toBe(
+            state.players[1].experienceCounters
+        );
+        expect(
+            (rebuilt.players[0].companion?.instance.card as { id?: string }).id
+        ).toBe(
+            (state.players[0].companion?.instance.card as { id?: string }).id
+        );
+        expect(rebuilt.players[0].companion?.used).toBe(
+            state.players[0].companion?.used
+        );
+
+        // markLastDrawn — resolved by definition id since instance ids
+        // differ across the two builds.
+        const lastDrawnDefId = (s: GameState): string | undefined => {
+            const p = s.players[0];
+            const card = p.hand.find((c) => c.id === p.lastDrawnCardId);
+            return card ? ((card.card as { id?: string }).id ?? "") : undefined;
+        };
+        expect(lastDrawnDefId(state)).toBe(fear.id);
+        expect(lastDrawnDefId(rebuilt)).toBe(lastDrawnDefId(state));
+    });
+
+    it('maps the requested seat to "me" regardless of live player order (the mirroring trap the issue names)', () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", tapped: true },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+        });
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[1].id,
+        });
+
+        // What was "opp" (Shivan Dragon) in the live state is "me" now.
+        expect(
+            spec.cards.filter((c) => c.owner === "me").map((c) => c.name)
+        ).toEqual([shivanDragon.name]);
+        expect(
+            spec.cards.filter((c) => c.owner === "opp").map((c) => c.name)
+        ).toEqual([grizzlyBears.name]);
+        // The active player (players[0], "p1") is no longer "me" — flagged,
+        // never silently rebuilt onto the wrong seat.
+        expect(dropped.some((d) => d.startsWith("active player"))).toBe(true);
+    });
+
+    it("throws when mySeatId matches neither player", () => {
+        const state = buildStateFromScenario(makeState(), { cards: [] });
+        expect(() => specFromState(state, { mySeatId: "nonexistent" })).toThrow(
+            /matches neither player/
+        );
+    });
+
+    it("reports the stack and floating mana as dropped rather than silently losing them", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        state.stack.push({
+            ...makeInstance(grizzlyBears.id, {
+                controllerId: state.players[0].id,
+                ownerId: state.players[0].id,
+                zone: "hand",
+            }),
+            castById: state.players[0].id,
+        });
+        state.players[0].manaPool.R = 2;
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.startsWith("stack:"))).toBe(true);
+        expect(dropped.some((d) => d.includes("mana pool"))).toBe(true);
+    });
+
+    it("reports declared combat as dropped rather than silently losing it", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "DECLARE_ATTACKERS",
+        });
+        state.combat = {
+            attackerIds: [state.players[0].battlefield[0].id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.startsWith("combat:"))).toBe(true);
+    });
+
+    it("reports a combat sub-phase past DECLARE_ATTACKERS as dropped, since buildStateFromScenario never re-seeds combat for it", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "DECLARE_BLOCKERS",
+        });
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.startsWith('phase "DECLARE_BLOCKERS"'))
+        ).toBe(true);
+    });
+
+    it("reports non-empty libraries as dropped (library contents are out of scope for a spec)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, { cards: [] });
+        state.players[0].library.push(
+            makeInstance(forest.id, {
+                controllerId: state.players[0].id,
+                ownerId: state.players[0].id,
+                zone: "library",
+            })
+        );
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.startsWith("me's library:"))).toBe(true);
+    });
+
+    it("reports a per-card continuous effect (e.g. a temporary P/T buff) the spec has no field for", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        state.players[0].battlefield[0].temporaryPTMods = [
+            { power: 3, toughness: 3, duration: { phase: "end-of-turn" } },
+        ];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.includes("live-only state not captured"))
+        ).toBe(true);
     });
 });

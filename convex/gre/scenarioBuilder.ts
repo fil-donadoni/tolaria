@@ -16,10 +16,11 @@
 
 import { getCardByName, tokenDefinitionId, tryGetDefinition } from "../cards";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
-import { findTokenSpec } from "../cards/tokenCatalogue";
+import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
 import type { Color } from "../cards/types";
 import {
     resolveScenarioBattlefieldCounters,
+    type ScenarioCard,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
 import {
@@ -583,4 +584,641 @@ export function buildStateFromScenario(
     }
 
     return state;
+}
+
+// ---- specFromState — lower a live position into a ScenarioSpec (#2148) ----
+//
+// The inverse of `buildStateFromScenario` above, kept in the SAME file so the
+// two can't drift apart. `dropped[]` is the feature, not decoration: a
+// `ScenarioSpec` can express only what the table in `buildStateFromScenario`
+// consumes (battlefield/hand/graveyard/exile placement, tapped, counters,
+// attachments, damage, phase, turn, poison/life/experience, one companion
+// slot). Everything else a live `GameState` can hold — the stack, mana pool,
+// a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
+// delayed triggers, a per-card continuous effect the spec has no field for —
+// is reported here rather than silently discarded, so a caller never mistakes
+// a lossy capture for a complete one.
+
+/** Options for {@link specFromState}. */
+export type SpecFromStateOptions = {
+    /** Which live `state.players[].id` becomes `"me"` in the lowered spec.
+     *  `ScenarioSpec`'s `"me"` is ALWAYS `players[0]` by convention
+     *  (`gre/ai/blade/types.ts`), which has no general relationship to a live
+     *  game's seat order — get this wrong and every card in the capture comes
+     *  out mirrored to the wrong side. */
+    mySeatId: string;
+};
+
+export type SpecFromStateResult = {
+    spec: ScenarioSpec;
+    /** Every fact about `state` this lowering could NOT express, in
+     *  human-readable form. Empty only for a genuinely quiescent position:
+     *  nothing on the stack, no pending decision, combat not yet declared,
+     *  and no per-card continuous-effect residue. */
+    dropped: string[];
+};
+
+const COMBAT_PHASES_NEEDING_SETUP: Phase[] = [
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+];
+
+/** Every distinct token shape, reverse-indexed by its synthesized definition
+ *  id — the inverse of `findTokenSpec` (key -> spec). Memoized like
+ *  `listTokenCatalogue` itself: the pool is static for the life of the
+ *  process. */
+let tokenKeyByDefId: Map<string, string> | undefined;
+function tokenKeyForDefId(defId: string): string | undefined {
+    if (!tokenKeyByDefId) {
+        tokenKeyByDefId = new Map(
+            listTokenCatalogue().map((entry) => [entry.defId, entry.key])
+        );
+    }
+    return tokenKeyByDefId.get(defId);
+}
+
+/** Resolve a definition id to the NAME a `ScenarioCard.name` would carry —
+ *  the token-catalogue key for a token, the printed card name otherwise.
+ *  Throws like `getCardByName` does on an unresolvable id: a live definition
+ *  this can't name back is a bug in the lowering, not a "can't express this"
+ *  case (that's what `dropped` is for). */
+function displayNameForDefId(defId: string, isToken: boolean): string {
+    if (isToken) {
+        const key = tokenKeyForDefId(defId);
+        if (!key) {
+            throw new Error(
+                `specFromState: token definition "${defId}" has no token-catalogue entry.`
+            );
+        }
+        return key;
+    }
+    const def = tryGetDefinition(defId);
+    if (!def) {
+        throw new Error(
+            `specFromState: definition "${defId}" is not in the runtime registry.`
+        );
+    }
+    return def.name;
+}
+
+/** The identity `card` currently PRESENTS as — post-copy, post-face-down
+ *  sentinel — i.e. what `card.card.id` (or its token defId) names right now.
+ *  This is what an `attachedTo` reference must resolve to: the builder
+ *  matches a host by its PRESENTED def id (CR 707.2 — a copy's copiable
+ *  identity, not its printed name), never the pre-copy identity. */
+function presentedName(card: CardInstanceState): string {
+    const defId = (card.card as { id?: string }).id ?? "";
+    return displayNameForDefId(defId, card.isToken === true);
+}
+
+/** The name (and `copyOf`, when it's a legitimately-lowerable copy) to place
+ *  THIS card under in the spec — the identity `buildStateFromScenario` would
+ *  CREATE it from, before any `faceDown`/`copyOf` knob is applied. */
+function entryIdentity(card: CardInstanceState): {
+    name: string;
+    copyOf?: string;
+} {
+    if (card.faceDown && card.faceDownOf) {
+        // `faceDownOf` is the pre-face-down identity `turnFaceDown` swapped
+        // out; `card.card.id` itself is just the FACE_DOWN sentinel. A token
+        // stays a token underneath a face-down mask (`isToken` is permanent
+        // on the instance), so its faceDownOf is still a TOKEN defId.
+        return {
+            name: displayNameForDefId(card.faceDownOf, card.isToken === true),
+        };
+    }
+    if (card.copiedFrom) {
+        if (card.isToken) {
+            // Unsupported combination — `lowerCard` reports it and falls
+            // back to the token's own original (pre-copy) shape.
+            return { name: displayNameForDefId(card.copiedFrom, true) };
+        }
+        return {
+            name: displayNameForDefId(card.copiedFrom, false),
+            copyOf: presentedName(card),
+        };
+    }
+    return { name: presentedName(card) };
+}
+
+function sameStringSet(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    const sa = [...a].sort();
+    const sb = [...b].sort();
+    return sa.every((v, i) => v === sb[i]);
+}
+
+/** Flags a permanent whose live power/toughness/types/subtypes have DRIFTED
+ *  from its own presented definition — an animation, a layer-7 set/pump
+ *  effect, or a layer-4 type add the spec has no field for.
+ *  `buildStateFromScenario` always rebuilds these four characteristics fresh
+ *  from the definition (`makeInstance` / `rebuildCopiableValuesAndReplayOverlays`),
+ *  so an un-flagged drift here would silently vanish on load.
+ *
+ *  Deliberately does NOT compare `staticAbilities`: a lord/anthem-style
+ *  keyword grant sourced from another STILL-PRESENT battlefield permanent is
+ *  rebuild behaviour, not spec-keyed data — `buildStateFromScenario` re-runs
+ *  `applySourceStaticEffects` across the whole battlefield on every load
+ *  (same as the original build did), so it re-derives that exact grant for
+ *  free as long as the granting source and the attachment/board state that
+ *  feeds it are captured (which they always are). See `reportCardResidue`
+ *  for the ONE keyword-grant shape that ISN'T re-derived: a temporary
+ *  (`duration`-scoped) grant from a one-shot resolved effect. */
+function reportCharacteristicDrift(
+    card: CardInstanceState,
+    label: string,
+    dropped: string[]
+): void {
+    const defId = (card.card as { id?: string }).id ?? "";
+    const def = tryGetDefinition(defId);
+    if (!def) return; // unresolvable id already threw upstream of this call
+    const drifted: string[] = [];
+    if (card.power !== def.power) drifted.push("power");
+    if (card.toughness !== def.toughness) drifted.push("toughness");
+    if (!sameStringSet(card.types, def.types)) drifted.push("types");
+    if (!sameStringSet(card.subtypes, def.subtypes ?? [])) {
+        drifted.push("subtypes");
+    }
+    if (drifted.length > 0) {
+        dropped.push(
+            `${label}: ${drifted.join("/")} differ from the printed baseline (an animation or a layer 4/7 effect) — the rebuilt permanent shows only the printed values`
+        );
+    }
+}
+
+/** Fields `specFromState` reads and lowers explicitly, PLUS fields that are
+ *  rebuild BEHAVIOUR rather than spec-keyed data (`enteredOnTurn` is derived
+ *  from `isSummoningSick`; `chosenPlayerId` is the ETB "choose an opponent"
+ *  auto-pick `buildStateFromScenario` re-runs on every load — see its own
+ *  comments), PLUS the wire-projection-only additions present when the
+ *  caller bridges a PROJECTED client state (`FullGameState`) into this
+ *  function instead of a raw engine `GameState` — never real engine state,
+ *  so never "dropped". Anything else present on a card instance is live
+ *  continuous-effect residue the spec has no field for. */
+const CARD_STATE_ALLOWLIST = new Set<string>([
+    // Structural fields `buildStateFromScenario` itself always sets.
+    "id",
+    "card",
+    "controllerId",
+    "ownerId",
+    "zone",
+    "types",
+    "subtypes",
+    "power",
+    "toughness",
+    "staticAbilities",
+    // Lowered explicitly by `lowerCard` below.
+    "isTapped",
+    "isToken",
+    "isSummoningSick",
+    "counters",
+    "damageMarked",
+    "attachedTo",
+    "attackedDuringLastTurn",
+    "faceDown",
+    "faceDownOf",
+    "copiedFrom",
+    "castableFromExileBy",
+    "castableFromExileUntilTurn",
+    "castableFromExileIncludesLand",
+    // Rebuild behaviour, not spec-keyed data: `applySourceStaticEffects`
+    // (CR 611.2) re-derives every CONTINUOUS grant/strip from a
+    // still-present battlefield source on every load, exactly as the
+    // original build did — see `reportCharacteristicDrift`'s doc.
+    // `reportCardResidue` below still catches the one shape that ISN'T
+    // re-derived: a `duration`-scoped (temporary) grant.
+    "enteredOnTurn",
+    "chosenPlayerId",
+    "staticSeq",
+    "grantedStaticAbilities",
+    "grantedActivatedAbilities",
+    "grantedTriggeredAbilities",
+    "removedKeywords",
+    "abilitiesSuppressedBy",
+    // Privacy field — never present on a real read (`slimCard` deletes it
+    // even in the full debug projection); read separately (raw states only)
+    // to derive `faceDownExile`.
+    "knownTo",
+    // Wire-projection-only additions.
+    "legalActions",
+    "canTurnFaceUp",
+    "knownCardId",
+    "seenByOpponent",
+    "phyrexianOptions",
+    "flashSurchargeRequired",
+    "exiledByPermanentId",
+    "castKind",
+    "flashbackExileMaxX",
+]);
+
+/** The three `key -> template` grant arrays (`grantedStaticAbilities`,
+ *  `grantedActivatedAbilities`, `grantedTriggeredAbilities`) are allowlisted
+ *  wholesale (rebuild behaviour — see `CARD_STATE_ALLOWLIST`'s comment) for
+ *  the common CONTINUOUS case (`auraId`-sourced, or no duration at all — a
+ *  lord/anthem still on the battlefield). The one shape that ISN'T
+ *  re-derived is a `duration`-scoped entry: a ONE-SHOT resolved effect's
+ *  "gains flying until end of turn" grant, which has no source permanent for
+ *  `applySourceStaticEffects` to replay. */
+function reportTemporaryGrantResidue(
+    card: CardInstanceState,
+    label: string,
+    dropped: string[]
+): void {
+    const fields = [
+        "grantedStaticAbilities",
+        "grantedActivatedAbilities",
+        "grantedTriggeredAbilities",
+    ] as const;
+    for (const field of fields) {
+        const grants = card[field] as { duration?: unknown }[] | undefined;
+        if (grants?.some((g) => g.duration !== undefined)) {
+            dropped.push(
+                `${label}: a temporary (until-end-of-turn) ${field} entry — not spec-expressible, dropped`
+            );
+        }
+    }
+}
+
+/** Generic "continuous effect residue" detector — the fallback for the many
+ *  optional `CardInstanceState` fields NOT named individually above
+ *  (`temporaryPTMods`, `animation`, `controlChanges`, `chosenMana`,
+ *  `regenerationShields`, …): any key present that isn't in the allowlist is
+ *  live state the spec has no field for. */
+function reportCardResidue(
+    card: CardInstanceState,
+    label: string,
+    dropped: string[]
+): void {
+    reportTemporaryGrantResidue(card, label, dropped);
+    const extra = Object.keys(card).filter(
+        (key) =>
+            !CARD_STATE_ALLOWLIST.has(key) &&
+            (card as Record<string, unknown>)[key] !== undefined
+    );
+    if (extra.length > 0) {
+        dropped.push(
+            `${label}: live-only state not captured (${extra.sort().join(", ")})`
+        );
+    }
+}
+
+type LowerableZone = "battlefield" | "hand" | "graveyard" | "exile";
+
+/** Lower one card instance into its `ScenarioCard` entry, reporting anything
+ *  it can't express onto `dropped`. */
+function lowerCard(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    zone: LowerableZone,
+    owner: "me" | "opp",
+    dropped: string[]
+): ScenarioCard {
+    const { name, copyOf } = entryIdentity(card);
+    const label = `${name} (${owner}${zone === "battlefield" ? "" : `, ${zone}`})`;
+
+    const entry: ScenarioCard = { name, owner };
+    if (card.isToken) entry.token = true;
+    if (zone !== "battlefield") entry.zone = zone;
+
+    if (zone === "battlefield") {
+        if (card.isTapped) entry.tapped = true;
+        if (card.damageMarked) entry.damageMarked = card.damageMarked;
+        if (card.counters && Object.keys(card.counters).length > 0) {
+            entry.counters = { ...card.counters };
+        }
+        if (card.attackedDuringLastTurn) entry.attackedLastTurn = true;
+        if (card.isSummoningSick) entry.summoningSick = true;
+
+        if (card.faceDown) {
+            if (card.isToken) {
+                // CR 111 / 708.2 — the token branch of the builder never
+                // reads `faceDown`; a face-down token can't be lowered as
+                // such. Fall back to a face-up token of its true shape.
+                dropped.push(
+                    `${label}: a face-down TOKEN — the scenario spec's token entries don't support faceDown; lowered as a face-up "${name}" token, face-down status dropped`
+                );
+            } else {
+                entry.faceDown = true;
+                if (card.copiedFrom) {
+                    dropped.push(
+                        `${label}: face-down AND a copy — this combination can't be lowered precisely (turning face down erases the copiable identity the builder would need); kept face-down as "${name}", copy status dropped`
+                    );
+                }
+            }
+        } else if (card.copiedFrom) {
+            if (card.isToken) {
+                dropped.push(
+                    `${label}: a TOKEN copying another object — the scenario spec can't express a token-as-copy; lowered as a plain "${name}" token, copy status dropped`
+                );
+            } else if (copyOf) {
+                entry.copyOf = copyOf;
+            }
+        }
+
+        if (card.attachedTo) {
+            const host = [
+                ...state.players[0].battlefield,
+                ...state.players[1].battlefield,
+            ].find((c) => c.id === card.attachedTo);
+            if (host) {
+                entry.attachedTo = presentedName(host);
+            } else {
+                dropped.push(
+                    `${label}: attachedTo references "${card.attachedTo}", not found on either battlefield — attachment dropped`
+                );
+            }
+        }
+
+        reportCharacteristicDrift(card, label, dropped);
+    } else if (zone === "exile") {
+        if (card.castableFromExileBy) {
+            if (card.castableFromExileBy === player.id) {
+                entry.castableFromExile = true;
+                if (card.castableFromExileIncludesLand) {
+                    entry.castableFromExileIncludesLand = true;
+                }
+            } else {
+                dropped.push(
+                    `${label}: castable from exile by a DIFFERENT player than the pile's owner — the scenario spec always grants the permission to the pile's own owner; not lowered`
+                );
+            }
+        }
+        if (card.knownTo?.includes(player.id)) {
+            entry.faceDownExile = true;
+        }
+    }
+
+    reportCardResidue(card, label, dropped);
+    return entry;
+}
+
+function zoneCards(
+    player: PlayerState,
+    zone: "battlefield" | "graveyard" | "exile"
+): CardInstanceState[] {
+    if (zone === "battlefield") return player.battlefield;
+    return zone === "graveyard" ? player.graveyard : player.exile;
+}
+
+/**
+ * The inverse of {@link buildStateFromScenario}: lower a live `GameState`
+ * into a `ScenarioSpec` a human (or the blade suite) can read, plus
+ * everything that spec could NOT capture. Pure — no `ctx`, no mutation of
+ * `state`.
+ *
+ * `opts.mySeatId` decides which live seat becomes `"me"` (`ScenarioSpec`'s
+ * `"me"` is always `players[0]`, which has no relationship to a live game's
+ * seat order — get this wrong and the capture comes out mirrored, #2148).
+ *
+ * Lossy by construction: `dropped` names every fact the spec couldn't carry
+ * (the stack, mana pool, a mid-flight payment, combat beyond an empty
+ * DECLARE_ATTACKERS seed, delayed triggers, per-card continuous-effect
+ * residue, library contents, …) rather than silently omitting it — the whole
+ * point of this function per issue #2148.
+ */
+export function specFromState(
+    state: GameState,
+    opts: SpecFromStateOptions
+): SpecFromStateResult {
+    const me = state.players.find((p) => p.id === opts.mySeatId);
+    if (!me) {
+        throw new Error(
+            `specFromState: mySeatId "${opts.mySeatId}" matches neither player.`
+        );
+    }
+    const opp = state.players.find((p) => p.id !== opts.mySeatId);
+    if (!opp) {
+        throw new Error("specFromState: state does not have two players.");
+    }
+
+    const dropped: string[] = [];
+    const cards: ScenarioCard[] = [];
+
+    for (const zone of ["battlefield", "graveyard", "exile"] as const) {
+        for (const card of zoneCards(me, zone)) {
+            cards.push(lowerCard(state, me, card, zone, "me", dropped));
+        }
+        for (const card of zoneCards(opp, zone)) {
+            cards.push(lowerCard(state, opp, card, zone, "opp", dropped));
+        }
+    }
+
+    // Hand needs special handling for `markLastDrawn` (CR 121.1's "last card
+    // drawn this turn" — the builder only supports the "me" seat, and only
+    // as "whichever entry ends up LAST in the placement order", so the
+    // matching entry is moved to the end of "me"'s hand placements below.
+    const meHand = me.hand.map((card) =>
+        lowerCard(state, me, card, "hand", "me", dropped)
+    );
+    const meLastDrawnIdx = me.lastDrawnCardId
+        ? me.hand.findIndex((c) => c.id === me.lastDrawnCardId)
+        : -1;
+    const markLastDrawn = meLastDrawnIdx !== -1;
+    if (markLastDrawn && meLastDrawnIdx !== meHand.length - 1) {
+        const [entry] = meHand.splice(meLastDrawnIdx, 1);
+        meHand.push(entry);
+    }
+    cards.push(...meHand);
+    for (const card of opp.hand) {
+        cards.push(lowerCard(state, opp, card, "hand", "opp", dropped));
+    }
+    if (
+        opp.lastDrawnCardId &&
+        opp.hand.some((c) => c.id === opp.lastDrawnCardId)
+    ) {
+        dropped.push(
+            `opp's lastDrawnCardId — the scenario spec's "markLastDrawn" only supports the "me" seat; not lowered`
+        );
+    }
+
+    const spec: ScenarioSpec = {
+        cards,
+        turn: state.turn,
+        phase: state.phase,
+        rngSeed: state.rngSeed,
+        // CR 119.1 (issue #2147) — always explicit: 0 life is a real
+        // position, not "absent" (mirrors the builder's own `!== undefined`
+        // check), and the default (20) is only a coincidence, never a signal.
+        life: { me: me.life, opp: opp.life },
+    };
+    if (markLastDrawn) spec.markLastDrawn = true;
+
+    if (me.poisonCounters || opp.poisonCounters) {
+        spec.poison = {};
+        if (me.poisonCounters) spec.poison.me = me.poisonCounters;
+        if (opp.poisonCounters) spec.poison.opp = opp.poisonCounters;
+    }
+    if (me.experienceCounters || opp.experienceCounters) {
+        spec.experience = {};
+        if (me.experienceCounters) spec.experience.me = me.experienceCounters;
+        if (opp.experienceCounters) {
+            spec.experience.opp = opp.experienceCounters;
+        }
+    }
+
+    // CR 702.139c / ADR 0064 — the spec has exactly ONE companion slot; a
+    // live game can have one PER SEAT.
+    const companions = [
+        me.companion ? { owner: "me" as const, ...me.companion } : undefined,
+        opp.companion ? { owner: "opp" as const, ...opp.companion } : undefined,
+    ].filter((c): c is NonNullable<typeof c> => c !== undefined);
+    if (companions.length > 0) {
+        const [first, ...rest] = companions;
+        spec.companion = {
+            name: displayNameForDefId(
+                (first.instance.card as { id?: string }).id ?? "",
+                false
+            ),
+            owner: first.owner,
+            used: first.used,
+        };
+        for (const extra of rest) {
+            dropped.push(
+                `${extra.owner}'s companion — the scenario spec supports only ONE companion slot; not lowered`
+            );
+        }
+    }
+
+    // ---- global state the table in buildStateFromScenario doesn't cover --
+
+    if (state.stack.length > 0) {
+        dropped.push(
+            `stack: ${state.stack.length} item(s) — the spell/ability stack isn't spec-expressible (see the blade suite's "setup" steps for a response-window position instead)`
+        );
+    }
+    if (state.activePlayerId !== opts.mySeatId) {
+        dropped.push(
+            `active player is "opp" — buildStateFromScenario has no field to choose the turn holder; the rebuilt state's active player is whatever the fresh base game started with (normally "me")`
+        );
+    }
+    if (
+        state.priorityPlayerId !== state.activePlayerId ||
+        state.passCount !== 0
+    ) {
+        dropped.push(
+            `priority: held by ${
+                state.priorityPlayerId === state.activePlayerId
+                    ? "the active player, with a pass already banked"
+                    : "the non-active player"
+            } (passCount=${state.passCount}) — buildStateFromScenario always resets priority to the active player with passCount 0`
+        );
+    }
+    const combat = state.combat;
+    if (
+        combat &&
+        (combat.attackerIds.length > 0 ||
+            combat.confirmed ||
+            Object.keys(combat.blockerAssignments).length > 0 ||
+            combat.blockersConfirmed)
+    ) {
+        dropped.push(
+            `combat: attackers/blockers already declared — a scenario spec can only seed an EMPTY DECLARE_ATTACKERS combat object; use a blade "setup" step (declare-attackers) to reach a declared-combat position`
+        );
+    } else if (COMBAT_PHASES_NEEDING_SETUP.includes(state.phase)) {
+        dropped.push(
+            `phase "${state.phase}": buildStateFromScenario only re-seeds "combat" for phase "DECLARE_ATTACKERS" — loading this spec lands on ${state.phase} with NO combat object; use a blade "setup" step instead`
+        );
+    }
+    if (state.pendingCast) {
+        dropped.push(
+            `pendingCast: a spell payment is mid-flight — not lowered`
+        );
+    }
+    if (state.pendingActivation) {
+        dropped.push(
+            `pendingActivation: an ability payment is mid-flight — not lowered`
+        );
+    }
+    if (state.pendingCompanionPay) {
+        dropped.push(
+            `pendingCompanionPay: a companion summon is mid-flight — not lowered`
+        );
+    }
+    if (state.pendingTarget) {
+        dropped.push(
+            `pendingTarget: a target selection is mid-flight — not lowered`
+        );
+    }
+    if (state.pendingChoices && state.pendingChoices.length > 0) {
+        dropped.push(
+            `pendingChoices: ${state.pendingChoices.length} choice(s) awaiting input — not lowered`
+        );
+    }
+    if (state.pendingTriggerBatch && state.pendingTriggerBatch.length > 0) {
+        dropped.push(
+            `pendingTriggerBatch: ${state.pendingTriggerBatch.length} unordered trigger(s) — not lowered`
+        );
+    }
+    if (
+        state.pendingReflexiveTriggers &&
+        state.pendingReflexiveTriggers.length > 0
+    ) {
+        dropped.push(
+            `pendingReflexiveTriggers: ${state.pendingReflexiveTriggers.length} — not lowered`
+        );
+    }
+    if (state.madnessCastWindow) {
+        dropped.push(
+            `madnessCastWindow: an open Madness cast window — not lowered`
+        );
+    }
+    if (state.reboundCastWindow) {
+        dropped.push(
+            `reboundCastWindow: an open Rebound cast window — not lowered`
+        );
+    }
+    if (state.delayedTriggers && state.delayedTriggers.length > 0) {
+        dropped.push(
+            `delayedTriggers: ${state.delayedTriggers.length} pending — not lowered`
+        );
+    }
+    if (state.emblems && state.emblems.length > 0) {
+        dropped.push(
+            `emblems: ${state.emblems.length} — command-zone emblems aren't spec-expressible`
+        );
+    }
+    if (state.gameOver) {
+        dropped.push(
+            `gameOver — capturing a finished game as a scenario is unusual; the game-over state itself isn't lowered`
+        );
+    }
+    if (
+        (state.extraTurns && state.extraTurns.length > 0) ||
+        (state.autoPassPlayers && state.autoPassPlayers.length > 0) ||
+        state.singleShotAutoPass ||
+        (state.queuedEndTurn && state.queuedEndTurn.length > 0)
+    ) {
+        dropped.push(
+            `turn-scheduling state (extra turns / auto-pass intents) — not lowered`
+        );
+    }
+
+    for (const [label, p] of [
+        ["me", me],
+        ["opp", opp],
+    ] as const) {
+        const floating = Object.entries(p.manaPool).filter(([, n]) => n !== 0);
+        if (floating.length > 0) {
+            dropped.push(
+                `${label}'s mana pool: ${floating
+                    .map(([c, n]) => `${n}${c}`)
+                    .join(
+                        " "
+                    )} — not lowered (mana pool isn't spec-expressible)`
+            );
+        }
+        if (p.restrictedMana && p.restrictedMana.length > 0) {
+            dropped.push(`${label} has restricted floating mana — not lowered`);
+        }
+        if (p.library.length > 0) {
+            dropped.push(
+                `${label}'s library: ${p.library.length} card(s) — library contents/order are out of scope for a scenario spec`
+            );
+        }
+    }
+
+    return { spec, dropped };
 }
