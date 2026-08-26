@@ -57,9 +57,10 @@ already had a reason to touch is a repo-wide edge migration, not a
 code" / "discuss scope first" norms warn against for anything past the
 ticket's boundary.
 
-**Suggested widening, for whoever picks this up:** extend `HAIRLINE_BORDER`
-to something like `/border-\[var\(--hairline|(?<!disabled:)\bborder(?:-\S+)?\s[^"'\`]\*?\bborder-border-subtle\b/`(mirroring the exclusions used to produce the table above — no side-scoped
-divider, no`disabled:`-only state), then fix the 10 sites above one PR at a
-time or in one batch, whichever the team prefers. Re-running the sweep after
-the regex change should red on exactly this list, and green again once each
-site moves to `border-border-strong`.
+**Suggested widening, for whoever picks this up:** extend `HAIRLINE_BORDER` to
+match `border-border-subtle` too — no side-scoped divider (`border-t-`/
+`border-b-`/`border-l-`/`border-r-`), no `disabled:`-only state, mirroring the
+exclusions used to produce the table above — then fix the 10 sites above one
+PR at a time or in one batch, whichever the team prefers. Re-running the
+sweep after the regex change should red on exactly this list, and green again
+once each site moves to `border-border-strong`.
