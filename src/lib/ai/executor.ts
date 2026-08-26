@@ -67,6 +67,17 @@ export type MoveMutations = {
              *  like the mode; the server rejects the cast without it when the
              *  card declares a disjunction. */
             additionalCostLegId?: string;
+            /** CR 702.33 (issue #2081) — which of this spell's Kickers the
+             *  search actually valued and charged
+             *  (`applyKickerPermanentLegForSearch` / `payLife` for the
+             *  non-mana legs, `tapPlan` for the mana leg), keyed by
+             *  `KickerCost.id`. Omitting it here would announce an unkicked
+             *  cast the search never evaluated — the bot-freeze shape this
+             *  issue exists to close for Kicker. */
+            kickerPayments?: Record<string, number>;
+            /** CR 702.27 (issue #2081) — whether the search paid this spell's
+             *  Buyback cost (the extra mana already rides on `tapPlan`). */
+            buyback?: boolean;
         }
     ) => Promise<unknown>;
     selectTarget: (
@@ -422,6 +433,14 @@ export async function executeMove(
                 // make `announceCast` throw "must choose which additional cost
                 // to pay" and stall the bot on a move it generated itself.
                 additionalCostLegId: move.additionalCostLegId,
+                // CR 702.33 (issue #2081) — the Kicker payment the search
+                // actually valued and charged. Without this line the server is
+                // never told anything was kicked, however correctly the
+                // enumerator and both search sandboxes priced it — the exact
+                // gap this issue's title names.
+                kickerPayments: move.kickerPayments,
+                // CR 702.27 (issue #2081) — same forwarding for Buyback.
+                buyback: move.buybackPaid,
             });
             // issue #1101 — `TargetSelection.type` grew a "hand-card" member
             // for `lookDistribute`'s internal `bind` resolution, but it is never a

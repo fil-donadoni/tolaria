@@ -29,6 +29,7 @@ import type {
     CostLegs,
     KickerCost,
     SpellKickedEvent,
+    TargetRequirement,
 } from "../cards/types";
 import type { GameState, PlayerState } from "./state";
 import { normalizeManaCost } from "./state";
@@ -442,4 +443,176 @@ export function canPayKickerLegs(
         if (!canPayHandCost(player, leg, castInstanceId)) return false;
     }
     return true;
+}
+
+/** CR 702.27a / 601.2f — fold the BUYBACK cost into a normalized mana-cost
+ *  record, mutating it in place, when the caster chose to pay it. Byte-for-byte
+ *  the same fold `game.ts`'s private (same-named, unexported) helper applies at
+ *  cast commit — duplicated here rather than imported because `game.ts` is the
+ *  mutation SURFACE (ADR 0074), not a library the engine's own move-generation
+ *  and search sandboxes depend on, and issue #2081's batch explicitly forbids
+ *  editing `game.ts` to add an export. `CardDefinition.buyback` is a bare
+ *  `ManaCost`, so — unlike a Kicker — there is no non-mana leg to fold
+ *  alongside it. */
+export function foldBuybackCost(
+    cost: Record<string, number>,
+    cardDef: CardDefinition,
+    buybackPaid: boolean | undefined
+): void {
+    if (!buybackPaid || !cardDef.buyback) return;
+    const per = normalizeManaCost(cardDef.buyback);
+    for (const [sym, amt] of Object.entries(per)) {
+        cost[sym] = (cost[sym] ?? 0) + amt;
+    }
+}
+
+/** CR 601.2b (issue #2081, mirroring `game.ts`'s private
+ *  `castAdjustedTargetRequirement`, KICKER branch only) — the target
+ *  requirement a cast actually uses once its Kicker payment is known: the
+ *  card's declared `kickedTargetRequirement` when at least one Kicker was
+ *  paid AND the card declares one (Bloodchief's Thirst, Tear Asunder), else
+ *  the ordinary `targetRequirement`. Bestow/Morph's own target substitutions
+ *  are NOT mirrored here — `moves.ts` enumerates those as separate variant
+ *  branches that never combine with a Kicker on any shipped card (the same
+ *  fact the `game.ts` twin's doc records), so this function only ever needs
+ *  to answer the Kicker question. */
+export function kickedTargetRequirement(
+    cardDef: Pick<
+        CardDefinition,
+        "targetRequirement" | "kickedTargetRequirement"
+    >,
+    payments: KickerPayments | undefined
+): TargetRequirement | undefined {
+    if (totalKickerCount(payments) > 0 && cardDef.kickedTargetRequirement) {
+        return cardDef.kickedTargetRequirement;
+    }
+    return cardDef.targetRequirement;
+}
+
+// ---------------------------------------------------------------------------
+// Bot enumeration bound (issue #2081)
+// ---------------------------------------------------------------------------
+//
+// THE BOUND, decided up front per the issue's AC #1 (also restated in the PR
+// description): treat each of a card's OPTIONALLY-PAYABLE Kicker ids as an
+// INDEPENDENT binary axis ("pay the minimal instance" / "don't"), cross them,
+// and cap a MULTIKICKER leg's repetition axis at a small FIXED sample
+// (`MULTIKICKER_REPEAT_SAMPLES`) rather than searching every affordable
+// repeat count. This is bound #2 from the issue ("one variant per individual
+// cost plus the empty one") generalized to the small cartesian product the
+// shipped catalogue actually needs — at most 2 independently-payable Kickers
+// per card today (the Planeshift "Kicker U and/or B" Battlemage cycle), never
+// more — rather than either extreme:
+//
+//  - NOT all-or-nothing (bound #1): wrong on the Battlemage cycle, whose two
+//    Kickers are situational ALTERNATIVES ("and/or"), not a single lever.
+//  - NOT the full power set over every affordable Multikicker repeat count
+//    (bound #3): Everflowing Chalice is the sole shipped Multikicker card
+//    (catalogue census, issue #2081 investigation) and its value (mana-rock
+//    charge counters) is monotonic in payment count with no real downside
+//    beyond the opportunity cost of the mana spent — a cost the ordinary
+//    `planManaPayment` affordability gate downstream (`moves.ts`) already
+//    prices for every OTHER spell that turn. Exhaustively sampling every N
+//    from 0 to "however much mana is on the battlefield" buys the search
+//    almost nothing over a bounded sample and sits squarely on ISMCTS's hot
+//    path (this function runs inside `enumerateCastMoves`, called every
+//    search node).
+//  - NOT valuer-driven pruning (bound #4): the catalogue's real branching
+//    factor (≤2 independent Kickers, no card mixing Kicker with Buyback) is
+//    already so small that a static cartesian bound matches what a
+//    valuer-driven one would prune TO, without coupling the enumerator to
+//    `opValuers.ts` or making the bound harder to reason about/test.
+//
+// A HAND-leg Kicker combo is never enumerated (fail CLOSED, not silently
+// mispaid): no shipped Kicker carries one (catalogue census, issue #2081), and
+// paying one would require the same non-fungible, always-parked picker
+// machinery the PERMANENT leg uses (`buildCastPermanentCostChoice`) plus a
+// hand-card assignment neither search sandbox builds for Kicker today. If a
+// future card ships a hand-leg Kicker, this must grow before that card's
+// cast enumerates paying it — tracked by the same guard that already fails a
+// shipped-but-inert mechanic (Guard A, `.claude/rules/gre-development.md`).
+
+/** How many DISTINCT repeat counts (beyond 0) a MULTIKICKER leg samples,
+ *  bounded rather than searched to the affordable maximum. See the bound
+ *  rationale above. */
+const MULTIKICKER_REPEAT_SAMPLES = [1, 2] as const;
+
+/** Hard backstop on the cartesian product below, independent of how many
+ *  Kickers a future card declares — never reached by the shipped catalogue
+ *  (max 2 Kickers × {0,1} states = 4), but keeps this function's own
+ *  contribution to the search's per-node move count bounded even if that
+ *  changes. */
+const MAX_KICKER_COMBINATIONS = 16;
+
+/** CR 702.33 (issue #2081) — every Kicker-payment variant the Bot's cast
+ *  enumerator (`moves.ts`) should offer for `cardDef`, including the
+ *  always-present `undefined` (not kicked at all). Each non-`undefined`
+ *  entry is a CANONICAL `KickerPayments` record (validated through
+ *  {@link resolveKickerPayments}, the same validator `announceCast` uses),
+ *  already filtered for LIFE/PERMANENT-leg affordability
+ *  ({@link canPayKickerLegs}) — the MANA leg is left unfiltered, folded by
+ *  the caller (`foldKickerCosts`) into the ordinary per-(mode, X) tap-plan
+ *  loop, which already drops an unaffordable combination exactly like every
+ *  other cost axis it crosses. A HAND-leg combo is skipped outright (fail
+ *  CLOSED — see the file-level bound comment above). */
+export function enumerateKickerVariants(
+    state: GameState,
+    player: PlayerState,
+    cardDef: CardDefinition,
+    castInstanceId: string
+): (KickerPayments | undefined)[] {
+    const kickers = cardDef.kickers ?? [];
+    if (kickers.length === 0) return [undefined];
+
+    const axisStates: number[][] = kickers.map((k) =>
+        k.multi ? [0, ...MULTIKICKER_REPEAT_SAMPLES] : [0, 1]
+    );
+
+    let combos: number[][] = [[]];
+    for (const states of axisStates) {
+        const next: number[][] = [];
+        outer: for (const prefix of combos) {
+            for (const s of states) {
+                if (next.length >= MAX_KICKER_COMBINATIONS) break outer;
+                next.push([...prefix, s]);
+            }
+        }
+        combos = next;
+    }
+
+    const variants: (KickerPayments | undefined)[] = [undefined];
+    const seen = new Set<string>();
+    for (const combo of combos) {
+        if (combo.every((n) => n === 0)) continue; // the baseline, already included
+        const requested: KickerPayments = {};
+        combo.forEach((n, i) => {
+            if (n > 0) requested[kickers[i].id] = n;
+        });
+        let canonical: KickerPayments | undefined;
+        try {
+            canonical = resolveKickerPayments(cardDef, requested);
+        } catch {
+            // An invalid composition (e.g. two colliding permanent-leg
+            // actions) — fail CLOSED, never offer it as a Move.
+            continue;
+        }
+        if (!canonical) continue;
+        const key = Object.entries(canonical)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([id, n]) => `${id}:${n}`)
+            .join(",");
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // Fail CLOSED on a hand leg — see the file-level bound comment.
+        if (kickerCostLegs(cardDef, canonical).some((leg) => leg.hand)) {
+            continue;
+        }
+        if (
+            !canPayKickerLegs(state, player, cardDef, canonical, castInstanceId)
+        ) {
+            continue;
+        }
+        variants.push(canonical);
+    }
+    return variants;
 }

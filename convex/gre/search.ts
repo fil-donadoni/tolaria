@@ -91,6 +91,7 @@ import { turnFaceDown, turnFaceUp } from "./faceDown";
 import {
     applyActivationCostsForSearch,
     applyAdditionalCostLegForSearch,
+    applyKickerPermanentLegForSearch,
     applyRetraceCastForSearch,
     applyDelveExileForSearch,
 } from "./applyMove";
@@ -818,6 +819,19 @@ export function applyMoveInSearch(
                 );
             }
             applyTapPlan(state, playerId, move.tapPlan);
+            // CR 107.4f / 702.33a (issue #2081) — pay the LIFE this move
+            // chose to cover with life: Phyrexian pips (2 per pip) and/or a
+            // paid Kicker's life leg (`kickerLifeCost`, folded into
+            // `move.payLife` by `moves.ts` at enumeration time). The greedy
+            // sandbox (`applyMoveForSearch`, `applyMove.ts`) already deducted
+            // this field for Phyrexian mana; the ISMCTS tree never did — an
+            // uncharged `payLife` makes any life-paying variant free HERE,
+            // the exact bug class this issue exists to close for Kicker (and,
+            // as a byproduct, closes it for the pre-existing Phyrexian case
+            // this tree never charged either).
+            if (move.payLife && move.payLife > 0) {
+                player.life -= move.payLife;
+            }
             // CR 601.2b / 601.2h / 118.8 — charge the CASTER-CHOSEN additional
             // cost leg in the ISMCTS tree too, for the same reason the greedy
             // sandbox does (`applyAdditionalCostLegForSearch`'s doc): the two
@@ -829,6 +843,25 @@ export function applyMoveInSearch(
                 move.cardInstanceId,
                 move.additionalCostLegId
             );
+            // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
+            // PERMANENT leg (sacrifice/return), mirroring the greedy sandbox
+            // (`applyMove.ts`'s `applyKickerPermanentLegForSearch` doc) —
+            // TWO independent reimplementations of "build a StackItem from a
+            // cast" (issue #2473), so a cost paid in one and not the other is
+            // a divergence between the greedy selector and ISMCTS.
+            if (move.kickerPayments && preCastSpell) {
+                const kickerCardDef = tryGetDefinition(
+                    (preCastSpell.card as { id?: string }).id ?? ""
+                );
+                if (kickerCardDef) {
+                    applyKickerPermanentLegForSearch(
+                        state,
+                        playerId,
+                        kickerCardDef,
+                        move.kickerPayments
+                    );
+                }
+            }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD,
             // not the hand, and destroys a land card from hand on the way. The
             // discard is what BOUNDS the line: retrace exiles nothing, so the
@@ -855,6 +888,18 @@ export function applyMoveInSearch(
                 ...(move.chosenModeId
                     ? { chosenModeId: move.chosenModeId }
                     : {}),
+                // CR 702.33 / 702.27a (issue #2081) — snapshot the payment
+                // record onto the stack item, mirroring the greedy sandbox
+                // (`applyMove.ts`) and the real commit paths
+                // (`PendingCast.kickerPayments` / `.buybackPaid` →
+                // `StackItem`), so a resolving Kicker/Buyback spell reads
+                // `wasKicked` / `{ kickerPaid }` / the Buyback return-to-hand
+                // redirect correctly on THIS, the chokepoint every rollout and
+                // all self-play route through.
+                ...(move.kickerPayments
+                    ? { kickerPayments: move.kickerPayments }
+                    : {}),
+                ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
                 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the ISMCTS
                 // in-tree `cast-spell` executor is the SECOND wholesale
                 // reimplementation of "build a StackItem from a cast" (the
