@@ -258,9 +258,10 @@ the route is registered `ownChrome`, so there is no shell header and no Event
 back-link. It carries `Pack n/N`, `Pick #n · N left`, the passing direction, a
 waiting-pack dot, `Table` (the Table Ring dialog: seats, picks made, passing
 arrows, you at the bottom), `Pool` (the pool toggle) and an overflow with
-`Leave the draft` / `Settings`. At tablet/desktop widths the body is a
-`[data-slot=draft-split]` pack | pool split and the Pick Timer is the
-full-width bar directly above the Booster grid.
+`Leave the draft` / `Settings`. At tablet/desktop widths the body is
+stacked — the Booster grid full width on top (with the Pick Timer as the
+full-width bar directly above it) and the Pool, in its own scrolling band
+(`[data-slot=draft-stacked-pool]`), underneath.
 
 ### The two phone snap stops (issue #2588)
 
@@ -312,7 +313,7 @@ with `data-animated` (absent under `prefers-reduced-motion: reduce`).
 
 `bun run check:ui` walks this route THREE times — `draft-pick` stops at the
 pack stop, `draft-pool-stop` runs step 1 and probes there (off a phone it
-scrolls the split's pool column to its end instead), and `draft-pool-peek`
+scrolls the stacked arrangement's Pool band to its end instead), and `draft-pool-peek`
 (issue #2667) goes one gesture further: from the same pool stop it taps the
 first Pool card tile (`[data-card-tile][title^='Remove ']` inside
 `[data-slot=draft-pool]`) and probes with the Pool's own `DeckZonePeek`

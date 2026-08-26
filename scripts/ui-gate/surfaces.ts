@@ -263,9 +263,9 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
  * screen, and a collapsed MV row passes every happy-dom test there is.
  *
  * Off a phone there is no snap surface (`useViewportMode` calls both tablets
- * "desktop"), so the equivalent state is the split's pool column scrolled to
- * its end — still the pool at its far extent, still a state `draft-pick`
- * never probes.
+ * "desktop"), so the equivalent state is the stacked arrangement's Pool band
+ * scrolled to its end — still the pool at its far extent, still a state
+ * `draft-pick` never probes.
  *
  * Extracted (issue #2667 review) so `draft-pool-peek` can reach the SAME pool
  * stop and then go one gesture further (select a tile, mount the Peek Panel)
@@ -304,7 +304,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
         // tell an empty pane from a healthy one: a Pick #1 seat would
         // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
         // the one measurement that discharges the pool pane's layout
-        // claims silently vacuous. Same guard the split branch below
+        // claims silently vacuous. Same guard the stacked branch below
         // runs — the fixture, not the stop, is what must be asserted.
         if (!(await visible(page, DRAFT_POOL, 4000))) {
             throw new Unreachable(
@@ -344,7 +344,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
  * existed nothing did (review finding 1 on PR #2652). Sample offsets across
  * the range, let each settle, collect the distinct values it comes to rest at.
  *
- * A no-op off a phone: the split has no snap scroller.
+ * A no-op off a phone: the stacked arrangement has no snap scroller.
  */
 async function assertTwoSnapStops(page: Page): Promise<void> {
     if (!(await visible(page, DRAFT_SNAP_SCROLLER, 2000))) return;

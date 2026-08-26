@@ -119,20 +119,25 @@ export default function LimitedDraftTable({
     manager?: DragDropManager;
     /** Which arrangement of the Booster and the Pool to draw (ADR 0101 §6).
      *
-     *  - `"split"` — tablet / desktop: side by side, the Peek Panel supplying
-     *    the preview rail.
+     *  - `"stacked"` — tablet / desktop: the Booster grid full width above
+     *    the Pool (with its Sideboard rail beside it), each in its own
+     *    scrolling band so a long Pool never pushes the Booster off screen.
+     *    The pre-#2587 arrangement, restored by issue #2820 after #2588
+     *    accidentally widened the phone split to cover this arm too — and
+     *    the neutral default: it is what this component renders when the
+     *    caller expresses no preference, which is the configuration its own
+     *    gesture tests use because those gestures are layout-independent.
      *  - `"phone-portrait"` / `"phone-landscape"` — the two-stop snap surface
      *    (issue #2588). These are the fork this component exists to keep
      *    HONEST: they change the panes only. The `DragDropProvider`, the
      *    `DragOverlay`, the Inspect Overlay and the pick context menu are
      *    mounted ONCE, below, outside every branch — two providers or two
      *    overlays on different arms is a bug that passes every unit test.
-     *  - `"stacked"` — one above the other. The pre-#2587 arrangement and the
-     *    neutral default: no host selects it now (the room resolves one of
-     *    the three above), and it is what this component renders when the
-     *    caller expresses no preference, which is the configuration its own
-     *    gesture tests use because those gestures are layout-independent. */
-    layout?: "stacked" | "split" | "phone-portrait" | "phone-landscape";
+     *
+     *  There is no `"split"` value any more (issue #2820): a fourth layout
+     *  nothing resolved to was unreachable code the moment the Draft Room's
+     *  own resolution stopped selecting it. */
+    layout?: "stacked" | "phone-portrait" | "phone-landscape";
     /** The Draft Room's pool toggle. The Pool pane is unmounted, not hidden:
      *  it renders every pooled card through `DeckZoneSurface`, and a
      *  `display:none` copy of that would keep paying for images the player
@@ -731,32 +736,82 @@ export default function LimitedDraftTable({
                     <DraftPortraitPanes {...phonePanes} />
                 ) : phoneOrientation === "landscape" ? (
                     <DraftLandscapePanes {...phonePanes} />
-                ) : layout === "split" ? (
-                    // Tablet / desktop (ADR 0101 §6): a vertical split, pack
-                    // beside pool. Each half scrolls on its own so a long
-                    // Pool never pushes the Booster off the screen — the
-                    // exact failure the stacked layout has on a short
-                    // viewport. The preview RAIL is the Peek Panel: it is
-                    // `fixed`, and the reserve above already pays for its
-                    // width, so the split is measured against what is left.
-                    <div
-                        data-slot="draft-split"
-                        className="flex min-h-0 flex-1 gap-3"
-                    >
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+                ) : (
+                    // Tablet / desktop (ADR 0101 §6, restored by issue
+                    // #2820): the Booster grid full width on top, the Pool
+                    // (with its Sideboard rail beside it, `arrange="row"`,
+                    // the `LimitedDraftPool` default) beneath. Both bands
+                    // carry `overflow-y-auto`, each-half-scrolls-on-its-own
+                    // discipline the (now-removed) split arm used, just
+                    // stacked vertically instead of side by side. The
+                    // Booster band is NOT `shrink-0`: the persisted Booster
+                    // zoom slider (`useCardZoom`, zone `limited-booster`, max
+                    // 2.2, localStorage) can grow the pack grid past the
+                    // surface height on its own — a pack is NOT bounded to a
+                    // fixed pixel footprint — so without its own scroller the
+                    // Booster instead steals height from the Pool band below
+                    // it.
+                    //
+                    // Round-2 fixup correction (blocking review, 2nd pass):
+                    // `flex: 1 1 0%`'s `flex-basis: 0` was NOT enough to
+                    // protect the Pool band from that theft, because CSS flex
+                    // shrinking only ever SHRINKS under negative free space —
+                    // the grow factor never runs — so a tall pack's Booster
+                    // absorbed the ENTIRE deficit down to the surface height
+                    // while the Pool band sat at its 0 basis plus padding
+                    // (measured in real Chromium at 820x1180 by the round-2
+                    // review: Pool `clientHeight` 12px against a 1900px
+                    // pack). The Booster's own `overflow-y-auto` (added the
+                    // prior round) only changed WHERE the spillover
+                    // scrolled, not whether the Pool band collapsed. The
+                    // actual floor is the Pool band's explicit
+                    // `min-h-[17.5rem]` (280px) below — browsers honor an
+                    // EXPLICIT `min-height` as a hard floor on a flex item
+                    // regardless of its shrink factor (unlike the automatic
+                    // min-size flexbox computes on its own, which negative
+                    // free space overrides). 280px is an EMPIRICALLY
+                    // MEASURED floor, not a derived one: the Pool pane's
+                    // intrinsic minimum — its "Your Pool (n)" heading, one
+                    // Mana-Value column header row and one card row at this
+                    // component's `CARD_MIN_W` floor, with the Sideboard
+                    // rail beside it at the same height (`arrange="row"`) —
+                    // measures ~233px at the tightest non-phone viewport
+                    // (820x1180), and 280px clears it with ~47px of slack.
+                    // Do NOT re-derive it from `cardSizing.ts:50-51`'s
+                    // `calc(cardBase(...) * 7/5 + 3.5rem)`, the analogous
+                    // reservation `DeckZoneSurface` applies
+                    // (`deck-zone-surface.tsx:693`): that formula yields
+                    // 156.8px below an 800px viewport and saturates at
+                    // 224px, so it is the same IDEA at a different number,
+                    // not this constant's source. Over-reserving costs only
+                    // Booster height, which stays ≥417px and scrolls; below
+                    // it the Pool's own `overflow-y-auto` still does its job
+                    // for anything past one row. Re-measured
+                    // (`chrome-devtools-mcp`, 820x1180 real Chromium, a
+                    // 24-card seat, this fix): tall pack (booster zoom
+                    // slider pinned to 2.2× via its persisted localStorage
+                    // key, grid `scrollHeight` 3220px against a 794px
+                    // Booster band) Pool `clientHeight` 279px, pinned to the
+                    // floor and NOT scrolling — its one-row-per-MV-column
+                    // pile content fits inside it, with the header and the
+                    // Sideboard rail both visible; default-zoom pack (786px
+                    // grid, well under the 1112px surface) Pool
+                    // `clientHeight` 287px, unchanged by the floor (it was
+                    // already above 280px on its own, confirming the short-
+                    // pack case this round 1 already had right is
+                    // untouched).
+                    <>
+                        <div
+                            className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto"
+                            data-slot="draft-stacked-booster"
+                        >
                             {packPane}
                         </div>
                         {showPool && (
-                            <div className="flex min-h-0 w-[36%] shrink-0 flex-col overflow-y-auto border-l border-border-accent/20 pl-3">
-                                {poolPane}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        {packPane}
-                        {showPool && (
-                            <div className="min-h-0 flex-1 border-t border-border-accent/20 pt-3">
+                            <div
+                                data-slot="draft-stacked-pool"
+                                className="flex min-h-[17.5rem] flex-1 flex-col gap-3 overflow-y-auto border-t border-border-accent/20 pt-3"
+                            >
                                 {poolPane}
                             </div>
                         )}

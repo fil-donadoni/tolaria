@@ -219,13 +219,60 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         expect(navigateMock).not.toHaveBeenCalled();
     });
 
-    it("resolves the layout regime for the table — one branch, three arrangements (issue #2588)", () => {
+    it("resolves the layout regime for the table — one branch, three arrangements (issue #2820)", () => {
         // Issue #2587 shipped this as a binary (desktop split vs
-        // everything-else stacked), which folded the two phone regimes
-        // together. This is the assertion that they are no longer the same
-        // arrangement.
+        // everything-else stacked), and issue #2588 gave the two phone
+        // regimes their own arrangement — but, as a side effect, ALSO turned
+        // the non-phone arm into the horizontal split, which was never
+        // intended (issue #2820). This is the assertion that desktop is back
+        // to stacked, and that the two phone regimes still get their own
+        // arrangement (i.e. are not folded together with each other or with
+        // desktop).
         mountRoom(draftRow());
-        expect(document.querySelector("[data-slot=draft-split]")).toBeTruthy();
+        const desktopSurface = document.querySelector(
+            "[data-slot=draft-surface]"
+        )!;
+        expect(desktopSurface.getAttribute("data-layout")).toBe("stacked");
+        // The stacked arrangement's distinguishing structure: the Booster
+        // full width on top, the Pool in its own scrolling band underneath —
+        // never the split's narrow side pane. `flex-col` on the surface is
+        // what MAKES it top-over-bottom rather than side-by-side: flipping
+        // it to `flex-row` silently re-creates the exact split arrangement
+        // issue #2820 exists to reverse, with every data-slot still present.
+        expect(desktopSurface.className).toContain("flex-col");
+        expect(desktopSurface.className).not.toContain("flex-row");
+        const stackedPool = document.querySelector(
+            "[data-slot=draft-stacked-pool]"
+        )!;
+        expect(stackedPool).toBeTruthy();
+        // Each band scrolls on its own — the same each-half-scrolls-in-its-
+        // own-band discipline the (now-removed) split arm used. A missing
+        // `overflow-y-auto` on either band means the OTHER band absorbs all
+        // the overflow instead: on the Pool band that starves the Pool and
+        // the Sideboard beside it (the exact regression a round of this
+        // issue's own fixup shipped); on the Booster band it starves the
+        // Pool band the same way, since the Booster then eats the surface's
+        // full height before the Pool gets any.
+        expect(stackedPool.className).toContain("overflow-y-auto");
+        // The Pool band's explicit floor (round-2 fixup, blocking review
+        // round 2): `overflow-y-auto` alone does NOT stop the Booster band
+        // from starving the Pool band to a sliver at a tall pack — CSS flex
+        // shrinking only ever shrinks under negative free space (the grow
+        // factor never runs), so `flex-1`'s `flex-basis: 0` left the Pool
+        // band's floor at 0 and the Booster absorbed the entire deficit
+        // (measured in real Chromium at 820x1180: Pool `clientHeight` 12px
+        // against a 1900px pack, byte-identical to the round-1 regression
+        // this test's `overflow-y-auto` assertions above did NOT catch). An
+        // explicit `min-height` is a hard floor a flex item's shrink factor
+        // cannot cross, unlike the automatic minimum size flexbox computes
+        // on its own.
+        expect(stackedPool.className).toContain("min-h-[17.5rem]");
+        const stackedBooster = document.querySelector(
+            "[data-slot=draft-stacked-booster]"
+        )!;
+        expect(stackedBooster).toBeTruthy();
+        expect(stackedBooster.className).toContain("overflow-y-auto");
+        expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
         expect(
             document.querySelector("[data-slot=draft-snap-scroller]")
         ).toBeNull();
@@ -238,7 +285,15 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
                 .querySelector("[data-slot=draft-snap-scroller]")!
                 .getAttribute("data-orientation")
         ).toBe("portrait");
+        expect(
+            document
+                .querySelector("[data-slot=draft-surface]")!
+                .getAttribute("data-layout")
+        ).toBe("phone-portrait");
         expect(document.querySelector("[data-slot=draft-split]")).toBeNull();
+        expect(
+            document.querySelector("[data-slot=draft-stacked-pool]")
+        ).toBeNull();
 
         cleanup();
         viewportMode = "landscape-compact";
@@ -248,6 +303,11 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
                 .querySelector("[data-slot=draft-snap-scroller]")!
                 .getAttribute("data-orientation")
         ).toBe("landscape");
+        expect(
+            document
+                .querySelector("[data-slot=draft-surface]")!
+                .getAttribute("data-layout")
+        ).toBe("phone-landscape");
     });
 
     it("gives the phone body a FIXED box, not a scroller — a snap pane needs a definite height", () => {

@@ -100,9 +100,14 @@ picks as one Arena-style vertical pile, the actions bar under it); on swipe
 the pack collapses to a vertical pile (20%) and the pool expands to MV
 columns + a Sideboard column (80%). A very subtle animated chevron hints the
 swipe; a pack arriving while parked on the pool pulses the strip and starts
-the timer (auto-snap only if the timer is on and <10s). Tablet / desktop: a
-vertical split with a preview rail. The Sideboard box always shows its count
-when collapsed. Sealed uses the room in reveal mode.
+the timer (auto-snap only if the timer is on and <10s). Tablet / desktop:
+stacked — the Booster grid full width on top, the Pool with its Sideboard
+rail beside it underneath, each scrolling in its own band so a long Pool
+never pushes the Booster off screen (issue #2820; a #2646/#2588 side effect
+had briefly turned this arm into the phone split's vertical split with a
+preview rail — the pre-existing, correct arrangement is what ships). The
+Sideboard box always shows its count when collapsed. Sealed uses the room in
+reveal mode.
 
 ### 7. Deckbuilder
 

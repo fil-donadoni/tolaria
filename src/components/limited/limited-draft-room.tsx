@@ -140,14 +140,21 @@ export default function LimitedDraftRoom({
 
     // The room's ONE viewport branch (ADR 0101 §6). Issue #2587 shipped it as
     // a binary — desktop split vs everything-else stacked — which folded the
-    // two phone regimes together; issue #2588 gives each its own arrangement.
+    // two phone regimes together; issue #2588 gave each phone orientation its
+    // own arrangement but, as a side effect of that split, ALSO turned the
+    // non-phone arm into the horizontal split — the desktop/tablet regime had
+    // always been stacked before #2587/#2646, and #2588 never intended to
+    // change it. Issue #2820 restores the non-phone arm to stacked: the
+    // Booster grid full width above the Pool, no narrow side pane. Both
+    // tablet models fall into this arm too — `useViewportMode` folds them
+    // into `"desktop"` by design (ADR 0101 §6), so no new regime is needed.
     // Resolved HERE and passed down: `LimitedDraftTable` forks on the LAYOUT
     // it is told, never on a media query of its own, so a test can drive
     // either arrangement and the room stays the single place the regime is
     // decided.
     const draftTableLayout =
         viewport === "desktop"
-            ? "split"
+            ? "stacked"
             : viewport === "portrait"
               ? "phone-portrait"
               : "phone-landscape";
