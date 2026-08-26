@@ -532,14 +532,15 @@ export const morgueToad: CardDefinition = {
 // at all, never even reaches the stack; an unkicked cast never even prompts
 // for the bounce/land target).
 //
-// It is deliberately NOT also declared as the ability's `interveningIf`.
-// `resolveTopOfStackInner` (`gre/state.ts`) re-evaluates an `interveningIf`
-// against the LIVE battlefield permanent found by `triggerSourceId`, falling
-// back to the stack item's last known information only when the source is NOT
-// on the battlefield. A blink/flicker (Ephemerate) returns the SAME instance
-// object after `resetBattlefieldTransientState` deleted `kickerPayments`, so
-// the re-check would read a cleared record and fizzle a trigger CR 608.2h says
-// must resolve off LKI. The resolution-time answer is instead the
+// It is NOT also declared as the ability's `interveningIf`. That was once a
+// correctness matter: `resolveTopOfStackInner` (`gre/state.ts`) re-evaluated an
+// `interveningIf` against the LIVE battlefield permanent found by
+// `triggerSourceId`, and a blink/flicker (Ephemerate) returned the SAME
+// instance object after `resetBattlefieldTransientState` deleted
+// `kickerPayments`, so the re-check read a cleared record. Fixed engine-side
+// (issue #2042) by the departure-time `StackItem.sourceLki` snapshot, which
+// `resolveTopOfStackInner` now prefers over the live permanent (CR 608.2h).
+// The resolution-time answer stays the
 // `if { kickerPaid: "<id>" }` branch inside `effects[]` — the resolving stack
 // item's own record, the same shape Thunderscape (`pls/red.ts`) and
 // Stormscape (`pls/blue.ts`) use, and what still holds for an ability COPY

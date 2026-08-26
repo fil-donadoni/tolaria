@@ -27,14 +27,18 @@ export function resolveActivated(
     resolveTopOfStack(state);
 }
 
-export function resolveTrigger(
+/** Puts a triggered ability on the stack the way `buildTriggerItem` does (a
+ *  `...self` spread plus the trigger legs) WITHOUT resolving it, so a test can
+ *  interpose something — a blink in response — between the trigger and its
+ *  CR 603.4 resolution-time re-check. Returns the pushed item. */
+export function pushTrigger(
     state: GameState,
     source: CardInstanceState,
     triggeredAbilityId: string,
     triggerEvent: StackItem["triggerEvent"],
     targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
+): StackItem {
+    const item: StackItem = {
         ...source,
         zone: "stack",
         castById: source.controllerId,
@@ -42,7 +46,19 @@ export function resolveTrigger(
         triggerSourceId: source.id,
         triggerEvent,
         targets,
-    });
+    };
+    state.stack.push(item);
+    return item;
+}
+
+export function resolveTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"],
+    targets: StackItem["targets"] = []
+): void {
+    pushTrigger(state, source, triggeredAbilityId, triggerEvent, targets);
     resolveTopOfStack(state);
 }
 

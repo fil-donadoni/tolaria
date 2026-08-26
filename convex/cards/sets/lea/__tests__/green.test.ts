@@ -2144,6 +2144,52 @@ describe("Living Artifact (Aura — vitality counters + upkeep life gain)", () =
         expect(auraAfter.counters?.["vitality"]).toBe(1);
         expect(state.players[0].life).toBe(18);
     });
+
+    // Departure-time LKI, the NON-departure side (issue #2042). Living
+    // Artifact never leaves the battlefield here, so CR 400.7 never makes a
+    // new object and the CR 603.4 re-check must still read the LIVE aura —
+    // `StackItem.sourceLki` is only stamped at the battlefield-departure
+    // funnel, and an implementation that preferred a trigger-time snapshot
+    // unconditionally would resolve this trigger off a counter that is gone.
+    it("upkeep: the intervening-if reads the LIVE counters, so a counter removed after the trigger went on the stack fizzles it (CR 603.4)", () => {
+        const artifact = makeInstance(solRing.id, {
+            id: "host-art",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(livingArtifact.id, {
+            id: "la",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-art",
+            counters: { vitality: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [artifact, aura], life: 17 }),
+                makePlayer("p2"),
+            ],
+            phase: "UNTAP",
+            activePlayerId: "p1",
+        });
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "living-artifact-upkeep"
+        );
+        // The trigger-time spread carries the counter; the live aura loses it
+        // before resolution, as any counter-removal effect could.
+        expect(state.stack[0].counters?.["vitality"]).toBe(1);
+        expect(state.stack[0].sourceLki).toBeUndefined();
+        const live = state.players[0].battlefield.find((c) => c.id === "la")!;
+        delete live.counters;
+
+        resolveTopOfStack(state);
+        // Fizzled: no may-pay prompt, no life gain, nothing left on the stack.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].life).toBe(17);
+        expect(state.stack).toHaveLength(0);
+    });
 });
 
 // ---------------------------------------------------------------------------

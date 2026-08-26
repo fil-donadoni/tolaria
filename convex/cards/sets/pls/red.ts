@@ -689,15 +689,18 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // STACK ITEM's own `kickerPayments` (`buildTriggerItem`'s `...self` spread,
 // `gre/triggers.ts`), i.e. CR 608.2h last known information, and what still
 // holds if an ability COPY reaches the stack without re-running `matches`
-// (CR 707.10). It is deliberately NOT also declared as `interveningIf`:
-// `resolveTopOfStackInner` re-evaluates an `interveningIf` against the LIVE
-// battlefield permanent found by `triggerSourceId`, and a blink/flicker
-// (Ephemerate) returns the SAME instance object with `kickerPayments`
-// already deleted by `resetBattlefieldTransientState` — so an `interveningIf`
-// would read a cleared record and fizzle a trigger that must resolve off LKI.
-// Check-time `conditionOnSelf` + resolution-time `if { kickerPaid }` is the
-// correct pair; the blink case is locked by a regression test in
-// `__tests__/red.test.ts`.
+// (CR 707.10). It is NOT also declared as `interveningIf`. That used to be a
+// correctness matter — `resolveTopOfStackInner` re-evaluated an `interveningIf`
+// against the LIVE battlefield permanent found by `triggerSourceId`, and a
+// blink/flicker (Ephemerate) returned the SAME instance object with
+// `kickerPayments` already deleted by `resetBattlefieldTransientState`, so the
+// re-check read a cleared record. Fixed engine-side (issue #2042):
+// `removePermanentTo` stamps a departure-time LKI snapshot
+// (`StackItem.sourceLki`) that `resolveTopOfStackInner` prefers over the live
+// permanent, so either seam now reads the right record. Check-time
+// `conditionOnSelf` + resolution-time `if { kickerPaid }` stays the pair
+// because only the `effects[]` branch also gates a CR 707.10 ability copy; the
+// blink case is locked by a regression test in `__tests__/red.test.ts`.
 export const thunderscapeBattlemage: CardDefinition = {
     id: "d707243e-7f11-44bc-b8b8-af635ab1dc87", // PLS 75
     rarity: "uncommon",

@@ -1525,9 +1525,12 @@ export const viciousKavu: CardDefinition = {
 // see that card's comment for the full precedent chain. Uses the same
 // Waterspout Elemental (`pls/blue.ts`) template: `conditionOnSelf:
 // kickerPaidCondition("kicker")` at check time, `if { kickerPaid: "kicker" }`
-// inside `effects[]` at resolution time — no `interveningIf`, so this
-// trigger does not carry the Jacked Rabbit blink divergence (tracked-by:
-// #2042).
+// inside `effects[]` at resolution time — no `interveningIf`. The
+// resolution-time branch reads the RESOLVING STACK ITEM's own
+// `kickerPayments`, which is what still gates an ability COPY put on the
+// stack without re-running `matches` (CR 707.10) — an `interveningIf` would
+// not, and that, not blink safety, is why the pair is the template (see
+// `kickerPaidCondition` in `cards/abilities/triggers/shared.ts`).
 //
 // `excludeColors: "B"` on the target requirement expresses "nonblack" (Dark
 // Banishing precedent, `ice/black.ts`; Annihilate, `inv/black.ts` — same

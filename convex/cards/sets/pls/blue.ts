@@ -630,12 +630,14 @@ export const sleepingPotion: CardDefinition = {
 // off the resolving item's own `kickerPayments` (`buildTriggerItem`,
 // `gre/triggers.ts`, spreads the entering permanent's fields onto each
 // triggered-ability item it raises) — i.e. CR 608.2h last known information.
-// The same predicate is deliberately NOT also declared as `interveningIf`:
-// that re-check runs against the LIVE battlefield permanent found by
-// `triggerSourceId`, and a blink/flicker returns the SAME instance object
-// with `kickerPayments` already cleared by `resetBattlefieldTransientState`,
-// which would fizzle a trigger that must resolve off LKI. See the Thunderscape
-// Battlemage note in `pls/red.ts` and its regression test.
+// The same predicate is NOT also declared as `interveningIf`, but no longer
+// because that would be WRONG — the CR 400.7 blink hazard is fixed engine-side
+// (issue #2042: `removePermanentTo` stamps a departure-time
+// `StackItem.sourceLki` snapshot that `resolveTopOfStackInner` prefers over
+// the live permanent). The `effects[]` branch simply covers strictly more: an
+// ability COPY put on the stack without re-running `matches` (CR 707.10), and
+// a `DelayedTriggerInstance`, which carries no `interveningIf` at all. See the
+// Thunderscape Battlemage note in `pls/red.ts` and its regression test.
 export const stormscapeBattlemage: CardDefinition = {
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
@@ -811,11 +813,11 @@ export const sunkenHope: CardDefinition = {
 // `kickerPayments` record (`buildTriggerItem`, gre/triggers.ts, spreads the
 // entering permanent's fields onto the item it raises — CR 608.2h last known
 // information) rather than a plain `interveningIf` against the LIVE
-// permanent: `resolveTopOfStackInner` (gre/state.ts) re-evaluates an
-// `interveningIf` off the LIVE battlefield object found by `triggerSourceId`,
-// and a blink/flicker returns the SAME instance with `kickerPayments`/
-// `wasKicked` already cleared by `resetBattlefieldTransientState` — which
-// would fizzle a trigger CR 608.2h says must resolve off LKI. Exact template:
+// permanent. Not because an `interveningIf` would misread a blinked source —
+// that CR 400.7 hazard is fixed engine-side (issue #2042) — but because the
+// `effects[]` branch also gates an ability COPY put on the stack without
+// re-running `matches` (CR 707.10), which no check-time predicate reaches.
+// Exact template:
 // Stormscape Battlemage / Nightscape Battlemage / Thunderscape Battlemage
 // (this same file / `pls/black.ts` / `pls/red.ts`).
 //

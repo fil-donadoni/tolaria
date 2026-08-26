@@ -929,12 +929,18 @@ export const teferisCare: CardDefinition = {
 // `if { kickerPaid: "kicker" }` branch inside `effects[]` at resolution
 // time, reading the resolving TRIGGER stack item's own `kickerPayments`
 // record (CR 608.2h last known information) rather than an `interveningIf`
-// re-evaluated against the LIVE permanent. This sidesteps the blink
-// divergence documented on Jacked Rabbit and tracked-by: #2042 — a CR 400.7
-// zone change (Ephemerate) clears the LIVE permanent's `kickerPayments`
-// before an `interveningIf` would re-check it, but the resolving stack
-// item's own copy is unaffected, so this trigger does not misfire on blink
-// the way an `interveningIf`-based gate would.
+// re-evaluated against the LIVE permanent.
+//
+// Blink is NOT the reason any more. `removePermanentTo` now stamps a
+// departure-time LKI snapshot (`StackItem.sourceLki`) onto every stack item
+// sourced from the departing instance, and `resolveTopOfStackInner`
+// (`gre/state.ts`) prefers it over the live permanent, so an `interveningIf`
+// here would re-read the same payment record this branch reads even after a
+// CR 400.7 return (Ephemerate) has cleared the new object's. The reason that
+// survives is CR 707.10: an ability COPY is put on the stack without
+// re-running `matches`, so a check-time predicate never sees it and only the
+// resolution-time `if` branch still gates it. Authority for the whole rule is
+// `kickerPaidCondition`'s doc block (`cards/abilities/triggers/shared.ts`).
 export const benalishEmissary: CardDefinition = {
     id: "6b82d56e-80d7-4be9-ac22-de3257efc458", // INV 5
     rarity: "uncommon",

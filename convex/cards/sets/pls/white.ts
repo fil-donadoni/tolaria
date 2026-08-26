@@ -902,8 +902,10 @@ export const voiceOfAll: CardDefinition = {
 //     the shared per-Kicker CHECK-TIME predicate its three shipped cycle
 //     siblings already use — paired, as they all are, with a resolution-time
 //     `if { kickerPaid: "<id>" }` branch inside the ability's own
-//     `effects[]` (never an `interveningIf`; see that helper's doc block for
-//     why the re-check misreads a blinked permanent). The card is unblocked
+//     `effects[]` rather than an `interveningIf`; see that helper's doc block
+//     for why that branch is the load-bearing one (CR 707.10 ability copies),
+//     and why the blink hazard it used to guard against is gone. The card is
+//     unblocked
 //     and needs only ordinary card work — out of scope for issue #2560
 //     (a stale-reference fix, not a card implementation).
 
