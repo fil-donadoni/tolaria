@@ -1,14 +1,24 @@
 // Draftable-Set gate tests (ADR 0059, supersedes ADR 0056; PRD #1242). LEA —
 // checked-in Booster Config, ADR exclusions already stripped at import time —
-// must compute as fully Draftable. A partial set (INV: the catalogue census
-// is far from complete, per `project_inv_batch_plan` — INV isn't a shipped
+// must compute as fully Draftable. A partial set (LEG: the catalogue census
+// is far from complete, per `project_leg_batch_plan` — LEG isn't a shipped
 // Draftable Set config, so its Booster Config is built in-memory here
 // straight from the vendored MTGJSON snapshot via the same pure transform
 // the importer uses) must compute as NOT Draftable under the per-sheet ≥80%
 // gate, with the missing cards reported per sheet.
+//
+// Was INV until issue #2702: the Oracle compiler's `ready` rows now also
+// resolve through `tryGetDefinition` (ADR 0046 — the single registry seam
+// makes no distinction), which pushed INV's real per-sheet coverage to
+// 86%/80%/81% — genuinely Draftable now, not a test bug. LEG is a safer
+// long-term fixture for "still partial": 76%/52%/71% at issue #2702's
+// landing, with the weakest sheet 28 points under the gate — much more
+// headroom against future compiled-card growth eroding this fixture the
+// same way. ARN (61%/84%) and ATQ (78%/86%) are also still under threshold
+// today but with less margin.
 import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
-import invRaw from "../../../data/json/INV.json";
+import legRaw from "../../../data/json/LEG.json";
 import { computeDraftability, dropUnimplementedCards } from "../draftable";
 import { buildBoosterConfig, type MtgjsonSetData } from "../mtgjsonImport";
 import { tryGetDefinition } from "../../cards";
@@ -27,12 +37,12 @@ describe("computeDraftability (ADR 0059 — per-sheet ≥80%)", () => {
         }
     });
 
-    it("a partial set (INV) is NOT Draftable, and reports the missing cards per sheet", () => {
-        const invConfig = buildBoosterConfig(
-            invRaw.data as unknown as MtgjsonSetData,
-            { boosterType: "draft" }
+    it("a partial set (LEG) is NOT Draftable, and reports the missing cards per sheet", () => {
+        const legConfig = buildBoosterConfig(
+            legRaw.data as unknown as MtgjsonSetData,
+            { boosterType: "default" }
         );
-        const result = computeDraftability(invConfig);
+        const result = computeDraftability(legConfig);
 
         expect(result.draftable).toBe(false);
         expect(result.missingCardIds.length).toBeGreaterThan(0);
@@ -40,7 +50,7 @@ describe("computeDraftability (ADR 0059 — per-sheet ≥80%)", () => {
         // Every reported id must actually be a member of the config's own
         // sheets — the reason has to point at a real gap, not noise.
         const allSheetIds = new Set(
-            Object.values(invConfig.sheets).flatMap((sheet) =>
+            Object.values(legConfig.sheets).flatMap((sheet) =>
                 Object.keys(sheet.cards)
             )
         );
