@@ -303,7 +303,9 @@ export function nowLights(data) {
 function lightHtml(light) {
     // A <button>, not a <div>: the click target is keyboard-reachable and
     // announced as an action, which is what makes "clicking a light scrolls
-    // to its section" usable without a mouse.
+    // to its section" usable without a mouse. Reachable is only half of it —
+    // the ten-second poll used to drop the focus ring on every re-render,
+    // which `writeBodyPreservingFocus` (now-loop-status.js) now prevents.
     return (
         `<button type="button" class="ls-light ${light.tone}" ` +
         `data-target="${esc(light.target)}"` +

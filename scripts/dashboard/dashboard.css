@@ -27,6 +27,14 @@
     --state-warn: #eda100;
     --state-bad: #eb6834;
     --state-unknown: #4a3aa7;
+    /* A transient LANDING mark (#2630), its own role and not a state. It is
+       what a section wears for 1.6s after a light scrolls to it: it means
+       "here is where you landed", which is orthogonal to whether the thing
+       you landed on is good, warn, bad or unreadable. The first cut painted
+       it with `--state-unknown` — that tied a navigation affordance's hue to
+       the meaning "I could not tell", and would have re-coloured every jump
+       the day the unavailable hue changed. */
+    --highlight-landing: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -51,6 +59,14 @@
         --state-warn: #c98500;
         --state-bad: #d95926;
         --state-unknown: #9085e9;
+        /* A transient LANDING mark (#2630), its own role and not a state. It is
+           what a section wears for 1.6s after a light scrolls to it: it means
+           "here is where you landed", which is orthogonal to whether the thing
+           you landed on is good, warn, bad or unreadable. The first cut painted
+           it with `--state-unknown` — that tied a navigation affordance's hue to
+           the meaning "I could not tell", and would have re-coloured every jump
+           the day the unavailable hue changed. */
+        --highlight-landing: #3987e5;
     }
 }
 :root[data-theme="dark"] {
@@ -75,6 +91,14 @@
     --state-warn: #c98500;
     --state-bad: #d95926;
     --state-unknown: #9085e9;
+    /* A transient LANDING mark (#2630), its own role and not a state. It is
+       what a section wears for 1.6s after a light scrolls to it: it means
+       "here is where you landed", which is orthogonal to whether the thing
+       you landed on is good, warn, bad or unreadable. The first cut painted
+       it with `--state-unknown` — that tied a navigation affordance's hue to
+       the meaning "I could not tell", and would have re-coloured every jump
+       the day the unavailable hue changed. */
+    --highlight-landing: #3987e5;
 }
 
 * {
@@ -524,13 +548,17 @@ tbody tr:hover {
     border-radius: 8px;
 }
 .ls-flash {
-    outline: 2px solid var(--state-unknown);
+    outline: 2px solid var(--highlight-landing);
     outline-offset: 4px;
     animation: ls-flash-fade 1.6s ease-out;
 }
 @keyframes ls-flash-fade {
     0% {
-        background: color-mix(in srgb, var(--state-unknown) 22%, transparent);
+        background: color-mix(
+            in srgb,
+            var(--highlight-landing) 22%,
+            transparent
+        );
     }
     100% {
         background: transparent;

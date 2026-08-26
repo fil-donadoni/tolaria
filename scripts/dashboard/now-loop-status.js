@@ -10,6 +10,14 @@ import { initNowNav } from "./now-nav.js";
  * single write into the DOM. The composition of the payload into HTML is
  * `now.js` — one payload, one composition, callable from the `node` project.
  *
+ * THAT WRITE IS FOCUS-PRESERVING (PR #2837 review, finding 1). #2630 is what
+ * first put focusable controls in this container — four `.ls-light` buttons
+ * and the remedy's `.ls-copy` buttons — which turned a pre-existing
+ * unconditional `innerHTML =` into a real defect: a ten-second poll silently
+ * moved `document.activeElement` back to `<body>`, six times a minute, so a
+ * light was keyboard-REACHABLE but not keyboard-OPERABLE. See
+ * `writeBodyPreservingFocus` below.
+ *
  * DATA BOUNDARY: this module and everything it imports touch `/api/loop-status`
  * and nothing else. No History module may be imported from here, directly or
  * transitively — `scripts/__tests__/telemetry-serve.test.ts` asserts it.
@@ -18,10 +26,73 @@ import { initNowNav } from "./now-nav.js";
  * reachable only through `startLoopStatusPolling()`.
  */
 
+/**
+ * The identity of a focusable control inside the Now body, stable across a
+ * re-render — or `null` for anything that is not one of this container's own
+ * controls, which is what makes "the operator has focused something else on
+ * the page" a no-op rather than a steal.
+ *
+ * Not an INDEX: the four lights are fixed, but the remedy's copy buttons come
+ * and go with the verdict, so position is not identity. Not a CSS SELECTOR
+ * either — a `data-copy` holds arbitrary command text, and building a
+ * selector out of it means escaping it correctly. Comparing a `kind:value`
+ * string against this same function run over the NEW nodes needs neither.
+ */
+export function nowControlKey(el) {
+    if (!el || !el.classList) return null;
+    if (el.classList.contains("ls-light"))
+        return `light:${el.dataset.target ?? ""}`;
+    if (el.classList.contains("ls-copy"))
+        return `copy:${el.dataset.copy ?? ""}`;
+    return null;
+}
+
+/** Everything in the Now body a keyboard can land on. */
+const NOW_CONTROLS = ".ls-light, .ls-copy";
+
+/**
+ * Write `html` into `container` without destroying keyboard focus. Returns
+ * whether the DOM was actually touched.
+ *
+ * TWO defences, because neither alone is enough:
+ *
+ *   1. SKIP an unchanged write. Most polls report the same loop state, and
+ *      not re-creating identical nodes preserves more than focus — the copy
+ *      button's transient "copied" label, and any running animation, survive
+ *      too. Compared against the container's own serialization, so it is
+ *      self-correcting: if a browser ever round-trips our markup differently
+ *      the skip simply never fires and defence 2 carries the case.
+ *   2. RESTORE focus across a write that did change something. A poll that
+ *      lands while the payload genuinely moved (a light flipping tone is
+ *      exactly when an operator is looking) must not cost the focus ring.
+ *
+ * `preventScroll` is load-bearing: the operator's scroll position is theirs,
+ * and a poll that yanked the page back to the focused light would be a
+ * louder version of the bug this fixes.
+ */
+export function writeBodyPreservingFocus(container, html) {
+    if (container.innerHTML === html) return false;
+    const active = container.ownerDocument?.activeElement ?? null;
+    const key =
+        active && container.contains(active) ? nowControlKey(active) : null;
+    container.innerHTML = html;
+    if (key === null) return true;
+    for (const el of container.querySelectorAll(NOW_CONTROLS)) {
+        if (nowControlKey(el) === key) {
+            el.focus({ preventScroll: true });
+            break;
+        }
+    }
+    return true;
+}
+
 export function renderLoopStatus(data) {
     document.getElementById("loop-status-sub").textContent =
         nowSubtitleText(data);
-    document.getElementById("loop-status-body").innerHTML = nowBodyHtml(data);
+    writeBodyPreservingFocus(
+        document.getElementById("loop-status-body"),
+        nowBodyHtml(data)
+    );
     // Idempotent, and after the first body exists: the listener is delegated
     // on the container, so it survives every subsequent innerHTML rewrite.
     initNowNav();

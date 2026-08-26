@@ -3,10 +3,13 @@
  * section and highlights it, and a remedy command copies to the clipboard.
  *
  * DELEGATED, and installed exactly once. `renderLoopStatus` rewrites
- * `#loop-status-body`'s `innerHTML` every ten seconds, so a listener bound to
- * a light would be discarded on the next poll — and re-binding per render
- * leaks one listener per element per poll. Both affordances are therefore one
- * listener on the container, matched by `closest()`.
+ * `#loop-status-body`'s `innerHTML` on every poll whose payload changed, so a
+ * listener bound to a light would be discarded with those nodes — and
+ * re-binding per render leaks one listener per element per poll. Both
+ * affordances are therefore one listener on the container, matched by
+ * `closest()`. The nodes are disposable; the container is not. (Keyboard
+ * FOCUS is the other thing that write would destroy — `now-loop-status.js`'s
+ * `writeBodyPreservingFocus` carries that, PR #2837 review finding 1.)
  *
  * This is the only Now module that touches the DOM outside a function body's
  * lifetime, and even here nothing runs at import time: `initNowNav()` is

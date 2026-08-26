@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { LOOP_VERDICT_STATES } from "../lib/loop-status";
+import { LOOP_VERDICT_STATES, REMEDY } from "../lib/loop-status";
 // @ts-expect-error — a browser ES module with no type declarations; it is
 // deliberately plain JS (no build step on the dashboard, #2625) and pure, so
 // the `node` vitest project can import and CALL it.
@@ -433,4 +433,179 @@ describe("telemetry dashboard — remedy copy affordance (#2630)", () => {
         expect(html).toContain("&quot;&lt;b&gt;&quot;");
         expect(html).not.toContain("<b>");
     });
+});
+
+describe("telemetry dashboard — remedy copy labels tell the truth (PR #2837 review)", () => {
+    it("never calls a backticked span a COMMAND — two of the seven remedies backtick a label", () => {
+        // The finding: `REMEDY.orphans` backticks `in-progress` and
+        // `REMEDY.feed` backticks `ready-for-agent`, both GitHub label names
+        // you paste into `gh`, not things you run. Iterating the real map
+        // rather than a fixture is the point — a remedy added next month is
+        // covered the day it is written.
+        const labelled = Object.entries(REMEDY).flatMap(([name, remedy]) =>
+            [
+                ...(remedyHtml(remedy) as string).matchAll(
+                    /data-copy="([^"]*)" aria-label="([^"]*)"/g
+                ),
+            ].map((m) => ({ name, copy: m[1], label: m[2] }))
+        );
+        // Vacuity guard: the map really does produce copy buttons.
+        expect(labelled.length).toBeGreaterThan(5);
+        for (const { name, copy, label } of labelled) {
+            // The accessible name states exactly what the button does.
+            expect(label, `${name} → ${copy}`).toBe(`Copy ${copy}`);
+        }
+        // And the two literals that started this are still offered, still
+        // copyable, just no longer mis-announced.
+        const copies = labelled.map((l) => l.copy);
+        expect(copies).toContain("in-progress");
+        expect(copies).toContain("ready-for-agent");
+    });
+});
+
+describe("telemetry dashboard — the landing mark is its own role (PR #2837 review)", () => {
+    it("paints .ls-flash with a highlight token, never with a STATE token", () => {
+        const flash = DASHBOARD_CSS.slice(
+            DASHBOARD_CSS.indexOf(".ls-flash {"),
+            DASHBOARD_CSS.indexOf("@media (prefers-reduced-motion")
+        );
+        expect(flash).toContain("var(--highlight-landing)");
+        // "I could not tell" is not "you landed here".
+        expect(flash).not.toContain("--state-");
+        // The token is defined in every theme the page ships, or it resolves
+        // to nothing in one of them and the landing mark vanishes.
+        expect(DASHBOARD_CSS.match(/--highlight-landing:/g)?.length).toBe(3);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PR #2837 review, finding 1 — the ten-second poll must not destroy keyboard
+// focus. #2630 is the change that first put focusable controls (four
+// `.ls-light` buttons and the remedy's `.ls-copy` buttons) inside the
+// container `renderLoopStatus` rewrites, so the pre-existing unconditional
+// `innerHTML =` became a real defect: measured on this branch before the fix,
+// focusing a light and waiting one poll left `document.activeElement` at
+// `<body>`, six times a minute.
+//
+// This is the ONE test in this file that needs a DOM. The `node` project has
+// none, so it builds a happy-dom window by hand and imports the transport
+// module through it — the real `renderLoopStatus`, not a stand-in, because a
+// hand-rolled re-render would prove nothing about the function that ships.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 review)", () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    let win: any;
+    let doc: any;
+    let body: any;
+    let renderLoopStatus: (data: unknown) => void;
+
+    beforeAll(async () => {
+        const { Window } = await import("happy-dom");
+        win = new Window({ url: "http://localhost:7777/" });
+        // The globals must exist BEFORE the transport module is imported: it
+        // registers a `visibilitychange` listener at module scope. Hence the
+        // dynamic import rather than a top-of-file one.
+        (globalThis as any).document = win.document;
+        (globalThis as any).matchMedia = () => ({ matches: false });
+        win.document.body.innerHTML =
+            `<div id="loop-status-sub"></div>` +
+            `<div id="loop-status-body"></div>` +
+            `<button id="elsewhere">elsewhere</button>`;
+        ({ renderLoopStatus } = (await import(
+            // @ts-expect-error — plain browser JS, no type declarations.
+            "../dashboard/now-loop-status.js"
+        )) as any);
+        doc = win.document;
+        body = doc.getElementById("loop-status-body");
+    });
+
+    afterAll(() => {
+        delete (globalThis as any).document;
+        delete (globalThis as any).matchMedia;
+        win?.happyDOM?.close?.();
+    });
+
+    it("keeps focus on the same light across a poll whose payload CHANGED", () => {
+        renderLoopStatus(payload());
+        const before = body.querySelector(
+            `.ls-light[data-target="${SECTION_IDS.driver}"]`
+        );
+        expect(before, "the Driver light exists to focus").toBeTruthy();
+        before.focus();
+        // Vacuity guard — if happy-dom did not move `activeElement` here the
+        // assertion below would pass on a document where focus never existed.
+        expect(doc.activeElement).toBe(before);
+
+        renderLoopStatus(
+            payload({
+                queueDepth: {
+                    P0: 9,
+                    P1: 9,
+                    P2: 9,
+                    unprioritized: 9,
+                    total: 36,
+                },
+            })
+        );
+        // The node is a NEW one (the payload changed, so the body was
+        // rewritten) — what must survive is the focus, on the same control.
+        expect(doc.activeElement).not.toBe(doc.body);
+        expect(doc.activeElement.className).toContain("ls-light");
+        expect(doc.activeElement.getAttribute("data-target")).toBe(
+            before.getAttribute("data-target")
+        );
+    });
+
+    it("does not touch the DOM at all when the payload is unchanged", () => {
+        renderLoopStatus(payload());
+        const node = body.querySelector(".ls-light");
+        renderLoopStatus(payload());
+        // Identity, not equality: an unchanged poll must not re-create the
+        // nodes, which is what also preserves a copy button's transient
+        // "copied" label and any running animation.
+        expect(body.querySelector(".ls-light")).toBe(node);
+    });
+
+    it("leaves focus alone when the operator has moved it OUTSIDE the panel", () => {
+        renderLoopStatus(payload());
+        const outside = doc.getElementById("elsewhere");
+        outside.focus();
+        expect(doc.activeElement).toBe(outside);
+        renderLoopStatus(
+            payload({ queueDepth: null, queueDepthError: "gh: 502" })
+        );
+        // Restoring focus is a repair, never a grab.
+        expect(doc.activeElement).toBe(outside);
+    });
+
+    it("does not jump focus to a DIFFERENT control when the focused one disappears", () => {
+        const withRemedy = payload({
+            verdict: {
+                state: "STOPPED",
+                sentence: "A stop-file is present.",
+                remedy: "`bun run loop:afk --resume` clears the stop-file",
+                findings: [],
+            },
+        });
+        renderLoopStatus(withRemedy);
+        const copy = body.querySelector(".ls-copy");
+        expect(copy, "the remedy renders a copy button").toBeTruthy();
+        copy.focus();
+        expect(doc.activeElement).toBe(copy);
+
+        // A verdict whose remedy names no command has no copy button at all.
+        renderLoopStatus(
+            payload({
+                verdict: {
+                    state: "RUNNING",
+                    sentence: "The driver is running.",
+                    remedy: "nothing to do",
+                    findings: [],
+                },
+            })
+        );
+        expect(body.querySelector(".ls-copy")).toBeNull();
+        expect(doc.activeElement.className ?? "").not.toContain("ls-light");
+    });
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 });
