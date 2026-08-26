@@ -121,6 +121,9 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
         // The 2519-round-3 bug, re-expressed for this new read: this must
         // NOT be the shape a swallowed failure would have produced.
         expect(result.recentMerges).not.toEqual([]);
+        // Truncation is a property of a SUCCESSFUL page — a failed read
+        // reports `false`, never a stray `true` fabricated from nothing.
+        expect(result.recentMergesTruncated).toBe(false);
         // The failure is isolated to ITS OWN section — claims/queueDepth
         // stay healthy.
         expect(result.claimsError).toBeNull();
@@ -169,24 +172,115 @@ describe("loop-status — fetchRecentMergedPrs (#2631)", () => {
     it("filters out a merge older than the window, even when gh returns it", () => {
         const oldIso = new Date(Date.now() - 48 * 3600_000).toISOString();
         const freshIso = new Date(Date.now() - 1 * 3600_000).toISOString();
-        const prs = fetchRecentMergedPrs(24, () =>
+        const result = fetchRecentMergedPrs(24, () =>
             JSON.stringify([
                 { number: 1, title: "old", mergedAt: oldIso },
                 { number: 2, title: "fresh", mergedAt: freshIso },
             ])
         );
-        expect(prs.map((p) => p.number)).toEqual([2]);
+        expect(result.prs.map((p) => p.number)).toEqual([2]);
+        expect(result.truncated).toBe(false);
     });
 
     it("tolerates a null mergedAt (state=merged should always carry one, but never throws if it doesn't)", () => {
-        const prs = fetchRecentMergedPrs(24, () =>
+        const result = fetchRecentMergedPrs(24, () =>
             JSON.stringify([{ number: 1, title: "x", mergedAt: null }])
         );
-        expect(prs).toEqual([]);
+        expect(result.prs).toEqual([]);
     });
 
     it("returns an empty array on an empty gh response", () => {
-        expect(fetchRecentMergedPrs(24, () => "")).toEqual([]);
+        expect(fetchRecentMergedPrs(24, () => "").prs).toEqual([]);
+    });
+
+    it("raises the fetch limit well above a real measured 40-41-merge day, and reports truncation rather than silently dropping data (#2842 review finding)", () => {
+        // A #2842 review flagged the original --limit 50 as "one busy day
+        // from silently dropping data" against this repo's own measured
+        // 40-41-merge day. This asserts BOTH halves of the fix: the ceiling
+        // itself has real headroom over that measurement, AND — since no
+        // ceiling is future-proof — a page that DOES get exhausted is
+        // reported as `truncated`, not presented as a complete read.
+        let capturedArgs: string[] = [];
+        const runner = (args: string[]) => {
+            capturedArgs = args;
+            const limitIdx = args.indexOf("--limit") + 1;
+            const limit = Number(args[limitIdx]);
+            // Return exactly `limit` merges, all inside the window — the
+            // shape of a day busy enough to exhaust whatever page size was
+            // requested.
+            return JSON.stringify(
+                Array.from({ length: limit }, (_, i) => {
+                    const mergedAt = new Date(
+                        Date.now() - i * 1000
+                    ).toISOString();
+                    // updatedAt >= mergedAt always (merging is itself an
+                    // update) — even the OLDEST row here is still inside the
+                    // window, so a real `gh` page in this exact shape could
+                    // genuinely be hiding an older in-window merge.
+                    return {
+                        number: i,
+                        title: `pr ${i}`,
+                        mergedAt,
+                        updatedAt: mergedAt,
+                    };
+                })
+            );
+        };
+        const result = fetchRecentMergedPrs(24, runner);
+        const requestedLimit = Number(
+            capturedArgs[capturedArgs.indexOf("--limit") + 1]
+        );
+        expect(requestedLimit).toBeGreaterThanOrEqual(200);
+        expect(requestedLimit).toBeGreaterThan(41 * 4); // real-day headroom
+        expect(result.prs).toHaveLength(requestedLimit);
+        expect(result.truncated).toBe(true);
+    });
+
+    it("does NOT report truncation on an ordinary day well under the limit", () => {
+        const result = fetchRecentMergedPrs(24, () =>
+            JSON.stringify([
+                { number: 1, title: "a", mergedAt: new Date().toISOString() },
+            ])
+        );
+        expect(result.truncated).toBe(false);
+    });
+
+    it("does NOT report truncation on a FULL page whose oldest row is already outside the window — the exact live shape measured on this repo (#2842 fixup)", () => {
+        // Reproduced against this repo's own live `gh pr list --state merged
+        // --search sort:updated-desc --limit 200`: the page fills up on
+        // routine label/comment activity touching PRs merged WEEKS ago
+        // (updatedAt far outside any 24h window), while every PR actually
+        // merged in the last 24h sits at the very top of that same page —
+        // fully captured, nothing missing. `raw.length === limit` alone
+        // flagged this as truncated; it is not.
+        const inWindowMergedAt = new Date(Date.now() - 3600_000).toISOString();
+        const longAgoUpdatedAt = new Date(
+            Date.now() - 30 * 24 * 3600_000
+        ).toISOString();
+        const runner = (args: string[]) => {
+            const limit = Number(args[args.indexOf("--limit") + 1]);
+            const rows = [
+                {
+                    number: 1,
+                    title: "actually recent",
+                    mergedAt: inWindowMergedAt,
+                    updatedAt: inWindowMergedAt,
+                },
+                // Pad out to `limit` with old, merged-long-ago rows whose
+                // updatedAt is recent-ish but still outside the window,
+                // ending on one clearly outside it.
+                ...Array.from({ length: limit - 1 }, (_, i) => ({
+                    number: 100 + i,
+                    title: `old pr ${i}`,
+                    mergedAt: longAgoUpdatedAt,
+                    updatedAt: longAgoUpdatedAt,
+                })),
+            ];
+            return JSON.stringify(rows);
+        };
+        const result = fetchRecentMergedPrs(24, runner);
+        expect(result.prs.map((p) => p.number)).toEqual([1]);
+        expect(result.truncated).toBe(false);
     });
 });
 
@@ -221,6 +315,7 @@ function gathered(
         timelinePasses: [],
         recentMerges: [],
         recentMergesError: null,
+        recentMergesTruncated: false,
         ...overrides,
     };
 }

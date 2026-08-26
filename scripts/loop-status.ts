@@ -180,6 +180,44 @@ export function fetchUnclaimedReadyQueue(
 }
 
 /**
+ * A page size big enough that an ordinary day never truncates: the PR's own
+ * verification measured a real 40-41-merge day (a #2842 review flagged the
+ * original 50 as "one busy day from silently dropping data" — headroom, not
+ * a ceiling calibrated to what was observed once). `fetchRecentMergedPrs`
+ * still reports when even THIS was not enough, rather than let a genuinely
+ * record day look like a complete read.
+ */
+const MERGED_PR_FETCH_LIMIT = 200;
+
+/**
+ * `fetchRecentMergedPrs`'s result: the filtered, in-window PRs plus whether
+ * the underlying `gh` page could have missed one (#2842 review finding).
+ *
+ * `raw.length === limit` ALONE is not the right test, and was measured wrong
+ * live on this repo: the page is sorted by `updated`, not `merged` (`gh pr
+ * list` has no finer-than-a-day "merged after TIMESTAMP" filter), and a
+ * `--search sort:updated-desc` page exhausts its `limit` on almost every
+ * poll — this repo's own automation relabels/comments on old, long-merged
+ * PRs constantly, so 200 rows sorted by "touched most recently" reaches back
+ * WEEKS before it reaches 200, even though every PR actually merged in the
+ * last 24h sits at the very top. Flagging every one of those as truncated
+ * would be a truncation banner permanently on, i.e. noise, not a signal.
+ *
+ * The tight test uses the ordering the API actually promises: since merging
+ * a PR is itself an update, `updatedAt >= mergedAt` always — so any PR
+ * merged within the window necessarily has `updatedAt` within the window
+ * too, and sorting by `updated-desc` is GUARANTEED to surface it before the
+ * page runs out, UNLESS the page's own limit is exhausted before its
+ * `updatedAt` values even reach back past the window's cutoff. That is
+ * `raw.length === limit && the OLDEST row we got still has updatedAt >=
+ * cutoff` — a page that ran out mid-window, not merely a full page.
+ */
+export interface MergedPrFetchResult {
+    prs: MergedPr[];
+    truncated: boolean;
+}
+
+/**
  * PRs merged within `windowHours` — the Now timeline's merge-tick data
  * source (#2631). Nothing in the existing gather already carries this:
  * `Receipt` has no merged outcome (only `pr-open`), and the driver's own log
@@ -193,8 +231,9 @@ export function fetchUnclaimedReadyQueue(
  */
 export function fetchRecentMergedPrs(
     windowHours: number,
-    runner: (args: string[]) => string = ghChecked
-): MergedPr[] {
+    runner: (args: string[]) => string = ghChecked,
+    limit: number = MERGED_PR_FETCH_LIMIT
+): MergedPrFetchResult {
     const cutoffMs = Date.now() - windowHours * 3600_000;
     const raw = JSON.parse(
         runner([
@@ -205,12 +244,17 @@ export function fetchRecentMergedPrs(
             "--search",
             "sort:updated-desc",
             "--json",
-            "number,title,mergedAt",
+            "number,title,mergedAt,updatedAt",
             "--limit",
-            "50",
+            String(limit),
         ]) || "[]"
-    ) as { number: number; title: string; mergedAt: string | null }[];
-    return raw
+    ) as {
+        number: number;
+        title: string;
+        mergedAt: string | null;
+        updatedAt: string;
+    }[];
+    const prs = raw
         .filter(
             (pr): pr is { number: number; title: string; mergedAt: string } =>
                 pr.mergedAt !== null && Date.parse(pr.mergedAt) >= cutoffMs
@@ -220,6 +264,15 @@ export function fetchRecentMergedPrs(
             title: pr.title,
             mergedAt: pr.mergedAt,
         }));
+    // The page ran out (`raw.length === limit`) AND it ran out before its
+    // own `updatedAt` values crossed back past the window's cutoff — see
+    // `MergedPrFetchResult`'s doc comment. A page that fills up on rows all
+    // older than the window (this repo's routine shape: old PRs relabelled
+    // recently) still fully covers the window and is NOT truncated.
+    const oldestUpdatedMs =
+        raw.length > 0 ? Date.parse(raw[raw.length - 1]!.updatedAt) : -Infinity;
+    const truncated = raw.length >= limit && oldestUpdatedMs >= cutoffMs;
+    return { prs, truncated };
 }
 
 export interface GatherLoopStatusOptions {
@@ -300,6 +353,16 @@ export interface GatheredLoopStatus {
      */
     recentMerges: MergedPr[] | null;
     recentMergesError: string | null;
+    /**
+     * True when `fetchRecentMergedPrs`'s underlying `gh` page was exhausted
+     * (#2842 review finding) — the fetch limit is generous (200, ~5x a real
+     * measured 40-41-merge day), but a busy enough day can still hit it, and
+     * silent truncation reads as "everything is here" when it is not.
+     * `false`, never `null`, on a failed read (`recentMergesError` already
+     * covers "cannot tell" — truncation is a property of a SUCCESSFUL page,
+     * not a second failure mode).
+     */
+    recentMergesTruncated: boolean;
 }
 
 /**
@@ -425,9 +488,13 @@ export function gatherLoopStatus(
         receiptErrors: errors,
         timelinePasses,
         recentMerges:
-            mergedPrsSection.status === "ok" ? mergedPrsSection.data : null,
+            mergedPrsSection.status === "ok" ? mergedPrsSection.data.prs : null,
         recentMergesError:
             mergedPrsSection.status === "ok" ? null : mergedPrsSection.error,
+        recentMergesTruncated:
+            mergedPrsSection.status === "ok"
+                ? mergedPrsSection.data.truncated
+                : false,
     };
 }
 

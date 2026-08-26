@@ -320,6 +320,35 @@ describe("dashboard tooltip engine — declared terms (#2629)", () => {
         expect(tipOf(win).innerHTML).toContain("command family");
     });
 
+    it("never paints an aria-label over an empty element's own visual content (#2631/#2842)", () => {
+        // The exact shape of the Now timeline's merge tick (`.ls-tl-merge`,
+        // `now-timeline.js`): a 5px-wide colour mark with NO visible label
+        // by design, its accessible name carried entirely by its own
+        // `aria-label`. A #2842 review measured the OLD behaviour in a real
+        // browser: every one of a live day's 40 ticks rendered the literal
+        // word "merged" — the glossary label filled into `textContent`
+        // because the element was empty — a 45px text run painted over a
+        // 5px box.
+        const win = mountPage(
+            `<button id="tick" data-term="pr.merged" aria-label="PR #123 merged: fix things"></button>`
+        );
+        installTooltipEngine();
+        const tick = win.document.getElementById("tick")!;
+
+        // The whole point: textContent stays EMPTY — no fill, no overlap —
+        // while the tooltip/description machinery still works exactly as
+        // for any other declared term.
+        expect(tick.textContent).toBe("");
+        expect(tick.getAttribute("aria-label")).toBe(
+            "PR #123 merged: fix things"
+        );
+        expect(tick.getAttribute("tabindex")).toBe("0");
+        expect(tick.getAttribute("aria-describedby")).toBe("tip");
+
+        fire(win, tick, "mouseover");
+        expect(tipOf(win).innerHTML).toContain("merged");
+    });
+
     it("picks up a term rendered AFTER install — the innerHTML re-render case", async () => {
         const win = mountPage(`<div id="host"></div>`);
         installTooltipEngine();

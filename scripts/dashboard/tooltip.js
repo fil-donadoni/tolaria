@@ -137,9 +137,20 @@ function termTargetOf(node) {
 
 /**
  * Enhance every declared term under `root`: focusable, described by the
- * tooltip layer, and — when the element is empty — filled with its human
- * label so a surface can write `<th data-term="cmd_bucket"></th>` and get
- * "command family".
+ * tooltip layer, and — when the element is empty AND has no accessible name
+ * of its own — filled with its human label so a surface can write
+ * `<th data-term="cmd_bucket"></th>` and get "command family".
+ *
+ * The `aria-label` exception (#2631 fixup) exists because an element can be
+ * "empty" on purpose — a merge tick (`.ls-tl-merge`, `now-timeline.js`) is a
+ * 5px-wide colour mark with NO visible label by design, its accessible name
+ * carried entirely by its own `aria-label`. Filling `textContent` there
+ * doesn't just duplicate the name, it PAINTS OVER the mark: measured in a
+ * real browser, a 45px-wide "merged" text run rendered on top of every 5px
+ * tick, all 40 of a live day's ticks illegible. An element that already
+ * declares `aria-label` has already answered "what do I say to non-sighted
+ * users" — this function's job is the DESCRIPTION (the tooltip body), not a
+ * second, competing NAME.
  *
  * Idempotent (a re-enhanced element is skipped via `data-term-ready`), and it
  * reports the terms it could NOT resolve so a caller or a test can see a
@@ -170,7 +181,10 @@ export function enhanceTerms(root) {
         }
         if (el.getAttribute("data-term-ready") === "1") continue;
         el.setAttribute("data-term-ready", "1");
-        if (!el.textContent || !el.textContent.trim()) {
+        if (
+            !el.hasAttribute("aria-label") &&
+            (!el.textContent || !el.textContent.trim())
+        ) {
             el.textContent = entry.label;
         }
         el.classList.add("term");

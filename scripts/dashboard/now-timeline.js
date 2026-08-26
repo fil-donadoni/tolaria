@@ -97,15 +97,31 @@ const MIN_ITEM_PCT = 0.6;
 /** Minimum centre-to-centre spacing between claim pins — see `deconflict`. */
 const MIN_PIN_GAP_PCT = 1.2;
 /**
- * Minimum spacing between merge ticks — MEASURED, not guessed. A real
- * synthetic pointer move (Playwright `page.mouse.move` to a tick's own
- * `getBoundingClientRect()` centre — `elementFromPoint` alone can disagree
- * with the browser's actual `:hover` target at this scale, so both were
- * checked) landed `:hover` on a NEIGHBOUR tick, not the requested one, at
- * 0.8% (~10px on a typical desktop track for 5px-wide ticks) on a live day
- * with 41 merges; still wrong at 1.6%. 2% is where it held. Wider than a
- * pin's own gap: a tick has no padding around its hit target the way a
- * 14px circular pin does.
+ * Minimum spacing between merge ticks — MEASURED, not guessed, and
+ * RE-measured for #2842 (the original number below turned out to be
+ * measured through a different bug, not a real density limit — see that
+ * fixup's own note).
+ *
+ * A #2631 pass measured `:hover` landing on a NEIGHBOUR tick at 0.8% and
+ * 1.6%, holding only at 2%, and shipped 2% on that basis. A #2842 review
+ * traced the ROOT CAUSE to a separate bug: every merge tick was empty
+ * (`mergeTickHtml` has no visible child), and `tooltip.js`'s `enhanceTerms`
+ * filled every empty `[data-term]` element with its glossary label —
+ * painting a 45px-wide "merged" text run on top of every 5px tick. THAT is
+ * what stole `:hover` from a neighbour up to 22px away — not tick density.
+ * Fixed in `tooltip.js` (an element with its own `aria-label` is no longer
+ * filled).
+ *
+ * Re-measured the same way (Playwright `page.mouse.move` to a tick's own
+ * `getBoundingClientRect()` centre, THEN checked both `elementFromPoint` AND
+ * `:hover` — `elementFromPoint` alone can disagree with the browser's actual
+ * hover target at this scale) against this repo's own live day (39-42
+ * merges) at all five ADR-0101 viewports, narrowest first: 0.8% still failed
+ * on the narrowest track (phone portrait, 390px), but 1.0%, 1.2% and 1.6%
+ * all held with ZERO mismatches at every viewport. 2% is kept anyway —
+ * roughly 2x the now-confirmed working minimum, not because a smaller value
+ * was shown to fail, but because the safety margin is now backed by a real
+ * (bug-free) measurement instead of an accidental one.
  */
 const MIN_TICK_GAP_PCT = 2;
 
@@ -188,39 +204,58 @@ function pct(ms, startMs, endMs) {
  * issues claimed 14 SECONDS apart rendered as fully overlapping 14px circles,
  * one entirely unclickable (`elementFromPoint` at its centre returned its
  * neighbour's glyph, never itself). A 24-hour axis cannot show second-level
- * separation anyway, so every item keeps its OWN gap-worth of space and only
- * ever moves RIGHT of where its raw timestamp placed it — never left of it,
- * so a nudge can only make an item's reported time look slightly LATER than
- * it really was, never earlier.
+ * separation anyway, so every item keeps its OWN gap-worth of space.
  *
  * `items` must already be sorted ascending by `.left` — callers sort a COPY
  * for this (the de-collided objects are the SAME references the caller's own
  * array holds, so the effect is visible there too without a second pass).
  *
+ * ## History (why this is a two-pass cascade, not one)
+ *
  * Never pushes an item PAST the right edge, and never collapses two items
  * onto the SAME position — measured BOTH failures live, in order, on the
- * same real 40-merge day: the naive forward-only cascade first ran an
- * item's `.left` past 100%, off the visible track entirely; a shared
- * ceiling clamp fixed that but reproduced the identical bug one level down
- * (the last TWO ticks landed on the exact same clamped position); a uniform
- * leftward SHIFT of the whole cascade fixed clustering at the very end but
- * broke on a THIRD real shape — most items spread out, then a dense cluster
- * right before "now" — because shifting the entire array left to fix the
- * tail has nowhere to go once the untouched HEAD is already sitting at (or
- * near) the left edge with no slack of its own to give up.
+ * same real 40-merge day: a forward-only cascade first ran an item's `.left`
+ * past 100%, off the visible track entirely; a shared ceiling clamp fixed
+ * that but reproduced the identical bug one level down (the last TWO ticks
+ * landed on the exact same clamped position); a uniform leftward SHIFT of
+ * the whole cascade fixed clustering at the very end but broke on a THIRD
+ * real shape — most items spread out, then a dense cluster right before
+ * "now" — because shifting the entire array left to fix the tail has
+ * nowhere to go once the untouched HEAD is already sitting at (or near) the
+ * left edge with no slack of its own to give up.
  *
- * That is the general lesson: a purely LOCAL cascade (each item reacting
- * only to its immediate predecessor) cannot always find a globally valid
- * layout, because slack sitting unused between two clusters is invisible
- * to it. Rather than implement full constrained isotonic placement to
- * reclaim that slack, this falls back to something simpler and PROVABLY
- * correct whenever the cascade cannot fit: throw away the raw positions
- * for spacing purposes and space every item EVENLY by rank, `i * 100/n`.
- * That is always strictly increasing (never a duplicate) and always inside
- * [0, 100) — less faithful to the exact timestamp on a very crowded window,
- * but an honest picture in its own right: a comb of evenly-spaced ticks IS
- * what "too many events to place individually by time" looks like, and the
- * ordinary (uncrowded) case never reaches this branch at all.
+ * A fourth attempt "solved" all three by discarding every raw position on
+ * overflow and re-spacing EVERY item evenly by rank (`i * 100/n`) — always
+ * valid, but a fabrication: a #2842 review caught it rewriting a claim taken
+ * 20 HOURS ago to render at 0%, alongside four claims taken within the last
+ * 7 SECONDS of each other spread across 0/20/40/60/80% as though each were
+ * hours apart, because ANY overflow anywhere in the array — even four items
+ * bunched in the last few seconds — discarded the position of every OTHER
+ * item too, including ones nowhere near the collision.
+ *
+ * ## The fix: forward, then backward
+ *
+ * A single forward pass can only ever push an item right of a colliding
+ * predecessor — it has no way to reclaim slack that sits UNUSED earlier in
+ * the array once a later cluster runs out of room. So: run the forward pass
+ * first (unchanged — never earlier than an item's own raw position). If
+ * that alone fits (the ordinary, uncrowded case — most polls), stop; this is
+ * IDENTICAL to before. Only when the forward cascade overflows past 100%
+ * does a SECOND, backward pass run: clamp the newest item to the edge, then
+ * walk left, pulling each item no closer than `minGapPct` to its
+ * already-settled successor. This only ever tightens the CROWDED TAIL —
+ * an item with room to spare on both sides keeps its forward-pass position
+ * exactly, because `Math.min(current, ceiling)` is a no-op once `ceiling`
+ * already has slack. A lone claim from 20 hours ago, far from any collision,
+ * is therefore never touched at all.
+ *
+ * Only when even the backward pass runs out of room — genuinely more items
+ * than the window can fit at `minGapPct` each, a physical impossibility, not
+ * a bug — does the ORIGINAL rank-by-position comb kick in, scoped to this
+ * one unrecoverable case instead of firing on every overflow: an evenly
+ * spaced comb IS the honest picture of "too many events to place
+ * individually by time", but only when that is actually true of the WHOLE
+ * array, not merely of its tail.
  *
  * @param {Array<{left: number}>} sortedByLeft
  * @param {number} minGapPct
@@ -228,12 +263,34 @@ function pct(ms, startMs, endMs) {
 function deconflict(sortedByLeft, minGapPct) {
     const n = sortedByLeft.length;
     if (n === 0) return;
+
+    const raw = sortedByLeft.map((item) => item.left);
+
+    // Forward pass — unchanged from the original: never earlier than an
+    // item's own raw position, only ever pushed right of a colliding
+    // predecessor.
     let cursor = 0;
-    for (const item of sortedByLeft) {
-        if (item.left < cursor) item.left = cursor;
-        cursor = item.left + minGapPct;
+    for (let i = 0; i < n; i++) {
+        sortedByLeft[i].left = Math.max(raw[i], cursor);
+        cursor = sortedByLeft[i].left + minGapPct;
     }
-    if (sortedByLeft[n - 1].left > 100) {
+
+    if (sortedByLeft[n - 1].left <= 100) return;
+
+    // Overflow: a cluster near "now" needed more room than the forward pass
+    // could give it. Backward pass, tightening only what still collides.
+    sortedByLeft[n - 1].left = 100;
+    for (let i = n - 2; i >= 0; i--) {
+        const ceiling = sortedByLeft[i + 1].left - minGapPct;
+        sortedByLeft[i].left = Math.min(sortedByLeft[i].left, ceiling);
+    }
+
+    // The backward pass ran out of room and pushed the EARLIEST item
+    // negative — more items than this window can fit at `minGapPct` each,
+    // even granting every one of them the whole axis. That is the one shape
+    // that genuinely cannot be placed honestly; fall back to the comb, for
+    // the whole array, exactly as before.
+    if (sortedByLeft[0].left < 0) {
         const step = 100 / n;
         sortedByLeft.forEach((item, i) => {
             item.left = i * step;
@@ -466,6 +523,14 @@ export function timelineSectionHtml(data, nowMs = Date.now()) {
     const merges = mergeItems(data, nowMs);
     const claimsUnavailable = data.claimsError != null;
     const mergesUnavailable = data.recentMergesError != null;
+    // Truncation is a property of a SUCCESSFUL page (`recentMergesTruncated`,
+    // `scripts/loop-status.ts` — #2842 review finding), distinct from a
+    // failed read: an exhausted `gh` page still returned real merges, so it
+    // is never treated as UNAVAILABLE, but silently presenting a possibly
+    // partial page as complete is the same "everything is here" lie in a
+    // smaller shape.
+    const mergesTruncated =
+        !mergesUnavailable && data.recentMergesTruncated === true;
     const nothingKnown =
         passes.length === 0 &&
         claims.length === 0 &&
@@ -479,6 +544,9 @@ export function timelineSectionHtml(data, nowMs = Date.now()) {
             : "") +
         (mergesUnavailable
             ? `<div class="ls-unavailable">⚠ ${esc(data.recentMergesError)} — merge ticks may be incomplete</div>`
+            : "") +
+        (mergesTruncated
+            ? `<div class="ls-unavailable">⚠ merge history hit its fetch limit — merge ticks may be incomplete</div>`
             : "");
 
     const body = nothingKnown ? emptyTimelineHtml() : timelineHtml(data, nowMs);

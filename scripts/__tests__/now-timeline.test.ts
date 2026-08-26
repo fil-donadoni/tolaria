@@ -13,6 +13,8 @@ import {
     timelineSectionHtml,
     TIMELINE_SECTION_ID,
 } from "../dashboard/now-timeline.js";
+// @ts-expect-error — same, and pure/data-only (#2629 module header).
+import { lookupTerm } from "../dashboard/glossary.js";
 
 /**
  * The Now timeline (#2631) — passes as blocks, claims as pins with an
@@ -52,6 +54,28 @@ describe("now-timeline — passOutcome (#2631 AC: died / ran-nothing / landed, n
     );
     it("an unrecognised future reason code defaults to died — the loud bucket, not a calm one", () => {
         expect(passOutcome("a-code-nobody-wrote-yet")).toBe("died");
+    });
+});
+
+describe("now-timeline — the four glossary keys this view added actually resolve (#2842 review finding)", () => {
+    // Pointed upstream, at `passOutcome` itself — the real producer — rather
+    // than at a hand-copied literal list, the same shape as
+    // `dashboard-glossary.test.ts`'s own completeness suite (walk the
+    // vocabulary a producer can actually emit, not the glossary's own keys).
+    it.each(["-", "no-progress", "claims-held", "rate-limit"])(
+        "passOutcome(%s)'s glossary term resolves to a real label",
+        (reason) => {
+            const term = `pass.${passOutcome(reason)}`;
+            const entry = lookupTerm(term);
+            expect(entry).toBeDefined();
+            expect(entry.label.length).toBeGreaterThan(0);
+        }
+    );
+
+    it("the merge tick's data-term ('pr.merged') resolves to a real label", () => {
+        const entry = lookupTerm("pr.merged");
+        expect(entry).toBeDefined();
+        expect(entry.label.length).toBeGreaterThan(0);
     });
 });
 
@@ -241,6 +265,57 @@ describe("now-timeline — claimItems (pins with an always-open tail)", () => {
         const rawLeft2 = 100 - ((2 - 14 / 3600) / TIMELINE_WINDOW_HOURS) * 100;
         expect(items[1].left).toBeGreaterThanOrEqual(rawLeft2 - 1e-6);
     });
+
+    it("a lone OLD claim's position survives a same-poll collision among unrelated fresh claims — de-collision must never rewrite a claim it did not need to touch (#2842 review regression)", () => {
+        // The exact shape a #2842 review reproduced through the real
+        // `deconflict`: one claim taken 20 HOURS ago, plus four claims
+        // taken within the last ~7 SECONDS of each other — the kind of
+        // near-simultaneous batch this loop's own claimItems call routinely
+        // produces. The old rank-by-position fallback discarded EVERY raw
+        // position the instant ANY item overflowed 100%, so the 20h claim
+        // rendered at 0% (as fresh as everything else) and the four
+        // seconds-old claims fanned out to 20/40/60/80% — as if each had
+        // been held for many additional hours. Neither statement is true.
+        const ages = [20, 7 / 3600, 5 / 3600, 4 / 3600, 2 / 3600];
+        const claims = ages.map((ageHours, i) => ({
+            issue: 3000 + i,
+            title: `claim ${i}`,
+            ageHours,
+            verdict: { state: "live", reason: "" },
+        }));
+        const items = claimItems({ claims }, NOW);
+        const oldClaim = items.find((it) => it.issue === 3000)!;
+        const rawOld = 100 - (20 / TIMELINE_WINDOW_HOURS) * 100; // 16.6667
+
+        // The 20h claim was nowhere near the collision (the other four are
+        // all within a few seconds of "now") — de-collision must leave it
+        // at its own raw position, not fold it into the same rank-spaced
+        // comb as the unrelated cluster.
+        expect(oldClaim.left).toBeCloseTo(rawOld, 2);
+
+        // The four fresh claims must still end up strictly increasing, in
+        // bounds, and clustered near "now" — not fanned out across the
+        // window as though each were hours old.
+        const fresh = items
+            .filter((it) => it.issue !== 3000)
+            .map((it) => it.left)
+            .sort((a, b) => a - b);
+        // Mirrors now-timeline.js's own (unexported) MIN_PIN_GAP_PCT — kept
+        // as a literal here rather than widening the module's export
+        // surface for one test constant.
+        const MIN_PIN_GAP_PCT = 1.2;
+        for (let i = 1; i < fresh.length; i++) {
+            expect(fresh[i]).toBeGreaterThanOrEqual(
+                fresh[i - 1] + MIN_PIN_GAP_PCT - 1e-9
+            );
+        }
+        for (const l of fresh) {
+            expect(l).toBeLessThanOrEqual(100);
+            // Genuinely close to "now" — nothing fanned out toward the
+            // middle of the window the way the discarded-positions bug did.
+            expect(l).toBeGreaterThan(90);
+        }
+    });
 });
 
 describe("now-timeline — mergeItems (ticks)", () => {
@@ -372,6 +447,43 @@ describe("now-timeline — timelineSectionHtml (composition + empty state)", () 
         );
         expect(html).toContain("gh pr list failed");
         expect(html).toContain("merge ticks may be incomplete");
+    });
+
+    it("surfaces a truncated (but successful) merge page as an incomplete note, distinct from UNAVAILABLE (#2842 review finding)", () => {
+        const html = timelineSectionHtml(
+            {
+                timelinePasses: [],
+                claims: [],
+                recentMerges: [
+                    {
+                        number: 1,
+                        title: "a",
+                        mergedAt: new Date(WS + HOUR_MS).toISOString(),
+                    },
+                ],
+                recentMergesError: null,
+                recentMergesTruncated: true,
+            },
+            NOW
+        );
+        expect(html).toContain("merge ticks may be incomplete");
+        // Never rendered as a failed read — the page succeeded, it just
+        // hit its own size limit.
+        expect(html).not.toContain("UNAVAILABLE");
+    });
+
+    it("does NOT render a truncation note on an ordinary, un-truncated page", () => {
+        const html = timelineSectionHtml(
+            {
+                timelinePasses: [],
+                claims: [],
+                recentMerges: [],
+                recentMergesError: null,
+                recentMergesTruncated: false,
+            },
+            NOW
+        );
+        expect(html).not.toContain("merge ticks may be incomplete");
     });
 
     it("escapes claim/pass/merge text — every field here is data from gh, not markup", () => {

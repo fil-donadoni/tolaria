@@ -634,6 +634,16 @@ tbody tr:hover {
     flex: none;
     width: 14px;
     height: 14px;
+    /* Centre the 14px pin on its wrap's own `left:X%` anchor (#2842 review
+       finding) instead of leading with it: at X=100% (a claim taken this
+       instant) an un-centred pin's own box started AT the right edge and
+       rendered fully outside the lane. `margin-left`, not `transform`,
+       because the pin is the FIRST flex child of `.ls-tl-claim-wrap` and
+       the tail is the second — a transform doesn't reflow layout, so it
+       would shift the pin without pulling the tail's start point along and
+       leave a gap between them; a negative margin shifts BOTH, keeping the
+       tail visually contiguous with the pin's (now centred) edge. */
+    margin-left: -7px;
     border-radius: 50%;
     border: none;
     padding: 0;
@@ -684,6 +694,14 @@ tbody tr:hover {
     cursor: help;
     background: var(--series-1);
     border-radius: 1px;
+    /* Centre the 5px tick on its own `left:X%` (#2842 review finding):
+       `left` positions a box's LEFT edge, so a merge that landed at
+       exactly "now" (left: 100%) rendered its whole 5px box past the
+       lane's right edge, fully outside it. A merge at left: 0% has the
+       mirror problem on the left edge — this fixes both, symmetrically,
+       with no JS-side pixel math (the lane's width is responsive and
+       unknown to `now-timeline.js`). */
+    transform: translateX(-50%);
 }
 
 .ls-tl-axis {
