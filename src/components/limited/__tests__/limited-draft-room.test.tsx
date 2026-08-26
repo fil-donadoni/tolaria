@@ -254,6 +254,19 @@ describe("LimitedDraftRoom — the room replaces the in-page pick screen (issue 
         // Pool band the same way, since the Booster then eats the surface's
         // full height before the Pool gets any.
         expect(stackedPool.className).toContain("overflow-y-auto");
+        // The Pool band's explicit floor (round-2 fixup, blocking review
+        // round 2): `overflow-y-auto` alone does NOT stop the Booster band
+        // from starving the Pool band to a sliver at a tall pack — CSS flex
+        // shrinking only ever shrinks under negative free space (the grow
+        // factor never runs), so `flex-1`'s `flex-basis: 0` left the Pool
+        // band's floor at 0 and the Booster absorbed the entire deficit
+        // (measured in real Chromium at 820x1180: Pool `clientHeight` 12px
+        // against a 1900px pack, byte-identical to the round-1 regression
+        // this test's `overflow-y-auto` assertions above did NOT catch). An
+        // explicit `min-height` is a hard floor a flex item's shrink factor
+        // cannot cross, unlike the automatic minimum size flexbox computes
+        // on its own.
+        expect(stackedPool.className).toContain("min-h-[17.5rem]");
         const stackedBooster = document.querySelector(
             "[data-slot=draft-stacked-booster]"
         )!;

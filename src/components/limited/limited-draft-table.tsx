@@ -740,21 +740,57 @@ export default function LimitedDraftTable({
                     // Tablet / desktop (ADR 0101 §6, restored by issue
                     // #2820): the Booster grid full width on top, the Pool
                     // (with its Sideboard rail beside it, `arrange="row"`,
-                    // the `LimitedDraftPool` default) beneath. Both bands are
-                    // `min-h-0 ... overflow-y-auto`, each-half-scrolls-on-
-                    // its-own discipline the (now-removed) split arm used,
-                    // just stacked vertically instead of side by side. The
+                    // the `LimitedDraftPool` default) beneath. Both bands
+                    // carry `overflow-y-auto`, each-half-scrolls-on-its-own
+                    // discipline the (now-removed) split arm used, just
+                    // stacked vertically instead of side by side. The
                     // Booster band is NOT `shrink-0`: the persisted Booster
                     // zoom slider (`useCardZoom`, zone `limited-booster`, max
                     // 2.2, localStorage) can grow the pack grid past the
                     // surface height on its own — a pack is NOT bounded to a
                     // fixed pixel footprint — so without its own scroller the
                     // Booster instead steals height from the Pool band below
-                    // it, collapsing the Pool (and the Sideboard beside it)
-                    // to a sliver. The Pool band's `flex-1` (`flex-basis: 0`)
-                    // keeps all shrink pressure on the Booster first, so a
-                    // pack short enough to fit the surface leaves the Pool
-                    // band untouched and un-scrolled.
+                    // it.
+                    //
+                    // Round-2 fixup correction (blocking review, 2nd pass):
+                    // `flex: 1 1 0%`'s `flex-basis: 0` was NOT enough to
+                    // protect the Pool band from that theft, because CSS flex
+                    // shrinking only ever SHRINKS under negative free space —
+                    // the grow factor never runs — so a tall pack's Booster
+                    // absorbed the ENTIRE deficit down to the surface height
+                    // while the Pool band sat at its 0 basis plus padding
+                    // (measured in real Chromium at 820x1180 by the round-2
+                    // review: Pool `clientHeight` 12px against a 1900px
+                    // pack). The Booster's own `overflow-y-auto` (added the
+                    // prior round) only changed WHERE the spillover
+                    // scrolled, not whether the Pool band collapsed. The
+                    // actual floor is the Pool band's explicit
+                    // `min-h-[17.5rem]` (280px) below — browsers honor an
+                    // EXPLICIT `min-height` as a hard floor on a flex item
+                    // regardless of its shrink factor (unlike the automatic
+                    // min-size flexbox computes on its own, which negative
+                    // free space overrides). 280px fits the Pool's own
+                    // minimum useful content at this component's
+                    // `CARD_MIN_W` floor (72px wide → 100.8px tall card, the
+                    // same floor `cardBase()` enforces everywhere else in
+                    // this file) plus its "Your Pool (n)" heading and one
+                    // Mana-Value column's header row, with the Sideboard
+                    // rail beside it at the same height (`arrange="row"`) —
+                    // and below it the Pool's own `overflow-y-auto` still
+                    // does its job for anything past one row. Re-measured
+                    // (`chrome-devtools-mcp`, 820x1180 real Chromium, a
+                    // 24-card seat, this fix): tall pack (booster zoom
+                    // slider pinned to 2.2× via its persisted localStorage
+                    // key, grid `scrollHeight` 3220px against a 794px
+                    // Booster band) Pool `clientHeight` 279px, pinned to the
+                    // floor and NOT scrolling — its one-row-per-MV-column
+                    // pile content fits inside it, with the header and the
+                    // Sideboard rail both visible; default-zoom pack (786px
+                    // grid, well under the 1112px surface) Pool
+                    // `clientHeight` 287px, unchanged by the floor (it was
+                    // already above 280px on its own, confirming the short-
+                    // pack case this round 1 already had right is
+                    // untouched).
                     <>
                         <div
                             className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto"
@@ -765,7 +801,7 @@ export default function LimitedDraftTable({
                         {showPool && (
                             <div
                                 data-slot="draft-stacked-pool"
-                                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto border-t border-border-accent/20 pt-3"
+                                className="flex min-h-[17.5rem] flex-1 flex-col gap-3 overflow-y-auto border-t border-border-accent/20 pt-3"
                             >
                                 {poolPane}
                             </div>
