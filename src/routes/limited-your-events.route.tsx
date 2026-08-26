@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import LoadingScreen from "~/components/ui/loading-screen";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 
@@ -22,14 +22,19 @@ import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 export default function LimitedYourEventsRoute() {
     useDocumentTitle("Your Limited Events");
     const navigate = useNavigate();
+    // The fixture-label filter survives the redirect (issue #2822): the
+    // `limited-your-events` walk enters at `/limited/events?label=ui-gate/`,
+    // and a redirect that dropped the param would land it on the unbounded
+    // list — measuring the deployment's own events, which is the bug.
+    const { label } = useSearch({ strict: false }) as { label?: string };
 
     useEffect(() => {
         void navigate({
             to: "/limited",
-            search: { mine: true },
+            search: { mine: true, ...(label ? { label } : {}) },
             replace: true,
         });
-    }, [navigate]);
+    }, [navigate, label]);
 
     return <LoadingScreen />;
 }

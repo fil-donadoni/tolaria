@@ -75,3 +75,17 @@ warrant its own look" are the `<main>`-as-page-scroller false positive already
 drafted in `docs/findings/2582-ui-gate-main-scroller-starved.md` — the event
 list simply grew past `probe.js`'s 10% threshold at two more viewports. Not a
 new defect.
+
+**Retired 2026-08-26 (#2822 shipped).** The premise is gone: the two surfaces
+this finding was about no longer measure the deployment's event list. Both walk
+`/limited?label=ui-gate/`, a URL-level filter whose row set is exactly the two
+seeded fixture events (`convex/limitedFixtures.ts`), and every other Limited /
+Draft walk clicks the row carrying `data-limited-event-label` instead of
+scanning the first three rows — the last positional selection in
+`scripts/ui-gate/surfaces.ts` is deleted. The ten cells re-recorded under #2825
+were re-recorded again against the fixture, with the "the row is
+data-dependent" hedges dropped from their `knownDebt` notes, and the acceptance
+evidence is in #2822's PR: two consecutive `bun run check:ui` runs with an
+unrelated Limited event created between them, identical on every `limited-*`
+and `draft-*` row. `status` stays `triaged` because that is the vocabulary
+`scripts/lib/findings.ts` accepts; nothing here is still open.

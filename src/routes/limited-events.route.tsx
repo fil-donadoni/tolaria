@@ -15,9 +15,15 @@ export default function LimitedEventsRoute() {
     const search = useSearch({ strict: false }) as {
         mine?: true;
         status?: LimitedEventStatusChip;
+        label?: string;
     };
     const mine = search.mine === true;
     const status = search.status;
+    // Fixture-label prefix (issue #2822). Carried through BOTH chip handlers
+    // below rather than read once and dropped: a filtered view that silently
+    // un-filters itself the moment the walk (or a human) touches Mine/status
+    // would put the deployment's real events back in the measurement.
+    const label = search.label;
 
     const onMineChange = (nextMine: boolean) => {
         void navigate({
@@ -25,6 +31,7 @@ export default function LimitedEventsRoute() {
             search: () => ({
                 ...(nextMine ? { mine: true as const } : {}),
                 ...(status ? { status } : {}),
+                ...(label ? { label } : {}),
             }),
             replace: true,
         });
@@ -37,6 +44,7 @@ export default function LimitedEventsRoute() {
             search: () => ({
                 ...(mine ? { mine: true as const } : {}),
                 ...(nextStatus ? { status: nextStatus } : {}),
+                ...(label ? { label } : {}),
             }),
             replace: true,
         });
@@ -46,6 +54,7 @@ export default function LimitedEventsRoute() {
         <LimitedEventsPage
             mine={mine}
             status={status}
+            label={label}
             onMineChange={onMineChange}
             onStatusChange={onStatusChange}
         />

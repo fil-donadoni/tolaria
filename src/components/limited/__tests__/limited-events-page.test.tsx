@@ -56,7 +56,14 @@ afterEach(() => {
     cleanup();
 });
 
-function makeEvent(overrides: Partial<LimitedEventView>): LimitedEventView {
+// `label` is on the SUMMARY view (`limitedEventSummaryValidator`, issue
+// #2822), which is what the two mocked list queries actually return; this
+// fixture has always been typed against the fatter detail view and cast, so
+// the override type is widened here rather than putting a list-row field on
+// `LimitedEventView` where nothing reads it.
+function makeEvent(
+    overrides: Partial<LimitedEventView> & { label?: string }
+): LimitedEventView {
     return {
         _id: "event-1",
         createdBy: "admin-1",
@@ -97,6 +104,7 @@ function renderPage(
             | "playing"
             | "done"
             | undefined;
+        label: string | undefined;
         onMineChange: (next: boolean) => void;
         onStatusChange: (next: string | undefined) => void;
     }> = {}
@@ -105,6 +113,7 @@ function renderPage(
         <LimitedEventsPage
             mine={props.mine ?? false}
             status={props.status}
+            label={props.label}
             onMineChange={props.onMineChange ?? vi.fn()}
             onStatusChange={props.onStatusChange ?? vi.fn()}
         />
@@ -288,5 +297,80 @@ describe("LimitedEventsPage — merged list (issue #2590)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Playing" }));
 
         expect(onStatusChange).toHaveBeenCalledWith(undefined);
+    });
+});
+
+// The fixture-label filter (issue #2822). `listOpenLimitedEvents` returns
+// every open event on the deployment to EVERYONE, so "give the check:ui lane
+// its own account" does not bound this list — the `?label=` prefix filter
+// does. Driven through the real page component, so a filter that silently
+// stopped narrowing (or narrowed on equality instead of prefix, which would
+// hide half the fixture from the two list surfaces) goes red here.
+describe("LimitedEventsPage — fixture label filter (issue #2822)", () => {
+    it("narrows the list to the seeded fixture, excluding the deployment's own events", () => {
+        openEventsMock.mockReturnValue([
+            makeEvent({ _id: "event-real", status: "open", seats: [] }),
+        ]);
+        myEventsMock.mockReturnValue([
+            makeEvent({
+                _id: "event-fixture-open",
+                label: "ui-gate/open",
+                status: "open",
+            }),
+            makeEvent({
+                _id: "event-fixture-draft",
+                label: "ui-gate/draft",
+                status: "started",
+            }),
+            makeEvent({ _id: "event-real-mine", status: "started" }),
+        ]);
+
+        renderPage({ label: "ui-gate/" });
+
+        // Both fixture rows, and only those two.
+        expect(screen.getAllByText("View")).toHaveLength(2);
+    });
+
+    it("addresses exactly one fixture row when given a full label", () => {
+        openEventsMock.mockReturnValue([]);
+        myEventsMock.mockReturnValue([
+            makeEvent({
+                _id: "event-fixture-open",
+                label: "ui-gate/open",
+                status: "open",
+            }),
+            makeEvent({
+                _id: "event-fixture-draft",
+                label: "ui-gate/draft",
+                status: "started",
+            }),
+        ]);
+
+        renderPage({ label: "ui-gate/draft" });
+
+        expect(screen.getAllByText("View")).toHaveLength(1);
+    });
+
+    it("leaves the list unfiltered when no label is given", () => {
+        openEventsMock.mockReturnValue([]);
+        myEventsMock.mockReturnValue([
+            makeEvent({ _id: "event-fixture", label: "ui-gate/open" }),
+            makeEvent({ _id: "event-real" }),
+        ]);
+
+        renderPage();
+
+        expect(screen.getAllByText("View")).toHaveLength(2);
+    });
+
+    it("shows the filtered-empty message when the fixture is not seeded", () => {
+        openEventsMock.mockReturnValue([]);
+        myEventsMock.mockReturnValue([makeEvent({ _id: "event-real" })]);
+
+        renderPage({ label: "ui-gate/" });
+
+        expect(
+            screen.getByText("No Limited Events match this filter.")
+        ).toBeTruthy();
     });
 });

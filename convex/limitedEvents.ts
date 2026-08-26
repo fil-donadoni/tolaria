@@ -493,6 +493,13 @@ const limitedEventMatchRecordValidator = v.object({
 export const limitedEventSummaryValidator = v.object({
     _id: v.string(),
     createdBy: v.string(),
+    // Fixture handle (issue #2822), absent on every player-created event —
+    // see `convex/schema.ts`. On the list row it is what the `?label=` filter
+    // (`src/router.tsx`) narrows on and what
+    // `limited-event-list-item.tsx` renders as `data-limited-event-label`, so
+    // the `check:ui` lane can address ONE seeded event by name rather than by
+    // its position in a list the deployment's own events also populate.
+    label: v.optional(v.string()),
     type: eventTypeValidator,
     status: eventStatusValidator,
     seatCount: v.number(),
@@ -1262,6 +1269,7 @@ export async function projectEventSummary(
     return {
         _id: event._id,
         createdBy: event.createdBy,
+        label: event.label,
         type: event.type,
         status: event.status,
         seatCount: event.seatCount,

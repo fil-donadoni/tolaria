@@ -41,11 +41,17 @@ import CreateLimitedEventDialog, {
 export default function LimitedEventsPage({
     mine,
     status,
+    label,
     onMineChange,
     onStatusChange,
 }: {
     mine: boolean;
     status: LimitedEventStatusChip | undefined;
+    /** Fixture-label PREFIX (issue #2822, `?label=` — see `src/router.tsx`).
+     *  Undefined for every real visit; the `check:ui` lane's list walks pass
+     *  `ui-gate/` so their row set is the seeded fixture's and nothing
+     *  else. */
+    label: string | undefined;
     onMineChange: (next: boolean) => void;
     onStatusChange: (next: LimitedEventStatusChip | undefined) => void;
 }) {
@@ -108,9 +114,18 @@ export default function LimitedEventsPage({
             if (status && limitedEventStatusChip(event) !== status) {
                 return false;
             }
+            // PREFIX, not equality (issue #2822): the fixture is a SET of
+            // labelled events (`ui-gate/open`, `ui-gate/draft`), and the two
+            // list surfaces need all of them at once — while `?label=` with
+            // a full label still addresses exactly one row for the walks that
+            // open a single event. An unlabelled event never matches, which
+            // is what bounds the list to the fixture.
+            if (label && !(event.label ?? "").startsWith(label)) {
+                return false;
+            }
             return true;
         });
-    }, [merged, mine, status, viewerId]);
+    }, [merged, mine, status, label, viewerId]);
 
     if (
         openEvents === undefined ||
@@ -139,7 +154,7 @@ export default function LimitedEventsPage({
     };
 
     const emptyMessage =
-        mine || status
+        mine || status || label
             ? "No Limited Events match this filter."
             : "No open Limited Events right now.";
 

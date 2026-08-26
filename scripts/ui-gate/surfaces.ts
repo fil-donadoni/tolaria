@@ -20,6 +20,19 @@
  * than making it lie.
  */
 import type { Page } from "playwright";
+// The fixture's labels come from the leaf module the SEEDING mutation reads
+// them from — one definition, so renaming a label cannot leave the lane
+// addressing a row that no longer exists (issue #2822 review). It is that
+// leaf and never `convex/limitedFixtures.ts` itself: the seeder is a
+// registered Convex function module, and importing it here would pull
+// gitignored `convex/_generated` into `bun run land` (round 2). Aliased to
+// the shorter names the walks read with; see the block above
+// `FIXTURE_LIST_PATH` for what they address.
+import {
+    UI_GATE_DRAFT_LABEL as FIXTURE_DRAFT_LABEL,
+    UI_GATE_LABEL_PREFIX as FIXTURE_LABEL_PREFIX,
+    UI_GATE_OPEN_LABEL as FIXTURE_OPEN_LABEL,
+} from "../../convex/limited/uiGateFixtureLabels";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -123,7 +136,7 @@ async function clickIfVisible(
 }
 
 /**
- * Open the n-th event under YOUR CURRENT EVENTS on `/limited`.
+ * Open an event's page from `/limited`.
  *
  * The row's `View` is a BUTTON that navigates programmatically, not an
  * anchor — harvesting `a[href^='/limited/']` finds nothing and reports "no
@@ -131,6 +144,42 @@ async function clickIfVisible(
  * the runbook names.
  */
 const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
+
+/**
+ * THE SEEDED FIXTURE (issue #2822). Every Limited/Draft walk below addresses
+ * ONE labelled event, never "the first row of whatever this account can see".
+ *
+ * The disease this cures: `listOpenLimitedEvents` returns every open event on
+ * the deployment to everyone, so both the ROW COUNT of `/limited` and WHICH
+ * SEAT the Draft Room walks measured were functions of a month of hand-made
+ * events rather than of the code under test — `budgets.json` ceilings rotted
+ * with no `src/` change, twice, with byte-identical numbers
+ * (`docs/findings/2671-limited-list-budgets-drifted.md`). Giving the lane its
+ * own account would not have bounded the list; addressing a fixture does.
+ *
+ * The rows are seeded by `convex/limitedFixtures.ts` and are DEPLOYMENT-LOCAL
+ * (nothing in git, same tradeoff as a `debugScenarios` label). A missing
+ * fixture is therefore an expected state, and it reports UNWALKED carrying
+ * `SEED_FIXTURES_COMMAND` — never a fallback walk of some other event, which
+ * is precisely what used to make a PASS mean less than it read.
+ *
+ * `FIXTURE_LABEL_PREFIX` / `FIXTURE_OPEN_LABEL` / `FIXTURE_DRAFT_LABEL` are
+ * imported at the top of this file from `convex/limitedFixtures.ts` — the
+ * seeder owns the strings, this file only addresses them.
+ */
+const SEED_FIXTURES_COMMAND = `bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'`;
+
+/** The list, narrowed to the fixture rows by the `?label=` prefix filter
+ *  (`src/router.tsx`). This is what makes the two list surfaces' row count a
+ *  function of the LANE (two seeded events) instead of the deployment. */
+const FIXTURE_LIST_PATH = `/limited?label=${FIXTURE_LABEL_PREFIX}`;
+
+/** The row handle `limited-event-list-item.tsx` renders for a labelled event.
+ *  `key={event._id}` is a React key, not an attribute — before this there was
+ *  nothing in the DOM to select one specific event with. */
+function fixtureRow(label: string): string {
+    return `[data-limited-event-label="${label}"]`;
+}
 
 /** A pack tile in the Draft Room. Two traps in one selector:
  *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
@@ -143,10 +192,35 @@ const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
 const DRAFT_PICK_TILE = "[role=button][aria-label^='Draft pick:']";
 
 /** The phone-only snap surface and its two strip halves (issue #2588). Absent
- *  at desktop/tablet widths, where the room renders the split instead. */
+ *  at desktop/tablet widths, where the room renders the STACKED arrangement
+ *  instead — Booster band on top, Pool band beneath, each with its own
+ *  scroller (issue #2820; there is no `"split"` layout value any more). */
 const DRAFT_SNAP_SCROLLER = "[data-slot=draft-snap-scroller]";
 const DRAFT_STRIP_DROP = "[data-slot=draft-strip-drop]";
 const DRAFT_POOL = "[data-slot=draft-pool]";
+
+/** The Pool's OWN scroll band in the stacked arrangement (issue #2820,
+ *  `limited-draft-table.tsx` — `min-h-[17.5rem] flex-1 overflow-y-auto`).
+ *
+ *  Named explicitly, because the thing it replaced — "walk UP from
+ *  `DRAFT_POOL` and scroll the first ancestor that overflows" — is precisely
+ *  the shape issue #2822 exists to kill, one element up from the event list.
+ *  An ancestor search does not say WHICH element it means, so when #2820
+ *  changed the arrangement under it the search silently kept resolving: at
+ *  every non-phone viewport it walked the whole chain to `<html>` and
+ *  scrolled NOTHING (measured on the rebased tree: `draft-stacked-pool`
+ *  508/508 at 1440x900x2, 287/287 at 820x1180x2, 441/441 at 1180x820x2 —
+ *  `scrollHeight === clientHeight` at each, and every ancestor above it the
+ *  same). Had ONE of those ancestors overflowed — `<main>` is one gesture
+ *  from being a page scroller on this app, `docs/findings/2582-…` — it would
+ *  have scrolled the PAGE and reported that as the pool at its far extent.
+ *
+ *  Its presence is now the walk's ASSERTION that the arrangement is still the
+ *  one the walk was written for: absent, the surface goes UNWALKED and a
+ *  human re-teaches it, rather than the lane quietly measuring elsewhere. The
+ *  scrolling itself reaches past it into the pool's own scrollers — see
+ *  `reachDraftPoolStop`. */
+const DRAFT_STACKED_POOL = "[data-slot=draft-stacked-pool]";
 
 /** A card tile inside the Pool/Sideboard pane, matched by the tooltip
  *  `DeckCardTile` always carries (`title="Remove <name>…"`,
@@ -161,6 +235,15 @@ const DRAFT_POOL_TILE = `${DRAFT_POOL} [data-card-tile][title^='Remove ']`;
  *  Booster panel and `draft-pool-peek`'s Pool panel assert the SAME mount
  *  point rather than two copies of the literal. */
 const DRAFT_PEEK_PANEL = "[data-peek-panel]";
+
+/** The one CTA that tells the POOL's `DeckZonePeek` apart from the BOOSTER's
+ *  own `PeekPanel` — both render `[data-peek-panel]`, and the Booster's is
+ *  already mounted by the time `draft-pool-peek` clicks anything
+ *  (`pinDraftSelection`). `Move to…` is appended by `deck-zone-peek.tsx`
+ *  alone, from its column-pin sheet. `EditingActionButton` publishes each
+ *  CTA's label as `data-editing-action` (`editing-action-button.tsx`), which
+ *  is the same handle the component suites drive. */
+const DRAFT_POOL_PEEK_CTA = `${DRAFT_PEEK_PANEL} [data-editing-action="Move to…"]`;
 
 /**
  * Pins the Draft Room's Selected Card state (issue #2677). `seat.selectedPickId`
@@ -215,42 +298,38 @@ async function pinDraftSelection(page: Page): Promise<void> {
  * about what "the room" means OR what seat state they measure in.
  */
 async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
-    const count = await limitedEventCount(page, ctx);
-    if (count === 0) {
+    const landed = await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+    if (landed === "event") {
+        if (
+            !(await clickIfVisible(
+                page,
+                "a:has-text('Enter the Draft Room')",
+                4000
+            ))
+        ) {
+            throw new Unreachable(
+                `the "${FIXTURE_DRAFT_LABEL}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+            );
+        }
+        await page
+            .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
+            .catch(() => {});
+        await settle(page);
+    }
+    if (!page.url().endsWith("/draft")) {
         throw new Unreachable(
-            "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+            `the "${FIXTURE_DRAFT_LABEL}" fixture did not land in the Draft Room — the page is at ${page.url()}`
         );
     }
-    for (let i = 0; i < Math.min(count, 3); i++) {
-        const landed = await openLimitedEvent(page, ctx, i);
-        if (landed === null) continue;
-        if (landed === "event") {
-            if (
-                !(await clickIfVisible(
-                    page,
-                    "a:has-text('Enter the Draft Room')",
-                    4000
-                ))
-            ) {
-                continue;
-            }
-            await page
-                .waitForURL(/\/draft$/, { timeout: NAV_TIMEOUT })
-                .catch(() => {});
-            await settle(page);
-        }
-        if (!page.url().endsWith("/draft")) continue;
-        // The room renders for a Sealed seat too (reveal mode), so reaching
-        // the URL is not enough: the surface these rows budget is the PICK
-        // screen, and its tiles are the proof.
-        if (await visible(page, DRAFT_PICK_TILE, 4000)) {
-            await pinDraftSelection(page);
-            return;
-        }
+    // The room renders for a Sealed seat too (reveal mode), so reaching the
+    // URL is not enough: the surface these rows budget is the PICK screen, and
+    // its tiles are the proof.
+    if (!(await visible(page, DRAFT_PICK_TILE, 4000))) {
+        throw new Unreachable(
+            `the "${FIXTURE_DRAFT_LABEL}" fixture's Draft Room rendered no pack tile for this seat. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+        );
     }
-    throw new Unreachable(
-        "no Limited event is in the drafting phase with a live pack for this seat (the pick screen is /limited/<id>/draft since issue #2587)"
-    );
+    await pinDraftSelection(page);
 }
 
 /**
@@ -263,9 +342,10 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
  * screen, and a collapsed MV row passes every happy-dom test there is.
  *
  * Off a phone there is no snap surface (`useViewportMode` calls both tablets
- * "desktop"), so the equivalent state is the stacked arrangement's Pool band
- * scrolled to its end — still the pool at its far extent, still a state
- * `draft-pick` never probes.
+ * "desktop"), so the equivalent state is every scroller the pool owns driven
+ * to its end — still the pool at its far extent, still a state `draft-pick`
+ * never probes. Which element that IS changed with issue #2820: see the
+ * scroll block below, and `DRAFT_STACKED_POOL`.
  *
  * Extracted (issue #2667 review) so `draft-pool-peek` can reach the SAME pool
  * stop and then go one gesture further (select a tile, mount the Peek Panel)
@@ -319,15 +399,72 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
             "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
         );
     }
-    await page.evaluate(`(() => {
+    if (!(await visible(page, DRAFT_STACKED_POOL, 4000))) {
+        throw new Unreachable(
+            `the Draft Room rendered a pool pane but no "${DRAFT_STACKED_POOL}" band to scroll it in — the non-phone arrangement changed (issue #2820 restored the stacked one) and this walk has to be re-taught which element IS the pool's scroller. Refusing to guess: scrolling whatever ancestor happens to overflow is how a walk starts measuring the page instead of the pool`
+        );
+    }
+    // Drive EVERY scroller the pool owns to its end, ON ITS OWN AXIS, and
+    // count how many actually had somewhere to go.
+    //
+    // Both halves of that are load-bearing, and each replaces a wrong
+    // assumption the split-era walk carried:
+    //
+    //   - The BAND is not where the pool's overflow lives. Measured on the
+    //     rebased tree, `draft-stacked-pool` is 508/508, 287/287 and 441/441
+    //     (`scrollHeight`/`clientHeight`) at the three non-phone viewports —
+    //     it never overflows, because its `flex-1` gives it whatever the
+    //     Booster band leaves and its `min-h-[17.5rem]` floor keeps that
+    //     honest. Scrolling only the band is a guaranteed no-op.
+    //   - The overflow lives INSIDE `[data-slot=draft-pool]`, in
+    //     `DeckZoneSurface`'s own card scroller (`deck-zone-surface.tsx:674`,
+    //     `flex overflow-auto md:snap-none` — `snap-x` in the columns
+    //     branch, so its far extent is the LAST Mana-Value column). At
+    //     820x1180x2 that box is 201px around a 358px column and 12 of the
+    //     24 pool tiles sit outside their port. A walk that leaves them there
+    //     has not reached "the pool at its far extent"; it has re-measured
+    //     `draft-pick`'s DOM under a second surface id, which is coverage
+    //     that reads as two rows and proves one.
+    //
+    // ONE AXIS PER SCROLLER, the one it actually scrolls on. `overflow-auto`
+    // is both axes, and pinning both ends at once is not "the far extent" —
+    // it is off the end of the content: driving the columns scroller's
+    // scrollTop to a 358px column's bottom inside a 201px port lifts every
+    // card clear of the port, and the row measures `cardsOcc 0 reach24`, a
+    // pool pane with no pool visible in it. Horizontal wins where it exists
+    // because that is the axis this pane READS on (`snap-x snap-mandatory`,
+    // left-to-right by Mana Value); the vertical overflow beside it is the
+    // starved-container debt the `starved` metric already reports, not a
+    // reading direction.
+    //
+    // `moved` is what makes the difference reportable rather than assumed: 0
+    // means every scroller already fit, so this row IS `draft-pick`'s DOM at
+    // that viewport and the `knownDebt` note has to say so.
+    const stop = (await page.evaluate(`(() => {
+        const roots = [document.querySelector("${DRAFT_STACKED_POOL}")];
         const pool = document.querySelector("${DRAFT_POOL}");
-        for (let p = pool && pool.parentElement; p; p = p.parentElement) {
-            if (p.scrollHeight > p.clientHeight + 2) {
-                p.scrollTop = p.scrollHeight;
-                return;
-            }
+        if (pool) roots.push(pool, ...pool.querySelectorAll("*"));
+        let scrollers = 0;
+        let moved = 0;
+        for (const el of roots) {
+            if (!el) continue;
+            const cs = getComputedStyle(el);
+            if (!/auto|scroll/.test(cs.overflowY + cs.overflowX)) continue;
+            const dy = el.scrollHeight - el.clientHeight;
+            const dx = el.scrollWidth - el.clientWidth;
+            if (dy <= 2 && dx <= 2) continue;
+            scrollers++;
+            if (dx > 2) el.scrollLeft = el.scrollWidth;
+            else el.scrollTop = el.scrollHeight;
+            if (el.scrollTop > 2 || el.scrollLeft > 2) moved++;
         }
-    })()`);
+        return { scrollers: scrollers, moved: moved };
+    })()`)) as { scrollers: number; moved: number };
+    if (stop.scrollers > 0 && stop.moved === 0) {
+        throw new Unreachable(
+            `the Draft Room's pool has ${stop.scrollers} overflowing scroller(s) and not one of them would move — this surface measures the pool AT its far extent, and it is not there`
+        );
+    }
     await page.waitForTimeout(400);
 }
 
@@ -397,16 +534,30 @@ async function assertTwoSnapStops(page: Page): Promise<void> {
     }
 }
 
-async function limitedEventCount(
-    page: Page,
-    ctx: WalkContext
-): Promise<number> {
-    await goto(page, ctx, "/limited");
-    return await page.locator(EVENT_VIEW).count();
+/**
+ * Land on the fixture-filtered `/limited` list and assert the fixture is
+ * actually seeded on this deployment.
+ *
+ * Returns the number of fixture rows, which is a constant of
+ * `convex/limitedFixtures.ts` — that is the whole point: the list surfaces
+ * measure a row set the lane fixes.
+ */
+async function reachFixtureList(page: Page, ctx: WalkContext): Promise<number> {
+    await goto(page, ctx, FIXTURE_LIST_PATH);
+    if (!(await visible(page, "main, [role=main]", 10_000))) {
+        throw new Unreachable("/limited rendered no main region");
+    }
+    const rows = await page.locator("[data-limited-event-label]").count();
+    if (rows === 0) {
+        throw new Unreachable(
+            `no seeded Limited fixture on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+        );
+    }
+    return rows;
 }
 
 /**
- * Open the nth event from `/limited`, and report where it landed.
+ * Open the fixture event with this label, and report where it landed.
  *
  * Since issue #2587 the event page REDIRECTS a seated player into the Draft
  * Room (`/limited/<id>/draft`) while a Pick is pending — one-shot per tab, so
@@ -414,16 +565,26 @@ async function limitedEventCount(
  * not. Both are legitimate landings, which is why this returns the pathname
  * shape rather than a boolean "did we reach the event page": a walk that
  * demanded the old URL would report a drafting event as unreachable.
+ *
+ * `null` is never "try the next row" any more (issue #2822) — there is no
+ * next row. It means this fixture's own View control led somewhere
+ * unrecognised, and every caller turns that into UNWALKED.
  */
-async function openLimitedEvent(
+async function openFixtureEvent(
     page: Page,
     ctx: WalkContext,
-    index: number
+    label: string
 ): Promise<"event" | "draft" | null> {
-    await goto(page, ctx, "/limited");
-    const views = page.locator(EVENT_VIEW);
-    if (index >= (await views.count())) return null;
-    await views.nth(index).click({ timeout: STEP_TIMEOUT });
+    await goto(page, ctx, `/limited?label=${label}`);
+    const row = page.locator(fixtureRow(label));
+    if ((await row.count()) === 0) {
+        throw new Unreachable(
+            `the seeded Limited fixture "${label}" is not on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+        );
+    }
+    await row.first().locator(EVENT_VIEW).first().click({
+        timeout: STEP_TIMEOUT,
+    });
     await page
         .waitForURL(/\/limited\/[^/]+(\/draft)?$/, { timeout: NAV_TIMEOUT })
         .catch(() => {});
@@ -432,6 +593,20 @@ async function openLimitedEvent(
     if (/^\/limited\/[^/]+\/draft$/.test(path)) return "draft";
     if (/^\/limited\/[^/]+$/.test(path)) return "event";
     return null;
+}
+
+/** The event id the page is currently on — how a walk reaches a route that
+ *  has no link from the event page (`/limited/<id>/build` for a seat still
+ *  mid-draft). Derived from the URL the fixture's own row navigated to, so it
+ *  is still the fixture being addressed, never a positional guess. */
+function currentEventId(page: Page): string {
+    const match = /^\/limited\/([^/]+)/.exec(new URL(page.url()).pathname);
+    if (!match) {
+        throw new Unreachable(
+            `expected to be on a /limited/<id> route, but the page is at ${page.url()}`
+        );
+    }
+    return match[1];
 }
 
 /**
@@ -762,12 +937,15 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-list",
-        label: "Limited events list (/limited)",
+        // Issue #2822: the list is walked FILTERED to the seeded fixture
+        // (`?label=ui-gate/`). Unfiltered, this row measured however many
+        // events the deployment happened to hold — 14 at the time, each one
+        // adding interactive controls to the `small` count and pushing
+        // `<main>` past the starvation threshold — so the ceiling moved
+        // without a line of `src/` changing.
+        label: "Limited events list (/limited, fixture-filtered)",
         async walk(page, ctx) {
-            await goto(page, ctx, "/limited");
-            if (!(await visible(page, "main, [role=main]", 10_000))) {
-                throw new Unreachable("/limited rendered no main region");
-            }
+            await reachFixtureList(page, ctx);
         },
     },
     {
@@ -780,7 +958,15 @@ export const SURFACES: readonly Surface[] = [
         // also satisfy).
         label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
         async walk(page, ctx) {
-            await goto(page, ctx, "/limited/events");
+            // The `label` param rides through the redirect (issue #2822, see
+            // `limited-your-events.route.tsx`) — a redirect that dropped it
+            // would land this surface back on the unbounded list, which is the
+            // bug.
+            await goto(
+                page,
+                ctx,
+                `/limited/events?label=${FIXTURE_LABEL_PREFIX}`
+            );
             // The redirect target's query string is `?mine=true`, not
             // `?mine=1` — `stringifySearch` serializes the boolean, it never
             // emits the numeric literal a hand-typed/bookmarked URL would use
@@ -801,6 +987,13 @@ export const SURFACES: readonly Surface[] = [
                     "/limited/events redirected, but /limited rendered no main region"
                 );
             }
+            if (
+                (await page.locator("[data-limited-event-label]").count()) === 0
+            ) {
+                throw new Unreachable(
+                    `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. Seed it with: ${SEED_FIXTURES_COMMAND}`
+                );
+            }
         },
     },
     {
@@ -813,53 +1006,58 @@ export const SURFACES: readonly Surface[] = [
         // below), not this one.
         label: "Limited event antechamber (/limited/<id>)",
         async walk(page, ctx) {
-            const count = await limitedEventCount(page, ctx);
-            if (count === 0) {
+            // The `ui-gate/open` fixture, specifically (issue #2822): seating
+            // still open is the one event state whose detail page neither
+            // redirects into the Draft Room (`useDraftRoomRedirect` needs a
+            // pending pick) nor auto-opens the deck builder
+            // (`useAutoOpenLimitedBuilder` needs a final pool). Both of those
+            // are ONE-SHOT PER TAB, so a fixture that tripped either would
+            // measure the antechamber at some viewports and a different screen
+            // at others.
+            if (
+                (await openFixtureEvent(page, ctx, FIXTURE_OPEN_LABEL)) !==
+                "event"
+            ) {
                 throw new Unreachable(
-                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                    `the "${FIXTURE_OPEN_LABEL}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). Re-seed it: ${SEED_FIXTURES_COMMAND}`
                 );
             }
-            for (let i = 0; i < Math.min(count, 3); i++) {
-                if ((await openLimitedEvent(page, ctx, i)) !== "event") {
-                    continue;
-                }
-                if (await visible(page, "main, [role=main]", 10_000)) return;
+            if (!(await visible(page, "main, [role=main]", 10_000))) {
+                throw new Unreachable(
+                    "the Limited event antechamber rendered no main region"
+                );
             }
-            throw new Unreachable(
-                "no Limited event landed on its antechamber (every seated event redirected straight to the Draft Room)"
-            );
         },
     },
     {
         id: "limited-build",
+        // Issue #2822 lifted this out of `unwalked`. It used to need "an
+        // event whose seat offers Build Deck", which no event on the
+        // deployment had; the mid-draft fixture supplies one — the builder
+        // route needs only a dealt, non-empty pool
+        // (`pool-deck-builder.tsx`), which is exactly what
+        // `ui-gate/draft`'s seat 0 carries.
         label: "Limited pool builder (/limited/<id>/build)",
         async walk(page, ctx) {
-            const count = await limitedEventCount(page, ctx);
-            if (count === 0) {
+            // Reached by URL rather than by a click: mid-draft there is no
+            // Build Deck control on the event page (it appears once the pool
+            // is FINAL), and the id comes from the fixture's own row, so this
+            // is still label-addressed.
+            await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+            const eventId = currentEventId(page);
+            await goto(page, ctx, `/limited/${eventId}/build`);
+            // A CARD TILE, not the "Build Limited Deck" heading: on a short
+            // viewport `DeckBuilderHeader` hides the whole Back+title band by
+            // design (`short-viewport:hidden`), so a title assertion reports
+            // the builder unreachable at 844x390 while it is rendering fine.
+            // A tile also distinguishes the real builder from
+            // `PoolDeckBuilder`'s "No Pool has been generated for your seat
+            // yet" empty state, which is the failure actually worth catching.
+            if (!(await visible(page, "[data-card-tile]", 10_000))) {
                 throw new Unreachable(
-                    "no Limited event on this deployment — create one from /limited (+ Create Event) and re-run"
+                    `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. Re-seed it: ${SEED_FIXTURES_COMMAND}`
                 );
             }
-            for (let i = 0; i < Math.min(count, 3); i++) {
-                if ((await openLimitedEvent(page, ctx, i)) !== "event")
-                    continue;
-                if (
-                    await clickIfVisible(
-                        page,
-                        "a:has-text('Build Deck'), button:has-text('Build Deck')",
-                        4000
-                    )
-                ) {
-                    await page
-                        .waitForURL(/\/build$/, { timeout: NAV_TIMEOUT })
-                        .catch(() => {});
-                    await settle(page);
-                    if (page.url().endsWith("/build")) return;
-                }
-            }
-            throw new Unreachable(
-                "no Limited event offered Build Deck (none has a ready pool for this seat)"
-            );
         },
     },
     {
@@ -896,14 +1094,38 @@ export const SURFACES: readonly Surface[] = [
             // surface is `draft-pool-stop` plus the one gesture that was
             // missing: select a Pool tile and measure with the panel open.
             await reachDraftPoolStop(page, ctx);
-            if (!(await clickIfVisible(page, DRAFT_POOL_TILE, STEP_TIMEOUT))) {
+            // The LAST tile, not the first (issue #2822). The pool renders as
+            // OVERLAID column piles (ADR 0075), so on a full pool the first
+            // tile of a pile is covered by the ones stacked on top of it and
+            // Playwright's actionability check waits out its whole timeout on
+            // it — measured, as a walk-threw UNWALKED at 1440x900x2, the
+            // moment the fixture gave this seat a realistic 24-card pool. The
+            // last tile is the top of its own pile at every viewport.
+            const poolTile = page.locator(DRAFT_POOL_TILE).last();
+            if ((await page.locator(DRAFT_POOL_TILE).count()) === 0) {
                 throw new Unreachable(
                     "reached the Draft Room's pool stop but found no Pool card tile to select — this surface needs the same NON-EMPTY pool `draft-pool-stop` does"
                 );
             }
+            await poolTile.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+            await poolTile.click({ timeout: STEP_TIMEOUT });
             if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+                );
+            }
+            // `[data-peek-panel]` alone cannot discharge this surface's claim.
+            // `reachDraftRoom` has ALREADY pinned a Booster selection
+            // (`pinDraftSelection`, issue #2677), and the Booster's own
+            // `PeekPanel` uses the SAME attribute — so a pool click that did
+            // nothing at all would leave the Booster's panel standing and the
+            // assertion above green, which is the "the test never reaches the
+            // code" shape. The two panels' CTA rows are what differ: only the
+            // Pool's `DeckZonePeek` appends `Move to…` (its column-pin sheet,
+            // `deck-zone-peek.tsx`), and the Booster's never offers it.
+            if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
                 );
             }
             await page.waitForTimeout(300);
