@@ -29,6 +29,12 @@
  * sorted by `id`. Never hand-edited — regenerate with:
  *
  *   bun run oracle:pool
+ *
+ * The output is `data/oracle-compiled-pool.json`, listed in `.prettierignore`
+ * (same rationale as `data/oracle-compiled.json`, ADR 0105): without that
+ * entry, `bun run format`/`check:all` silently rewrites the committed bytes
+ * on every run, so the command above no longer reproduces what's on disk and
+ * the tree comes out formatting-dirty (#2702 round 2).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";

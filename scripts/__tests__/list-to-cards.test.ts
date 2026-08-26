@@ -6,6 +6,7 @@ import {
     classify,
     emitCardSource,
     dedupByOracle,
+    knownImplementedNames,
 } from "../list-to-cards.mjs";
 
 // `scripts/list-to-cards.mjs` is the list-mode card importer (ADR 0041): it
@@ -322,5 +323,33 @@ describe("dedupByOracle", () => {
         const { missing, done } = dedupByOracle(cards, lockfile);
         expect(missing.map((c) => c.name)).toEqual(["A", "C"]);
         expect(done.map((c) => c.name)).toEqual(["B"]);
+    });
+
+    // #2702 round 2 fixup: a `source: "compiled"` lockfile row is the Oracle
+    // compiler's own output, not a hand-written CardDefinition. Counting it
+    // as "done" here would make the worklist importer permanently blind to
+    // every card the compiler covers — it could never be staged for
+    // hand-writing again.
+    it("does NOT treat a compiled-source lockfile row as already implemented", () => {
+        const cards = [
+            { name: "A", oracleId: "oa" },
+            { name: "B", oracleId: "ob" },
+        ];
+        const lockfile = [{ name: "B", oracleId: "ob", source: "compiled" }];
+        const { missing, done } = dedupByOracle(cards, lockfile);
+        expect(missing.map((c) => c.name)).toEqual(["A", "B"]);
+        expect(done).toEqual([]);
+    });
+});
+
+describe("knownImplementedNames", () => {
+    it("returns hand-written lockfile names only, excluding source: compiled", () => {
+        const lockfile = [
+            { name: "Hand Written" },
+            { name: "Compiled Card", source: "compiled" },
+        ];
+        const names = knownImplementedNames(lockfile);
+        expect(names.has("Hand Written")).toBe(true);
+        expect(names.has("Compiled Card")).toBe(false);
     });
 });

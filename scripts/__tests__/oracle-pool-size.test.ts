@@ -32,13 +32,17 @@ const REPO_ROOT = resolve(__dirname, "..", "..");
 const ARTIFACT = resolve(REPO_ROOT, "data/oracle-compiled-pool.json");
 
 /**
- * 2 MB budget. Measured at issue #2702's landing: 1,638 compiled `ready`
- * rows in the source lockfile, 1,429 of them (209 already hand-written are
- * excluded, ADR 0108) in the committed artifact — 1.04 MB. 2 MB leaves
- * roughly 2x headroom before this interim JSON-import shape has to become
- * the real per-deck store PRD #2693 defers. It is not remotely close to the
- * "35k rows in the bundle" case: at ~730 B/row measured here, the full
- * 34,890-row corpus would be ~25 MB, ~12x over this budget. Crossing it is
+ * 2 MB budget. Measured at issue #2702's round-2 landing directly off the
+ * committed artifact (`statSync`, not the pre-prettier generator output —
+ * round 1 cited the wrong one; `data/oracle-compiled-pool.json` is now
+ * `.prettierignore`d, so the two are the same number): 1,638 compiled
+ * `ready` rows in the source lockfile, 1,429 of them (209 already
+ * hand-written are excluded, ADR 0108) in the committed artifact —
+ * 1,094,857 B (1.04 MB). 2 MB leaves roughly 2x headroom before this
+ * interim JSON-import shape has to become the real per-deck store PRD #2693
+ * defers. It is not remotely close to the "35k rows in the bundle" case: at
+ * ~766 B/row measured here, the full 34,890-row corpus would be ~25.5 MB,
+ * ~13x over this budget. Crossing it is
  * the intended signal to build that store, not to raise the number.
  */
 const BUDGET_BYTES = 2_000_000;
