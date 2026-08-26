@@ -403,11 +403,26 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
         expect(computeEngineViewBadge(def)).toEqual({ kind: "protocol" });
     });
 
-    it("reads DSL with a ZERO Op count for a French-vanilla creature with no scripted effect (Grizzly Bears)", () => {
+    it("reads NONE — no chip at all — for a French-vanilla creature with no resolution body (Grizzly Bears)", () => {
         const def = tryGetDefinition(getCardByName("Grizzly Bears").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({ kind: "none" });
+    });
+
+    it("reads protocol for a card whose only hand-written body is the mana-ability `effect` CLOSURE (Black Lotus)", () => {
+        const def = tryGetDefinition(getCardByName("Black Lotus").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({ kind: "protocol" });
+    });
+
+    it("reads protocol for a hand-written resolve() living in a GRANTED ability template (Urza's Saga, `grantTemplates[]`)", () => {
+        const def = tryGetDefinition(getCardByName("Urza's Saga").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({ kind: "protocol" });
+    });
+
+    it("counts the declarative `EffectShorthand` as one primitive, not as a hand-written body (Disenchant)", () => {
+        const def = tryGetDefinition(getCardByName("Disenchant").id)!;
         expect(computeEngineViewBadge(def)).toEqual({
             kind: "dsl",
-            opCount: 0,
+            opCount: 1,
         });
     });
 
@@ -433,6 +448,44 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
             ],
         };
         // The `if` itself + one Op in `then` + one Op in `else` = 3.
+        expect(computeEngineViewBadge(scripted)).toEqual({
+            kind: "dsl",
+            opCount: 3,
+        });
+    });
+
+    it("counts Ops nested under a modal Op's `modes[]` (Sisay's Ingenuity's granted five-mode choice)", () => {
+        const def = tryGetDefinition(getCardByName("Lightning Bolt").id)!;
+        const scripted = {
+            ...def,
+            effects: [
+                {
+                    op: "choice" as const,
+                    modes: [
+                        {
+                            effects: [
+                                {
+                                    op: "draw",
+                                    count: 1,
+                                    player: "controller",
+                                } as never,
+                            ],
+                        },
+                        {
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    amount: 1,
+                                    player: "controller",
+                                } as never,
+                            ],
+                        },
+                    ],
+                } as never,
+            ],
+        };
+        // The `choice` itself + one Op per mode = 3. Missed entirely before
+        // the mode walk, which read this whole script as a single Op.
         expect(computeEngineViewBadge(scripted)).toEqual({
             kind: "dsl",
             opCount: 3,

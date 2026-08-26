@@ -45,6 +45,33 @@ describe("CardPreviewEngineView (issue #2728)", () => {
         expect(queryByText("DSL · 0")).toBeNull();
     });
 
+    it("full slot: a card with NO resolution body keeps the header and the tree well but shows NO chip", () => {
+        // 24.6% of the catalogue (vanilla creatures, basic lands, pure
+        // `staticEffects[]` anthems). The chip is a claim about the card's
+        // script; with no script there is nothing to claim, and a bare `DSL`
+        // here asserted one that does not exist. The WELL still renders —
+        // it is #2704's mount point, and #2704's tree covers keywords and
+        // static effects too.
+        const { container, getByText, queryByText } = render(
+            <CardPreviewEngineView badge={{ kind: "none" }} />
+        );
+        getByText("Engine view");
+        expect(queryByText("DSL")).toBeNull();
+        expect(queryByText("Protocol")).toBeNull();
+        expect(
+            container.querySelector("[data-engine-view-tree]")
+        ).not.toBeNull();
+    });
+
+    it("compact: a card with NO resolution body shows the hint alone, no chip", () => {
+        const { getByText, queryByText } = render(
+            <CardPreviewEngineView badge={{ kind: "none" }} compact />
+        );
+        getByText("Alt: engine view");
+        expect(queryByText("DSL")).toBeNull();
+        expect(queryByText("Protocol")).toBeNull();
+    });
+
     it("full slot: shows Protocol for a hand-written resolve() card", () => {
         const { getByText } = render(
             <CardPreviewEngineView badge={{ kind: "protocol" }} />

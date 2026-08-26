@@ -1,11 +1,15 @@
+import EngineViewBadgeChip from "./card-preview-engine-view-badge";
 import type { EngineViewBadge } from "~/lib/preview-body";
 
 // The "Engine view" slot (ADR 0103 §9, issue #2728) — #2704's keyword /
 // target / effect / triggered / activated tree lands INSIDE `[data-engine-
 // view-tree]` below, read from the same real `CardDefinition` this badge
 // already reads. Until then the slot renders only the badge: what the
-// definition IS (a DSL-first Effect Script vs a hand-written `resolve()`
-// protocol card, ADR 0045) plus, for a script, a rough Op-count chip.
+// definition IS (a DSL-first Effect Script vs a hand-written `resolve()` /
+// mana-ability closure, ADR 0045) plus, for a script, a rough Op-count chip.
+// A definition with no resolution body at all renders the slot with NO chip
+// (`EngineViewBadgeChip`) — the well is still #2704's mount point, but there
+// is no script to claim.
 //
 // `compact` is the desktop lateral zoom (`CardPreviewDock`, ADR 0103 issue
 // body: "carries an Alt: engine view affordance") — no room there for the
@@ -15,26 +19,6 @@ import type { EngineViewBadge } from "~/lib/preview-body";
 // EMPTY `[data-engine-view-tree]` well beneath it — #2704 fills that well
 // without touching this header or the surrounding layout, which is the
 // whole point of "mounts without layout change".
-const BADGE_TONE: Record<EngineViewBadge["kind"], string> = {
-    dsl: "bg-signal-self/15 text-signal-self-strong",
-    protocol: "bg-signal-pending/15 text-signal-pending-strong",
-};
-
-function badgeLabel(badge: EngineViewBadge): string {
-    if (badge.kind === "protocol") return "Protocol";
-    return badge.opCount > 0 ? `DSL · ${badge.opCount}` : "DSL";
-}
-
-function EngineViewBadgeChip({ badge }: { badge: EngineViewBadge }) {
-    return (
-        <span
-            className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BADGE_TONE[badge.kind]}`}
-        >
-            {badgeLabel(badge)}
-        </span>
-    );
-}
-
 export default function CardPreviewEngineView({
     badge,
     compact = false,
