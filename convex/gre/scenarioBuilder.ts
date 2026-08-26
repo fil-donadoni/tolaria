@@ -841,17 +841,70 @@ function reportTemporaryGrantResidue(
     }
 }
 
+/** True when `sourceId` is still a permanent on EITHER player's battlefield
+ *  in the LIVE state being lowered — the precondition for
+ *  `applySourceStaticEffects` to re-derive a source-keyed grant/removal on
+ *  reload (CR 611.2). */
+function sourceStillOnBattlefield(state: GameState, sourceId: string): boolean {
+    return state.players.some((p) =>
+        p.battlefield.some((c) => c.id === sourceId)
+    );
+}
+
+/** `removedKeywords`/`abilitiesSuppressedBy` are source-keyed (`sourceId`),
+ *  not duration-keyed like the three `granted*` arrays above — CR 613.1a/1f
+ *  strippers have no one-shot/`duration` shape of their own (a temporary
+ *  one-shot keyword strip lives on `temporaryRemovedKeywords`, a DIFFERENT
+ *  field that is NOT in `CARD_STATE_ALLOWLIST` and so is already caught by
+ *  the generic scan below). Their rebuild path mirrors a continuous
+ *  `granted*` entry: `applySourceStaticEffects` re-derives the strip on
+ *  every load PROVIDED the stripping source is still a battlefield
+ *  permanent for the reload to walk. When `sourceId` names nothing on
+ *  either battlefield the entry can't be re-derived — report it, the same
+ *  escape hatch as `reportTemporaryGrantResidue` one field over (issue
+ *  #2148 review finding). */
+function reportDanglingStripperResidue(
+    state: GameState,
+    card: CardInstanceState,
+    label: string,
+    dropped: string[]
+): void {
+    const danglingRemoved = (card.removedKeywords ?? []).filter(
+        (r) => !sourceStillOnBattlefield(state, r.sourceId)
+    );
+    if (danglingRemoved.length > 0) {
+        dropped.push(
+            `${label}: removedKeywords stripped by a source no longer on either battlefield (${danglingRemoved
+                .map((r) => r.keyword)
+                .sort()
+                .join(
+                    ", "
+                )}) — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
+        );
+    }
+    const danglingSuppressed = (card.abilitiesSuppressedBy ?? []).filter(
+        (s) => !sourceStillOnBattlefield(state, s.sourceId)
+    );
+    if (danglingSuppressed.length > 0) {
+        dropped.push(
+            `${label}: abilitiesSuppressedBy a source no longer on either battlefield — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
+        );
+    }
+}
+
 /** Generic "continuous effect residue" detector — the fallback for the many
  *  optional `CardInstanceState` fields NOT named individually above
  *  (`temporaryPTMods`, `animation`, `controlChanges`, `chosenMana`,
  *  `regenerationShields`, …): any key present that isn't in the allowlist is
  *  live state the spec has no field for. */
 function reportCardResidue(
+    state: GameState,
     card: CardInstanceState,
     label: string,
     dropped: string[]
 ): void {
     reportTemporaryGrantResidue(card, label, dropped);
+    reportDanglingStripperResidue(state, card, label, dropped);
     const extra = Object.keys(card).filter(
         (key) =>
             !CARD_STATE_ALLOWLIST.has(key) &&
@@ -951,7 +1004,7 @@ function lowerCard(
         }
     }
 
-    reportCardResidue(card, label, dropped);
+    reportCardResidue(state, card, label, dropped);
     return entry;
 }
 
@@ -961,6 +1014,127 @@ function zoneCards(
 ): CardInstanceState[] {
     if (zone === "battlefield") return player.battlefield;
     return zone === "graveyard" ? player.graveyard : player.exile;
+}
+
+/** `GameState` top-level fields that are ALREADY accounted for elsewhere in
+ *  `specFromState` — either lowered into the spec, covered by one of the
+ *  bespoke `dropped` messages below (`stack`, `combat`, `pendingCast`, …),
+ *  or pure rebuild bookkeeping that `buildStateFromScenario`/
+ *  `saveGameState` always regenerate fresh from the REBUILT board rather
+ *  than restore from spec data (id/seq allocators, the `expectedInput`
+ *  cache — ADR 0047 — and `mulligan`, which describes the RELOAD TARGET
+ *  game, not the position being captured; mirrors `enteredOnTurn`/
+ *  `chosenPlayerId` in `CARD_STATE_ALLOWLIST`'s own three-way split).
+ *
+ *  Before this allowlist existed the field-by-field checks below were the
+ *  ONLY thing standing between a new `GameState` field and silent data
+ *  loss — the shape `CardInstanceState` has had all along via
+ *  `CARD_STATE_ALLOWLIST` + `reportCardResidue`. `reportGameStateResidue`
+ *  below is the generic catch: anything present on `state` outside this
+ *  set is live state the spec has no field for, named automatically
+ *  instead of requiring someone to remember to add a check (issue #2148
+ *  review finding). */
+const GAME_STATE_ALLOWLIST = new Set<string>([
+    // Structural — always present, not itself residue.
+    "players",
+    // Lowered into the spec directly.
+    "turn",
+    "phase",
+    "rngSeed",
+    // Covered by a bespoke `dropped` message below.
+    "stack",
+    "activePlayerId",
+    "priorityPlayerId",
+    "passCount",
+    "combat",
+    "pendingCast",
+    "pendingActivation",
+    "pendingCompanionPay",
+    "pendingTarget",
+    "pendingChoices",
+    "pendingTriggerBatch",
+    "pendingReflexiveTriggers",
+    "madnessCastWindow",
+    "reboundCastWindow",
+    "delayedTriggers",
+    "emblems",
+    "gameOver",
+    "extraTurns",
+    "autoPassPlayers",
+    "singleShotAutoPass",
+    "queuedEndTurn",
+    // Rebuild bookkeeping — internal id/seq allocators and derived caches
+    // `buildStateFromScenario`/`saveGameState` always regenerate fresh from
+    // the rebuilt board; their absolute value on the LIVE state carries no
+    // game-visible meaning of its own to preserve.
+    "mulligan",
+    "rngCounter",
+    "nextGrantSeq",
+    "nextDelayedSeq",
+    "nextTokenSeq",
+    "nextEmblemSeq",
+    "nextWorldSeq",
+    "nextInstanceId",
+    "pendingEvents",
+    "expectedInput",
+]);
+
+/** `PlayerState` fields already accounted for elsewhere in `specFromState` —
+ *  see `GAME_STATE_ALLOWLIST`'s doc for the same three-way split. `name`/
+ *  `bgColor` describe the RELOAD TARGET game's own player record, not the
+ *  captured position. */
+const PLAYER_STATE_ALLOWLIST = new Set<string>([
+    "id",
+    "name",
+    "bgColor",
+    "life",
+    "hand",
+    "library",
+    "graveyard",
+    "exile",
+    "battlefield",
+    "manaPool",
+    "restrictedMana",
+    "poisonCounters",
+    "experienceCounters",
+    "companion",
+    "lastDrawnCardId",
+]);
+
+/** Generic "top-level state residue" detector for `GameState`, the same
+ *  shape as `reportCardResidue` one level up: any key present on `state`
+ *  that isn't in `GAME_STATE_ALLOWLIST` is live state the spec has no field
+ *  for at all. */
+function reportGameStateResidue(state: GameState, dropped: string[]): void {
+    const extra = Object.keys(state).filter(
+        (key) =>
+            !GAME_STATE_ALLOWLIST.has(key) &&
+            (state as Record<string, unknown>)[key] !== undefined
+    );
+    if (extra.length > 0) {
+        dropped.push(
+            `game state: live-only state not captured (${extra.sort().join(", ")})`
+        );
+    }
+}
+
+/** Generic "player-level state residue" detector for `PlayerState` — the
+ *  `me`/`opp` counterpart of `reportGameStateResidue`. */
+function reportPlayerStateResidue(
+    label: "me" | "opp",
+    player: PlayerState,
+    dropped: string[]
+): void {
+    const extra = Object.keys(player).filter(
+        (key) =>
+            !PLAYER_STATE_ALLOWLIST.has(key) &&
+            (player as Record<string, unknown>)[key] !== undefined
+    );
+    if (extra.length > 0) {
+        dropped.push(
+            `${label}: live-only player state not captured (${extra.sort().join(", ")})`
+        );
+    }
 }
 
 /**
@@ -1218,7 +1392,10 @@ export function specFromState(
                 `${label}'s library: ${p.library.length} card(s) — library contents/order are out of scope for a scenario spec`
             );
         }
+        reportPlayerStateResidue(label, p, dropped);
     }
+
+    reportGameStateResidue(state, dropped);
 
     return { spec, dropped };
 }

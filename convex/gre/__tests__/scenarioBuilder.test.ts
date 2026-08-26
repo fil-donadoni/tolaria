@@ -934,4 +934,117 @@ describe("specFromState (issue #2148)", () => {
             dropped.some((d) => d.includes("live-only state not captured"))
         ).toBe(true);
     });
+
+    // Review finding on issue #2148/PR #2866: `dropped[]` was exhaustive only
+    // for `CardInstanceState` (via `CARD_STATE_ALLOWLIST` +
+    // `reportCardResidue`) — `GameState`/`PlayerState` were instead a
+    // hand-enumerated ~25-check list that `buildStateFromScenario` restores
+    // NONE of the rest of, so any of the ~40 other live fields vanished
+    // silently while the Debug panel affirmatively claimed a faithful
+    // capture. This reproduces the reviewer's own disproof scratch test
+    // (landsPlayedThisTurn/energyCounters/maxHandSizeOverride/skipNextTurn/
+    // spellsCastThisTurn per player, plus the global turn-scoped flags) as a
+    // real suite test, now that `reportGameStateResidue`/
+    // `reportPlayerStateResidue` (the same allowlist-scan shape as the card
+    // level) cover them.
+    it("reports player- and game-level turn-scoped bookkeeping the spec has no field for, rather than a silent faithful-capture claim (review finding on #2866)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const me = state.players[0];
+        me.landsPlayedThisTurn = 1;
+        me.energyCounters = 5;
+        me.maxHandSizeOverride = "unlimited";
+        me.skipNextTurn = 1;
+        me.spellsCastThisTurn = 3;
+        state.landPlayLocked = true;
+        state.cannotCastSpellsThisTurn = [{ playerId: me.id }];
+        state.skipDrawStepThisTurn = [me.id];
+        state.preventAllCombatDamageThisTurn = true;
+
+        const { dropped } = specFromState(state, { mySeatId: me.id });
+
+        // landsPlayedThisTurn is the issue's own named failure mode (a
+        // PRECOMBAT_MAIN capture of a seat that already played its land):
+        // must be named, not silently dropped.
+        const gameStateResidue = dropped.find((d) =>
+            d.startsWith("game state: live-only state not captured")
+        );
+        const playerResidue = dropped.find((d) =>
+            d.startsWith("me: live-only player state not captured")
+        );
+        expect(gameStateResidue).toBeDefined();
+        expect(playerResidue).toBeDefined();
+        for (const field of [
+            "landPlayLocked",
+            "cannotCastSpellsThisTurn",
+            "skipDrawStepThisTurn",
+            "preventAllCombatDamageThisTurn",
+        ]) {
+            expect(gameStateResidue).toContain(field);
+        }
+        for (const field of [
+            "landsPlayedThisTurn",
+            "energyCounters",
+            "maxHandSizeOverride",
+            "skipNextTurn",
+            "spellsCastThisTurn",
+        ]) {
+            expect(playerResidue).toContain(field);
+        }
+    });
+
+    it("reports removedKeywords/abilitiesSuppressedBy sourced from a permanent that has already left the battlefield (dangling sourceId), unlike a still-present source which is rebuild behaviour and stays silent", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        const bear = state.players[0].battlefield[0];
+        // No permanent on either battlefield has this id — simulates a
+        // stripper source that has since left play, the one shape
+        // `applySourceStaticEffects` cannot replay on reload.
+        bear.removedKeywords = [
+            { keyword: "flying", sourceId: "gone-forever", seq: 1 },
+        ];
+        bear.abilitiesSuppressedBy = [{ sourceId: "gone-forever", seq: 1 }];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.includes("removedKeywords stripped by"))
+        ).toBe(true);
+        expect(
+            dropped.some((d) => d.includes("abilitiesSuppressedBy a source"))
+        ).toBe(true);
+    });
+
+    it("does NOT flag removedKeywords/abilitiesSuppressedBy sourced from a still-present battlefield permanent — applySourceStaticEffects re-derives it on reload (no false positive)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                { name: shivanDragon.name, owner: "me" },
+            ],
+        });
+        const [bear, dragon] = state.players[0].battlefield;
+        bear.removedKeywords = [
+            { keyword: "flying", sourceId: dragon.id, seq: 1 },
+        ];
+        bear.abilitiesSuppressedBy = [{ sourceId: dragon.id, seq: 1 }];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.includes("removedKeywords stripped by"))
+        ).toBe(false);
+        expect(
+            dropped.some((d) => d.includes("abilitiesSuppressedBy a source"))
+        ).toBe(false);
+    });
 });
