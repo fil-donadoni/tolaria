@@ -104,10 +104,11 @@ function Panel({
      *  surviving ornament atom is `OrnamentalDivider`, which those waiting
      *  states place themselves, in their own content.
      *
-     *  The prop STAYS in the signature on purpose. Three call sites pass it
-     *  (`dashboard-play-box`, `game-over-dialog` via `GameDialog`,
-     *  the design-system v3 census) and this slice's contract is that no
-     *  consumer file changes — removing it would be a compile error in each.
+     *  The prop STAYS in the signature on purpose. Two call sites pass it
+     *  (`game-over-dialog` via `GameDialog`, and the design-system v3 census;
+     *  the third, `dashboard-play-box`, retired with its file in #2726) and
+     *  this slice's contract is that no consumer file changes — removing it
+     *  would be a compile error in each.
      *  Issue #2734 (the closure slice) drops the prop and its call sites
      *  together. */
     ornament?: boolean;

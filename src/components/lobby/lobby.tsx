@@ -19,6 +19,12 @@ import {
     toPresetLobbyDeck,
     type LobbyDeck,
 } from "~/lib/deckTypes";
+import { lobbyActionGate } from "~/lib/lobbyGate";
+import {
+    lobbyModeTiles,
+    resolveLobbyMode,
+    type LobbyModeKey,
+} from "~/lib/lobbyModes";
 import {
     clearAiDeckId,
     clearDeckPresetId,
@@ -40,21 +46,23 @@ import {
     type PlayMode,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
-import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
-import DashboardPlayBox from "./dashboard-play-box";
 import DashboardLimitedBox from "./dashboard-limited-box";
 import VsAiSetupDialog from "./vs-ai-setup-dialog";
 import JoinByCodeDialog from "./join-by-code-dialog";
-import DeckList from "./deck-list";
-import DeckRowMenu from "./deck-row-menu";
 import DeckFormatFilter from "./deck-format-filter";
+import DeckShelf from "./deck-shelf";
+import LobbyAmbient from "./lobby-ambient";
 import LobbyBackground from "./lobby-background";
+import LobbyLoadout from "./lobby-loadout";
+import LobbyModeTiles from "./lobby-mode-tiles";
+import OpenTablesStrip from "./open-tables-strip";
+import PlayModeSelector from "./play-mode-selector";
 import ActiveGameNotice from "./active-game-notice";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 
@@ -65,9 +73,9 @@ function Lobby() {
         getStoredDeckPresetId()
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
-    // Two-step "Play vs AI" flow: the Play panel button opens this dialog (the
-    // second step) where difficulty / AI deck are chosen; the match starts only
-    // on Confirm. Match format is picked in the Play box, not here.
+    // Two-step "Play vs AI" flow: the Bot Mode Tile's primary action opens this
+    // dialog (the second step) where difficulty / AI deck are chosen; the match
+    // starts only on Confirm. Match format is picked in the Loadout, not here.
     const [vsAiOpen, setVsAiOpen] = useState(false);
     const [joinByCodeOpen, setJoinByCodeOpen] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
@@ -79,22 +87,29 @@ function Lobby() {
     const [matchFormat, setMatchFormat] = useState<MatchFormat>(() =>
         getStoredMatchFormat()
     );
-    // Deck-list Format filter (#513) — navigation only, persisted so the choice
-    // survives a reload. Shared by both deck panels; default "all".
+    // Deck shelf Format filter (#513) — navigation only, persisted so the
+    // choice survives a reload. Shared by BOTH shelves (it always was one piece
+    // of state); the control lives in the "Your decks" header.
     const [deckFormatFilter, setDeckFormatFilter] =
         useState<DeckFormatFilterValue>(() => getStoredDeckFormatFilter());
     // Explicit game-mode selector (ADR 0101 §10, issue #2591): Arena mode |
-    // Cockatrice mode. DRIVES deck filtering (My Decks / Preset Decks below
-    // only show decks compatible with the current mode) and the Play box's
-    // action set — the inverse of the pre-#2591 flow, which derived
-    // "manual or not" from whichever deck happened to be selected. Kept
-    // deliberately separate from `deckFormatFilter` above (trap flagged by
-    // the investigator): the Format filter narrows WHICH format among the
-    // mode-compatible ones, the mode decides compatible-or-not in the first
-    // place.
+    // Cockatrice mode. DRIVES deck filtering (both shelves below only show
+    // decks compatible with the current mode) AND which Mode Tiles render —
+    // the inverse of the pre-#2591 flow, which derived "manual or not" from
+    // whichever deck happened to be selected. Kept deliberately separate from
+    // `deckFormatFilter` above: the Format filter narrows WHICH format among
+    // the mode-compatible ones, the mode decides compatible-or-not in the
+    // first place.
     const [playMode, setPlayMode] = useState<PlayMode>(() =>
         getStoredPlayMode()
     );
+    // The selected Mode Tile (ADR 0103 §6, issue #2726). Deliberately NOT
+    // persisted: it names the one ivory primary action, and a menu that opens
+    // on last session's choice is a menu that starts the wrong game for
+    // whoever forgot. `resolveLobbyMode` falls back to the first OFFERED tile,
+    // so a key stranded by a game-mode toggle can never name an action the
+    // grid no longer shows.
+    const [modeKey, setModeKey] = useState<LobbyModeKey>("bot");
     const [isBusy, setIsBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const userDecks = useUserDecks();
@@ -109,8 +124,8 @@ function Lobby() {
     const createManualGame = useMutation(api.game.createManualGame);
     const joinGame = useMutation(api.game.joinGame);
     const joinManualGame = useMutation(api.game.joinManualGame);
-    // Inline Join from the dashboard's Open Events row (issue #2648) — its
-    // own single `useMutation` call rather than pulling in
+    // Inline Join from the Limited footer's Open Events row (issue #2648) —
+    // its own single `useMutation` call rather than pulling in
     // `useLimitedEventMutations()`'s other seven mutations for one field.
     const joinLimitedEventMutation = useMutation(
         api.limitedEvents.joinLimitedEvent
@@ -132,10 +147,10 @@ function Lobby() {
         api.game.myActiveGame,
         pageVisible ? {} : "skip"
     );
-    // First-class Limited dashboard box (issue #1582): reuses the my-events
-    // query wired in by #1589 for its quick re-entry list — no new query.
+    // The Limited footer's re-entry list (issue #1582) reuses the my-events
+    // query wired in by #1589 — no new query.
     const myLimitedEvents = useMyCurrentLimitedEvents();
-    // Open (joinable) events for the box's "Open Events" row (issue #2648) —
+    // Open (joinable) events for the footer's "Open Events" row (issue #2648) —
     // the SAME query the `/limited` browse list already subscribes to
     // (`useOpenLimitedEvents`), narrowed client-side in `DashboardLimitedBox`
     // via `isLimitedEventJoinable` rather than a second, narrower query.
@@ -155,16 +170,16 @@ function Lobby() {
         [userLobbyDecks, presetLobbyDecks]
     );
 
-    // The Format filter narrows what's *listed* only (#513). Selection
+    // The Format filter narrows what's *shelved* only (#513). Selection
     // resolution still keys off `allDecks` so a stored selection of a now-
     // hidden deck is unaffected by the filter.
     //
-    // The game-mode selector (issue #2591) narrows the SAME lists a second,
-    // orthogonal way, applied FIRST: Cockatrice mode shows only Manual
-    // Decks, Arena mode shows every non-Manual deck. The Format filter then
-    // slices further within whichever set the mode already picked (an
-    // Arena-mode "Manual Game" Format filter can only ever show zero decks —
-    // correct: switch to Cockatrice mode instead of fighting the filter).
+    // The game-mode selector (issue #2591) narrows the SAME shelves a second,
+    // orthogonal way, applied FIRST: Cockatrice mode shows only Manual Decks,
+    // Arena mode shows every non-Manual deck. The Format filter then slices
+    // further within whichever set the mode already picked (an Arena-mode
+    // "Manual Game" Format filter can only ever show zero decks — correct:
+    // switch to Cockatrice mode instead of fighting the filter).
     const filteredUserDecks = useMemo<LobbyDeck[]>(
         () =>
             filterDecksByFormat(
@@ -242,10 +257,10 @@ function Lobby() {
     // One "Open a table" action, two backends: a Manual (Cockatrice-mode)
     // deck opens a Manual Game, anything else a real (Arena-mode) game. The
     // mode is a property of the DECK here (server-dispatched, ADR 0080),
-    // never a separate button — the two are mutually exclusive server-side
-    // anyway, so a second button could only ever be the wrong one half the
+    // never a separate tile — the two are mutually exclusive server-side
+    // anyway, so a second tile could only ever be the wrong one half the
     // time. (The lobby's own game-mode SELECTOR, issue #2591, is a separate,
-    // earlier decision: it drives which decks are even offered here.)
+    // earlier decision: it drives which decks and which tiles are offered.)
     const handleCreate = () =>
         enterGame(async ({ user, deck }) => {
             const id =
@@ -405,11 +420,11 @@ function Lobby() {
 
     // Toggling the game-mode selector (issue #2591) can strand the current
     // selection: a real deck stays selected while Cockatrice mode filters the
-    // panels down to Manual Decks only (or vice versa), so `selectedDeck`
+    // shelves down to Manual Decks only (or vice versa), so `selectedDeck`
     // would point at a deck no longer offered anywhere in the UI. Mirrors the
     // null-safety pattern above (the stale-stored-preset-id effect): clear the
-    // stored selection eagerly rather than let `DashboardPlayBox` carry a
-    // mismatched deck across the toggle.
+    // stored selection eagerly rather than let the Loadout carry a mismatched
+    // deck across the toggle.
     const handlePlayModeChange = (next: PlayMode) => {
         setPlayMode(next);
         storePlayMode(next);
@@ -444,6 +459,22 @@ function Lobby() {
     };
 
     const isAdmin = canEditPresets(user);
+
+    // The Loadout's Edit, gated exactly as `deck-detail.route.tsx` gates its
+    // own: a user deck always edits; a preset edits ONLY for an admin, and
+    // `undefined` withholds the control from everyone else. Without the
+    // `isAdmin` arm a normal player — whose selected deck is a preset in the
+    // default start state — is offered "Edit" and routed to
+    // `/presets/$slug/edit`, which has no client guard and can only fail at
+    // its `assertIsAdmin` save. v3's Play box withheld it the same way
+    // (`renderPresetActions = isAdmin ? … : undefined`).
+    const handleEditSelectedDeck = !selectedDeck
+        ? undefined
+        : selectedDeck.kind === "user"
+          ? () => handleEditDeck(selectedDeck.presetId)
+          : isAdmin
+            ? () => handleEditPreset(selectedDeck.presetId)
+            : undefined;
 
     const handleDeleteDeck = (presetId: string) => {
         const deck = userLobbyDecks.find((d) => d.presetId === presetId);
@@ -509,6 +540,47 @@ function Lobby() {
         void navigate({ to: "/presets/create" });
     };
 
+    // The Mode Tiles the CURRENT game mode offers, and the one selected —
+    // resolved through `resolveLobbyMode` so a key stranded by a mode toggle
+    // falls back to a tile the grid actually renders.
+    const modeTiles = lobbyModeTiles({
+        mode: playMode,
+        difficulty,
+        liveLimitedEvents: openLimitedEvents?.length ?? 0,
+    });
+    const activeTile = resolveLobbyMode(modeTiles, modeKey);
+
+    // ONE gate, shared with the Loadout, so an open-table row can never be
+    // joinable under a condition the primary action refuses (`~/lib/lobbyGate`).
+    const { canAct } = lobbyActionGate({
+        deck: selectedDeck,
+        mode: playMode,
+        busy: isBusy,
+        hasActiveGame: !!activeGame,
+    });
+
+    // Exhaustive over `LobbyModeKey`: adding a tile without giving it an
+    // action is a type error here, not a dead plate on the screen.
+    const runPrimaryAction = () => {
+        switch (activeTile.key) {
+            case "bot":
+                setVsAiOpen(true);
+                return;
+            case "solo":
+                void handleCreateSolo();
+                return;
+            case "table":
+                void handleCreate();
+                return;
+            case "manual-solo":
+                void handleCreateTabletop();
+                return;
+            case "limited":
+                handleBrowseLimitedEvents();
+                return;
+        }
+    };
+
     if (
         presetDecks === undefined ||
         userDecks === undefined ||
@@ -519,73 +591,35 @@ function Lobby() {
         return <LoadingScreen />;
     }
 
-    // Compact deck rows (PRD #2405 D15 / ADR 0101 §9, issue #2591): Delete
-    // moves behind the "⋯" overflow (`DeckRowMenu`), Edit stays an
-    // always-visible single tap.
-    const renderUserActions = (deck: LobbyDeck) => (
-        <>
-            <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleEditDeck(deck.presetId)}
-                title="Edit deck"
-            >
-                Edit
-            </Button>
-            <DeckRowMenu
-                deckName={deck.name}
-                onDelete={() => handleDeleteDeck(deck.presetId)}
-            />
-        </>
-    );
-
-    const renderPresetActions = isAdmin
-        ? (deck: LobbyDeck) => (
-              <>
-                  <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleEditPreset(deck.presetId)}
-                      title="Edit preset (admin)"
-                  >
-                      Edit
-                  </Button>
-                  <DeckRowMenu
-                      deckName={deck.name}
-                      onDelete={() => handleDeletePreset(deck.presetId)}
-                  />
-              </>
-          )
-        : undefined;
-
     return (
         // NO `overflow-hidden` here (issue #2274) — that class, not the height
         // claim, is what made `LobbyFooter` unreachable at 1440x900 and
         // 1920x1080. This root is a flex ITEM of `<main flex flex-1 min-h-0
         // overflow-y-auto>` with the default `flex-shrink: 1`, so `<main>`'s
         // height clamps it; per CSS Flexbox §4.5 hiding its overflow also drops
-        // the `min-height: auto` floor that would otherwise let it grow. The
-        // excess was then CLIPPED rather than handed to `<main>`:
-        // `<main>.scrollHeight === clientHeight`, `overflow-y-auto` never
-        // engaged, and there was no scrollbar anywhere.
+        // the `min-height: auto` floor that would otherwise let it grow, and
+        // the excess is CLIPPED rather than handed to `<main>` (measured: 788
+        // root / 788 scrollHeight / 0 maxScroll, at a 3212px column). Swapping
+        // the height claim while KEEPING the clip changed nothing.
         //
-        // Browser-measured against the real stylesheet with the shell's box
-        // chain and this page's 3212px column, at 1440x900:
+        // `min-h-full` is the claim — the shell's remainder as a FLOOR, the
+        // same shape the other state screens use — but there is no clip, so a
+        // lobby taller than the remainder (an active-game notice, an error
+        // banner, a long open-tables strip) grows past it and `<main>` scrolls
+        // to its bottom. The v4 layout is BUDGETED to fit 1440x900 without
+        // that ever engaging (issue #2726 AC #1): the Mode Tiles and the
+        // Loadout share one row, and each deck collection costs ONE shelf of
+        // height instead of a 28rem vertical scroller.
         //
-        //   flex-1 overflow-hidden      root 788   scrollHeight 788   maxScroll 0
-        //   min-h-full overflow-hidden  root 788   scrollHeight 788   maxScroll 0
-        //   min-h-full                  root 3252  scrollHeight 3252  maxScroll 2464
-        //
-        // i.e. swapping the height claim while KEEPING the clip changed
-        // nothing. `min-h-full` is kept as the claim — the shell's remainder as
-        // a FLOOR, the same shape the other state screens use, so a short lobby
-        // still fills the viewport — but the clip is gone, so a tall one grows
-        // past the remainder and `<main>` scrolls to its bottom. Nothing needed
-        // the clip: the ambient ground clips itself (`ambient-page-ground.tsx`:
-        // `absolute inset-0 overflow-hidden`).
+        // `shell-height-claims.guard.test.tsx` re-derives all of this from
+        // this exact className at nine desktop heights and three viewport
+        // regimes; it is the test, not this comment, that holds it.
         <div className="relative min-h-full bg-surface-base text-text">
             <LobbyBackground />
-            <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
+            <LobbyAmbient
+                featuredCardId={selectedDeck?.featuredCardId ?? null}
+            />
+            <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-4">
                 {activeGame && user && (
                     <ActiveGameNotice
                         activeGame={activeGame}
@@ -596,12 +630,108 @@ function Lobby() {
                 {actionError && <Banner tone="danger">{actionError}</Banner>}
                 {joinError && <Banner tone="danger">{joinError}</Banner>}
 
-                {/* Live Limited strip (ADR 0101 §9 / issue #2591) — full
-                    width, no longer paired 2-up with the Play box: a seated
-                    event's status can change independently of whatever the
-                    Play panel is doing, and pairing them implied equal
-                    weight/rhythm that a live strip doesn't need. Open events
-                    joinable inline (issue #2648, ADR 0101 §9). */}
+                {/* Mode Tiles | Loadout + Deck Shelves (ADR 0103 §6). One row
+                    from `lg:` up so the whole menu fits a desktop viewport;
+                    one column below it, where the tiles come first because
+                    the phone band puts destinations in `AppBottomNav` and the
+                    thumb starts at the bottom of the column. */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+                    <div className="flex flex-col gap-3">
+                        <PlayModeSelector
+                            value={playMode}
+                            onChange={handlePlayModeChange}
+                            disabled={isBusy}
+                        />
+                        <LobbyModeTiles
+                            tiles={modeTiles}
+                            selected={activeTile.key}
+                            onSelect={setModeKey}
+                        />
+                        <OpenTablesStrip
+                            openGames={openGames}
+                            mode={playMode}
+                            onJoin={handleJoin}
+                            canAct={canAct}
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                        <LobbyLoadout
+                            deck={selectedDeck}
+                            mode={playMode}
+                            tile={activeTile}
+                            matchFormat={matchFormat}
+                            onMatchFormatChange={handleMatchFormatChange}
+                            onPrimary={runPrimaryAction}
+                            onJoinByCode={() => setJoinByCodeOpen(true)}
+                            onEditDeck={handleEditSelectedDeck}
+                            onChangeDeck={handleChangeDeck}
+                            busy={isBusy}
+                            hasActiveGame={!!activeGame}
+                        />
+
+                        <DeckShelf
+                            title="Your decks"
+                            decks={filteredUserDecks}
+                            selectedPresetId={storedPresetId}
+                            onSelect={handleSelectDeck}
+                            onOpen={handleFocusDeck}
+                            onEdit={handleEditDeck}
+                            onDelete={handleDeleteDeck}
+                            emptyLabel={
+                                deckFormatFilter === "all"
+                                    ? "No saved decks yet. Create one to start building."
+                                    : "No saved decks match this format."
+                            }
+                            actions={
+                                <>
+                                    <DeckFormatFilter
+                                        value={deckFormatFilter}
+                                        onChange={handleDeckFormatFilterChange}
+                                    />
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleNewDeck}
+                                    >
+                                        + New Deck
+                                    </Button>
+                                </>
+                            }
+                        />
+
+                        <DeckShelf
+                            title="Preset decks"
+                            decks={filteredPresetDecks}
+                            selectedPresetId={storedPresetId}
+                            onSelect={handleSelectDeck}
+                            onOpen={handleFocusDeck}
+                            onEdit={isAdmin ? handleEditPreset : undefined}
+                            onDelete={isAdmin ? handleDeletePreset : undefined}
+                            emptyLabel={
+                                deckFormatFilter === "all"
+                                    ? "No preset decks available."
+                                    : "No preset decks match this format."
+                            }
+                            actions={
+                                isAdmin ? (
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleNewPreset}
+                                        title="Create a new preset (admin)"
+                                    >
+                                        + New Preset
+                                    </Button>
+                                ) : undefined
+                            }
+                        />
+                    </div>
+                </div>
+
+                {/* Live Limited events as footer cards (ADR 0103 §6). The
+                    Limited ENTRY point is the fourth Mode Tile above; this
+                    band is only what is already running (issue #2648). */}
                 <DashboardLimitedBox
                     events={myLimitedEvents}
                     openEvents={openLimitedEvents}
@@ -611,95 +741,6 @@ function Lobby() {
                     joinPendingEventId={joinPendingEventId}
                     onViewAllEvents={handleViewAllLimitedEvents}
                 />
-
-                <DashboardPlayBox
-                    selectedDeck={selectedDeck}
-                    openGames={openGames}
-                    mode={playMode}
-                    onModeChange={handlePlayModeChange}
-                    onCreateVsAi={() => setVsAiOpen(true)}
-                    onJoinByCode={() => setJoinByCodeOpen(true)}
-                    onCreateSolo={handleCreateSolo}
-                    onCreateManual={handleCreateTabletop}
-                    onCreateMultiplayer={handleCreate}
-                    onJoin={handleJoin}
-                    onChangeDeck={handleChangeDeck}
-                    matchFormat={matchFormat}
-                    onMatchFormatChange={handleMatchFormatChange}
-                    busy={isBusy}
-                    hasActiveGame={!!activeGame}
-                />
-
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <Panel className="flex max-h-[28rem] flex-col">
-                        <PanelHeader title="My Decks" />
-                        <PanelBody className="min-h-0 flex-1">
-                            <div className="flex items-center justify-end gap-3">
-                                <DeckFormatFilter
-                                    value={deckFormatFilter}
-                                    onChange={handleDeckFormatFilterChange}
-                                />
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={handleNewDeck}
-                                >
-                                    + New Deck
-                                </Button>
-                            </div>
-                            <div className="min-h-0 flex-1 overflow-auto">
-                                <DeckList
-                                    decks={filteredUserDecks}
-                                    selectedPresetId={storedPresetId}
-                                    onFocus={handleFocusDeck}
-                                    onSelect={handleSelectDeck}
-                                    emptyLabel={
-                                        deckFormatFilter === "all"
-                                            ? "No saved decks yet. Create one to start building."
-                                            : "No saved decks match this format."
-                                    }
-                                    renderActions={renderUserActions}
-                                />
-                            </div>
-                        </PanelBody>
-                    </Panel>
-
-                    <Panel className="flex max-h-[28rem] flex-col">
-                        <PanelHeader title="Preset Decks" />
-                        <PanelBody className="min-h-0 flex-1">
-                            <div className="flex items-center justify-end gap-3">
-                                <DeckFormatFilter
-                                    value={deckFormatFilter}
-                                    onChange={handleDeckFormatFilterChange}
-                                />
-                                {isAdmin && (
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        onClick={handleNewPreset}
-                                        title="Create a new preset (admin)"
-                                    >
-                                        + New Preset
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="min-h-0 flex-1 overflow-auto">
-                                <DeckList
-                                    decks={filteredPresetDecks}
-                                    selectedPresetId={storedPresetId}
-                                    onFocus={handleFocusDeck}
-                                    onSelect={handleSelectDeck}
-                                    emptyLabel={
-                                        deckFormatFilter === "all"
-                                            ? undefined
-                                            : "No preset decks match this format."
-                                    }
-                                    renderActions={renderPresetActions}
-                                />
-                            </div>
-                        </PanelBody>
-                    </Panel>
-                </div>
 
                 <LobbyFooter />
             </div>

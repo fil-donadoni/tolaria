@@ -29,6 +29,22 @@ describe("DeckRowMenu (issue #2591)", () => {
         expect(onDelete).toHaveBeenCalledTimes(1);
     });
 
+    // happy-dom has no layout, so this cannot assert the RENDERED box — the
+    // browser measurement that motivated it is `bun run check:ui`'s `lobby`
+    // rows (61 sub-44px triggers at both coarse-pointer tablet viewports
+    // before, 0 after). What it CAN guard is that the trigger keeps reading
+    // the pointer-aware token instead of the flat `icon-sm` 28px square: a
+    // Deck Shelf renders one of these per deck, so dropping the token is 61
+    // WCAG 2.5.8 failures at once and the `dom` project would not see it.
+    it("sizes the trigger off --control-h so a coarse pointer gets 44px (ADR 0101 §2, issue #2726)", () => {
+        render(<DeckRowMenu deckName="Mono Red Burn" onDelete={vi.fn()} />);
+        const classes = screen
+            .getByRole("button", { name: "More actions for Mono Red Burn" })
+            .className.split(/\s+/);
+        expect(classes).toContain("min-h-[var(--control-h)]");
+        expect(classes).toContain("min-w-[var(--control-h)]");
+    });
+
     it("does not bubble the trigger click to an ancestor's onClick (row stays unselected)", () => {
         const rowClick = vi.fn();
         render(

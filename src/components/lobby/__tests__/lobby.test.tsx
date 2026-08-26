@@ -1,7 +1,19 @@
-// Two-step "Play vs AI" lobby flow (integration): clicking "Play vs AI" opens
-// the setup dialog WITHOUT firing the create mutation; Confirm fires
-// `createSoloGame` with the chosen `bestOf` + `deck2`; Cancel closes without
-// firing. The player's OWN deck stays the Lobby hero selection. See `../lobby`.
+// The lobby as a game main menu (ADR 0103 §6, issue #2726), end to end:
+// Mode Tiles · Loadout · Deck Shelves · Limited footer, over the real wiring.
+//
+// The one structural fact these tests lean on: a Mode Tile SELECTS, it never
+// starts anything — the single ivory primary action in the Loadout does, and
+// it takes the selected tile's title as its ACCESSIBLE NAME (the trailing
+// arrow is `aria-hidden`). So `getByRole("button", { name: "Play vs Bot" })`
+// is the action and `[data-mode-tile="bot"]` is the tile; a tile's own
+// accessible name is its whole visible text (chip + title + line), which is
+// why the two never collide.
+//
+// Also covered here, unchanged in substance from before the restyle: the
+// two-step vs-AI flow (dialog, then Confirm fires `createSoloGame` with the
+// chosen `bestOf` + `deck2`), the Limited footer's wiring, inline Open-Events
+// join, game-mode-driven deck filtering, deck-tile overflow actions, and
+// join-by-code. See `../lobby`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import { ConvexError } from "convex/values";
@@ -64,7 +76,10 @@ const PRESET_DECKS = [
         colors: ["W"],
         cards: [{ id: "card-b", quantity: 4 }],
         sideboard: [],
-        featuredCardId: null,
+        // The one fixture deck with resolvable art: the ambient layer only
+        // renders for a deck that HAS a Featured Card, which is what makes
+        // "selecting a deck swaps the ambient" (AC #3) falsifiable below.
+        featuredCardId: "print-white-weenie",
         isLegal: true,
         reasons: [],
     },
@@ -131,8 +146,11 @@ const MANUAL_USER_DECK = {
 
 vi.mock("~/lib/adminGating", () => ({ canEditPresets: () => false }));
 
-// Stub the chrome around the Play panel so the integration test stays focused
-// on the vs-AI flow (the real DashboardPlayBox + VsAiSetupDialog still render).
+// Stub the chrome around the lobby so the integration test stays focused on
+// the vs-AI flow. `DashboardPlayBox` is gone (issue #2726 retired it); what
+// still renders for real here is `LobbyModeTiles` / `LobbyLoadout` — which is
+// what now carries the "Play vs Bot" tile and the single primary action — plus
+// `VsAiSetupDialog` behind it.
 // The app header is no longer the Lobby's to render — it moved to `AppShell`
 // (`src/components/chrome/app-header.tsx`) so every section wears it — so
 // there is nothing to stub here beyond the background.
@@ -150,9 +168,27 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
+/** One open (waiting) table, as `api.game.listOpenGames` returns it: a games
+ *  doc plus its Match's `bestOf` (PRD #387/#397). `mode` decides which join
+ *  mutation an `OpenTablesStrip` row would dispatch, so it is what makes a row
+ *  mode-compatible or not. */
+function makeOpenGame(overrides: Record<string, unknown> = {}) {
+    return {
+        _id: "game-open-1",
+        _creationTime: 0,
+        name: "Someone's game",
+        mode: "standard",
+        status: "waiting",
+        bestOf: 1 as const,
+        players: [{ id: "user-2", nickname: "Opponent" }],
+        ...overrides,
+    };
+}
+
 async function renderLobby(
     myLimitedEvents: unknown[] = [],
-    openLimitedEvents: unknown[] = []
+    openLimitedEvents: unknown[] = [],
+    openGames: unknown[] = []
 ) {
     // `api` is mocked to `{}`, so queries can't be distinguished by reference;
     // route by per-render call order instead. The lobby issues exactly FIVE
@@ -166,7 +202,7 @@ async function renderLobby(
     useQueryMock.mockImplementation(() => {
         const idx = queryCall++;
         if (idx % 5 === 0) return PRESET_DECKS;
-        if (idx % 5 === 1) return [];
+        if (idx % 5 === 1) return openGames;
         if (idx % 5 === 2) return null;
         if (idx % 5 === 3) return myLimitedEvents;
         return openLimitedEvents;
@@ -202,12 +238,102 @@ async function renderLobby(
     return render(<Lobby />);
 }
 
+/** A Mode Tile, by key. Tiles are art-backed toggle buttons whose accessible
+ *  name is their whole visible text, so `data-mode-tile` is the stable seam —
+ *  the same attribute `lobby-mode-tile.tsx` documents as one. */
+function modeTile(container: HTMLElement, key: string): HTMLButtonElement {
+    const el = container.querySelector<HTMLButtonElement>(
+        `[data-mode-tile="${key}"]`
+    );
+    if (!el) throw new Error(`no Mode Tile for "${key}"`);
+    return el;
+}
+
+describe("Lobby Mode Tiles name the primary action (issue #2726)", () => {
+    it("opens on the Bot tile selected, with the primary action named after it", async () => {
+        const { container, getByRole } = await renderLobby();
+        expect(modeTile(container, "bot").getAttribute("aria-pressed")).toBe(
+            "true"
+        );
+        expect(getByRole("button", { name: "Play vs Bot" })).toBeTruthy();
+    });
+
+    it("selecting another tile RENAMES the primary action (AC #3)", async () => {
+        const { container, getByRole, queryByRole } = await renderLobby();
+        fireEvent.click(modeTile(container, "table"));
+        expect(getByRole("button", { name: "Open a table" })).toBeTruthy();
+        expect(queryByRole("button", { name: "Play vs Bot" })).toBeNull();
+        expect(modeTile(container, "table").getAttribute("aria-pressed")).toBe(
+            "true"
+        );
+    });
+
+    it("a tile click starts nothing on its own — only the primary action does", async () => {
+        const { container, getByRole } = await renderLobby();
+        fireEvent.click(modeTile(container, "solo"));
+        expect(createSoloGame).not.toHaveBeenCalled();
+        fireEvent.click(getByRole("button", { name: "Solo game" }));
+        await vi.waitFor(() => {
+            expect(createSoloGame).toHaveBeenCalledTimes(1);
+        });
+        expect(createSoloGame.mock.calls[0][0].vsAi).toBeUndefined();
+    });
+
+    it("the Cockatrice tile set swaps 'Play vs Bot' / 'Solo game' for 'Solo table'", async () => {
+        useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        localStorage.setItem("tolaria:selectedDeckId", "userdeck-manual-1");
+        const { container, getByRole } = await renderLobby();
+        expect(container.querySelector('[data-mode-tile="bot"]')).toBeNull();
+        expect(container.querySelector('[data-mode-tile="solo"]')).toBeNull();
+        // The stranded "bot" key resolves to the first OFFERED tile, so the
+        // primary action names something the grid actually shows.
+        expect(getByRole("button", { name: "Solo table" })).toBeTruthy();
+    });
+
+    it("the Limited tile's action needs no deck at all", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { container, getByRole } = await renderLobby();
+        fireEvent.click(modeTile(container, "limited"));
+        const browse = getByRole("button", {
+            name: "Limited",
+        }) as HTMLButtonElement;
+        expect(browse.disabled).toBe(false);
+        fireEvent.click(browse);
+        expect(navigate).toHaveBeenCalledWith({ to: "/limited" });
+    });
+
+    it("selecting a deck from a shelf swaps the Loadout AND the ambient (AC #3)", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { baseElement, getByRole, getByText, queryByText } =
+            await renderLobby();
+        expect(getByText("No deck selected")).toBeTruthy();
+        // No selection → no deck art behind the menu.
+        expect(baseElement.querySelector("[data-lobby-ambient]")).toBeNull();
+
+        fireEvent.click(getByRole("button", { name: "Select White Weenie" }));
+
+        // Loadout swapped...
+        expect(queryByText("No deck selected")).toBeNull();
+        expect(localStorage.getItem("tolaria:selectedDeckId")).toBe(
+            "white-weenie"
+        );
+        // ...and the ambient with it, from the deck's own Featured Card.
+        const art = baseElement.querySelector<HTMLImageElement>(
+            "[data-lobby-ambient] img"
+        );
+        expect(art).not.toBeNull();
+        expect(art!.getAttribute("src")).toContain("print-white-weenie");
+    });
+});
+
 describe("Lobby vs-AI two-step flow", () => {
-    it("clicking 'Play vs Bot' opens the dialog without firing the mutation", async () => {
-        const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        // The Play panel button (issue #2591: "Play vs AI" → "Play vs Bot",
-        // ADR 0101 §10). Before opening, no create mutation.
-        fireEvent.click(getByText("Play vs Bot"));
+    it("running the 'Play vs Bot' primary action opens the dialog without firing the mutation", async () => {
+        const { getByRole, getAllByText, getByLabelText } = await renderLobby();
+        // The Loadout's one ivory plate, named by the selected Mode Tile
+        // (issue #2726; the label itself is #2591's "Play vs AI" → "Play vs
+        // Bot", ADR 0101 §10). Before opening, no create mutation.
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         expect(createSoloGame).not.toHaveBeenCalled();
         // Dialog content is now present (the two vs-AI selectors). Match
         // Format is not among them — it governs Solo / Multiplayer too
@@ -222,8 +348,8 @@ describe("Lobby vs-AI two-step flow", () => {
     });
 
     it("Confirm fires createSoloGame with the chosen bestOf and deck2", async () => {
-        const { getByText, getAllByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs Bot"));
+        const { getByRole, getAllByText, getByLabelText } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         // Pick White Weenie as the AI opponent deck (deck2).
         fireEvent.change(getByLabelText("AI Opponent Deck"), {
             target: { value: "white-weenie" },
@@ -244,8 +370,8 @@ describe("Lobby vs-AI two-step flow", () => {
     });
 
     it("Cancel closes the dialog without firing the mutation", async () => {
-        const { getByText, queryByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs Bot"));
+        const { getByRole, getByText, queryByLabelText } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         expect(queryByLabelText("AI Difficulty")).toBeTruthy();
         fireEvent.click(getByText("Cancel"));
         expect(createSoloGame).not.toHaveBeenCalled();
@@ -260,8 +386,8 @@ describe("Lobby vs-AI two-step flow", () => {
     // assert `document.body` is portal-free — the teardown contract the whole
     // jsdom project relies on for cross-file isolation.
     it("leaves no residual dialog portal in document.body after teardown", async () => {
-        const { getByText, getByLabelText } = await renderLobby();
-        fireEvent.click(getByText("Play vs Bot"));
+        const { getByRole, getByLabelText } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         // The portal is live while the dialog is open.
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(
@@ -284,9 +410,12 @@ describe("Lobby vs-AI two-step flow", () => {
 // the box through `useMyLimitedEvents` — the real hook wiring, not a
 // hand-built prop. The old secondary "Limited Events" button is gone.
 describe("Lobby dashboard Limited box (issue #1582)", () => {
-    it("renders the Limited strip and the Play box, each full width", async () => {
-        const { getByText, getByRole } = await renderLobby();
-        expect(getByText("Play")).toBeTruthy();
+    it("renders the Limited footer alongside the Mode Tiles and the Loadout", async () => {
+        const { container, getByText, getByRole } = await renderLobby();
+        expect(getByRole("group", { name: "Game modes" })).toBeTruthy();
+        expect(
+            container.querySelector('[data-mode-tile="limited"]')
+        ).toBeTruthy();
         expect(getByRole("heading", { name: "Limited" })).toBeTruthy();
         expect(getByText("Browse / Create Events")).toBeTruthy();
     });
@@ -496,29 +625,35 @@ describe("Lobby game-mode selector drives deck filtering (issue #2591)", () => {
     });
 });
 
-// Compact deck rows (PRD #2405 D15 / ADR 0101 §9, issue #2591): Delete moved
-// behind DeckRowMenu's "⋯" overflow for both My Decks and Preset Decks. This
-// exercises `renderUserActions` (a *real* user deck row, not the empty `[]`
-// every other test in this file uses) end-to-end through the confirm dialog —
-// restoring the old always-visible destructive Button here left the prior
-// suite green because no test ever rendered a non-empty My Decks list.
-describe("Lobby compact deck row actions (issue #2591)", () => {
-    it("renders Edit + the '⋯' overflow (not an inline Delete button) and deletes through it", async () => {
+// Deck Shelf tile actions (ADR 0103 §6, issue #2726; carries forward PRD
+// #2405 D15 / ADR 0101 §9, issue #2591). A shelf tile spends its own click on
+// SELECTING the deck, so Open / Edit / Delete moved behind the "⋯" overflow —
+// Edit stays a visible single tap for the deck that matters most, the SELECTED
+// one, on the Loadout. This exercises a *real* user deck row (not the empty
+// `[]` most tests in this file use) end-to-end through the confirm dialog:
+// restoring an always-visible destructive Delete left the prior suite green
+// because no test ever rendered a non-empty deck collection.
+describe("Lobby deck shelf tile actions (issue #2726)", () => {
+    beforeEach(() => {
         useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
         localStorage.setItem("tolaria:playMode", "cockatrice");
-        const { getByRole, queryByRole, getByText } = await renderLobby();
+        localStorage.setItem("tolaria:selectedDeckId", "userdeck-manual-1");
+    });
 
-        expect(getByText("My Manual Deck")).toBeTruthy();
-        // Edit stays a visible single tap.
+    it("keeps Edit a single tap for the selected deck and no inline Delete anywhere", async () => {
+        const { getByRole, queryByRole, getAllByText } = await renderLobby();
+        // Twice: the shelf tile it was picked from, and the Loadout it now
+        // fills.
+        expect(getAllByText("My Manual Deck").length).toBe(2);
         expect(getByRole("button", { name: "Edit" })).toBeTruthy();
-        // No always-visible inline Delete button (the mutation the review
-        // caught: restoring `<Button variant="destructive">Delete</Button>`
-        // inline left the prior suite green because it was never rendered
-        // against a non-empty deck list).
+        // Nothing destructive is one stray click away — not as a button, and
+        // not as an already-open menu item.
         expect(queryByRole("button", { name: "Delete" })).toBeNull();
-        // Delete lives behind the overflow trigger, hidden until opened.
         expect(queryByRole("menuitem", { name: "Delete" })).toBeNull();
+    });
 
+    it("deletes through the tile overflow, via the in-app confirm dialog", async () => {
+        const { getByRole } = await renderLobby();
         fireEvent.click(
             getByRole("button", { name: "More actions for My Manual Deck" })
         );
@@ -535,6 +670,191 @@ describe("Lobby compact deck row actions (issue #2591)", () => {
                 id: "userdeck-manual-1",
             });
         });
+    });
+
+    it("opens the deck's detail page from the same overflow", async () => {
+        const { getByRole } = await renderLobby();
+        fireEvent.click(
+            getByRole("button", { name: "More actions for My Manual Deck" })
+        );
+        fireEvent.click(getByRole("menuitem", { name: "Open" }));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/$slug",
+            params: { slug: "userdeck-manual-1" },
+        });
+    });
+
+    it("edits through the same overflow", async () => {
+        const { getByRole } = await renderLobby();
+        fireEvent.click(
+            getByRole("button", { name: "More actions for My Manual Deck" })
+        );
+        fireEvent.click(getByRole("menuitem", { name: "Edit" }));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/$slug/edit",
+            params: { slug: "userdeck-manual-1" },
+        });
+    });
+});
+
+// Preset ADMIN gating, the whole of it (round-2 review, finding 3). Every
+// preset-editing affordance the lobby can offer has to be absent for a
+// non-admin, not merely rejected on arrival: `/presets/$slug/edit` carries no
+// client guard, so a non-admin who reaches it gets an editor whose save dies at
+// the server's `assertIsAdmin`. `canEditPresets` is mocked false for this whole
+// file, and `beforeEach` selects a PRESET (`mono-red-burn`) — the default start
+// state, which is exactly the state that shipped the offered-Edit bug.
+describe("Lobby withholds preset editing from a non-admin (issue #2726)", () => {
+    it("offers a preset tile's overflow neither Edit nor Delete", async () => {
+        const { getByRole, queryByRole } = await renderLobby();
+        fireEvent.click(
+            getByRole("button", { name: "More actions for White Weenie" })
+        );
+        // Open survives — it is the one action a shelf tile cannot show
+        // inline, and it needs no rights at all.
+        expect(getByRole("menuitem", { name: "Open" })).toBeTruthy();
+        expect(queryByRole("menuitem", { name: "Edit" })).toBeNull();
+        expect(queryByRole("menuitem", { name: "Delete" })).toBeNull();
+    });
+
+    it("offers NO Loadout Edit while the active deck is a preset", async () => {
+        const { getAllByText, queryByRole } = await renderLobby();
+        // The preset really is the active deck — otherwise the assertion
+        // below would pass on an empty Loadout. Twice: the shelf tile it was
+        // picked from, and the Loadout it now fills.
+        expect(getAllByText("Mono Red Burn").length).toBe(2);
+        expect(queryByRole("button", { name: "Edit" })).toBeNull();
+        // "Change deck" is NOT rights-gated and must survive the withholding.
+        expect(queryByRole("button", { name: "Change deck" })).toBeTruthy();
+    });
+
+    it("keeps the Loadout Edit for a USER deck, which needs no admin right", async () => {
+        useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        localStorage.setItem("tolaria:selectedDeckId", "userdeck-manual-1");
+        const { getByRole } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Edit" }));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/$slug/edit",
+            params: { slug: "userdeck-manual-1" },
+        });
+    });
+});
+
+// The SHARED gate reaching `OpenTablesStrip` (round-2 review, finding 4).
+// `lobbyGate.ts` was extracted so a table row can never be joinable under a
+// condition the Loadout's primary action refuses — and nothing proved the
+// lobby actually spends that gate on the strip, because no test in this file
+// ever seeded an open game, so the strip never rendered at all. These do.
+describe("Lobby spends the shared gate on open-table rows (issue #2726)", () => {
+    it("disables the row when the gate refuses (no deck selected)", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { getByRole, getByText } = await renderLobby(
+            [],
+            [],
+            [makeOpenGame()]
+        );
+        expect(getByText("Open tables to join")).toBeTruthy();
+        const join = getByRole("button", {
+            name: /Someone's game/,
+        }) as HTMLButtonElement;
+        expect(join.disabled).toBe(true);
+    });
+
+    it("enables the same row once the gate allows (deck selected)", async () => {
+        const { getByRole } = await renderLobby([], [], [makeOpenGame()]);
+        const join = getByRole("button", {
+            name: /Someone's game/,
+        }) as HTMLButtonElement;
+        expect(join.disabled).toBe(false);
+        fireEvent.click(join);
+        await vi.waitFor(() => {
+            expect(joinGame).toHaveBeenCalledWith(
+                expect.objectContaining({ gameId: "game-open-1" })
+            );
+        });
+    });
+});
+
+// The ui-gate board walk, executed against the real lobby (round-2 review,
+// finding 2). `ensureBoard` (`scripts/ui-gate/surfaces.ts`) reaches a live
+// board through three ATTRIBUTE hooks, because none of the three controls
+// carries a stable string: a Deck Shelf tile's text is the deck NAME, and the
+// Loadout's plate is named by whichever Mode Tile is selected. happy-dom cannot
+// prove the walk's LAYOUT assumptions, but it can prove the hooks exist, are
+// addressable by the exact selectors the walk uses, and dispatch the solo
+// game — which is the half that broke silently when the v3 literals
+// (`:has-text('Select')`, `:has-text('Solo Game')`) stopped matching and sent
+// `game-board` + `game-stress` UNWALKED at all five viewports.
+describe("Lobby drives the ui-gate board walk (issue #2726)", () => {
+    // Byte-identical to `ensureBoard`'s constants. If these drift, the walk
+    // reds instead of this file, which is the wrong place to find out.
+    const DECK_TILE_SELECT =
+        "[data-deck-tile] [data-deck-select]:not([disabled])";
+    const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
+    const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
+
+    it("reaches a solo game through the walk's own selectors", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { container } = await renderLobby();
+
+        // Step 3 of the runbook: no deck yet, so the plate is gated and the
+        // walk's `:not([disabled])` form matches nothing.
+        expect(container.querySelector(LOBBY_PRIMARY)).toBeNull();
+        const deckTile =
+            container.querySelector<HTMLButtonElement>(DECK_TILE_SELECT);
+        expect(deckTile).not.toBeNull();
+        fireEvent.click(deckTile!);
+
+        // Step 4: the Mode Tile SELECTS. Still nothing started.
+        const solo = container.querySelector<HTMLButtonElement>(MODE_TILE_SOLO);
+        expect(solo).not.toBeNull();
+        fireEvent.click(solo!);
+        expect(createSoloGame).not.toHaveBeenCalled();
+
+        // Step 5: the plate — now ungated, and now reading "Solo game".
+        const primary =
+            container.querySelector<HTMLButtonElement>(LOBBY_PRIMARY);
+        expect(primary).not.toBeNull();
+        expect(primary!.textContent).toContain("Solo game");
+        fireEvent.click(primary!);
+        await vi.waitFor(() => {
+            expect(createSoloGame).toHaveBeenCalledTimes(1);
+        });
+        expect(createSoloGame.mock.calls[0][0].vsAi).toBeUndefined();
+    });
+
+    it("marks an already-selected tile disabled, which is how the walk skips the step", async () => {
+        const { container } = await renderLobby();
+        // `beforeEach` selects `mono-red-burn`; its tile carries the
+        // selected flag the walk probes and its button is out of the
+        // selectable set.
+        expect(
+            container.querySelectorAll('[data-deck-tile][data-selected="true"]')
+                .length
+        ).toBe(1);
+        const selectable = container.querySelectorAll(DECK_TILE_SELECT);
+        expect(selectable.length).toBe(PRESET_DECKS.length - 1);
+    });
+});
+
+// Deck creation stays reachable from the shelf headers, and the admin-only
+// preset creator stays absent for a non-admin (`canEditPresets` is mocked
+// false for this whole file).
+describe("Lobby deck shelf headers (issue #2726)", () => {
+    it("offers '+ New Deck' and carries the Format filter into the builder", async () => {
+        localStorage.setItem("tolaria:deckFormatFilter", "premodern");
+        const { getByRole } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "+ New Deck" }));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/create",
+            search: { format: "premodern" },
+        });
+    });
+
+    it("withholds '+ New Preset' from a non-admin", async () => {
+        const { queryByRole } = await renderLobby();
+        expect(queryByRole("button", { name: "+ New Preset" })).toBeNull();
     });
 });
 

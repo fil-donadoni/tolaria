@@ -1,7 +1,7 @@
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
-import ActionButton from "~/components/board/action-button";
+import { Button } from "~/components/ui/button";
 import LimitedStatusBadge from "~/components/limited/limited-status-badge";
 
 /** The lobby dashboard's "Open Events" section (issue #2648, ADR 0101 §9:
@@ -26,8 +26,8 @@ export default function DashboardLimitedOpenEvents({
     if (events.length === 0) return null;
 
     return (
-        <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+        <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-disabled">
                 Open Events
             </p>
             <div className="flex flex-col gap-2">
@@ -36,19 +36,21 @@ export default function DashboardLimitedOpenEvents({
                     return (
                         <div
                             key={event._id}
-                            className="flex items-center justify-between rounded-sm border border-border-subtle bg-surface-elevated px-4 py-2 text-sm"
+                            className="flex items-center justify-between gap-2 rounded-sm border border-[var(--hairline)] bg-surface/70 px-3 py-2 text-sm"
                         >
-                            <span className="font-medium text-text">
+                            <span className="truncate font-medium text-text">
                                 {limitedEventName(event)}
                             </span>
-                            <span className="flex items-center gap-2">
+                            <span className="flex shrink-0 items-center gap-2">
                                 <LimitedStatusBadge event={event} />
-                                <ActionButton
+                                <Button
+                                    variant="primary"
+                                    size="sm"
                                     onClick={() => onJoin(id)}
-                                    label="Join"
-                                    tone="primary"
                                     disabled={joinPendingEventId === id}
-                                />
+                                >
+                                    Join
+                                </Button>
                             </span>
                         </div>
                     );

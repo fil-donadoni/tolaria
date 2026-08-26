@@ -609,6 +609,21 @@ function currentEventId(page: Page): string {
     return match[1];
 }
 
+/* The v4 lobby's walk hooks (ADR 0103 §6, issue #2726). ATTRIBUTES, not
+ * `:has-text()` literals, because neither control the walk needs carries a
+ * stable string any more: a Deck Shelf tile's visible text is the deck NAME
+ * (its "Select <name>" is an `aria-label`, which `:has-text` does not read),
+ * and the Loadout's single ivory plate is NAMED BY the selected Mode Tile
+ * ("Play vs Bot" on a cold lobby), so `button:has-text('Solo Game')` would
+ * match the Mode TILE — which selects and starts nothing. Both attributes are
+ * declared as walk seams at their component (`deck-shelf-tile.tsx`,
+ * `lobby-loadout.tsx`) and exercised through the real lobby wiring in
+ * `src/components/lobby/__tests__/lobby.test.tsx`. */
+const DECK_TILE_SELECTED = '[data-deck-tile][data-selected="true"]';
+const DECK_TILE_SELECT = "[data-deck-tile] [data-deck-select]:not([disabled])";
+const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
+const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
+
 /**
  * Reach a live board. Runbook: "Start a solo game from cold" plus its
  * "Blocked by an active game" branch — with the branch resolved the safe way
@@ -626,21 +641,39 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
     if (await clickIfVisible(page, "button:has-text('Resume')", 4000)) {
         ctx.log("resumed the pre-existing active game");
     } else {
-        const picked = await clickIfVisible(
-            page,
-            "button:has-text('Select')",
-            6000
-        );
-        if (!picked) {
+        // 1. A deck has to be the Loadout's ACTIVE one before the primary
+        //    action ungates. An already-selected tile and an illegal one are
+        //    both `disabled`, so this addresses the first tile that can
+        //    actually take the selection — and the step is skipped outright
+        //    when a tile already carries the selection. That is the SECOND
+        //    `ensureBoard` call inside one viewport (`game-board` then
+        //    `game-stress`, both below), which shares the context and so the
+        //    `tolaria:selectedDeckId` the first call wrote. It is NOT how a
+        //    later VIEWPORT starts: `index.ts`'s `browser.newContext({viewport,
+        //    …})` passes no `storageState`, so every viewport begins with empty
+        //    storage and viewports 2-5 reach a board through the `Resume`
+        //    branch above, on the game viewport 1 created.
+        if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
+            if (!(await clickIfVisible(page, DECK_TILE_SELECT, 6000))) {
+                throw new Unreachable(
+                    "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
+                );
+            }
+            await page.waitForTimeout(400);
+        }
+        // 2. A Mode Tile SELECTS; it never starts anything. "Solo game" is the
+        //    one whose primary action creates a game outright — the default
+        //    "Play vs Bot" tile opens the vs-AI setup dialog instead, and
+        //    "Open a table" hosts a seat and waits for a second player.
+        if (!(await clickIfVisible(page, MODE_TILE_SOLO, 6000))) {
             throw new Unreachable(
-                "the lobby offered neither Resume nor a deck Select button — is the deployment seeded with preset decks?"
+                "the lobby's Mode Tiles offered no 'Solo game' tile — is the game-mode selector stuck on Cockatrice mode?"
             );
         }
-        if (
-            !(await clickIfVisible(page, "button:has-text('Solo Game')", 6000))
-        ) {
+        // 3. The single ivory plate, which now reads "Solo game".
+        if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
             throw new Unreachable(
-                "Solo Game stayed disabled after selecting a deck"
+                "the Loadout's primary action stayed disabled after selecting a deck and the 'Solo game' Mode Tile"
             );
         }
         ctx.createdGame = true;
