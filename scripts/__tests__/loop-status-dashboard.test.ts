@@ -484,11 +484,20 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
             ) as string;
             // A sentence is prose: it is strictly longer than the raw
             // internal stage key it replaces, and it is never JUST the key
-            // re-wrapped in a span.
+            // re-wrapped in a span. Matched by CONTENT only — `[^>]*`
+            // between the opening tag and `>` tolerates whatever attributes
+            // `stageHtml` currently emits (`data-term` alone, or `data-term`
+            // + `data-issue` after review finding 4) — pinning the exact
+            // attribute list here would make this assertion pass vacuously
+            // the moment stageHtml's attributes changed again, the same
+            // "test asserts nothing" shape review finding 5's original form
+            // fell into against finding 4's fix.
+            const escaped = stage.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const rawKeyFallback = new RegExp(
+                `<span class="ls-stage"[^>]*>${escaped}</span>`
+            );
             expect(
-                html.includes(
-                    `<span class="ls-stage" data-term="stage.${stage}">${stage}</span>`
-                ),
+                rawKeyFallback.test(html),
                 `stage "${stage}" must not render as its own raw key`
             ).toBe(false);
         }
