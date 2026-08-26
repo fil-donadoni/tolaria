@@ -1,0 +1,263 @@
+{
+    "label": "UI stress — full board, full hand, deep piles",
+    "prompt": "ui-gate `game-stress` surface (scripts/ui-gate/surfaces.ts). Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/stress-scenario.json)\". Deployment-local by design (ADR 0044) — re-seed on a fresh deployment.",
+    "spec": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 6,
+        "libraryCount": 30,
+        "cards": [
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "damageMarked": 1
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Elvish Archers",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Wall of Wood",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Birds of Paradise",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            { "name": "Scryb Sprites", "owner": "me", "zone": "battlefield" },
+            {
+                "name": "Prodigal Sorcerer",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hypnotic Specter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            { "name": "Serra Angel", "owner": "me", "zone": "battlefield" },
+            { "name": "Shivan Dragon", "owner": "me", "zone": "battlefield" },
+            {
+                "name": "Air Elemental",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 7
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4,
+                "tapped": true
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2,
+                "tapped": true
+            },
+            {
+                "name": "Sol Ring",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Icy Manipulator",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            { "name": "Jayemdae Tome", "owner": "me", "zone": "battlefield" },
+
+            { "name": "Lightning Bolt", "owner": "me", "zone": "hand" },
+            { "name": "Giant Growth", "owner": "me", "zone": "hand" },
+            { "name": "Counterspell", "owner": "me", "zone": "hand" },
+            { "name": "Wrath of God", "owner": "me", "zone": "hand" },
+            { "name": "Dark Ritual", "owner": "me", "zone": "hand" },
+            { "name": "Disenchant", "owner": "me", "zone": "hand" },
+            { "name": "Healing Salve", "owner": "me", "zone": "hand" },
+            { "name": "Mind Twist", "owner": "me", "zone": "hand" },
+
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard",
+                "count": 12
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "me",
+                "zone": "exile",
+                "count": 6
+            },
+
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Elvish Archers",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Mons's Goblin Raiders",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            { "name": "Wall of Wood", "owner": "opp", "zone": "battlefield" },
+            {
+                "name": "Prodigal Sorcerer",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hypnotic Specter",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            { "name": "Air Elemental", "owner": "opp", "zone": "battlefield" },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            { "name": "Craw Wurm", "owner": "opp", "zone": "battlefield" },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 9
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 4,
+                "tapped": true
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            { "name": "Sol Ring", "owner": "opp", "zone": "battlefield" },
+            {
+                "name": "Icy Manipulator",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Jayemdae Tome",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+
+            {
+                "name": "Counterspell",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 3
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 3
+            },
+            {
+                "name": "Disenchant",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 2
+            },
+
+            {
+                "name": "Dark Ritual",
+                "owner": "opp",
+                "zone": "graveyard",
+                "count": 10
+            },
+            {
+                "name": "Healing Salve",
+                "owner": "opp",
+                "zone": "exile",
+                "count": 5
+            }
+        ]
+    }
+}

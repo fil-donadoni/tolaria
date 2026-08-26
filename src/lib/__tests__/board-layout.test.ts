@@ -22,6 +22,9 @@ import {
     CARD_WIDTH,
     CARD_HEIGHT,
     RIGHT_GUTTER,
+    zoneFitScale,
+    MIN_STEP_FRACTION,
+    MIN_CARD_WIDTH,
     type Placement,
 } from "../board-layout";
 
@@ -104,8 +107,13 @@ describe("rowLayout (auto-sizing battlefield row)", () => {
 
         expect(moderate.every((p) => p.scale === 1)).toBe(true);
         expect(extreme.every((p) => p.scale < 1)).toBe(true);
-        // Scale never drops below the documented floor.
-        expect(extreme.every((p) => p.scale >= 0.7)).toBe(true);
+        // Scale never drops below the documented floor. Post-#2725 that floor
+        // is an absolute on-screen card WIDTH (MIN_CARD_WIDTH), not a fixed
+        // fraction — a row shrinks as far as it must to keep every card's
+        // centre painted, and stops when a card would stop being a card.
+        expect(
+            extreme.every((p) => p.scale * CARD_WIDTH >= MIN_CARD_WIDTH - 1e-9)
+        ).toBe(true);
     });
 
     it("never places any card off the board, even at extreme counts", () => {
@@ -147,7 +155,7 @@ describe("rowLayout maxScale cap (band-height fit)", () => {
     it("the cap wins even below the readability floor (no vertical clip)", () => {
         const placed = rowLayout({
             count: 10,
-            width: 300, // forces horizontal shrink toward MIN_SCALE (0.7)
+            width: 300, // forces a horizontal shrink toward MIN_CARD_WIDTH
             centerY: 50,
             maxScale: 0.4,
         });
@@ -858,5 +866,234 @@ describe("stackDepthOffset — depth-pile diagonal step (PRD #621, #624)", () =>
         expect(stackDepthOffset(100)).toBe(max);
         // The capped spread plus one card stays well under the fan max width.
         expect(CARD_WIDTH + max).toBeLessThan(STACK_FAN_MAX_WIDTH);
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Adaptive per-zone card size (ADR 0103 "adaptive zone sizing", issue #2725).
+//
+// "A zone never clips and never scrolls" is only a real claim if the card
+// SIZE is what gives way when a zone runs out of room. The invariant every
+// test below leans on is the one the ui-gate probe measures
+// (`scripts/ui-gate/probe.js` hit-tests the centre of each card's visible
+// box): consecutive cards must step by MORE than half a card, or the card's
+// own centre is painted over by its neighbour and the probe scores `occ`.
+//
+// FOOTPRINT CENSUS — what one entry of `footprints` is, and what it is NOT.
+// `n` is the number of laid-out FOOTPRINTS, never `cards.length`:
+//
+//   | producer                        | source                          | entries |
+//   |---------------------------------|---------------------------------|---------|
+//   | clean singleton permanent       | groupBattlefield singleton      | 1       |
+//   | permanent stack, 2-8 identical  | groupBattlefield isStack (#623) | 1 (fan) |
+//   | permanent stack, >8 (depth pile)| isDepthPile (#624)              | 1 (pile)|
+//   | altered permanent (counters/dmg)| isAltered -> singleton          | 1       |
+//   | host + attached auras/equipment | one slot                        | 1       |
+//   | phased-out permanent (CR 702.26)| appended inert singleton        | 1       |
+//   | hand card / opponent hand back  | fanLayout                       | 1       |
+//   | ---- must NOT contribute ----   |                                 |         |
+//   | a stack's 2nd..Nth member       | one badge, one footprint (#621) | 0       |
+//   | a tapped permanent's rotated box| presentational, pointer-events  | 0 extra |
+//   | portrait hand above 6 cards     | scrolls by design (ADR 0101)    | n/a     |
+//
+// The last three are why this takes an array of footprint WIDTHS rather than
+// a count: a count cannot tell eight Mountains in one pile from eight
+// Mountains in eight slots, and that is exactly the case this rule exists for.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** On-screen step between two consecutive placements. */
+function stepOf(placements: Placement[]): number {
+    return placements[1].x - placements[0].x;
+}
+
+/** The invariant the probe measures: every card's centre stays painted. */
+function everyCentreVisible(
+    placements: Placement[],
+    cardWidth = CARD_WIDTH
+): boolean {
+    for (let i = 1; i < placements.length; i++) {
+        const step = placements[i].x - placements[i - 1].x;
+        if (step <= (cardWidth * placements[i - 1].scale) / 2) return false;
+    }
+    return true;
+}
+
+describe("zoneFitScale (the adaptive per-zone card size rule, issue #2725)", () => {
+    it("does not shrink a zone that already fits at full size", () => {
+        expect(
+            zoneFitScale({
+                zoneWidth: WIDTH,
+                footprints: [CARD_WIDTH, CARD_WIDTH, CARD_WIDTH],
+            })
+        ).toBe(1);
+        expect(zoneFitScale({ zoneWidth: WIDTH, footprints: [] })).toBe(1);
+    });
+
+    it("shrinks so the run fits at the step floor, never tighter", () => {
+        const footprints = Array.from({ length: 20 }, () => CARD_WIDTH);
+        const scale = zoneFitScale({ zoneWidth: WIDTH, footprints });
+        expect(scale).toBeLessThan(1);
+        const w = CARD_WIDTH * scale;
+        const span = w + MIN_STEP_FRACTION * w * (footprints.length - 1);
+        expect(span).toBeCloseTo(WIDTH, 4);
+    });
+
+    it("counts a permanent stack as ONE footprint, not one per member", () => {
+        // Eight identical Mountains: one fanned footprint (#621/#623), which
+        // is far narrower than eight card slots. Deriving `n` from the card
+        // count is the bug this rule exists to prevent — it would shrink the
+        // whole row for a stack that costs barely more than a single card.
+        const asOneStack = zoneFitScale({
+            zoneWidth: 600,
+            footprints: [stackFootprintWidth(8)],
+        });
+        const asEightCards = zoneFitScale({
+            zoneWidth: 600,
+            footprints: Array.from({ length: 8 }, () => CARD_WIDTH),
+        });
+        expect(stackFootprintWidth(8)).toBeLessThan(8 * CARD_WIDTH);
+        expect(asOneStack).toBe(1);
+        expect(asEightCards).toBeLessThan(1);
+    });
+
+    it("reserves a stack's real fan width, not one card's", () => {
+        // ...and the converse must-NOT: collapsing a stack to a bare
+        // `cardWidth` would let the fan's tail overlap its neighbour.
+        const honest = zoneFitScale({
+            zoneWidth: 700,
+            footprints: [
+                stackFootprintWidth(6),
+                stackFootprintWidth(6),
+                stackFootprintWidth(6),
+            ],
+        });
+        const naive = zoneFitScale({
+            zoneWidth: 700,
+            footprints: [CARD_WIDTH, CARD_WIDTH, CARD_WIDTH],
+        });
+        expect(honest).toBeLessThan(naive);
+    });
+
+    it("stops at the legibility floor rather than shrinking to nothing", () => {
+        const scale = zoneFitScale({
+            zoneWidth: 200,
+            footprints: Array.from({ length: 200 }, () => CARD_WIDTH),
+        });
+        expect(scale * CARD_WIDTH).toBeCloseTo(MIN_CARD_WIDTH, 6);
+    });
+
+    it("never shrinks a zone whose base card is already at the floor", () => {
+        // Landscape-compact hands its bands ONE shared footprint
+        // (`landscapeCardMetrics`); when that footprint is already the
+        // smallest card the app draws, shrinking further buys nothing.
+        const scale = zoneFitScale({
+            zoneWidth: 100,
+            footprints: Array.from({ length: 40 }, () => MIN_CARD_WIDTH),
+            cardWidth: MIN_CARD_WIDTH,
+        });
+        expect(scale).toBe(1);
+    });
+});
+
+describe("battlefield rows never clip, never scroll, never bury a card (#2725)", () => {
+    it("keeps every card's centre painted as a row fills up", () => {
+        for (const count of [2, 4, 6, 8, 12, 16, 24]) {
+            const placed = rowLayout({ count, width: 366, centerY: 0 });
+            expect(everyCentreVisible(placed)).toBe(true);
+        }
+    });
+
+    it("keeps every card's centre painted on a narrow phone-portrait row", () => {
+        // The regression this closes: six permanents on a 390px phone stepped
+        // by ~40% of a card, so every card but the last had its centre under
+        // its neighbour.
+        const placed = rowLayout({ count: 6, width: 366, centerY: 0 });
+        expect(stepOf(placed)).toBeGreaterThan(
+            (CARD_WIDTH * placed[0].scale) / 2
+        );
+        expect(placed[0].scale).toBeLessThan(1);
+    });
+
+    it("keeps every card's centre painted under a band-height cap", () => {
+        // A `maxScale` from the band height used to shrink the CARDS while the
+        // gap stayed computed at full size, so a short band overlapped as if
+        // its cards were still 120px wide however small they were drawn.
+        const placed = rowLayout({
+            count: 10,
+            width: 300,
+            centerY: 0,
+            maxScale: 0.4,
+        });
+        expect(placed.every((p) => p.scale <= 0.4 + 1e-9)).toBe(true);
+        expect(everyCentreVisible(placed)).toBe(true);
+    });
+
+    it("keeps a row of permanent stacks inside the zone and unburied", () => {
+        const widths = [
+            stackFootprintWidth(4),
+            stackFootprintWidth(6),
+            stackFootprintWidth(9),
+            CARD_WIDTH,
+            CARD_WIDTH,
+        ];
+        const placed = rowLayout({
+            count: widths.length,
+            width: 500,
+            centerY: 0,
+            widths,
+        });
+        const { left, right } = bounds(placed);
+        expect(left).toBeGreaterThanOrEqual(-0.5);
+        expect(right).toBeLessThanOrEqual(500.5);
+        // Each footprint's right edge stops before the next footprint's centre.
+        for (let i = 1; i < placed.length; i++) {
+            const prevLeft =
+                placed[i - 1].x - (CARD_WIDTH * placed[i - 1].scale) / 2;
+            const prevRight = prevLeft + widths[i - 1] * placed[i - 1].scale;
+            expect(prevRight).toBeLessThanOrEqual(placed[i].x + 0.5);
+        }
+    });
+
+    it("never scrolls: a banded battlefield always fits its own box", () => {
+        const placed = bandedRowsLayout({
+            bands: [
+                { count: 14, centerYFrac: 0.28 },
+                { split: { left: 12, right: 6 }, centerYFrac: 0.74 },
+            ],
+            width: 900,
+            height: 420,
+            rightGutter: RIGHT_GUTTER,
+        });
+        const { left, right } = bounds(placed);
+        expect(left).toBeGreaterThanOrEqual(-0.5);
+        expect(right).toBeLessThanOrEqual(900 + 0.5);
+        expect(placed.every((p) => CARD_HEIGHT * p.scale <= 420 / 2)).toBe(
+            true
+        );
+    });
+});
+
+describe("the hand fan shrinks instead of burying its cards (#2725)", () => {
+    it("stays full size while the fan fits", () => {
+        const placed = fanLayout({ count: 5, width: WIDTH, baseY: 0 });
+        expect(placed.every((p) => p.scale === 1)).toBe(true);
+    });
+
+    it("shrinks a big hand rather than fanning past the card centres", () => {
+        // The measured reason `game-board` could not be budgeted: `cardsOcc`
+        // read 4 then 5 on two runs of the SAME tree because the hand fan
+        // tightened without bound as the hand grew.
+        const placed = fanLayout({ count: 12, width: 500, baseY: 0 });
+        expect(placed[0].scale).toBeLessThan(1);
+        expect(everyCentreVisible(placed)).toBe(true);
+    });
+
+    it("keeps the whole fan inside its zone", () => {
+        for (const count of [1, 3, 7, 12, 20]) {
+            const placed = fanLayout({ count, width: 400, baseY: 0 });
+            const { left, right } = bounds(placed);
+            expect(left).toBeGreaterThanOrEqual(-0.5);
+            expect(right).toBeLessThanOrEqual(400.5);
+        }
     });
 });

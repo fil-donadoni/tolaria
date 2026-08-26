@@ -11,10 +11,13 @@
  * `rowLayout` / `fanLayout`) — the prototype dir is slated for deletion, so the
  * proven math lives here instead.
  *
- * Auto-sizing rule (validated by the prototype): cards keep full size and a
- * fixed gap until they would overflow the zone width; past that the inter-card
- * step shrinks (cards overlap); only at extreme counts does `scale` shrink.
- * Nothing is ever placed off the board.
+ * Auto-sizing rule (validated by the prototype, tightened by ADR 0103 / issue
+ * #2725): cards keep full size and a fixed gap until they would overflow the
+ * zone width; past that the inter-card step shrinks (cards overlap) until it
+ * reaches the {@link MIN_STEP_FRACTION} floor; past THAT the card itself
+ * shrinks ({@link zoneFitScale}) down to {@link MIN_CARD_WIDTH}. Nothing is
+ * ever placed off the board, no zone ever scrolls, and no card is ever laid out
+ * with its own centre buried under a neighbour.
  */
 
 /** One card's placement within a zone. `x`/`y` are the card *center* in
@@ -114,12 +117,88 @@ export function stackFootprintWidth(
 /** Default gap between full-size cards before any overlap kicks in. */
 const DEFAULT_GAP = 12;
 
-/** Tightest inter-card step as a fraction of card width once cards overlap.
- *  At this overlap a card still reveals ~32% of its neighbour. */
-const MIN_STEP_FRACTION = 0.32;
+/** Tightest inter-item STEP, as a fraction of the card's own on-screen width
+ *  (ADR 0103 "adaptive zone sizing", issue #2725).
+ *
+ *  It is above 0.5 **by construction**, and that is the whole point. A card's
+ *  neighbour paints on top of it, so at a step of `s·w` the neighbour covers
+ *  everything from `s·w` rightward: at `s < 0.5` it covers the card's own
+ *  CENTRE, and a card whose centre is covered is a card the player cannot
+ *  read, cannot click and — measurably — the ui-gate probe counts as `occ`
+ *  (`scripts/ui-gate/probe.js` hit-tests the centre of each card's visible
+ *  box). The previous value, 0.32, put every crowded row permanently in that
+ *  state: a 6-permanent row on a 390px phone stepped by 40% of a card.
+ *
+ *  0.62 is {@link FAN_STEP_FRACTION}, the reveal the hand fan was already
+ *  designed around — so "a card always shows at least 62% of itself" is now
+ *  one rule for every zone rather than two different ones. */
+export const MIN_STEP_FRACTION = 0.62;
 
-/** Floor on `scale` — even an extreme count never shrinks past this. */
-const MIN_SCALE = 0.7;
+/** Absolute floor (px) on a laid-out card's ON-SCREEN width. Below this a card
+ *  is a smudge and overlapping again is the lesser evil, so this is where
+ *  {@link zoneFitScale} stops shrinking; it sits far above the 4x4px box the
+ *  ui-gate probe scores as `zero`, and matches the smallest card the
+ *  landscape-compact band ever asks for (`LANDSCAPE_MIN_CARD_H` 40 at 5:7).
+ *
+ *  A zone whose BASE card is already at or below this never shrinks at all
+ *  (the floor clamps to `scale` 1), so a compact band keeps the one shared
+ *  footprint `landscapeCardMetrics` computed for it. */
+export const MIN_CARD_WIDTH = 28;
+
+/** The **adaptive per-zone card size** rule (ADR 0103, issue #2725) — the one
+ *  place a zone decides how big its cards may be, expressed as a `scale` on the
+ *  zone's base card footprint:
+ *
+ *  ```
+ *  scale = min( 1, (zoneWidth − gaps) / Σ footprints )
+ *  ```
+ *
+ *  where "gaps" is the (negative) overlap the {@link MIN_STEP_FRACTION} step
+ *  floor still allows. Shrink to fit, so the zone never has to clip a card,
+ *  push one off-board, or bury one under its neighbour — and never scroll.
+ *
+ *  **`footprints` is one entry per laid-out FOOTPRINT, not per card**, and that
+ *  distinction is the whole reason this takes an array instead of a count:
+ *
+ *  - a permanent stack of eight identical Mountains is ONE footprint with a
+ *    count badge (`groupBattlefield`, PRD #621) — its entry is the fan/pile
+ *    width from {@link stackFootprintWidth}, not eight card widths;
+ *  - a TAPPED permanent is ONE ordinary card-wide entry. Its 90°-rotated box
+ *    is wider, but it is presentational and `pointer-events: none`, and
+ *    reserving the rotated width in the row was MEASURED to make things worse
+ *    (issue #1994 / PR #2279 round 2 — it shrank the one shared inter-item gap
+ *    for every card in the row and took an untapped fetchland's clickable area
+ *    to 0px²). The row stays blind to tap state on purpose.
+ *
+ *  Pure. Returns 1 when the zone already fits at full size. */
+export function zoneFitScale(opts: {
+    /** Usable zone width in px (gutters already deducted). */
+    zoneWidth: number;
+    /** One entry per footprint, at FULL card size. See above. */
+    footprints: number[];
+    cardWidth?: number;
+    /** Override the step floor (defaults to {@link MIN_STEP_FRACTION}). */
+    minStepFraction?: number;
+    /** Override the legibility floor (defaults to {@link MIN_CARD_WIDTH}). */
+    minCardWidth?: number;
+}): number {
+    const {
+        zoneWidth,
+        footprints,
+        cardWidth = CARD_WIDTH,
+        minStepFraction = MIN_STEP_FRACTION,
+        minCardWidth = MIN_CARD_WIDTH,
+    } = opts;
+    const n = footprints.length;
+    if (n <= 0 || zoneWidth <= 0 || cardWidth <= 0) return 1;
+    const sumW = footprints.reduce((a, b) => a + b, 0);
+    // Span of the whole run when every neighbour steps by the floor fraction.
+    const floorSpan = sumW + (minStepFraction - 1) * cardWidth * (n - 1);
+    if (floorSpan <= zoneWidth) return 1;
+    // A base card already under the legibility floor is never shrunk further.
+    const scaleFloor = Math.min(1, minCardWidth / cardWidth);
+    return Math.max(scaleFloor, zoneWidth / floorSpan);
+}
 
 type RowOptions = {
     /** Number of cards in the row. */
@@ -162,23 +241,19 @@ function normalizeWidths(
     return Array.from({ length: count }, (_, i) => widths?.[i] ?? cardWidth);
 }
 
-/** Overlap floor as an effective inter-item gap: at the tightest overlap a
- *  uniform card still reveals {@link MIN_STEP_FRACTION} of its width, i.e. the
- *  gap goes to `(MIN_STEP_FRACTION − 1)·cardWidth` (negative — the cards
- *  overlap). Shared by {@link rowLayout} / {@link splitRowLayout}. */
-function gapFloor(cardWidth: number): number {
-    return (MIN_STEP_FRACTION - 1) * cardWidth;
-}
-
 /**
  * Auto-sizing row layout (battlefield zones).
  *
  * - **Fit** (cards + gaps ≤ width): full size, full gap, centered.
  * - **Overlap** (would overflow): the inter-card step shrinks toward
  *   {@link MIN_STEP_FRACTION} × cardWidth so the row stays within `width`.
- * - **Scale** (extreme counts): only when even the tightest overlap can't fit
- *   does `scale` drop (clamped at {@link MIN_SCALE}), keeping every card on the
- *   board.
+ * - **Shrink** ({@link zoneFitScale}): once the step floor is reached the CARD
+ *   shrinks instead of the step, down to the {@link MIN_CARD_WIDTH} legibility
+ *   floor — so a crowded row keeps every card's centre painted rather than
+ *   burying each card under its neighbour (ADR 0103, issue #2725).
+ * - **Degenerate** (the legibility floor or a band-height `maxScale` held the
+ *   scale up and the row still overflows): the gap tightens past the step
+ *   floor. Fitting the zone always wins — nothing is ever placed off-board.
  *
  * Returns one {@link Placement} per card, left-to-right, horizontally centered.
  */
@@ -199,33 +274,36 @@ export function rowLayout(opts: RowOptions): Placement[] {
     // to the pre-#977 uniform layout (the `step`/`scale` values are identical).
     const w = normalizeWidths(widths, count, cardWidth);
     const sumW = w.reduce((a, b) => a + b, 0);
-    const gapEffFloor = gapFloor(cardWidth);
 
-    // The whole row's span from the first footprint's left edge to the last
-    // footprint's right edge is `sumW + gapEff·(count−1)` for a shared
-    // inter-item gap `gapEff`. Keep the full gap while it fits; otherwise shrink
-    // it toward the overlap floor (may go negative — the cards overlap).
-    const fitGapEff = count > 1 ? (width - sumW) / (count - 1) : gap;
-    const gapEff = Math.min(gap, Math.max(fitGapEff, gapEffFloor));
-
-    // If even the overlap floor overflows the zone, shrink scale to fit —
-    // clamped at the readability floor so cards never become unreadably small.
-    const floorSpan = sumW + gapEffFloor * (count - 1);
-    const fitScale =
-        floorSpan > width ? Math.max(MIN_SCALE, width / floorSpan) : 1;
-    // A band-height cap trumps the readability floor — a clipped card is worse
+    // Adaptive per-zone card size (ADR 0103, issue #2725): the zone picks the
+    // largest scale at which every footprint still steps by MIN_STEP_FRACTION.
+    const fitScale = zoneFitScale({
+        zoneWidth: width,
+        footprints: w,
+        cardWidth,
+    });
+    // A band-height cap trumps the legibility floor — a clipped card is worse
     // than a small one.
     const scale =
         maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
 
-    // On-screen inter-item gap. After clamping scale, the scaled overlap row may
-    // still overflow at truly extreme counts; tighten the gap (below the floor,
-    // even negative) so the placed row always fits — nothing is clipped.
-    let onScreenGap = gapEff * scale;
-    if (count > 1) {
-        const maxGap = (width - scale * sumW) / (count - 1);
-        if (onScreenGap > maxGap) onScreenGap = maxGap;
-    }
+    // On-screen inter-item gap, computed AT THE FINAL SCALE. The row's span
+    // from the first footprint's left edge to the last footprint's right edge
+    // is `scale·sumW + gap·(count−1)`; keep the resting gap while it fits,
+    // otherwise take exactly the gap that fills the zone (negative — the cards
+    // overlap). The step floor is NOT re-applied here: `zoneFitScale` already
+    // chose a scale at which it holds, and when it could not (legibility floor,
+    // or a `maxScale` cap), fitting the zone still wins over the floor so
+    // nothing is ever placed off-board.
+    //
+    // Deriving the gap at the SCALED size is what makes the floor reach the
+    // screen: computing it at full size and multiplying by `scale` (the
+    // pre-#2725 shape) left a band-capped row overlapping as if its cards were
+    // still full-size, however small they had actually been drawn.
+    const onScreenGap =
+        count > 1
+            ? Math.min(gap * scale, (width - scale * sumW) / (count - 1))
+            : gap * scale;
 
     // Centre the run of on-screen footprints; each card's box (always
     // `cardWidth·scale` wide) is centred on `x`, and its footprint's left edge
@@ -295,11 +373,16 @@ export function splitRowLayout(opts: {
         });
     }
 
-    const gapEffFloor = gapFloor(cardWidth);
-    const sumW = [...lw, ...rw].reduce((a, b) => a + b, 0);
-    const floorSpan = sumW + gapEffFloor * (total - 1);
-    const fitScale =
-        floorSpan > width ? Math.max(MIN_SCALE, width / floorSpan) : 1;
+    // Same adaptive per-zone rule as the centered row (ADR 0103, issue #2725):
+    // both blocks share one scale, chosen so every footprint still steps by
+    // MIN_STEP_FRACTION. If the two blocks then collide the fallback below
+    // re-lays the whole run as one centered `rowLayout`, which is the branch
+    // that owns the degenerate case.
+    const fitScale = zoneFitScale({
+        zoneWidth: width,
+        footprints: [...lw, ...rw],
+        cardWidth,
+    });
     const scale =
         maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
 
@@ -485,8 +568,11 @@ type FanOptions = {
 const FAN_SPREAD_DEG = 44;
 /** Max rotation per card so small hands don't over-rotate. */
 const FAN_MAX_DEG_PER_CARD = 7;
-/** Inter-card step as a fraction of card width in the fan. */
-const FAN_STEP_FRACTION = 0.62;
+/** Inter-card step as a fraction of card width in the fan. Equal to
+ *  {@link MIN_STEP_FRACTION} — the hand's designed reveal is what the whole
+ *  board's step floor was set to (issue #2725), so a hand at rest steps by
+ *  exactly the floor and only ever shrinks, never tightens, to fit. */
+const FAN_STEP_FRACTION = MIN_STEP_FRACTION;
 /** Edge lift as a fraction of card height per card-step from center. */
 const FAN_LIFT_FRACTION = 0.07;
 
@@ -513,25 +599,41 @@ export function fanLayout(opts: FanOptions): Placement[] {
             ? Math.min(FAN_SPREAD_DEG / (count - 1), FAN_MAX_DEG_PER_CARD)
             : 0;
 
-    // Step shrinks to stay on-screen, just like the row layout.
-    const idealStep = cardWidth * FAN_STEP_FRACTION;
-    const fitStep = count > 1 ? (width - cardWidth) / (count - 1) : 0;
+    // Adaptive per-zone card size (ADR 0103, issue #2725). The hand SHRINKS to
+    // fit rather than fanning ever tighter: before this, `step` was clamped only
+    // by `fitStep`, so a big hand in a narrow band stacked its cards past their
+    // own centres — the measured reason the `game-board` ui-gate surface could
+    // not be budgeted (`cardsOcc` 4 then 5 on two runs of the same tree, "hand-
+    // fan overlap scales with the hand", `scripts/ui-gate/budgets.json`).
+    const scale = zoneFitScale({
+        zoneWidth: width,
+        footprints: Array.from({ length: count }, () => cardWidth),
+        cardWidth,
+    });
+    const scaledCardWidth = cardWidth * scale;
+
+    // Step shrinks to stay on-screen, just like the row layout. At the resting
+    // fan this is exactly the step floor; `fitStep` only binds in the degenerate
+    // case where `scale` bottomed out on the legibility floor.
+    const idealStep = scaledCardWidth * FAN_STEP_FRACTION;
+    const fitStep = count > 1 ? (width - scaledCardWidth) / (count - 1) : 0;
     const step = count > 1 ? Math.min(idealStep, fitStep) : 0;
 
-    const totalWidth = cardWidth + step * (count - 1);
-    const startX = (width - totalWidth) / 2 + cardWidth / 2;
+    const totalWidth = scaledCardWidth + step * (count - 1);
+    const startX = (width - totalWidth) / 2 + scaledCardWidth / 2;
     const mid = (count - 1) / 2;
 
     return Array.from({ length: count }, (_, i) => {
         const offsetFromCenter = i - mid;
         const rotation = offsetFromCenter * degPerCard;
         const lift =
-            Math.abs(offsetFromCenter) * (cardHeight * FAN_LIFT_FRACTION);
+            Math.abs(offsetFromCenter) *
+            (cardHeight * scale * FAN_LIFT_FRACTION);
         return {
             x: startX + step * i,
             y: baseY + lift,
             rotation,
-            scale: 1,
+            scale,
         };
     });
 }

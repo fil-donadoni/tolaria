@@ -95,6 +95,22 @@ To add a scenario, use the panel's own save form (label + spec) — a DB insert,
 never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR receipt and the orchestrator seeds it post-merge.
 
+**The one scenario the `check:ui` lane itself needs** is
+`UI stress — full board, full hand, deep piles`, which the `game-stress`
+surface searches for by that exact label. Its payload ships in the repo — not
+as a second source of truth for scenarios, but because a lane that cannot
+reach a surface reports a coverage hole, and re-deriving the position by hand
+on every deployment is how that hole stays open:
+
+```bash
+bunx convex run debugScenarios:seedScenarioDirect \
+  "$(cat scripts/ui-gate/stress-scenario.json)"
+```
+
+Upsert-by-label, so re-running it is safe; the row itself stays
+deployment-local (ADR 0044). `scripts/__tests__/ui-gate-stress-scenario.test.ts`
+holds the label and the card names to the catalogue.
+
 ## Sign in from cold (2026-08-19)
 
 Every route is behind `<AuthGate>`, so a fresh browser profile lands on the
