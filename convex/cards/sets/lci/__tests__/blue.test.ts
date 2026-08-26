@@ -16,9 +16,14 @@ import type {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { finalizeCleanup } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
+import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    applyOneTargetSelection,
+} from "../../../../game";
 import { compactState, expandState } from "../../../../gre/serialize";
+import type { GameEvent } from "../../../types";
 
 // A plain vanilla creature card for hand/library fixtures, distinct from
 // Malcolm itself.
@@ -530,31 +535,42 @@ function pushActivatedAbility(
 }
 
 /** Pushes Malcolm's own combat-damage trigger onto the stack WITHOUT
- *  resolving it (mirrors the module-level `fireCombatDamage` above minus the
- *  `resolveTopOfStack` call), leaving it as a legal `spellStackKind:
- *  "ability"` target for Tidebinder's counter. */
+ *  resolving it, through the REAL `collectTriggers` pipeline (`gre/triggers.ts`
+ *  `buildTriggerItem`) rather than a hand-built `StackItem` literal — a
+ *  2026-08 review round on #1562 proved the hand-built shape hid a real bug:
+ *  it reused Malcolm's OWN battlefield id for the stack item's `id` (via
+ *  `{ ...source, ... }`), which is what an ACTIVATED ability's stack item
+ *  does (`buildActivatedAbilityStackItem` clones the source), but NOT what a
+ *  TRIGGERED ability's stack item does — `buildTriggerItem` stamps a FRESH
+ *  `id` (`allocInstanceId`) and records the real permanent separately as
+ *  `triggerSourceId`. The hand-built fixture's accidental id-reuse is
+ *  exactly why "counters a target TRIGGERED ability" passed while
+ *  `loseAllAbilitiesWhileSourceRemains` silently no-op'd for every real
+ *  triggered ability (proof-of-failure shape 3 — the test never reached the
+ *  real id-allocation code). Leaves it as a legal `spellStackKind: "ability"`
+ *  target for Tidebinder's counter. */
 function pushMalcolmTrigger(
     state: GameState,
     source: CardInstanceState
 ): StackItem {
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        triggeredAbilityId: "malcolm-chorus",
-        triggerSourceId: source.id,
-        triggerEvent: {
+    const built = collectTriggers(state, [
+        {
             type: "DAMAGE_DEALT",
             sourceInstanceId: source.id,
             sourceControllerId: source.controllerId,
             target: { type: "player", id: "p2" },
             amount: 2,
             isCombat: true,
-        } as StackItem["triggerEvent"],
-        targets: [],
-    };
-    state.stack.push(item);
-    return item;
+        } as GameEvent,
+    ]);
+    expect(built).toHaveLength(1);
+    const [item] = built;
+    // The fresh-id premise this whole fixup exists to prove: NOT Malcolm's
+    // own battlefield id.
+    expect(item!.id).not.toBe(source.id);
+    expect(item!.triggerSourceId).toBe(source.id);
+    state.stack.push(item!);
+    return item!;
 }
 
 /** Puts Tidebinder's ETB trigger on the stack with an UN-set target slot
@@ -584,24 +600,35 @@ function tidebinderEtbTriggerOnStack(
 }
 
 /** Drives the CR 603.3d "up to one" target choice through the real
- *  machinery: `raiseTriggerTargetSelection` raises the `kind:"trigger"`
- *  PendingTarget (count 0..1), then `finalizeTargetSelection` writes the
- *  chosen ability (or the empty "decline" set) onto the on-stack trigger.
- *  `abilityStackItemId` is `null` to decline. */
+ *  machinery. A CHOSEN target (`abilityStackItemId` non-null) goes through
+ *  `applyOneTargetSelection` — the `selectTarget` mutation's own accepted-set
+ *  body (`game.ts`) — because THAT is the real production site that computes
+ *  `TargetSelection.stackSourceId` (issue #1562 fixup) from the found stack
+ *  item's `triggerSourceId ?? id`; hand-setting `pendingTarget.selected`
+ *  directly (the pre-existing Loran precedent, still used for the "decline"
+ *  branch below, which has no target to resolve) would skip that
+ *  computation and silently defeat the rider's own regression coverage. The
+ *  DECLINE branch (`null`) has no found stack item to compute anything from,
+ *  so it stays the direct set + `finalizeTargetSelection` shape. */
 function chooseTidebinderTarget(
     state: GameState,
     abilityStackItemId: string | null
 ) {
     const raised = raiseTriggerTargetSelection(state);
     expect(raised).toBe(true);
-    state.pendingTarget!.selected = abilityStackItemId
-        ? [{ type: "spell", id: abilityStackItemId }]
-        : [];
-    finalizeTargetSelection(
-        state,
-        state.pendingTarget!,
-        state.pendingTarget!.playerId
-    );
+    if (abilityStackItemId === null) {
+        state.pendingTarget!.selected = [];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        return;
+    }
+    applyOneTargetSelection(state, state.pendingTarget!.playerId, {
+        targetType: "spell",
+        targetId: abilityStackItemId,
+    });
 }
 
 describe("Tishana's Tidebinder (CR 613.1f layer 6, CR 611.2b duration, CR 603.3d ETB-targeted trigger, issue #1562)", () => {
@@ -672,9 +699,14 @@ describe("Tishana's Tidebinder (CR 613.1f layer 6, CR 611.2b duration, CR 603.3d
                 makePlayer("p2", { battlefield: [malcolm] }),
             ],
         });
-        pushMalcolmTrigger(state, malcolm);
+        const malcolmTrigger = pushMalcolmTrigger(state, malcolm);
         tidebinderEtbTriggerOnStack(state, tidebinder);
-        chooseTidebinderTarget(state, "malcolm-t");
+        // The countered slot is the TRIGGER's own (fresh) stack-item id —
+        // NOT Malcolm's battlefield id ("malcolm-t") — precisely the shape
+        // this fixup makes the rider resolve correctly through
+        // `stackSourceId` instead of.
+        expect(malcolmTrigger.id).not.toBe("malcolm-t");
+        chooseTidebinderTarget(state, malcolmTrigger.id);
         expect(resolveTopOfStack(state)).not.toBeNull();
 
         // The triggered ability vanished — no chorus counter, no draw/
@@ -844,5 +876,83 @@ describe("Tishana's Tidebinder (CR 613.1f layer 6, CR 611.2b duration, CR 603.3d
             (c) => c.id === "bear-save"
         )!;
         expect(restoredBear.staticAbilities).toContain("vigilance");
+    });
+
+    it("two Tidebinders stripping the SAME permanent compose correctly (CR 613.7) — the FIRST to leave must NOT restore a keyword while the SECOND's hold is still live", () => {
+        const bear = makeInstance(ACTIVATED_SOURCE_ID, {
+            id: "bear-multi",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const tidebinderA = makeInstance(tishanasTidebinder.id, {
+            id: "tidebinder-a",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const tidebinderB = makeInstance(tishanasTidebinder.id, {
+            id: "tidebinder-b",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tidebinderA, tidebinderB] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+
+        // Tidebinder A counters an activated ability off the bear and strips it.
+        pushActivatedAbility(state, bear, "test-activated-draw");
+        tidebinderEtbTriggerOnStack(state, tidebinderA);
+        chooseTidebinderTarget(state, "bear-multi");
+        resolveTopOfStack(state);
+        const afterA = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "bear-multi"
+        )!;
+        expect(afterA.staticAbilities).not.toContain("vigilance");
+        expect(afterA.abilitiesSuppressedBy).toEqual([
+            expect.objectContaining({ sourceId: "tidebinder-a" }),
+        ]);
+
+        // Tidebinder B counters a SECOND activated ability off the SAME bear.
+        // `staticAbilities` is already empty (A already stripped it), so B's
+        // own `applyAbilityLossHold` call records NO `removedKeywords` entry
+        // of its own — the bug this test guards is exactly that B's hold
+        // must still be load-bearing despite owning no keyword entries.
+        pushActivatedAbility(state, afterA, "test-activated-draw");
+        tidebinderEtbTriggerOnStack(state, tidebinderB);
+        chooseTidebinderTarget(state, "bear-multi");
+        resolveTopOfStack(state);
+        const afterB = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "bear-multi"
+        )!;
+        expect(
+            afterB.abilitiesSuppressedBy?.map((s) => s.sourceId).sort()
+        ).toEqual(["tidebinder-a", "tidebinder-b"]);
+        expect(afterB.staticAbilities).not.toContain("vigilance");
+
+        // Tidebinder A leaves FIRST — Tidebinder B's hold is STILL LIVE, so
+        // vigilance must NOT come back yet (CR 613.7: two independent
+        // one-shot "loses all abilities" holds on the same target).
+        removePermanentTo(state, "tidebinder-a", "graveyard");
+        const afterALeaves = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "bear-multi"
+        )!;
+        expect(afterALeaves.staticAbilities).not.toContain("vigilance");
+        expect(
+            afterALeaves.abilitiesSuppressedBy?.map((s) => s.sourceId)
+        ).toEqual(["tidebinder-b"]);
+
+        // Tidebinder B leaves LAST — now, and only now, the bear regains
+        // vigilance.
+        removePermanentTo(state, "tidebinder-b", "graveyard");
+        const afterBLeaves = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "bear-multi"
+        )!;
+        expect(afterBLeaves.staticAbilities).toContain("vigilance");
+        expect(afterBLeaves.abilitiesSuppressedBy).toBeUndefined();
     });
 });

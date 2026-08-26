@@ -10977,6 +10977,7 @@ export function applyOneTargetSelection(
         type: "permanent" | "player" | "spell" | "graveyard-card";
         id: string;
         playerId?: string;
+        stackSourceId?: string;
     } = {
         type: input.targetType,
         id: input.targetId,
@@ -11257,6 +11258,11 @@ export function applyOneTargetSelection(
         }
         const spell = state.stack.find((s) => s.id === input.targetId);
         if (!spell) throw new Error("Invalid spell target");
+        // `stackSourceId` (issue #1562 fixup) — computed server-side from the
+        // FOUND stack item, never trusted from client input, mirroring
+        // `getLegalTargets`'s candidate-side capture (`gre/rules.ts`) so the
+        // offered and accepted sets carry the same resolved id (ADR 0068).
+        target.stackSourceId = spell.triggerSourceId ?? spell.id;
         // CR 113 / 114.1 / 109.2 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c /
         // 701.7 / 702 — EVERY spell-kind filter, routed through the SINGLE
         // shared authority: the target-filter registry (ADR 0068 / issue

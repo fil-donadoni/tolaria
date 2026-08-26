@@ -849,6 +849,24 @@ export interface TargetSelection {
      *  graveyard/hand the card sits in. Unused for permanent / player /
      *  spell targets. */
     playerId?: string;
+    /** `type: "spell"` ONLY (issue #1562 fixup) — the targeted stack item's
+     *  `triggerSourceId ?? item.id`, captured at target-selection time
+     *  (`getLegalTargets`'s candidate push, `selectTarget`'s accepted-set
+     *  build), i.e. WHILE the item is still on the stack and its identity is
+     *  knowable. CR 113.7a's countered-ability stack item borrows its SOURCE
+     *  PERMANENT's own battlefield id ONLY for an ACTIVATED ability
+     *  (`buildActivatedAbilityStackItem` clones the source, keeping `id`); a
+     *  TRIGGERED ability's stack item gets a FRESH `id`
+     *  (`allocInstanceId`, `gre/triggers.ts` `buildTriggerItem`) with the
+     *  real permanent recorded separately as `triggerSourceId`. `counter()`
+     *  (CR 701.6a) splices the item out of `state.stack` before an ability
+     *  vanishes, so nothing downstream can look the id up on the stack
+     *  anymore — a later Op resolving "the permanent whose ability was just
+     *  countered" (`loseAllAbilitiesWhileSourceRemains`,
+     *  Tishana's Tidebinder) MUST read this field, not `id`, or it silently
+     *  misses every triggered-ability case. Undefined for every other
+     *  `TargetSelection.type`. */
+    stackSourceId?: string;
 }
 
 export interface ActivatedAbilityContext {
@@ -3207,14 +3225,25 @@ export interface SpellContext {
      *  shape `applySourceStaticEffects`'s `ability-loss` branch already uses
      *  for Titania's Song. That is what makes the duration work with NO new
      *  storage and NO bespoke teardown: `unapplySourceStaticEffects`, called
-     *  unconditionally whenever ANY permanent leaves the battlefield
-     *  (`removePermanentTo`, the single funnel for every departure path), is
-     *  the SAME function that already releases a `sourceId`-keyed hold for
-     *  Titania's Song, and releases this one identically the moment the
-     *  resolving permanent itself leaves. The "duration" lives entirely on
-     *  the TARGET's own `abilitiesSuppressedBy` / `removedKeywords` records —
-     *  both already persisted and id-remapped generically (`gre/serialize.ts`)
-     *  — so no `chosenPermanentId`-style field is needed on the source.
+     *  unconditionally whenever ANY permanent LEAVES THE BATTLEFIELD via
+     *  `removePermanentTo` (dies / sacrifice / bounce / destroy — every
+     *  ZONE-CHANGE departure, not every way a permanent can stop being
+     *  "on the battlefield" in the CR 608.2b sense), is the SAME function
+     *  that already releases a `sourceId`-keyed hold for Titania's Song, and
+     *  releases this one identically the moment the resolving permanent
+     *  itself leaves. The "duration" lives entirely on the TARGET's own
+     *  `abilitiesSuppressedBy` / `removedKeywords` records — both already
+     *  persisted and id-remapped generically (`gre/serialize.ts`) — so no
+     *  `chosenPermanentId`-style field is needed on the source.
+     *
+     *  Out of scope for issue #1562 (pre-existing gap, not a regression this
+     *  card introduces): phasing OUT (CR 702.26b — a phased-out permanent
+     *  "is treated as though it doesn't exist") does NOT call
+     *  `unapplySourceStaticEffects` (`phaseOutPermanent`, `gre/state.ts`
+     *  splices the battlefield array directly), so a phased-out source
+     *  keeps its target stripped instead of releasing the hold. Latent in
+     *  the shared applier since Titania's Song — this Op does not make it
+     *  worse, only reachable by a second card.
      *
      *  Takes a FRESH layer timestamp (`allocStaticTimestamp`), so per CR
      *  613.7 an ability GRANTED to the target after this resolves survives

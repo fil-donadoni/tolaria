@@ -18,22 +18,32 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `spellStackKind: "ability"` keeps any ability (activated OR triggered) on
 // the stack legal and drops spells; `count: { min: 0, max: 1 }` is "up to
 // one" (Loran precedent, bro/white.ts). Mana abilities are never legal
-// targets by construction (CR 605.3a — they never use the stack), so no
-// extra exclusion is needed. `ctx.counter` vanishes the countered ability
+// targets by construction (CR 605.3b — a mana ability "doesn't go on the
+// stack, so it can't be targeted, countered, or otherwise responded to"), so
+// no extra exclusion is needed. `ctx.counter` vanishes the countered ability
 // (CR 701.6a / 113.7a) — an ability is not a card, so it goes nowhere.
 //
 // RIDER HALF (CR 613.1f layer 6, CR 611.2b "for as long as . . ." duration,
 // engine gap closed by issue #1562's new `loseAllAbilitiesWhileSourceRemains`
 // Op): the SAME announced slot (`{ target: 0 }`) is re-read after the
-// counter — CR 113.7a's countered-ability stack item borrows its SOURCE
-// PERMANENT's own battlefield id, so the slot resolves to the permanent even
-// though its `TargetSelection.type` says "spell". `filter` restricts the
-// strip to "an artifact, creature, or planeswalker" per the printed rider;
-// the Op is a no-op when nothing was targeted (CR 608.2b — "up to one" chose
-// none) or the countered ability's source doesn't match. The loss is torn
-// down automatically the moment Tishana's Tidebinder itself leaves the
-// battlefield — no bespoke teardown, see the Op's own doc comment
-// (`cards/types.ts`).
+// counter. The slot's OWN `id` is the countered ability's stack-item id,
+// which only equals the SOURCE PERMANENT's battlefield id for an ACTIVATED
+// ability (`buildActivatedAbilityStackItem` clones the source, keeping
+// `id`) — a TRIGGERED ability's stack item gets a fresh id, with the real
+// permanent recorded separately as `triggerSourceId`. The Op reads
+// `TargetSelection.stackSourceId` (`triggerSourceId ?? id`, captured at
+// target-selection time — see `cards/types.ts`'s field doc — while the item
+// is still on the stack and its identity is knowable), not `id` — so both
+// ability kinds resolve to the real permanent even though the announced
+// slot's `TargetSelection.type` says "spell", and even after `counter`
+// splices the item off the stack. `filter` restricts the strip to "an
+// artifact, creature, or planeswalker" per the printed rider; the Op is a
+// no-op when nothing was targeted (CR 608.2b — "up to one" chose none) or
+// the countered ability's source doesn't match. The loss is torn down
+// automatically the moment Tishana's Tidebinder itself leaves the
+// battlefield (dies / sacrifice / bounce / destroy) — no bespoke teardown,
+// see the Op's own doc comment (`cards/types.ts`), which also notes the
+// pre-existing phasing gap the departure funnel does NOT cover.
 export const tishanasTidebinder: CardDefinition = {
     id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
     name: "Tishana's Tidebinder",
