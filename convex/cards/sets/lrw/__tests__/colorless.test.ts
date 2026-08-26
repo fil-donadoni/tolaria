@@ -575,18 +575,19 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         );
     });
 
-    it("CR 400.7 / 607 / 608.2b — a bounced-and-replayed land offers ONLY its own hidden card, not the previous incarnation's (issue #2001)", () => {
+    it("CR 400.7 / 607 / 608.2h — a bounced-and-replayed land offers ONLY its own hidden card, not the previous incarnation's (issue #2001)", () => {
         // Instance ids survive zone changes. Before issue #2001's fix,
         // `exiledBySourceId` was cleared the moment the SOURCE departed the
-        // battlefield — which broke CR 608.2b (an ability already on the
-        // stack referencing the pile at departure time). The clear now runs
-        // at the source's NEXT battlefield ENTRY instead, so the link must
-        // survive the bounce and only die when this same instance id is a
-        // new object again.
+        // battlefield — which broke CR 113.7a / 608.2h (an ability already on
+        // the stack referencing the pile at departure time; the play offer is
+        // UNTARGETED, so CR 608.2b's target-legality re-check is not what is
+        // in play here). The clear now runs at the source's NEXT battlefield
+        // ENTRY instead, so the link must survive the bounce and only die
+        // when this same instance id is a new object again.
         const { state, isle } = setup(8, 15);
         const first = hideOne(state, isle);
 
-        // Bounce the land — CR 608.2b: the link SURVIVES the departure.
+        // Bounce the land — CR 113.7a / 608.2h: the link SURVIVES the departure.
         removePermanentTo(state, "isle", "hand");
         expect(
             state.players[0].exile.find((c) => c.id === first)!.exiledBySourceId

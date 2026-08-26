@@ -472,7 +472,7 @@ function settleEnteredLand(
     // has no battlefield history). Runs FIRST: `markEnteredThisTurn` and the
     // `willEnterTapped` write below must not be undone by the reset.
     resetBattlefieldTransientState(card);
-    // CR 400.7 / 608.2b (issue #2001) — this is a genuine battlefield entry
+    // CR 400.7 / 608.2h (issue #2001) — this is a genuine battlefield entry
     // (every `applyPlayLandFrom*` origin funnels here with the card already
     // moved to the battlefield). If this instance id held the battlefield
     // before and stamped an exile provenance link (a bounced-and-replayed
