@@ -3139,6 +3139,34 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.loseAllAbilities(target);
     },
+    // CR 613.1f layer 6 / CR 611.2b (issue #1562) — the target permanent
+    // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING permanent
+    // remains on the battlefield (Tishana's Tidebinder's counter-then-rider).
+    // `target` is an ANNOUNCED SLOT read via `resolveTargetRef` — NOT
+    // `resolveObjectRef` — because the counter+rider template targets an
+    // activated/triggered ABILITY on the stack: CR 113.7a's countered-ability
+    // stack item borrows its SOURCE PERMANENT's own battlefield id, so the
+    // slot's `id` names the permanent even though its `TargetSelection.type`
+    // says "spell", not "permanent" — a shape `resolveObjectRef`'s
+    // battlefield-only check would reject outright. Optional `filter` gates
+    // the strip on the target's LIVE battlefield characteristics, read
+    // through the SAME battlefield-guaranteed matcher `objectMatchesFilter`
+    // uses. Skipped when the slot is missing (CR 608.2b) or `filter` doesn't
+    // match.
+    loseAllAbilitiesWhileSourceRemains(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (!target) return;
+        if (op.filter) {
+            const base = toPermanentFilter(ctx, op.filter);
+            if (base === UNMATCHABLE_FILTER) return;
+            const filter = { ...(base ?? {}), instanceIds: [target.id] };
+            const onBattlefield = ctx.allPlayerIds.some(
+                (pid) => ctx.getBattlefieldIds(pid, filter).length > 0
+            );
+            if (!onBattlefield) return;
+        }
+        ctx.loseAllAbilitiesWhileSourceRemains(target.id);
+    },
     // CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

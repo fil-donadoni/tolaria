@@ -3837,6 +3837,30 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     loseAllAbilities: {
         required: { target: isObjectSelector },
     },
+    // CR 613.1f layer 6 (issue #1562) — a permanent LOSES ALL ABILITIES for
+    // as long as the resolving permanent remains on the battlefield
+    // (Tishana's Tidebinder's counter-then-rider). `target` is an ANNOUNCED
+    // TARGET SLOT (`isTargetRef`, the bare `{ target: n }` reader `counter`
+    // uses), not the broader `isObjectSelector` `loseAllAbilities` above
+    // takes — the countered-ability's stack item borrows its source
+    // permanent's own battlefield id, so the announced slot resolves to the
+    // permanent even though its kind says "spell". Optional `filter` gates
+    // the strip on the target's LIVE battlefield characteristics, read
+    // through the same battlefield-guaranteed reader `objectMatchesFilter`
+    // uses (`toPermanentFilter` / `getBattlefieldIds`), so the same opt-in/
+    // opt-out flags apply.
+    loseAllAbilitiesWhileSourceRemains: {
+        required: { target: isTargetRef },
+        optional: {
+            filter: (v) =>
+                isCardFilter(v, {
+                    allowHasAbility: true,
+                    allowIsAttacking: true,
+                    allowControlledSinceTurnStart: true,
+                    rejectManaCostEquals: true,
+                }),
+        },
+    },
     // CR 701.24 (issue #844) — shuffle a player's library. `action` is
     // "shuffle" (the only folded library primitive); `player` names whose
     // library (controller / announced slot / forEach `$each`).

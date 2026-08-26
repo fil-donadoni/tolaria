@@ -14363,6 +14363,52 @@ export function buildSpellContext(
                 { restamp: true }
             );
         },
+        // CR 613.1f layer 6 / CR 611.2b (issue #1562) — a target permanent
+        // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING
+        // permanent (the ETB source: `item.triggerSourceId ?? item.id`,
+        // mirroring `setChosenPlayer`/`getChosenPlayer` above) remains on the
+        // battlefield. Tishana's Tidebinder's rider.
+        //
+        // Goes through the SAME shared applier `applyAbilityLossHold`, keyed
+        // to the RESOLVING permanent's OWN battlefield instance id — exactly
+        // the call shape `applySourceStaticEffects`'s `ability-loss` branch
+        // already uses for the CONTINUOUS static effect (Titania's Song), NOT
+        // `loseAllAbilities`'s `"indefinite"` sentinel above. That is what
+        // makes the duration work with no new storage and no bespoke
+        // teardown: `unapplySourceStaticEffects`, called unconditionally
+        // whenever ANY permanent leaves the battlefield (`removePermanentTo`,
+        // the single funnel for every departure path — dies / sacrifice /
+        // bounce / destroy), already releases a `sourceId`-keyed hold for
+        // Titania's Song and releases this one identically the moment the
+        // resolving permanent itself leaves. The "duration" lives entirely on
+        // the TARGET's own `abilitiesSuppressedBy` / `removedKeywords`
+        // records — both already persisted and id-remapped generically
+        // (`gre/serialize.ts`) — so no `chosenPermanentId`-style field is
+        // needed on the source.
+        //
+        // No `restamp`: unlike Oko's shared `"indefinite"` sentinel (which
+        // needs `restamp` so concurrent resolutions from DIFFERENT sources
+        // don't collide on the SAME key), this source id is the resolving
+        // permanent's own unique battlefield id — the idempotent-per-source
+        // default is correct, matching the continuous-effect call shape.
+        //
+        // A FRESH layer timestamp (CR 613.7) lets a LATER grant survive the
+        // strip, same rule as `loseAllAbilities`. No-op if the resolving
+        // source or the target has left the battlefield (CR 608.2b).
+        loseAllAbilitiesWhileSourceRemains(targetId: string): void {
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (!src) return;
+            const found = findOnBattlefield(state, targetId);
+            if (!found) return;
+            applyAbilityLossHold(
+                found.card,
+                src.card.id,
+                allocStaticTimestamp(state)
+            );
+        },
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
