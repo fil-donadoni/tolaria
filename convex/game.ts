@@ -7067,7 +7067,7 @@ export function finalizeTargetSelection(
     // entry per PAYMENT, so a mana-only Kicker — every shipped one — makes that
     // count positive while contributing NOTHING to the permanent picker.
     // Gating on it sent every kicked cast down this branch and silently
-    // discarded `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.5)
+    // discarded `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.8)
     // went unpaid on a kicked spell (issue #1937). The builder returns
     // `undefined` when nothing contributes, so `?? additionalSac` keeps the
     // historical branch byte-identical for an unkicked or mana-only-kicked
@@ -7569,7 +7569,7 @@ export function buildCastSacrificeSelection(
             specs.push({ filter: picker.filter, count: 1, snapshot: true });
         }
     }
-    // CR 702.34a / 118.5 — the flashback-only "Sacrifice a <filter>" cost, added
+    // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost, added
     // ONLY on a flashback (graveyard) cast. WHICH permanent is sacrificed is the
     // caster's explicit choice through the unified sacrificeChoice layer (never
     // auto-picked); exactly one is owed. Not snapshot-flagged (the flashback
@@ -8450,7 +8450,7 @@ export const announceCast = mutation({
                 cardDef.flashSurcharge,
                 flashSurchargePaid
             );
-            // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
+            // CR 601.2f / 118.8 — board-wide static NON-mana additional cost
             // (Drought) and the card's own additional-cost sacrifice (alt-cost
             // cards carry none today) apply to THIS cast exactly as they do to
             // a mana-paid one: CR 118.9d — "any additional costs … that affect
@@ -8503,7 +8503,7 @@ export const announceCast = mutation({
                 kickerPayments,
                 cardDef.name ?? "Alternative cost"
             );
-            // CR 601.2f / 118.5 / 118.9 (issue #1985) — trust what the builder
+            // CR 601.2f / 118.8 / 118.9d (issue #1985) — trust what the builder
             // actually produced; fall back to the board-wide/own sacrifice
             // selection when the alt cost + Kicker legs yield nothing. Mirrors
             // `finalizeTargetSelection`'s targeted-path fix and the kicker-arm
@@ -8512,7 +8512,7 @@ export const announceCast = mutation({
             // `pendingCast.sacrificeSelection` unconditionally, so a plain
             // alt-cost cast (no Kicker, no permanent leg of its own — Snuff
             // Out's is life-only) silently dropped `ownSac`, i.e. Drought's
-            // "Sacrifice a Swamp" (CR 118.5) went unpaid and unchecked.
+            // "Sacrifice a Swamp" (CR 118.8) went unpaid and unchecked.
             const castSac = resolveCastPermanentSelection(altChoice, ownSac);
             // CR 118.8 / 601.2f / 702.81a — the card's own hand-cost additional
             // leg and the retrace discard, through the SAME authority the other

@@ -8,6 +8,8 @@
 // See per-card behaviour in the mmq (Gush/Thwart) and vis (Fireblast) set tests.
 
 import { describe, it, expect } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -331,13 +333,13 @@ describe("merged cost legs must agree on their terminal action (CR 601.2f, issue
     });
 });
 
-describe("Alternative cost — the board-wide additional-cost sacrifice survives an alt-cost cast, targeted path (CR 601.2f / 118.5 / 118.9, issue #1985)", () => {
+describe("Alternative cost — the board-wide additional-cost sacrifice survives an alt-cost cast, targeted path (CR 601.2f / 118.8 / 118.9d, issue #1985)", () => {
     // REGRESSION (issue #1985). `finalizeTargetSelection`'s single
     // permanent-cost slot used to gate on `chosenAltCost` and unconditionally
     // drop `additionalSac` whenever an alternative cost was chosen, on the
     // premise (recorded in PR #1979 / issue #1937) that "alt-cost cards carry
     // no additional cost of their own" — true, but Drought's is a BOARD-WIDE
-    // cost (CR 118.5), not a card-owned one, so it applies to an alt-cost
+    // cost (CR 118.8), not a card-owned one, so it applies to an alt-cost
     // cast exactly as CR 118.9d says any additional cost does: "any
     // additional costs … that affect that spell are applied to that
     // alternative cost." Snuff Out (`mmq/black.ts`, printed {X:3}{B}, one
@@ -415,7 +417,7 @@ describe("Alternative cost — the board-wide additional-cost sacrifice survives
     });
 });
 
-describe("Alternative cost — the no-target commit branch pays the board-wide sacrifice too (CR 601.2f / 118.5, issue #1985)", () => {
+describe("Alternative cost — the no-target commit branch pays the board-wide sacrifice too (CR 601.2f / 118.8, issue #1985)", () => {
     // REGRESSION (issue #1985, site B). `announceCast`'s no-target ALT-COST
     // branch never built the board-wide/own additional-cost sacrifice
     // (`ownSac`) at all — not even the affordability check
@@ -567,5 +569,84 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
         expect(() => buildOnceUponATimeCastSac(state, "onceD2")).toThrow(
             /additional cost/i
         );
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Source guard — site B (`announceCast`'s no-target alt-cost branch). Review
+// finding (PR #2840, issue #1985): the two tests above drive
+// `buildOnceUponATimeCastSac`, a test-local helper that RE-IMPLEMENTS the
+// branch's composition rather than reaching the branch itself — `announceCast`
+// is a Convex mutation, and this project has no harness that can call one
+// (ADR 0001; the same limitation `castManaSpentCapture.test.ts` documents for
+// its own cast-commit sites). Proven empirically: reverting either of the
+// branch's two fixed lines in `convex/game.ts` (the `assertStaticAdditionalCostAffordable`
+// call back to `void rawCost` — CR 601.2f / 118.8 — and
+// `resolveCastPermanentSelection(altChoice, ownSac)` back to bare `altChoice`
+// — CR 118.9d) left the helper-based tests above, and the full
+// alternative-cost / kicker / additional-cost-cast suites, green. This block
+// reads the branch's OWN source text so deleting either line reds the suite.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("game.ts announceCast — the no-target alt-cost branch's own source (site B, issue #1985 review)", () => {
+    const GAME_TS = path.join(__dirname, "..", "..", "game.ts");
+    const source = fs.readFileSync(GAME_TS, "utf8");
+    const lines = source.split("\n");
+
+    /** The `if (chosenAltCost) { … }` block inside `announceCast` — located
+     *  by its unique opening line (there is exactly one `chosenAltCost) {` in
+     *  the file with this exact indentation) and closed by brace-counting, so
+     *  the guard tracks the branch even if unrelated edits shift its line
+     *  numbers. */
+    function altCostBranchSource(): string {
+        const startIdx = lines.findIndex(
+            (line) => line.trim() === "if (chosenAltCost) {"
+        );
+        expect(startIdx).toBeGreaterThan(-1);
+        let depth = 0;
+        let endIdx = -1;
+        for (let i = startIdx; i < lines.length; i++) {
+            for (const ch of lines[i]) {
+                if (ch === "{") depth++;
+                else if (ch === "}") depth--;
+            }
+            if (i > startIdx && depth === 0) {
+                endIdx = i;
+                break;
+            }
+        }
+        expect(endIdx).toBeGreaterThan(startIdx);
+        return lines.slice(startIdx, endIdx + 1).join("\n");
+    }
+
+    it("runs the board-wide/own static-additional-cost affordability check before composing the cast (CR 601.2f / 118.8)", () => {
+        const block = altCostBranchSource();
+        // The real call, with the branch's own raw-cost snapshot as the
+        // subject — not a discarded `void rawCost;` (the exact regression:
+        // finding 1, PR #2840).
+        expect(block).toMatch(
+            /assertStaticAdditionalCostAffordable\(\s*state,\s*rawCost,/
+        );
+    });
+
+    it("commits the board-wide/own sacrifice TOGETHER with the alt cost's own permanent leg, not the alt leg alone (CR 118.9d)", () => {
+        const block = altCostBranchSource();
+        // The real composition — both `ownSac` (the affordability-checked
+        // board-wide/own sacrifice) AND `altChoice` (the alt cost's own
+        // permanent leg) reach the committed cast. Before the fix this line
+        // read `const castSac = altChoice;` — `ownSac` built and checked
+        // above, then silently dropped on the floor.
+        expect(block).toMatch(
+            /const castSac = resolveCastPermanentSelection\(\s*altChoice,\s*ownSac\s*\);/
+        );
+        // Ordering: the affordability check runs BEFORE the branch commits
+        // to a `castSac` — a check that ran after the fact would gate
+        // nothing.
+        const affordIdx = block.indexOf(
+            "assertStaticAdditionalCostAffordable("
+        );
+        const castSacIdx = block.indexOf("const castSac =");
+        expect(affordIdx).toBeGreaterThan(-1);
+        expect(castSacIdx).toBeGreaterThan(affordIdx);
     });
 });

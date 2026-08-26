@@ -295,7 +295,7 @@ export function hasKickerPermanentLeg(
  *  permanent leg (CR 118.9 — Gush's "return two Islands", Fireblast's
  *  "sacrifice two Mountains") claims it. When the cast ALSO owes its own
  *  additional-cost sacrifice — the card's own (CR 601.2f) or a board-wide one
- *  (Drought's "Sacrifice a Swamp", CR 118.5) — one of the two would have to be
+ *  (Drought's "Sacrifice a Swamp", CR 118.8) — one of the two would have to be
  *  dropped, i.e. the spell would reach the stack having silently MISPAID a
  *  cost. Fail CLOSED at announcement instead, exactly as `resolveKickerPayments`
  *  refuses a mixed sacrifice/return composition. `hasKickerPermanentLeg` is no
@@ -360,7 +360,7 @@ export function buildCastPermanentCostChoice(
  *  what `buildCastPermanentCostChoice` actually produced (the chosen alt
  *  cost's own permanent leg + every paid Kicker's), falling back to the
  *  board-wide/own additional-cost sacrifice (`buildCastSacrificeSelection`'s
- *  `selection` — Drought's "Sacrifice a Swamp", CR 118.5, or the card's own)
+ *  `selection` — Drought's "Sacrifice a Swamp", CR 118.8, or the card's own)
  *  ONLY when the former yields nothing. Shared verbatim by all three commit
  *  paths (`finalizeTargetSelection`'s targeted path, `announceCast`'s
  *  no-target alt-cost branch, and its no-target plain/kicker branch) so the
