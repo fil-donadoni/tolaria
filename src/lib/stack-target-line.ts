@@ -1,6 +1,7 @@
 import { tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import type { CardInstance, Player, StackItem } from "~/types/game";
+import { displayCardId } from "~/lib/card-utils";
 
 /** Resolve a stack item's announced targets (CR 601.2c) to display names, for
  *  the stack panel's target LINE (ADR 0103, issue #2727).
@@ -45,7 +46,12 @@ function resolveTargetName(
     }
     if (target.type === "spell") {
         const spell = stack.find((s) => s.id === target.id);
-        return spell ? cardName(spell.card.id) : null;
+        // Issue #1735 (round 3) — a face-down spell's `card.id` is the CR
+        // 708.2 sentinel for EVERY viewer including the caster; the line is
+        // display-only, so it must read `displayCardId`, exactly like
+        // `stack-row.tsx`'s own `identityId` for the row this line renders
+        // under.
+        return spell ? cardName(displayCardId(spell)) : null;
     }
     // Zone-scoped targets (CR 400.7 / 109.2): `playerId` disambiguates WHICH
     // graveyard or hand, and is required on those two types — but a projection
@@ -63,7 +69,13 @@ function resolveTargetName(
                   ? seat.hand
                   : seat.battlefield;
         const hit = zone.find((c) => c !== null && c.id === target.id);
-        if (hit) return cardName(hit.card.id);
+        // Only a battlefield hit can be face down (CR 708.7 turns a face-down
+        // permanent back face up before it can reach hand/graveyard), but
+        // `displayCardId` is a no-op for every non-face-down card, so it is
+        // safe to route every zone through the same call rather than
+        // special-casing battlefield alone — one fewer branch to forget the
+        // NEXT time this file grows a target type.
+        if (hit) return cardName(displayCardId(hit));
     }
     return null;
 }

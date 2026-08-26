@@ -219,4 +219,98 @@ describe("groupBattlefield survives the wire projection", () => {
         const artIds = slimBf.map((c) => getCardImageDefId(c));
         expect(artIds).toEqual(["mahamoti-djinn", "shivan-dragon"]);
     });
+
+    // Issue #1735 review round 2, finding 2 — regression proof for the
+    // `isAltered` clause round 2 introduced (`if (card.faceDown) return
+    // true;`), which un-fanned face-down permanents for BOTH viewers. Three
+    // IDENTICAL face-down morphs of the SAME real card must still fan into
+    // ONE pile (PRD #621's canonical case) — this is the opponent's view,
+    // where every member's `displayCardId` resolves to the same CR 708.2
+    // sentinel regardless. A reintroduced `isAltered` face-down clause turns
+    // this into 3 singletons; this test alone catches that mutation.
+    function threeIdenticalMorphs(): CardInstanceState[] {
+        return ["fd-a", "fd-b", "fd-c"].map(
+            (id) =>
+                ({
+                    id,
+                    card: {
+                        id: FACE_DOWN_CARD_ID,
+                        name: "Face-down creature",
+                        types: ["Creature"],
+                    },
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "battlefield",
+                    types: ["Creature"],
+                    subtypes: [],
+                    staticAbilities: [],
+                    isTapped: false,
+                    faceDown: true,
+                    faceDownOf: "mahamoti-djinn",
+                }) as unknown as CardInstanceState
+        );
+    }
+
+    it("opponent viewer: three IDENTICAL face-down permanents still fan into one pile (#1735 review round 2)", () => {
+        const state = makeState(threeIdenticalMorphs());
+        const projected = projectPublicState(state, 1, "p2");
+        const slimBf = projected.players[0].battlefield as CardInstance[];
+        const groups = groupBattlefield(slimBf, new Map());
+        expect(shape(groups)).toEqual([
+            { key: "fd-a", isStack: true, members: ["fd-a", "fd-b", "fd-c"] },
+        ]);
+    });
+
+    it("controller viewer: three IDENTICAL face-down permanents (same real card) still fan into one pile", () => {
+        const state = makeState(threeIdenticalMorphs());
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBf = projected.players[0].battlefield as CardInstance[];
+        const groups = groupBattlefield(slimBf, new Map());
+        expect(shape(groups)).toEqual([
+            { key: "fd-a", isStack: true, members: ["fd-a", "fd-b", "fd-c"] },
+        ]);
+    });
+
+    // Issue #1735 review round 2, finding 3 — pins the case the original
+    // `isAltered` clause was written for, now delivered by folding `faceDown`
+    // into `identityKey` instead: a face-down morph beside a FACE-UP copy of
+    // the SAME real card must never fan together, even though both resolve to
+    // the same `displayCardId` for the controller. This is the test that
+    // reds under a SINGLE mutation (dropping the `faceDown` segment from
+    // `identityKey`) with no change to `isAltered` needed to catch it.
+    it("a face-down morph never fans with a face-up copy of the same real card", () => {
+        const faceDown: CardInstanceState = {
+            id: "fd-morph",
+            card: {
+                id: FACE_DOWN_CARD_ID,
+                name: "Face-down creature",
+                types: ["Creature"],
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            faceDown: true,
+            faceDownOf: "mahamoti-djinn",
+        } as unknown as CardInstanceState;
+        const faceUp: CardInstanceState = makeCard({
+            id: "fu-djinn",
+            card: {
+                id: "mahamoti-djinn",
+                name: "Mahamoti Djinn",
+                types: ["Creature"],
+            },
+        });
+        const state = makeState([faceDown, faceUp]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBf = projected.players[0].battlefield as CardInstance[];
+        const groups = groupBattlefield(slimBf, new Map());
+        expect(shape(groups)).toEqual([
+            { key: "fd-morph", isStack: false, members: ["fd-morph"] },
+            { key: "fu-djinn", isStack: false, members: ["fu-djinn"] },
+        ]);
+    });
 });

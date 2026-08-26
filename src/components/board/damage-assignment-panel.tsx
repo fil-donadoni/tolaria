@@ -222,9 +222,18 @@ export default function DamageAssignmentPanel({
                                         key={targetId}
                                         targetId={targetId}
                                         label={
+                                            // CR 702.22j-k banding (issue
+                                            // #1735 review round 2 finding 4)
+                                            // — under banding this viewer can
+                                            // be assigning a blocker's damage
+                                            // among their OWN attackers, which
+                                            // can be face-down morphs; repoint
+                                            // for the same reason `source`
+                                            // above is.
                                             target
-                                                ? getDefinition(target.card.id)
-                                                      .name
+                                                ? getDefinition(
+                                                      displayCardId(target)
+                                                  ).name
                                                 : "Target"
                                         }
                                         dmg={dmg}
@@ -246,8 +255,9 @@ export default function DamageAssignmentPanel({
                                     targetId={sinkId}
                                     label={
                                         sinkCard
-                                            ? getDefinition(sinkCard.card.id)
-                                                  .name
+                                            ? getDefinition(
+                                                  displayCardId(sinkCard)
+                                              ).name
                                             : "Defending Player"
                                     }
                                     dmg={assignments[sinkId] ?? 0}

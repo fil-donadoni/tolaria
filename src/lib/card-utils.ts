@@ -3765,7 +3765,13 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
 export function groupByName(cards: CardInstance[]): CardInstance[][] {
     const groups: Map<string, CardInstance[]> = new Map();
     for (const card of cards) {
-        const name = getDefinition(card.card.id).name;
+        // Display-only grouping key (issue #1735 review round 3 census):
+        // `displayCardId`, not raw `card.card.id`, so a face-down permanent
+        // groups by its OWN controller's known identity rather than
+        // universally as "Face-down creature". Currently unreferenced
+        // (no caller in the tree), hardened defensively so the census this
+        // round ran against has no latent raw-id site left to find later.
+        const name = getDefinition(displayCardId(card)).name;
         const group = groups.get(name);
         if (group) {
             group.push(card);

@@ -390,3 +390,82 @@ describe("DamageAssignmentPanel lethal-minimum gating (CR 702.19b / CR 702.2c, i
         expect(steppers(getAllByText, "+")[1].disabled).toBe(true);
     });
 });
+
+// Issue #1735 review round 2 finding 4 — round 1 excluded this file on the
+// (wrong) premise that it only ever labels the OPPONENT's creatures. The
+// file's own doc block says otherwise (CR 702.22j-k banding lets a defending
+// player assign an attacker's damage, or an attacking player assign a
+// blocker's, among the ASSIGNER's OWN creatures), and `target`/`sinkCard`
+// were left on raw `card.card.id` after `source` was repointed for exactly
+// that reason. These pin both repointed reads with a face-down creature
+// standing in for "the assigner's own hidden card" (banding proper is a
+// heavier scenario to build; the display bug is identical either way — a
+// raw `card.card.id` read on any battlefield object, not one specific to
+// banding).
+describe("DamageAssignmentPanel — face-down target names (issue #1735 review round 2 finding 4)", () => {
+    it("labels a face-down blocker with its real known name, not the sentinel", () => {
+        const mammoth = creature("mammoth", "def-mammoth", 4, 4, "p1", {
+            isAttacking: true,
+            staticAbilities: ["trample"],
+        });
+        const morph = creature("morph", "face-down-sentinel", 2, 2, "p2", {
+            isBlocking: true,
+            knownCardId: "def-wall",
+        });
+        const combat = {
+            attackerIds: ["mammoth"],
+            confirmed: true,
+            blockersConfirmed: true,
+            damageConfirmed: false,
+            blockerAssignments: { morph: ["mammoth"] },
+            damageAssignerIds: { mammoth: "p1" },
+            damageAssignments: {},
+        } as Combat;
+        const allPlayers = [
+            makePlayer("p1", [mammoth]),
+            makePlayer("p2", [morph]),
+        ];
+        const { getByText, queryByText } = renderPanel(combat, allPlayers);
+        expect(getByText("Wall of Stone")).toBeTruthy();
+        expect(queryByText("Unknown")).toBeNull();
+    });
+
+    it("labels a face-down planeswalker sink with its real known name (CR 702.19f)", () => {
+        const mammoth = creature("mammoth", "def-mammoth", 4, 4, "p1", {
+            isAttacking: true,
+            staticAbilities: ["trample"],
+        });
+        const wall = creature("wall", "def-wall", 0, 3, "p2", {
+            isBlocking: true,
+        });
+        const morphWalker = creature(
+            "morph-pw",
+            "face-down-sentinel",
+            0,
+            0,
+            "p2",
+            {
+                types: ["Planeswalker"],
+                counters: { loyalty: 3 },
+                knownCardId: "def-liliana",
+            }
+        );
+        const combat = {
+            attackerIds: ["mammoth"],
+            confirmed: true,
+            blockersConfirmed: true,
+            damageConfirmed: false,
+            blockerAssignments: { wall: ["mammoth"] },
+            damageAssignerIds: { mammoth: "p1" },
+            damageAssignments: { mammoth: { wall: 3 } },
+            attackTargets: { mammoth: "morph-pw" },
+        } as Combat;
+        const allPlayers = [
+            makePlayer("p1", [mammoth]),
+            makePlayer("p2", [wall, morphWalker]),
+        ];
+        const { getByText, queryByText } = renderPanel(combat, allPlayers);
+        expect(getByText("Liliana of the Veil")).toBeTruthy();
+        expect(queryByText("Unknown")).toBeNull();
+    });
+});

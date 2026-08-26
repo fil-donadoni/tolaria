@@ -56,6 +56,25 @@ export interface PermanentGroup {
  *  to the same sentinel, so their two indistinguishable face-down creatures
  *  still fan into one pile exactly as before.
  *
+ *  Also includes the raw `faceDown` flag itself (issue #1735 review round 3),
+ *  as its OWN key segment rather than as an `isAltered` singleton override:
+ *  `displayCardId` alone stops two DIFFERENT face-down permanents from
+ *  collapsing (both above), but for the CONTROLLER two identical face-down
+ *  morphs of the same real card resolve to the SAME `displayCardId` — which
+ *  is correct, they are genuinely interchangeable while both stay face down —
+ *  so `displayCardId` alone would also let a face-down permanent collapse into
+ *  a stack with an unrelated FACE-UP permanent that happens to share the same
+ *  real card (the controller's own morph creature next to another copy of the
+ *  same creature that is already face up): same `displayCardId`, same
+ *  controller/sick/tapped state, yet the two are not interchangeable — a
+ *  face-down permanent's real characteristics (P/T, abilities) are the hidden
+ *  2/2 vanilla ones, the face-up one's are not. Folding `faceDown` into the
+ *  identity key instead of `isAltered` keeps BOTH halves true at once: two
+ *  identical face-down permanents (either viewer) still fan into one pile
+ *  (PRD #621's canonical case), while a face-down/face-up pair of the same
+ *  card never does — one key, one thing to guard, instead of two overlapping
+ *  mechanisms where only the pair reverted together used to prove anything.
+ *
  *  Also includes `controllerId`: this key becomes the group's `stackKey`,
  *  which the board uses as both the layout slot's React `key` and its
  *  Framer Motion `layoutId` (`SpatialSlot`, board-battlefield.tsx). A
@@ -72,7 +91,8 @@ export interface PermanentGroup {
 function identityKey(card: CardInstance): string {
     const sick = card.isSummoningSick === true ? "1" : "0";
     const tapped = card.isTapped === true ? "1" : "0";
-    return `${card.controllerId}|${displayCardId(card)}|${sick}|${tapped}`;
+    const faceDown = card.faceDown === true ? "1" : "0";
+    return `${card.controllerId}|${displayCardId(card)}|${faceDown}|${sick}|${tapped}`;
 }
 
 /** A permanent is "altered" — and therefore always renders as its own
@@ -117,19 +137,12 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     if (card.copiedFrom) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).
     if (card.isAttacking || card.isBlocking) return true;
-    // Face down (CR 708.2, issue #1735 review) — belt-and-suspenders beyond
-    // the `identityKey` fix above. `displayCardId` alone stops two DIFFERENT
-    // face-down permanents from collapsing, but it does NOT stop a face-down
-    // permanent from collapsing into a stack with an unrelated FACE-UP
-    // permanent that happens to share the same real card (the controller's
-    // own morph creature next to another copy of the same creature that is
-    // already face up): same `displayCardId`, same controller/sick/tapped
-    // state, yet the two are not interchangeable — a face-down permanent's
-    // real characteristics (P/T, abilities) are hidden 2/2 vanilla ones, the
-    // face-up one's are not. Being face down is itself instance-specific
-    // state a player must read/target precisely, so it always renders as its
-    // own singleton, exactly like an attached-to or granted-ability card.
-    if (card.faceDown) return true;
+    // NOTE: face-down (CR 708.2) is deliberately NOT an `isAltered` singleton
+    // override — issue #1735 review round 3 moved it into `identityKey`'s own
+    // key segment instead, so two identical face-down permanents still fan
+    // into one pile (PRD #621) while a face-down/face-up pair of the same
+    // real card never does. See `identityKey`'s doc comment for the full
+    // rationale; do not re-add a `card.faceDown` check here.
     return false;
 }
 
