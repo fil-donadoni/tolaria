@@ -183,29 +183,34 @@ describe("Dash — Bot move enumeration (CR 702.109a, issue #1964)", () => {
     });
 });
 
-// Review round 1 (PR #2830, finding #2) — the two blade-registry
-// "discriminating pair" entries (`registry.ts`) do NOT flip their chosen
-// MOVE when only the `moveZone` self-cost sign (`opValuers.ts`'s
-// `HAND_RETURN_SELF_COST`) is reverted. Review round 2 corrected round 1's
-// EXPLANATION for why: it is NOT that the term is "architecturally
-// invisible" once `rollout()`'s turn-boundary horizon (`search.ts` — "the
-// rollout stops at the START of the bot's next turn") plays past Dash's
-// delayed return ("at the beginning of the next end step", CR 702.109a). A
-// dashed Ragavan back in the caster's hand IS scored, by the same latent
-// `cardValue` path (`evaluate.ts`) every hand card uses — `latentValue`'s
-// creature branch (`cardValue.ts`) adds the card's `dslAbilityValue` (its
-// own ability-script worth) to its body, and Ragavan carries no `aiValue`
-// override to suppress it. Measured directly: 31.25 (fixed) vs 58.75 (sign
-// reverted) — 27.5 points of same-signed difference at a real, non-lethal
-// leaf. The term is present; it just never swings either blade entry's
-// decision. The "hard-casts on an empty board" entry has nothing else to
-// race, so the permanent-body line already wins by a wide margin on every
-// OTHER term and a 27.5-point swing on top never changes it. The "dashes for
-// the lethal attack" entry lands in the win/loss band instead (CLAUDE.md's
-// "banded so a win dominates material") — the WIN dominates regardless of
-// this term's sign, not an invisible term. Neither is evidence the sign is
-// unreachable by a leaf; both are evidence it does not decide THESE
-// positions at THESE budgets.
+// Review round 1 (PR #2830, finding #2) — the two blade-registry entries
+// that existed at the time (`registry.ts`), "hard-casts Ragavan on an empty
+// board with nothing to race" and "dashes Ragavan for the lethal attack", did
+// NOT flip their chosen MOVE when only the `moveZone` self-cost sign
+// (`opValuers.ts`'s `HAND_RETURN_SELF_COST`) was reverted. Review round 2
+// corrected round 1's EXPLANATION for why: it is NOT that the term is
+// "architecturally invisible" once `rollout()`'s turn-boundary horizon
+// (`search.ts` — "the rollout stops at the START of the bot's next turn")
+// plays past Dash's delayed return ("at the beginning of the next end step",
+// CR 702.109a). A dashed Ragavan back in the caster's hand IS scored, by the
+// same latent `cardValue` path (`evaluate.ts`) every hand card uses —
+// `latentValue`'s creature branch (`cardValue.ts`) adds the card's
+// `dslAbilityValue` (its own ability-script worth) to its body, and Ragavan
+// carries no `aiValue` override to suppress it. Measured directly: 31.25
+// (fixed) vs 58.75 (sign reverted) — 27.5 points of same-signed difference at
+// a real, non-lethal leaf. The term is present; it just never swung either
+// entry's decision. The "hard-casts on an empty board" entry had nothing
+// else to race, so the permanent-body line already won by a wide margin on
+// every OTHER term and a 27.5-point swing on top never changed it — review
+// round 2 went on to DELETE that entry as vacuous (mutation-tested with the
+// whole `moves.ts` dash-enumeration branch stubbed out, it still passed
+// identically to the unmutated registry), so it no longer exists in
+// `registry.ts`. The surviving "dashes Ragavan for the lethal attack" entry
+// lands in the win/loss band instead (CLAUDE.md's "banded so a win dominates
+// material") — the WIN dominates regardless of this term's sign, not an
+// invisible term. Neither measurement is evidence the sign is unreachable by
+// a leaf; both are evidence it did not decide THOSE positions at THOSE
+// budgets.
 //
 // What DOES discriminate cleanly is `evaluate()` itself — the exact function
 // `scoreLeaf` calls — evaluated immediately after casting (still mid-turn,

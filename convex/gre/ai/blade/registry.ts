@@ -2262,6 +2262,112 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 702.37e special action: 2/2 vanilla → 4/5 lifegain flier for {2}{W}{W}, with no competing use for the mana.",
     },
     {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2491).
+        // PAIRED WITH: "loyalty: does NOT reach for a −2 it cannot pay".
+        // NEITHER ENTRY PROVES ANYTHING ALONE — a bot that never activates a
+        // loyalty ability passes half 2 vacuously, and a bot that offers every
+        // loyalty ability regardless of the CR 606 gates passes half 1. Only
+        // the pair distinguishes a bot that reads the rule. Deleting either
+        // half silently guts the other, which is why each note names its
+        // partner.
+        //
+        // The bug: `enumerateAbilityMoves` skipped every ability with a signed
+        // `cost.loyalty`, so all 13 shipped planeswalkers / 37 loyalty
+        // abilities were unreachable and the bot cast Liliana of the Veil and
+        // then passed for the rest of the game (53 `pass`, zero
+        // `activate-ability` in the reported game's decision log).
+        //
+        // Position: the bot's own precombat main, empty stack (CR 606.3's
+        // window), Liliana at her printed starting loyalty of 3, the bot's hand
+        // empty so nothing competes, and the opponent's only permanent is a
+        // 4/4 flier. The −2 edict (a sacrifice, CR 701.21) is the whole board.
+        label: "loyalty: activates Liliana's −2 to eat the opponent's only creature",
+        spec: {
+            cards: [
+                {
+                    name: "Liliana of the Veil",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 3 },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        // ADR 0070 §2 — measured, not guessed: `activate-ability
+        // cards=[Liliana of the Veil] targets=[opp]` on all three seeds at the
+        // production 400.
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Liliana of the Veil",
+                    // At 3 loyalty the −6 is unpayable (CR 606.6) and the +1
+                    // takes no target, so a player target pins the −2 exactly.
+                    target: "opp",
+                },
+            ],
+        },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "loyalty: does NOT reach for a −2 it cannot pay". Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2491).
+        // PAIRED WITH: "loyalty: activates Liliana's −2 to eat the opponent's
+        // only creature". The SAME position with two counters fewer: the edict
+        // that was the whole board in half 1 is now illegal, because CR 606.6
+        // forbids a negative loyalty cost the permanent cannot pay. The +1
+        // remains legal, so this is not a "does the bot activate at all"
+        // question — it is "does the enumerator's CR 606.6 floor survive all
+        // the way to the root decision".
+        label: "loyalty: does NOT reach for a −2 it cannot pay",
+        spec: {
+            cards: [
+                {
+                    name: "Liliana of the Veil",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 1 },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Liliana of the Veil",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Half 2 of the discriminating pair — PAIRED WITH \"loyalty: activates Liliana's −2 to eat the opponent's only creature\". Neither half is meaningful alone. Measured: the bot takes the +1 on all three seeds and never the illegal −2.",
+    },
+    {
         // Issue #1964. This used to be "half 1" of a discriminating pair with
         // a sibling entry ("hard-casts Ragavan on an empty board with
         // nothing to race") — review round 2 DELETED that sibling: mutation-
