@@ -16,6 +16,25 @@
     --series-6: #008300;
     --series-7: #4a3aa7;
     --series-8: #e34948;
+    /* Semantic STATE roles (#2630). Role names, never chromatic ones: a
+       light, a verdict word, a claim mark and an UNAVAILABLE banner all mean
+       "good"/"warn"/"bad"/"cannot tell", and before this block each reached
+       for a `--series-N` slot by hand. `unknown` is deliberately its OWN hue
+       rather than a second name for `bad`: "I could not tell" is not "this is
+       wrong", and collapsing the two is the exact confusion #2630 exists to
+       kill. */
+    --state-good: #1baf7a;
+    --state-warn: #eda100;
+    --state-bad: #eb6834;
+    --state-unknown: #4a3aa7;
+    /* A transient LANDING mark (#2630), its own role and not a state. It is
+       what a section wears for 1.6s after a light scrolls to it: it means
+       "here is where you landed", which is orthogonal to whether the thing
+       you landed on is good, warn, bad or unreadable. The first cut painted
+       it with `--state-unknown` — that tied a navigation affordance's hue to
+       the meaning "I could not tell", and would have re-coloured every jump
+       the day the unavailable hue changed. */
+    --highlight-landing: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -36,6 +55,18 @@
         --series-6: #008300;
         --series-7: #9085e9;
         --series-8: #e66767;
+        --state-good: #199e70;
+        --state-warn: #c98500;
+        --state-bad: #d95926;
+        --state-unknown: #9085e9;
+        /* A transient LANDING mark (#2630), its own role and not a state. It is
+           what a section wears for 1.6s after a light scrolls to it: it means
+           "here is where you landed", which is orthogonal to whether the thing
+           you landed on is good, warn, bad or unreadable. The first cut painted
+           it with `--state-unknown` — that tied a navigation affordance's hue to
+           the meaning "I could not tell", and would have re-coloured every jump
+           the day the unavailable hue changed. */
+        --highlight-landing: #3987e5;
     }
 }
 :root[data-theme="dark"] {
@@ -56,6 +87,18 @@
     --series-6: #008300;
     --series-7: #9085e9;
     --series-8: #e66767;
+    --state-good: #199e70;
+    --state-warn: #c98500;
+    --state-bad: #d95926;
+    --state-unknown: #9085e9;
+    /* A transient LANDING mark (#2630), its own role and not a state. It is
+       what a section wears for 1.6s after a light scrolls to it: it means
+       "here is where you landed", which is orthogonal to whether the thing
+       you landed on is good, warn, bad or unreadable. The first cut painted
+       it with `--state-unknown` — that tied a navigation affordance's hue to
+       the meaning "I could not tell", and would have re-coloured every jump
+       the day the unavailable hue changed. */
+    --highlight-landing: #3987e5;
 }
 
 * {
@@ -293,13 +336,13 @@ tbody tr:hover {
     text-align: center;
 }
 .ls-mark.orphan {
-    color: var(--series-2);
+    color: var(--state-bad);
 }
 .ls-mark.suspect {
-    color: var(--series-4);
+    color: var(--state-warn);
 }
 .ls-mark.live {
-    color: var(--series-3);
+    color: var(--state-good);
 }
 .ls-stage {
     display: inline-block;
@@ -316,7 +359,7 @@ tbody tr:hover {
     font-size: 12px;
 }
 .ls-unavailable {
-    color: var(--series-2);
+    color: var(--state-unknown);
     font-size: 12px;
 }
 
@@ -338,13 +381,13 @@ tbody tr:hover {
     color: var(--text-primary);
 }
 .ls-verdict-state.bad {
-    color: var(--series-2);
+    color: var(--state-bad);
 }
 .ls-verdict-state.warn {
-    color: var(--series-4);
+    color: var(--state-warn);
 }
 .ls-verdict-state.good {
-    color: var(--series-3);
+    color: var(--state-good);
 }
 .ls-verdict-sentence {
     font-size: 13px;
@@ -356,7 +399,177 @@ tbody tr:hover {
 }
 .ls-finding {
     font-size: 11px;
-    color: var(--series-4);
+    color: var(--state-warn);
+}
+
+/* The remedy's command (#2630). `verdict.remedy` is PROSE that NAMES a
+   command, so only the backticked span is copyable — a button wired to the
+   whole remedy would put an English sentence on the clipboard. */
+.ls-cmd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+}
+.ls-copy {
+    margin-left: 4px;
+    font: inherit;
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 8px;
+    cursor: pointer;
+    /* 32px matches the page's own `theme` button — every control on this
+       dashboard already sits under the probe's 44px AAA target size, and a
+       44px pill beside 11px inline code would read as the louder element. */
+    min-height: 32px;
+}
+.ls-copy:hover {
+    color: var(--text-primary);
+    background: var(--plane);
+}
+
+/* Four traffic lights (#2630) — Driver, Queue, Claims, Batch.
+
+   COLOUR IS NEVER THE ONLY CARRIER. Three channels ship together: the tone
+   colour (left rule, glyph, tint), the SHAPE of the glyph, and the state word
+   in ordinary text colour. The word is `--text-primary` on purpose — these
+   state hues do not clear 4.5:1 at 13px against the card surface, so the word
+   would have been the least legible part of the light it names. */
+.ls-lights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 12px 0 16px;
+}
+.ls-light {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--muted);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    min-height: 44px;
+}
+.ls-light:hover {
+    background: var(--surface-1);
+}
+.ls-light:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+.ls-light.good {
+    border-left-color: var(--state-good);
+    background: color-mix(in srgb, var(--state-good) 8%, var(--plane));
+}
+.ls-light.warn {
+    border-left-color: var(--state-warn);
+    background: color-mix(in srgb, var(--state-warn) 10%, var(--plane));
+}
+.ls-light.bad {
+    border-left-color: var(--state-bad);
+    background: color-mix(in srgb, var(--state-bad) 12%, var(--plane));
+}
+.ls-light.unknown {
+    border-left-color: var(--state-unknown);
+    background: color-mix(in srgb, var(--state-unknown) 10%, var(--plane));
+}
+.ls-light-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+}
+.ls-light-glyph {
+    font-size: 11px;
+    line-height: 1;
+}
+.ls-light.good .ls-light-glyph {
+    color: var(--state-good);
+}
+.ls-light.warn .ls-light-glyph {
+    color: var(--state-warn);
+}
+.ls-light.bad .ls-light-glyph {
+    color: var(--state-bad);
+}
+.ls-light.unknown .ls-light-glyph {
+    color: var(--state-unknown);
+}
+.ls-light-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.ls-light-value {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.ls-light-number {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.ls-light-unit {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.ls-light-word {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-left: auto;
+    white-space: nowrap;
+}
+.ls-light-prose {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* The detail section a light jumps to (#2630). Without a landing mark the
+   scroll is indistinguishable from the page having moved on its own. */
+.ls-section {
+    scroll-margin-top: 12px;
+    border-radius: 8px;
+}
+.ls-flash {
+    outline: 2px solid var(--highlight-landing);
+    outline-offset: 4px;
+    animation: ls-flash-fade 1.6s ease-out;
+}
+@keyframes ls-flash-fade {
+    0% {
+        background: color-mix(
+            in srgb,
+            var(--highlight-landing) 22%,
+            transparent
+        );
+    }
+    100% {
+        background: transparent;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* The outline stays — it is the landing mark, not the motion. Only the
+       fade and the smooth scroll (`now-nav.js`) are dropped. */
+    .ls-flash {
+        animation: none;
+    }
 }
 
 #tip {

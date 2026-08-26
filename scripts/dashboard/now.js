@@ -1,0 +1,140 @@
+import { esc } from "./format.js";
+import { verdictBandHtml } from "./now-verdict-band.js";
+import { lightsHtml, SECTION_IDS } from "./now-lights.js";
+import { claimsSectionHtml } from "./now-claims-table.js";
+
+/**
+ * The Now view's composition root (#2630) — verdict band, four traffic
+ * lights, then the detail sections each light points at.
+ *
+ * WHY THIS FILE EXISTS, given `now-loop-status.js` already rendered a band.
+ * #2630 asked for a band and lights on a view that was not blank: the panel
+ * already composed `verdictBandHtml` into `#loop-status-body`. Adding a
+ * second renderer beside it would have put two compositions of the same
+ * payload on one screen, free to disagree. So the composition moved HERE
+ * instead, and `now-loop-status.js` kept only what it uniquely owns — the
+ * fetch, the poll timer and the DOM write. One payload, one composition.
+ *
+ * PURE, deliberately: no DOM, no fetch, no module-level mutable state, so the
+ * `node` vitest project can call `nowBodyHtml` on a fixture and assert what
+ * the operator would actually see — including that every light points at a
+ * section id this same function emits. The impure half lives in
+ * `now-loop-status.js` (transport) and `now-nav.js` (click behaviour).
+ */
+
+/**
+ * The card subtitle keeps the RAW driver facts; the verdict band below states
+ * what they MEAN. Before #2624 this line was the only health signal on the
+ * page, and it rendered the eight-hour outage of 2026-08-19 as `armed · no
+ * driver pid · no stop-file` — three equal grey clauses, no cause and no
+ * remedy.
+ */
+export function nowSubtitleText(data) {
+    const d = data.driver ?? {};
+    return (
+        `${d.armed ? "armed" : "not armed"} · ` +
+        `${
+            d.pid === null || d.pid === undefined
+                ? "no driver pid"
+                : d.pidAlive
+                  ? `pid ${d.pid} running`
+                  : `pid ${d.pid} NOT running`
+        } · ` +
+        `${d.stopFilePresent ? "STOP-FILE PRESENT" : "no stop-file"}` +
+        (data.priorityWarning ? ` · ⚠ ${data.priorityWarning}` : "")
+    );
+}
+
+function driverSectionHtml(data) {
+    const d = data.driver ?? {};
+    const passes = d.recentPasses ?? [];
+    const body = passes.length
+        ? passes
+              .map(
+                  (p) =>
+                      `<div class="ls-pass">pass ${p.pass} · exit ${p.claudeExit} · pct ${esc(p.pct)} · queue ${p.queueBefore}→${p.queueAfter} · ${esc(p.reason)}</div>`
+              )
+              .join("")
+        : `<div class="ls-empty">no passes recorded</div>`;
+    return `<div id="${SECTION_IDS.driver}" class="ls-section"><b>Driver</b>${body}</div>`;
+}
+
+/**
+ * `queueDepth` is `null` (with a sibling `queueDepthError`) when the
+ * underlying `gh` read failed — rendered as an explicit UNAVAILABLE banner,
+ * never as a zeroed section, which is indistinguishable from a healthy read
+ * that genuinely found nothing.
+ */
+function queueSectionHtml(data) {
+    const qd = data.queueDepth;
+    const body =
+        data.queueDepthError != null
+            ? `<div class="ls-unavailable">⚠ ${esc(data.queueDepthError)}<br>cannot tell how deep the queue is — not the same as "queue empty"</div>`
+            : `<div class="ls-driver">P0 <b>${qd.P0}</b> · P1 <b>${qd.P1}</b> · P2 <b>${qd.P2}</b> · ` +
+              `unprioritized <b>${qd.unprioritized}</b> · total <b>${qd.total}</b></div>`;
+    return `<div id="${SECTION_IDS.queue}" class="ls-section"><b>Queue depth</b>${body}</div>`;
+}
+
+/**
+ * Receipts render from `receiptsSummary`, not a raw list (PR #2545 review,
+ * finding 3) — a live batch measured 232 receipts, almost all `missing
+ * session=…` markers, which blew this panel to 3000-8000px tall on a phone
+ * (it is deliberately the FIRST card, so that pushed the rest of the
+ * dashboard ~8 screens below the fold). Counts by (role, outcome) are cheap
+ * and complete — no cap needed; only `wip`/`failed`/`blocking`/`collision`
+ * rows print individually, capped server-side.
+ */
+function batchSectionHtml(data) {
+    const summary = data.receiptsSummary ?? {
+        total: 0,
+        counts: [],
+        interesting: [],
+    };
+    const countsHtml = summary.counts.length
+        ? summary.counts
+              .map(
+                  (c) =>
+                      `<div class="ls-pass">${esc(c.role)} ${esc(c.outcome)}: <b>${c.count}</b></div>`
+              )
+              .join("")
+        : `<div class="ls-empty">no receipts in this batch</div>`;
+    const interestingHtml = summary.interesting
+        .map((r) =>
+            r.role === "missing"
+                ? `<div class="ls-pass">missing · session ${esc(r.session)}</div>`
+                : `<div class="ls-pass">#${r.issue} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
+        )
+        .join("");
+    return (
+        `<div id="${SECTION_IDS.batch}" class="ls-section">` +
+        `<b>Batch ${esc(data.batch ?? "(none)")} (${summary.total})</b>` +
+        countsHtml +
+        interestingHtml +
+        `</div>`
+    );
+}
+
+/**
+ * The claims table owns its own markup (`now-claims-table.js`); the section
+ * WRAPPER lives here, with the other three, so that `SECTION_IDS` has exactly
+ * one consumer on the emitting side. Importing it into the claims module
+ * instead would close an import cycle (`now-lights.js` already reads
+ * `claimsHeaderCount` from there).
+ */
+function claimsSectionWrapperHtml(data) {
+    return `<div id="${SECTION_IDS.claims}" class="ls-section">${claimsSectionHtml(data)}</div>`;
+}
+
+/** The whole Now body: band, lights, then the sections the lights target. */
+export function nowBodyHtml(data) {
+    return (
+        verdictBandHtml(data.verdict) +
+        lightsHtml(data) +
+        `<div class="ls-grid">` +
+        driverSectionHtml(data) +
+        queueSectionHtml(data) +
+        batchSectionHtml(data) +
+        `</div>` +
+        claimsSectionWrapperHtml(data)
+    );
+}

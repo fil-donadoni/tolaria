@@ -504,7 +504,13 @@ export interface LoopVerdictInput {
     queueDepthError: string | null;
 }
 
-const REMEDY = {
+/**
+ * Exported (PR #2837 review, finding 2) so the dashboard's copy-affordance
+ * guard can iterate EVERY remedy rather than the two the test author happened
+ * to think of — the finding was precisely that two of these seven backtick a
+ * GitHub label, not a command, and a hand-picked fixture had missed both.
+ */
+export const REMEDY = {
     reads: "check `gh auth status` and the API rate limit, then re-run `bun run loop:status`",
     orphans:
         "`bun run loop:doctor` to inspect, `bun run loop:doctor --release` to drop `in-progress` on the orphans",

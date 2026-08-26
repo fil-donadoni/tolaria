@@ -1,10 +1,22 @@
-import { esc } from "./format.js";
-import { verdictBandHtml } from "./now-verdict-band.js";
-import { claimsSectionHtml } from "./now-claims-table.js";
+import { nowBodyHtml, nowSubtitleText } from "./now.js";
+import { initNowNav } from "./now-nav.js";
 
 /**
- * The Now view (#2519, split out in #2625) — polls GET /api/loop-status, which
- * reads no DB, so it must render whether or not telemetry.db exists.
+ * The Now view's TRANSPORT (#2519, split out in #2625, narrowed in #2630) —
+ * polls GET /api/loop-status, which reads no DB, so it must render whether or
+ * not telemetry.db exists.
+ *
+ * What is left here is only what is impure: the fetch, the poll timer, and the
+ * single write into the DOM. The composition of the payload into HTML is
+ * `now.js` — one payload, one composition, callable from the `node` project.
+ *
+ * THAT WRITE IS FOCUS-PRESERVING (PR #2837 review, finding 1). #2630 is what
+ * first put focusable controls in this container — four `.ls-light` buttons
+ * and the remedy's `.ls-copy` buttons — which turned a pre-existing
+ * unconditional `innerHTML =` into a real defect: a ten-second poll silently
+ * moved `document.activeElement` back to `<body>`, six times a minute, so a
+ * light was keyboard-REACHABLE but not keyboard-OPERABLE. See
+ * `writeBodyPreservingFocus` below.
  *
  * DATA BOUNDARY: this module and everything it imports touch `/api/loop-status`
  * and nothing else. No History module may be imported from here, directly or
@@ -14,92 +26,76 @@ import { claimsSectionHtml } from "./now-claims-table.js";
  * reachable only through `startLoopStatusPolling()`.
  */
 
+/**
+ * The identity of a focusable control inside the Now body, stable across a
+ * re-render — or `null` for anything that is not one of this container's own
+ * controls, which is what makes "the operator has focused something else on
+ * the page" a no-op rather than a steal.
+ *
+ * Not an INDEX: the four lights are fixed, but the remedy's copy buttons come
+ * and go with the verdict, so position is not identity. Not a CSS SELECTOR
+ * either — a `data-copy` holds arbitrary command text, and building a
+ * selector out of it means escaping it correctly. Comparing a `kind:value`
+ * string against this same function run over the NEW nodes needs neither.
+ */
+export function nowControlKey(el) {
+    if (!el || !el.classList) return null;
+    if (el.classList.contains("ls-light"))
+        return `light:${el.dataset.target ?? ""}`;
+    if (el.classList.contains("ls-copy"))
+        return `copy:${el.dataset.copy ?? ""}`;
+    return null;
+}
+
+/** Everything in the Now body a keyboard can land on. */
+const NOW_CONTROLS = ".ls-light, .ls-copy";
+
+/**
+ * Write `html` into `container` without destroying keyboard focus. Returns
+ * whether the DOM was actually touched.
+ *
+ * TWO defences, because neither alone is enough:
+ *
+ *   1. SKIP an unchanged write. Most polls report the same loop state, and
+ *      not re-creating identical nodes preserves more than focus — the copy
+ *      button's transient "copied" label, and any running animation, survive
+ *      too. Compared against the container's own serialization, so it is
+ *      self-correcting: if a browser ever round-trips our markup differently
+ *      the skip simply never fires and defence 2 carries the case.
+ *   2. RESTORE focus across a write that did change something. A poll that
+ *      lands while the payload genuinely moved (a light flipping tone is
+ *      exactly when an operator is looking) must not cost the focus ring.
+ *
+ * `preventScroll` is load-bearing: the operator's scroll position is theirs,
+ * and a poll that yanked the page back to the focused light would be a
+ * louder version of the bug this fixes.
+ */
+export function writeBodyPreservingFocus(container, html) {
+    if (container.innerHTML === html) return false;
+    const active = container.ownerDocument?.activeElement ?? null;
+    const key =
+        active && container.contains(active) ? nowControlKey(active) : null;
+    container.innerHTML = html;
+    if (key === null) return true;
+    for (const el of container.querySelectorAll(NOW_CONTROLS)) {
+        if (nowControlKey(el) === key) {
+            el.focus({ preventScroll: true });
+            break;
+        }
+    }
+    return true;
+}
+
 export function renderLoopStatus(data) {
-    const sub = document.getElementById("loop-status-sub");
-    const body = document.getElementById("loop-status-body");
-    const d = data.driver ?? {};
-
-    // The subtitle keeps the RAW driver facts; the verdict band
-    // below states what they MEAN. Before #2624 this line was the
-    // only health signal on the page, and it rendered the
-    // eight-hour outage of 2026-08-19 as
-    // `armed · no driver pid · no stop-file` — three equal grey
-    // clauses, no cause and no remedy.
-    sub.textContent =
-        `${d.armed ? "armed" : "not armed"} · ` +
-        `${
-            d.pid === null || d.pid === undefined
-                ? "no driver pid"
-                : d.pidAlive
-                  ? `pid ${d.pid} running`
-                  : `pid ${d.pid} NOT running`
-        } · ` +
-        `${d.stopFilePresent ? "STOP-FILE PRESENT" : "no stop-file"}` +
-        (data.priorityWarning ? ` · ⚠ ${esc(data.priorityWarning)}` : "");
-
-    const verdictHtml = verdictBandHtml(data.verdict);
-
-    const passesHtml = (d.recentPasses ?? []).length
-        ? d.recentPasses
-              .map(
-                  (p) =>
-                      `<div class="ls-pass">pass ${p.pass} · exit ${p.claudeExit} · pct ${esc(p.pct)} · queue ${p.queueBefore}→${p.queueAfter} · ${esc(p.reason)}</div>`
-              )
-              .join("")
-        : `<div class="ls-empty">no passes recorded</div>`;
-
-    // `queueDepth` is `null` (with a sibling `queueDepthError`) when the
-    // underlying `gh` read failed — rendered as an explicit UNAVAILABLE
-    // banner, never as a zeroed section, which is indistinguishable from a
-    // healthy read that genuinely found nothing.
-    const qd = data.queueDepth;
-    const queueHtml =
-        data.queueDepthError != null
-            ? `<div class="ls-unavailable">⚠ ${esc(data.queueDepthError)}<br>cannot tell how deep the queue is — not the same as "queue empty"</div>`
-            : `<div class="ls-driver">P0 <b>${qd.P0}</b> · P1 <b>${qd.P1}</b> · P2 <b>${qd.P2}</b> · ` +
-              `unprioritized <b>${qd.unprioritized}</b> · total <b>${qd.total}</b></div>`;
-
-    // Receipts render from `receiptsSummary`, not a raw list
-    // (PR #2545 review, finding 3) — a live batch measured 232
-    // receipts, almost all `missing session=…` markers, which
-    // blew this panel to 3000-8000px tall on a phone (it is
-    // deliberately the FIRST card, so that pushed the rest of
-    // the dashboard ~8 screens below the fold). Counts by
-    // (role, outcome) are cheap and complete — no cap needed;
-    // only `wip`/`failed`/`blocking`/`collision` rows print
-    // individually, capped server-side.
-    const summary = data.receiptsSummary ?? {
-        total: 0,
-        counts: [],
-        interesting: [],
-    };
-    const countsHtml = summary.counts.length
-        ? summary.counts
-              .map(
-                  (c) =>
-                      `<div class="ls-pass">${esc(c.role)} ${esc(c.outcome)}: <b>${c.count}</b></div>`
-              )
-              .join("")
-        : `<div class="ls-empty">no receipts in this batch</div>`;
-    const interestingHtml = summary.interesting.length
-        ? summary.interesting
-              .map((r) =>
-                  r.role === "missing"
-                      ? `<div class="ls-pass">missing · session ${esc(r.session)}</div>`
-                      : `<div class="ls-pass">#${r.issue} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
-              )
-              .join("")
-        : "";
-    const receiptsHtml = countsHtml + interestingHtml;
-
-    body.innerHTML =
-        verdictHtml +
-        `<div class="ls-grid">` +
-        `<div><b>Driver</b>${passesHtml}</div>` +
-        `<div><b>Queue depth</b>${queueHtml}</div>` +
-        `<div><b>Batch ${esc(data.batch ?? "(none)")} (${summary.total})</b>${receiptsHtml}</div>` +
-        `</div>` +
-        claimsSectionHtml(data);
+    document.getElementById("loop-status-sub").textContent =
+        nowSubtitleText(data);
+    writeBodyPreservingFocus(
+        document.getElementById("loop-status-body"),
+        nowBodyHtml(data)
+    );
+    // Idempotent, and after the first body exists: the listener is delegated
+    // on the container, so it survives every subsequent innerHTML rewrite.
+    initNowNav();
 }
 
 export async function refreshLoopStatus() {
