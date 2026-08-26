@@ -11,7 +11,7 @@
  * `scripts/oracle-corpus.ts`'s header), and the compiler is deliberately
  * forbidden from emitting `id`/`rarity` (`convex/oracle/types.ts` —
  * "printing/catalogue metadata no amount of grammar can derive from rules
- * text"). Both facts are documented in `docs/adr/0107-compiled-card-id-scheme.md`.
+ * text"). Both facts are documented in `docs/adr/0108-compiled-card-id-scheme.md`.
  *
  * This script closes that gap the same way `backfill-card-index.ts` closes
  * its own: resolve via Scryfall, pin the EARLIEST PAPER printing (ADR 0041),
