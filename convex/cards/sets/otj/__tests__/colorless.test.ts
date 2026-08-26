@@ -161,7 +161,9 @@ describe("Lavaspur Boots (OTJ #243, issue #1530)", () => {
         const wardTrig = state.stack[state.stack.length - 1];
         expect(wardTrig.triggeredAbilityId).toBe("lavaspur-boots-ward");
         expect(wardTrig.triggerSourceId).toBe("bear1");
-        expect(wardTrig.targets).toEqual([{ type: "spell", id: "removal1" }]);
+        expect(wardTrig.targets).toEqual([
+            { type: "spell", id: "removal1", stackSourceId: "removal1" },
+        ]);
 
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");

@@ -46,7 +46,9 @@ describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)"
         const trigger = state.stack.find(
             (s) => s.triggeredAbilityId === "lutri-etb"
         );
-        expect(trigger?.targets).toEqual([{ type: "spell", id: bolt.id }]);
+        expect(trigger?.targets).toEqual([
+            { type: "spell", id: bolt.id, stackSourceId: bolt.id },
+        ]);
 
         // Resolve the trigger — copies the Bolt onto the stack above it.
         resolveTopOfStack(state);

@@ -859,7 +859,7 @@ export interface TargetSelection {
      *  TRIGGERED ability's stack item gets a FRESH `id`
      *  (`allocInstanceId`, `gre/triggers.ts` `buildTriggerItem`) with the
      *  real permanent recorded separately as `triggerSourceId`. `counter()`
-     *  (CR 701.6a) splices the item out of `state.stack` before an ability
+     *  (CR 701.6a) removes the item from `state.stack` before an ability
      *  vanishes, so nothing downstream can look the id up on the stack
      *  anymore — a later Op resolving "the permanent whose ability was just
      *  countered" (`loseAllAbilitiesWhileSourceRemains`,

@@ -59,8 +59,17 @@ describe("Stifle — counter target activated or triggered ability (CR 701.6a / 
     it("targets a TRIGGERED ability on the stack", () => {
         const state = makeState();
         state.stack.push(triggeredOnStack(balduvianBears.id, "bear-trigger"));
+        // `stackSourceId` (issue #1562 fixup) falls back to the announced
+        // slot's own id here because this synthetic fixture omits
+        // `triggerSourceId` — unlike a REAL triggered ability's stack item
+        // (`buildTriggerItem`), which always sets it to the source
+        // permanent's battlefield id.
         expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual([
-            { type: "spell", id: "bear-trigger" },
+            {
+                type: "spell",
+                id: "bear-trigger",
+                stackSourceId: "bear-trigger",
+            },
         ]);
     });
 
@@ -68,7 +77,11 @@ describe("Stifle — counter target activated or triggered ability (CR 701.6a / 
         const state = makeState();
         state.stack.push(activatedOnStack(balduvianBears.id, "bear-ability"));
         expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual([
-            { type: "spell", id: "bear-ability" },
+            {
+                type: "spell",
+                id: "bear-ability",
+                stackSourceId: "bear-ability",
+            },
         ]);
     });
 
