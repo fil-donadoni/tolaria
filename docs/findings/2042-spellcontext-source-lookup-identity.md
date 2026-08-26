@@ -4,11 +4,15 @@ discoveredBy: 2042
 status: declined
 confidence: medium
 declinedReason: >
-    Not a standalone ticket: #2042 is still open, and all nine sites share the
-    one lookup expression its fix replaces — a triggerSourceId-aware
-    findOnBattlefield consulting the identity signal #2042 introduces. Recorded
-    as a scope note on #2042 (per-site LKI-vs-no-op table) so the fix lands
-    once instead of nine later patches.
+    Not a standalone ticket. Written while #2042 was open, on the expectation
+    that its fix would replace the shared lookup expression. It did not: #2042
+    shipped as a departure-time LKI snapshot on the STACK ITEM
+    (StackItem.sourceLki), read only by the interveningIf re-check, so all nine
+    buildSpellContext sites below survive unchanged. The per-site
+    LKI-vs-no-op table is still the useful artifact — a triggerSourceId-aware
+    findOnBattlefield consulting sourceLki would fix them uniformly — but the
+    "why it may not deserve its own issue" caveat below is unchanged and
+    nothing here is yet proven by a failing test.
 ---
 
 **What is wrong.** #2042 fixes the `interveningIf` re-check's use of

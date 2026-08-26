@@ -451,25 +451,33 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  can stamp a DECIDED gate the bot's value model can evaluate, instead of
  *  `UNDECIDABLE_TRIGGER_GATE` (issue #1936).
  *
- *  Do NOT also declare this predicate as the ability's `interveningIf`, even
- *  though the CR 400.7 re-entry hazard that used to make it actively WRONG is
- *  now fixed engine-side (issue #2042): `removePermanentTo` stamps a
- *  departure-time LKI snapshot (`StackItem.sourceLki`) onto every stack item
- *  sourced from the departing instance, and `resolveTopOfStackInner`
- *  (`gre/state.ts`) prefers it over the live battlefield permanent, so a
- *  blinked source no longer re-reads a `resetBattlefieldTransientState`-
- *  cleared `kickerPayments` (CR 608.2h — the object the ability expects
- *  ceased to exist, so its last known information is what the re-check must
- *  use; not CR 603.10, the unrelated "look back in time" rule about whether
- *  an ability TRIGGERS at all).
+ *  ALWAYS pair it with an `if { kickerPaid: "<id>" }` branch inside the
+ *  ability's own `effects[]` — that branch, not an `interveningIf`, is the
+ *  load-bearing resolution-time gate. It reads the RESOLVING STACK ITEM's own
+ *  payment record (`buildTriggerItem`'s `...self` spread, `gre/triggers.ts`),
+ *  so it still holds for an ability COPY put on the stack without re-running
+ *  `matches` (CR 707.10 — "a copy of an activated ability isn't activated",
+ *  and nothing re-checks a trigger condition for it), and for a
+ *  `DelayedTriggerInstance`, which carries neither `triggerSourceId` nor
+ *  `interveningIf`. All 12 Kicker call sites have it.
  *
- *  The `conditionOnSelf` + `if { kickerPaid: "<id>" }` pair stays the
- *  recommended shape for a REASON UNRELATED TO THAT BUG: the resolution-time
- *  branch reads the RESOLVING STACK ITEM's own payment record
- *  (`buildTriggerItem`'s `...self` spread, `gre/triggers.ts`), so it also
- *  holds for an ability COPY that reaches the stack without re-running
- *  `matches` (CR 707.10) — which the engine fix does not address. All 12
- *  Kicker call sites keep it; do not "modernise" them onto `interveningIf`.
+ *  Also declaring this predicate as the ability's `interveningIf` is no longer
+ *  WRONG — that prohibition is retired (issue #2042). It used to be a real
+ *  CR 400.7 re-entry hazard: `resolveTopOfStackInner` (`gre/state.ts`)
+ *  re-evaluated the predicate against the LIVE permanent, and a blink that
+ *  reused the instance id re-read a `resetBattlefieldTransientState`-cleared
+ *  `kickerPayments`. `removePermanentTo` now stamps a departure-time LKI
+ *  snapshot (`StackItem.sourceLki`) onto every stack item sourced from the
+ *  departing instance and `resolveTopOfStackInner` prefers it over the live
+ *  permanent, so a live source reads live `kickerPayments` and a
+ *  departed/blinked one reads the snapshot — both correct (CR 608.2h; not
+ *  CR 603.10, the unrelated "look back in time" rule about whether an ability
+ *  TRIGGERS at all). It is simply REDUNDANT: the `effects[]` branch already
+ *  covers CR 603.4's resolution-time check and covers strictly more cases.
+ *  The one thing an `interveningIf` adds is CR 603.4's literal outcome — the
+ *  ability is "removed from the stack and does nothing" rather than resolving
+ *  into an empty branch. So: no reason to add one, and no reason to churn the
+ *  existing call sites onto it.
  *
  *  The mirror-image bug — a one-shot fact `resetBattlefieldTransientState`
  *  fails to clear, so the new object INHERITS it (`echoPending`,

@@ -1256,8 +1256,13 @@ export const saprolingSymbiosis: CardDefinition = {
 // same Waterspout Elemental (`pls/blue.ts`) template —
 // `conditionOnSelf: kickerPaidCondition("kicker")` at check time, `if {
 // kickerPaid: "kicker" }` inside `effects[]` at resolution time, no
-// `interveningIf`, so no Jacked Rabbit blink divergence (tracked-by: #2042)
-// on this trigger. `destroy`'s `cantBeRegenerated: true` (ADR 0053) is the
+// `interveningIf`. The resolution-time branch reads the RESOLVING STACK
+// ITEM's own `kickerPayments`, which is what still gates an ability COPY put
+// on the stack without re-running `matches` (CR 707.10) — an `interveningIf`
+// would not, and that, not blink safety, is why the pair is the template (see
+// Benalish Emissary, `inv/white.ts`, and `kickerPaidCondition` in
+// `cards/abilities/triggers/shared.ts`).
+// `destroy`'s `cantBeRegenerated: true` (ADR 0053) is the
 // direct Op passthrough for "It can't be regenerated" — the second half of
 // the original blocker (no Op option existed) closed alongside Obliterate
 // (`inv/red.ts`, issue #831).

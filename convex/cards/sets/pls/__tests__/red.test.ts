@@ -614,32 +614,39 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
         expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 
-    // ── CR 603.10 LKI across a blink (PR #2039 review) ────────────────────
+    // ── CR 608.2h LKI across a blink (PR #2039 review) ────────────────────
     //
     // Why this test exists: the per-Kicker predicate is CHECK-TIME ONLY. It
     // was briefly ALSO declared as each ability's `interveningIf`, on the
     // (false) reasoning that a one-shot cast fact can never change, so the
-    // re-check "can only agree". It can disagree, and this is the case where
-    // it does. `resolveTopOfStackInner` (`gre/state.ts`) resolves an
+    // re-check "can only agree". It could disagree, and this is the case where
+    // it did. `resolveTopOfStackInner` (`gre/state.ts`) resolved an
     // `interveningIf` against the LIVE battlefield permanent located by
     // `triggerSourceId`, falling back to the stack item's own last known
-    // information ONLY when the source is not on the battlefield. Instance ids
+    // information ONLY when the source was not on the battlefield. Instance ids
     // survive a CR 400.7 return (`stageReanimatedOnBattlefield` mutates the
     // same object), and that path runs `resetBattlefieldTransientState`, which
     // deletes `kickerPayments`. So a Battlemage blinked while its ETB trigger
-    // sits on the stack is re-found by id with a CLEARED record, and the
-    // re-check fizzles a trigger CR 603.10 says must resolve off LKI.
+    // sat on the stack was re-found by id with a CLEARED record, and the
+    // re-check fizzled a trigger CR 608.2h says must resolve off LKI (not
+    // CR 603.10, the unrelated "look back in time" rule about whether an
+    // ability TRIGGERS at all).
     //
-    // Removing a predicate is invisible to a suite that never blinks the
-    // source, which is what this test fixes. To confirm it is load-bearing,
-    // add an `interveningIf` back to Thunderscape Battlemage's
-    // `thunderscape-battlemage-destroy` ability in `pls/red.ts` — either
-    // `interveningIf: kickerPaidCondition("kicker-g")` (the shared check-time
-    // predicate, re-wired at the wrong seam) or the hand-rolled
-    // `(_event, self) => (self.kickerPayments?.["kicker-g"] ?? 0) > 0`. Both
-    // make this test fail: the re-check reads the blinked permanent's cleared
-    // record, the trigger fizzles, and the enchantment survives.
-    it("CR 603.10: a kicked Battlemage blinked while its ETB trigger is on the stack still resolves that trigger off LKI", () => {
+    // The engine hazard is now FIXED (issue #2042): `removePermanentTo` stamps
+    // a departure-time LKI snapshot (`StackItem.sourceLki`) and
+    // `resolveTopOfStackInner` prefers it over the live permanent. So the old
+    // proof-of-failure recipe recorded here — "add an `interveningIf` back to
+    // `thunderscape-battlemage-destroy` and watch this go red" — no longer
+    // reproduces (verified: all 29 tests in this file still pass with it
+    // re-added — the re-check now reads the snapshot, so both seams agree).
+    // What this test guards is the RESOLUTION-time seam these cards actually
+    // use: `{ kickerPaid }` → `SpellContext.getKickerPaidCount` →
+    // `item.kickerPayments`, the resolving stack item's OWN record from
+    // `buildTriggerItem`'s `...self` spread. Verified load-bearing by making
+    // `getKickerPaidCount` (`gre/state.ts`) read the live battlefield
+    // permanent's `kickerPayments` instead of the item's: this test, and only
+    // this test in the file, goes red — the enchantment survives.
+    it("CR 608.2h: a kicked Battlemage blinked while its ETB trigger is on the stack still resolves that trigger off LKI", () => {
         const bm = makeInstance(thunderscapeBattlemage.id, {
             id: "blink-bm",
             controllerId: "p1",

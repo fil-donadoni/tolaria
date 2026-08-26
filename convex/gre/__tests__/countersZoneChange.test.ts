@@ -1,4 +1,4 @@
-// Counters cease to exist on a zone change (CR 121.2 / 400.7).
+// Counters cease to exist on a zone change (CR 122.2 / 400.7).
 //
 // The engine used to PRESERVE `counters` on a battlefield → graveyard/exile
 // move so death triggers could read the moment-of-death count. That leaked the
@@ -42,7 +42,7 @@ function findIn(
     return state.players[0][zone].find((c) => c.id === "bear");
 }
 
-describe("counters cease to exist on a zone change (CR 121.2 / 400.7)", () => {
+describe("counters cease to exist on a zone change (CR 122.2 / 400.7)", () => {
     it("holds the counters while the permanent is on the battlefield", () => {
         const state = withCounteredBear();
         expect(findIn(state, "battlefield")!.counters).toEqual({ "+1/+1": 2 });

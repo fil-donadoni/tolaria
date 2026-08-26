@@ -893,13 +893,13 @@ export const stoneKavu: CardDefinition = {
 // three siblings while this card was in flight — so an unkicked-for-{R}
 // Battlemage still announced "any target" and emitted a real `BECAME_TARGET`
 // event for a trigger CR 603.4 says never came into being. Fixed to match
-// the cycle (PR #2040 round 2, issue #2015). Do NOT also declare this
-// predicate as `interveningIf` — see the Thunderscape Battlemage note
-// (`pls/red.ts`) and issue #2042: `resolveTopOfStackInner` re-checks an
-// `interveningIf` against the LIVE battlefield permanent, and a CR 400.7
-// blink returns the same instance id with `kickerPayments` already cleared
-// by `resetBattlefieldTransientState`, fizzling a trigger that must resolve
-// off CR 608.2h last known information.
+// the cycle (PR #2040 round 2, issue #2015). This predicate is not also
+// declared as `interveningIf` — see the Thunderscape Battlemage note
+// (`pls/red.ts`). The CR 400.7 blink hazard that once made that actively wrong
+// is fixed engine-side (issue #2042: a departure-time `StackItem.sourceLki`
+// snapshot `resolveTopOfStackInner` prefers over the live permanent, CR
+// 608.2h); what survives is that only the `if { kickerPaid }` branch inside
+// `effects[]` also gates a CR 707.10 ability copy.
 export const thornscapeBattlemage: CardDefinition = {
     id: "13f24f89-3996-4740-a6c9-d26b8869554b", // PLS 94
     rarity: "uncommon",

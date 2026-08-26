@@ -848,13 +848,13 @@ export type CardInstanceState = {
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
      *  stat reads. Mutated by `addCounter`/`removeCounter`.
-     *  Battlefield-only (CR 121.2): stripped on EVERY departure from the
+     *  Battlefield-only (CR 122.2): stripped on EVERY departure from the
      *  battlefield — graveyard and exile included — by `leaveBattlefield`,
      *  which snapshots the map into `countersAtLeave` first. */
     counters?: Record<string, number>;
     /** CR 608.2h last-known information: the `counters` map this permanent had
      *  at the instant it left the battlefield. The counters themselves cease
-     *  to exist on a zone change (CR 121.2) — this is the read-only memory of
+     *  to exist on a zone change (CR 122.2) — this is the read-only memory of
      *  them, for death/LTB triggers that need "how many counters were on it".
      *  NEVER a live counter set: nothing pays a cost from it, no layer folds
      *  it into P/T, and it is dropped on any further zone change and on any
@@ -9798,7 +9798,7 @@ export function removePermanentTo(
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature);
     }
-    // CR 121.2 / 400.7 — counters on a permanent cease to exist the moment it
+    // CR 122.2 / 400.7 — counters on a permanent cease to exist the moment it
     // leaves the battlefield; the card in the graveyard/exile is a NEW object
     // with no counters. The live map is stripped on EVERY departure (the
     // hand/library branch above already did it via
@@ -11377,7 +11377,7 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.activationsThisTurn;
     delete card.triggersThisTurn;
     delete card.counters;
-    // CR 121.2 / 400.7 — the departure-time counter memory is meaningless on a
+    // CR 122.2 / 400.7 — the departure-time counter memory is meaningless on a
     // permanent that has re-entered the battlefield as a new object.
     delete card.countersAtLeave;
     delete card.temporaryPTMods;
@@ -20092,7 +20092,7 @@ export function moveCard(
     // battlefield→graveyard path preserves counters as last-known-information
     // for death triggers and does not route through this primitive.
     if (from === "exile") delete card.counters;
-    // CR 121.2 / 608.2h — the departure-time counter memory is scoped to the
+    // CR 122.2 / 608.2h — the departure-time counter memory is scoped to the
     // zone the permanent landed in. Any further zone change makes yet another
     // new object, so the memory does not travel with it.
     delete card.countersAtLeave;

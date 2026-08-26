@@ -435,7 +435,7 @@ describe("SpellContext.dealDamage — infect/wither non-combat damage", () => {
 
         // Two -1/-1 counters take the 2/2 Bears to 0/0, so the SBA sweep
         // (CR 704.5a) kills it in the same call. Counters cease to exist on the
-        // zone change (CR 121.2) — the moment-of-departure snapshot is the
+        // zone change (CR 122.2) — the moment-of-departure snapshot is the
         // proof the damage was dealt as counters, not as marked damage.
         expect(bear.counters).toBeUndefined();
         expect(bear.countersAtLeave).toEqual({ "-1/-1": 2 });

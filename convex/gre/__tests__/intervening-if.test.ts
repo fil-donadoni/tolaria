@@ -496,7 +496,7 @@ describe("departure-time LKI for intervening-if (CR 603.4 / 608.2h / 400.7, issu
         expect(state.stack).toHaveLength(0);
     });
 
-    it("blinked mid-trigger: counters are read from the DEPARTED object (CR 121.2 — they ceased to exist)", () => {
+    it("blinked mid-trigger: counters are read from the DEPARTED object (CR 122.2 — they ceased to exist)", () => {
         const { state, source } = setupDepartureState({
             abilityId: BLINK_COUNTER_ABILITY,
             source: { counters: { vitality: 2 } },

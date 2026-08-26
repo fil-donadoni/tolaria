@@ -3200,7 +3200,7 @@ export interface SpellContext {
      *  issue #1726, Teferi, Hero of Dominaria's −3 "third from the top" =
      *  3). Routed through the single LTB funnel (`removePermanentTo`), so
      *  aura cleanup (CR 611.2), transient-state reset (CR 400.7), counter
-     *  loss (CR 121.2), PERMANENT_LEFT and an `exileOnLeave` redirect
+     *  loss (CR 122.2), PERMANENT_LEFT and an `exileOnLeave` redirect
      *  (CR 614.1c — a redirected card never reaches the library) all behave
      *  exactly as for a bounce. When the library holds fewer than
      *  `positionFromTop − 1` cards the card is put on the bottom (splice
