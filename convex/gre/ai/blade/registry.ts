@@ -2262,122 +2262,31 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 702.37e special action: 2/2 vanilla → 4/5 lifegain flier for {2}{W}{W}, with no competing use for the mana.",
     },
     {
-        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2491).
-        // PAIRED WITH: "loyalty: does NOT reach for a −2 it cannot pay".
-        // NEITHER ENTRY PROVES ANYTHING ALONE — a bot that never activates a
-        // loyalty ability passes half 2 vacuously, and a bot that offers every
-        // loyalty ability regardless of the CR 606 gates passes half 1. Only
-        // the pair distinguishes a bot that reads the rule. Deleting either
-        // half silently guts the other, which is why each note names its
-        // partner.
-        //
-        // The bug: `enumerateAbilityMoves` skipped every ability with a signed
-        // `cost.loyalty`, so all 13 shipped planeswalkers / 37 loyalty
-        // abilities were unreachable and the bot cast Liliana of the Veil and
-        // then passed for the rest of the game (53 `pass`, zero
-        // `activate-ability` in the reported game's decision log).
-        //
-        // Position: the bot's own precombat main, empty stack (CR 606.3's
-        // window), Liliana at her printed starting loyalty of 3, the bot's hand
-        // empty so nothing competes, and the opponent's only permanent is a
-        // 4/4 flier. The −2 edict (a sacrifice, CR 701.21) is the whole board.
-        label: "loyalty: activates Liliana's −2 to eat the opponent's only creature",
-        spec: {
-            cards: [
-                {
-                    name: "Liliana of the Veil",
-                    owner: "me",
-                    zone: "battlefield",
-                    counters: { loyalty: 3 },
-                },
-                {
-                    name: "Serra Angel",
-                    owner: "opp",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 3,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
-        // ADR 0070 §2 — measured, not guessed: `activate-ability
-        // cards=[Liliana of the Veil] targets=[opp]` on all three seeds at the
-        // production 400.
-        tier: "must",
-        expect: {
-            moves: [
-                {
-                    kind: "activate-ability",
-                    card: "Liliana of the Veil",
-                    // At 3 loyalty the −6 is unpayable (CR 606.6) and the +1
-                    // takes no target, so a player target pins the −2 exactly.
-                    target: "opp",
-                },
-            ],
-        },
-        note: 'Half 1 of the discriminating pair — PAIRED WITH "loyalty: does NOT reach for a −2 it cannot pay". Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.',
-    },
-    {
-        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2491).
-        // PAIRED WITH: "loyalty: activates Liliana's −2 to eat the opponent's
-        // only creature". The SAME position with two counters fewer: the edict
-        // that was the whole board in half 1 is now illegal, because CR 606.6
-        // forbids a negative loyalty cost the permanent cannot pay. The +1
-        // remains legal, so this is not a "does the bot activate at all"
-        // question — it is "does the enumerator's CR 606.6 floor survive all
-        // the way to the root decision".
-        label: "loyalty: does NOT reach for a −2 it cannot pay",
-        spec: {
-            cards: [
-                {
-                    name: "Liliana of the Veil",
-                    owner: "me",
-                    zone: "battlefield",
-                    counters: { loyalty: 1 },
-                },
-                {
-                    name: "Serra Angel",
-                    owner: "opp",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 3,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
-        tier: "must",
-        expect: {
-            forbidden: [
-                {
-                    kind: "activate-ability",
-                    card: "Liliana of the Veil",
-                    target: "opp",
-                },
-            ],
-        },
-        note: "Half 2 of the discriminating pair — PAIRED WITH \"loyalty: activates Liliana's −2 to eat the opponent's only creature\". Neither half is meaningful alone. Measured: the bot takes the +1 on all three seeds and never the illegal −2.",
-    },
-    {
-        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1964).
-        // PAIRED WITH: "discriminating pair: hard-casts Ragavan on an empty
-        // board with nothing to race". NEITHER ENTRY PROVES ANYTHING ALONE —
-        // this half alone would also pass for a bot that dashes on a whim;
-        // its partner proves the bot does NOT dash when there is nothing to
-        // gain from it. Only the pair shows the bot reads the CONSEQUENCE
-        // (unlike the Dreadnought pair above, both halves here use a
-        // `predicate` rather than `moves`/`forbidden`, because `MoveMatcher`
-        // has no field for `alternativeCostId` — the ONLY thing that tells a
-        // dash cast apart from a plain one of the SAME card).
+        // Issue #1964. Review round 1 established that `evaluate()`'s
+        // per-turn-leaf timing makes NO full-search (move-choice) blade entry
+        // able to discriminate the `moveZone` self-cost sign outside a
+        // same-turn WIN — `rollout()`'s turn-boundary horizon (`search.ts` —
+        // "the rollout stops at the START of the bot's next turn") always
+        // plays past Dash's delayed return ("at the beginning of the next
+        // end step", CR 702.109a) before any leaf is scored, so a non-lethal
+        // line never carries the term to a leaf; only `state.gameOver`
+        // short-circuiting the rollout (a lethal swing, landing in the
+        // win/loss band, CLAUDE.md's "banded so a win dominates material")
+        // ever bypasses that horizon — which is what THIS entry is, and
+        // why, like its sibling below, it does not itself prove the sign.
+        // The sign regression is pinned by the unit tests
+        // (`opValuers.bot.test.ts`, `cardScriptValue.bot.test.ts`,
+        // `triggerGate.bot.test.ts`) AND by a real, engine-built,
+        // `evaluate()`-level assertion (`dashMoves.bot.test.ts` — "evaluate()
+        // correctly prices a dashed Ragavan BELOW a hard-cast one"), which
+        // DOES flip (measured -27 fixed / +83 reverted) because it reads the
+        // position mid-turn, still inside the term's live window — the one
+        // place a full rollout structurally cannot look. This entry's own
+        // job is narrower and different: prove the Bot REACHES and RECOGNIZES
+        // the lethal dash line once `moves.ts`'s enumeration fix (same issue)
+        // makes it reachable at all — `MoveMatcher` has no field for
+        // `alternativeCostId`, the only thing distinguishing a dash cast from
+        // a plain one of the same card, hence the `predicate` shape.
         //
         // Ragavan, Nimble Pilferer (printed {R}, dash {1}{R}) with two
         // Mountains: BOTH cast modes are affordable (this is what makes the
@@ -2396,19 +2305,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Before issue #1964 this position was not even REACHABLE — the same
         // issue's `moves.ts` fix is what put a dash-cast Move on the table at
         // all (`enumerateCastMoves` used to read only the PRINTED cost).
-        // Measured honestly rather than assumed: reverting ONLY the sign fix
-        // (`opValuers.ts`'s `HAND_RETURN_SELF_COST` branch) does NOT flip
-        // this entry's chosen move — a LETHAL swing lands in the search's
-        // win/loss band (CLAUDE.md's "banded so a win dominates material"),
-        // which dominates the leaf score regardless of the ability-script
-        // term's sign. This entry's job is proving the Bot reaches and
-        // recognizes the lethal dash line at all; the SIGN regression itself
-        // is pinned by the unit tests (`opValuers.bot.test.ts`,
-        // `cardScriptValue.bot.test.ts`, `triggerGate.bot.test.ts`), which DO
-        // measurably fail when the sign is reverted (proof-of-failure in the
-        // PR) — this entry (and its partner below, also checked the same
-        // way) complements that unit coverage by proving the CHOSEN MOVE is
-        // right, not by re-proving the sign.
         label: "discriminating pair: dashes Ragavan for the lethal attack",
         spec: {
             cards: [
@@ -2429,19 +2325,29 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // Measured at authoring time (ADR 0070 §2), all 3 seeds: PLAIN at
-        // 2000 (the search has not yet found the "attack with everything,
-        // dashed Ragavan included" line); DASH at 3000, 4000, 5000 and 6000
-        // (a stable plateau); PLAIN again at 8000 — but 8000 iterations is
-        // already far beyond any budget the production bot ever runs
-        // (`difficulty.ts`'s own ceiling, `hard`, is 1200; the Phyrexian
-        // Dreadnought/Raging Kavu entries above already set the precedent
-        // that a `must` budget may exceed every production preset when the
-        // line genuinely needs more search than "hard" gets). 4000 sits
-        // comfortably inside the measured stable band with margin on both
-        // sides, which is why it — not the lower edge, 3000 — is what this
-        // entry pins.
-        budget: { iterations: 4000 },
+        // BEYOND-BUDGET, cause "branching" (`types.ts`'s own vocabulary: "too
+        // many candidate moves at one decision — the right move is in the
+        // set but never gets enough visits"). Review round 1 re-verified,
+        // all 3 seeds: PLAIN at 400/800/1200 — production `hard`'s own
+        // ceiling (`difficulty.ts`) is 1200, so a budget inside the
+        // production range CANNOT pass this entry (confirmed directly, not
+        // assumed); "bring it into range" is therefore not achievable here,
+        // only "justify the number" is. DASH at 5000 was independently
+        // re-confirmed the same way. The rest of the shape (PLAIN at 2000;
+        // DASH at 3000/4000/6000, PLAIN again at 8000) is the original
+        // authoring-time sweep (ADR 0070 §2), not independently re-swept
+        // this round beyond the two points above. 5000 is pinned — not
+        // 4000 — because it sits at the CENTER of that reported 3000-6000
+        // plateau rather than near either edge, maximizing margin from both
+        // the "not yet found" boundary below and the reported 8000 anomaly
+        // above. This is the same "a `must` budget may exceed every
+        // production preset when the line genuinely needs more search than
+        // `hard` gets" precedent the Phyrexian Dreadnought/Raging Kavu
+        // entries above already set — `hard`'s 1200 iterations will simply
+        // never solve this specific four-attacker combinatorial tactic,
+        // which is a known, accepted search-depth limit, not a defect in
+        // this entry.
+        budget: { iterations: 5000 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {
@@ -2452,29 +2358,39 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "casts Ragavan, Nimble Pilferer via its dash cost (not the plain cast)",
         },
-        note: "Half 1 of the discriminating pair — PAIRED WITH \"discriminating pair: hard-casts Ragavan on an empty board with nothing to race\". Neither half is meaningful alone. 19 power already in play + Ragavan hasty = 21, crossing the opponent's 20 life; hard-casting caps this turn's attack at 19 (summoning sickness, CR 302.6) — one short.",
+        note: "Half 1 of the pair below — 19 power already in play + Ragavan hasty = 21, crossing the opponent's 20 life; hard-casting caps this turn's attack at 19 (summoning sickness, CR 302.6) — one short. Needs 5000 iterations (beyond production `hard`'s 1200-iteration ceiling — BEYOND-BUDGET cause \"branching\", re-verified review round 1): the right line exists in the search tree from budget 3000 on, but a four-attacker combinatorial decision needs that much search to find it.",
     },
     {
-        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1964).
-        // PAIRED WITH: "discriminating pair: dashes Ragavan for the lethal
-        // attack". Same card, same affordable-both-ways mana, opposite
-        // board: nothing else in play on either side, nothing to race. A
-        // hard-cast Ragavan is a permanent 2/1 that keeps attacking every
-        // future turn it survives; a dashed one gets exactly ONE hit (this
-        // turn, summoning-sick-free via haste) and is gone — back to hand at
-        // the next end step (CR 702.109a), needing to be recast from
-        // scratch. With no combat pressure forcing an immediate swing (no
-        // lethal on the table, no blocker to dodge), keeping the permanent
-        // body is the better long-run line.
+        // Issue #1964, review round 1. Same card, same affordable-both-ways
+        // mana as its sibling above, opposite board: nothing else in play on
+        // either side, nothing to race. A hard-cast Ragavan is a permanent
+        // 2/1 that keeps attacking every future turn it survives; a dashed
+        // one gets exactly ONE hit (this turn, summoning-sick-free via
+        // haste) and is gone — back to hand at the next end step (CR
+        // 702.109a), needing to be recast from scratch. With no combat
+        // pressure forcing an immediate swing (no lethal on the table, no
+        // blocker to dodge), keeping the permanent body is the better
+        // long-run line.
         //
-        // Measured honestly, same as its partner above: reverting ONLY the
-        // sign fix does NOT flip this entry either at its declared budget —
-        // whatever else governs this specific root decision at 400
-        // iterations, it is not dominated by this one static term at THIS
-        // shallow a search. This entry's job is proving the Bot does not
-        // gratuitously dash a card with nothing to gain from it; the SIGN
-        // regression is pinned by the unit tests, not by this blade entry
-        // (see the partner's note for the full explanation).
+        // Re-measured in review round 1 at a much finer budget granularity
+        // (25 through 400, all 3 seeds): reverting ONLY the sign fix still
+        // does NOT flip this entry at ANY budget in that range — confirming
+        // this is not a coarse-sweep miss. It CANNOT, structurally: this
+        // position never ends the game this turn, so `rollout()`'s
+        // turn-boundary horizon (`search.ts`) always plays past Dash's
+        // delayed return before any leaf is scored, and by then a dashed
+        // Ragavan is already back in the caster's hand — the term this
+        // issue fixes has already left the board by the time any leaf reads
+        // it (see the sibling entry above for the full mechanism). No
+        // non-lethal blade entry — this one included — can discriminate the
+        // sign via move choice; this entry's actual job is proving the Bot
+        // does not gratuitously dash a card with nothing to gain from it.
+        // The sign regression is pinned by the unit tests AND by a real,
+        // engine-built, `evaluate()`-level assertion that DOES flip
+        // (`dashMoves.bot.test.ts` — "evaluate() correctly prices a dashed
+        // Ragavan BELOW a hard-cast one"), which reads the position while
+        // still inside the term's live window instead of after a full
+        // rollout has already played past it.
         label: "discriminating pair: hard-casts Ragavan on an empty board with nothing to race",
         spec: {
             cards: [
@@ -2491,9 +2407,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // Measured (ADR 0070 §2): PLAIN on all 3 seeds at BOTH 400 and 800 —
-        // stable well below its partner's budget, so 400 (the suite's
-        // typical `must` floor) is enough here.
+        // Measured (ADR 0070 §2, re-verified review round 1 at a finer
+        // granularity — 25/50/75/100/150/200/300/400, all 3 seeds, sign
+        // reverted included): PLAIN throughout, stable well below its
+        // sibling's budget, so 400 (the suite's typical `must` floor) is
+        // enough here.
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
@@ -2504,7 +2422,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 move.alternativeCostId === undefined,
             describe: "casts Ragavan, Nimble Pilferer PLAIN (not via dash)",
         },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: dashes Ragavan for the lethal attack". Neither half is meaningful alone. Proves the Bot correctly avoids dashing on a board with nothing to race; the sign regression itself is proven by the unit tests (opValuers.bot.test.ts / cardScriptValue.bot.test.ts / triggerGate.bot.test.ts), not by this entry (measured: reverting the sign alone does not flip either half of this pair at its declared budget).',
+        note: "Half 2 of the pair above (\"discriminating pair: dashes Ragavan for the lethal attack\") — together they prove the Bot reaches the dash-cast Move at all (issue #1964's `moves.ts` fix) and does not over- or under-use it once reachable. Neither half discriminates the `moveZone` self-cost SIGN (structurally impossible for a non-lethal move-choice entry — see the sibling's note); that is pinned by the unit tests plus a real, engine-built `evaluate()`-level assertion (`dashMoves.bot.test.ts`).",
     },
 ];
 

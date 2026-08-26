@@ -36,6 +36,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { enumerateMoves, type Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
+import { evaluate } from "../evaluate";
 import type { GameState } from "../state";
 import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
 import { dashTrigger } from "../../cards/abilities/dash";
@@ -179,5 +180,60 @@ describe("Dash — Bot move enumeration (CR 702.109a, issue #1964)", () => {
         const p1 = next.players.find((p) => p.id === "p1")!;
         const permanent = p1.battlefield.find((c) => c.id === "ragavan")!;
         expect(permanent.dashed).toBeUndefined();
+    });
+});
+
+// Review round 1 (PR #2830, finding #2) — the two blade-registry
+// "discriminating pair" entries (`registry.ts`) do NOT flip when only the
+// `moveZone` self-cost sign (`opValuers.ts`'s `HAND_RETURN_SELF_COST`) is
+// reverted, and CANNOT: `rollout()`'s turn-boundary horizon
+// (`search.ts` — "the rollout stops at the START of the bot's next turn")
+// always plays PAST this turn's end step before any leaf is scored, and
+// Dash's delayed return fires "at the beginning of the next end step" (CR
+// 702.109a) — i.e. strictly BEFORE that horizon. So by the time
+// `scoreLeaf`/`evaluate` ever sees the position, a dashed Ragavan is ALREADY
+// back in the caster's hand (scored as a latent hand card) on every
+// non-lethal line — the ability-script term this issue fixes has already
+// left the board. It can only ever survive to matter if the SAME turn's
+// combat ends the game outright (`state.gameOver` breaks the rollout before
+// the horizon is reached) — which is exactly the "dashes Ragavan for the
+// lethal attack" entry's shape, and exactly why that entry's own comment
+// says the sign is proven by the unit tests, not by itself (measured:
+// reverting the sign alone doesn't flip its chosen move either — the WIN
+// dominates regardless of this term's sign, CLAUDE.md's "banded so a win
+// dominates material"). There is therefore no non-lethal FULL-SEARCH (move
+// choice) position that can discriminate this sign: whatever the board, the
+// leaf reached by any rollout that doesn't end the game this turn no longer
+// carries the term to discriminate on.
+//
+// What DOES discriminate cleanly is `evaluate()` itself — the exact function
+// `scoreLeaf` calls — evaluated immediately after casting (still mid-turn,
+// still inside the term's live window, before the delayed return has had a
+// chance to fire). This is the earliest point a real, engine-built position
+// can show the sign, and it is the SAME evaluator the search's leaf scoring
+// uses; it is not a hand-rolled duplicate of the production value model.
+describe("Dash — evaluate() correctly prices a dashed Ragavan BELOW a hard-cast one (issue #1964, review round 1)", () => {
+    it("scores a DASHED Ragavan strictly below the SAME card hard-cast, right after casting", () => {
+        const dashState = ragavanBoard(2);
+        const dashMove = ragavanCasts(dashState).find(
+            (m) => m.kind === "cast-spell" && m.alternativeCostId === "dash"
+        )!;
+        const afterDash = applyMoveForSearch(dashState, "p1", dashMove);
+
+        const plainState = ragavanBoard(2);
+        const plainMove = ragavanCasts(plainState).find(
+            (m) => m.kind === "cast-spell" && m.alternativeCostId === undefined
+        )!;
+        const afterPlain = applyMoveForSearch(plainState, "p1", plainMove);
+
+        // Dash costs strictly MORE mana ({1}{R} vs {R}) for a body that
+        // gains haste but is scheduled to leave the battlefield at the next
+        // end step — worse than the permanent body even before charging the
+        // extra mana. Reverting ONLY the `moveZone` self-cost sign flips
+        // this: the dashed permanent scores ABOVE the hard-cast one instead
+        // (measured +83 vs this fixed -27, in the PR's proof-of-failure).
+        expect(evaluate(afterDash, "p1")).toBeLessThan(
+            evaluate(afterPlain, "p1")
+        );
     });
 });

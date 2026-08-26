@@ -222,21 +222,30 @@ export function dslAbilityScriptOpValue(
         modes?: AbilityMode[];
         gate?: TriggeredAbility["gate"];
         zone?: TriggeredAbility["zone"];
+        activateFromGraveyard?: boolean;
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
     ];
     for (const ability of abilities) {
-        // CR 603.6e / issue #1964 — a `zone: "graveyard"` triggered ability's
-        // `$source` denotes a GRAVEYARD card, not a battlefield permanent
-        // (Master of Death's "return it to your hand" fires only while its
-        // own card sits in the graveyard) — force the self-bounce-as-cost
-        // valuer OFF for this ability's script so its graveyard→hand move
-        // keeps scoring as the card advantage (regrowth) it is. Every other
-        // ability (every ActivatedAbility, and the overwhelming majority of
-        // TriggeredAbility rows) keeps the outer `ctx` unchanged.
+        // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
+        // sourced ability's `$source` denotes a GRAVEYARD card, not a
+        // battlefield permanent, on EITHER ability shape: a `TriggeredAbility`
+        // marks this with `zone: "graveyard"` (Master of Death's upkeep
+        // return), an `ActivatedAbility` marks it with `activateFromGraveyard:
+        // true` (Whiteout's "Sacrifice a snow land: Return this card from
+        // your graveyard to your hand" — CR 113.6/602.5b). Both must force
+        // the self-bounce-as-cost valuer OFF so the graveyard→hand move keeps
+        // scoring as the card advantage (regrowth) it is; reading only `zone`
+        // left `activateFromGraveyard` abilities un-gated and inverted
+        // Whiteout's sign (scored as a self-bounce cost instead of regrowth).
+        // Every other ability (the overwhelming majority of both shapes)
+        // keeps the outer `ctx` unchanged.
         const abilityCtx =
-            ability.zone === "graveyard" ? withGraveyardSource(ctx) : ctx;
+            ability.zone === "graveyard" ||
+            ability.activateFromGraveyard === true
+                ? withGraveyardSource(ctx)
+                : ctx;
         const script = effectiveScript(ability);
         // CR 700.2 / 603.3c — a MODAL ability (activated, issue #1341; or
         // triggered, issue #2461) carries its resolution in per-mode scripts,

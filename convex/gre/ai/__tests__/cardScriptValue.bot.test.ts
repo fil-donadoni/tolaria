@@ -10,8 +10,13 @@
 // is the layer that has to prove the gate, not `opValuers.bot.test.ts` alone.
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, TriggeredAbility } from "../../../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    TriggeredAbility,
+} from "../../../cards/types";
 import { masterOfDeath } from "../../../cards/sets/mh2";
+import { whiteout } from "../../../cards/sets/ice";
 import { dashTrigger } from "../../../cards/abilities/dash";
 import {
     dslAbilityScriptOpValue,
@@ -75,6 +80,44 @@ describe("dslAbilityScriptOpValue — zone-aware self-bounce (issue #1964)", () 
         // `mayPay` + `if` wrap the move, but the walker's context-free
         // grounding takes the "effect happens" branch — the `moveZone`
         // inside is what must NOT be swept into the self-cost branch.
+        expect(v?.points).toBeGreaterThan(0);
+        expect(v?.tags).not.toContain("self-cost");
+    });
+
+    /** A minimal card carrying exactly ONE activated ability, so the
+     *  ability's own script value is the WHOLE result — the ACTIVATED-
+     *  ability sibling of `defWith` above. */
+    function defWithActivated(ability: ActivatedAbility): CardDefinition {
+        return {
+            id: "test-zone-activated-card",
+            name: "Test Zone Activated Card",
+            manaCost: { generic: 2 },
+            types: ["Creature"],
+            activatedAbilities: [ability],
+        } as CardDefinition;
+    }
+
+    it("an `activateFromGraveyard` ActivatedAbility's $source -> hand is card advantage, NOT a self-cost (Whiteout shape, review round 1 regression)", () => {
+        const def = defWithActivated({
+            id: "t",
+            oracleText: "t",
+            cost: {},
+            useStack: true,
+            activateFromGraveyard: true,
+            effects: selfBounceToHand,
+        });
+        const v = dslAbilityScriptOpValue(def);
+        expect(v?.points).toBeGreaterThan(0);
+        expect(v?.tags).not.toContain("self-cost");
+    });
+
+    it("Whiteout's real graveyard-return activated ability scores its own graveyard->hand move positively", () => {
+        const whiteoutReturn = whiteout.activatedAbilities!.find(
+            (a) => a.id === "whiteout-return"
+        )!;
+        expect(whiteoutReturn.activateFromGraveyard).toBe(true);
+        const def = defWithActivated(whiteoutReturn);
+        const v = dslAbilityScriptOpValue(def);
         expect(v?.points).toBeGreaterThan(0);
         expect(v?.tags).not.toContain("self-cost");
     });
