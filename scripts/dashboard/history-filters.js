@@ -1,6 +1,6 @@
 import { state, getMeta } from "./history-state.js";
 import { refresh } from "./history-refresh.js";
-import { lookupTerm } from "./glossary.js";
+import { labelFor } from "./glossary.js";
 
 /**
  * The History filter bar (#2625) — dataset / metric / split / date range /
@@ -27,12 +27,9 @@ import { lookupTerm } from "./glossary.js";
  * correct after a metric-only change.
  */
 
-/** The glossary label for a term, qualified by `scope` when given, falling
- *  back to the raw term itself when nothing resolves. */
-function labelFor(term) {
-    return lookupTerm(term)?.label ?? String(term).replace(/_/g, " ");
-}
-
+/** Builds the qualified `data-term` string (`"<scope>.<name>"`) the tooltip
+ *  engine reads — a distinct job from `labelFor` (glossary.js), which turns
+ *  that same (term, scope) pair into display TEXT. */
 const qualified = (scope, name) => (scope ? `${scope}.${name}` : name);
 
 /**
@@ -62,7 +59,7 @@ export function renderFilters() {
         `<div class="field"><label for="${id}"${labelTerm ? ` data-term="${labelTerm}"` : ""}>${labelText}</label><select id="${id}">` +
         opts
             .map((o) => {
-                const text = labelFor(qualified(scope, o));
+                const text = labelFor(o, scope);
                 return `<option value="${o}"${o === cur ? " selected" : ""}>${text}</option>`;
             })
             .join("") +
@@ -96,7 +93,7 @@ export function renderFilters() {
         ) +
         `<div class="field"><label for="f-from">From</label><input type="date" id="f-from" value="${state.from}"></div>` +
         `<div class="field"><label for="f-to">To</label><input type="date" id="f-to" value="${state.to}"></div>` +
-        `<div class="field" style="flex:1;min-width:240px"><label>Filter · <span data-term="${splitTerm}">${labelFor(splitTerm)}</span></label><div class="chips" id="f-chips"></div></div>`;
+        `<div class="field" style="flex:1;min-width:240px"><label>Filter · <span data-term="${splitTerm}">${labelFor(state.split, state.table)}</span></label><div class="chips" id="f-chips"></div></div>`;
 
     const vals = META.values[state.table][state.split] ?? [];
     const active = new Set(state.filters[state.split] ?? []);

@@ -2,7 +2,7 @@ import { fmtMetric, isAdditive } from "./format.js";
 import { showTip, hideTip } from "./tooltip.js";
 import { el, barPath, niceTicks } from "./svg.js";
 import { colorFor, OTHER, MAX_SERIES } from "./history-colors.js";
-import { lookupTerm } from "./glossary.js";
+import { lookupTerm, labelFor } from "./glossary.js";
 import { state } from "./history-state.js";
 
 /**
@@ -55,9 +55,7 @@ export function renderTimeSeries(rows, split, metric) {
         );
     }
 
-    const metricLabel =
-        lookupTerm(`${state.table}.${metric}`)?.label ??
-        metric.replace(/_/g, " ");
+    const metricLabel = labelFor(metric, state.table);
     const question = lookupTerm("card.over-time").tip;
     document.getElementById("ts-sub").textContent =
         `${question} ` +

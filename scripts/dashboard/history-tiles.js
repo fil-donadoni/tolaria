@@ -1,12 +1,10 @@
 import { fmtMetric, isAdditive } from "./format.js";
 import { state, getMeta } from "./history-state.js";
-import { lookupTerm } from "./glossary.js";
+import { labelFor } from "./glossary.js";
 
 /** The glossary label for a metric/dimension name, qualified by the current
- *  dataset first (see glossary.js's qualified-key fallback). */
-const termLabel = (name) =>
-    lookupTerm(`${state.table}.${name}`)?.label ??
-    String(name).replace(/_/g, " ");
+ *  dataset first (glossary.js's `labelFor` — the one authority). */
+const termLabel = (name) => labelFor(name, state.table);
 
 /**
  * The metric tiles above the History cards (#2625). Owns `#tiles`.

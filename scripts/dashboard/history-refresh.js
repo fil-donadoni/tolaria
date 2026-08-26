@@ -1,7 +1,7 @@
 import { state } from "./history-state.js";
 import { q } from "./history-query.js";
 import { seedColors } from "./history-colors.js";
-import { lookupTerm } from "./glossary.js";
+import { lookupTerm, labelFor } from "./glossary.js";
 import { renderNarrative } from "./history-narrative.js";
 import { renderTimeSeries } from "./history-timeline.js";
 import { renderRanking } from "./history-ranking.js";
@@ -9,27 +9,28 @@ import { renderTable } from "./history-metrics-table.js";
 import { renderTiles } from "./history-tiles.js";
 
 /** The glossary label for a metric/dimension, qualified by the current
- *  dataset first (see glossary.js's qualified-key fallback). */
-const termLabel = (name) =>
-    lookupTerm(`${state.table}.${name}`)?.label ??
-    String(name).replace(/_/g, " ");
+ *  dataset first (glossary.js's `labelFor` — the one authority). */
+const termLabel = (name) => labelFor(name, state.table);
 
 /**
  * History's orchestrator (#2625): one function that turns the current `state`
  * slice into the four chart cards plus the three narrative cards.
  *
- * It writes `#ts-title`, `#rank-title` and `#rank-sub` itself, BEFORE awaiting
- * the queries, so the headings update even when the query then fails — the
- * behaviour today, and the reason those three ids did not move into the chart
- * modules with the rest of their cards. `#ts-sub` is written by
- * `renderTimeSeries`: it depends on whether the metric stacks, which only that
- * function knows.
+ * It writes `#ts-title`, `#rank-title`, `#rank-sub` and `#tbl-sub` itself,
+ * BEFORE awaiting the queries, so the headings/subtitles update even when the
+ * query then fails, or before first paint — the behaviour today, and the
+ * reason those four ids did not move into the chart modules with the rest of
+ * their cards. `#ts-sub` is the one exception, written by `renderTimeSeries`:
+ * it depends on whether the metric stacks, which only that function knows.
  *
- * Titles and the ranking subtitle are glossary-sourced (#2633): the metric
- * and split names render their human label, never the raw column name, and
- * the fixed "what question does this answer" sentence (`card.ranking` in
- * glossary.js) leads `#rank-sub`, ahead of the per-query "Top 18, descending."
- * detail.
+ * Titles and the ranking/table subtitles are glossary-sourced (#2633): the
+ * metric and split names render their human label, never the raw column
+ * name, and the fixed "what question does this answer" sentence
+ * (`card.ranking` / `card.table` in glossary.js) leads `#rank-sub` /
+ * `#tbl-sub`, ahead of the per-query "Top 18, descending." /
+ * "Click a header to sort." detail. Every card carries a subtitle even on a
+ * query failure — that is the acceptance criterion this file exists to meet,
+ * and why none of these four writes waits on the `try`.
  *
  * Nothing here mutates `state`; it only reads it.
  */
@@ -46,6 +47,8 @@ export async function refresh() {
         `${termLabel(metric)} by ${termLabel(split)}`;
     document.getElementById("rank-sub").textContent =
         `${lookupTerm("card.ranking").tip} Top 18, descending.`;
+    document.getElementById("tbl-sub").textContent =
+        `${lookupTerm("card.table").tip} Click a header to sort.`;
 
     try {
         // Seed before rendering: the first paint must already use

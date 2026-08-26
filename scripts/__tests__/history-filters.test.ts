@@ -77,7 +77,12 @@ const META = {
     },
 };
 
-const INSTALLED_GLOBALS = ["document", "innerWidth", "innerHeight"] as const;
+const INSTALLED_GLOBALS = [
+    "document",
+    "innerWidth",
+    "innerHeight",
+    "fetch",
+] as const;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = globalThis as any;
 let win: Window;
@@ -205,6 +210,54 @@ describe("History filter bar — glossary-sourced labels (#2633)", () => {
         state.metric = "max_seconds";
         syncMetricLabelTerm();
 
+        const metricTerm = win.document
+            .querySelector('label[for="f-metric"]')!
+            .getAttribute("data-term");
+        expect(metricTerm).toBe("agent_runs.max_seconds");
+    });
+
+    /**
+     * Proof-of-wiring (#2839): the prior test drives `syncMetricLabelTerm()`
+     * directly and would stay green even if `bind()`'s `f-metric` handler
+     * stopped calling it — it never exercises the call SITE, only the
+     * function in isolation. This one dispatches a real DOM `change` event
+     * on `#f-metric`, the same way a user's select does, so it can only pass
+     * if `bind("f-metric", "metric", false)` in `renderFilters()` still
+     * wires `syncMetricLabelTerm()` into the handler.
+     *
+     * `refresh()` (history-refresh.js) also runs on every change — real
+     * wiring, not a mock of it — so this stubs `fetch` to reject and gives
+     * it just enough DOM (the ids `refresh()` writes before/after its
+     * `try`) to land in its own catch branches instead of throwing on a
+     * missing element.
+     */
+    it("the f-metric 'change' handler actually calls syncMetricLabelTerm() (proof-of-wiring)", () => {
+        setSlice("agent_runs", "messages", "role");
+        renderFilters();
+        for (const id of [
+            "ts-title",
+            "rank-title",
+            "rank-sub",
+            "tbl-sub",
+            "tbl",
+            "issues-sub",
+        ]) {
+            const div = win.document.createElement("div");
+            div.id = id;
+            win.document.body.appendChild(div);
+        }
+        g.fetch = () => Promise.reject(new Error("test: no network"));
+
+        const select = win.document.getElementById(
+            "f-metric"
+        ) as unknown as HTMLSelectElement;
+        select.value = "max_seconds";
+        select.dispatchEvent(
+            new win.Event("change", { bubbles: true, cancelable: true })
+        );
+
+        // `syncMetricLabelTerm()` runs synchronously inside the handler,
+        // before the (unawaited) `refresh()` call — no await needed.
         const metricTerm = win.document
             .querySelector('label[for="f-metric"]')!
             .getAttribute("data-term");

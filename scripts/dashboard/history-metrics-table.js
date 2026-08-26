@@ -1,16 +1,17 @@
 import { fmtMetric } from "./format.js";
 import { state } from "./history-state.js";
-import { lookupTerm } from "./glossary.js";
+import { labelFor } from "./glossary.js";
 
 /** The glossary label for a dimension/metric name, qualified by the current
- *  dataset first (see glossary.js's qualified-key fallback). */
-const termLabel = (name) =>
-    lookupTerm(`${state.table}.${name}`)?.label ??
-    String(name).replace(/_/g, " ");
+ *  dataset first (glossary.js's `labelFor` — the one authority). */
+const termLabel = (name) => labelFor(name, state.table);
 
 /**
  * The "Table" card (#2625) — every metric for the current slice, one row per
- * value of the split. Owns `#tbl` and `#tbl-sub`.
+ * value of the split. Owns `#tbl`; `#tbl-sub` stays with `history-refresh.js`,
+ * which writes it BEFORE awaiting the query so the subtitle is present even
+ * on a query failure or before first paint (#2633/#2839) — the same reason
+ * `#rank-sub` stays there instead of here.
  *
  * `onSort` is a callback, not an import of `refresh`: this module WRITES
  * `state.sort` / `state.sortDir` and then needs the orchestrator to re-run,
@@ -19,14 +20,10 @@ const termLabel = (name) =>
  *
  * Column headers render the glossary LABEL (#2633), never the raw split or
  * metric name, and carry `data-term` so the tooltip engine explains each one
- * on hover/focus. `#tbl-sub` leads with the glossary's fixed "what question
- * does this answer" sentence (`card.table`).
+ * on hover/focus.
  */
 export function renderTable(rows, split, metricNames, onSort) {
     const tbl = document.getElementById("tbl");
-    const sub = document.getElementById("tbl-sub");
-    if (sub)
-        sub.textContent = `${lookupTerm("card.table").tip} Click a header to sort.`;
     const sortKey = state.sort ?? state.metric;
     const sorted = [...rows].sort(
         (a, b) =>

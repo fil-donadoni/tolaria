@@ -1,7 +1,7 @@
 import { fmtMetric } from "./format.js";
 import { showTip, hideTip } from "./tooltip.js";
 import { el } from "./svg.js";
-import { lookupTerm } from "./glossary.js";
+import { labelFor } from "./glossary.js";
 import { state } from "./history-state.js";
 
 /**
@@ -9,9 +9,7 @@ import { state } from "./history-state.js";
  * Owns `#rank`; `#rank-title` / `#rank-sub` stay with history-refresh.js.
  */
 export function renderRanking(rows, split, metric) {
-    const metricLabel =
-        lookupTerm(`${state.table}.${metric}`)?.label ??
-        metric.replace(/_/g, " ");
+    const metricLabel = labelFor(metric, state.table);
     const svg = document.getElementById("rank");
     svg.innerHTML = "";
     const data = rows
