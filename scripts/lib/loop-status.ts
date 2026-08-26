@@ -48,12 +48,19 @@ import type { Receipt, ReviewReceipt } from "./receipt";
 // Stage
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ClaimStage =
-    | "claimed"
-    | "worktree"
-    | "branch pushed"
-    | "PR open"
-    | "merging";
+/** Every stage a claimed issue can be in, least-progressed first. A runtime
+ *  array for the same reason as `CLAIM_VERDICT_STATES` and
+ *  `LOOP_VERDICT_STATES`: the dashboard glossary's completeness test (#2629)
+ *  iterates it, so a stage added here cannot ship without a human label. */
+export const CLAIM_STAGES = [
+    "claimed",
+    "worktree",
+    "branch pushed",
+    "PR open",
+    "merging",
+] as const;
+
+export type ClaimStage = (typeof CLAIM_STAGES)[number];
 
 export interface StageFacts {
     hasWorktree: boolean;

@@ -54,6 +54,7 @@ export const DASHBOARD_ASSET_NAMES = [
     "tabs.js",
     "theme.js",
     "format.js",
+    "glossary.js",
     "tooltip.js",
     "svg.js",
     "now-loop-status.js",
@@ -147,8 +148,11 @@ function requireDb(): Database {
     );
 }
 
-/** Per-table whitelist: which columns may be grouped on or filtered by. */
-const DIMENSIONS: Record<string, string[]> = {
+/** Per-table whitelist: which columns may be grouped on or filtered by.
+ *  Exported because it is a VOCABULARY, not just a guard: the dashboard
+ *  glossary's completeness test (#2629) iterates it and reds when a dimension
+ *  added here has no human label. */
+export const DIMENSIONS: Record<string, string[]> = {
     spans: [
         "day",
         "hour",
@@ -174,8 +178,9 @@ const DIMENSIONS: Record<string, string[]> = {
     agent_runs: ["day", "hour", "model", "agent_type", "role", "session"],
 };
 
-/** Per-table whitelist of metrics, each mapping to a SQL aggregate. */
-const METRICS: Record<string, Record<string, string>> = {
+/** Per-table whitelist of metrics, each mapping to a SQL aggregate.
+ *  Exported for the same reason as `DIMENSIONS` above (#2629). */
+export const METRICS: Record<string, Record<string, string>> = {
     spans: {
         calls: "count(*)",
         total_seconds: "sum(dur_s)",
