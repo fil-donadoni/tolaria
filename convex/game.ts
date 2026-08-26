@@ -7461,12 +7461,14 @@ export function finalizeTargetSelection(
  *  "sacrifice a <filter>" cost imposed on this spell/ability. Called at each
  *  announcement site, before entering the payment phase.
  *
- *  Exported (issue #1985) so a test can drive the no-target alt-cost commit
- *  branch's REAL composition (this call, `buildCastSacrificeSelection`,
- *  `assertKickerPermanentSlotFree`, `buildCastPermanentCostChoice`, in the
- *  same order `announceCast` runs them) without a convex-test mutation
- *  harness (ADR 0001) — the same reason `buildCastSacrificeSelection` and
- *  `assertKickerAnnouncementLegal` are already exported. */
+ *  Exported (issue #1985) so a focused GRE-level test can drive the
+ *  no-target alt-cost commit branch's REAL composition (this call,
+ *  `buildCastSacrificeSelection`, `assertKickerPermanentSlotFree`,
+ *  `buildCastPermanentCostChoice`, in the same order `announceCast` runs
+ *  them) without going through the full mutation — the same reason
+ *  `buildCastSacrificeSelection` and `assertKickerAnnouncementLegal` are
+ *  already exported. The mutation ITSELF is also covered end to end, through
+ *  `gameMutationHarness` (`alternative-cost.test.ts`, issue #1985 round 2). */
 export function assertStaticAdditionalCostAffordable(
     state: GameState,
     rawManaCost: ManaCost | undefined,

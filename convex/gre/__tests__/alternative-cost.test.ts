@@ -8,8 +8,6 @@
 // See per-card behaviour in the mmq (Gush/Thwart) and vis (Fireblast) set tests.
 
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -37,6 +35,8 @@ import {
     assertStaticAdditionalCostAffordable,
     buildCastSacrificeSelection,
     castRawManaCost,
+    announceCast,
+    selectSacrifice,
 } from "../../game";
 import { getPlayer, type GameState, type PendingTarget } from "../state";
 import { registerTokenDefinition } from "../../cards";
@@ -50,6 +50,13 @@ import {
 import { snuffOut } from "../../cards/sets/mmq/black";
 import { drought } from "../../cards/sets/ice/white";
 import { onceUponATime } from "../../cards/sets/eld/green";
+import {
+    makeMutationCtx,
+    gameStateSeed,
+    runMutation,
+    type Handler,
+} from "../../__tests__/gameMutationHarness";
+import type { Id } from "../../_generated/dataModel";
 import {
     makeInstance,
     makePlayer,
@@ -456,8 +463,11 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
 
     /** Drives the EXACT composition `announceCast`'s no-target alt-cost
      *  branch now runs, in the same order, over the given state — the
-     *  ADR-0001 pattern (no convex-test mutation harness) `kicker.test.ts`
-     *  and `additional-cost-cast.test.ts` already use. */
+     *  focused GRE-level composition-helper pattern `kicker.test.ts` and
+     *  `additional-cost-cast.test.ts` already use, for a fast unit-level
+     *  check of the underlying mechanism. The mutation-LEVEL integration
+     *  path (driving the real `announceCast` handler through
+     *  `gameMutationHarness`) is covered separately below. */
     function buildOnceUponATimeCastSac(state: GameState, instanceId: string) {
         const player = getPlayer(state, "p1");
         const cardInHand = player.hand.find((c) => c.id === instanceId)!;
@@ -573,80 +583,186 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Source guard — site B (`announceCast`'s no-target alt-cost branch). Review
-// finding (PR #2840, issue #1985): the two tests above drive
-// `buildOnceUponATimeCastSac`, a test-local helper that RE-IMPLEMENTS the
-// branch's composition rather than reaching the branch itself — `announceCast`
-// is a Convex mutation, and this project has no harness that can call one
-// (ADR 0001; the same limitation `castManaSpentCapture.test.ts` documents for
-// its own cast-commit sites). Proven empirically: reverting either of the
-// branch's two fixed lines in `convex/game.ts` (the `assertStaticAdditionalCostAffordable`
-// call back to `void rawCost` — CR 601.2f / 118.8 — and
-// `resolveCastPermanentSelection(altChoice, ownSac)` back to bare `altChoice`
-// — CR 118.9d) left the helper-based tests above, and the full
-// alternative-cost / kicker / additional-cost-cast suites, green. This block
-// reads the branch's OWN source text so deleting either line reds the suite.
+// Mutation-level integration coverage — site B (`announceCast`'s no-target
+// alt-cost branch). Review finding (PR #2840, issue #1985, round 2): the two
+// tests above drive `buildOnceUponATimeCastSac`, a test-local helper that
+// RE-IMPLEMENTS the branch's composition rather than reaching the branch
+// itself, so it cannot catch a regression in how the REAL branch wires its
+// own local variables together downstream (e.g. a consumer reading the alt
+// cost's own leg instead of the composed `castSac`). This project HAS a
+// harness for driving a registered `game.ts` mutation's own `_handler`
+// (`gameMutationHarness.ts`, issue #944) — `retrace.test.ts`'s
+// "announceCast — a NON-targeting retrace cast…" block already drives this
+// SAME no-target alt-cost/additional-cost branch through it. The three
+// scenarios below drive `announceCast` (and, for the parked case,
+// `selectSacrifice`) through that harness and assert the COMMITTED state —
+// not source text, not a reimplementation.
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("game.ts announceCast — the no-target alt-cost branch's own source (site B, issue #1985 review)", () => {
-    const GAME_TS = path.join(__dirname, "..", "..", "game.ts");
-    const source = fs.readFileSync(GAME_TS, "utf8");
-    const lines = source.split("\n");
+describe("announceCast — the no-target alt-cost branch, driven through the real mutation (site B, issue #1985 round 2)", () => {
+    const HARNESS_PROBE_ID =
+        "test:board-wide-additional-cost-green-probe-harness";
+    const harnessDroughtProbe: CardDefinition = {
+        id: HARNESS_PROBE_ID,
+        rarity: "common",
+        name: "Green Drought Probe (harness)",
+        manaCost: { W: 2 },
+        types: ["Enchantment"],
+        staticEffects: [
+            {
+                kind: "additional-cost",
+                appliesToSpell: () => true,
+                appliesToAbility: () => true,
+                perPipColor: "G",
+                sacrificeFilter: { subtypes: ["Forest"] },
+            },
+        ],
+    };
+    registerTokenDefinition(harnessDroughtProbe);
 
-    /** The `if (chosenAltCost) { … }` block inside `announceCast` — located
-     *  by its unique opening line (there is exactly one `chosenAltCost) {` in
-     *  the file with this exact indentation) and closed by brace-counting, so
-     *  the guard tracks the branch even if unrelated edits shift its line
-     *  numbers. */
-    function altCostBranchSource(): string {
-        const startIdx = lines.findIndex(
-            (line) => line.trim() === "if (chosenAltCost) {"
+    /** p1 with Once Upon a Time in hand (the `free-first-spell` alt cost —
+     *  leg-free, so `altChoice` is always `undefined`) and the board-wide
+     *  Forest-sacrifice probe on the battlefield, plus the given Forests.
+     *  `tapSecond` makes a second Forest TAPPED so its `identityKey` differs
+     *  from the first — otherwise `autoResolveFungible` treats two plain
+     *  Forests as indistinguishable and silently auto-picks one, masking the
+     *  real-choice (parking) branch this test needs. */
+    function onceUponATimeBoard(
+        forestCount: number,
+        tapSecond = false
+    ): GameState {
+        const onceInst = makeInstance(onceUponATime.id, {
+            id: "onceH",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const probeInst = makeInstance(HARNESS_PROBE_ID, {
+            id: "probeH",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const forests = Array.from({ length: forestCount }, (_, i) =>
+            makeInstance(forest.id, {
+                id: `forestH-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: tapSecond && i === 1,
+            })
         );
-        expect(startIdx).toBeGreaterThan(-1);
-        let depth = 0;
-        let endIdx = -1;
-        for (let i = startIdx; i < lines.length; i++) {
-            for (const ch of lines[i]) {
-                if (ch === "{") depth++;
-                else if (ch === "}") depth--;
-            }
-            if (i > startIdx && depth === 0) {
-                endIdx = i;
-                break;
-            }
-        }
-        expect(endIdx).toBeGreaterThan(startIdx);
-        return lines.slice(startIdx, endIdx + 1).join("\n");
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [onceInst],
+                    battlefield: [probeInst, ...forests],
+                }),
+                makePlayer("p2"),
+            ],
+        });
     }
 
-    it("runs the board-wide/own static-additional-cost affordability check before composing the cast (CR 601.2f / 118.8)", () => {
-        const block = altCostBranchSource();
-        // The real call, with the branch's own raw-cost snapshot as the
-        // subject — not a discarded `void rawCost;` (the exact regression:
-        // finding 1, PR #2840).
-        expect(block).toMatch(
-            /assertStaticAdditionalCostAffordable\(\s*state,\s*rawCost,/
+    type AnnounceArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        cardInstanceId: string;
+        alternativeCostId: string;
+    };
+
+    const announceOnce = (harness: ReturnType<typeof makeMutationCtx>) =>
+        runMutation<AnnounceArgs, void>(
+            announceCast as unknown as Handler<AnnounceArgs, void>,
+            harness.ctx,
+            {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId: "onceH",
+                alternativeCostId: "free-first-spell",
+            }
         );
+
+    it("a FORCED sacrifice (one matching Forest) commits with the Forest actually sacrificed, and the spell resolves onto the stack (CR 118.9d)", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(onceUponATimeBoard(1)),
+        ]);
+        await announceOnce(harness);
+
+        const state = harness.state();
+        // Committed immediately (forced/fungible pick + free mana): no park.
+        // Before the fix — and again if the commit reads `altChoice` (always
+        // `undefined` for this leg-free alt cost) instead of the composed
+        // `castSac` — this Forest survives and the spell still resolves.
+        expect(state.pendingCast).toBeUndefined();
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "forestH-0")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "forestH-0")).toBe(true);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe("onceH");
     });
 
-    it("commits the board-wide/own sacrifice TOGETHER with the alt cost's own permanent leg, not the alt leg alone (CR 118.9d)", () => {
-        const block = altCostBranchSource();
-        // The real composition — both `ownSac` (the affordability-checked
-        // board-wide/own sacrifice) AND `altChoice` (the alt cost's own
-        // permanent leg) reach the committed cast. Before the fix this line
-        // read `const castSac = altChoice;` — `ownSac` built and checked
-        // above, then silently dropped on the floor.
-        expect(block).toMatch(
-            /const castSac = resolveCastPermanentSelection\(\s*altChoice,\s*ownSac\s*\);/
+    it("a REAL choice (two distinguishable Forests) parks on the caster's own board-wide sacrifice picker, and completing the pick sacrifices exactly the chosen Forest (CR 118.9d / 701.21a)", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(onceUponATimeBoard(2, true)),
+        ]);
+        await announceOnce(harness);
+
+        const parked = harness.state();
+        // THE headline assertion for site B's downstream consumer (issue
+        // #1985 review round 2, finding 2): before the fix — and again if the
+        // committed `pendingCast.sacrificeSelection` is wired from the alt
+        // cost's own (leg-free, always-undefined) permanent choice instead of
+        // the board-wide/own sacrifice `ownSac` composed into `castSac` —
+        // this field is simply ABSENT, and the cast can never be completed.
+        expect(parked.pendingCast?.sacrificeSelection).toEqual({
+            playerId: "p1",
+            reason: "Once Upon a Time",
+            requirements: [{ filter: { subtypes: ["Forest"] }, count: 1 }],
+            picked: [],
+        });
+
+        await runMutation<
+            { gameId: Id<"games">; playerId: string; cardInstanceId: string },
+            void
+        >(
+            selectSacrifice as unknown as Handler<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    cardInstanceId: string;
+                },
+                void
+            >,
+            harness.ctx,
+            {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId: "forestH-0",
+            }
         );
-        // Ordering: the affordability check runs BEFORE the branch commits
-        // to a `castSac` — a check that ran after the fact would gate
-        // nothing.
-        const affordIdx = block.indexOf(
-            "assertStaticAdditionalCostAffordable("
-        );
-        const castSacIdx = block.indexOf("const castSac =");
-        expect(affordIdx).toBeGreaterThan(-1);
-        expect(castSacIdx).toBeGreaterThan(affordIdx);
+
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "forestH-0")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "forestH-0")).toBe(true);
+        // The OTHER Forest is untouched — exactly one was owed.
+        expect(p1.battlefield.some((c) => c.id === "forestH-1")).toBe(true);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe("onceH");
+    });
+
+    it("rejects announcement when the board-wide sacrifice is unaffordable (no Forest) — the branch's OWN affordability gate (CR 601.2f / 118.8)", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(onceUponATimeBoard(0)),
+        ]);
+        // Before the fix this check never ran on the no-target alt-cost
+        // branch at all (an unpayable board-wide sacrifice slipped through);
+        // if the check is later discarded (`void rawCost;`) the mutation
+        // stops throwing here.
+        await expect(announceOnce(harness)).rejects.toThrow(/additional cost/i);
+        // Nothing committed: the game state is untouched.
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand.some((c) => c.id === "onceH")).toBe(true);
     });
 });
