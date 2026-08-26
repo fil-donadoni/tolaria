@@ -22,7 +22,12 @@ import { viewFromParams } from "../dashboard/tabs.js";
  * single test ran. Same shape, same reason, as
  * `loop-status-dashboard.test.ts`'s "keyboard focus survives a poll" suite.
  */
+// `globalThis` is cast once, here, and reused as `g` everywhere in this file
+// — the same convention `dashboard-glossary.test.ts`/`history-filters.test.ts`
+// use, rather than a fresh `as any` at every call site.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g = globalThis as any;
+
 let isTypingTarget: (el: unknown) => boolean,
     installShortcuts: () => void,
     resetShortcuts: () => void,
@@ -30,13 +35,18 @@ let isTypingTarget: (el: unknown) => boolean,
 
 beforeAll(async () => {
     const bootWin = new Window({ url: "http://localhost/" });
-    (globalThis as any).document = bootWin.document;
-    ({ isTypingTarget, installShortcuts, resetShortcuts, sheetOpen } =
-        (await import(
-            // @ts-expect-error — plain browser JS, no type declarations.
-            "../dashboard/shortcuts.js"
-        )) as any);
-    delete (globalThis as any).document;
+    g.document = bootWin.document;
+    const mod: {
+        isTypingTarget: (el: unknown) => boolean;
+        installShortcuts: () => void;
+        resetShortcuts: () => void;
+        sheetOpen: () => boolean;
+    } = await import(
+        // @ts-expect-error — plain browser JS, no type declarations.
+        "../dashboard/shortcuts.js"
+    );
+    ({ isTypingTarget, installShortcuts, resetShortcuts, sheetOpen } = mod);
+    delete g.document;
 });
 
 /**
@@ -88,7 +98,9 @@ const DEFAULT_STATE = {
 };
 
 function resetState() {
-    for (const key of Object.keys(state)) delete (state as any)[key];
+    // `state` is an untyped import (`@ts-expect-error` above, no `.d.ts` for
+    // a plain browser JS module) and so is already `any` — no cast needed.
+    for (const key of Object.keys(state)) delete state[key];
     Object.assign(state, structuredClone(DEFAULT_STATE));
 }
 
@@ -132,18 +144,18 @@ describe("History URL round trip (#2635 AC: 'loading a produced URL restores exa
     it("a field added to `state` AFTER this test was written still round-trips — no edit here required", () => {
         // Proves the genericity claim: the serializer walks `state`'s OWN
         // keys, so it does not need to know this field exists.
-        (state as any).newlyAddedField = "z";
+        state.newlyAddedField = "z";
         try {
             const original = structuredClone(state);
             const query = stateToParams(new URLSearchParams()).toString();
             expect(query).toContain("newlyAddedField=z");
 
-            (state as any).newlyAddedField = "stale — should be overwritten";
+            state.newlyAddedField = "stale — should be overwritten";
             paramsToState(new URLSearchParams(query));
 
             expect(state).toEqual(original);
         } finally {
-            delete (state as any).newlyAddedField;
+            delete state.newlyAddedField;
         }
     });
 
@@ -208,8 +220,11 @@ describe("shortcuts.js — isTypingTarget (#2635 AC: 'no shortcut fires while a 
     });
 
     it("is true for a contenteditable element", () => {
-        const div = el(`<div contenteditable="true"></div>`) as any;
-        expect(isTypingTarget(div)).toBe(true);
+        // `isTypingTarget`'s parameter is `unknown` — a real `Element`
+        // widens to it with no cast needed.
+        expect(isTypingTarget(el(`<div contenteditable="true"></div>`))).toBe(
+            true
+        );
     });
 
     it("is false for a button, a checkbox, or nothing focused", () => {
@@ -235,7 +250,6 @@ const SHELL_HTML = `
     <div id="view-history" hidden></div>
 `;
 
-const g = globalThis as any;
 const INSTALLED_GLOBALS = ["document", "location", "history", "fetch"];
 
 function mountPage(html = SHELL_HTML) {
