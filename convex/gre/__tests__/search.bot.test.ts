@@ -16,11 +16,19 @@ import {
     isReactiveInstantCast,
     reactivePrior,
     keyedMovesFor,
+    computeActionPriors,
+    type DecisionTrace,
     type Edge,
     type Node,
 } from "../search";
 import { makeRng } from "../rng";
-import { LADDER_VARIANTS, setSearchVariant } from "../ai/searchVariant";
+import {
+    LADDER_VARIANTS,
+    resolveActionPriors,
+    setSearchVariant,
+    type SearchVariant,
+} from "../ai/searchVariant";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { evaluate } from "../evaluate";
 import { greedySelectMove } from "../greedy";
 import { enumerateMoves } from "../moves";
@@ -73,6 +81,16 @@ function creature(
 
 function land(controllerId: string, id: string) {
     return makeInstance(MOUNTAIN, { controllerId, ownerId: controllerId, id });
+}
+
+/** Any card in `controllerId`'s hand (issue #2684 fixtures). */
+function handCard(cardId: string, controllerId: string, id: string) {
+    return makeInstance(cardId, {
+        controllerId,
+        ownerId: controllerId,
+        id,
+        zone: "hand",
+    });
 }
 
 function bolt(controllerId: string, id: string) {
@@ -2247,5 +2265,164 @@ describe("opponent priority edges use stable, definition-based keys (issue #1520
         // (public, stable) instance id rather than being swapped out.
         const passMove = keyed.find((k) => k.move.kind === "pass");
         expect(passMove?.key).toBe(JSON.stringify({ kind: "pass" }));
+    });
+});
+
+// ---------------------------------------------------------------------------
+// PUCT priors + first-play urgency on the MAIN action space (issue #2684).
+//
+// Ordinary priority moves carry `prior: 0` and are opened uniformly at random,
+// one per iteration; the `actionPriors` variant gives them a real prior
+// (`policyValue`) and folds unopened children into the same argmax as opened
+// ones. Everything here is variant-gated: with the knob OFF the selection rule
+// is the historical one, byte-for-byte.
+// ---------------------------------------------------------------------------
+describe("search — action priors + FPU (issue #2684)", () => {
+    const ACTION_PRIORS = {
+        name: "action-priors",
+        actionPriors: { source: "policyValue" as const, c: 0.15, fpu: 0.15 },
+    };
+    /** Sorcery-speed main phase with five legal moves and NO reactive move
+     *  among them (no instants, no flash permanents, no combat), so
+     *  `reactivePrior` is 0 across the board and the expansion order is the
+     *  action prior alone. */
+    function priorBoard(): GameState {
+        const hand = [
+            land("p1", "hm1"),
+            land("p1", "hm2"),
+            handCard(GIANT, "p1", "hg1"),
+            handCard(GIANT, "p1", "hg2"),
+        ];
+        return botMainPhase(
+            hand,
+            [
+                land("p1", "m1"),
+                land("p1", "m2"),
+                land("p1", "m3"),
+                land("p1", "m4"),
+            ],
+            { battlefield: [creature(BEARS, "p2", "ob")] }
+        );
+    }
+    const underVariant = <T>(v: SearchVariant | null, fn: () => T): T => {
+        setSearchVariant(v);
+        try {
+            return fn();
+        } finally {
+            setSearchVariant(null);
+        }
+    };
+    /** Comparable projection of a trace (drops the wall clock, which varies). */
+    const shape = (t: DecisionTrace | null) => ({
+        chosen: t!.chosen,
+        iterationsCompleted: t!.iterationsCompleted,
+        candidates: t!.candidates.map((c) => [
+            c.label,
+            c.visits,
+            c.meanReward,
+            c.meanMargin,
+        ]),
+    });
+
+    it("priors are a normalised distribution over the WHOLE candidate set", () => {
+        const state = priorBoard();
+        const keyed = keyedMovesFor(state, "p1", "p1");
+        expect(keyed.length).toBeGreaterThanOrEqual(5);
+        const priors = computeActionPriors(
+            state,
+            "p1",
+            "p1",
+            keyed,
+            DEFAULT_EVAL_WEIGHTS
+        );
+        expect(priors.size).toBe(keyed.length);
+        const values = keyed.map((k) => priors.get(k.key)!);
+        expect(values.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+        // BIAS, NEVER DELETION: no top-K, so even the worst-ranked move keeps a
+        // strictly positive prior and is therefore opened eventually. A beam
+        // here would cut sacrifice-then-payoff and combo-piece-first lines.
+        for (const v of values) expect(v).toBeGreaterThan(0);
+        // …and they actually discriminate (a uniform vector would bias nothing).
+        expect(Math.max(...values)).toBeGreaterThan(Math.min(...values) * 2);
+    });
+
+    it("the FIRST expansion opens the highest-prior child", () => {
+        const state = priorBoard();
+        const keyed = keyedMovesFor(state, "p1", "p1");
+        const priors = computeActionPriors(
+            state,
+            "p1",
+            "p1",
+            keyed,
+            DEFAULT_EVAL_WEIGHTS
+        );
+        const best = keyed.reduce((m, k) =>
+            priors.get(k.key)! > priors.get(m.key)! ? k : m
+        );
+        const trace = underVariant(
+            ACTION_PRIORS,
+            () => searchWithTrace(state, "p1", { iterations: 1 }, 7).trace
+        );
+        // One iteration → exactly one root child opened.
+        expect(trace!.candidates).toHaveLength(1);
+        expect(JSON.stringify(trace!.candidates[0].move)).toBe(
+            JSON.stringify(best.move)
+        );
+    });
+
+    it("the knob BITES: the same seed opens a different child with it off", () => {
+        // A registered variant whose knob is never consulted turns a 4–5h
+        // ladder A/B into a silent control-vs-control null run (the #1929
+        // lesson). Seed 7 opens `pass` under the historical uniform-random
+        // expansion and the highest-prior land drop under the knob.
+        const state = priorBoard();
+        const first = (v: SearchVariant | null) =>
+            underVariant(
+                v,
+                () =>
+                    searchWithTrace(state, "p1", { iterations: 1 }, 7).trace!
+                        .candidates[0].label
+            );
+        expect(first(null)).toBe("pass");
+        expect(first(ACTION_PRIORS)).toBe("play Mountain");
+    });
+
+    it("is deterministic under the seeded RNG with the knob on", () => {
+        const state = priorBoard();
+        const run = () =>
+            underVariant(ACTION_PRIORS, () =>
+                shape(
+                    searchWithTrace(state, "p1", { iterations: 200 }, 99).trace
+                )
+            );
+        expect(run()).toEqual(run());
+    });
+
+    it("CONTROL LEG: a variant without `actionPriors` changes nothing", () => {
+        // The knob is off by default and off for every variant that does not
+        // ask for it — the search must be indistinguishable from no variant at
+        // all, or the ladder's control leg is not a control.
+        const state = priorBoard();
+        const baseline = shape(
+            searchWithTrace(state, "p1", { iterations: 200 }, 31).trace
+        );
+        const noKnob = underVariant({ name: "no-knob" }, () =>
+            shape(searchWithTrace(state, "p1", { iterations: 200 }, 31).trace)
+        );
+        expect(noKnob).toEqual(baseline);
+        expect(resolveActionPriors(null)).toBeNull();
+        expect(resolveActionPriors({ name: "no-knob" })).toBeNull();
+        // …and with the knob ON the search really is a different search.
+        const withKnob = underVariant(ACTION_PRIORS, () =>
+            shape(searchWithTrace(state, "p1", { iterations: 200 }, 31).trace)
+        );
+        expect(withKnob).not.toEqual(baseline);
+    });
+
+    it("LADDER_VARIANTS registers the knob under the name the CLI accepts", () => {
+        expect(LADDER_VARIANTS["action-priors"]).toEqual(ACTION_PRIORS);
+        expect(resolveActionPriors(LADDER_VARIANTS["action-priors"])).toEqual(
+            ACTION_PRIORS.actionPriors
+        );
     });
 });

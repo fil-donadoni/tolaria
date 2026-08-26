@@ -33,6 +33,11 @@ import {
     seatPlayerId,
 } from "../matcher";
 import { BladeDeciderError, runBladeScenario } from "../runner";
+import {
+    getSearchVariant,
+    LADDER_VARIANTS,
+    setSearchVariant,
+} from "../../searchVariant";
 import type { BladeScenario } from "../types";
 
 // ────────────────────────────────────────────────────────────────────────
@@ -502,5 +507,61 @@ describe("runBladeScenario — decider authoring check (issue #1522)", () => {
         expect(() =>
             runBladeScenario(landScenario({ moves: ANY_LEGAL }))
         ).not.toThrow();
+    });
+});
+
+describe("runBladeScenario — search-variant leg (issue #2684)", () => {
+    // Until #2684 the runner ran unconditionally under production defaults, so
+    // "all `must` entries green with the variant ON" — an acceptance criterion
+    // of every ladder experiment — could not be answered without editing the
+    // runner. These tests pin the plumbing itself: that the variant is really
+    // INSTALLED for the duration of the scenario, and that the previous one is
+    // restored afterwards.
+    const observed: (string | null)[] = [];
+    const observingScenario = (): BladeScenario =>
+        landScenario(
+            {
+                // Runs INSIDE the runner, so it observes the module state the
+                // search itself saw.
+                predicate: () => {
+                    observed.push(getSearchVariant()?.name ?? null);
+                    return true;
+                },
+                describe: "records the installed variant",
+            },
+            [1]
+        );
+
+    it("installs the passed variant for the duration of the scenario", () => {
+        observed.length = 0;
+        const result = runBladeScenario(
+            observingScenario(),
+            LADDER_VARIANTS["action-priors"]
+        );
+        expect(result.ok).toBe(true);
+        expect(observed).toEqual(["action-priors"]);
+    });
+
+    it("leaves the module state untouched when no variant is passed", () => {
+        observed.length = 0;
+        const result = runBladeScenario(observingScenario());
+        expect(result.ok).toBe(true);
+        expect(observed).toEqual([null]);
+    });
+
+    it("restores the PREVIOUS variant, never clearing an outer install", () => {
+        const outer = LADDER_VARIANTS["placebo"];
+        setSearchVariant(outer);
+        try {
+            observed.length = 0;
+            runBladeScenario(
+                observingScenario(),
+                LADDER_VARIANTS["action-priors"]
+            );
+            expect(observed).toEqual(["action-priors"]);
+            expect(getSearchVariant()).toBe(outer);
+        } finally {
+            setSearchVariant(null);
+        }
     });
 });

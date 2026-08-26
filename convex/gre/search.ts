@@ -154,7 +154,12 @@ import {
 } from "./ai/decisionTelemetry";
 // Ladder A/B config seam (issue #1924) — null in live play, so every knob
 // below stays at its production default outside a ladder run.
-import { getSearchVariant, resolveEvalWeights } from "./ai/searchVariant";
+import {
+    getSearchVariant,
+    resolveActionPriors,
+    resolveEvalWeights,
+    type ActionPriorConfig,
+} from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -348,6 +353,18 @@ export type Edge = {
 
 export type Node = {
     children: Map<string, Edge>;
+    /** RAW `policyValue` per tree key, memoized for this node (issue #2684).
+     *
+     *  Only ever populated when a variant turns `actionPriors` on — the field
+     *  stays `undefined` in production, so the node costs exactly what it did
+     *  before. The cache is what makes the knob affordable: `policyValue`
+     *  clones the world and runs a full `evaluate()` per candidate, and a main
+     *  phase offers 75–90 of them, so recomputing at every visit of every node
+     *  would cost far more than the search it improves. Keyed by tree key, so
+     *  a later determinization contributing a key this node has not seen pays
+     *  for THAT key only. Bot-perspective, like `policyValue` itself; the
+     *  mover-side flip happens at normalisation. */
+    policyValues?: Map<string, number>;
 };
 
 function newNode(): Node {
@@ -1871,6 +1888,243 @@ export function keyedMovesFor(
     return keyed;
 }
 
+/** Floor under every normalised action prior (issue #2684). The rule is BIAS,
+ *  NEVER DELETION: a candidate the policy ranks dead last still carries a
+ *  strictly-positive prior, so its PUCT term still grows as `√(parentVisits)`
+ *  and it is opened eventually — late, never removed. A hard top-K here (the
+ *  obvious cheaper design, and what `choiceCandidates` does at a CHOICE node
+ *  where the candidate set is semantically small) would cut exactly the lines
+ *  a 1-ply policy is worst at: sacrifice-then-payoff and combo-piece-first,
+ *  whose first move evaluates as a loss. 5% of the mass on the worst move is
+ *  cheap insurance against that. */
+const ACTION_PRIOR_FLOOR = 0.05;
+
+/** Normalised action priors over `keyed`, one entry per tree key, summing to 1
+ *  (issue #2684).
+ *
+ *  Three steps, in order:
+ *
+ *  1. RAW — `policyValue` on a probe clone per candidate, the same 1-ply
+ *     lookahead `selectRolloutMove` uses, so the prior and the rollout default
+ *     policy agree on what "good" means. Memoized into `cache` (a `Node`'s
+ *     `policyValues` in the search proper), which is the only reason the knob
+ *     is affordable at all — see `Node.policyValues`.
+ *  2. MOVER PERSPECTIVE — `policyValue` is always from the BOT's view, so an
+ *     opponent node's priors are the complement (`1 − r`), mirroring
+ *     `selectRolloutMove`'s `moverIsBot ? r : 1 - r`. Without the flip the
+ *     search would bias the opponent toward moves that help the bot.
+ *  3. NORMALISE — min–max over the node's candidate set, then floored and
+ *     rescaled to sum to 1. Min–max rather than a plain sum because the reward
+ *     mapping compresses a whole main phase's worth of candidates into a narrow
+ *     band around 0.5: dividing those by their sum yields a near-uniform prior
+ *     that biases nothing. Min–max recovers the RANKING regardless of how
+ *     compressed the band is, which is all a prior is for. A degenerate set
+ *     (every candidate identical) falls back to uniform.
+ *
+ *  Exported as a test seam (like `reactivePrior` / `policyValue`) so the prior
+ *  vector is assertable directly, with the same code path the search runs. */
+export function computeActionPriors(
+    state: GameState,
+    pid: string,
+    botId: string,
+    keyed: KeyedMove[],
+    weights: EvalWeights,
+    cache?: Map<string, number>
+): Map<string, number> {
+    const moverIsBot = pid === botId;
+    const scores: number[] = [];
+    for (const k of keyed) {
+        let raw = cache?.get(k.key);
+        if (raw === undefined) {
+            const probe = cloneGameState(state);
+            applyMoveInSearch(probe, pid, k.move);
+            raw = policyValue(probe, botId, k.move, weights);
+            cache?.set(k.key, raw);
+        }
+        const r = rewardFromValue(raw, weights);
+        scores.push(moverIsBot ? r : 1 - r);
+    }
+    const out = new Map<string, number>();
+    if (keyed.length === 0) return out;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const value of scores) {
+        if (value < min) min = value;
+        if (value > max) max = value;
+    }
+    const span = max - min;
+    if (!(span > 1e-12)) {
+        const uniform = 1 / keyed.length;
+        for (const k of keyed) out.set(k.key, uniform);
+        return out;
+    }
+    const floored: number[] = [];
+    let total = 0;
+    for (const value of scores) {
+        const q =
+            ACTION_PRIOR_FLOOR +
+            (1 - ACTION_PRIOR_FLOOR) * ((value - min) / span);
+        floored.push(q);
+        total += q;
+    }
+    for (let i = 0; i < keyed.length; i++) {
+        out.set(keyed[i].key, floored[i] / total);
+    }
+    return out;
+}
+
+/** The PUCT exploration term for one candidate (issue #2684):
+ *  `c · prior · √(parentVisits) / (1 + childVisits)`, the AlphaZero form.
+ *
+ *  Unlike `reactivePrior` / `choicePriorBonus` — which decay as `1/(1+visits)`
+ *  against a FIXED numerator and are therefore washed out after a handful of
+ *  visits — this term's numerator grows with the parent's visit count, which is
+ *  what guarantees a never-opened child is eventually opened no matter how low
+ *  its prior. That guarantee is the whole reason the knob can bias without a
+ *  beam. */
+function puctBonus(
+    prior: number,
+    parentVisits: number,
+    childVisits: number,
+    config: ActionPriorConfig
+): number {
+    return (
+        (config.c * prior * Math.sqrt(Math.max(parentVisits, 1))) /
+        (1 + childVisits)
+    );
+}
+
+/** One PUCT step at an ordinary priority node (issue #2684). Returns `true`
+ *  when it EXPANDED a new child (and therefore already rolled out and
+ *  backpropagated — the caller must return), `false` when it descended into an
+ *  existing child (which it has pushed onto `path`).
+ *
+ *  The structural difference from the historical rule this replaces (only when
+ *  the knob is on) is that opened and unopened children compete in ONE argmax.
+ *  The old rule expands an untried child whenever one exists, so a node with 90
+ *  legal moves burns its first 90 iterations opening them one at a time and no
+ *  line is ever deepened inside a 400-iteration budget — the exact failure
+ *  telemetry #1893 measured as a 19.7% search-decided share. Here an unopened
+ *  child's estimate is FIRST-PLAY URGENCY — the node's own mean reward minus
+ *  `config.fpu` — plus its PUCT bonus, so once one child looks good the search
+ *  deepens it instead of mechanically opening the 40th sibling.
+ *
+ *  Determinism: every term is a pure function of the world, the tree and the
+ *  resolved weights; ties fall to the first candidate in `keyed` order (the
+ *  enumeration order), so no RNG is consumed here at all. The seeded stream is
+ *  still the sole source of randomness in the search — it is simply not spent
+ *  on the expansion pick the way `selectOpeningCandidate` spends it. */
+function puctDescend(
+    node: Node,
+    world: GameState,
+    pid: string,
+    botId: string,
+    keyed: KeyedMove[],
+    path: Edge[],
+    rng: () => number,
+    weights: EvalWeights,
+    config: ActionPriorConfig
+): boolean {
+    let cache = node.policyValues;
+    if (!cache) {
+        cache = new Map();
+        node.policyValues = cache;
+    }
+    const priors = computeActionPriors(
+        world,
+        pid,
+        botId,
+        keyed,
+        weights,
+        cache
+    );
+
+    // Parent statistics for the PUCT numerator and the FPU baseline. Every
+    // child of a node shares one mover, so their stored rewards are in one
+    // perspective and the mean is meaningful. Children keyed by a move that is
+    // illegal in THIS world still count — they are visits this node really
+    // received, which is what `√(parentVisits)` is measuring.
+    let parentVisits = 0;
+    let parentReward = 0;
+    for (const edge of node.children.values()) {
+        parentVisits += edge.visits;
+        parentReward += edge.totalReward;
+    }
+    // No child opened yet → no mean to discount, so the FPU baseline is a
+    // constant across candidates and the pick reduces to the highest prior.
+    const fpuValue =
+        (parentVisits > 0 ? parentReward / parentVisits : 0) - config.fpu;
+
+    let bestVal = -Infinity;
+    let bestKeyed: KeyedMove | null = null;
+    let bestEdge: Edge | null = null;
+    for (const k of keyed) {
+        const edge = node.children.get(k.key);
+        const visits = edge?.visits ?? 0;
+        // ISMCTS availability: this edge WAS available in this world. Bumped
+        // BEFORE scoring, exactly as the historical selection loop does, so
+        // `ucb1`'s `ln(avail)` reads the same count under either rule.
+        if (edge) edge.avail += 1;
+        // EXPLOIT: the edge's own mean, or FIRST-PLAY URGENCY — the node's own
+        // mean minus `config.fpu` — for a child nobody has opened.
+        //
+        // EXPLORE: UCB1's `ucbC·√(ln avail / visits)` for an opened child, and
+        // for an unopened one the SAME term evaluated at one visit, against the
+        // node's total visits. That symmetry is the whole trick, and getting it
+        // wrong is measurable: the first shape of this knob simply added the
+        // PUCT term to `ucb1` and gave an unopened child no exploration term at
+        // all, so it scored `parentMean − fpu` against an opened sibling's
+        // `mean + ~2`, the node never widened past its first child, and four
+        // blade `must` entries flipped (three to a bare `pass`). The second
+        // shape swung the other way — PUCT REPLACING UCB1's term — and lost six,
+        // because this evaluator's reward band is a few hundredths wide, so
+        // exploitation cannot discriminate and cutting exploration just makes
+        // the search re-derive its own 1-ply prior. Keeping UCB1's exploration
+        // for both sides makes `fpu` what it is supposed to be: a small,
+        // tunable reluctance to widen, not a widening ban.
+        //
+        // `choicePriorBonus` is deliberately absent: `k.prior` is 0 for every
+        // ordinary priority move (`keyedMovesFor`), and a choice node never
+        // reaches this function.
+        const val =
+            (edge
+                ? ucb1(edge, weights)
+                : fpuValue +
+                  weights.ucbC *
+                      Math.sqrt(Math.log(Math.max(parentVisits, 2)))) +
+            puctBonus(priors.get(k.key) ?? 0, parentVisits, visits, config) +
+            reactivePrior(world, pid, k.move, visits, weights);
+        if (val > bestVal) {
+            bestVal = val;
+            bestKeyed = k;
+            bestEdge = edge ?? null;
+        }
+    }
+
+    // Apply THIS world's move for the selected key (see `iterate`'s note): an
+    // edge is keyed by stable identity, so its stored move may name instances
+    // from a different determinization.
+    applyMoveInSearch(world, pid, bestKeyed!.move);
+    if (bestEdge) {
+        path.push(bestEdge);
+        return false;
+    }
+    const opened: Edge = {
+        move: bestKeyed!.move,
+        key: bestKeyed!.key,
+        mover: pid,
+        node: newNode(),
+        visits: 0,
+        totalReward: 0,
+        totalMargin: 0,
+        avail: 1,
+    };
+    node.children.set(opened.key, opened);
+    path.push(opened);
+    backpropagate(path, rollout(world, botId, rng, weights), botId);
+    return true;
+}
+
 /** Grow the tree by one iteration on a freshly-determinized world.
  *
  *  `prunedRootKeys` are the tree keys of the bot's provably-dominated root moves
@@ -1888,7 +2142,8 @@ function iterate(
     botId: string,
     rng: () => number,
     weights: EvalWeights,
-    prunedRootKeys?: ReadonlySet<string>
+    prunedRootKeys?: ReadonlySet<string>,
+    actionPriors: ActionPriorConfig | null = null
 ): void {
     const world = determinize(rootState, botId, rng);
     const path: Edge[] = [];
@@ -1906,6 +2161,33 @@ function iterate(
             if (kept.length > 0) keyed = kept;
         }
         if (keyed.length === 0) break;
+
+        // PUCT on the ORDINARY action space (issue #2684) — variant-gated, so
+        // production takes neither this branch nor any of its cost. A choice
+        // node is left alone: its candidates already carry real priors from
+        // `priorFor` and are already opened in prior order by
+        // `selectOpeningCandidate`, and its candidate set is already top-K'd.
+        const headChoice = world.pendingChoices?.[0];
+        const atChoiceNode = !!headChoice && headChoice.playerId === pid;
+        if (actionPriors && !atChoiceNode) {
+            if (
+                puctDescend(
+                    node,
+                    world,
+                    pid,
+                    botId,
+                    keyed,
+                    path,
+                    rng,
+                    weights,
+                    actionPriors
+                )
+            ) {
+                return; // expanded + rolled out
+            }
+            node = path[path.length - 1].node;
+            continue;
+        }
 
         const untried = keyed.filter((k) => !node.children.has(k.key));
 
@@ -3063,6 +3345,11 @@ function runSearchWithTrace(
     // below threads `weights` down as an explicit parameter instead of
     // re-reading the module-global at its own point of use.
     const weights = resolveEvalWeights(getSearchVariant());
+    // Priors + FPU on the ordinary action space (issue #2684) — resolved in the
+    // same one place, for the same reason, and `null` for every variant that
+    // does not ask for it (so live play never pays a branch below the top of
+    // this function).
+    const actionPriors = resolveActionPriors(getSearchVariant());
 
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
@@ -3107,7 +3394,15 @@ function runSearchWithTrace(
     // a real game) usually cuts it short.
     let stoppedBy: SearchStopReason = "iterations";
     while (i < maxIter) {
-        iterate(root, state, playerId, rng, weights, prunedRootKeys);
+        iterate(
+            root,
+            state,
+            playerId,
+            rng,
+            weights,
+            prunedRootKeys,
+            actionPriors
+        );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
             stoppedBy = "time";
