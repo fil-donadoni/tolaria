@@ -133,6 +133,24 @@ describe("now-timeline — passItems (block positioning)", () => {
         expect(items[0].width).toBeCloseTo(0.6, 5);
     });
 
+    it("never lets a MIN_ITEM_PCT-widened block overlap the next one (browser-measured: two back-to-back 'died' passes rendered one covering the other)", () => {
+        // Three passes one second apart — every raw width is far below the
+        // visibility floor, so all three would widen to MIN_ITEM_PCT without
+        // the fix, and the first two would then overlap the following one.
+        const oneSecondApart = [
+            { ...passes[0], pass: 1, epoch: (WS + HOUR_MS) / 1000 },
+            { ...passes[0], pass: 2, epoch: (WS + HOUR_MS) / 1000 + 1 },
+            { ...passes[0], pass: 3, epoch: (WS + HOUR_MS) / 1000 + 2 },
+        ];
+        const items = passItems({ timelinePasses: oneSecondApart }, NOW);
+        for (let i = 1; i < items.length; i++) {
+            expect(
+                items[i - 1].left + items[i - 1].width,
+                `pass ${items[i - 1].pass}'s right edge vs pass ${items[i].pass}'s left`
+            ).toBeLessThanOrEqual(items[i].left + 1e-9);
+        }
+    });
+
     it("defaults to an empty array when the field is absent", () => {
         expect(passItems({}, NOW)).toEqual([]);
     });
@@ -200,6 +218,29 @@ describe("now-timeline — claimItems (pins with an always-open tail)", () => {
     it("renders no pins when the read failed (null) — the caller adds the UNAVAILABLE note", () => {
         expect(claimItems({ claims: null }, NOW)).toEqual([]);
     });
+
+    it("de-collides two claims taken moments apart — browser-measured: identical positions rendered as one 14px circle fully covering the other, unclickable", () => {
+        const secondsApart = [
+            {
+                issue: 1,
+                title: "a",
+                ageHours: 2,
+                verdict: { state: "live", reason: "" },
+            },
+            {
+                issue: 2,
+                title: "b",
+                // 14 seconds younger — the exact gap measured live.
+                ageHours: 2 - 14 / 3600,
+                verdict: { state: "live", reason: "" },
+            },
+        ];
+        const items = claimItems({ claims: secondsApart }, NOW);
+        expect(Math.abs(items[1].left - items[0].left)).toBeGreaterThan(1);
+        // Never moved EARLIER than its own raw timestamp — only ever later.
+        const rawLeft2 = 100 - ((2 - 14 / 3600) / TIMELINE_WINDOW_HOURS) * 100;
+        expect(items[1].left).toBeGreaterThanOrEqual(rawLeft2 - 1e-6);
+    });
 });
 
 describe("now-timeline — mergeItems (ticks)", () => {
@@ -222,6 +263,70 @@ describe("now-timeline — mergeItems (ticks)", () => {
 
     it("renders no ticks when the read failed (null)", () => {
         expect(mergeItems({ recentMerges: null }, NOW)).toEqual([]);
+    });
+
+    it("de-collides two merges landed minutes apart — a busy merge-train lands several PRs close together", () => {
+        const merges = [
+            {
+                number: 1,
+                title: "a",
+                mergedAt: new Date(WS + 12 * HOUR_MS).toISOString(),
+            },
+            {
+                number: 2,
+                title: "b",
+                mergedAt: new Date(WS + 12 * HOUR_MS + 30_000).toISOString(),
+            },
+        ];
+        const items = mergeItems({ recentMerges: merges }, NOW);
+        expect(items[1].left - items[0].left).toBeGreaterThanOrEqual(
+            1.6 - 1e-9
+        );
+    });
+
+    it("never cascades an item PAST the right edge — a busy-enough merge-train must not render off the visible track", () => {
+        // 60 merges, all within the same second: at a fixed gap this would
+        // cascade the tail past 100% without the adaptive shrink.
+        const sameInstant = new Date(WS + 12 * HOUR_MS).toISOString();
+        const merges = Array.from({ length: 60 }, (_, i) => ({
+            number: i,
+            title: `pr ${i}`,
+            mergedAt: sameInstant,
+        }));
+        const items = mergeItems({ recentMerges: merges }, NOW);
+        for (const item of items) {
+            expect(item.left).toBeLessThanOrEqual(100);
+            expect(item.left).toBeGreaterThanOrEqual(0);
+        }
+    });
+
+    it("never collapses two items onto the identical position, even when only a TAIL cluster overflows the edge (real-data regression: several spread-out merges plus one dense cluster near 'now')", () => {
+        // Mirrors the live shape that broke a shared-ceiling clamp: most
+        // merges spread naturally across the window, then several land
+        // within seconds of each other right at the end.
+        const spread = Array.from({ length: 30 }, (_, i) => ({
+            number: i,
+            title: `pr ${i}`,
+            // Spread across the first 20 of the 24 window hours.
+            mergedAt: new Date(WS + i * 40 * 60_000).toISOString(),
+        }));
+        const denseTail = Array.from({ length: 10 }, (_, i) => ({
+            number: 1000 + i,
+            title: `pr ${1000 + i}`,
+            // The last ten seconds of the window.
+            mergedAt: new Date(NOW - i * 1000).toISOString(),
+        }));
+        const items = mergeItems(
+            { recentMerges: [...spread, ...denseTail] },
+            NOW
+        );
+        const lefts = items.map((it) => it.left).sort((a, b) => a - b);
+        const rounded = lefts.map((l) => Math.round(l * 1e6));
+        expect(new Set(rounded).size).toBe(rounded.length);
+        for (const l of lefts) {
+            expect(l).toBeGreaterThanOrEqual(0);
+            expect(l).toBeLessThanOrEqual(100);
+        }
     });
 });
 

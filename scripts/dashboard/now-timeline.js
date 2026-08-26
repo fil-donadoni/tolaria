@@ -94,6 +94,20 @@ const FALLBACK_PASS_WIDTH_MS = 600_000;
  *  track — a pass that took 30 seconds must still be findable and clickable
  *  on a 24-hour axis. */
 const MIN_ITEM_PCT = 0.6;
+/** Minimum centre-to-centre spacing between claim pins — see `deconflict`. */
+const MIN_PIN_GAP_PCT = 1.2;
+/**
+ * Minimum spacing between merge ticks — MEASURED, not guessed. A real
+ * synthetic pointer move (Playwright `page.mouse.move` to a tick's own
+ * `getBoundingClientRect()` centre — `elementFromPoint` alone can disagree
+ * with the browser's actual `:hover` target at this scale, so both were
+ * checked) landed `:hover` on a NEIGHBOUR tick, not the requested one, at
+ * 0.8% (~10px on a typical desktop track for 5px-wide ticks) on a live day
+ * with 41 merges; still wrong at 1.6%. 2% is where it held. Wider than a
+ * pin's own gap: a tick has no padding around its hit target the way a
+ * 14px circular pin does.
+ */
+const MIN_TICK_GAP_PCT = 2;
 
 /**
  * Which of the three outcomes a pass's `reason` code represents (#2631 AC:
@@ -167,6 +181,67 @@ function pct(ms, startMs, endMs) {
 }
 
 /**
+ * Push overlapping point-items apart along the axis, IN PLACE, mutating
+ * `.left` on each — measured necessary in the browser (Playwright +
+ * `scripts/ui-gate/probe.js`, driven directly because `chrome-devtools-mcp`'s
+ * shared profile was held by a concurrent session at verification time): two
+ * issues claimed 14 SECONDS apart rendered as fully overlapping 14px circles,
+ * one entirely unclickable (`elementFromPoint` at its centre returned its
+ * neighbour's glyph, never itself). A 24-hour axis cannot show second-level
+ * separation anyway, so every item keeps its OWN gap-worth of space and only
+ * ever moves RIGHT of where its raw timestamp placed it — never left of it,
+ * so a nudge can only make an item's reported time look slightly LATER than
+ * it really was, never earlier.
+ *
+ * `items` must already be sorted ascending by `.left` — callers sort a COPY
+ * for this (the de-collided objects are the SAME references the caller's own
+ * array holds, so the effect is visible there too without a second pass).
+ *
+ * Never pushes an item PAST the right edge, and never collapses two items
+ * onto the SAME position — measured BOTH failures live, in order, on the
+ * same real 40-merge day: the naive forward-only cascade first ran an
+ * item's `.left` past 100%, off the visible track entirely; a shared
+ * ceiling clamp fixed that but reproduced the identical bug one level down
+ * (the last TWO ticks landed on the exact same clamped position); a uniform
+ * leftward SHIFT of the whole cascade fixed clustering at the very end but
+ * broke on a THIRD real shape — most items spread out, then a dense cluster
+ * right before "now" — because shifting the entire array left to fix the
+ * tail has nowhere to go once the untouched HEAD is already sitting at (or
+ * near) the left edge with no slack of its own to give up.
+ *
+ * That is the general lesson: a purely LOCAL cascade (each item reacting
+ * only to its immediate predecessor) cannot always find a globally valid
+ * layout, because slack sitting unused between two clusters is invisible
+ * to it. Rather than implement full constrained isotonic placement to
+ * reclaim that slack, this falls back to something simpler and PROVABLY
+ * correct whenever the cascade cannot fit: throw away the raw positions
+ * for spacing purposes and space every item EVENLY by rank, `i * 100/n`.
+ * That is always strictly increasing (never a duplicate) and always inside
+ * [0, 100) — less faithful to the exact timestamp on a very crowded window,
+ * but an honest picture in its own right: a comb of evenly-spaced ticks IS
+ * what "too many events to place individually by time" looks like, and the
+ * ordinary (uncrowded) case never reaches this branch at all.
+ *
+ * @param {Array<{left: number}>} sortedByLeft
+ * @param {number} minGapPct
+ */
+function deconflict(sortedByLeft, minGapPct) {
+    const n = sortedByLeft.length;
+    if (n === 0) return;
+    let cursor = 0;
+    for (const item of sortedByLeft) {
+        if (item.left < cursor) item.left = cursor;
+        cursor = item.left + minGapPct;
+    }
+    if (sortedByLeft[n - 1].left > 100) {
+        const step = 100 / n;
+        sortedByLeft.forEach((item, i) => {
+            item.left = i * step;
+        });
+    }
+}
+
+/**
  * Pass blocks: `data.timelinePasses`, newest-last (mirrors the log's own
  * append order). See the module header for how a block's END is derived —
  * there is no logged one.
@@ -177,6 +252,18 @@ function pct(ms, startMs, endMs) {
 export function passItems(data, nowMs) {
     const passes = data.timelinePasses ?? [];
     const startMs = nowMs - WINDOW_MS;
+    // Passes are ALREADY chronological (`readRecentPasses`'s own append
+    // order), so placing each one's LEFT no earlier than the previous
+    // block's right edge — in this single forward pass, no separate sort —
+    // is enough to guarantee no two blocks ever overlap, even after the
+    // `MIN_ITEM_PCT` floor below has widened a very short pass past its own
+    // true end. Measured necessary: two back-to-back `died` passes rendered
+    // one fully covering the other before this (Playwright + the shared
+    // occlusion probe — see `deconflict`'s own note for why not
+    // `chrome-devtools-mcp` directly). WIDTH still reflects the real
+    // duration (`pEndMs - pStartMs`, floored); only POSITION ever shifts,
+    // and only rightward.
+    let cursor = 0;
     return passes.map((p, i) => {
         const pStartMs = p.epoch * 1000;
         const next = passes[i + 1];
@@ -184,11 +271,13 @@ export function passItems(data, nowMs) {
             ? next.epoch * 1000
             : Math.min(nowMs, pStartMs + FALLBACK_PASS_WIDTH_MS);
         const outcome = passOutcome(p.reason);
-        const left = pct(pStartMs, startMs, nowMs);
+        const rawLeft = pct(pStartMs, startMs, nowMs);
+        const left = Math.max(rawLeft, cursor);
         const width = Math.max(
-            pct(pEndMs, startMs, nowMs) - left,
+            pct(pEndMs, startMs, nowMs) - rawLeft,
             MIN_ITEM_PCT
         );
+        cursor = left + width;
         return {
             pass: p.pass,
             outcome,
@@ -219,14 +308,13 @@ export function passItems(data, nowMs) {
 export function claimItems(data, nowMs) {
     const claims = data.claims ?? [];
     const startMs = nowMs - WINDOW_MS;
-    return claims.map((c) => {
+    const items = claims.map((c) => {
         const ageMs = (Number(c.ageHours) || 0) * 3600_000;
         // A claim OLDER than the window clamps to the left edge rather than
         // falling off it — it is still held, and hiding it entirely would be
         // the exact "no signal" failure this view exists to fix.
         const takenAtMs = Math.max(nowMs - ageMs, startMs);
         const state = c.verdict?.state ?? "live";
-        const left = pct(takenAtMs, startMs, nowMs);
         return {
             issue: c.issue,
             title: c.title,
@@ -235,10 +323,19 @@ export function claimItems(data, nowMs) {
             mark: CLAIM_MARK[state] ?? "·",
             term: `claim.${state}`,
             reason: c.verdict?.reason ?? "",
-            left,
-            tailWidth: Math.max(100 - left, MIN_ITEM_PCT),
+            left: pct(takenAtMs, startMs, nowMs),
         };
     });
+    // Two claims taken moments apart otherwise render as fully overlapping
+    // circles, one entirely unclickable — see `deconflict`.
+    deconflict(
+        [...items].sort((a, b) => a.left - b.left),
+        MIN_PIN_GAP_PCT
+    );
+    for (const item of items) {
+        item.tailWidth = Math.max(100 - item.left, MIN_ITEM_PCT);
+    }
+    return items;
 }
 
 /**
@@ -251,12 +348,18 @@ export function claimItems(data, nowMs) {
 export function mergeItems(data, nowMs) {
     const merges = data.recentMerges ?? [];
     const startMs = nowMs - WINDOW_MS;
-    return merges.map((m) => ({
+    const items = merges.map((m) => ({
         number: m.number,
         title: m.title,
         mergedAt: m.mergedAt,
         left: pct(Date.parse(m.mergedAt), startMs, nowMs),
     }));
+    // A busy merge-train lands several PRs within minutes — see `deconflict`.
+    deconflict(
+        [...items].sort((a, b) => a.left - b.left),
+        MIN_TICK_GAP_PCT
+    );
+    return items;
 }
 
 function passBlockHtml(item) {

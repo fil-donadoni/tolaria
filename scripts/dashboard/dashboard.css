@@ -561,7 +561,10 @@ tbody tr:hover {
 }
 .ls-tl-track-label {
     font-size: 11px;
-    color: var(--muted);
+    /* --text-secondary, not --muted (measured 3.41:1 against --plane, below
+       WCAG AA's 4.5:1 — the SAME pre-existing gap PR #2837 already found on
+       .ls-pass/table th, not repeated here since the fix was this cheap). */
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -665,13 +668,17 @@ tbody tr:hover {
 
 /* Merge ticks — a thin vertical mark, no glyph (too narrow to hold one); the
    colour is the page's own accent, not a state hue, because a merge is
-   always the good outcome and never needs to be told apart from a bad one. */
+   always the good outcome and never needs to be told apart from a bad one.
+   5px, not 3px (measured: the shared occlusion probe's own "rendered at
+   zero size" floor is <4px in either dimension — every one of a real 42-tick
+   day scored `zero` at 3px, indistinguishable from a control that failed to
+   render at all). */
 .ls-tl-merge {
     position: absolute;
     top: 3px;
     bottom: 3px;
-    width: 3px;
-    min-width: 3px;
+    width: 5px;
+    min-width: 5px;
     border: none;
     padding: 0;
     cursor: help;
@@ -684,7 +691,8 @@ tbody tr:hover {
     justify-content: space-between;
     margin-left: 68px;
     font-size: 10px;
-    color: var(--muted);
+    /* --text-secondary — see .ls-tl-track-label's own note. */
+    color: var(--text-secondary);
 }
 
 @media (max-width: 480px) {
