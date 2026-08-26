@@ -70,7 +70,7 @@ export default function ControllerStripCommandStack({
                     type="button"
                     onClick={statusPill.onClick}
                     disabled={statusPill.disabled}
-                    className={`${PRIMARY_SLOT} truncate border border-[var(--hairline-strong)] bg-surface-base/85 text-display text-xs text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
+                    className={`${PRIMARY_SLOT} truncate border border-border-strong bg-surface-base/85 text-display text-xs text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
                 >
                     {statusPill.label}
                 </button>
@@ -94,11 +94,14 @@ export default function ControllerStripCommandStack({
                 aria-label="Pass Turn"
                 onClick={passTurn?.onClick}
                 disabled={!passTurn || passTurn.disabled}
-                // Hairline, not `danger` (ADR 0103 §3, issue #2727): passing the
-                // turn is the most routine action on the board and never
-                // deserved a warning edge. The one loud control in this stack
-                // is the ivory plate above.
-                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-[var(--hairline-strong)] bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text disabled:opacity-40"
+                // A quiet edge, not `danger` (ADR 0103 §3, issue #2727):
+                // passing the turn is the most routine action on the board and
+                // never deserved a warning edge. The one loud control in this
+                // stack is the ivory plate above. `border-strong` rather than
+                // the decorative `--hairline` pair — a control edge is bound by
+                // WCAG 1.4.11 at 3:1 (round-2 review; see `.btn-base` in
+                // `src/index.css`).
+                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-border-strong bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text disabled:opacity-40"
             >
                 <FastForward className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Pass Turn

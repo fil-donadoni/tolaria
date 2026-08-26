@@ -21,12 +21,25 @@ import DivideTargetList from "./divide-target-list";
  *  The v4 prototype showed a "2 legal" chip — the number of legal targets still
  *  on the board. That number is **not on the wire**: `PendingTarget` carries the
  *  target FILTERS (colour / subtype / power / …), never a resolved candidate
- *  list, and re-deriving it client-side would mean running the whole legality
- *  sweep over both battlefields, the stack and the graveyards on every render —
- *  a second, drifting copy of `getLegalTargets`, which is exactly the
- *  client-side-authority the board does not have (ADR 0074). What the prompt
- *  DOES know exactly is the player's progress against the requirement (CR
- *  601.2c), so that is what the chip says. Recorded deviation, issue #2727. */
+ *  list.
+ *
+ *  It is NOT barred by ADR 0074 (a round-2 review corrected this note's first
+ *  version, which claimed it was). The client already re-derives target
+ *  legality every render — `matchesTargetRequirement` +
+ *  `matchesPermanentTargetFilters` (`card-utils.ts`) are what make a card
+ *  clickable, and they run through the SAME shared filter registry the server
+ *  uses (ADR 0068), so they are not a drifting copy. ADR 0074 bars client
+ *  AUTHORITY, not a client-side display count.
+ *
+ *  The real reason the chip counts PROGRESS instead is coverage: a legal-target
+ *  count has to span players, the stack and graveyards, and the client's sweep
+ *  is permanent-only — `hasBattlefieldTargetCandidate` (`card-utils.ts`)
+ *  explicitly FAILS OPEN on `player` / `spell` / `spell-or-permanent` / `card`
+ *  and on any non-battlefield `zone`. A chip reading "2 legal" while silently
+ *  counting only one of four target spaces is worse than no chip. What the
+ *  prompt DOES know exactly, for every requirement shape, is the player's
+ *  progress against it (CR 601.2c), so that is what the chip says. Recorded
+ *  deviation, issue #2727. */
 function targetCountLabel(
     count: PendingTarget["count"],
     selected: number

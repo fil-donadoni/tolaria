@@ -170,14 +170,17 @@ export default function StackRow({
                 onPointerEnter={() => onHoverSeed(true)}
                 onPointerLeave={() => onHoverSeed(false)}
                 onClick={onSelect}
-                // v4 (ADR 0103 §5): a hairline row on the panel corner. The
-                // TOP row — the one about to resolve — is the only one that
-                // gets the stronger ivory edge, so "what happens next" is the
-                // single thing the eye lands on.
+                // v4 (ADR 0103 §5): a quiet row on the panel corner. The TOP
+                // row — the one about to resolve — is the only one that gets
+                // the ivory accent edge, so "what happens next" is the single
+                // thing the eye lands on. The row is a targetable BUTTON, so
+                // its resting edge is `border-strong` (WCAG 1.4.11's 3:1 for a
+                // control boundary), not the decorative `--hairline` pair
+                // (round-2 review; `.btn-base` in `src/index.css`).
                 className={`flex w-full gap-3 rounded-[var(--panel-radius)] border p-2 text-left ${
                     isTop
                         ? "border-accent/50 bg-accent-soft/40"
-                        : "border-[var(--hairline)]"
+                        : "border-border-strong"
                 } ${
                     isTargetable
                         ? "cursor-pointer ring-2 ring-signal-target/60 hover:ring-signal-target-strong"

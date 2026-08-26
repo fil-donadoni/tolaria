@@ -13,13 +13,20 @@ import {
  *  ellipsises the label — so it can never push Pass Turn off-screen. */
 const CENTRE_SLOT = "h-11 min-w-[11rem] rounded-full px-6";
 
-/** The quiet siblings of the ivory plate (ADR 0103 §3, issue #2727): a
- *  hairline edge over the base surface. Pass Turn used to be a `danger`-edged
- *  circle, which read as a warning for the single most routine action on the
- *  board; in v4 it is a hairline, and the one loud control in the row is the
- *  plate. */
-const HAIRLINE_PILL =
-    "border border-[var(--hairline-strong)] bg-surface-base/85 backdrop-blur-md";
+/** The quiet siblings of the ivory plate (ADR 0103 §3, issue #2727): a 1px
+ *  edge over the base surface. Pass Turn used to be a `danger`-edged circle,
+ *  which read as a warning for the single most routine action on the board;
+ *  in v4 it is a plain edge, and the one loud control in the row is the plate.
+ *
+ *  `border-strong`, NOT the decorative `--hairline` pair the ADR's prose calls
+ *  these (round-2 review, and the same call PR #2827 made for `.btn-base` /
+ *  `.segment-pill`): `--hairline-strong` is ivory/30 = 2.37:1 on `surface`,
+ *  under WCAG 1.4.11's 3:1 for a CONTROL boundary, and this edge is the only
+ *  thing bounding the pill. `--color-border-strong` is 3.38:1 and reads the
+ *  same at a glance. Panels, dividers and plaques — decoration — keep the
+ *  translucent pair. See `src/index.css` around `.btn-base`. */
+const EDGE_PILL =
+    "border border-border-strong bg-surface-base/85 backdrop-blur-md";
 
 /** The command row floating above the portrait tab bar (variant D, #1759).
  *
@@ -87,7 +94,7 @@ export default function ControllerCommandRow({
                         type="button"
                         onClick={statusPill.onClick}
                         disabled={statusPill.disabled}
-                        className={`${CENTRE_SLOT} ${HAIRLINE_PILL} flex items-center justify-center truncate text-display text-sm text-text-muted shadow-lg disabled:opacity-70`}
+                        className={`${CENTRE_SLOT} ${EDGE_PILL} flex items-center justify-center truncate text-display text-sm text-text-muted shadow-lg disabled:opacity-70`}
                     >
                         {statusPill.label}
                     </button>
@@ -109,7 +116,7 @@ export default function ControllerCommandRow({
                     aria-label="Pass Turn"
                     onClick={passTurn?.onClick}
                     disabled={!passTurn || passTurn.disabled}
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${HAIRLINE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
                 >
                     <FastForward className="h-4 w-4" aria-hidden />
                 </button>

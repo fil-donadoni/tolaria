@@ -215,7 +215,15 @@ function PanelHeader({
                         onClick={onToggleCollapse}
                         aria-label={collapsed ? "Expand" : "Collapse"}
                         aria-expanded={!collapsed}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-[var(--hairline-strong)] text-text-muted transition-colors hover:text-parchment"
+                        // `border-strong`, not the panel's decorative
+                        // `--hairline` pair: this is a CONTROL edge and WCAG
+                        // 1.4.11 binds it at 3:1 (ivory/30 is 2.37:1 on
+                        // `surface`) — the same call `.btn-base` /
+                        // `.segment-pill` / `Input` already make. Found by the
+                        // `control-edge-usage` sweep added in issue #2727
+                        // round 2; the PANEL's own frame beside it is
+                        // decoration and keeps the hairline.
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-strong text-text-muted transition-colors hover:text-parchment"
                     >
                         {collapsed ? (
                             <ChevronDown className="h-3 w-3" />

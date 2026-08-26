@@ -787,7 +787,25 @@ export default function CardsPile({
                 unreachable, and rendering it would duplicate every card image. */}
             {!forceOpen && (!controlled || hasContextMenu) && (
                 <div
-                    className="cursor-pointer"
+                    // `relative ${PILE_TILE_BOX}` (round-2 review fixup,
+                    // issue #2727): the count badge below is positioned
+                    // against THIS element, so it has to be both positioned
+                    // AND the size of a tile. Every in-flow child here is
+                    // `absolute`, so without a box of its own this wrapper —
+                    // and the caller's `relative` wrapper above it — measure
+                    // ZERO height, and `-bottom-1.5` then resolves against a
+                    // zero-height line at the TOP of the tile: measured in
+                    // headless Chrome, the badge landed at y=106..126 against
+                    // a tile occupying y=120..200, i.e. 14 of its 20px above
+                    // the thumb (at the board's top edge on the opponent
+                    // rail). Layout-neutral: the grandparent
+                    // (`player-graveyard.tsx` et al.) is already exactly
+                    // `w-(--card-w-sm) aspect-5/7`, so filling it changes no
+                    // band and no rail geometry — it only gives the absolute
+                    // children the containing block they always meant to
+                    // resolve against. Guarded by `cards-pile.test.tsx` §
+                    // "the count badge's containing block is a full tile box".
+                    className={`cursor-pointer relative ${PILE_TILE_BOX}`}
                     // `hasContextMenu` — no handler at all, so the click
                     // bubbles untouched to the ancestor's `ContextMenuTrigger`
                     // (see the prop doc). Opening the browse dialog is then
@@ -810,11 +828,13 @@ export default function CardsPile({
                                 The ivory pill is the one opaque element on the
                                 tile, per §3, and `pointer-events-none` keeps
                                 the whole tile a single click target for the
-                                browse dialog. Anchored against the CALLER's
-                                `relative` wrapper — the same positioned
-                                ancestor the absolutely-placed pile cards above
-                                resolve against — so it costs the tile no
-                                layout of its own. */}
+                                browse dialog. Anchored against the wrapper
+                                right above — a `relative` element sized to a
+                                full `PILE_TILE_BOX`, the same positioned
+                                ancestor the absolutely-placed pile cards
+                                resolve against — so the pill sits on the
+                                tile's bottom-right corner and costs the tile
+                                no layout of its own. */}
                             <span
                                 data-pile-count
                                 aria-hidden

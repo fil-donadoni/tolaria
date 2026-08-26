@@ -72,16 +72,19 @@ export default function PileChip({
                       // cell's real width evenly, and `min-w-11` (44px) is a
                       // hard floor of its own so the guarantee never depends
                       // solely on the cell staying wide enough.
-                      // v4 (ADR 0103 §3/§5, issue #2727): a hairline chip
-                      // whose count is the ONE ivory element — the number is
-                      // what a player scans a zone chip for.
-                      `flex min-h-11 min-w-11 ${grow ? "flex-1 " : ""}flex-col items-center justify-center gap-0.5 rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-0.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-text-muted transition-colors hover:text-text active:bg-surface`
+                      // v4 (ADR 0103 §3/§5, issue #2727): a quiet chip whose
+                      // count is the ONE ivory element — the number is what a
+                      // player scans a zone chip for. The chip is a BUTTON, so
+                      // its edge is `border-strong` (WCAG 1.4.11, 3:1) and not
+                      // the decorative `--hairline` pair the ADR's prose names
+                      // (round-2 review; `.btn-base` in `src/index.css`).
+                      `flex min-h-11 min-w-11 ${grow ? "flex-1 " : ""}flex-col items-center justify-center gap-0.5 rounded-sm border border-border-strong bg-surface-elevated px-0.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-text-muted transition-colors hover:text-text active:bg-surface`
                     : // `min-h-11 min-w-14` (#1770 mobile QA sweep touch-target
                       // audit): the chip's own label + count text sat well
                       // under the 44px floor (~py-1 + a 10px line ≈ 24-26px
                       // tall). A floor, not a fixed size, so a longer
                       // count/label keeps growing outward.
-                      "flex min-h-11 min-w-14 items-center justify-center gap-1.5 rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-2 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-text-muted transition-colors hover:text-text active:bg-surface"
+                      "flex min-h-11 min-w-14 items-center justify-center gap-1.5 rounded-sm border border-border-strong bg-surface-elevated px-2 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-text-muted transition-colors hover:text-text active:bg-surface"
             }
         >
             <span className="max-w-full truncate">{label}</span>

@@ -29,10 +29,15 @@ export const CONTROLLER_PRIMARY_TONE: Record<ControllerActionTone, string> = {
         "border border-danger/60 bg-surface-base/90 text-danger-strong backdrop-blur-md",
 };
 
-/** Side pills — everything the centre slot did not take. A hairline edge on the
+/** Side pills — everything the centre slot did not take. A 1px edge on the
  *  base surface in both tones: a side pill is never the recommended move, so it
- *  never gets the plate. */
+ *  never gets the plate.
+ *
+ *  These land on a `<button>`, so `primary` uses `border-strong` rather than
+ *  the decorative `--hairline` pair: WCAG 1.4.11 binds a control boundary at
+ *  3:1 and `--hairline-strong` is 2.37:1 on `surface` (round-2 review; same
+ *  call `.btn-base` / `.segment-pill` make in `src/index.css`). */
 export const CONTROLLER_SECONDARY_TONE: Record<ControllerActionTone, string> = {
-    primary: "border-[var(--hairline-strong)] bg-surface-base/85 text-text",
+    primary: "border-border-strong bg-surface-base/85 text-text",
     destructive: "border-danger/50 bg-surface-base/85 text-danger-strong",
 };

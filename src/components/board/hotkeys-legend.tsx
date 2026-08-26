@@ -31,7 +31,7 @@ export default function HotkeysLegend() {
     return (
         <Popover>
             <PopoverTrigger
-                className="hidden rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated p-2 text-sm text-text-muted shadow-lg transition-colors hover:text-text md:inline-flex"
+                className="hidden rounded-sm border border-border-strong bg-surface-elevated p-2 text-sm text-text-muted shadow-lg transition-colors hover:text-text md:inline-flex"
                 aria-label="Show hotkeys"
             >
                 <Keyboard className="w-4 h-4" />

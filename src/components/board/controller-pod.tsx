@@ -43,7 +43,9 @@ export default function ControllerPod({
             // v4 (ADR 0103 §5, issue #2727): a HAIRLINE plate, not a heavy
             // rounded box with a seat-coloured frame. The turn-ownership
             // signal moves to the strip below and to the pill inside — the
-            // frame itself is quiet, which is the whole register.
+            // frame itself is quiet, which is the whole register. The pod is a
+            // panel, not a control, so it genuinely takes the decorative
+            // `--hairline` pair; the BUTTONS inside it do not (round-2 review).
             className={`fixed bottom-32 right-4 z-hud flex w-52 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
         >
             {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
@@ -71,7 +73,7 @@ export default function ControllerPod({
                 onClick={() => setExpanded((v) => !v)}
                 aria-expanded={expanded}
                 aria-label="Toggle phase list"
-                className="flex cursor-pointer items-center gap-2 rounded-sm border border-[var(--hairline)] bg-surface-elevated px-2.5 py-2 text-left transition-colors hover:border-[var(--hairline-strong)]"
+                className="flex cursor-pointer items-center gap-2 rounded-sm border border-border-strong bg-surface-elevated px-2.5 py-2 text-left transition-colors hover:border-accent/60"
             >
                 {/* Eyebrow TURN over the display-face phase (ADR 0103 §4):
                     the small uppercase label says which turn and which group,
@@ -103,7 +105,7 @@ export default function ControllerPod({
                                 type="button"
                                 onClick={action.onClick}
                                 disabled={action.disabled}
-                                className="rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
+                                className="rounded-sm border border-border-strong bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
                             >
                                 {action.label}
                             </button>
