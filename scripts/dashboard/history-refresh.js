@@ -16,12 +16,13 @@ const termLabel = (name) => labelFor(name, state.table);
  * History's orchestrator (#2625): one function that turns the current `state`
  * slice into the four chart cards plus the three narrative cards.
  *
- * It writes `#ts-title`, `#rank-title`, `#rank-sub` and `#tbl-sub` itself,
- * BEFORE awaiting the queries, so the headings/subtitles update even when the
- * query then fails, or before first paint — the behaviour today, and the
- * reason those four ids did not move into the chart modules with the rest of
- * their cards. `#ts-sub` is the one exception, written by `renderTimeSeries`:
- * it depends on whether the metric stacks, which only that function knows.
+ * It writes `#ts-title`, `#rank-title`, `#rank-sub`, `#tbl-sub`, `#fam-title`
+ * and `#fam-sub` itself, BEFORE awaiting the queries, so the
+ * headings/subtitles update even when the query then fails, or before first
+ * paint — the behaviour today, and the reason those ids did not move into
+ * the chart modules with the rest of their cards. `#ts-sub` is the one
+ * exception, written by `renderTimeSeries`: it depends on whether the metric
+ * stacks, which only that function knows.
  *
  * Titles and the ranking/table subtitles are glossary-sourced (#2633): the
  * metric and split names render their human label, never the raw column
@@ -30,7 +31,15 @@ const termLabel = (name) => labelFor(name, state.table);
  * `#tbl-sub`, ahead of the per-query "Top 18, descending." /
  * "Click a header to sort." detail. Every card carries a subtitle even on a
  * query failure — that is the acceptance criterion this file exists to meet,
- * and why none of these four writes waits on the `try`.
+ * and why none of these writes waits on the `try` (or, for the Family × role
+ * pivot, on `renderNarrative()`'s three awaited fetches — #2634 review
+ * finding 2: that card's title/subtitle are static glossary copy with no
+ * dependency on fetched data, so writing them from inside `renderNarrative()`
+ * only meant a failed `/api` read left the card with no subtitle at all).
+ * `getElementById` is null-guarded here only (unlike the other four writes)
+ * because `history-filters.test.ts`'s wiring test drives `refresh()` through
+ * a real `change` event with a deliberately partial fixture DOM that has
+ * never included `#fam-title`/`#fam-sub`.
  *
  * Nothing here mutates `state`; it only reads it.
  */
@@ -49,6 +58,10 @@ export async function refresh() {
         `${lookupTerm("card.ranking").tip} Top 18, descending.`;
     document.getElementById("tbl-sub").textContent =
         `${lookupTerm("card.table").tip} Click a header to sort.`;
+    const famTitle = document.getElementById("fam-title");
+    if (famTitle) famTitle.textContent = lookupTerm("card.family-role").label;
+    const famSub = document.getElementById("fam-sub");
+    if (famSub) famSub.textContent = lookupTerm("card.family-role").tip;
 
     try {
         // Seed before rendering: the first paint must already use

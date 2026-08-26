@@ -233,15 +233,15 @@ export const GLOSSARY = {
     // ─────────────────────────────────────────────────────────────────────
     "claim.live": {
         label: "live",
-        tip: "Someone is plausibly still on it: the evidence on disk and on the remote is consistent with work in flight. Rendered as ·",
+        tip: "Someone is plausibly still on it: the evidence on disk and on the remote is consistent with work in flight.",
     },
     "claim.orphan": {
         label: "orphan",
-        tip: "The claim is stale with nothing to show for it — no worktree, no branch, no PR — so the issue is held out of the queue by a run that is gone. Rendered as ×",
+        tip: "The claim is stale with nothing to show for it — no worktree, no branch, no PR — so the issue is held out of the queue by a run that is gone.",
     },
     "claim.suspect": {
         label: "suspect",
-        tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically. Rendered as ?",
+        tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically.",
     },
 
     // ─────────────────────────────────────────────────────────────────────
@@ -361,6 +361,75 @@ export const GLOSSARY = {
         label: "work family",
         tip: "The kind of work the issue was, grouped so unlike things are not averaged together.",
     },
+    latency_min: {
+        label: "wall-clock latency",
+        tip: "Minutes from the first run's start to the last run's end for this issue — elapsed time start to finish, not the role minutes summed (which overlap when agents run in parallel).",
+    },
+    out_tok: {
+        label: "output tokens",
+        tip: "Tokens generated across every run attributed to this row.",
+    },
+    cost: {
+        label: "total cost",
+        tip: "Every dollar attributed to this row, every role summed.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History Issues/Sessions tables — columns with no other qualified home
+    // (#2634). `issue`/`first_ts`/`state` are Issues-only; `cmd`/`t0`/`issues`/
+    // `prs` are Sessions-only; `issues` doubles for the Family pivot's own
+    // issue-count column.
+    // ─────────────────────────────────────────────────────────────────────
+    issue: {
+        label: "issue",
+        tip: "The GitHub issue number and title this row rolls up every agent run against.",
+    },
+    first_ts: {
+        label: "date",
+        tip: "Calendar date of the first agent activity recorded against this issue.",
+    },
+    state: {
+        label: "state",
+        tip: "Whether the GitHub issue itself is open or closed — independent of whether its branch or PR work finished.",
+    },
+    cmd: {
+        label: "command",
+        tip: "The command line the session ran under — the AFK loop, /process-gh-issues, a manual invocation — truncated to fit.",
+    },
+    t0: {
+        label: "start",
+        tip: "When the session's first recorded event happened, local time.",
+    },
+    issues: {
+        label: "issues",
+        tip: "How many distinct GitHub issues are rolled up into this row.",
+    },
+    prs: {
+        label: "PRs opened",
+        tip: "How many pull requests this session opened, whether or not they went on to merge.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Family × role pivot — the role names double as column headers, each
+    // with its own tooltip rather than the one generic `role` dimension tip
+    // repeated four times (#2634).
+    // ─────────────────────────────────────────────────────────────────────
+    "role.implement": {
+        label: "implement",
+        tip: "The subagent wrote the actual code or content for the issue — the run whose diff becomes the pull request.",
+    },
+    "role.review": {
+        label: "review",
+        tip: "The subagent reviewed a pull request against this repo's standards and the issue's own spec before it could land.",
+    },
+    "role.fixup": {
+        label: "fixup",
+        tip: "The subagent re-opened rejected work after a review came back blocking — time an issue cost beyond its first implementation.",
+    },
+    "role.support": {
+        label: "support",
+        tip: "Work spawned in service of the issue that carries no named role of its own — investigators, mapping runs, research.",
+    },
 
     // ─────────────────────────────────────────────────────────────────────
     // History card subtitles (#2633) — the one-line question each chart
@@ -380,6 +449,50 @@ export const GLOSSARY = {
     "card.table": {
         label: "Table",
         tip: "Every metric for the current slice, side by side.",
+    },
+    "card.family-role": {
+        label: "Agent family × role",
+        tip: "How cost splits across the agent families and the role each run played.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History Sessions table — the title column's own term (#2634 review).
+    // The bare `session` dimension entry above says the session id is
+    // "deliberately absent from the filter pickers" — true of the general
+    // dimension picker, but this table DOES offer a title/command/id search
+    // box next to it, so reusing that tip here would mislead. This column
+    // gets its own entry instead of qualifying `session`.
+    // ─────────────────────────────────────────────────────────────────────
+    "history.session-title": {
+        label: "session",
+        tip: "The session's title, or its id truncated when it never got one. Searchable via the search box next to this table.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History table empty states (#2634 review) — every sentence a table
+    // shows when it has nothing to render is glossary-sourced too, not a
+    // literal hardcoded in the table module, so "all text comes from the
+    // glossary" holds for empty-state copy as well as headers.
+    // ─────────────────────────────────────────────────────────────────────
+    "empty.issues.filtered": {
+        label: "no issues match",
+        tip: "No issues match the selected family, tier, state or search text.",
+    },
+    "empty.issues.none": {
+        label: "no issue activity",
+        tip: "No agent activity is recorded against any issue in the selected date range.",
+    },
+    "empty.sessions.filtered": {
+        label: "no sessions match",
+        tip: "No sessions match the selected command filter or search text.",
+    },
+    "empty.sessions.none": {
+        label: "no session activity",
+        tip: "No sessions ran in the selected date range.",
+    },
+    "empty.families.none": {
+        label: "no family activity",
+        tip: "No agent activity is recorded against any issue family in the selected date range.",
     },
 };
 

@@ -1,24 +1,33 @@
-import { esc, fmtDur, fmtUsd } from "./format.js";
+import { esc, fmtDur, fmtUsd, fmtMin } from "./format.js";
 import { toggleDrill } from "./history-drilldown.js";
+import { labelFor, lookupTerm } from "./glossary.js";
 
 /**
  * The Sessions card (#2625) — same sort + filter treatment as Issues.
  * Owns `#sessions-tbl`, `#sessions-filters` and `sesState`, which is
  * module-private: rows enter only through `setSessionRows()`.
+ *
+ * `term` overrides `key` for the glossary lookup when the two names diverge
+ * ("title" renders the glossary's own "history.session-title" entry, not the
+ * bare `session` dimension entry — that one's tip says the id is
+ * "deliberately absent from the filter pickers", which is misleading here
+ * since this table DOES offer a title/command/id search box, #2634 review);
+ * every other column's term IS its key. `key` alone drives sorting (#2634)
+ * — see the identical note in `history-issues-table.js`.
  */
-const SESSION_COLS = [
-    { key: "title", label: "session" },
-    { key: "cmd", label: "command" },
-    { key: "t0", label: "start", num: true },
-    { key: "wall_min", label: "wall", num: true },
-    { key: "impl_min", label: "impl '", num: true },
-    { key: "rev_min", label: "rev '", num: true },
-    { key: "fix_min", label: "fix '", num: true },
-    { key: "other_min", label: "other '", num: true },
-    { key: "issues", label: "issues", num: true },
-    { key: "prs", label: "PRs", num: true },
-    { key: "orch_cost", label: "orch $", num: true },
-    { key: "cost", label: "total $", num: true },
+export const SESSION_COLS = [
+    { key: "title", term: "history.session-title" },
+    { key: "cmd" },
+    { key: "t0", num: true },
+    { key: "wall_min", num: true },
+    { key: "impl_min", num: true },
+    { key: "rev_min", num: true },
+    { key: "fix_min", num: true },
+    { key: "other_min", num: true },
+    { key: "issues", num: true },
+    { key: "prs", num: true },
+    { key: "orch_cost", num: true },
+    { key: "cost", num: true },
 ];
 
 const sesState = {
@@ -52,7 +61,7 @@ function sessionCell(col, r) {
         case "rev_min":
         case "fix_min":
         case "other_min":
-            return `<td>${v ? Math.round(v) + "'" : "<span class='mini'>—</span>"}</td>`;
+            return `<td>${fmtMin(v)}</td>`;
         case "prs": {
             const prs = r.prs ? JSON.parse(r.prs) : [];
             return `<td title="${prs.join(", ")}">${prs.length}</td>`;
@@ -64,6 +73,14 @@ function sessionCell(col, r) {
         default:
             return `<td>${esc(v ?? "—")}</td>`;
     }
+}
+
+/** An empty state is a sentence, never a blank box (#2634): distinguishes
+ *  "no sessions in range" from "filters hid all of them". */
+function sessionsEmptyMessage() {
+    return sesState.rows.length
+        ? lookupTerm("empty.sessions.filtered").tip
+        : lookupTerm("empty.sessions.none").tip;
 }
 
 export function renderSessionsTable() {
@@ -89,22 +106,24 @@ export function renderSessionsTable() {
     const stbl = document.getElementById("sessions-tbl");
     const arrow = (c) =>
         c.key === sesState.sort ? (sesState.dir === -1 ? " ↓" : " ↑") : "";
-    stbl.innerHTML =
-        `<thead><tr>` +
+    const headRow =
+        `<tr>` +
         SESSION_COLS.map(
             (c) =>
-                `<th class="sortable" data-key="${c.key}">${c.label}${arrow(c)}</th>`
+                `<th class="sortable" data-key="${c.key}" data-term="${c.term ?? c.key}">${labelFor(c.term ?? c.key)}${arrow(c)}</th>`
         ).join("") +
-        `</tr></thead><tbody>` +
-        rows
-            .map(
-                (r) =>
-                    `<tr class="expand" data-session="${esc(r.session)}">` +
-                    SESSION_COLS.map((c) => sessionCell(c, r)).join("") +
-                    `</tr>`
-            )
-            .join("") +
-        `</tbody>`;
+        `</tr>`;
+    const bodyHtml = rows.length
+        ? rows
+              .map(
+                  (r) =>
+                      `<tr class="expand" data-session="${esc(r.session)}">` +
+                      SESSION_COLS.map((c) => sessionCell(c, r)).join("") +
+                      `</tr>`
+              )
+              .join("")
+        : `<tr><td colspan="${SESSION_COLS.length}"><div class="ls-empty">${esc(sessionsEmptyMessage())}</div></td></tr>`;
+    stbl.innerHTML = `<thead>${headRow}</thead><tbody>${bodyHtml}</tbody>`;
     stbl.querySelectorAll("th.sortable").forEach((th) =>
         th.addEventListener("click", () => {
             const k = th.dataset.key;
