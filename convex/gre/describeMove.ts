@@ -132,12 +132,11 @@ export function describeMove(move: Move, state: GameState): string {
             const alt = move.alternativeCostId
                 ? ` [${move.alternativeCostId}]`
                 : "";
-            // CR 702.33 / 702.27a (issue #2081) — surface which Kicker(s) /
-            // Buyback this variant pays, the same "distinguish the variant in
-            // the trace" treatment `alt` gets above: two `cast-spell` moves
-            // for the same card that differ only in `kickerPayments` must read
-            // as different lines, or a blade/trace reader cannot tell which
-            // one the bot picked.
+            // CR 702.33 Kicker / CR 702.27a Buyback (issue #2081) — surface
+            // which of these this variant pays: two `cast-spell` moves for the
+            // same card that differ only in `kickerPayments`/`buybackPaid`
+            // must read as different lines, or a blade/trace reader cannot
+            // tell which one the bot picked.
             const kicker = move.kickerPayments
                 ? ` [kicker:${Object.entries(move.kickerPayments)
                       .map(([id, n]) => `${id}=${n}`)

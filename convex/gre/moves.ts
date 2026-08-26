@@ -330,7 +330,7 @@ export type Move =
           tapPlan: ManaTap[];
           /** CR 107.4f / 702.33a — total life paid for this cast: Phyrexian
            *  pips ({C/P}) chosen to be paid with life (2 per pip) plus any paid
-           *  Kicker's LIFE leg (CR 118.4). The mana-paid pips are already
+           *  Kicker's LIFE leg (CR 119.4). The mana-paid pips are already
            *  folded into `tapPlan`. Absent / 0 when neither applies. Deducted
            *  in `applyMove`. */
           payLife?: number;
@@ -1511,7 +1511,7 @@ function enumerateCastMoves(
             // amount; a Phyrexian split (below) can only add to it, and no
             // shipped card combines the two.
             //
-            // CR 702.33a / 118.4 (issue #2081) — a paid Kicker's LIFE leg
+            // CR 702.33a / 119.4 (issue #2081) — a paid Kicker's LIFE leg
             // (Phyrexian Scuta's "pay 3 life") joins the same total; no
             // shipped card combines a life-leg Kicker with either of the
             // replacements above.

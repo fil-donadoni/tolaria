@@ -284,8 +284,8 @@ export function applyKickerPermanentLegForSearch(
     payments: KickerPayments | undefined
 ): void {
     if (!payments) return;
-    // CR 701.21 / 400.7 / 702.33a — the permanent leg(s): sacrifice or return,
-    // picked cheapest-first. `enumerateKickerVariants` already confirmed
+    // CR 701.21 / 400.7 — the permanent leg(s): sacrifice or return, picked
+    // cheapest-first. `enumerateKickerVariants` already confirmed
     // enough DISTINCT matching permanents exist (`canPayKickerLegs` →
     // `canAffordCostLegsPermanents`), so `completeSacrificeSelection` should
     // always resolve; the `if (picked)` guard is defence in depth only, never

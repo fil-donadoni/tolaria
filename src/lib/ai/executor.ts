@@ -75,8 +75,8 @@ export type MoveMutations = {
              *  cast the search never evaluated — the bot-freeze shape this
              *  issue exists to close for Kicker. */
             kickerPayments?: Record<string, number>;
-            /** CR 702.27 (issue #2081) — whether the search paid this spell's
-             *  Buyback cost (the extra mana already rides on `tapPlan`). */
+            /** CR 702.27 Buyback (issue #2081) — whether the bot paid this
+             *  cost (the extra mana already rides on `tapPlan`). */
             buyback?: boolean;
         }
     ) => Promise<unknown>;
