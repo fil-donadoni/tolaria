@@ -23,9 +23,10 @@
 // protection as a CR 702.16k gap; both were stale. Current disposition of
 // the stubs below, each carrying its own owner:
 //
-//   FREED — no engine work left, ships with #2761:
-//     Faerie Squadron (the "grantAbility needs a duration" claim was wrong;
-//     omitting `duration` grants indefinitely, CR 611.2b / issue #1746)
+//   SHIPPED by #2761: Faerie Squadron is no longer a stub — see its active
+//   `CardDefinition` below (the old "grantAbility needs a duration" claim was
+//   wrong; the actual fix is a `wasKicked`-gated `keyword-grant`, CR 611.2b /
+//   614.1c).
 //
 //   OWNED BY A CAPABILITY ISSUE:
 //     Crystal Spray      -> #2763  one-shot text-changing Op (CR 612)
@@ -937,27 +938,63 @@ export const dreamThrush: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// Faerie Squadron — "Kicker {3}{U}. If this creature was kicked, it enters
-// with two +1/+1 counters on it and with flying." The counters clause IS now
-// expressible: `resolveEntersWithCounters` sums same-type entries, so two
-// `{ count: "kicker" }` rows yield 2 when kicked and none otherwise (issue
-// #1693; Vodalian Serpent above uses four such rows).
+// Faerie Squadron — {U} Creature — Faerie, 1/1. "Kicker {3}{U}. If this
+// creature was kicked, it enters with two +1/+1 counters on it and with
+// flying." The counters clause IS now expressible: `resolveEntersWithCounters`
+// sums same-type entries, so two `{ count: "kicker" }` rows yield 2 when
+// kicked and none otherwise (issue #1693; Vodalian Serpent above uses four
+// such rows).
 //
-// FREED 2026-08-25 (#1841 audit): the old marker said the flying clause
-// "needs a PERMANENT (non-duration) ability grant on a conditional ETB —
-// `grantAbility`'s `duration` is mandatory and `grantStaticAbilityPermanent`
-// has no Op wrapper". WRONG on both halves. `duration` on the `grantAbility`
-// Op is OPTIONAL and omitting it means INDEFINITE (CR 611.2b, issue #1746);
-// the interpreter routes an omitted duration to `grantStaticAbilityPermanent`
-// directly. Same correction applies to Kavu Titan (`inv/green.ts`).
-// tracked-by: #2761
-// export const faerieSquadron: CardDefinition = {
-//     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
-//     name: "Faerie Squadron",
-//     rarity: "common",
-//     manaCost: { U: 1 },
-//     types: ["Creature"],
-// };
+// FREED 2026-08-25 (#1841 audit, shipped by #2761): the old marker said the
+// flying clause "needs a PERMANENT (non-duration) ability grant on a
+// conditional ETB — `grantAbility`'s `duration` is mandatory and
+// `grantStaticAbilityPermanent` has no Op wrapper". WRONG on both halves —
+// but the CORRECT fix is not the `grantAbility` Op on a conditional ETB
+// TRIGGER either: CR 614.1c/614.12 makes "if this creature was kicked, it
+// enters with ... and with flying" ONE replacement effect governing how the
+// object enters, exactly like the counters half (already `entersWith.counters`,
+// a replacement, NOT a `PERMANENT_ENTERED` trigger carrying a `counters` Op —
+// that shape is a bug, issue #1693). An `enteredTrigger` granting flying would
+// reopen the identical bug for the keyword: a window where the creature is on
+// the battlefield without flying before the trigger resolves. The
+// already-shipped, CR-exact, and simpler fix is Pouncing Kavu's OWN template
+// (`inv/red.ts`, issue #1716): a `staticEffects` `keyword-grant` gated on
+// `CardInstanceState.wasKicked` — a one-shot fact fixed at CR 614.1c ETB
+// replacement time, materialized into `staticAbilities` continuously, no stack
+// window. Same correction applies to Kavu Titan (`inv/green.ts`).
+export const faerieSquadron: CardDefinition = {
+    id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
+    name: "Faerie Squadron",
+    rarity: "common",
+    oracleText:
+        "Kicker {3}{U} (You may pay an additional {3}{U} as you cast this spell.)\nIf this creature was kicked, it enters with two +1/+1 counters on it and with flying.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Faerie"],
+    power: 1,
+    toughness: 1,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {3}{U}",
+            mana: { X: 3, U: 1 },
+        },
+    ],
+    entersWith: {
+        counters: [
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.id && target.wasKicked === true,
+            keyword: "flying",
+        },
+    ],
+};
 
 // Mana Maze — "Players can't cast spells that share a color with the spell
 // most recently cast this turn." No game-state field tracks the most

@@ -400,11 +400,11 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             expect(liveHitsUsingThisSyntax).toEqual([]);
         });
 
-        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — repointed to #2494 (Fear of Missing Out's attack trigger), and, once the #1841 audit retired that orphan bucket, to its successor slices #2761 (Silence — freed) and #2766 (Shifting Woodland's delirium copy)", () => {
+        it("dsk/red.ts and mh3/colorless.ts no longer name the closed #691 anywhere — repointed to #2494 (Fear of Missing Out's attack trigger) and #2766 (Shifting Woodland's delirium copy); the THIRD successor slice, #2761 (Silence — freed), shipped and its marker was deleted outright rather than re-pointed, per Guard B's own rule that a marker is deleted, never left to rot, once its blocker is gone", () => {
             const hits = scanRepoMarkers(readSources()).filter((m) =>
                 /dsk\/red\.ts|mh3\/colorless\.ts/.test(m.file)
             );
-            expect(hits.length).toBeGreaterThanOrEqual(3);
+            expect(hits.length).toBeGreaterThanOrEqual(2);
             for (const h of hits) {
                 expect(h.issueNumbers).not.toContain(691);
                 // The bucket this census used to pin was #1841, retired as
@@ -415,7 +415,11 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             }
             const allNumbers = new Set(hits.flatMap((h) => h.issueNumbers));
             expect(allNumbers.has(2494)).toBe(true);
-            expect(allNumbers.has(2761)).toBe(true);
+            // #2761 shipped (Silence moved to `m10/white.ts`) — its marker
+            // paragraph in dsk/red.ts is GONE, not re-pointed, so it must NOT
+            // still show up here; a lingering hit would mean the delete
+            // failed or a duplicate marker was left behind.
+            expect(allNumbers.has(2761)).toBe(false);
             expect(allNumbers.has(2766)).toBe(true);
         });
     });

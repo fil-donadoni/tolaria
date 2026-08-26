@@ -1736,9 +1736,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // with `bun scripts/migration-classifier.mjs`: total 472->473,
         // FREE 317->318, AFK-ready 308->309; X-only and Op-blocked unchanged.
         // Partition: 318+15+140=473.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
+        //
+        // Issue #2761 ships Ancient Cornucopia (big/green.ts, a NEW `resolve()`
+        // triggered ability — the life-gain amount reads the firing spell's
+        // live colour count, which no `EffectValue` grammar member exposes,
+        // `SPELL_CAST` having no `EVENT_FIELD_REGISTRY` row yet, #2066 open)
+        // and Rooting Kavu (inv/green.ts, also a NEW `resolve()` — its "you
+        // may exile it" reads the DYING creature's own LKI, unreachable from
+        // `effects[]`). Both are FREE (the clause-mapper sees only already-Op
+        // ctx calls: `requestMayPay`/`gainLife`, `requestMayPay`/`moveCardById`
+        // /`shuffleLibrary`) and both ship with a per-card test, so both land
+        // in AFK-ready. Gravebind (ice/black.ts) migrates the OTHER way,
+        // resolve()→effects[], removing one closure. Net: total 473->474, FREE
+        // 318->319, AFK-ready 309->310; X-only and Op-blocked unchanged.
+        // Partition: 319+15+140=474.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });

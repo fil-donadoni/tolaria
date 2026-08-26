@@ -353,23 +353,58 @@ export const loreholdCharm: CardDefinition = {
 
 // Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
 // spell, pay X life. Destroy all artifacts and creatures with mana value X or
-// less." (CR 118.4 / 119.4 pay-X-life additional cost — already shipped via
+// less." (CR 118.4 / 119.4 pay-X-life additional cost, already shipped via
 // `additionalCosts.payXLife`, Fire Covenant.)
 //
-// FREED 2026-08-25 (#1841 audit): the old wording claimed
+// FREED 2026-08-25 (#1841 audit, shipped by #2761): the old wording claimed
 // `EffectCardFilter.manaValueAtMost` is a FIXED literal ceiling with no
-// dynamic (chosen-X) form. That is WRONG at HEAD — the field is
-// `number | EffectXValue`, and `manaValueAtMost: { X: true }` is the dynamic
-// chosen-X ceiling, shipped and in use at `convex/cards/sets/mbs/green.ts`.
-// Nothing engine-side blocks this card; it is ordinary card work.
-// tracked-by: #2761
-// export const viciousRivalry: CardDefinition = {
-//     id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
-//     name: "Vicious Rivalry",
-//     rarity: "rare",
-//     oracleText:
-//         "As an additional cost to cast this spell, pay X life.\nDestroy all artifacts and creatures with mana value X or less.",
-//     manaCost: { X: 2, B: 1, G: 1 },
-//     types: ["Sorcery"],
-//     additionalCosts: { payXLife: true },
-// };
+// dynamic (chosen-X) form — WRONG, the field is `number | EffectXValue`
+// (Green Sun's Zenith, `mbs/green.ts`). That correction is right but its
+// PRECEDENT does not transfer as written: Green Sun's Zenith's
+// `manaValueAtMost: { X: true }` is a LIBRARY-SEARCH filter, read by
+// `matchesCardFilter`. The battlefield-scoped filter every `forEach { set:
+// "permanents" }` mass sweep goes through instead is `PermanentFilter`
+// (`toPermanentFilter`, `convex/gre/effects/interpreter.ts`), which carries NO
+// `manaValueAtMost` field — confirmed against `convex/cards/filters.ts` and
+// `EffectObjectMatchesFilterPredicate`'s own doc comment, which lists
+// `manaValueAtMost` among the fields "the battlefield matcher has no
+// counterpart for" (i.e. putting it on a `forEach` filter directly would
+// silently match EVERY permanent, fail-open, not just ones at or under X).
+// The CR-correct, already-shipped composition that actually reaches the
+// battlefield case: `forEach { set: "permanents", filter: { type:
+// ["Artifact", "Creature"] } }` (the Rout/Wrath-of-God mass-sweep shape,
+// `inv/white.ts`) wrapping an `if { manaValue: { of: $each } } le X` gate (the
+// Overload shape, `inv/red.ts`, CR 202.3) around `destroy`. Still no new Op or
+// construct — `forEach`, `if`, `manaValue`, and `destroy` are each already
+// exercised catalogue-wide; only the COMPOSITION is corrected here.
+export const viciousRivalry: CardDefinition = {
+    id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
+    name: "Vicious Rivalry",
+    rarity: "rare",
+    oracleText:
+        "As an additional cost to cast this spell, pay X life.\nDestroy all artifacts and creatures with mana value X or less.",
+    manaCost: { X: 2, B: 1, G: 1 },
+    types: ["Sorcery"],
+    additionalCosts: { payXLife: true },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: ["Artifact", "Creature"] },
+            },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { manaValue: { of: { ref: "$each" } } },
+                        op: "le",
+                        right: { X: true },
+                    },
+                    then: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    ],
+};

@@ -16,6 +16,7 @@ import * as unlimited from "./sets/2ed";
 import * as revised from "./sets/3ed";
 // Vintage Cube card-draw / card-advantage tranche (issue #674)
 import * as lrw from "./sets/lrw";
+import * as m10 from "./sets/m10";
 import * as m11 from "./sets/m11";
 import * as m12 from "./sets/m12";
 import * as dft from "./sets/dft";
@@ -203,6 +204,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "2ed", exports: unlimited },
     { code: "3ed", exports: revised },
     { code: "lrw", exports: lrw },
+    { code: "m10", exports: m10 },
     { code: "m11", exports: m11 },
     { code: "m12", exports: m12 },
     { code: "dft", exports: dft },

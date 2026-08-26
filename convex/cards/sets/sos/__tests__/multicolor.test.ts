@@ -7,6 +7,7 @@ import {
     silverquillCharm,
     quandrixCharm,
     loreholdCharm,
+    viciousRivalry,
 } from "../multicolor";
 import {
     makeInstance,
@@ -26,6 +27,7 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../..";
+import { forest } from "../../lea/colorless";
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 // A NON-creature artifact (Black Lotus, mv 0 — no toughness, so it can't die
@@ -728,5 +730,140 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
         expect(getEffectivePower(projected, slimMine1)).toBe(3);
         expect(getEffectiveToughness(projected, slimMine1)).toBe(2);
         expect(slimMine1.staticAbilities).toContain("trample");
+    });
+});
+
+// forEach + a mid-body `if { manaValue: … } le X` gate is a NOVEL composition
+// (issue #2761 corrected the marker's original `manaValueAtMost: { X: true }`
+// battlefield-filter sketch, which `toPermanentFilter` drops silently) — the
+// scenario generator skips every `forEach`-bearing script wholesale
+// (`convex/gre/effects/scenarioGenerator.ts`: "covered by the card's own
+// tests"), so this earns a hand-written test per gre-development.md's own
+// carve-out.
+describe("Vicious Rivalry ({2}{B}{G} — pay X life, destroy all artifacts/creatures MV ≤ X, CR 118.4/119.4/202.3)", () => {
+    const CHEAP_ARTIFACT_ID = "test-sos-vicious-rivalry-artifact-mv1";
+    registerTokenDefinition({
+        id: CHEAP_ARTIFACT_ID,
+        name: CHEAP_ARTIFACT_ID,
+        rarity: "common",
+        manaCost: { generic: 1 },
+        types: ["Artifact"],
+    });
+    const CHEAP_CREATURE_ID = "test-sos-vicious-rivalry-creature-mv2";
+    registerTokenDefinition({
+        id: CHEAP_CREATURE_ID,
+        name: CHEAP_CREATURE_ID,
+        rarity: "common",
+        manaCost: { generic: 2 },
+        types: ["Creature"],
+        power: 2,
+        toughness: 2,
+    });
+    const EXPENSIVE_CREATURE_ID = "test-sos-vicious-rivalry-creature-mv5";
+    registerTokenDefinition({
+        id: EXPENSIVE_CREATURE_ID,
+        name: EXPENSIVE_CREATURE_ID,
+        rarity: "common",
+        manaCost: { generic: 5 },
+        types: ["Creature"],
+        power: 5,
+        toughness: 5,
+    });
+
+    it("destroys every artifact/creature with mana value ≤ X on EITHER side, leaves higher-MV and non-matching-type permanents alone", () => {
+        const cheapArtifact = makeInstance(CHEAP_ARTIFACT_ID, {
+            id: "cheap-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const cheapCreatureMine = makeInstance(CHEAP_CREATURE_ID, {
+            id: "cheap-creature-mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const cheapCreatureTheirs = makeInstance(CHEAP_CREATURE_ID, {
+            id: "cheap-creature-theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const expensiveCreature = makeInstance(EXPENSIVE_CREATURE_ID, {
+            id: "expensive-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const untouchedLand = makeInstance(forest.id, {
+            id: "untouched-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 10,
+                    battlefield: [
+                        cheapArtifact,
+                        cheapCreatureMine,
+                        untouchedLand,
+                    ],
+                }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [cheapCreatureTheirs, expensiveCreature],
+                }),
+            ],
+        });
+        const item = pushSpell(state, viciousRivalry.id, "p1");
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "cheap-artifact")
+        ).toBeUndefined();
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.id === "cheap-creature-mine"
+            )
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "cheap-creature-theirs"
+            )
+        ).toBeUndefined();
+        // Mana value 5 > X (2) — survives.
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "expensive-creature"
+            )
+        ).toBeDefined();
+        // A Land is neither an Artifact nor a Creature — never even scanned.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "untouched-land")
+        ).toBeDefined();
+    });
+
+    it("(regression) a mana value ABOVE X survives even when it IS an artifact or creature", () => {
+        // Guards the `if { manaValue } le X` gate specifically — reverting it
+        // to an unconditional destroy inside the forEach would wipe
+        // everything regardless of X, which this catches.
+        const expensiveArtifact = makeInstance(EXPENSIVE_CREATURE_ID, {
+            id: "expensive-2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 10,
+                    battlefield: [expensiveArtifact],
+                }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        const item = pushSpell(state, viciousRivalry.id, "p1");
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "expensive-2")
+        ).toBeDefined();
     });
 });

@@ -6,6 +6,7 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { enteringEffectivePower } from "../../abilities/triggers/shared";
 import { GOLEM_TOKEN } from "../../sharedTokens";
 
@@ -228,25 +229,89 @@ export const vaultbornTyrant: CardDefinition = {
 // you may gain 1 life for each of that spell's colors. Do this only once
 // each turn.\n{T}: Add one mana of any color."
 //
-// FREED 2026-08-25 (#1841 audit): the old marker read "`TriggeredAbility`
-// has no equivalent per-turn-use cap to reuse, and inventing a one-off
-// counter for this card alone would be the card-shaped primitive Primitive
-// reuse asks to avoid". WRONG at HEAD — `TriggeredAbility.maxTriggersPerTurn`
-// exists (`convex/cards/types.ts`), is enforced in `convex/gre/triggers.ts`,
-// and ships on an MH3 card. The mana ability is the established any-colour
-// `manaChoices` shape.
+// FREED 2026-08-25 (#1841 audit, shipped by #2761): the old marker read
+// "`TriggeredAbility` has no equivalent per-turn-use cap to reuse, and
+// inventing a one-off counter for this card alone would be the card-shaped
+// primitive Primitive reuse asks to avoid". WRONG at HEAD —
+// `TriggeredAbility.maxTriggersPerTurn` exists (`convex/cards/types.ts`), is
+// enforced in `convex/gre/triggers.ts`, and ships on an MH3 card (Nadu). The
+// mana ability is the established any-colour `manaChoices` shape (City of
+// Brass, `arn/colorless.ts`).
 //
-// Residual, and this marker already sanctioned it: the life-gain amount is
-// the firing spell's colour count, and SPELL_CAST still has no
-// EVENT_FIELD_REGISTRY row — #2066 is shipping one. Until it lands the
-// colour-counting half is a scalar-`event` resolve(), which is fine.
-// tracked-by: #2761
-// export const ancientCornucopia: CardDefinition = {
-//     id: "f977975d-0439-4731-b129-270cc4cdbb23",
-//     name: "Ancient Cornucopia",
-//     rarity: "mythic",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Artifact"],
-// };
+// Residual, and this marker already sanctioned the fallback: the life-gain
+// amount is the firing spell's live colour count, and `SPELL_CAST` still has
+// no `EVENT_FIELD_REGISTRY` row for an Effect Script `$event.colors` read —
+// #2066 (open at pickup) is shipping one. Until it lands this is a
+// scalar-`event` `resolve()` — protocol card per gre-development.md § DSL-first
+// authoring — reading `SpellCastDerived.colors` off `spellCastTrigger`'s own
+// last-known-information payload (`convex/cards/abilities/triggers/
+// spellCastTrigger.ts`). Migrate to `effects[]` once #2066 lands.
+//
+// `maxTriggersPerTurn: 1` is an out-of-scope-for-this-pass simplification —
+// see docs/findings/2761-ancient-cornucopia-cr603-2h.md for the full writeup.
+// CR 603.2h conditions the trigger on whether the indicated action (gaining
+// life) was actually TAKEN this turn, not on trigger count — a player who
+// DECLINES the life gain on an earlier, low-colour-count spell should still
+// see the ability trigger again later that turn. This engine has no existing
+// "action taken" flag distinct from "ability triggered" (that would be new
+// `convex/gre/**` state); `maxTriggersPerTurn` is the nearest already-shipped
+// primitive and the one this ticket named.
+export const ancientCornucopia: CardDefinition = {
+    id: "f977975d-0439-4731-b129-270cc4cdbb23",
+    name: "Ancient Cornucopia",
+    rarity: "mythic",
+    oracleText:
+        "Whenever you cast a spell that's one or more colors, you may gain 1 life for each of that spell's colors. Do this only once each turn.\n{T}: Add one mana of any color.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        {
+            ...spellCastTrigger({
+                id: "ancient-cornucopia-lifegain",
+                oracleText:
+                    "Whenever you cast a spell that's one or more colors, you may gain 1 life for each of that spell's colors. Do this only once each turn.",
+                scope: "you",
+                // CR 202.2 — only a spell with at least one colour triggers
+                // this ability at all ("a spell that's one or more colors").
+                condition: (event) => event.spellColors.length > 0,
+                // protocol card (gre-development.md § DSL-first authoring):
+                // see the file-level comment above this definition for why
+                // `resolve()` is the interim here.
+                resolve: (ctx, _event, spell) => {
+                    const colorCount = spell.colors.length;
+                    const paid = ctx.requestMayPay({
+                        playerId: ctx.controller,
+                        choiceId: `ancient-cornucopia-lifegain-${ctx.sourceInstanceId}`,
+                        prompt: `Gain ${colorCount} life from Ancient Cornucopia?`,
+                    });
+                    if (paid === undefined) return; // suspended for the decision
+                    if (paid) ctx.gainLife(ctx.controller, colorCount);
+                },
+            }),
+            // CR 603.2h "Do this only once each turn" — see the note above
+            // the definition (out of scope for this pass to make CR-precise).
+            maxTriggersPerTurn: 1,
+            // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`
+            // trigger (the life-gain amount reads the firing spell's live
+            // colour count, which no Effect Script value can read yet —
+            // `SPELL_CAST` has no `EVENT_FIELD_REGISTRY` row, #2066 open), so
+            // the bot's value model has nothing to walk without a shadow
+            // script. Approximates the real effect as a flat 2-life gain: the
+            // valuer only needs a life-gain-shaped signal, not exact fidelity
+            // to the resolving spell's colour count.
+            aiEffects: [{ op: "gainLife", player: "controller", amount: 2 }],
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "ancient-cornucopia-mana",
+            oracleText: "{T}: Add one mana of any color.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
 
 export {};

@@ -13,7 +13,9 @@ import {
     elfhameSanctuary,
     kavuChameleon,
     kavuLair,
+    kavuTitan,
     restock,
+    rootingKavu,
     tangle,
     verduranEmissary,
     wanderingStream,
@@ -31,10 +33,13 @@ import {
 } from "../../../__tests__/setup";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
+    applySourceStaticEffects,
     emitPermanentEntered,
     emitSpellCastEvent,
     processPendingActionTriggers,
+    removePermanentTo,
     resolveTopOfStack,
+    unapplySourceStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1174,5 +1179,152 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
         expect(
             state.players[0].battlefield.filter((c) => c.id !== "infest-multi")
         ).toHaveLength(3);
+    });
+});
+
+// Kavu Titan exercises the kicker → entersWith-counters →
+// wasKicked-gated keyword-grant chain — the exact Pouncing Kavu template
+// (inv/red.ts, issue #1716), corrected onto this card in place of the old
+// marker's (wrong) `grantAbility`-on-a-conditional-ETB-trigger sketch (issue
+// #2761): that shape would reopen a stack window where the creature is on
+// the battlefield without trample before a trigger resolves, exactly the bug
+// `entersWith.counters` exists to avoid for the counters half.
+describe("Kavu Titan (Kicker → three +1/+1 counters + trample; CR 702.33 / 122.1 / 702.19, issue #2761)", () => {
+    function enterKicked(kicked: boolean): GameState {
+        const state = makeState();
+        const item = pushSpell(state, kavuTitan.id, "p1");
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("kicked: enters with three +1/+1 counters and trample", () => {
+        const state = enterKicked(true);
+        const titan = state.players[0].battlefield.find(
+            (c) => c.card.id === kavuTitan.id
+        )!;
+        expect(titan.counters?.["+1/+1"]).toBe(3);
+        expect(titan.wasKicked).toBe(true);
+        expect(titan.staticAbilities).toContain("trample");
+    });
+
+    it("not kicked: no counters, no trample, wasKicked unset", () => {
+        const state = enterKicked(false);
+        const titan = state.players[0].battlefield.find(
+            (c) => c.card.id === kavuTitan.id
+        )!;
+        expect(titan.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(titan.wasKicked).toBeUndefined();
+        expect(titan.staticAbilities).not.toContain("trample");
+    });
+
+    // Revert-sensitive regression: gating the grant on the +1/+1 counter
+    // COUNT rather than `wasKicked` would let an unrelated pump spell forge
+    // trample on a never-kicked Titan. Forces a re-materialization
+    // (`unapplySourceStaticEffects` + `applySourceStaticEffects`) against the
+    // real production apply path.
+    it("(regression) unkicked, later pumped to 3+ +1/+1 counters externally: still does not gain trample", () => {
+        const state = enterKicked(false);
+        const titan = state.players[0].battlefield.find(
+            (c) => c.card.id === kavuTitan.id
+        )!;
+        expect(titan.staticAbilities).not.toContain("trample");
+        titan.counters = { "+1/+1": 3 };
+        unapplySourceStaticEffects(state, titan);
+        applySourceStaticEffects(state, titan);
+        expect(titan.staticAbilities).not.toContain("trample");
+    });
+
+    it("wire format: trample survives projection", () => {
+        const state = enterKicked(true);
+        const titan = state.players[0].battlefield.find(
+            (c) => c.card.id === kavuTitan.id
+        )!;
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTitan = projected.players[0].battlefield.find(
+            (c) => c.id === titan.id
+        )!;
+        expect(slimTitan.staticAbilities).toContain("trample");
+    });
+});
+
+// Rooting Kavu's "you may exile it" reads the DYING creature's own identity
+// (LKI, `DeadCreatureLKI`), which the DSL `effects[]` path cannot reach at
+// all (`diedTrigger`'s own doc comment; the implicit `$source` binding is
+// battlefield-scoped and the creature has already left by the time this
+// trigger resolves, CR 700.4) — genuinely a `resolve()` protocol card, not
+// the old marker's `mayPay` → `exileSelf` → `forEach` DSL sketch (`exileSelf`
+// only redirects a resolving SPELL's own destination, CR 608.2m; it is a
+// no-op for an ability). Per gre-development.md's own per-Op regime, a bare
+// `resolve()` body earns a hand-written test.
+describe("Rooting Kavu (dies → may exile it → shuffle graveyard creatures into library, CR 603.2/700.4/701.20, issue #2761)", () => {
+    function setup(): { state: GameState; kavu: CardInstanceState } {
+        const kavu = makeInstance(rootingKavu.id, {
+            id: "kavu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, kavu };
+    }
+
+    it("accepting: exiles itself and shuffles other graveyard creature cards into the library (leaves noncreature cards behind)", () => {
+        const { state, kavu } = setup();
+        const otherCreature = makeInstance(quirionElves.id, {
+            id: "other-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const noncreature = makeInstance(restock.id, {
+            id: "noncreature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].graveyard.push(otherCreature, noncreature);
+        removePermanentTo(state, kavu.id, "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        // Rooting Kavu itself is exiled, not left in the graveyard.
+        expect(state.players[0].exile?.some((c) => c.id === kavu.id)).toBe(
+            true
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === kavu.id)).toBe(
+            false
+        );
+        // The other creature card moved from graveyard to library.
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "other-creature")
+        ).toBe(false);
+        expect(
+            state.players[0].library.some((c) => c.id === "other-creature")
+        ).toBe(true);
+        // The noncreature card is untouched — still in the graveyard.
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "noncreature")
+        ).toBe(true);
+    });
+
+    it("declining: stays in the graveyard, no shuffle", () => {
+        const { state, kavu } = setup();
+        removePermanentTo(state, kavu.id, "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].graveyard.some((c) => c.id === kavu.id)).toBe(
+            true
+        );
+        expect(state.players[0].exile?.some((c) => c.id === kavu.id)).toBe(
+            false
+        );
     });
 });

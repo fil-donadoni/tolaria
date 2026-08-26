@@ -10,6 +10,7 @@ import type {
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import {
     enteringEffectivePower,
@@ -1032,55 +1033,145 @@ export const fertileGroundInv: CardPrint = {
     rarity: "common",
 };
 
-// ─────────────────────────────────────────────────────────────────────────
-// Capability-gap stubs — genuine engine/DSL gaps discovered authoring this
-// tranche (issue #1073). Some reuse capability gaps already tracked by an
-// earlier INV colour tranche (referenced inline); the rest are new to this
-// tranche, tracked collectively by issue #1097 (opened alongside this PR).
-// ─────────────────────────────────────────────────────────────────────────
-
-// Kavu Titan — "Kicker {2}{G}. If this creature was kicked, it enters with
-// three +1/+1 counters on it and with trample." The counters half composes
-// via three `entersWith.counters` entries each `count: "kicker"` (see
-// Llanowar Elite / Pincer Spider above).
+// Kavu Titan — {1}{G} Creature — Kavu, 2/2. "Kicker {2}{G}. If this creature
+// was kicked, it enters with three +1/+1 counters on it and with trample."
+// The counters half composes via three `entersWith.counters` entries each
+// `count: "kicker"` (see Llanowar Elite / Pincer Spider above).
 //
-// FREED 2026-08-25 (#1841 audit): the old marker read "the conditional
-// PERMANENT trample grant has no declarative path — `grantAbility`'s
-// `duration` is mandatory". WRONG at HEAD. `duration` on the `grantAbility`
-// Op is OPTIONAL, and omitting it means INDEFINITE (CR 611.2b, issue #1746) —
-// the interpreter routes an omitted duration straight to
-// `grantStaticAbilityPermanent`. Same correction applies to Faerie Squadron
-// (`inv/blue.ts`), which carried the identical wrong claim.
-// tracked-by: #2761
-// export const kavuTitan: CardDefinition = {
-//     id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
-//     name: "Kavu Titan",
-//     rarity: "rare",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-// };
+// FREED 2026-08-25 (#1841 audit, shipped by #2761): the old marker read "the
+// conditional PERMANENT trample grant has no declarative path —
+// `grantAbility`'s `duration` is mandatory". WRONG at HEAD — but the CORRECT
+// fix is not the `grantAbility` Op either: CR 614.1c/614.12 makes "if this
+// creature was kicked, it enters with ... and with trample" ONE replacement
+// effect governing how the object enters — exactly like the counters half,
+// which is already `entersWith.counters` (a replacement, NOT a `PERMANENT_
+// ENTERED` triggered ability carrying a `counters` Op — that shape is a bug,
+// issue #1693) rather than a stack-based trigger. Wiring the ability grant as
+// an `enteredTrigger` would reopen the identical bug for keywords: a window
+// where the creature is on the battlefield without trample before the trigger
+// resolves. The already-shipped, CR-exact, and simpler fix is Pouncing Kavu's
+// OWN template (`inv/red.ts`, issue #1716): a `staticEffects` `keyword-grant`
+// gated on `CardInstanceState.wasKicked` — a one-shot fact fixed at CR 614.1c
+// ETB replacement time, materialized into `staticAbilities` continuously, no
+// stack window. Same correction applies to Faerie Squadron (`inv/blue.ts`),
+// which carried the identical wrong claim.
+export const kavuTitan: CardDefinition = {
+    id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
+    name: "Kavu Titan",
+    rarity: "rare",
+    oracleText:
+        "Kicker {2}{G} (You may pay an additional {2}{G} as you cast this spell.)\nIf this creature was kicked, it enters with three +1/+1 counters on it and with trample.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}{G}",
+            mana: { X: 2, G: 1 },
+        },
+    ],
+    entersWith: {
+        counters: [
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.id && target.wasKicked === true,
+            keyword: "trample",
+        },
+    ],
+};
 
-// Rooting Kavu — "When this creature dies, you may exile it. If you do,
-// shuffle all creature cards from your graveyard into your library." The
-// "you may" gate is buildable (`mayPay` with no `cost`, issue #680). The
-// second clause was a BULK graveyard-set move with no selector — that gap is
-// now CLOSED: `EffectForEachSelector` has `{ set: "graveyard", controller?,
-// filter? }` (issue #1056, shipped; see `convex/cards/types.ts`), which is
-// exactly the FILTERED bulk move this needed.
+// Rooting Kavu — {2}{G}{G} Creature — Kavu, 4/3. "When this creature dies,
+// you may exile it. If you do, shuffle all creature cards from your graveyard
+// into your library."
 //
-// FREED 2026-08-25 (#1841 audit) — the RE-AUDIT this marker asked for was
-// done and the card is free: `forEach { set: "graveyard", filter }` +
-// `moveZone` to the library + a `libraryLook` shuffle, under a `mayPay`
-// gate whose body is `exileSelf` — a registered Op used further down THIS
-// file. No engine work remains.
-// tracked-by: #2761
-// export const rootingKavu: CardDefinition = {
-//     id: "12c25a4c-d93a-402b-999f-0b9919123cc5",
-//     name: "Rooting Kavu",
-//     rarity: "uncommon",
-//     manaCost: { X: 2, G: 2 },
-//     types: ["Creature"],
-// };
+// FREED 2026-08-25 (#1841 audit, shipped by #2761) — the RE-AUDIT this marker
+// asked for was done and the "you may exile it" half's `mayPay`-with-no-cost
+// gate (issue #680) and the bulk graveyard-set move's selector
+// (`EffectForEachSelector`'s `{ set: "graveyard", controller?, filter? }`,
+// issue #1056) are both genuinely shipped. But the marker's PROPOSED DSL shape
+// — `mayPay` → `exileSelf` → `forEach { set: "graveyard" }` — does not
+// actually reach this card: `exileSelf` redirects the CURRENTLY-RESOLVING
+// SPELL's own post-resolution destination (CR 608.2m); it is a no-op for an
+// ABILITY (there is no spell card to redirect — see its own registry note,
+// `mechanicsRegistry.ts`). "You may exile IT" here means the creature that
+// JUST DIED, whose last-known-information the DSL interpreter's `effects[]`
+// path cannot read at all (`diedTrigger`'s own doc: the `DeadCreatureLKI`
+// payload is "NOT reachable from the script"; even the implicit `$source`
+// binding fails closed, since `resolveObjectRef` only finds a snapshot ref
+// still on the BATTLEFIELD, and by the time a death trigger resolves the
+// creature is already in the graveyard, CR 700.4). So this stays a
+// `resolve()` (protocol card, gre-development.md § DSL-first authoring) that
+// exiles the LKI'd graveyard card by id (`SpellContext.moveCardById`) rather
+// than the DSL `exileSelf`/`forEach` composition the old marker sketched.
+// Exiling Rooting Kavu FIRST (before scanning the graveyard) matters: it must
+// not sweep itself into "all creature cards from your graveyard" a second
+// time.
+export const rootingKavu: CardDefinition = {
+    id: "12c25a4c-d93a-402b-999f-0b9919123cc5",
+    name: "Rooting Kavu",
+    rarity: "uncommon",
+    oracleText:
+        "When this creature dies, you may exile it. If you do, shuffle all creature cards from your graveyard into your library.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 4,
+    toughness: 3,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "rooting-kavu-exile-shuffle",
+            oracleText:
+                "When this creature dies, you may exile it. If you do, shuffle all creature cards from your graveyard into your library.",
+            scope: "self",
+            resolve: (ctx, _event, deadCreature) => {
+                const paid = ctx.requestMayPay({
+                    playerId: deadCreature.controllerId,
+                    choiceId: `rooting-kavu-exile-${deadCreature.id}`,
+                    prompt: "Exile Rooting Kavu?",
+                });
+                if (paid === undefined) return; // suspended for the decision
+                if (!paid) return;
+                ctx.moveCardById(
+                    deadCreature.controllerId,
+                    deadCreature.id,
+                    "graveyard",
+                    "exile"
+                );
+                const creatureCards = ctx
+                    .getGraveyardCards(deadCreature.controllerId)
+                    .filter((c) => c.types.includes("Creature"));
+                for (const card of creatureCards) {
+                    ctx.moveCardById(
+                        deadCreature.controllerId,
+                        card.id,
+                        "graveyard",
+                        "library"
+                    );
+                }
+                ctx.shuffleLibrary(deadCreature.controllerId);
+            },
+            // aiEffects (PRD #1423, issue #1431/#1519) — bare `resolve()`
+            // trigger (the graveyard-set move has no Effect Op reading LKI),
+            // so the bot's value model has nothing to walk without a shadow
+            // script. Approximates the real effect as exiling the source —
+            // the valuer's main signal is "this creature's death is one-shot,
+            // not a recurring graveyard resource," which a bare `exileSelf`
+            // shadow already conveys without needing the library-shuffle
+            // side effect modeled.
+            aiEffects: [{ op: "exileSelf" }],
+        }),
+    ],
+};
 
 // Saproling Symbiosis — the CR 601.3c conditional-flash rider (issue #2146),
 // shipped as `flashSurcharge`: legal to ANNOUNCE at any priority, with the {2}
