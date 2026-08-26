@@ -2,6 +2,7 @@ import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import {
+    displayCardId,
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
     matchesPlayerTargetFilters,
@@ -84,7 +85,11 @@ export function useDivideTargets(): DivideTargetItem[] {
                 items.push({
                     type: "permanent",
                     id: card.id,
-                    name: getDefinition(card.card.id).name,
+                    // Issue #1735 — `card.card.id` stays the CR 708.2 face-down
+                    // sentinel for every viewer including the controller; this
+                    // picker label is display-only, so it reads `displayCardId`
+                    // exactly like the battlefield tile the same card renders as.
+                    name: getDefinition(displayCardId(card)).name,
                     card,
                     mine: card.controllerId === playerId,
                 });

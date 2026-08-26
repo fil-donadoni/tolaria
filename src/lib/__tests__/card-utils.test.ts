@@ -41,8 +41,10 @@ import {
     pendingCastHasImprovise,
     pendingCastRemainingGeneric,
     activeManaSpendChoice,
+    displayCardId,
     type DisplayAbilities,
 } from "../card-utils";
+import { getCardImageDefId } from "../card-image-signature";
 import type {
     CardInstance,
     PendingActivation,
@@ -1124,6 +1126,78 @@ describe("face-down permanent target filters read the sentinel for the controlle
             ) as unknown as CardInstance;
         const abilities = getStackAbilities(wireCard);
         expect(abilities.map((a) => a.id)).toContain("norritt-untap-blue");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// `displayCardId` / `getCardImageDefId` — the identification affordance
+// itself (issue #1735 review, finding 3). Pure functions over the wire
+// object; before this test neither had a single automated assertion
+// anywhere in the repo (`grep -rl 'displayCardId|getCardImageDefId' src
+// convex` matched nothing). Acceptance criterion 1 ("the controller sees
+// their own face-down card's real art/name") is exactly what these two
+// functions compute, and this is the ONE node-level check that would have
+// caught the `battlefield-stacks.ts` regression (finding 1) too: a wrong
+// `identityKey` only ever manifests as two DIFFERENT `getCardImageDefId`
+// results colliding into the same group.
+// ---------------------------------------------------------------------------
+
+describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", () => {
+    function projectFaceDown(viewerId: "p1" | "p2") {
+        const legendary = makeInstance(livonyaSilone.id, {
+            id: "fd-legendary",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        turnFaceDown(legendary);
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [legendary] }),
+                makeServerPlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, viewerId);
+        return projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find(
+                (c) => c.id === "fd-legendary"
+            ) as unknown as CardInstance;
+    }
+
+    it("the controller's own face-down permanent resolves to its REAL id, not the sentinel", () => {
+        const target = projectFaceDown("p1");
+        expect(target.card.id).toBe(FACE_DOWN_CARD_ID); // rules id stays honest
+        expect(displayCardId(target)).toBe(livonyaSilone.id);
+        expect(getCardImageDefId(target)).toBe(livonyaSilone.id);
+    });
+
+    it("the opponent's view of the SAME permanent stays the sentinel on both helpers", () => {
+        const target = projectFaceDown("p2");
+        expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(displayCardId(target)).toBe(FACE_DOWN_CARD_ID);
+        expect(getCardImageDefId(target)).toBe(FACE_DOWN_CARD_ID);
+    });
+
+    it("a face-up permanent is unaffected — both helpers are a no-op without knownCardId", () => {
+        const upCard = makeInstance(livonyaSilone.id, {
+            id: "up-legendary",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [upCard] }),
+                makeServerPlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const target = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find(
+                (c) => c.id === "up-legendary"
+            ) as unknown as CardInstance;
+        expect(displayCardId(target)).toBe(livonyaSilone.id);
+        expect(getCardImageDefId(target)).toBe(livonyaSilone.id);
     });
 });
 

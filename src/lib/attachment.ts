@@ -1,5 +1,6 @@
 import { tryGetDefinition } from "@convex/cards";
 import type { CardInstance, Player } from "~/types/game";
+import { displayCardId } from "~/lib/card-utils";
 
 /** Attachment host lookup (CR 303.4 Auras, CR 301.5 Equipment, CR 702.151b
  *  Reconfigure) — the single place the UI resolves what a permanent's
@@ -42,7 +43,13 @@ export function attachmentHostName(
     if (!card.attachedTo) return null;
     const host = findAttachmentHost(card, allPlayers);
     if (host) {
-        return tryGetDefinition(host.card.id)?.name ?? "permanent";
+        // Issue #1735 — the host may itself be a face-down permanent under
+        // the viewer's OWN control (Power Leak enchanting your own face-down
+        // creature): `host.card.id` stays the CR 708.2 sentinel for every
+        // viewer including its controller, so the "Attached to: X" line must
+        // read the display-only `knownCardId` affordance, exactly like the
+        // battlefield tile that same host renders as.
+        return tryGetDefinition(displayCardId(host))?.name ?? "permanent";
     }
     const player = allPlayers.find((p) => p.id === card.attachedTo);
     return player ? player.name : null;

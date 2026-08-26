@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { projectPublicState } from "@convex/gameProjections";
+import { FACE_DOWN_CARD_ID } from "@convex/cards";
 import type {
     CardInstanceState,
     GameState,
     PlayerState,
 } from "@convex/gre/state";
 import type { CardInstance } from "~/types/game";
+import { getCardImageDefId } from "~/lib/card-image-signature";
 import { groupBattlefield, type PermanentGroup } from "../battlefield-stacks";
 
 // ---------------------------------------------------------------------------
@@ -150,5 +152,71 @@ describe("groupBattlefield survives the wire projection", () => {
         expect(fatStack.members.map((m) => m.id)).toEqual(["bear1", "bear2"]);
         const slimStack = slimGroups.find((g) => g.key === "bear1")!;
         expect(slimStack.isStack).toBe(true);
+    });
+
+    // Issue #1735 review, finding 1 — regression proof. Before the fix,
+    // `identityKey` grouped by raw `card.card.id`, which is the CR 708.2
+    // face-down sentinel for EVERY viewer including the controller (the
+    // face-down fix's own point). Two DIFFERENT face-down permanents the
+    // SAME controller controls therefore shared one identity key and
+    // collapsed into a single fanned pile, rendering only the lead member's
+    // real art — even though `getCardImageDefId`/`displayCardId` already
+    // resolve each member's OWN real art via `knownCardId`. The controller
+    // must see two separate permanents, each with its own art.
+    it("does not collapse the controller's two DIFFERENT face-down permanents into one stack (#1735 review)", () => {
+        const djinn: CardInstanceState = {
+            id: "fd-1",
+            card: {
+                id: FACE_DOWN_CARD_ID,
+                name: "Face-down creature",
+                types: ["Creature"],
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            faceDown: true,
+            faceDownOf: "mahamoti-djinn",
+        } as unknown as CardInstanceState;
+        const dragon: CardInstanceState = {
+            id: "fd-2",
+            card: {
+                id: FACE_DOWN_CARD_ID,
+                name: "Face-down creature",
+                types: ["Creature"],
+            },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Creature"],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            faceDown: true,
+            faceDownOf: "shivan-dragon",
+        } as unknown as CardInstanceState;
+
+        const state = makeState([djinn, dragon]);
+
+        // Viewer = p1, the controller of both face-down permanents — the
+        // exact projection the battlefield tile itself renders from.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBf = projected.players[0].battlefield as CardInstance[];
+        const groups = groupBattlefield(slimBf, new Map());
+
+        // Two singletons, never one stack merging the two different cards.
+        expect(shape(groups)).toEqual([
+            { key: "fd-1", isStack: false, members: ["fd-1"] },
+            { key: "fd-2", isStack: false, members: ["fd-2"] },
+        ]);
+
+        // And each member's OWN art still resolves to its own real card —
+        // the exact regression the reviewer's probe caught (post-fix,
+        // pre-this-test: one stack, one art id, for both members).
+        const artIds = slimBf.map((c) => getCardImageDefId(c));
+        expect(artIds).toEqual(["mahamoti-djinn", "shivan-dragon"]);
     });
 });

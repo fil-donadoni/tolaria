@@ -51,3 +51,22 @@ failing fast with a "machine busy, retry" message instead of burning 5+
 minutes to a hard timeout with no usable partial signal. I did not attempt
 that fix here — it's an orchestration/scheduling change to `check:ui` and/or
 `scripts/gate.ts`, well outside this issue's scope.
+
+**Correction (round-2 review) — a browser was not the missing verification
+here, and I overstated its role in the first draft.** The round-1 review
+found a real regression in `src/lib/battlefield-stacks.ts` (two DIFFERENT
+face-down permanents the controller controls collapsing into one rendered
+pile) that had nothing to do with this contention: none of the runbooks
+`bun run check:ui` drives (`docs/guides/ui-runbooks.md`) walk a face-down
+board at all, so even a clean five-viewport RECEIPT run on this PR would very
+likely have walked straight past it — there was no face-down permanent on
+screen for the probe to measure. The actual gap was a missing NODE-level
+test: `battlefield-stacks.wire.test.ts` now drives the exact scenario through
+the real `projectPublicState` + `groupBattlefield` and catches the collapse
+directly, no browser involved (same for `displayCardId`/`getCardImageDefId`
+themselves, which had zero automated coverage before this round — see
+`src/lib/__tests__/card-utils.test.ts`, "issue #1735 review, finding 3").
+Framing the missing `check:ui` run as the reason this shipped was wrong; the
+remedy was, and is, targeted vitest coverage of the pure view-reducer
+functions this PR added, which a browser pass would not have substituted
+for.

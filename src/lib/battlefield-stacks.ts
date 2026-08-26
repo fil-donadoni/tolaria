@@ -1,4 +1,5 @@
 import type { CardInstance } from "~/types/game";
+import { displayCardId } from "~/lib/card-utils";
 
 // ---------------------------------------------------------------------------
 // Permanent stacking (PRD #621, issue #622).
@@ -36,12 +37,24 @@ export interface PermanentGroup {
 }
 
 /** Identity key: members of one permanent stack must share the same card
- *  (art + name, via `card.card.id`), the same summoning-sickness flag (a sick
- *  creature reads/plays differently from a ready one), and the same TAPPED
- *  state (QA: 6 untapped Forests read as one pile; tapping some splits them
- *  into an untapped pile and a tapped pile — the mana-committed flag stays
- *  EXCLUDED per PRD #621, tapping for mana only moves the card between the
- *  two piles, with the rotation + flight animation riding along).
+ *  (art + name, via `displayCardId(card)` — see below), the same
+ *  summoning-sickness flag (a sick creature reads/plays differently from a
+ *  ready one), and the same TAPPED state (QA: 6 untapped Forests read as one
+ *  pile; tapping some splits them into an untapped pile and a tapped pile —
+ *  the mana-committed flag stays EXCLUDED per PRD #621, tapping for mana
+ *  only moves the card between the two piles, with the rotation + flight
+ *  animation riding along).
+ *
+ *  `displayCardId`, not raw `card.card.id` (issue #1735 review): a face-down
+ *  permanent's `card.card.id` is the CR 708.2 sentinel for EVERY viewer,
+ *  including its controller, so keying on it collapsed the controller's TWO
+ *  DIFFERENT face-down permanents into one pile rendering only the lead
+ *  member's real art — `displayCardId` is exactly the id that art/name
+ *  already render from (`getCardImageDefId`), so the grouping key now tracks
+ *  the same "same card" fact the pile's own art draws from. For the
+ *  opponent (no `knownCardId`) this is a no-op — `displayCardId` falls back
+ *  to the same sentinel, so their two indistinguishable face-down creatures
+ *  still fan into one pile exactly as before.
  *
  *  Also includes `controllerId`: this key becomes the group's `stackKey`,
  *  which the board uses as both the layout slot's React `key` and its
@@ -59,7 +72,7 @@ export interface PermanentGroup {
 function identityKey(card: CardInstance): string {
     const sick = card.isSummoningSick === true ? "1" : "0";
     const tapped = card.isTapped === true ? "1" : "0";
-    return `${card.controllerId}|${card.card.id}|${sick}|${tapped}`;
+    return `${card.controllerId}|${displayCardId(card)}|${sick}|${tapped}`;
 }
 
 /** A permanent is "altered" — and therefore always renders as its own
@@ -104,6 +117,19 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     if (card.copiedFrom) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).
     if (card.isAttacking || card.isBlocking) return true;
+    // Face down (CR 708.2, issue #1735 review) — belt-and-suspenders beyond
+    // the `identityKey` fix above. `displayCardId` alone stops two DIFFERENT
+    // face-down permanents from collapsing, but it does NOT stop a face-down
+    // permanent from collapsing into a stack with an unrelated FACE-UP
+    // permanent that happens to share the same real card (the controller's
+    // own morph creature next to another copy of the same creature that is
+    // already face up): same `displayCardId`, same controller/sick/tapped
+    // state, yet the two are not interchangeable — a face-down permanent's
+    // real characteristics (P/T, abilities) are hidden 2/2 vanilla ones, the
+    // face-up one's are not. Being face down is itself instance-specific
+    // state a player must read/target precisely, so it always renders as its
+    // own singleton, exactly like an attached-to or granted-ability card.
+    if (card.faceDown) return true;
     return false;
 }
 

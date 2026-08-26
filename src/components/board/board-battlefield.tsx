@@ -4,7 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteractionHook } from "~/hooks/useBattlefieldInteractionContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
-import { isCreature, isLand } from "~/lib/card-utils";
+import { displayCardId, isCreature, isLand } from "~/lib/card-utils";
 import { tryGetDefinition } from "@convex/cards";
 import {
     bandedRowsLayout,
@@ -337,7 +337,12 @@ export default function BoardBattlefield({
         // right object. Depth is bounded defensively: a cyclic `attachedTo`
         // chain must never recurse forever.
         if (!auras?.length || depth >= 4) return renderCard(card);
-        const hostName = tryGetDefinition(card.card.id)?.name ?? "permanent";
+        // Issue #1735 — a face-down host stays the CR 708.2 sentinel on
+        // `card.card.id` for every viewer, controller included; the pile
+        // title is display-only, so it reads the same `displayCardId`
+        // affordance the host's own battlefield tile uses.
+        const hostName =
+            tryGetDefinition(displayCardId(card))?.name ?? "permanent";
         return (
             <div className="relative w-full h-full">
                 <AttachedCardsCluster
