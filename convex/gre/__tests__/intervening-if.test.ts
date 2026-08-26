@@ -614,10 +614,24 @@ describe("departure-time LKI for intervening-if (CR 603.4 / 608.2h / 400.7, issu
             abilityId: BLINK_COUNTER_ABILITY,
             source: { counters: { vitality: 1 } },
         });
-        phaseOutPermanent(state, source.id, {
-            returnOn: { kind: "end-of-turn" },
+        const bundleId = phaseOutPermanent(state, source.id, {
+            returnOn: { kind: "untap-cycle" },
         });
+        expect(bundleId).not.toBeNull();
+        // It really did leave the battlefield array (otherwise this test would
+        // be vacuous)...
+        expect(
+            state.players.some((p) =>
+                p.battlefield.some((c) => c.id === source.id)
+            )
+        ).toBe(false);
+        // ...and still no snapshot: phasing is not a departure.
         expect(state.stack[0].sourceLki).toBeUndefined();
+        // With no snapshot and nothing to locate, the re-check falls back to
+        // the stack item itself (tier 3), which still carries the counter —
+        // the pre-existing behaviour, unchanged by this fix.
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
     });
 
     it("survives a DB round trip while the trigger waits on the stack", () => {
