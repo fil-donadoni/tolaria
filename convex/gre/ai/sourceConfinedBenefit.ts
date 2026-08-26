@@ -4,7 +4,9 @@
  * enumerator (issue #2297).
  *
  * THE DECISION IT SERVES. An activation cost of the shape "Sacrifice a
- * creature:" (`cost.sacrificeFilter`, CR 118.5 / 701.21 Sacrifice) does not say
+ * creature:" is a cost in the sense of CR 118.1 / 118.3, announced and paid by
+ * CR 602.2b → 601.2h, and its action is CR 701.21 Sacrifice
+ * (`cost.sacrificeFilter`). It does not say
  * "another" (CR 109.2), so the ability's own source is a legal victim of its
  * own cost. Naming it is legal — the engine offers it to a human and always
  * will — but for an ability whose effect is delivered ONLY to `$source` it is
@@ -35,6 +37,30 @@
  * SCOPE. Bot decision quality only. Engine legality is untouched: the server's
  * `buildActivationSacrificeSelection` still offers the source as a victim, and
  * a human may still name it.
+ *
+ * KNOWN FALSE-NEGATIVE CLASS — a deliberate, scoped choice, not an oversight.
+ * This predicate asks ONE question ("is the benefit confined to `$source`?")
+ * and never the complementary one ("does the source's ABSENCE have a
+ * payoff?"). Value produced by the SACRIFICE rather than by the resolution is
+ * therefore invisible to it, and two such classes ship today:
+ *
+ *   1. A `CREATURE_DIED` trigger the controller owns — 21 of them are in the
+ *      catalogue, Enduring Renewal among them ("Whenever a creature is put
+ *      into your graveyard from the battlefield, return it to your hand"),
+ *      which makes eating a self-pumping outlet with its own ability a real
+ *      line the bot can no longer see.
+ *   2. Sacrificing the source IN RESPONSE to an effect that would take it —
+ *      the "denying a gain-control effect" line issue #2297 itself names; 16
+ *      `gainControl` Op sites ship, and denying one requires naming the
+ *      SOURCE specifically.
+ *
+ * The loss is not confined to the only-victim case: the enumerator drops the
+ * self-victim variant even when other victims exist. Answering the second
+ * question is a DIFFERENT seam — a board-aware, response-window-aware gate at
+ * `sacrificeMustSpareSource`'s call site, not a change here — and it was not
+ * in #2297's scope. Written up in
+ * `docs/findings/2297-death-trigger-payoff-survives-a-pruned-self-sacrifice.md`
+ * so the next reader finds it rather than rediscovering it.
  */
 
 import type { ActivatedAbility, EffectOp, EffectRef } from "../../cards/types";
@@ -49,10 +75,12 @@ import { SOURCE_BINDING } from "../effects/interpreter";
  * Every row is a characteristic- or state-modifying Op in the CR 613 layer
  * system, or a shield/restriction attached to the object itself:
  *
- *   - `pump` (CR 611.1, layer 7c) — a P/T buff on the named permanent.
+ *   - `pump` (CR 613.4c, layer 7c) — a P/T buff on the named permanent.
  *   - `counters` (CR 122) — counters put on or removed from it.
  *   - `tapUntap` (CR 701.26 Tap and Untap) — its tapped status.
- *   - `skipNextUntap` (CR 302.6 / 502.1) — a restriction carried by it.
+ *   - `skipNextUntap` — a restriction carried by it, modifying the untap
+ *     turn-based action of CR 502.3 ("effects can keep one or more of a
+ *     player's permanents from untapping").
  *   - `grantAbility` (CR 613.1f, layer 6) — an ability it gains.
  *   - `addSubtype` / `setSubtype` (layer 4) — its subtypes.
  *   - `setColor` (layer 5) — its colors.

@@ -399,13 +399,15 @@ export function enumerateActivationCostPicks(
         spareSource
     );
     if (!spareSource) return variants;
-    // The catch-all for every path the in-loop skip below cannot reach: a
-    // multi-victim payment, a discard-varying ability with a sacrifice leg,
-    // and — the one that actually bites — a selection `autoResolveFungible`
-    // already settled server-side, where the source is the ONLY candidate and
-    // never appears in `sacrificeIds` at all. `activationSacrificeVictims` is
-    // the same union `applyMove.ts` removes, so this sees exactly what the
-    // search would sacrifice.
+    // The catch-all for every path the in-loop skip and the multi-victim
+    // re-plan below cannot reach: a discard-varying ability with a sacrifice
+    // leg, and — the one that actually bites — a selection
+    // `autoResolveFungible` already settled server-side, where the source is
+    // the ONLY candidate and never appears in `sacrificeIds` at all.
+    // `activationSacrificeVictims` is the same union `applyMove.ts` removes,
+    // so this sees exactly what the search would sacrifice. It is a LAST
+    // resort: a path that can pay around the source re-plans instead of being
+    // dropped whole ({@link replanSacrificeSparingSource}).
     return variants.filter(
         (picks) =>
             !activationSacrificeVictims(
@@ -488,5 +490,58 @@ function enumerateActivationCostPickVariants(
         return variants.length > 0 ? variants : [base];
     }
 
+    // Everything the two varying branches above do not reach: a MULTI-victim
+    // payment (the ability's own leg plus a board-wide additional sacrifice,
+    // CR 601.2h) and a selection `autoResolveFungible` settled whole. Neither
+    // is enumerated combination-by-combination — the deterministic
+    // cheapest-first plan stands. But when that plan happens to name the
+    // SOURCE, the caller's catch-all would drop it WHOLE, killing an
+    // activation the board can pay around the source instead of re-planning.
+    // So re-plan once, sparing it, before giving up.
+    if (
+        spareSource &&
+        activationSacrificeVictims(
+            state,
+            player,
+            source,
+            ability,
+            base
+        ).includes(source.id)
+    ) {
+        const spared = replanSacrificeSparingSource(
+            state,
+            player,
+            source,
+            ability,
+            base
+        );
+        return spared ? [spared] : [];
+    }
     return [base];
+}
+
+/** The same deterministic sacrifice plan, re-picked with the ability's own
+ *  source spared (issue #2297). `null` when the board cannot pay around it —
+ *  including when the server already auto-resolved the source into the
+ *  selection at announcement (`autoResolveFungible`), which the payer never
+ *  gets to re-choose. */
+function replanSacrificeSparingSource(
+    state: GameState,
+    player: PlayerState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    base: ActivationCostPicks
+): ActivationCostPicks | null {
+    const sel = activationSacrificeSelection(state, player, source, ability);
+    if (!sel || sel.picked.includes(source.id)) return null;
+    const submitted = completeSacrificeSelection(
+        state,
+        sel,
+        undefined,
+        new Set([source.id])
+    );
+    if (submitted === null) return null;
+    return submitted.length > 0
+        ? { ...base, sacrificeIds: submitted }
+        : { ...base, sacrificeIds: undefined };
 }

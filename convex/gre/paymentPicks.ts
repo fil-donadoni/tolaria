@@ -96,16 +96,25 @@ export function nextSacrificeCandidates(
 /** Completes `sel` IN PLACE with the cheapest legal victims and returns the ids
  *  the payer must SUBMIT (victims `autoResolveFungible` already recorded at
  *  announcement are not re-submitted — the server would reject them).
- *  `null` when a requirement cannot be met: the payment is then illegal. */
+ *  `null` when a requirement cannot be met: the payment is then illegal.
+ *
+ *  `spare` names instances the PAYER declines to offer even though the rules
+ *  allow them — never a legality filter (the server's own candidate set is
+ *  unchanged), only a preference the chooser is entitled to have under
+ *  CR 601.2h. A requirement that can only be met from `spare` returns `null`,
+ *  exactly as an unmet one does. */
 export function completeSacrificeSelection(
     state: GameState,
     sel: SacrificeSelection,
-    first?: CardInstanceState
+    first?: CardInstanceState,
+    spare?: ReadonlySet<string>
 ): string[] | null {
     const submitted: string[] = [];
     let head = first;
     while (!isSacrificeSelectionComplete(sel)) {
-        const pick = head ?? nextSacrificeCandidates(state, sel)[0];
+        const pick =
+            head ??
+            nextSacrificeCandidates(state, sel).find((c) => !spare?.has(c.id));
         head = undefined;
         if (!pick) return null;
         sel.picked.push(pick.id);

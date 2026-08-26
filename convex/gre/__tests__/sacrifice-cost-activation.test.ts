@@ -642,7 +642,7 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
 // bot-side prune in `gre/ai/sourceConfinedBenefit.ts`: if the guard were ever
 // pushed down into `buildActivationSacrificeSelection` — the one function
 // `game.ts` imports from this module — they go red.
-describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 / 118.5, issue #2297)', () => {
+describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 / 602.2b, issue #2297)', () => {
     it("offers the source among the sacrifice candidates alongside another creature", () => {
         const angel = makeInstance(fallenAngel.id, { id: "angel-1" });
         const bears = makeInstance(grizzlyBears.id, { id: "bears-1" });
@@ -683,7 +683,29 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
                 makePlayer("p2"),
             ],
         });
-        activateWithSacrificeCost(state, "p1", "angel-1", "fallen-angel-feast");
+        const pa = activateWithSacrificeCost(
+            state,
+            "p1",
+            "angel-1",
+            "fallen-angel-feast"
+        );
+        // Swap this file's hand-written mirror requirement for the REAL
+        // production lowering before the pick is offered. Without this the
+        // acceptance below runs against the mirror's own requirement, so a
+        // source exclusion added to `buildActivationSacrificeSelection` would
+        // leave this test green — the proof-of-failure shape-3 trap
+        // (`.claude/rules/gre-development.md`).
+        pa.sacrificeSelection = buildActivationSacrificeSelection(
+            state,
+            fallenAngel.activatedAbilities![0],
+            state.players[0].battlefield.find((c) => c.id === "angel-1")!,
+            state.players[0],
+            fallenAngel.name
+        );
+        // The exact gate `game.ts`'s `selectSacrifice` applies to the pick.
+        expect(
+            isSacrificeCandidateLegal(state, pa.sacrificeSelection!, "angel-1")
+        ).toBe(true);
         selectActivationCost(state, "p1", "angel-1");
         expect(state.players[0].graveyard.some((c) => c.id === "angel-1")).toBe(
             true

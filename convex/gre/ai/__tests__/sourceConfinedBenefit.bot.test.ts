@@ -28,6 +28,7 @@ import {
 } from "../../../cards/__tests__/setup";
 import type { CardInstanceState, GameState, PlayerState } from "../../state";
 import {
+    MAX_VICTIM_VARIANTS,
     activationSacrificeVictims,
     enumerateActivationCostPicks,
 } from "../../activationCostPicks";
@@ -297,6 +298,96 @@ describe("activation victim enumeration spares a self-defeating source (issue #2
             abilityOf("Goblin Chirurgeon")
         );
         expect(victims.flat()).toEqual(["chirurgeon"]);
+    });
+
+    it("the self-victim skip runs BEFORE the variant cap, so a real candidate never loses its slot", () => {
+        // `nextSacrificeCandidates` orders cheapest-first by mana value
+        // (`paymentPicks.cheapestFirst`), so the source at MV 5 sorts ahead of
+        // every victim below at MV 6+. With more distinct candidates than
+        // MAX_VICTIM_VARIANTS, a self-victim admitted into the loop and only
+        // filtered by the caller would eat the FIRST of the four slots and a
+        // genuine candidate would silently never be enumerated — the reason
+        // the skip is in the loop rather than only in the caller.
+        const angel = onBattlefield("Fallen Angel", "angel");
+        const fodder = [
+            onBattlefield("Craw Wurm", "wurm"),
+            onBattlefield("Shivan Dragon", "dragon"),
+            onBattlefield("Force of Nature", "force"),
+            onBattlefield("Mahamoti Djinn", "djinn"),
+            onBattlefield("Lord of the Pit", "pit"),
+        ];
+        const { state, player } = stateWith([angel, ...fodder]);
+
+        const victims = enumeratedVictims(
+            state,
+            player,
+            angel,
+            abilityOf("Fallen Angel")
+        );
+        expect(victims).toHaveLength(MAX_VICTIM_VARIANTS);
+        expect(victims.flat()).not.toContain("angel");
+        // Four DISTINCT real candidates, not the same one four times.
+        expect(new Set(victims.flat()).size).toBe(MAX_VICTIM_VARIANTS);
+    });
+
+    it("a MULTI-victim payment whose cheapest plan names the source is RE-PLANNED, not dropped", () => {
+        // Drought taxes every activated ability one "Sacrifice a Swamp" per
+        // black mana symbol in its activation cost, so this activation pays
+        // TWO sacrifice legs (CR 601.2h) and the enumerator keeps the single
+        // deterministic plan rather than enumerating combinations. Cheapest-
+        // first names the source (MV 5) for the creature leg; before the
+        // re-plan the caller's catch-all dropped that plan WHOLE and the bot
+        // could not activate at all, though the board pays it easily around
+        // the source.
+        const angel = onBattlefield("Fallen Angel", "angel");
+        const wurm = onBattlefield("Craw Wurm", "wurm");
+        const drought = onBattlefield("Drought", "drought");
+        const swampA = onBattlefield("Swamp", "swamp-a");
+        // Tapped, so the two swamps are not fungible and the leg is not
+        // auto-resolved server-side (`autoResolveFungible`).
+        const swampB = { ...onBattlefield("Swamp", "swamp-b"), isTapped: true };
+        const { state, player } = stateWith([
+            angel,
+            wurm,
+            drought,
+            swampA,
+            swampB,
+        ]);
+
+        // Synthetic, not a catalogue row: every source-confined outlet shipped
+        // today has a mana-free activation cost, so Drought's per-pip tax
+        // cannot reach one. The prune direction is real regardless — a
+        // wrongly-pruned line is invisible, which is this module's whole
+        // asymmetry.
+        const taxed: ActivatedAbility = {
+            id: "confined-with-black-pip",
+            oracleText:
+                "{B}, Sacrifice a creature: This creature gets +2/+1 until end of turn.",
+            cost: { mana: { B: 1 }, sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        };
+
+        const picks = enumerateActivationCostPicks(state, player, angel, taxed);
+        expect(picks).toHaveLength(1);
+        const victims = activationSacrificeVictims(
+            state,
+            player,
+            angel,
+            taxed,
+            picks[0]
+        );
+        expect(victims).not.toContain("angel");
+        expect(victims).toContain("wurm");
+        expect(victims.some((id) => id.startsWith("swamp-"))).toBe(true);
     });
 
     it("a $source-confined ability whose cost filter cannot reach the source is untouched", () => {
