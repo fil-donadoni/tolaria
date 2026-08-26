@@ -793,3 +793,229 @@ describe("telemetry-serve — action token lifecycle (#2628)", () => {
         );
     });
 });
+
+/**
+ * #2628 review round 1 — the three findings the 45 tests above could not
+ * catch, because every one of them injected a stub `DriverActions` and a
+ * present `actionToken` / `allowedOrigins`. What went unasserted was
+ * therefore: (a) the argv the PRODUCTION actions build, (b) that the `??`
+ * resolution of the security deps actually refuses an explicitly-undefined
+ * one, (c) that an empty token is not a token.
+ */
+
+/**
+ * The modes `scripts/loop-handoff.sh` ACCEPTS, read out of the script's own
+ * argv `case`. This is the load-bearing half of the argv test: pinning
+ * `"--stop"` on both sides would only restate the implementation, whereas
+ * parsing the script means the assertion reds if EITHER side drifts — the
+ * bare-word invocation this replaced, or a future rename of the mode itself.
+ *
+ * The mode branch is the one `case` alternative made entirely of `--word`
+ * spellings (`--start | --resume | --stop | …)`); `-h | --help)` does not
+ * match (it starts with a single dash) and the option-with-value branches are
+ * one alternative each. Finding exactly one such line is asserted, so a
+ * restructured parser fails loudly here rather than silently widening the set.
+ */
+function loopHandoffModes(): readonly string[] {
+    const src = readFileSync(
+        join(import.meta.dirname, "..", "loop-handoff.sh"),
+        "utf8"
+    );
+    const branches = src
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => /^--[a-z][a-z-]*(\s*\|\s*--[a-z][a-z-]*)+\)$/.test(l));
+    expect(
+        branches,
+        "expected exactly one multi-alternative --mode branch in loop-handoff.sh's argv case"
+    ).toHaveLength(1);
+    const modes = branches[0]
+        .slice(0, -1)
+        .split("|")
+        .map((s) => s.trim());
+    expect(modes.length).toBeGreaterThan(1);
+    return modes;
+}
+
+/** Runs the REAL `makeDriverActions` over a recording spawn — the same
+ *  factory `defaultDriverActions` is built from, so what is asserted is what
+ *  production would execute, never a copy of it written out again here. */
+async function spawnedArgv() {
+    const { makeDriverActions } = await import("../telemetry-serve");
+    const spawned: string[][] = [];
+    const actions = makeDriverActions(async (argv) => {
+        spawned.push([...argv]);
+    });
+    await actions.stopDriver();
+    await actions.resumeDriver();
+    await actions.releaseClaim(2628);
+    return spawned;
+}
+
+describe("telemetry-serve — the real driver operations' argv (#2628)", () => {
+    it("spawns the three commands verbatim, with no shell in between", async () => {
+        expect(await spawnedArgv()).toEqual([
+            ["sh", "scripts/loop-handoff.sh", "--stop"],
+            ["sh", "scripts/loop-handoff.sh", "--resume"],
+            [
+                "gh",
+                "issue",
+                "edit",
+                "2628",
+                "--remove-label",
+                "in-progress",
+                "--remove-assignee",
+                "@me",
+            ],
+        ]);
+    });
+
+    it("every mode it hands loop-handoff.sh is one that script's own argv parser accepts", async () => {
+        const modes = loopHandoffModes();
+        const handoffCalls = (await spawnedArgv()).filter((argv) =>
+            argv.some((tok) => tok.endsWith("loop-handoff.sh"))
+        );
+        // Both driver operations go through the script — if one stopped, the
+        // cross-check below would vacuously pass on the remainder.
+        expect(handoffCalls).toHaveLength(2);
+        for (const argv of handoffCalls) {
+            const mode = argv[argv.findIndex((t) => t.endsWith(".sh")) + 1];
+            expect(
+                modes,
+                `loop-handoff.sh's argv parser refuses "${mode}" — it falls to the '*)' branch, prints the usage and exits 2`
+            ).toContain(mode);
+        }
+    });
+
+    it("the issue number reaches gh as its own argv element — never spliced into a string", async () => {
+        const { DRIVER_COMMANDS } = await import("../telemetry-serve");
+        // The integer check in the handler is what actually holds; this pins
+        // the second line of defence, that even a hostile value would arrive
+        // as one opaque argument rather than as further flags.
+        expect(DRIVER_COMMANDS.releaseClaim(2628)).toContain("2628");
+        expect(
+            DRIVER_COMMANDS.releaseClaim(2628).filter((t) => t.includes("2628"))
+        ).toEqual(["2628"]);
+    });
+});
+
+describe("telemetry-serve — an explicitly-undefined dep never disarms a guard (#2628)", () => {
+    it("resolveSecurityDeps falls back to the boot values, key by key", async () => {
+        const { resolveSecurityDeps } = await import("../telemetry-serve");
+        const resolved = resolveSecurityDeps({
+            actionToken: undefined,
+            allowedOrigins: undefined,
+            driverActions: undefined,
+        });
+        // A spread would hand back three `undefined`s here — the exact
+        // disarming the `??` exists to prevent.
+        expect(typeof resolved.actionToken).toBe("string");
+        expect(resolved.actionToken.length).toBeGreaterThan(0);
+        expect(resolved.allowedOrigins.size).toBeGreaterThan(0);
+        expect(resolved.allowedOrigins.has("http://evil.example")).toBe(false);
+        expect(Object.keys(resolved.driverActions).sort()).toEqual([
+            "releaseClaim",
+            "resumeDriver",
+            "stopDriver",
+        ]);
+    });
+
+    it("an undefined allowedOrigins still refuses a foreign Origin (403, not a 400 from a thrown guard)", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const rec = recordingActions();
+        const res = await handleRequest(
+            actionRequest(
+                { action: "driver.stop" },
+                { origin: "http://evil.example" }
+            ),
+            {
+                actionToken: ACTION_TOKEN,
+                allowedOrigins: undefined,
+                driverActions: rec.driverActions,
+            }
+        );
+        expect(res.status).toBe(403);
+        expect(await res.json()).toEqual({
+            ok: false,
+            error: "disallowed Origin",
+        });
+        expect(rec.calls).toEqual([]);
+    });
+
+    it("an undefined actionToken still refuses a presented token (401, not a 400 from a thrown guard)", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const rec = recordingActions();
+        const res = await handleRequest(
+            actionRequest({ action: "driver.stop" }, { token: "anything" }),
+            {
+                actionToken: undefined,
+                allowedOrigins: ACTION_ALLOWED_ORIGINS,
+                driverActions: rec.driverActions,
+            }
+        );
+        expect(res.status).toBe(401);
+        expect(await res.json()).toEqual({
+            ok: false,
+            error: "invalid action token",
+        });
+        expect(rec.calls).toEqual([]);
+    });
+});
+
+describe("telemetry-serve — an empty token authenticates nothing (#2628)", () => {
+    it("refuses a request presenting an empty token against an empty configured token", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const rec = recordingActions();
+        // `timingSafeEqual` on two empty buffers returns true, so without the
+        // explicit refusal this dispatches — an empty token would be a
+        // universal key rather than a closed door.
+        const res = await handleRequest(
+            actionRequest({ action: "driver.stop" }, { token: "" }),
+            {
+                actionToken: "",
+                allowedOrigins: ACTION_ALLOWED_ORIGINS,
+                driverActions: rec.driverActions,
+            }
+        );
+        expect(res.status).toBe(401);
+        expect(rec.calls).toEqual([]);
+    });
+
+    it("refuses every other token too, when the configured one is empty", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const rec = recordingActions();
+        const res = await handleRequest(
+            actionRequest({ action: "driver.stop" }, { token: "guess" }),
+            {
+                actionToken: "",
+                allowedOrigins: ACTION_ALLOWED_ORIGINS,
+                driverActions: rec.driverActions,
+            }
+        );
+        expect(res.status).toBe(401);
+        expect(rec.calls).toEqual([]);
+    });
+});
+
+describe("telemetry-serve — the token injection is literal (#2628)", () => {
+    it("a token full of $-replacement patterns lands verbatim, splicing no document text", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        // `$&`, "$`", "$'" and `$1` are the four replacement patterns
+        // `String.prototype.replace` reads in a STRING replacement;
+        // `escapeAttribute` does not escape `$`, so a string replacement would
+        // expand them against the surrounding document.
+        const token = "a$&b$`c$'d$1e";
+        const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            readAsset: async () =>
+                "<html><head><title>BEFORE</title></head><body>AFTER</body></html>",
+            actionToken: token,
+        });
+        const html = await res.text();
+        // escapeAttribute turns `&` into `&amp;` and `'` into `&#39;`; the `$`
+        // signs and the backtick are its business to leave alone.
+        expect(html).toContain('content="a$&amp;b$`c$&#39;d$1e"');
+        expect(html).not.toContain("BEFOREBEFORE");
+        expect(html.match(/BEFORE/g) ?? []).toHaveLength(1);
+        expect(html.match(/AFTER/g) ?? []).toHaveLength(1);
+    });
+});

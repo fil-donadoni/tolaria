@@ -604,6 +604,10 @@ export interface DriverActions {
 
 const execFileAsync = promisify(execFile);
 
+/** A command and its arguments, as one array — the exact thing handed to
+ *  `execFile`, and the exact thing a test can assert without spawning it. */
+export type OperationArgv = readonly [command: string, ...args: string[]];
+
 /**
  * `execFile`, never `exec`: the arguments are an argv array handed straight to
  * the kernel, so no value below is ever parsed by a shell. That is what makes
@@ -614,36 +618,74 @@ const execFileAsync = promisify(execFile);
  * relative to the caller's cwd on purpose (its own header comment), and the
  * files it touches are gitignored, so a linked worktree has none of them.
  */
-async function runOperation(cmd: string, args: string[]): Promise<void> {
+async function runOperation([cmd, ...args]: OperationArgv): Promise<void> {
     await execFileAsync(cmd, args, { cwd: PROJECT_DIR });
 }
 
 /**
- * The real operations. `driver.stop` and `driver.resume` go through
- * `scripts/loop-handoff.sh`'s own `stop` / `resume` subcommands rather than
- * touching `.claude/telemetry/loop-stop` here: that script already owns the
- * stop-file path, the blocked-reason checks and the detached `launch_driver`
- * spawn, and a second writer of the same path is exactly how the two drift.
+ * The argv of every operation, as DATA rather than as three call sites
+ * (#2628 review round 1, finding 2). `driver.stop` and `driver.resume`
+ * originally shipped with `["scripts/loop-handoff.sh", "stop"]` — a bare word
+ * that script's argv parser refuses (`scripts/loop-handoff.sh:93-147`: only
+ * the `--`-prefixed modes match, everything else falls to `*)`, prints the
+ * usage and exits 2), so both actions answered 500 and did nothing. Every
+ * test injected a stub `DriverActions`, so nothing in the suite ever looked
+ * at the argv at all.
  *
- * `claim.release` runs the same command `.claude/hooks/claim-sweep.sh` runs
- * when it reaps an orphan, so a claim released from the dashboard and a claim
- * released by the sweep end in the same state.
+ * Naming the argv here is what makes it assertable:
+ * `telemetry-serve.test.ts` pins these three arrays AND cross-checks the
+ * `loop-handoff.sh` modes against the option list parsed out of the script
+ * itself — so the test reds whether the drift is on this side or that one.
+ *
+ * `driver.stop` / `driver.resume` go through `scripts/loop-handoff.sh` rather
+ * than touching `.claude/telemetry/loop-stop` here: that script already owns
+ * the stop-file path, the blocked-reason checks and the detached
+ * `launch_driver` spawn, and a second writer of the same path is exactly how
+ * the two drift. `claim.release` runs the same command
+ * `.claude/hooks/claim-sweep.sh` runs when it reaps an orphan, so a claim
+ * released from the dashboard and a claim released by the sweep end in the
+ * same state.
  */
-const defaultDriverActions: DriverActions = {
-    stopDriver: () => runOperation("sh", ["scripts/loop-handoff.sh", "stop"]),
-    resumeDriver: () =>
-        runOperation("sh", ["scripts/loop-handoff.sh", "resume"]),
-    releaseClaim: (issue) =>
-        runOperation("gh", [
-            "issue",
-            "edit",
-            String(issue),
-            "--remove-label",
-            "in-progress",
-            "--remove-assignee",
-            "@me",
-        ]),
-};
+export const DRIVER_COMMANDS = {
+    stopDriver: (): OperationArgv => [
+        "sh",
+        "scripts/loop-handoff.sh",
+        "--stop",
+    ],
+    resumeDriver: (): OperationArgv => [
+        "sh",
+        "scripts/loop-handoff.sh",
+        "--resume",
+    ],
+    releaseClaim: (issue: number): OperationArgv => [
+        "gh",
+        "issue",
+        "edit",
+        String(issue),
+        "--remove-label",
+        "in-progress",
+        "--remove-assignee",
+        "@me",
+    ],
+} as const;
+
+/**
+ * The real operations, built over an injectable spawn. Production passes
+ * `runOperation`; the test passes a recorder, which is how the argv above is
+ * proven through the SAME construction production uses rather than through a
+ * copy of it restated in the test.
+ */
+export function makeDriverActions(
+    run: (argv: OperationArgv) => Promise<void>
+): DriverActions {
+    return {
+        stopDriver: () => run(DRIVER_COMMANDS.stopDriver()),
+        resumeDriver: () => run(DRIVER_COMMANDS.resumeDriver()),
+        releaseClaim: (issue) => run(DRIVER_COMMANDS.releaseClaim(issue)),
+    };
+}
+
+const defaultDriverActions: DriverActions = makeDriverActions(runOperation);
 
 type ActionHandler = (
     body: Record<string, unknown>,
@@ -721,6 +763,14 @@ function refuseAction(status: number, reason: string): Response {
  * which is a fixed, public property of `randomUUID` anyway.
  */
 function tokenMatches(presented: string, expected: string): boolean {
+    // An EMPTY expected token is not a secret, and `timingSafeEqual` on two
+    // empty buffers returns `true` (#2628 review round 1, finding 6) — so an
+    // injected `""` would accept every request that happens to send an empty
+    // header, disarming guard 2 completely. The `??` resolution below cannot
+    // catch this: `"" ?? default` is `""`. Refuse here instead, which is the
+    // fail-closed reading — with no token there is nothing to authenticate
+    // against, so nothing authenticates.
+    if (expected.length === 0) return false;
     const a = Buffer.from(presented, "utf8");
     const b = Buffer.from(expected, "utf8");
     if (a.length !== b.length) return false;
@@ -750,7 +800,15 @@ function escapeAttribute(value: string): string {
  */
 function injectActionToken(html: string, token: string): string {
     const tag = `<meta name="${ACTION_TOKEN_META}" content="${escapeAttribute(token)}" />`;
-    return html.replace("</head>", `    ${tag}\n    </head>`);
+    // A FUNCTION replacer, never a string one (#2628 review round 1,
+    // finding 5). `String.prototype.replace` reads `$&`, `` $` ``, `$'` and
+    // `$1` in a STRING replacement as replacement patterns, and
+    // `escapeAttribute` deliberately does not escape `$` (it is harmless in an
+    // attribute) — so a token carrying one would splice surrounding document
+    // text into the page. A function's return value is inserted verbatim,
+    // which is what makes `escapeAttribute`'s "safe by construction rather
+    // than by the token's current shape" claim actually true.
+    return html.replace("</head>", () => `    ${tag}\n    </head>`);
 }
 
 /**
@@ -876,6 +934,39 @@ const defaultDeps: TelemetryDeps = {
     driverActions: defaultDriverActions,
 };
 
+/** The three security-relevant dependencies, resolved. */
+export interface SecurityDeps {
+    actionToken: string;
+    allowedOrigins: ReadonlySet<string>;
+    driverActions: DriverActions;
+}
+
+/**
+ * The three security-relevant dependencies are resolved with `??`, NOT by a
+ * spread (#2628): `{ ...defaults, ...{ actionToken: undefined } }` yields
+ * `undefined`, and an explicitly-undefined key is exactly the shape a caller
+ * building `deps` from optional fields produces. Through the spread that would
+ * silently disarm the guard — `allowedOrigins.has(...)` throws and the outer
+ * catch turns a refusal into a 400, `tokenMatches` compares against nothing.
+ * Through `??` each falls back to the boot value. Fail closed on the caller's
+ * mistake, not open.
+ *
+ * A FUNCTION rather than three lines inside `handleRequest` (#2628 review
+ * round 1, finding 3) so the decision itself is directly assertable: the
+ * reviewer swapped the `??`s for a spread and all 45 tests stayed green, which
+ * is a guard that does not fire. `telemetry-serve.test.ts` now calls this with
+ * all three keys explicitly `undefined`.
+ */
+export function resolveSecurityDeps(
+    deps: Partial<TelemetryDeps>
+): SecurityDeps {
+    return {
+        actionToken: deps.actionToken ?? defaultDeps.actionToken,
+        allowedOrigins: deps.allowedOrigins ?? defaultDeps.allowedOrigins,
+        driverActions: deps.driverActions ?? defaultDeps.driverActions,
+    };
+}
+
 /**
  * The whole route table, extracted from the `Bun.serve` listener (#2623) so
  * every route is callable with an in-memory `Request` — no socket, no
@@ -891,15 +982,8 @@ export async function handleRequest(
     // key — adding `readAsset` in #2625 must not force every existing call
     // site to name every dependency.
     const { getLoopStatus, readAsset } = { ...defaultDeps, ...deps };
-    // The three security-relevant dependencies are resolved with `??`, NOT by
-    // the spread above (#2628): `{ ...defaults, ...{ actionToken: undefined } }`
-    // yields `undefined`, and an explicitly-undefined key is exactly the shape
-    // a caller building `deps` from optional fields produces. Through the
-    // spread that would silently disarm the guard; through `??` it falls back
-    // to the boot value. Fail closed on the caller's mistake, not open.
-    const actionToken = deps.actionToken ?? defaultDeps.actionToken;
-    const allowedOrigins = deps.allowedOrigins ?? defaultDeps.allowedOrigins;
-    const driverActions = deps.driverActions ?? defaultDeps.driverActions;
+    const { actionToken, allowedOrigins, driverActions } =
+        resolveSecurityDeps(deps);
     const url = new URL(req.url);
     try {
         // Reads no DB — must work even when telemetry.db is absent or
