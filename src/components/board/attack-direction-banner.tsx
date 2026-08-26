@@ -23,7 +23,12 @@ export default function AttackDirectionBanner({
         <Banner
             tone="info"
             icon={<Swords className="h-4 w-4 text-accent-strong" />}
-            className="pointer-events-none max-w-lg shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+            // v4 (ADR 0103 §5, issue #2730): floats over the battlefield, so
+            // it keeps SOME elevation — but the shared `.panel-physical`
+            // material (same soft shadow every v4 panel uses) instead of a
+            // bespoke raw `shadow-[0_10px_30px_rgba(0,0,0,0.5)]` arbitrary
+            // value.
+            className="panel-physical pointer-events-none max-w-lg"
         >
             <span className="font-semibold">Declare attackers:</span> select
             your creatures to send them into combat.

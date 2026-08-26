@@ -3,6 +3,8 @@ import type { PendingChoice } from "~/types/game";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import { cn } from "~/lib/utils";
+import { V4_PLATE } from "~/lib/board-chrome-v4";
 
 /** Collapsed stand-in for a minimized blocking choice dialog (issue #315).
  *  Rendered on the board while the chooser has minimized the prompt to
@@ -42,18 +44,32 @@ export default function MinimizedChoiceIndicator({
 
     return (
         <div className={outerClassName} style={outerStyle}>
+            {/* v4 (ADR 0103 §3/§5, issue #2730): a quiet HUD chip — hairline
+                plate, display-face label, ONE pulsing status dot (the
+                prototype's `.px-hud.pulse .dot` / `px-pulse` box-shadow
+                ring) — replacing the bespoke `border-accent bg-accent-soft
+                shadow-[0_0_30px_...] animate-pulse` gold glow (whole-button
+                pulse + a second, redundant `animate-ping` dot) with the same
+                "this needs your input" language every other HUD badge now
+                shares. `signal-pending` (amber, "waiting/urgent") replaces
+                `accent`, which the ADR reserves for the one ivory primary
+                action. */}
             <button
                 type="button"
                 onClick={restore}
                 aria-label={`Restore choice dialog: ${label}`}
                 {...dragHandlers}
-                className={`inline-flex items-center justify-center gap-2 rounded-sm border border-accent bg-accent-soft px-4 py-2 font-beleren text-sm tracking-wide text-accent-strong shadow-[0_0_30px_rgba(200,160,96,0.35)] animate-pulse hover:bg-accent-soft/80 hover:animate-none transition-colors cursor-pointer ${innerClassName}`.trim()}
+                className={cn(
+                    V4_PLATE,
+                    "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm text-text transition-colors hover:bg-surface-elevated cursor-pointer",
+                    innerClassName
+                )}
             >
-                <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-strong opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-strong" />
-                </span>
-                <span>{label} — pending</span>
+                <span
+                    aria-hidden
+                    className="dot-pulse-ring size-2.5 shrink-0 rounded-full bg-signal-pending"
+                />
+                <span className="text-display">{label} — pending</span>
                 <Maximize2 className="h-3.5 w-3.5 opacity-80" />
             </button>
         </div>

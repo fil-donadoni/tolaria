@@ -296,10 +296,15 @@ export default function PendingChoicePrompt({
                                 className={`absolute ${MINIMIZE_BUTTON_INSET}`}
                             />
                             <div className="flex flex-col items-center text-center gap-1">
-                                <p className="font-beleren text-sm tracking-wide text-parchment">
+                                {/* v4 (ADR 0103 §4, issue #2730): source
+                                    label off Beleren onto the chrome display
+                                    face — Beleren is confined to the card
+                                    domain, and this prompt's title is chrome,
+                                    not a card face. */}
+                                <p className="text-display text-sm text-text">
                                     {sourceLabel}
                                 </p>
-                                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                                <div className="panel-rule h-px w-full" />
                                 <p className="text-text-muted text-xs">
                                     {formatOracleText(choice.prompt)}
                                 </p>
@@ -544,7 +549,7 @@ export default function PendingChoicePrompt({
                     ) : (
                         <p className="text-text-muted text-xs text-center">
                             Waiting for{" "}
-                            <span className="font-beleren text-parchment">
+                            <span className="text-display text-text">
                                 {chooserName}
                             </span>{" "}
                             — {choice.prompt}

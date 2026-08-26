@@ -18,6 +18,7 @@ import type {
 } from "@/lib/limited/draftReplayEngine";
 import type { LimitedEventSeatView } from "@/hooks/useLimitedEvent";
 import { seatLabelFor } from "@/lib/limited/replaySeatLabel";
+import { Banner } from "~/components/ui/banner";
 
 const STOP_REASON_MESSAGE: Record<ReplayStopReason, string> = {
     "hidden-pool":
@@ -36,9 +37,13 @@ export default function DraftLabReplayStopNotice({
     if (result.complete || !result.stopReason) return null;
 
     return (
-        <p className="rounded-sm bg-signal-opponent/15 px-2 py-1.5 text-[11px] text-signal-opponent">
+        // v4 (ADR 0103 §3/§5, issue #2730): shared `Banner` (`danger` — the
+        // reconstruction is unreliable past this point) instead of the
+        // bespoke `bg-signal-opponent/15` wash; `signal-opponent` is a
+        // player-identity token (ADR 0103 §3), not a generic warning colour.
+        <Banner tone="danger" className="text-[11px]">
             Stopped at {seatLabelFor(seats, result.stoppedAtSeat!)} —{" "}
             {STOP_REASON_MESSAGE[result.stopReason]}
-        </p>
+        </Banner>
     );
 }

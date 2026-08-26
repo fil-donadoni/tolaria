@@ -92,7 +92,12 @@ function Banner({
             )}
             <div className="min-w-0 flex-1">
                 {title && (
-                    <span className="mr-1 font-semibold tracking-wide uppercase">
+                    // v4 (ADR 0103 §4, issue #2730): the lead-in is a
+                    // display-face title, not `font-semibold uppercase` —
+                    // Beleren is confined to the card domain, and this was
+                    // the primitive still spelling a chrome title in the
+                    // small-caps convention rather than `.text-display`.
+                    <span className="text-display mr-1 uppercase">
                         {title}
                         {" — "}
                     </span>

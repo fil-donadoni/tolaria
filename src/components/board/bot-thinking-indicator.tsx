@@ -5,6 +5,15 @@
 // deciding rather than stuck. This badge shows while `search` is running and
 // clears the instant the bot acts. Trivial immediate passes never trip it, so
 // it only appears on windows the bot actually deliberates over.
+//
+// v4 (ADR 0103 §3/§5, issue #2730): a quiet HUD chip — hairline plate, a
+// STATIC muted dot — replacing the bespoke `bg-black/70` pill (a raw colour,
+// not a design token) with its pulsing `signal-pending` dot. The prototype's
+// `.px-hud` reserves the pulsing pending-coloured dot for "needs YOUR action"
+// (`MinimizedChoiceIndicator`); "the opponent is thinking" is calm information,
+// not a call to act, so the dot here is static and muted (`.dot.think`).
+import { cn } from "~/lib/utils";
+import { V4_PLATE } from "~/lib/board-chrome-v4";
 
 export default function BotThinkingIndicator({
     thinking,
@@ -14,11 +23,16 @@ export default function BotThinkingIndicator({
     if (!thinking) return null;
 
     return (
-        <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white/90 shadow-lg">
-            <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-pending opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-pending" />
-            </span>
+        <div
+            className={cn(
+                V4_PLATE,
+                "absolute left-1/2 top-3 z-20 -translate-x-1/2 flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-text-muted"
+            )}
+        >
+            <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full bg-text-disabled"
+            />
             Opponent is thinking…
         </div>
     );
