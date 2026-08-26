@@ -38,12 +38,30 @@ import { refresh } from "../dashboard/history-refresh.js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = globalThis as any;
 
+/**
+ * The `node` vitest project runs with `isolate: false` (rationale recorded in
+ * `dashboard-glossary.test.ts` and `history-filters.test.ts`) — a global
+ * installed here outlives this FILE inside its worker. A leaked `document`
+ * makes a later node-project file's `import` of `~/router` take
+ * `@tanstack/router-core`'s browser branch
+ * (`this.isServer = typeof document === "undefined"`) and throw
+ * `ReferenceError: window is not defined` in `createBrowserHistory` —
+ * reproduced with `router-limited-precedence.test.ts` run in the same
+ * worker after this file (review finding 1, round 2). Follow the same
+ * record-and-delete convention as the sibling dashboard test files.
+ */
+const INSTALLED_GLOBALS = ["document"] as const;
+
 function mountPage(bodyHtml: string) {
     const win = new Window({ url: "http://localhost/" });
     win.document.body.innerHTML = bodyHtml;
     g.document = win.document;
     return win;
 }
+
+afterEach(() => {
+    for (const key of INSTALLED_GLOBALS) delete g[key];
+});
 
 /** happy-dom's `dispatchEvent` requires an Event constructed by the SAME
  *  window realm — the global `Event` class is a different realm and is
@@ -356,9 +374,19 @@ describe("History Family × role pivot (#2634)", () => {
 });
 
 describe("History refresh — Family × role subtitle survives a failed /api read (#2634 review finding 2)", () => {
+    // Node's own `fetch` lives on this realm's `globalThis` — `delete`-ing
+    // the key after the test (rather than restoring the prior value) removes
+    // Node's native implementation from the whole `isolate: false` worker,
+    // not just this test's stub (#2634 review finding 2, round 2). Snapshot
+    // and restore instead, same shape as the `document` cleanup above.
+    let originalFetch: typeof fetch | undefined;
+
+    beforeEach(() => {
+        originalFetch = g.fetch;
+    });
+
     afterEach(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        delete (globalThis as any).fetch;
+        g.fetch = originalFetch;
     });
 
     /**
