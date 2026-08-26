@@ -1,3 +1,8 @@
+// Assertions read the native attribute directly (`.getAttribute`) rather than
+// jest-dom's `toHaveAttribute`/`toBeDisabled` — `tsconfig.app.json`'s
+// restricted `types` array doesn't pick up jest-dom's type augmentation (see
+// `draft-lab-term-breakdown.test.tsx`), so those matchers type-check as
+// missing under `tsc -b` even though they run fine.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SegmentedControl from "../segmented-control";
@@ -34,16 +39,20 @@ describe("SegmentedControl (issue #2729, WAI-ARIA radiogroup pattern)", () => {
             />
         );
         expect(
-            screen.getByRole("radio", { name: "Creatures" })
-        ).toHaveAttribute("aria-checked", "true");
-        expect(screen.getByRole("radio", { name: "All" })).toHaveAttribute(
-            "aria-checked",
-            "false"
-        );
-        expect(screen.getByRole("radio", { name: "Lands" })).toHaveAttribute(
-            "aria-checked",
-            "false"
-        );
+            screen
+                .getByRole("radio", { name: "Creatures" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            screen
+                .getByRole("radio", { name: "All" })
+                .getAttribute("aria-checked")
+        ).toBe("false");
+        expect(
+            screen
+                .getByRole("radio", { name: "Lands" })
+                .getAttribute("aria-checked")
+        ).toBe("false");
     });
 
     it("only the selected segment is in the tab order (roving tabindex)", () => {
@@ -56,16 +65,18 @@ describe("SegmentedControl (issue #2729, WAI-ARIA radiogroup pattern)", () => {
             />
         );
         expect(
-            screen.getByRole("radio", { name: "Creatures" })
-        ).toHaveAttribute("tabindex", "0");
-        expect(screen.getByRole("radio", { name: "All" })).toHaveAttribute(
-            "tabindex",
-            "-1"
-        );
-        expect(screen.getByRole("radio", { name: "Lands" })).toHaveAttribute(
-            "tabindex",
-            "-1"
-        );
+            screen
+                .getByRole("radio", { name: "Creatures" })
+                .getAttribute("tabindex")
+        ).toBe("0");
+        expect(
+            screen.getByRole("radio", { name: "All" }).getAttribute("tabindex")
+        ).toBe("-1");
+        expect(
+            screen
+                .getByRole("radio", { name: "Lands" })
+                .getAttribute("tabindex")
+        ).toBe("-1");
     });
 
     it("clicking an unselected segment calls onChange with its value", () => {
@@ -128,8 +139,10 @@ describe("SegmentedControl (issue #2729, WAI-ARIA radiogroup pattern)", () => {
                 disabled
             />
         );
-        const lands = screen.getByRole("radio", { name: "Lands" });
-        expect(lands).toBeDisabled();
+        const lands = screen.getByRole("radio", {
+            name: "Lands",
+        }) as HTMLButtonElement;
+        expect(lands.disabled).toBe(true);
         fireEvent.click(lands);
         fireEvent.keyDown(screen.getByRole("radio", { name: "All" }), {
             key: "ArrowRight",

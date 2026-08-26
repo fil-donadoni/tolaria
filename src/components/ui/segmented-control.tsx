@@ -7,7 +7,9 @@ export type SegmentedControlOption<Value extends string> = {
 };
 
 type SegmentedControlProps<Value extends string> = {
-    options: SegmentedControlOption<Value>[];
+    /** `readonly` so a call site can pass a `const` literal array without a
+     *  cast — the component only ever reads it. */
+    options: readonly SegmentedControlOption<Value>[];
     value: Value;
     onChange: (value: Value) => void;
     /** Accessible name for the group (WAI-ARIA radiogroup pattern) — every

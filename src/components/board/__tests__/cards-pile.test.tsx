@@ -693,10 +693,12 @@ describe("CardsPile — segmented type filter footer (issue #2729, plain browse 
         expect(
             getByRole("radiogroup", { name: "Filter pile by card type" })
         ).toBeTruthy();
-        expect(getByRole("radio", { name: "All" })).toHaveAttribute(
-            "aria-checked",
-            "true"
-        );
+        // Native `.getAttribute`, not jest-dom's `toHaveAttribute` —
+        // `tsconfig.app.json`'s restricted `types` array doesn't type-check
+        // it (see `draft-lab-term-breakdown.test.tsx`).
+        expect(
+            getByRole("radio", { name: "All" }).getAttribute("aria-checked")
+        ).toBe("true");
         expect(getByRole("radio", { name: "Creatures" })).toBeTruthy();
         expect(getByRole("radio", { name: "Instants" })).toBeTruthy();
         expect(getByRole("radio", { name: "Lands" })).toBeTruthy();
