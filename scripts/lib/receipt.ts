@@ -134,10 +134,17 @@ export interface WorkReceipt extends ReceiptCommon, RoundedReceipt {
     pr?: number;
     scenario?: ScenarioSpec;
     /**
-     * Required when `targetFiles` touches the Bot globs (`BOT_GLOBS` in
-     * `bot-globs.ts`) — see {@link BladeField}. Optional otherwise: a
-     * non-Bot PR carries no opinion on blade entries, so an older receipt
-     * (or one for an unrelated diff) still parses with this field absent.
+     * Required, AT WRITE TIME ONLY, when `targetFiles` touches the Bot globs
+     * (`BOT_GLOBS` in `bot-globs.ts`) — see {@link BladeField}. `writeReceipt`
+     * enforces this (issue #2688); `parseReceipt` itself never does, on
+     * purpose, because it is also what every EXISTING receipt on disk is read
+     * through (`readReceipts`/`readReceiptsFromDir`, which back the
+     * merge-train's `queue:train`), and hundreds of those predate this field.
+     * So: optional on parse always — a non-Bot PR carries no opinion on blade
+     * entries, and a Bot-touching receipt written before this schema existed
+     * (or hand-constructed by a test) still parses with the field absent —
+     * but `writeReceipt` refuses to author a NEW Bot-touching work receipt
+     * without it.
      */
     blade?: BladeField;
     /** Required when the outcome is not `pr-open`: what is still red. */
@@ -541,21 +548,16 @@ export function parseReceipt(value: unknown): Receipt {
     const blade = parseBlade(raw);
     if (blade) receipt.blade = blade;
 
-    // Guard from issue #2688: a diff touching the Bot subsystem must declare
-    // a verification decision — a blade entry (or a reasoned "none") — or
-    // the whole doctrine in `.claude/skills/bot-slice/SKILL.md` stays
-    // opt-in prose nothing enforces. `BOT_GLOBS` (`bot-globs.ts`) is the
-    // SAME list `.claude/rules/bot-development.md`'s frontmatter carries —
-    // see that file's header comment for why there is only one copy.
-    if (!blade && touchesBotGlobs(targetFiles)) {
-        throw new ReceiptError(
-            "blade",
-            "targetFiles touch the Bot globs (convex/gre/{search,evaluate,moves,...}.ts, " +
-                "convex/gre/ai/**, src/lib/ai/**) — declare { labels: [...] } naming the " +
-                'blade entries, or { none: "<reason>" } when none is warranted'
-        );
-    }
-
+    // NOTE: the #2688 "Bot-touching work receipt must declare `blade`" rule
+    // is deliberately NOT enforced here. `parseReceipt` is also how every
+    // receipt already on disk gets read back (`readReceipts` /
+    // `readReceiptsFromDir`, which the merge-train's `queue:train` runs on),
+    // and this field postdates hundreds of those. Enforcing it at parse time
+    // would retroactively flip every pre-existing Bot-touching receipt to
+    // "unreadable" and quarantine its issue out of any batch that reads it —
+    // punishing history for a schema it could not have known about. The rule
+    // is enforced once, at the one place a receipt is ever newly authored:
+    // `writeReceipt`, below.
     return receipt;
 }
 
@@ -678,6 +680,31 @@ export function writeReceipt(
             ? { ...(value as Record<string, unknown>), ts: nowSeconds() }
             : value
     );
+
+    // Guard from issue #2688, enforced HERE — at write time, the one place a
+    // receipt is ever newly authored — and deliberately NOT inside
+    // `parseReceipt` (see that function's closing comment): a work receipt
+    // touching the Bot subsystem must declare a verification decision — a
+    // blade entry or a reasoned "none" — or the whole doctrine in
+    // `.claude/skills/bot-slice/SKILL.md` stays opt-in prose nothing
+    // enforces. `BOT_GLOBS` (`bot-globs.ts`) is the SAME list
+    // `.claude/rules/bot-development.md`'s frontmatter carries — see that
+    // file's header comment for why there is only one copy. Scoped to
+    // `implement`/`fixup` only: a `review` receipt carries no `targetFiles`
+    // of its own to check.
+    if (
+        (receipt.role === "implement" || receipt.role === "fixup") &&
+        !receipt.blade &&
+        touchesBotGlobs(receipt.targetFiles)
+    ) {
+        throw new ReceiptError(
+            "blade",
+            "targetFiles touch the Bot globs (convex/gre/{search,evaluate,moves,...}.ts, " +
+                "convex/gre/ai/**, src/lib/ai/**) — declare { labels: [...] } naming the " +
+                'blade entries, or { none: "<reason>" } when none is warranted'
+        );
+    }
+
     const root = primaryCheckout(projectRoot);
     const dir = receiptDir(root, batchId);
 

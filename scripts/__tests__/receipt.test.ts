@@ -1047,7 +1047,7 @@ describe("issue #2656: writeReceipt lands in the PRIMARY checkout, not a linked 
     });
 });
 
-describe("the `blade` field — mandatory when targetFiles touches the Bot globs (issue #2688)", () => {
+describe("the `blade` field — mandatory when targetFiles touches the Bot globs, enforced at WRITE time only (issue #2688)", () => {
     it("is not required when targetFiles never touches the Bot globs", () => {
         const parsed = parseReceipt(workReceipt()) as WorkReceipt;
         expect(parsed.blade).toBeUndefined();
@@ -1075,10 +1075,22 @@ describe("the `blade` field — mandatory when targetFiles touches the Bot globs
         });
     });
 
-    it("rejects a Bot-touching receipt with no blade field at all", () => {
+    it("writeReceipt rejects a Bot-touching receipt with no blade field at all — parseReceipt alone does not", () => {
+        // parseReceipt itself must stay permissive: it is also how every
+        // receipt already on disk gets read back, and this field postdates
+        // hundreds of those (see the "retroactive safety" test below).
+        const parsed = parseReceipt(
+            workReceipt({ targetFiles: ["convex/gre/ai/x.ts"] })
+        ) as WorkReceipt;
+        expect(parsed.blade).toBeUndefined();
+
         let error: unknown;
         try {
-            parseReceipt(workReceipt({ targetFiles: ["convex/gre/ai/x.ts"] }));
+            writeReceipt(
+                tmp,
+                "sess-blade-missing",
+                workReceipt({ targetFiles: ["convex/gre/ai/x.ts"] })
+            );
         } catch (e) {
             error = e;
         }
@@ -1086,12 +1098,17 @@ describe("the `blade` field — mandatory when targetFiles touches the Bot globs
         expect((error as ReceiptError).field).toBe("blade");
     });
 
-    it("rejects a Bot-touching receipt when only ONE of several targetFiles matches", () => {
+    it("writeReceipt rejects a Bot-touching receipt when only ONE of several targetFiles matches", () => {
         let error: unknown;
         try {
-            parseReceipt(
+            writeReceipt(
+                tmp,
+                "sess-blade-partial",
                 workReceipt({
-                    targetFiles: ["CLAUDE.md", "convex/gre/ai/x.ts"],
+                    targetFiles: [
+                        "scripts/lib/receipt.ts",
+                        "convex/gre/ai/x.ts",
+                    ],
                 })
             );
         } catch (e) {
@@ -1099,6 +1116,34 @@ describe("the `blade` field — mandatory when targetFiles touches the Bot globs
         }
         expect(error).toBeInstanceOf(ReceiptError);
         expect((error as ReceiptError).field).toBe("blade");
+    });
+
+    it("parseReceipt (and therefore readReceipts) stays permissive for a Bot-touching receipt already on disk without blade — the retroactive-safety guarantee (issue #2688 fixup)", () => {
+        // Simulate a receipt written before this field existed: hand-write
+        // the JSON exactly as a pre-#2688 `writeReceipt` would have produced
+        // it, bypassing the write-time guard entirely (the guard cannot be
+        // retroactive — it only ever ran the day it was authored).
+        const dir = path.join(tmp, ".claude", "receipts", "legacy-batch");
+        fs.mkdirSync(dir, { recursive: true });
+        const legacy = workReceipt({
+            issue: 2684,
+            targetFiles: [
+                "convex/gre/search.ts",
+                "convex/gre/ai/searchVariant.ts",
+            ],
+            ts: 1700000000,
+        });
+        fs.writeFileSync(
+            path.join(dir, "2684-implement.json"),
+            JSON.stringify(legacy, null, 2)
+        );
+
+        const { receipts, errors } = readReceipts(tmp, "legacy-batch");
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(1);
+        const receipt = receipts[0] as WorkReceipt;
+        expect(receipt.issue).toBe(2684);
+        expect(receipt.blade).toBeUndefined();
     });
 
     it("rejects blade carrying both labels and none", () => {

@@ -40,12 +40,20 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
  * trip it, tight enough that a repeat of the +4,723-byte regrowth the audit
  * measured goes red before it lands.
  *
- * Re-measured 2026-08-26 (issue #2688) at 44,926 bytes: `.claude/rules/
- * bot-development.md` is a genuinely new norm (the Bot verification
- * doctrine, previously opt-in prose in `/bot-slice`, now auto-loaded), not
- * prose regrowth — the case this file's own header calls out as the one
- * where raising the ceiling is the correct response. Same ~7% headroom
- * policy re-applied to the new baseline.
+ * Re-measured 2026-08-26 (issue #2688): HEAD is 44,926 bytes, but that is
+ * NOT all this PR's growth. `main` at the same commit already measured
+ * 43,964 bytes — 3,080 bytes of prose regrowth on OTHER resident files since
+ * the 40,884 baseline above, the exact thing this guard exists to catch,
+ * accrued independently of #2688 and re-baselined here as a side effect.
+ * Only 962 of the 4,042-byte total growth (44,926 − 40,884) are this PR's
+ * own: the new `.claude/rules/bot-development.md` (a genuinely new norm —
+ * the Bot verification doctrine, previously opt-in prose in `/bot-slice`,
+ * now auto-loaded) plus its one-line CLAUDE.md pointer row. That addition is
+ * exactly the case this file's own header calls out as the one where
+ * raising the ceiling is the correct response; the other 3,080 bytes are
+ * carried along because the ceiling is one shared number, not because they
+ * were earned. Same ~7% headroom policy re-applied to the new (re-baselined)
+ * total.
  */
 const CEILING_BYTES = 48_000;
 
