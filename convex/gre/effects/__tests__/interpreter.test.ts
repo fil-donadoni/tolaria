@@ -63,7 +63,11 @@ import {
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { raiseTriggerTargetSelection } from "../../rules";
 import type { Color, TargetSelection } from "../../../cards/types";
-import { finalizeTargetSelection } from "../../../game";
+import {
+    finalizeTargetSelection,
+    applyOneTargetSelection,
+} from "../../../game";
+import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
 import { INLINE_DELAYED_TRIGGER_ID, runEffectScript } from "../interpreter";
 import { validateEffectScript } from "../validate";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
@@ -23995,6 +23999,227 @@ describe("Effect Script Op: loseAllAbilities (CR 613.1f layer 6)", () => {
         expect(slim.staticAbilities).toEqual([]);
         expect(getEffectiveActivatedAbilities(slim)).toEqual([]);
         expect(effectiveTriggeredAbilities(slim)).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Fixtures for `loseAllAbilitiesWhileSourceRemains` (issue #1562, Tishana's
+// Tidebinder). Unlike `loseAllAbilities` above, this Op's target is an
+// ANNOUNCED "spell" slot naming a countered ABILITY on the stack, and its
+// duration is tied to the CURRENTLY-RESOLVING permanent — so exercising it
+// needs a real triggered-ability stack item (a FRESH `allocInstanceId`, per
+// `buildTriggerItem`) as the target, built through the REAL
+// `collectTriggers` pipeline, never a hand-built `StackItem` literal (a
+// 2026-08 review round on #1562 found the hand-built shape hid a bug: it
+// accidentally reused the source permanent's OWN id, which only matches
+// `buildTriggerItem`'s real output for an ACTIVATED ability, not a
+// TRIGGERED one).
+// ---------------------------------------------------------------------------
+
+/** A 1/1 whose OWN triggered ability is easy to fire on demand (any +1/+1
+ *  counter placed on it) — stands in for "some OTHER permanent's ability"
+ *  that a rider counters. Carries a keyword too, so the strip has something
+ *  observable beyond the (already-vanished) triggered ability itself. */
+const LOSEWHILE_TARGET_ID = "test-effects-losewhile-target";
+registerTokenDefinition({
+    id: LOSEWHILE_TARGET_ID,
+    name: LOSEWHILE_TARGET_ID,
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bear"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        counterAddedTrigger({
+            id: "test-losewhile-target-counter",
+            oracleText:
+                "Whenever a +1/+1 counter is put on this creature, you gain 1 life.",
+            scope: "self",
+            counterType: "+1/+1",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        }),
+    ],
+});
+
+/** A 1/1 whose ETB rider isolates `loseAllAbilitiesWhileSourceRemains` from
+ *  Tidebinder's `counter` half (that composite interaction is the CARD-level
+ *  test's job, `lci/__tests__/blue.test.ts`) — here the announced ability is
+ *  left ON the stack, uncountered, so the test targets purely the strip. */
+const LOSEWHILE_HOST_ID = "test-effects-losewhile-host";
+registerTokenDefinition({
+    id: LOSEWHILE_HOST_ID,
+    name: LOSEWHILE_HOST_ID,
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "test-losewhile-host-etb",
+            oracleText:
+                "When this creature enters, target artifact, creature, or planeswalker ability loses all abilities for as long as this creature remains.",
+            scope: "self",
+            targetRequirement: {
+                type: "spell",
+                spellStackKind: "ability",
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                {
+                    op: "loseAllAbilitiesWhileSourceRemains",
+                    target: { target: 0 },
+                    filter: { type: ["Artifact", "Creature", "Planeswalker"] },
+                },
+            ],
+        }),
+    ],
+});
+
+describe("Effect Script Op: loseAllAbilitiesWhileSourceRemains (CR 613.1f layer 6 / CR 611.2b, issue #1562)", () => {
+    /** Fires `LOSEWHILE_TARGET_ID`'s own triggered ability (a +1/+1 counter
+     *  placement) through the REAL counter → event → `collectTriggers`
+     *  pipeline and leaves it sitting on the stack, UNRESOLVED — a legal
+     *  `spellStackKind: "ability"` target whose `id` is a fresh
+     *  `allocInstanceId`, unrelated to the target permanent's own
+     *  battlefield id (`buildTriggerItem`, `gre/triggers.ts`). */
+    function counteredAbilityOnStack(
+        state: GameState,
+        targetInstanceId: string
+    ): StackItem {
+        const scratch = pushSpell(
+            state,
+            registerScript("test-losewhile-scratch", []),
+            "p1"
+        );
+        const ctx = buildSpellContext(state, scratch);
+        ctx.addCounter({ type: "permanent", id: targetInstanceId }, "+1/+1", 1);
+        state.stack.pop(); // discard the scratch spell, never resolved
+        processPendingActionTriggers(state);
+        const top = state.stack[state.stack.length - 1]!;
+        expect(top.triggeredAbilityId).toBe("test-losewhile-target-counter");
+        expect(top.id).not.toBe(targetInstanceId);
+        return top;
+    }
+
+    function hostEtbOnStack(state: GameState, host: CardInstanceState): void {
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PERMANENT_ENTERED",
+                    instanceId: host.id,
+                    controllerId: host.controllerId,
+                    types: host.types,
+                } as GameEvent,
+            ])
+        );
+    }
+
+    /** Drives the CR 603.3d "up to one" choice through the real machinery —
+     *  the accepted-set half (`applyOneTargetSelection`, `game.ts`) is what
+     *  computes `TargetSelection.stackSourceId` server-side (issue #1562
+     *  fixup); a hand-set `pendingTarget.selected` literal would skip that
+     *  computation and silently defeat this file's own regression test. */
+    function chooseHostTarget(state: GameState, targetId: string | null) {
+        const raised = raiseTriggerTargetSelection(state);
+        expect(raised).toBe(true);
+        if (targetId === null) {
+            state.pendingTarget!.selected = [];
+            finalizeTargetSelection(
+                state,
+                state.pendingTarget!,
+                state.pendingTarget!.playerId
+            );
+            return;
+        }
+        applyOneTargetSelection(state, state.pendingTarget!.playerId, {
+            targetType: "spell",
+            targetId,
+        });
+    }
+
+    function makeScenario(): {
+        state: GameState;
+        target: CardInstanceState;
+        host: CardInstanceState;
+    } {
+        const target = makeInstance(LOSEWHILE_TARGET_ID, {
+            id: "loseWhileTarget",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const host = makeInstance(LOSEWHILE_HOST_ID, {
+            id: "loseWhileHost",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        return { state, target, host };
+    }
+
+    it("resolves the countered ability's REAL permanent via TargetSelection.stackSourceId, not the announced slot's own (fresh, unrelated) id", () => {
+        const { state, target, host } = makeScenario();
+        const countered = counteredAbilityOnStack(state, target.id);
+        hostEtbOnStack(state, host);
+        chooseHostTarget(state, countered.id);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const stripped = state.players[1].battlefield.find(
+            (c) => c.id === "loseWhileTarget"
+        )!;
+        expect(stripped.staticAbilities).not.toContain("flying");
+        expect(stripped.abilitiesSuppressedBy).toEqual([
+            expect.objectContaining({ sourceId: "loseWhileHost" }),
+        ]);
+
+        // Wire format (per-Op regime, mandatory): the strip survives
+        // projection for both viewers exactly like `loseAllAbilities`'s own
+        // wire-format assertion above.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "loseWhileTarget"
+        )!;
+        expect(slim.staticAbilities).not.toContain("flying");
+    });
+
+    it("releases the hold when the RESOLVING host itself leaves the battlefield (CR 611.2b duration)", () => {
+        const { state, target, host } = makeScenario();
+        const countered = counteredAbilityOnStack(state, target.id);
+        hostEtbOnStack(state, host);
+        chooseHostTarget(state, countered.id);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "loseWhileTarget"
+            )!.staticAbilities
+        ).not.toContain("flying");
+
+        removePermanentTo(state, "loseWhileHost", "graveyard");
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "loseWhileTarget"
+            )!.staticAbilities
+        ).toContain("flying");
+    });
+
+    it("is a no-op (still resolves) when 'up to one' is declined — CR 608.2b", () => {
+        const { state, host } = makeScenario();
+        hostEtbOnStack(state, host);
+        chooseHostTarget(state, null);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "loseWhileTarget"
+            )!.staticAbilities
+        ).toContain("flying");
     });
 });
 

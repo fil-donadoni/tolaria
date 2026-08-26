@@ -2308,7 +2308,13 @@ describe("Brown Ouphe — filtered ability counter (CR 701.6a / 113.7a)", () => 
         const state = makeState();
         state.stack.push(abilityOnStack(aegisOfTheMeek.id, "aegis-ability"));
         const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
-        expect(legal).toEqual([{ type: "spell", id: "aegis-ability" }]);
+        expect(legal).toEqual([
+            {
+                type: "spell",
+                id: "aegis-ability",
+                stackSourceId: "aegis-ability",
+            },
+        ]);
     });
 
     it("does NOT target an activated ability from a non-artifact source", () => {

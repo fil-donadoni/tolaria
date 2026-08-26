@@ -3139,6 +3139,43 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.loseAllAbilities(target);
     },
+    // CR 613.1f layer 6 / CR 611.2b (issue #1562) — the target permanent
+    // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING permanent
+    // remains on the battlefield (Tishana's Tidebinder's counter-then-rider).
+    // `target` is an ANNOUNCED SLOT read via `resolveTargetRef` — NOT
+    // `resolveObjectRef` — because the counter+rider template targets an
+    // activated/triggered ABILITY on the stack, not a permanent directly, a
+    // shape `resolveObjectRef`'s battlefield-only check would reject
+    // outright. The permanent's real battlefield id is `target.stackSourceId`
+    // (`TargetSelection.stackSourceId`, issue #1562 fixup) — captured at
+    // target-selection time as `triggerSourceId ?? id`, NOT `target.id`
+    // itself: CR 113.7a's countered-ability stack item borrows its SOURCE
+    // PERMANENT's own battlefield id ONLY for an ACTIVATED ability
+    // (`buildActivatedAbilityStackItem` clones the source); a TRIGGERED
+    // ability's stack item carries a FRESH id with the real permanent in
+    // `triggerSourceId` (`gre/triggers.ts` `buildTriggerItem`), and by the
+    // time this Op runs the preceding `counter` Op has already spliced the
+    // item off `state.stack` — nothing later could recover `triggerSourceId`
+    // from the stack itself. Reading `target.id` here silently no-ops for
+    // EVERY countered triggered ability. Optional `filter` gates the strip on
+    // the target's LIVE battlefield characteristics, read through the SAME
+    // battlefield-guaranteed matcher `objectMatchesFilter` uses. Skipped when
+    // the slot is missing (CR 608.2b) or `filter` doesn't match.
+    loseAllAbilitiesWhileSourceRemains(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (!target) return;
+        const sourceId = target.stackSourceId ?? target.id;
+        if (op.filter) {
+            const base = toPermanentFilter(ctx, op.filter);
+            if (base === UNMATCHABLE_FILTER) return;
+            const filter = { ...(base ?? {}), instanceIds: [sourceId] };
+            const onBattlefield = ctx.allPlayerIds.some(
+                (pid) => ctx.getBattlefieldIds(pid, filter).length > 0
+            );
+            if (!onBattlefield) return;
+        }
+        ctx.loseAllAbilitiesWhileSourceRemains(sourceId);
+    },
     // CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
     // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
     // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped

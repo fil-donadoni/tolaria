@@ -4,31 +4,80 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-// TODO(Tishana's Tidebinder — tracked-by: #1562, split out of #1528, parent
-// PRD #1525). The core "counter up to one target activated OR triggered
-// ability" engine gap is CLOSED: Stifle (scg/blue) ships the
-// `spellStackKind: "ability"` stack-object kind (any ability, activated or
-// triggered) and `ctx.counter` vanishes a countered triggered ability
-// (CR 113.7a). What still blocks Tishana is the RIDER — "If an ability of an
-// artifact, creature, or planeswalker is countered this way, that permanent
-// loses all abilities for as long as this creature remains on the
-// battlefield." That is a continuous layer-6 ability-loss (kind:
-// "ability-loss", the Titania's Song mechanic) applied to a RUNTIME-CHOSEN
-// single permanent for a duration tied to Tidebinder's presence — and neither
-// the card-declared `StaticAbilityLoss.applies` path (read at apply time, not
-// parameterised by a recorded target id) nor any `SpellContext` primitive can
-// grant that today. Keep tracked stub until #1562 lands.
-// export const tishanasTidebinder: CardDefinition = {
-//     id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
-//     name: "Tishana's Tidebinder",
-//     rarity: "rare",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Merfolk", "Wizard"],
-//     power: 3,
-//     toughness: 2,
-// };
+// Tishana's Tidebinder — {2}{U} Creature — Merfolk Wizard, 3/2 (LCI, issue
+// #1562, split out of #1528, parent PRD #1525). "Flash. When this creature
+// enters, counter up to one target activated or triggered ability. If an
+// ability of an artifact, creature, or planeswalker is countered this way,
+// that permanent loses all abilities for as long as this creature remains on
+// the battlefield. (Mana abilities can't be targeted.)"
+//
+// COUNTER HALF (CR 603.3d ETB-targeted trigger, Stifle-parity): the SAME
+// `targetRequirement` shape Stifle (scg/blue.ts) ships —
+// `spellStackKind: "ability"` keeps any ability (activated OR triggered) on
+// the stack legal and drops spells; `count: { min: 0, max: 1 }` is "up to
+// one" (Loran precedent, bro/white.ts). Mana abilities are never legal
+// targets by construction (CR 605.3b — a mana ability "doesn't go on the
+// stack, so it can't be targeted, countered, or otherwise responded to"), so
+// no extra exclusion is needed. `ctx.counter` vanishes the countered ability
+// (CR 701.6a / 113.7a) — an ability is not a card, so it goes nowhere.
+//
+// RIDER HALF (CR 613.1f layer 6, CR 611.2b "for as long as . . ." duration,
+// engine gap closed by issue #1562's new `loseAllAbilitiesWhileSourceRemains`
+// Op): the SAME announced slot (`{ target: 0 }`) is re-read after the
+// counter. The slot's OWN `id` is the countered ability's stack-item id,
+// which only equals the SOURCE PERMANENT's battlefield id for an ACTIVATED
+// ability (`buildActivatedAbilityStackItem` clones the source, keeping
+// `id`) — a TRIGGERED ability's stack item gets a fresh id, with the real
+// permanent recorded separately as `triggerSourceId`. The Op reads
+// `TargetSelection.stackSourceId` (`triggerSourceId ?? id`, captured at
+// target-selection time — see `cards/types.ts`'s field doc — while the item
+// is still on the stack and its identity is knowable), not `id` — so both
+// ability kinds resolve to the real permanent even though the announced
+// slot's `TargetSelection.type` says "spell", and even after `counter`
+// splices the item off the stack. `filter` restricts the strip to "an
+// artifact, creature, or planeswalker" per the printed rider; the Op is a
+// no-op when nothing was targeted (CR 608.2b — "up to one" chose none) or
+// the countered ability's source doesn't match. The loss is torn down
+// automatically the moment Tishana's Tidebinder itself leaves the
+// battlefield (dies / sacrifice / bounce / destroy) — no bespoke teardown,
+// see the Op's own doc comment (`cards/types.ts`), which also notes the
+// pre-existing phasing gap the departure funnel does NOT cover.
+export const tishanasTidebinder: CardDefinition = {
+    id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
+    name: "Tishana's Tidebinder",
+    rarity: "rare",
+    oracleText:
+        "Flash\nWhen this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield. (Mana abilities can't be targeted.)",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Wizard"],
+    power: 3,
+    toughness: 2,
+    staticAbilities: ["flash"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "tishanas-tidebinder-etb",
+            oracleText:
+                "When this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield.",
+            scope: "self",
+            targetRequirement: {
+                type: "spell",
+                spellStackKind: "ability",
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                { op: "counter", target: { target: 0 } },
+                {
+                    op: "loseAllAbilitiesWhileSourceRemains",
+                    target: { target: 0 },
+                    filter: { type: ["Artifact", "Creature", "Planeswalker"] },
+                },
+            ],
+        }),
+    ],
+};
 
 // Malcolm, Alluring Scoundrel — {1}{U} Legendary Creature — Siren Pirate,
 // 2/1 (LCI, residue of #1302, parent PRD #620, issues #1344 / #1477). "Flash.

@@ -849,6 +849,24 @@ export interface TargetSelection {
      *  graveyard/hand the card sits in. Unused for permanent / player /
      *  spell targets. */
     playerId?: string;
+    /** `type: "spell"` ONLY (issue #1562 fixup) — the targeted stack item's
+     *  `triggerSourceId ?? item.id`, captured at target-selection time
+     *  (`getLegalTargets`'s candidate push, `selectTarget`'s accepted-set
+     *  build), i.e. WHILE the item is still on the stack and its identity is
+     *  knowable. CR 113.7a's countered-ability stack item borrows its SOURCE
+     *  PERMANENT's own battlefield id ONLY for an ACTIVATED ability
+     *  (`buildActivatedAbilityStackItem` clones the source, keeping `id`); a
+     *  TRIGGERED ability's stack item gets a FRESH `id`
+     *  (`allocInstanceId`, `gre/triggers.ts` `buildTriggerItem`) with the
+     *  real permanent recorded separately as `triggerSourceId`. `counter()`
+     *  (CR 701.6a) removes the item from `state.stack` before an ability
+     *  vanishes, so nothing downstream can look the id up on the stack
+     *  anymore — a later Op resolving "the permanent whose ability was just
+     *  countered" (`loseAllAbilitiesWhileSourceRemains`,
+     *  Tishana's Tidebinder) MUST read this field, not `id`, or it silently
+     *  misses every triggered-ability case. Undefined for every other
+     *  `TargetSelection.type`. */
+    stackSourceId?: string;
 }
 
 export interface ActivatedAbilityContext {
@@ -3189,6 +3207,50 @@ export interface SpellContext {
      *  non-permanent target or one that has left the battlefield
      *  (CR 608.2b). */
     loseAllAbilities: (target: TargetSelection) => void;
+    /** Makes a target permanent LOSE ALL ABILITIES (CR 613.1f layer 6) for as
+     *  long as the CURRENTLY-RESOLVING permanent remains on the battlefield
+     *  (CR 611.2b "for as long as . . ." duration) — the SOURCE-KEYED sibling
+     *  of `loseAllAbilities` (which is keyed to the `"indefinite"` sentinel
+     *  and never reverts). Tishana's Tidebinder's rider (issue #1562): "If an
+     *  ability of an artifact, creature, or planeswalker is countered this
+     *  way, that permanent loses all abilities for as long as this creature
+     *  remains on the battlefield."
+     *
+     *  Writes the SAME instance markers `loseAllAbilities` and the continuous
+     *  `ability-loss` static effect (Titania's Song) both write
+     *  (`abilitiesSuppressedBy` + one `removedKeywords` entry per stripped
+     *  keyword) through the SAME shared applier `applyAbilityLossHold`
+     *  (`gre/state.ts`), keyed here to the RESOLVING permanent's OWN
+     *  battlefield instance id rather than a sentinel — exactly the call
+     *  shape `applySourceStaticEffects`'s `ability-loss` branch already uses
+     *  for Titania's Song. That is what makes the duration work with NO new
+     *  storage and NO bespoke teardown: `unapplySourceStaticEffects`, called
+     *  unconditionally whenever ANY permanent LEAVES THE BATTLEFIELD via
+     *  `removePermanentTo` (dies / sacrifice / bounce / destroy — every
+     *  ZONE-CHANGE departure, not every way a permanent can stop being
+     *  "on the battlefield" in the CR 608.2b sense), is the SAME function
+     *  that already releases a `sourceId`-keyed hold for Titania's Song, and
+     *  releases this one identically the moment the resolving permanent
+     *  itself leaves. The "duration" lives entirely on the TARGET's own
+     *  `abilitiesSuppressedBy` / `removedKeywords` records — both already
+     *  persisted and id-remapped generically (`gre/serialize.ts`) — so no
+     *  `chosenPermanentId`-style field is needed on the source.
+     *
+     *  Out of scope for issue #1562 (pre-existing gap, not a regression this
+     *  card introduces): phasing OUT (CR 702.26b — a phased-out permanent
+     *  "is treated as though it doesn't exist") does NOT call
+     *  `unapplySourceStaticEffects` (`phaseOutPermanent`, `gre/state.ts`
+     *  splices the battlefield array directly), so a phased-out source
+     *  keeps its target stripped instead of releasing the hold. Latent in
+     *  the shared applier since Titania's Song — this Op does not make it
+     *  worse, only reachable by a second card.
+     *
+     *  Takes a FRESH layer timestamp (`allocStaticTimestamp`), so per CR
+     *  613.7 an ability GRANTED to the target after this resolves survives
+     *  the strip (mirrors `loseAllAbilities`'s own timestamp rule). No-op if
+     *  the resolving source or the target has left the battlefield
+     *  (CR 608.2b). */
+    loseAllAbilitiesWhileSourceRemains: (targetId: string) => void;
     /** Returns a target permanent to its owner's hand (CR 400.7). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
      *  transient state (tapped, marked damage, regen shields, summoning
@@ -12324,6 +12386,44 @@ export type EffectOp =
      *  storage has no room for — the `abilitiesSuppressedBy` markers are
      *  source-keyed, not duration-keyed — and no card in scope wants one. */
     | { op: "loseAllAbilities"; target: EffectObjectSelector }
+    /** CR 613.1f layer 6 (issue #1562) — a target permanent LOSES ALL
+     *  ABILITIES for as long as the CURRENTLY-RESOLVING permanent remains on
+     *  the battlefield (CR 611.2b "for as long as . . ." duration) — the
+     *  SOURCE-KEYED sibling of `loseAllAbilities` immediately above
+     *  (indefinite, sentinel-keyed, never reverts). A thin declarative skin
+     *  over `SpellContext.loseAllAbilitiesWhileSourceRemains`, one execution
+     *  path (ADR 0045). Tishana's Tidebinder (LCI): "When this creature
+     *  enters, counter up to one target activated or triggered ability. If
+     *  an ability of an artifact, creature, or planeswalker is countered
+     *  this way, that permanent loses all abilities for as long as this
+     *  creature remains on the battlefield."
+     *
+     *  `target` is an ANNOUNCED TARGET SLOT (`EffectTargetRef`, resolved via
+     *  the SAME bare `{ target: n }` reader `counter` uses — NOT the broader
+     *  `EffectObjectSelector` every other ability-loss/type-change Op takes,
+     *  and deliberately not battlefield-checked at read time): built for the
+     *  counter-then-rider template, where CR 113.7a's countered-ability
+     *  stack item borrows its SOURCE PERMANENT's own battlefield instance id
+     *  (the source stays on the battlefield while its ability is removed
+     *  from the stack) — so the announced slot's `id` names the permanent
+     *  even though its `TargetSelection.type` says `"spell"` (a stack
+     *  object), not `"permanent"`. `resolveObjectRef`'s battlefield-only
+     *  check would reject that shape outright, which is why this Op is
+     *  bound to `resolveTargetRef` instead.
+     *
+     *  Optional `filter` gates the strip on the target's LIVE battlefield
+     *  characteristics (`objectMatchesFilter`'s reader, `toPermanentFilter` +
+     *  `getBattlefieldIds`) — Tidebinder's own "artifact, creature, or
+     *  planeswalker" restriction; omitted applies unconditionally (for a
+     *  future card whose rider carries no type restriction). Skipped when
+     *  the slot is missing (CR 608.2b — "up to one target" chose none, or the
+     *  countered ability's source was never a real target) or when `filter`
+     *  doesn't match the live target. */
+    | {
+          op: "loseAllAbilitiesWhileSourceRemains";
+          target: EffectTargetRef;
+          filter?: EffectCardFilter;
+      }
     /** CR 701.24 (issue #844) — shuffle a player's library. A thin declarative
      *  skin over the SpellContext primitive `shuffleLibrary`, one execution
      *  path (ADR 0045). `action` is `"shuffle"` — the seeded-PRNG randomization

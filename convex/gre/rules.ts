@@ -2906,7 +2906,18 @@ export function getLegalTargets(
             if (checkSpellTargetFilters(spellFilterCtx, item, spellValues)) {
                 continue;
             }
-            targets.push({ type: "spell", id: item.id });
+            // `stackSourceId` (issue #1562 fixup) — the permanent whose
+            // ability this stack item IS, survivable past `counter()`
+            // splicing the item off `state.stack`. `item.triggerSourceId ??
+            // item.id` is the same idiom used throughout `gre/state.ts` for
+            // the CURRENTLY-resolving item; here it's captured for a
+            // TARGETED item instead, at the one moment (candidate
+            // generation, while still on the stack) the id is knowable.
+            targets.push({
+                type: "spell",
+                id: item.id,
+                stackSourceId: item.triggerSourceId ?? item.id,
+            });
         }
     }
 

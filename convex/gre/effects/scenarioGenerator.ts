@@ -970,6 +970,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // permanent that actually HAS abilities to lose.
             req.skip ??= `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`;
             return;
+        case "loseAllAbilitiesWhileSourceRemains":
+            // `loseAllAbilitiesWhileSourceRemains` (issue #1562) strips a
+            // permanent's abilities for as long as the resolving source
+            // remains (CR 613.1f layer 6). Same rationale as
+            // `loseAllAbilities` immediately above (the canned filler has no
+            // abilities to lose), PLUS its `target` is an ANNOUNCED SLOT that
+            // must resolve to an "ability" stack object (CR 113.7a — the
+            // counter-then-rider template), a shape the canned generator's
+            // permanent-slot seeding does not produce either. Explicit skip —
+            // the Op is new (per-Op regime) and earns its own hand-written
+            // interpreter + wire-format tests, run against a permanent that
+            // actually has abilities to lose.
+            req.skip ??= `Op "loseAllAbilitiesWhileSourceRemains" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests`;
+            return;
         case "setSubtype":
             // `setSubtype` (issue #1083) replaces a target land's subtypes
             // for a duration (CR 305.7 layer 4). Same rationale as
@@ -2604,6 +2618,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // vacuous). Kept for the 1:1 coverage guard; the Op's own interpreter +
     // wire-format tests are the behavioural guarantor.
     loseAllAbilities() {
+        return null;
+    },
+    // `loseAllAbilitiesWhileSourceRemains` (CR 613.1f layer 6, issue #1562) —
+    // never reached: `analyseOp` skips every script with this Op (same
+    // reasoning as `loseAllAbilities` above, plus its target must resolve to
+    // a countered-ability stack object the canned generator never produces).
+    // Kept for the 1:1 coverage guard; the Op's own interpreter + wire-format
+    // tests are the behavioural guarantor.
+    loseAllAbilitiesWhileSourceRemains() {
         return null;
     },
     // `nameCard` (CR 201.3 / 202.3, issue #1085) — never reached: `analyseOp`

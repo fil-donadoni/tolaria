@@ -7374,6 +7374,18 @@ function allocStaticTimestamp(state: GameState): number {
  *  one-shot holds share the `"indefinite"` sentinel source id, so a per-source
  *  check would collapse them into one.
  *
+ *  Two DIFFERENT sources (two Tishana's Tidebinders, or a Tidebinder plus
+ *  Titania's Song) holding a suppression on the SAME target SIMULTANEOUSLY —
+ *  reachable since #1562 gave the one-shot arm a per-source, RELEASABLE
+ *  `sourceId` instead of the shared never-released `"indefinite"` sentinel —
+ *  is handled on the RELEASE side, not here: the second holder to apply finds
+ *  `staticAbilities` already empty (the first holder stripped it) and records
+ *  no `removedKeywords` of its own, so `unapplySourceStaticEffects`'s
+ *  departure handling must not restore a keyword while a LATER-timestamped
+ *  hold on the same target is still live (a strictly-later ordering check,
+ *  not mere co-existence — an EARLIER surviving hold does not block, see the
+ *  seq-aware ownership hand-off there).
+ *
  *  Returns true when a new hold was recorded. */
 export function applyAbilityLossHold(
     target: CardInstanceState,
@@ -7890,12 +7902,59 @@ export function unapplySourceStaticEffects(
             // CR 205.4a — release this source's supertype-set contribution
             // (Melting leaving play restores lands' printed Snow supertype).
             unapplySupertypeSetGrant(target, source.id);
+            // CR 613.7 (issue #1562 review fixup) — multi-holder composition.
+            // `abilitiesSuppressedBy` is populated ONLY by `applyAbilityLossHold`
+            // (Titania's Song's continuous hold and Oko's/Tishana's Tidebinder's
+            // one-shot holds). A SECOND "loses all abilities" holder applying
+            // while a FIRST is already live can find `staticAbilities` already
+            // empty and so record NO `removedKeywords` entries of its own
+            // (nothing left to strip) — every stripped keyword's entry then
+            // stays tagged with whichever holder happened to capture it. A full
+            // timestamp-ordered replay (CR 613.7) says an entry with timestamp
+            // `seq` must stay suppressed for as long as ANY OTHER active holder
+            // has a STRICTLY LATER timestamp — that later holder would re-strip
+            // the keyword even if the earlier removal were undone, whether or
+            // not it happened to capture its OWN entry for it. A surviving
+            // holder with an EARLIER-or-equal timestamp does NOT block: this
+            // entry already outranks it (`identitySwap.test.ts`'s "an eaten
+            // grant is held by the EARLIEST stripper that outranks it, not by
+            // the first one on the board" — releasing the LATER of two
+            // stackable holders must restore immediately when nothing else
+            // outranks it, even while an EARLIER holder is still live).
+            const survivingSuppressors = (
+                target.abilitiesSuppressedBy ?? []
+            ).filter((s) => s.sourceId !== source.id);
             const removals = target.removedKeywords;
             if (removals && removals.length > 0) {
                 const kept: typeof removals = [];
                 for (const r of removals) {
                     if (r.sourceId !== source.id) {
                         kept.push(r);
+                        continue;
+                    }
+                    // A surviving holder with a LATER timestamp than this
+                    // entry's own still legitimately re-strips the keyword —
+                    // hand the entry off to the EARLIEST such blocker (lowest
+                    // `seq`, mirroring the outranked-grant reclaim rule below)
+                    // instead of restoring it, preserving the entry's OWN
+                    // `seq` so the check re-runs identically on THAT holder's
+                    // eventual departure. Reassigning ownership only (never
+                    // the seq) is what keeps a departed sourceId from
+                    // becoming permanently unreachable by every future
+                    // unapply call.
+                    let blocker:
+                        | NonNullable<
+                              typeof target.abilitiesSuppressedBy
+                          >[number]
+                        | undefined;
+                    for (const s of survivingSuppressors) {
+                        if ((s.seq ?? 0) <= (r.seq ?? 0)) continue;
+                        if (!blocker || (s.seq ?? 0) < (blocker.seq ?? 0)) {
+                            blocker = s;
+                        }
+                    }
+                    if (blocker) {
+                        kept.push({ ...r, sourceId: blocker.sourceId });
                         continue;
                     }
                     target.staticAbilities = [
@@ -14361,6 +14420,52 @@ export function buildSpellContext(
                 "indefinite",
                 allocStaticTimestamp(state),
                 { restamp: true }
+            );
+        },
+        // CR 613.1f layer 6 / CR 611.2b (issue #1562) — a target permanent
+        // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING
+        // permanent (the ETB source: `item.triggerSourceId ?? item.id`,
+        // mirroring `setChosenPlayer`/`getChosenPlayer` above) remains on the
+        // battlefield. Tishana's Tidebinder's rider.
+        //
+        // Goes through the SAME shared applier `applyAbilityLossHold`, keyed
+        // to the RESOLVING permanent's OWN battlefield instance id — exactly
+        // the call shape `applySourceStaticEffects`'s `ability-loss` branch
+        // already uses for the CONTINUOUS static effect (Titania's Song), NOT
+        // `loseAllAbilities`'s `"indefinite"` sentinel above. That is what
+        // makes the duration work with no new storage and no bespoke
+        // teardown: `unapplySourceStaticEffects`, called unconditionally
+        // whenever ANY permanent leaves the battlefield (`removePermanentTo`,
+        // the single funnel for every departure path — dies / sacrifice /
+        // bounce / destroy), already releases a `sourceId`-keyed hold for
+        // Titania's Song and releases this one identically the moment the
+        // resolving permanent itself leaves. The "duration" lives entirely on
+        // the TARGET's own `abilitiesSuppressedBy` / `removedKeywords`
+        // records — both already persisted and id-remapped generically
+        // (`gre/serialize.ts`) — so no `chosenPermanentId`-style field is
+        // needed on the source.
+        //
+        // No `restamp`: unlike Oko's shared `"indefinite"` sentinel (which
+        // needs `restamp` so concurrent resolutions from DIFFERENT sources
+        // don't collide on the SAME key), this source id is the resolving
+        // permanent's own unique battlefield id — the idempotent-per-source
+        // default is correct, matching the continuous-effect call shape.
+        //
+        // A FRESH layer timestamp (CR 613.7) lets a LATER grant survive the
+        // strip, same rule as `loseAllAbilities`. No-op if the resolving
+        // source or the target has left the battlefield (CR 608.2b).
+        loseAllAbilitiesWhileSourceRemains(targetId: string): void {
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (!src) return;
+            const found = findOnBattlefield(state, targetId);
+            if (!found) return;
+            applyAbilityLossHold(
+                found.card,
+                src.card.id,
+                allocStaticTimestamp(state)
             );
         },
         getCounterCount(target: TargetSelection, type: string): number {

@@ -1138,6 +1138,24 @@ const loseAllAbilities: Valuer<"loseAllAbilities"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// Same neutralize shape as `loseAllAbilities` above, but SOURCE-KEYED
+// (Tishana's Tidebinder, issue #1562: "for as long as this creature remains
+// on the battlefield") rather than indefinite. `target` is always an
+// ANNOUNCED slot here (`EffectTargetRef` — the counter-then-rider template
+// never uses a `$ref`/`$source`/forEach form), so the `targeted` tag is
+// unconditional, unlike `loseAllAbilities`'s `isAnnouncedTarget` branch.
+// Valued identically to the indefinite form: the bot has no cheap way to
+// weigh "reverts when the source dies" against "never reverts", and a slight
+// over-valuation of a temporary strip is far safer than the alternative
+// failure mode — undervaluing it and handing the opponent's removal target
+// away for free.
+const loseAllAbilitiesWhileSourceRemains: Valuer<
+    "loseAllAbilitiesWhileSourceRemains"
+> = () => ({
+    points: LOSE_ALL_ABILITIES_VALUE,
+    tags: ["boardRemoval", "targeted"],
+});
+
 const shuffleSelfIntoLibrary: Valuer<"shuffleSelfIntoLibrary"> = () => ({
     points: SHUFFLE_SELF_VALUE,
     tags: ["recursion"],
@@ -1277,6 +1295,7 @@ export const OP_VALUERS: {
     setSubtype,
     setCardTypes,
     loseAllAbilities,
+    loseAllAbilitiesWhileSourceRemains,
     shuffleSelfIntoLibrary,
     tapUntap,
     skipNextUntap,
@@ -1466,6 +1485,11 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // a gift: unlike a P/T set (which can go either way) there is no "loses
     // all abilities" that helps its recipient.
     loseAllAbilities: "harmful",
+    // CR 613.1f layer 6, SOURCE-KEYED sibling of `loseAllAbilities` above
+    // (issue #1562) — same "always an attack" reasoning: a temporary ability
+    // strip still takes the permanent's whole printed function away from
+    // whoever controls it for as long as it lasts.
+    loseAllAbilitiesWhileSourceRemains: "harmful",
     // CR 205.1a layer 4 (`setCardTypes`) is deliberately UNLISTED, i.e.
     // "neutral": replacing a permanent's card types is genuinely ambiguous in
     // sign on its own (it can strip Artifact off an opponent's Equipment or

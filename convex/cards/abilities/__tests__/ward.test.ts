@@ -232,7 +232,12 @@ describe("raiseTriggerTargetSelection: spellTargetsSelfSource dynamic pin (CR 70
         expect(state.stack).toHaveLength(2);
         const top = state.stack[state.stack.length - 1];
         expect(top.triggeredAbilityId).toBe("ward");
-        expect(top.targets).toEqual([{ type: "spell", id: spell.id }]);
+        // `stackSourceId` (issue #1562 fixup) equals the announced id here —
+        // a real SPELL (not an ability) has no `triggerSourceId`, so it
+        // falls back to the stack item's own id.
+        expect(top.targets).toEqual([
+            { type: "spell", id: spell.id, stackSourceId: spell.id },
+        ]);
     });
 
     it("your OWN spell targeting your OWN warded permanent never places a ward trigger", () => {
@@ -295,10 +300,10 @@ describe("raiseTriggerTargetSelection: two simultaneous targeters pin the EXACT 
             })
         );
         expect(targetBySourceInstance.get(spellA.id)).toEqual([
-            { type: "spell", id: spellA.id },
+            { type: "spell", id: spellA.id, stackSourceId: spellA.id },
         ]);
         expect(targetBySourceInstance.get(spellB.id)).toEqual([
-            { type: "spell", id: spellB.id },
+            { type: "spell", id: spellB.id, stackSourceId: spellB.id },
         ]);
     });
 });
