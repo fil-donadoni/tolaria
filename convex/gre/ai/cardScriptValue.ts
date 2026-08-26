@@ -25,7 +25,11 @@ import type {
     PermanentView,
     TriggeredAbility,
 } from "../../cards/types";
-import { contextFreeGrounding, type GroundingContext } from "./grounding";
+import {
+    contextFreeGrounding,
+    withGraveyardSource,
+    type GroundingContext,
+} from "./grounding";
 import { valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
 
@@ -217,11 +221,31 @@ export function dslAbilityScriptOpValue(
         aiEffects?: EffectOp[];
         modes?: AbilityMode[];
         gate?: TriggeredAbility["gate"];
+        zone?: TriggeredAbility["zone"];
+        activateFromGraveyard?: boolean;
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
     ];
     for (const ability of abilities) {
+        // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
+        // sourced ability's `$source` denotes a GRAVEYARD card, not a
+        // battlefield permanent, on EITHER ability shape: a `TriggeredAbility`
+        // marks this with `zone: "graveyard"` (Master of Death's upkeep
+        // return), an `ActivatedAbility` marks it with `activateFromGraveyard:
+        // true` (Whiteout's "Sacrifice a snow land: Return this card from
+        // your graveyard to your hand" — CR 113.6/602.5b). Both must force
+        // the self-bounce-as-cost valuer OFF so the graveyard→hand move keeps
+        // scoring as the card advantage (regrowth) it is; reading only `zone`
+        // left `activateFromGraveyard` abilities un-gated and inverted
+        // Whiteout's sign (scored as a self-bounce cost instead of regrowth).
+        // Every other ability (the overwhelming majority of both shapes)
+        // keeps the outer `ctx` unchanged.
+        const abilityCtx =
+            ability.zone === "graveyard" ||
+            ability.activateFromGraveyard === true
+                ? withGraveyardSource(ctx)
+                : ctx;
         const script = effectiveScript(ability);
         // CR 700.2 / 603.3c — a MODAL ability (activated, issue #1341; or
         // triggered, issue #2461) carries its resolution in per-mode scripts,
@@ -230,8 +254,8 @@ export function dslAbilityScriptOpValue(
         // picks the mode, so the ability is worth the arm they would pick. This
         // is what replaces a hand-written `aiEffects` shadow sketch of one arm.
         const raw = script
-            ? valueEffectScript(script, ctx)
-            : bestModeOpValue(ability.modes, ctx);
+            ? valueEffectScript(script, abilityCtx)
+            : bestModeOpValue(ability.modes, abilityCtx);
         if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.

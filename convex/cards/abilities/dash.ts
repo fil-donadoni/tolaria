@@ -47,28 +47,19 @@ export function dashTrigger(cardName: string): TriggeredAbility {
         id: "dash-haste-and-return",
         oracleText: `When ${cardName} enters, if its dash cost was paid, it gains haste and it's returned to its owner's hand at the beginning of the next end step.`,
         scope: "self",
-        // Deliberately a plain `condition`, NOT the decidable
-        // `conditionOnSelf` its sibling `evokeTrigger` uses (issue #1936, PR
-        // review of #1962) — so the gate stays UNDECIDABLE to the bot's value
-        // model and this trigger's script value keeps being charged equally to
-        // both cast modes.
-        //
-        // Why: the value model currently scores this trigger's own body
-        // WRONG-SIGNED. `delayedTrigger{ moveZone $source → hand }` is valued
-        // as a generic bounce (+55 "tempo" — correct for bouncing an
-        // OPPONENT's permanent, backwards for returning your own creature),
-        // plus `grantAbility(haste)` +40. Deciding the gate would therefore
-        // hand the bot a +95 board-eval BONUS for dashing:
-        // `dslRealizedAbilityValueById(Ragavan, Nimble Pilferer)` measures 165
-        // dashed vs 70 hard-cast. Undecided, that 165 is charged to both modes
-        // — a constant that cannot bias the cast-mode choice, which is the
-        // status quo ante and strictly safer than an active wrong incentive.
-        //
-        // tracked-by: #1964 — model a `$source`-targeted `moveZone` as a COST
-        // (mirroring the `sacrifice` valuer's `SAC_SELF_COST` branch). Flip
-        // this back to `conditionOnSelf: (self) => self.dashed === true` once
-        // that lands.
-        condition: (_event, self) => self.dashed === true,
+        // Issue #1964 landed: the value model now prices this trigger's own
+        // `delayedTrigger{ moveZone $self -> hand }` (where `$self` is
+        // captured from `$source` below) as the self-bounce COST it is
+        // (`HAND_RETURN_SELF_COST` in `opValuers.ts`, the mirror of
+        // `HAND_RETURN_VALUE`), rather than the generic +55 "tempo" bounce
+        // benefit that used to combine with `grantAbility(haste)`'s +40 into
+        // a wrong +95 board-eval BONUS for dashing
+        // (`dslRealizedAbilityValueById(Ragavan, Nimble Pilferer)` used to
+        // measure 165 dashed vs 70 hard-cast). With the self-bounce correctly
+        // signed, deciding the gate no longer hands the bot an active wrong
+        // incentive — flipped back to the decidable `conditionOnSelf` its
+        // sibling `evokeTrigger` already uses (issue #1936).
+        conditionOnSelf: (self) => self.dashed === true,
         effects: [
             // CR 702.109a — "it gains haste". No explicit duration is printed;
             // an `end-of-turn` (CLEANUP) grant is functionally equivalent here

@@ -392,6 +392,59 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             );
         });
 
+        // Issue #1964 — a BARE ref selector naming the ability's own
+        // BATTLEFIELD source (`$source`) is a self-bounce: a COST, the exact
+        // mirror of the `HAND_RETURN_VALUE` bounce/regrowth benefit, not that
+        // benefit itself. Narrower than "not an announced target" (compare
+        // the case immediately above, which IS an announced target and stays
+        // positive) — see the two guard cases right after this one.
+        it("a $source-targeted hand-return is a self-bounce COST, not a benefit", () => {
+            const op: EffectOp = {
+                op: "moveZone",
+                target: { ref: "$source" },
+                to: "hand",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(-55);
+            expect(v.tags).toContain("self-cost");
+            expect(v.tags).not.toContain("targeted");
+        });
+
+        // A `delayedTrigger` capture that aliases a bound name FROM `$source`
+        // (Dash's own shape: `capture: { $self: { ref: "$source" } }`, then a
+        // nested `{ ref: "$self" }`) must be seen through by the self-cost
+        // check inside the recursion — a valuer that only recognized the
+        // literal string `"$source"` would never fire on this, which is
+        // exactly how the bug survived undetected.
+        it("sees through a delayedTrigger capture alias to $source (Dash's shape)", () => {
+            const op: EffectOp = {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText: "Return this creature to its owner's hand.",
+                capture: { $self: { ref: "$source" } },
+                effects: [
+                    { op: "moveZone", target: { ref: "$self" }, to: "hand" },
+                ],
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(-55);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        // The coarse-catch-all failure mode this fix must NOT reproduce: a
+        // ref that is NOT the ability's own source (here, a `choice`-bound
+        // picks ref) stays priced as the ordinary bounce/regrowth benefit.
+        it("does NOT charge a self-cost for a ref that is not the ability's own source", () => {
+            const op: EffectOp = {
+                op: "moveZone",
+                target: { ref: "$picked" },
+                to: "hand",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(55);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
         // CR 404.3 (issue #1967) — the positional graveyard shape. It carries
         // a `target`, but not an ANNOUNCED one: without explicit handling the
         // guard `!("target" in op)` would still let it through, while a

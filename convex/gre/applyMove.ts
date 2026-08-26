@@ -950,6 +950,24 @@ export function applyMoveForSearch(
             ) {
                 turnFaceDown(stackItem);
             }
+            // CR 702.109a (issue #1964) — a DASH variant of this move must
+            // stamp `dashed: true` on the resulting stack item (which rides
+            // onto the entering permanent for free, the `escaped`/`evoked`
+            // precedent) — otherwise `dashTrigger`'s `conditionOnSelf:
+            // self.dashed === true` (`convex/cards/abilities/dash.ts`) can
+            // never decide TRUE inside a search rollout, so the haste grant
+            // and delayed return would never fire even though `moves.ts` now
+            // enumerates the dash cast itself. Same reference-equality
+            // discriminator the Bestow check above uses.
+            if (
+                move.alternativeCostId !== undefined &&
+                move.alternativeCostId ===
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    )?.dash?.id
+            ) {
+                stackItem.dashed = true;
+            }
             next.stack.push(stackItem);
             resolveTopOfStack(next);
             // CR 614.12 / ADR 0051 — a spell that puts a shock land onto the
