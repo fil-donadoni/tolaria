@@ -41,6 +41,34 @@ export function fmtNum(n, integral = false) {
     return n.toFixed(1);
 }
 
+/** `ageHours` (a `ClaimRow`'s own float) as elapsed time a person reads at a
+ *  glance — `23h ago`, `42m ago` — for the Now claims table (#2632). Minutes
+ *  below one hour: a claim that is 3 minutes old reading "0h ago" looks
+ *  identical to one that is 55 minutes old. */
+export function fmtAgo(hours) {
+    if (hours == null) return "—";
+    // FLOOR, not round (#2632 review finding 8) — "23h ago" must mean "at
+    // least 23 whole hours have elapsed", the reading the AC's own example
+    // (23.8h → "23h ago") states; rounding instead reports a claim as one
+    // hour (or minute) OLDER than it has actually been alive, which is the
+    // wrong direction for a staleness/amber signal to lie in.
+    if (hours < 1) return `${Math.floor(hours * 60)}m ago`;
+    return `${Math.floor(hours)}h ago`;
+}
+
+/** Unix SECONDS → a 24h `HH:MM` clock reading, in the viewer's own local
+ *  time zone — the Now view's `Batch #389 · started 22:24` heading (#2632).
+ *  `null` in, `null` out: `batchStartedAt` (`lib/loop-status.ts`) is `null`
+ *  when the batch is empty or predates the `ts` field, and this must not
+ *  turn that into a fabricated "00:00". */
+export function fmtClock(epochSeconds) {
+    if (epochSeconds == null) return null;
+    const d = new Date(epochSeconds * 1000);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+}
+
 export function fmtUsd(n) {
     if (n == null) return "–";
     return n >= 100 ? "$" + Math.round(n).toLocaleString() : "$" + n.toFixed(2);

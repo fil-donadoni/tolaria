@@ -4,7 +4,9 @@ import * as os from "os";
 import * as path from "path";
 import {
     buildLoopStatus,
+    batchStartedAt,
     computeStage,
+    countDependents,
     queueDepthByPriority,
     approvedReviewIssues,
     worktreeIssueNumbers,
@@ -465,6 +467,113 @@ describe("loop-status — buildLoopStatus", () => {
             interesting: [],
         });
     });
+
+    it("dependents is null on every row when the open-issue-bodies read failed — never a fabricated 0 (#2632)", () => {
+        const status = buildLoopStatus(
+            baseInput({
+                claimedIssues: [issue(1969, "2026-08-18T00:00:00Z")],
+                dependentCounts: null,
+            })
+        );
+        expect(status.claims[0]!.dependents).toBeNull();
+    });
+
+    it("dependents defaults to null on a fixture that never mentions it — not a silent 0 (#2632)", () => {
+        // `dependentCounts` omitted entirely — the shape every pre-#2632 test
+        // fixture has. Proof-of-failure: this test breaks (`toBeNull()` fails
+        // on a `0`) if `buildLoopStatus` is changed to default an absent
+        // `dependentCounts` to `{}` instead of treating it as "unknown".
+        const status = buildLoopStatus(
+            baseInput({ claimedIssues: [issue(1969, "2026-08-18T00:00:00Z")] })
+        );
+        expect(status.claims[0]!.dependents).toBeNull();
+    });
+
+    it("dependents is 0, not null, for a claim the read genuinely checked and found nothing blocking", () => {
+        const status = buildLoopStatus(
+            baseInput({
+                claimedIssues: [issue(1969, "2026-08-18T00:00:00Z")],
+                dependentCounts: {},
+            })
+        );
+        expect(status.claims[0]!.dependents).toBe(0);
+    });
+
+    it("dependents is the blast radius `countDependents` computed for this issue number", () => {
+        const status = buildLoopStatus(
+            baseInput({
+                claimedIssues: [issue(1969, "2026-08-18T00:00:00Z")],
+                dependentCounts: { 1969: 9, 2222: 3 },
+            })
+        );
+        expect(status.claims[0]!.dependents).toBe(9);
+    });
+});
+
+describe("loop-status — countDependents (#2632, the claims table's `blocks N others`)", () => {
+    it("counts, for each blocker, how many open issues declare it in their own `## Blocked by`", () => {
+        const counts = countDependents([
+            { number: 10, body: "## Blocked by\n\n- #1969\n" },
+            { number: 11, body: "## Blocked by\n\n- #1969\n- #42\n" },
+            { number: 12, body: "no dependency section at all" },
+        ]);
+        expect(counts).toEqual({ 1969: 2, 42: 1 });
+    });
+
+    it("an issue naming itself is never its own dependent — mirrors parseDependencies' self-exclusion", () => {
+        const counts = countDependents([
+            { number: 1969, body: "## Blocked by\n\n- #1969\n" },
+        ]);
+        expect(counts[1969]).toBeUndefined();
+    });
+
+    it("an issue with no `## Blocked by` section contributes nothing", () => {
+        expect(countDependents([{ number: 1, body: "just prose" }])).toEqual(
+            {}
+        );
+    });
+
+    it("PROOF OF FAILURE: a blocker referenced only via '## Parent' must NOT count — parseDependencies deliberately excludes it", () => {
+        // If `countDependents` re-parsed refs itself instead of reusing
+        // `parseDependencies`, a naive `/#(\d+)/g` sweep of the whole body
+        // would count this. `parseDependencies` (queue-plan.ts) already
+        // proves a `## Parent` reference is not a dependency; this asserts
+        // `countDependents` inherits that rather than re-deriving it wrong.
+        const counts = countDependents([
+            { number: 10, body: "## Parent\n\n#1969\n" },
+        ]);
+        expect(counts[1969]).toBeUndefined();
+    });
+});
+
+describe("loop-status — batchStartedAt (#2632, the Now view's `Batch #N · started HH:MM`)", () => {
+    const receipt = (ts?: number): Receipt => ({
+        version: 1,
+        role: "missing",
+        outcome: "missing",
+        session: "s",
+        transcript: null,
+        agentId: null,
+        agentType: null,
+        agentTranscript: null,
+        ...(ts !== undefined ? { ts } : {}),
+    });
+
+    it("is the EARLIEST ts among the batch's receipts, not the latest", () => {
+        expect(batchStartedAt([receipt(300), receipt(100), receipt(200)])).toBe(
+            100
+        );
+    });
+
+    it("is null for an empty batch", () => {
+        expect(batchStartedAt([])).toBeNull();
+    });
+
+    it("is null when every receipt in the batch predates the `ts` field — never a fabricated 'now'", () => {
+        expect(
+            batchStartedAt([receipt(undefined), receipt(undefined)])
+        ).toBeNull();
+    });
 });
 
 describe("loop-status — summarizeReceipts", () => {
@@ -643,6 +752,7 @@ function claimRow(overrides: Partial<ClaimRow> = {}): ClaimRow {
         verdict: { state: "live", reason: "branch pushed" },
         priority: null,
         ageHours: 3,
+        dependents: 0,
         ...overrides,
     };
 }

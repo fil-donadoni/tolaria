@@ -41,6 +41,7 @@ import {
     type ClaimedIssue,
     type ClaimVerdict,
 } from "../loop-doctor";
+import { parseDependencies } from "./queue-plan";
 import type { BoardPriority } from "./queue-plan";
 import type { Receipt, ReviewReceipt } from "./receipt";
 
@@ -141,6 +142,50 @@ export interface ClaimRow {
     verdict: ClaimVerdict;
     priority: BoardPriority | null;
     ageHours: number;
+    /**
+     * How many OPEN issues name this one in their own `## Blocked by`
+     * section (#2632) — "blast radius": the number that made the
+     * 2026-08-19 incident expensive rather than merely annoying, since two
+     * orphaned claims froze nine children. `null` when the underlying read
+     * (every open issue's body) failed — distinct from a genuine `0`, which
+     * means the claim was checked and blocks nothing.
+     */
+    dependents: number | null;
+}
+
+/**
+ * The reverse of `parseDependencies` (`./queue-plan`, reused rather than
+ * re-parsed so this project keeps exactly one dependency-graph parser): for
+ * every issue number, how many of the given OPEN issues declare it as a
+ * blocker. Pure — the caller fetches the open issues' bodies (`gh issue list
+ * --state open --json number,body`, `scripts/loop-status.ts`); this only
+ * counts.
+ */
+export function countDependents(
+    openIssues: { number: number; body: string }[]
+): Record<number, number> {
+    const counts: Record<number, number> = {};
+    for (const issue of openIssues) {
+        for (const blocker of parseDependencies(issue.body, issue.number)) {
+            counts[blocker] = (counts[blocker] ?? 0) + 1;
+        }
+    }
+    return counts;
+}
+
+/**
+ * The earliest `ts` among a batch's own receipts — the "started at" proxy
+ * the Now view's batch heading needs (#2632: `Batch #389 · started 22:24`).
+ * `ts` is unix seconds, set by `writeReceipt` on every receipt it writes
+ * (`ReceiptCommon`), so this is a read of data already gathered, not a new
+ * fetch. `null` when the batch is empty or every receipt in it predates the
+ * `ts` field — never a fabricated "now".
+ */
+export function batchStartedAt(receipts: Receipt[]): number | null {
+    const stamps = receipts
+        .map((r) => r.ts)
+        .filter((t): t is number => typeof t === "number");
+    return stamps.length > 0 ? Math.min(...stamps) : null;
 }
 
 export interface QueueDepth {
@@ -349,6 +394,15 @@ export interface LoopStatusInput {
      */
     claimsError?: string | null;
     queueDepthError?: string | null;
+    /**
+     * `countDependents`'s output over every currently-open issue's body, or
+     * `null` when that read failed (#2632) — `undefined` (every hand-built
+     * fixture that predates this field) is treated the same as `null`: a
+     * fixture that never mentions dependents gets `dependents: null` on its
+     * rows rather than a silent `0`, so an old test cannot accidentally
+     * assert "blocks nothing" for a fact it never gathered.
+     */
+    dependentCounts?: Record<number, number> | null;
 }
 
 /** One (role, outcome) bucket's count — the aggregate `receiptsSummary`
@@ -745,6 +799,10 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
             verdict,
             priority: input.priority[issue.number] ?? null,
             ageHours: facts.ageHours,
+            dependents:
+                input.dependentCounts == null
+                    ? null
+                    : (input.dependentCounts[issue.number] ?? 0),
         };
     });
 

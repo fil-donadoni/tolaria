@@ -8,6 +8,7 @@ import {
     interpretPsResult,
     defaultProcessProbe,
     releaseRecord,
+    DEFAULT_MIN_AGE_HOURS,
     type ClaimFacts,
     type ClaimedIssue,
     type ClaimOwner,
@@ -110,6 +111,22 @@ describe("loop-doctor — classifyClaim", () => {
         expect(classifyClaim({ ...base, ageHours: 5 }, 6).state).toBe(
             "suspect"
         );
+    });
+
+    it("defaults the age threshold to the EXPORTED constant, not a re-declared literal (#2632)", () => {
+        // `DEFAULT_MIN_AGE_HOURS` is exported so the dashboard's claims-table
+        // amber band (`scripts/dashboard/now-claims-table.js`'s
+        // `MIN_AGE_HOURS`) reuses the same number instead of a second `2`.
+        // This pins that the DEFAULT parameter is actually driven by the
+        // constant, not merely a coincidentally-equal literal beside it.
+        expect(DEFAULT_MIN_AGE_HOURS).toBe(2);
+        expect(
+            classifyClaim({ ...base, ageHours: DEFAULT_MIN_AGE_HOURS }).state
+        ).toBe("orphan");
+        expect(
+            classifyClaim({ ...base, ageHours: DEFAULT_MIN_AGE_HOURS - 0.01 })
+                .state
+        ).toBe("suspect");
     });
 
     it("lets a PR override even a very fresh claim", () => {

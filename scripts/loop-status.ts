@@ -45,7 +45,9 @@ import {
 } from "./loop-doctor";
 import {
     approvedReviewIssues,
+    batchStartedAt,
     buildLoopStatus,
+    countDependents,
     gatherSection,
     passesInWindow,
     readDriverState,
@@ -179,6 +181,38 @@ export function fetchUnclaimedReadyQueue(
         .map((i) => ({ number: i.number }));
 }
 
+/** Headroom above a measured 334 open issues on this repo (2026-08-26) — the
+ *  same "well above what was observed" reasoning `MERGED_PR_FETCH_LIMIT`
+ *  documents below, not a ceiling calibrated to today's count. */
+const OPEN_ISSUE_FETCH_LIMIT = 1000;
+
+/**
+ * Every OPEN issue's number and body — the source `countDependents`
+ * (`lib/loop-status.ts`) reduces to "how many open issues name X in their own
+ * `## Blocked by` section" (#2632, the claims table's `blocks N others`
+ * badge). One `gh issue list` page, same shape as `fetchUnclaimedReadyQueue`;
+ * `gatherLoopStatus` wraps it in `gatherSection` with the fail-CLOSED
+ * `ghChecked` so a failed read renders as an explicit "cannot tell", never a
+ * silent `blocks 0 others` on every claim.
+ */
+export function fetchOpenIssueBodies(
+    runner: (args: string[]) => string = ghChecked,
+    limit: number = OPEN_ISSUE_FETCH_LIMIT
+): { number: number; body: string }[] {
+    return JSON.parse(
+        runner([
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--json",
+            "number,body",
+            "--limit",
+            String(limit),
+        ]) || "[]"
+    ) as { number: number; body: string }[];
+}
+
 /**
  * A page size big enough that an ordinary day never truncates: the PR's own
  * verification measured a real 40-41-merge day (a #2842 review flagged the
@@ -308,6 +342,9 @@ export interface GatherLoopStatusOptions {
     /** Test seam for the recently-merged-PR read (#2631). Defaults to the
      *  real `ghChecked`. See `claimsRunner`. */
     mergedPrRunner?: (args: string[]) => string;
+    /** Test seam for the open-issue-bodies read (#2632, `blocks N others`).
+     *  Defaults to the real `ghChecked`. See `claimsRunner`. */
+    openIssuesRunner?: (args: string[]) => string;
 }
 
 /**
@@ -339,6 +376,12 @@ export interface GatheredLoopStatus {
     queueDepthError: string | null;
     receiptsSummary: ReceiptsSummary;
     batch: string | null;
+    /** The newest batch's own `batchStartedAt` (`lib/loop-status.ts`) — the
+     *  Now view's `Batch #389 · started 22:24` heading (#2632). `null` when
+     *  `batch` is `null` or none of its receipts carry a `ts`. A LOCAL
+     *  derivation from `receipts` (already gathered below), not a new read —
+     *  it has no failure mode of its own. */
+    batchStartedAt: number | null;
     priorityWarning: string | null;
     receiptErrors: ReceiptFileError[];
     /**
@@ -369,6 +412,14 @@ export interface GatheredLoopStatus {
      * not a second failure mode).
      */
     recentMergesTruncated: boolean;
+    /**
+     * `countDependents`'s error sibling (#2632) — set when the open-issue-
+     * bodies read failed. `null` per-`ClaimRow.dependents` already carries
+     * this fact for the table's per-row rendering; this top-level field is
+     * what lets the table print ONE "blocked-by counts unavailable" note
+     * instead of a row-by-row absence nobody would notice is systematic.
+     */
+    dependentsError: string | null;
 }
 
 /**
@@ -415,6 +466,15 @@ export function gatherLoopStatus(
     const mergedPrsSection = gatherSection(
         () => fetchRecentMergedPrs(TIMELINE_WINDOW_HOURS, mergedPrRunner),
         "recently merged PRs"
+    );
+
+    // #2632 — the claims table's `blocks N others` badge. `gh`-backed, so
+    // fail-closed via `gatherSection` like every other `gh` read here: a
+    // failed fetch must render as "cannot tell", never as "blocks nothing".
+    const openIssuesRunner = opts.openIssuesRunner ?? ghChecked;
+    const openIssuesSection = gatherSection(
+        () => fetchOpenIssueBodies(openIssuesRunner),
+        "open issue bodies (blocked-by counts)"
     );
 
     // `git worktree list` is a LOCAL read (no network, no `gh`) — outside
@@ -477,6 +537,10 @@ export function gatherLoopStatus(
         claimsError: claimsInputs.status === "ok" ? null : claimsInputs.error,
         queueDepthError:
             readyQueueSection.status === "ok" ? null : readyQueueSection.error,
+        dependentCounts:
+            openIssuesSection.status === "ok"
+                ? countDependents(openIssuesSection.data)
+                : null,
     });
 
     return {
@@ -490,6 +554,7 @@ export function gatherLoopStatus(
             readyQueueSection.status === "ok" ? null : readyQueueSection.error,
         receiptsSummary: status.receiptsSummary,
         batch: batch ?? null,
+        batchStartedAt: batchStartedAt(receipts),
         priorityWarning: warning,
         receiptErrors: errors,
         timelinePasses,
@@ -501,6 +566,8 @@ export function gatherLoopStatus(
             mergedPrsSection.status === "ok"
                 ? mergedPrsSection.data.truncated
                 : false,
+        dependentsError:
+            openIssuesSection.status === "ok" ? null : openIssuesSection.error,
     };
 }
 

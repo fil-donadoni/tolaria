@@ -44,6 +44,12 @@ import { initNowNav } from "./now-nav.js";
  * never takes the "skip an unchanged write" path below; without an identity
  * here EVERY poll would silently drop focus back to `<body>`, the exact bug
  * PR #2837 round 2 fixed for the lights and the copy button.
+ *
+ * The claims table (#2632) added a FOURTH kind: `.ls-stage`'s `data-term`
+ * makes `tooltip.js`'s `enhanceTerms` give every row's stage a `tabindex`,
+ * reintroducing the same bug once per claim row (#2632 review finding 4) —
+ * keyed on `data-issue`, not the stage VALUE, because the stage text is not
+ * unique across rows the way the timeline's per-node ids are.
  */
 export function nowControlKey(el) {
     if (!el || !el.classList) return null;
@@ -57,12 +63,14 @@ export function nowControlKey(el) {
         return `tl-claim:${el.dataset.issue ?? ""}`;
     if (el.classList.contains("ls-tl-merge"))
         return `tl-merge:${el.dataset.pr ?? ""}`;
+    if (el.classList.contains("ls-stage"))
+        return `stage:${el.dataset.issue ?? ""}`;
     return null;
 }
 
 /** Everything in the Now body a keyboard can land on. */
 const NOW_CONTROLS =
-    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge";
+    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge, .ls-stage";
 
 /**
  * Write `html` into `container` without destroying keyboard focus. Returns
