@@ -769,15 +769,24 @@ export default function LimitedDraftTable({
                     // EXPLICIT `min-height` as a hard floor on a flex item
                     // regardless of its shrink factor (unlike the automatic
                     // min-size flexbox computes on its own, which negative
-                    // free space overrides). 280px fits the Pool's own
-                    // minimum useful content at this component's
-                    // `CARD_MIN_W` floor (72px wide → 100.8px tall card, the
-                    // same floor `cardBase()` enforces everywhere else in
-                    // this file) plus its "Your Pool (n)" heading and one
-                    // Mana-Value column's header row, with the Sideboard
+                    // free space overrides). 280px is an EMPIRICALLY
+                    // MEASURED floor, not a derived one: the Pool pane's
+                    // intrinsic minimum — its "Your Pool (n)" heading, one
+                    // Mana-Value column header row and one card row at this
+                    // component's `CARD_MIN_W` floor, with the Sideboard
                     // rail beside it at the same height (`arrange="row"`) —
-                    // and below it the Pool's own `overflow-y-auto` still
-                    // does its job for anything past one row. Re-measured
+                    // measures ~233px at the tightest non-phone viewport
+                    // (820x1180), and 280px clears it with ~47px of slack.
+                    // Do NOT re-derive it from `cardSizing.ts:50-51`'s
+                    // `calc(cardBase(...) * 7/5 + 3.5rem)`, the analogous
+                    // reservation `DeckZoneSurface` applies
+                    // (`deck-zone-surface.tsx:693`): that formula yields
+                    // 156.8px below an 800px viewport and saturates at
+                    // 224px, so it is the same IDEA at a different number,
+                    // not this constant's source. Over-reserving costs only
+                    // Booster height, which stays ≥417px and scrolls; below
+                    // it the Pool's own `overflow-y-auto` still does its job
+                    // for anything past one row. Re-measured
                     // (`chrome-devtools-mcp`, 820x1180 real Chromium, a
                     // 24-card seat, this fix): tall pack (booster zoom
                     // slider pinned to 2.2× via its persisted localStorage
