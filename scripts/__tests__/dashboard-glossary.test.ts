@@ -21,6 +21,8 @@ import {
     showTip,
     hideTip,
 } from "../dashboard/tooltip.js";
+// @ts-expect-error — same, pure `data → markup` module (#2631 module header).
+import { timelineHtml } from "../dashboard/now-timeline.js";
 
 /**
  * The dashboard glossary and its tooltip engine (#2629).
@@ -347,6 +349,64 @@ describe("dashboard tooltip engine — declared terms (#2629)", () => {
 
         fire(win, tick, "mouseover");
         expect(tipOf(win).innerHTML).toContain("merged");
+    });
+
+    it("the real Now timeline, run through the real engine, resolves every declared term and rewrites no control's own visual content (#2842 review, finding 1's suggested guard)", () => {
+        // Not a hand-built fixture — the ACTUAL `timelineHtml` output (pass
+        // block, claim pin, merge tick), pushed through the real
+        // `installTooltipEngine`, the same combination that shipped the
+        // "merged" text-overwrite bug. `unknown` must be empty (every
+        // data-term this view declares resolves to a real glossary entry)
+        // and no `aria-label`-carrying control's `textContent` may come out
+        // non-empty (the merge tick's whole design: a bare colour mark with
+        // no visible label of its own).
+        const html = timelineHtml(
+            {
+                timelinePasses: [
+                    {
+                        pass: 1,
+                        claudeExit: 137,
+                        pct: "n/a",
+                        queueBefore: 5,
+                        queueAfter: 3,
+                        reason: "claims-held",
+                        epoch: Math.floor(Date.now() / 1000) - 3600,
+                    },
+                ],
+                claims: [
+                    {
+                        issue: 2582,
+                        title: "an orphaned claim",
+                        ageHours: 2,
+                        verdict: { state: "orphan", reason: "" },
+                    },
+                ],
+                recentMerges: [
+                    {
+                        number: 2842,
+                        title: "a merged PR",
+                        mergedAt: new Date(
+                            Date.now() - 2 * 3600_000
+                        ).toISOString(),
+                    },
+                ],
+            },
+            Date.now()
+        );
+        const win = mountPage(`<div id="host">${html}</div>`);
+        const { unknown } = installTooltipEngine();
+        expect(unknown).toEqual([]);
+
+        // Pass blocks and claim pins carry a DELIBERATE visible glyph
+        // (`● ▲ ■` / `× ? ·`, inside an `aria-hidden` child span) — only the
+        // merge tick is a bare colour mark with no visible content of its
+        // own, and it is the one this test exists to guard.
+        const ticks = Array.from(win.document.querySelectorAll(".ls-tl-merge"));
+        expect(ticks.length).toBeGreaterThan(0); // sanity: this ran
+        for (const el of ticks) {
+            expect(el.hasAttribute("aria-label")).toBe(true);
+            expect(el.textContent).toBe("");
+        }
     });
 
     it("picks up a term rendered AFTER install — the innerHTML re-render case", async () => {
