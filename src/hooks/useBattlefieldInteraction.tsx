@@ -32,6 +32,7 @@ import {
     manaActivationRequiresTap,
     hasManaAbility,
     pendingCastHasImprovise,
+    displayCardId,
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { isUntargetableByPending } from "~/lib/targeting";
@@ -577,7 +578,7 @@ export function useBattlefieldInteraction(player: Player) {
                 !card.isTapped &&
                 !card.isSummoningSick;
             if (mustAttackClient) {
-                const name = getDefinition(card.card.id).name;
+                const name = getDefinition(displayCardId(card)).name;
                 const msg = `${name} must attack this combat if able`;
                 setValidationError({ title: msg, detail: msg });
                 return;
@@ -961,7 +962,14 @@ export function useBattlefieldInteraction(player: Player) {
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === cardInstanceId);
         if (!card) return;
-        const def = getDefinition(card.card.id);
+        // Issue #1735 — `def` here only ever feeds a DISPLAY name (the mode /
+        // X-choice dialog's `cardName`, below); the ability lookup itself
+        // stays on `getEffectiveClientAbilities(card)`, which reads the
+        // honest `card.card.id`. `displayCardId` lets a face-down permanent
+        // with a surviving GRANTED ability (layer 6 — the only way a
+        // face-down permanent has an activated ability at all) show its
+        // controller the real card's name rather than the vanilla sentinel's.
+        const def = getDefinition(displayCardId(card));
         // POST-LAYER set (CR 113.1 / 611.2a, issue #1880) — the SAME effective
         // list `getActivatedManaMenuEntry` / `canRefundManaTap` /
         // `manaCostAbility` offer the entry from. Resolving against the PRINTED

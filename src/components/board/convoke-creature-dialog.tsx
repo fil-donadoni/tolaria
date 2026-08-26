@@ -12,6 +12,7 @@ import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
 import { PILE_GRID_TILE_W } from "~/lib/card-layout";
 import { pickerRingClass } from "~/lib/picker-ring";
+import { displayCardId } from "~/lib/card-utils";
 
 /** CR 702.51 (`payWith`, ADR 0063 — issue #1338) — the Convoke creature picker.
  *  Active when this player's `pendingCast` is waiting for them to tap creatures
@@ -190,7 +191,7 @@ export default function ConvokeCreatureDialog({
                             type="button"
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
-                            title={getDefinition(card.card.id).name}
+                            title={getDefinition(displayCardId(card)).name}
                             className={`relative ${PILE_GRID_TILE_W} aspect-5/7 overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                         >
                             <CardImage card={card} />

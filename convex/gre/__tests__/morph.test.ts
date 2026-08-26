@@ -405,10 +405,15 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
         expect(JSON.stringify(opp)).not.toContain(ANGEL);
     });
 
-    it("the caster's own STACK view restores the real card id", () => {
+    it("the caster's own STACK view keeps the sentinel id, with knownCardId as the identification affordance (issue #1735)", () => {
         const state = faceDownSpellState();
         const own = projectPublicState(state, 1, "p1");
-        expect(own.stack[0].card.id).toBe(ANGEL);
+        // `card.card.id` stays honest for EVERY viewer, caster included — a
+        // spell-target mvFilter/colorFilter resolving off it must see the
+        // face-down sentinel, never the real Angel, even for its own caster.
+        expect(own.stack[0].card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(own.stack[0].knownCardId).toBe(ANGEL);
+        expect(own.stack[0].faceDownOf).toBe(ANGEL);
     });
 
     it("the opponent's BATTLEFIELD view never carries the real card id, before or after unmorph", () => {
@@ -508,13 +513,17 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
         expect(hidden.faceDownOf).toBeUndefined();
         expect(JSON.stringify(opp)).not.toContain(ANGEL);
 
-        // …and the controller still sees their own card.
+        // …and the controller still IDENTIFIES their own card, but the wire
+        // id itself stays the sentinel (issue #1735) — a face-down permanent's
+        // granted trigger reads no differently for its own controller than for
+        // an opponent, characteristics-wise.
         const own = projectPublicState(state, 1, "p1");
-        expect(
-            own.pendingTriggerBatch!.find(
-                (i) => i.triggerSourceId === "morphed"
-            )!.card.id
-        ).toBe(ANGEL);
+        const ownItem = own.pendingTriggerBatch!.find(
+            (i) => i.triggerSourceId === "morphed"
+        )!;
+        expect(ownItem.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(ownItem.knownCardId).toBe(ANGEL);
+        expect(ownItem.faceDownOf).toBe(ANGEL);
     });
 
     it("the affordance is absent when the action is illegal", () => {

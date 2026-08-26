@@ -3,6 +3,7 @@ import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { describeTapOtherProgress } from "~/lib/tap-other-progress";
+import { displayCardId } from "~/lib/card-utils";
 import type { CardInstance } from "~/types/game";
 import type { ManaTapOtherPick } from "~/hooks/useBattlefieldVisualState";
 
@@ -41,7 +42,7 @@ export default function ManaTapOtherBanner({
 
     const pickedPower = pick.picked.reduce((n, p) => n + p.power, 0);
     const heading = source
-        ? getDefinition(source.card.id).name
+        ? getDefinition(displayCardId(source)).name
         : "Mana ability";
 
     return (

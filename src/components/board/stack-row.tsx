@@ -4,6 +4,7 @@ import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { motion, useReducedMotion } from "motion/react";
 import type { Player, StackItem } from "~/types/game";
 import {
+    displayCardId,
     getStackAbilityOracleText,
     getStackModeLines,
     manaCostToString,
@@ -121,12 +122,19 @@ export default function StackRow({
     // (`card.id` is ""). Render its marker-card art + name and label it a plain
     // triggered ability rather than the internal "Delayed trigger".
     const designation = tryGetStateDesignation(item.designationId);
+    // Issue #1735 — a face-down spell's `item.card.id` is the sentinel for
+    // EVERY viewer, caster included: rules reads (mv/color/type filters) must
+    // resolve off it. Name/art are display-only, so they read `identityId`
+    // instead, which prefers the caster's own `knownCardId` (their "I may
+    // look at my own face-down spell" affordance) and falls back to the
+    // sentinel for everyone else — exactly the sibling of `getCardImageDefId`.
+    const identityId = displayCardId(item);
     // CR 114 — an emblem-sourced trigger's `card.id` is an emblem KEY, absent
     // from the card registry; resolve its name/art from the emblem registry so
     // the stack tile shows the emblem card instead of a raw id / missing image.
-    const emblem = tryGetEmblemDefinition(item.card.id);
-    const def = tryGetDefinition(item.card.id);
-    const name = designation?.name ?? def?.name ?? emblem?.name ?? item.card.id;
+    const emblem = tryGetEmblemDefinition(identityId);
+    const def = tryGetDefinition(identityId);
+    const name = designation?.name ?? def?.name ?? emblem?.name ?? identityId;
     const oracle = kind
         ? getStackAbilityOracleText(item)
         : (def?.oracleText ?? null);
@@ -142,12 +150,12 @@ export default function StackRow({
         item.designationImagePrintId ??
         designation?.imagePrintId ??
         emblem?.imagePrintId ??
-        resolveCardImageId(item.card.id);
+        resolveCardImageId(identityId);
     // Only the permanent-sourced fallback above can be a transformed
     // permanent's back face (a designation/emblem marker never transforms) —
-    // resolving on `item.card.id` regardless is still correct since neither
+    // resolving on `identityId` regardless is still correct since neither
     // has a registered `imagePrintFace` (issue #1595).
-    const imageFace = resolveCardImageFace(item.card.id);
+    const imageFace = resolveCardImageFace(identityId);
     const targetNames = showTargetLine
         ? stackTargetNames(item, allPlayers, stack)
         : [];

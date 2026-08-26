@@ -262,6 +262,24 @@ export function getLandManaColor(card: CardInstance): Color | null {
     return null;
 }
 
+/** The id to resolve a card's NAME / ART / ORACLE TEXT by for a DISPLAY-ONLY
+ *  read (issue #1735): `knownCardId` when present — set ONLY on the viewer's
+ *  own projection of their own face-down permanent or spell
+ *  (`projectBattlefieldCard` / `projectStackItem`, `convex/gameProjections.ts`)
+ *  — else `card.card.id` itself (every non-face-down card, and every OTHER
+ *  viewer's face-down one). This is the controller's/caster's "I may look at
+ *  my own face-down card" affordance ONLY.
+ *
+ *  NEVER use this for a rules computation — targeting filters, activation
+ *  costs, color/mana-value reads, ability enumeration. Those MUST resolve off
+ *  `card.card.id` directly so a face-down permanent's game-object
+ *  characteristics stay the CR 708.2 sentinel's for EVERY viewer, controller
+ *  included; that is the entire fix #1735 ships (a restored real id feeding a
+ *  rules read is exactly the bug). */
+export function displayCardId(card: CardInstance): string {
+    return card.knownCardId ?? card.card.id;
+}
+
 /** Every activated ability actually available on this permanent POST-LAYER —
  *  native AND GRANTED (CR 113.1 / 611.2a, issue #1880) — as the CLIENT sees it
  *  (a projected `CardInstance` is structurally a `CardInstanceState` here;
@@ -3747,7 +3765,13 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
 export function groupByName(cards: CardInstance[]): CardInstance[][] {
     const groups: Map<string, CardInstance[]> = new Map();
     for (const card of cards) {
-        const name = getDefinition(card.card.id).name;
+        // Display-only grouping key (issue #1735 review round 3 census):
+        // `displayCardId`, not raw `card.card.id`, so a face-down permanent
+        // groups by its OWN controller's known identity rather than
+        // universally as "Face-down creature". Currently unreferenced
+        // (no caller in the tree), hardened defensively so the census this
+        // round ran against has no latent raw-id site left to find later.
+        const name = getDefinition(displayCardId(card)).name;
         const group = groups.get(name);
         if (group) {
             group.push(card);

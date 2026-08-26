@@ -10,6 +10,7 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
+import { displayCardId } from "~/lib/card-utils";
 import {
     assignmentIsRejected,
     damageAssignmentPlan,
@@ -199,8 +200,8 @@ export default function DamageAssignmentPanel({
                         <div key={sourceId} className="mb-2 last:mb-0">
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="font-medium">
-                                    {getDefinition(source.card.id).name ??
-                                        "Source"}{" "}
+                                    {getDefinition(displayCardId(source))
+                                        .name ?? "Source"}{" "}
                                     ({power} dmg)
                                 </span>
                                 <span
@@ -221,9 +222,18 @@ export default function DamageAssignmentPanel({
                                         key={targetId}
                                         targetId={targetId}
                                         label={
+                                            // CR 702.22j-k banding (issue
+                                            // #1735 review round 2 finding 4)
+                                            // — under banding this viewer can
+                                            // be assigning a blocker's damage
+                                            // among their OWN attackers, which
+                                            // can be face-down morphs; repoint
+                                            // for the same reason `source`
+                                            // above is.
                                             target
-                                                ? getDefinition(target.card.id)
-                                                      .name
+                                                ? getDefinition(
+                                                      displayCardId(target)
+                                                  ).name
                                                 : "Target"
                                         }
                                         dmg={dmg}
@@ -245,8 +255,9 @@ export default function DamageAssignmentPanel({
                                     targetId={sinkId}
                                     label={
                                         sinkCard
-                                            ? getDefinition(sinkCard.card.id)
-                                                  .name
+                                            ? getDefinition(
+                                                  displayCardId(sinkCard)
+                                              ).name
                                             : "Defending Player"
                                     }
                                     dmg={assignments[sinkId] ?? 0}

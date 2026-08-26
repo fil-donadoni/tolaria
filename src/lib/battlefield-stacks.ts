@@ -1,4 +1,5 @@
 import type { CardInstance } from "~/types/game";
+import { displayCardId } from "~/lib/card-utils";
 
 // ---------------------------------------------------------------------------
 // Permanent stacking (PRD #621, issue #622).
@@ -36,12 +37,43 @@ export interface PermanentGroup {
 }
 
 /** Identity key: members of one permanent stack must share the same card
- *  (art + name, via `card.card.id`), the same summoning-sickness flag (a sick
- *  creature reads/plays differently from a ready one), and the same TAPPED
- *  state (QA: 6 untapped Forests read as one pile; tapping some splits them
- *  into an untapped pile and a tapped pile — the mana-committed flag stays
- *  EXCLUDED per PRD #621, tapping for mana only moves the card between the
- *  two piles, with the rotation + flight animation riding along).
+ *  (art + name, via `displayCardId(card)` — see below), the same
+ *  summoning-sickness flag (a sick creature reads/plays differently from a
+ *  ready one), and the same TAPPED state (QA: 6 untapped Forests read as one
+ *  pile; tapping some splits them into an untapped pile and a tapped pile —
+ *  the mana-committed flag stays EXCLUDED per PRD #621, tapping for mana
+ *  only moves the card between the two piles, with the rotation + flight
+ *  animation riding along).
+ *
+ *  `displayCardId`, not raw `card.card.id` (issue #1735 review): a face-down
+ *  permanent's `card.card.id` is the CR 708.2 sentinel for EVERY viewer,
+ *  including its controller, so keying on it collapsed the controller's TWO
+ *  DIFFERENT face-down permanents into one pile rendering only the lead
+ *  member's real art — `displayCardId` is exactly the id that art/name
+ *  already render from (`getCardImageDefId`), so the grouping key now tracks
+ *  the same "same card" fact the pile's own art draws from. For the
+ *  opponent (no `knownCardId`) this is a no-op — `displayCardId` falls back
+ *  to the same sentinel, so their two indistinguishable face-down creatures
+ *  still fan into one pile exactly as before.
+ *
+ *  Also includes the raw `faceDown` flag itself (issue #1735 review round 3),
+ *  as its OWN key segment rather than as an `isAltered` singleton override:
+ *  `displayCardId` alone stops two DIFFERENT face-down permanents from
+ *  collapsing (both above), but for the CONTROLLER two identical face-down
+ *  morphs of the same real card resolve to the SAME `displayCardId` — which
+ *  is correct, they are genuinely interchangeable while both stay face down —
+ *  so `displayCardId` alone would also let a face-down permanent collapse into
+ *  a stack with an unrelated FACE-UP permanent that happens to share the same
+ *  real card (the controller's own morph creature next to another copy of the
+ *  same creature that is already face up): same `displayCardId`, same
+ *  controller/sick/tapped state, yet the two are not interchangeable — a
+ *  face-down permanent's real characteristics (P/T, abilities) are the hidden
+ *  2/2 vanilla ones, the face-up one's are not. Folding `faceDown` into the
+ *  identity key instead of `isAltered` keeps BOTH halves true at once: two
+ *  identical face-down permanents (either viewer) still fan into one pile
+ *  (PRD #621's canonical case), while a face-down/face-up pair of the same
+ *  card never does — one key, one thing to guard, instead of two overlapping
+ *  mechanisms where only the pair reverted together used to prove anything.
  *
  *  Also includes `controllerId`: this key becomes the group's `stackKey`,
  *  which the board uses as both the layout slot's React `key` and its
@@ -59,7 +91,8 @@ export interface PermanentGroup {
 function identityKey(card: CardInstance): string {
     const sick = card.isSummoningSick === true ? "1" : "0";
     const tapped = card.isTapped === true ? "1" : "0";
-    return `${card.controllerId}|${card.card.id}|${sick}|${tapped}`;
+    const faceDown = card.faceDown === true ? "1" : "0";
+    return `${card.controllerId}|${displayCardId(card)}|${faceDown}|${sick}|${tapped}`;
 }
 
 /** A permanent is "altered" — and therefore always renders as its own
@@ -104,6 +137,12 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     if (card.copiedFrom) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).
     if (card.isAttacking || card.isBlocking) return true;
+    // NOTE: face-down (CR 708.2) is deliberately NOT an `isAltered` singleton
+    // override — issue #1735 review round 3 moved it into `identityKey`'s own
+    // key segment instead, so two identical face-down permanents still fan
+    // into one pile (PRD #621) while a face-down/face-up pair of the same
+    // real card never does. See `identityKey`'s doc comment for the full
+    // rationale; do not re-add a `card.faceDown` check here.
     return false;
 }
 

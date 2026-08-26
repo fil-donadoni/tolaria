@@ -6,6 +6,7 @@ import type { CardInstance, Combat } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { hasBandingLike, canFormBand } from "~/lib/banding";
+import { displayCardId } from "~/lib/card-utils";
 import { Panel } from "~/components/ui/panel";
 
 /**
@@ -100,7 +101,7 @@ export default function BandFormationPanel({
                                                 : "bg-surface-elevated border-border-subtle"
                                         }`}
                                     >
-                                        {getDefinition(c.card.id).name}
+                                        {getDefinition(displayCardId(c)).name}
                                         {hasBandingLike(c) ? " ⟡" : ""}
                                     </button>
                                 );
@@ -129,7 +130,9 @@ export default function BandFormationPanel({
                                                 (a) => a.id === id
                                             );
                                             return c
-                                                ? getDefinition(c.card.id).name
+                                                ? getDefinition(
+                                                      displayCardId(c)
+                                                  ).name
                                                 : id;
                                         })
                                         .join(" + ")}

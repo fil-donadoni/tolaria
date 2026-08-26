@@ -184,8 +184,16 @@ export type KnownLibraryCard = { index: number; card: SlimLibraryCard };
  *  each at its top-relative `index`. Empty `known` for a fully hidden library. */
 export type PublicLibrary = { count: number; known: KnownLibraryCard[] };
 
-/** StackItem slimmed to { id } card ref. */
-export type SlimStackItem = Omit<StackItem, "card"> & { card: { id: string } };
+/** StackItem slimmed to { id } card ref. `knownCardId` (issue #1735) mirrors
+ *  `SlimBattlefieldCard.knownCardId`: present ONLY for the caster's own view
+ *  of their own face-down spell, carrying the real definition id, while
+ *  `card.card.id` stays the sentinel for every viewer (including the caster)
+ *  so id-derived rules reads (e.g. a spell-target mvFilter) never see through
+ *  the face-down state. */
+export type SlimStackItem = Omit<StackItem, "card"> & {
+    card: { id: string };
+    knownCardId?: string;
+};
 
 /** Granted ability hydrated with its template data so clients can render
  *  oracle text and cost without loading the backend card registry. */
@@ -274,9 +282,17 @@ export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
  *  the client cannot compute for itself: whether its controller may take the
  *  CR 116.2b / 702.37e turn-face-up special action on it right now. Absent
  *  (rather than `false`) whenever the action is unavailable, so the flag costs
- *  nothing on the overwhelming majority of permanents, which are face up. */
+ *  nothing on the overwhelming majority of permanents, which are face up.
+ *
+ *  `knownCardId` (issue #1735) is the controller's face-down identification
+ *  affordance: present ONLY on the controller's own view of their own
+ *  face-down permanent, carrying the REAL definition id. `card.card.id`
+ *  itself stays the face-down sentinel for EVERY viewer — every id-derived
+ *  rules read (colour, mana value, supertypes, activated abilities) must see
+ *  the CR 708.2 vanilla 2/2, never the real card, even for the controller. */
 export type SlimBattlefieldCard = SlimCardInstance & {
     canTurnFaceUp?: boolean;
+    knownCardId?: string;
 };
 
 export type PublicGameState = Omit<
@@ -424,11 +440,20 @@ function projectLibrary(
 
 /** Projects one battlefield permanent for a given viewer. The battlefield is
  *  public EXCEPT for the identity of a face-down permanent (CR 708.2,
- *  ADR 0013): its controller's view restores the real definition id
- *  (`faceDownOf`); every other viewer keeps the face-down sentinel id and the
- *  real id is stripped so it never crosses the wire. All other characteristics
- *  (the vanilla 2/2) are already identical for both viewers, so nothing else
- *  is hidden. */
+ *  ADR 0013): `card.card.id` stays the face-down sentinel for EVERY viewer,
+ *  controller included — issue #1735. Every id-derived characteristic
+ *  (`supertypeFilter`, `colorFilter`, `mvFilter`, `getEffectiveActivatedAbilities`,
+ *  …) resolves off this id, and the underlying game OBJECT genuinely has none
+ *  of the real card's characteristics while face down; restoring the real id
+ *  for the controller used to make those reads see the face-up card while the
+ *  engine still enforced the face-down 2/2, the exact Karakas-style divergence
+ *  the issue fixes. The controller's identification affordance (they may look
+ *  at their own face-down card) rides the SEPARATE `knownCardId` field
+ *  instead, which no id-derived filter reads — `faceDownOf` ALSO still rides
+ *  the wire for the controller (unchanged, pre-existing behaviour) carrying
+ *  the same real id, so nothing downstream that already reads it regresses.
+ *  Every other viewer gets neither field, so the real identity never crosses
+ *  the wire to them. */
 function projectBattlefieldCard(
     card: CardInstanceState,
     viewerId: string,
@@ -451,31 +476,42 @@ function projectBattlefieldCard(
         state !== undefined &&
         card.faceDown === true &&
         canTurnFaceUp(state, getPlayer(state, card.controllerId), card);
-    const decorate = (slim: SlimCardInstance): SlimBattlefieldCard =>
+    const decorate = (slim: SlimBattlefieldCard): SlimBattlefieldCard =>
         turnUp && viewerId === card.controllerId
             ? { ...slim, canTurnFaceUp: true }
             : slim;
     if (!card.faceDown) return slimCard(card);
-    if (viewerId === card.controllerId && card.faceDownOf) {
-        // The controller knows what they cast — expose the real id.
-        return decorate(slimCard({ ...card, card: { id: card.faceDownOf } }));
-    }
-    // Opponents/spectators: hide the true identity entirely. slimCard returns
-    // a fresh object, so deleting the leaked id doesn't mutate live state.
+    // slimCard returns a fresh object, so deleting the marker below never
+    // mutates live state. `card.card.id` is ALREADY the sentinel in raw state
+    // (turnFaceDown swaps it there, not per-viewer) — it needs no
+    // special-casing here at all, only `faceDownOf` is viewer-gated.
     const slimmed = slimCard(card);
+    if (viewerId === card.controllerId && card.faceDownOf) {
+        // The controller knows what they cast — `faceDownOf` keeps carrying
+        // the real id (pre-existing wire shape, unchanged), and `knownCardId`
+        // is the SAME value under the name every id-derived filter is
+        // guaranteed never to read, so a future filter reusing the "obvious"
+        // field name can't reintroduce this bug.
+        return decorate({ ...slimmed, knownCardId: card.faceDownOf });
+    }
+    // Opponents/spectators: hide the true identity entirely.
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
-    return slimmed;
+    return decorate(slimmed);
 }
 
-/** Projects one STACK item for a given viewer (CR 702.37c / 708.2, issue
- *  #2705). Exactly the battlefield rule, applied to the zone that had no rule
- *  at all: a face-down morph spell sits on the stack for a whole priority round
- *  before it resolves, and `state.stack.map(slimCard)` was viewer-blind — the
- *  sentinel `card.card.id` was correct for everyone (it is mutated in place at
- *  `turnFaceDown` time, not derived per viewer), but the sibling `faceDownOf`
- *  carrying the REAL card id rode straight through to the opponent. The
- *  battlefield zone had stripped that field per viewer since ADR 0013; the
- *  stack never did.
+/** Projects one STACK item for a given viewer (CR 702.37c / 708.2, issues
+ *  #2705 / #1735). Exactly the battlefield rule, applied to the zone that had
+ *  no rule at all: a face-down morph spell sits on the stack for a whole
+ *  priority round before it resolves, and `state.stack.map(slimCard)` was
+ *  viewer-blind — the sentinel `card.card.id` is correct for everyone (it is
+ *  mutated in place at `turnFaceDown` time, not derived per viewer) and MUST
+ *  stay that way for every viewer, caster included: `mvOfStackItem` and the
+ *  spell-target filter registry resolve characteristics off this id, and a
+ *  restored real id there reproduces the same Karakas-style divergence #1735
+ *  fixed on the battlefield, one zone over. The caster's identification
+ *  affordance rides `knownCardId` (a new field, alongside the pre-existing
+ *  `faceDownOf`, both carrying the same real id) instead, exactly like the
+ *  battlefield.
  *
  *  Also applied to `pendingTriggerBatch` (the off-stack CR 603.3b ordering
  *  batch). A triggered ability is not itself a face-down OBJECT, but its
@@ -489,11 +525,13 @@ function projectBattlefieldCard(
  *  controller keeps seeing their own card and the opponent does not. */
 function projectStackItem(item: StackItem, viewerId: string): SlimStackItem {
     if (!item.faceDown) return slimCard(item);
-    if (viewerId === item.castById && item.faceDownOf) {
-        // The caster knows what they cast — expose the real id.
-        return slimCard({ ...item, card: { id: item.faceDownOf } });
-    }
     const slimmed = slimCard(item);
+    if (viewerId === item.castById && item.faceDownOf) {
+        // The caster knows what they cast — `faceDownOf` keeps carrying the
+        // real id (pre-existing wire shape, unchanged) and `knownCardId` is
+        // the same value under the name id-derived filters never read.
+        return { ...slimmed, knownCardId: item.faceDownOf };
+    }
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
     return slimmed;
 }

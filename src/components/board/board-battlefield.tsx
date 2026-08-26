@@ -5,7 +5,6 @@ import { useBattlefieldInteractionHook } from "~/hooks/useBattlefieldInteraction
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
-import { tryGetDefinition } from "@convex/cards";
 import {
     bandedRowsLayout,
     stackFootprintWidth,
@@ -13,7 +12,7 @@ import {
 } from "~/lib/board-layout";
 import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
 import { groupBattlefield } from "~/lib/battlefield-stacks";
-import { attachmentLabel } from "~/lib/attachment";
+import { attachmentHostName, attachmentLabel } from "~/lib/attachment";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
 import type { CardVisualState } from "./battlefield-card";
@@ -337,7 +336,17 @@ export default function BoardBattlefield({
         // right object. Depth is bounded defensively: a cyclic `attachedTo`
         // chain must never recurse forever.
         if (!auras?.length || depth >= 4) return renderCard(card);
-        const hostName = tryGetDefinition(card.card.id)?.name ?? "permanent";
+        // Issue #1735 review round 2 finding 5 — this used to be its own
+        // `tryGetDefinition(displayCardId(card))?.name ?? "permanent"` read
+        // (a face-down host stays the CR 708.2 sentinel on `card.card.id` for
+        // every viewer, controller included; the pile title is display-only),
+        // verbatim identical to `attachmentHostName` (`~/lib/attachment.ts`).
+        // `attachmentHostName` takes the ATTACHED card and resolves its
+        // host's name, so it is called on one of the auras (every member of
+        // `auras` shares this same host by construction) rather than on
+        // `card` itself — same result, one fewer copy of the expression.
+        const hostName =
+            attachmentHostName(auras[0], allPlayers) ?? "permanent";
         return (
             <div className="relative w-full h-full">
                 <AttachedCardsCluster

@@ -4,7 +4,7 @@ import { Minus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice, StackItem } from "~/types/game";
-import { getStackAbilityOracleText } from "~/lib/card-utils";
+import { displayCardId, getStackAbilityOracleText } from "~/lib/card-utils";
 import { isEditableTarget } from "~/lib/editable-target";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
@@ -339,7 +339,14 @@ export default function TriggerOrderPrompt({
                     >
                         {order.map((id) => {
                             const item = batchById.get(id);
-                            const cardId = item?.card.id ?? "";
+                            // Issue #1735 — a face-down permanent's granted
+                            // trigger (layer 6) can appear in this batch; the
+                            // chooser is always its own controller (CR
+                            // 603.3b — a player orders only their own
+                            // simultaneous triggers), so `displayCardId`
+                            // shows the real card art/name rather than the
+                            // vanilla sentinel.
+                            const cardId = item ? displayCardId(item) : "";
                             // Every ability flavour, not just a card-def
                             // `triggeredAbilityId`: a REFLEXIVE ability waiting
                             // in the same batch (Inti's "When you do, …") is an

@@ -92,4 +92,22 @@ describe("attachment host labelling (CR 303.4 Aura / CR 301.5 Equipment)", () =>
             attachmentLabel(card("orphan", "def-leak", "gone"), players)
         ).toBeNull();
     });
+
+    // Issue #1735 review, finding 2 — a face-down host's `card.card.id` stays
+    // the CR 708.2 sentinel for its own controller (Power Leak enchanting
+    // Holy Strength enchanting the controller's OWN face-down creature): the
+    // "Attached to: X" line is display-only and must read the real card via
+    // `knownCardId`, not print the generic "Face-down creature" name back at
+    // the very player who knows what it is.
+    it("names the host's REAL card when the host is the controller's own face-down permanent (#1735)", () => {
+        const faceDownHost = {
+            ...card("fd-bear", "def-fd-sentinel"),
+            knownCardId: "def-bear",
+        } as CardInstance;
+        const armorOnFaceDown = card("armor2", "def-armor", "fd-bear");
+        const players = [player("me", [faceDownHost, armorOnFaceDown])];
+        expect(attachmentLabel(armorOnFaceDown, players)).toBe(
+            "Attached to: Grizzly Bears"
+        );
+    });
 });
