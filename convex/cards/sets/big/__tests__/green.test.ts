@@ -1,6 +1,10 @@
 // BIG — green card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { sandstormSalvager, vaultbornTyrant } from "../green";
+import {
+    ancientCornucopia,
+    sandstormSalvager,
+    vaultbornTyrant,
+} from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -10,6 +14,7 @@ import {
     removePermanentTo,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, registerTokenDefinition } from "../../../index";
 
@@ -311,4 +316,99 @@ describe("Vaultborn Tyrant (dies → artifact token copy w/ own triggers, CR 707
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].battlefield.some((c) => c.isToken)).toBe(false);
     });
+});
+
+// Ancient Cornucopia's life-gain amount reads the firing spell's live colour
+// count, which no Effect Script value can read yet (`SPELL_CAST` has no
+// `EVENT_FIELD_REGISTRY` row, #2066 open) — a genuine `resolve()` protocol
+// card (gre-development.md § DSL-first authoring), so it earns a
+// hand-written test per the project's testing convention (unlike the six
+// other #2761 cards, five of which turned out to need one too once corrected
+// — see the PR description).
+describe("Ancient Cornucopia (may gain life = colours of a cast spell, once/turn; {T}: mana of any colour; CR 603.2h / 602.5b / 207)", () => {
+    function setup(): { state: GameState; cornucopia: CardInstanceState } {
+        const cornucopia = makeInstance(ancientCornucopia.id, {
+            id: "cornucopia",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [cornucopia] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        return { state, cornucopia };
+    }
+
+    function castSpell(
+        state: GameState,
+        spellColors: string[],
+        casterId = "p1"
+    ): void {
+        state.pendingEvents = [
+            {
+                type: "SPELL_CAST",
+                casterId,
+                spellInstanceId: `spell-${state.stack.length}`,
+                spellCardId: sandstormSalvager.id,
+                spellTypes: ["Sorcery"],
+                spellSubtypes: [],
+                spellColors,
+            },
+        ];
+        processPendingActionTriggers(state);
+    }
+
+    it("accepting the may-gain: gains life equal to the spell's colour count", () => {
+        const { state } = setup();
+        castSpell(state, ["U", "B"]); // two colours
+        expect(state.stack).toHaveLength(1);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].life).toBe(22); // 20 + 2
+    });
+
+    it("declining the may-gain: no life change", () => {
+        const { state } = setup();
+        castSpell(state, ["G"]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it('does not trigger for a COLORLESS spell (CR 202.2 — "a spell that\'s one or more colors")', () => {
+        const { state } = setup();
+        castSpell(state, []);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("does not trigger for a spell an OPPONENT casts (scope: you)", () => {
+        const { state } = setup();
+        castSpell(state, ["R"], "p2");
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // CR 603.2h "Do this only once each turn" — approximated as a per-turn
+    // trigger cap (`maxTriggersPerTurn: 1`, a documented simplification, see
+    // the definition's own comment and docs/findings/2761-ancient-cornucopia-
+    // cr603-2h.md): a SECOND colored spell the same turn does not trigger the
+    // ability again at all, regardless of whether the first's may-gain was
+    // accepted.
+    it("(regression) a second colored spell the same turn does not trigger again", () => {
+        const { state } = setup();
+        castSpell(state, ["U"]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].life).toBe(21);
+        castSpell(state, ["W", "B", "G"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    // The `{T}: Add one mana of any color` ability is the established
+    // `manaChoices` any-colour shape (City of Brass, `arn/colorless.ts`) —
+    // that card's own test suite covers only its OTHER (triggered) ability,
+    // treating `useStack: false` + `manaChoices` mana production as
+    // already-covered generic engine machinery, not a per-card test surface.
 });

@@ -12,3 +12,12 @@ export const dayOfJudgmentM11: CardPrint = {
     setCode: "m11",
     rarity: "rare",
 };
+
+// M11 reprint of Silence, first implemented against its earliest paper
+// printing (M10, ADR 0041 home-set convention) — see `m10/white.ts`.
+export const silenceM11: CardPrint = {
+    printId: "37b70d17-e4ec-4731-8892-b444f82be7a2", // M11
+    definitionId: "1559d660-8a9d-422b-95d3-710a046583dd", // silence (M10)
+    setCode: "m11",
+    rarity: "rare",
+};

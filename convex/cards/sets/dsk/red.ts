@@ -53,17 +53,3 @@ export const fearOfMissingOut: CardDefinition = {
     // After this phase, there is an additional combat phase." Blocked on:
     // additional combat phase system not modeled.
 };
-
-// Silence — {W} Instant. "Your opponents can't cast spells this turn."
-//
-// FREED 2026-08-25 (#1841 audit): the old marker read "Blocked on:
-// spell-cast restriction infrastructure for opponents". That is WRONG at
-// HEAD — the `restrictCasting` Op is `status: "implemented"` (CR 601.3a),
-// and `player: "opponent"` is exactly the shape Xantid Swarm ships; Orim's
-// Chant (`convex/cards/sets/pls/white.ts`) uses the Op today. The card is a
-// one-Op Effect Script.
-//
-// It is ALSO in the wrong file: Silence is not a Duskmourn card. Its
-// earliest paper printing is M10 (2009-07-17), reprinted in M11; there is no
-// m10 module but m11 exists. Shipping it relocates this note.
-// tracked-by: #2761

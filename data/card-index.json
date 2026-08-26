@@ -850,6 +850,14 @@
         "source": "compiled"
     },
     {
+        "name": "Ancient Cornucopia",
+        "scryfallId": "f977975d-0439-4731-b129-270cc4cdbb23",
+        "oracleId": "f0950c95-a297-489d-b166-74bba6af5376",
+        "firstSet": "big",
+        "firstPrintId": "f977975d-0439-4731-b129-270cc4cdbb23",
+        "firstPrintSet": "big"
+    },
+    {
         "name": "Ancient Crab",
         "scryfallId": "783794e3-fe0c-4014-ae5a-6c249af23ddc",
         "oracleId": "6bab6d0a-cd06-45e3-b780-d5354ee2a032",
@@ -8328,6 +8336,14 @@
         "firstPrintSet": "mom"
     },
     {
+        "name": "Faerie Squadron",
+        "scryfallId": "4c707c81-dbbd-43be-a79a-7bc92a584839",
+        "oracleId": "109f7a7d-dc08-4c8f-8065-93c620a9194e",
+        "firstSet": "inv",
+        "firstPrintId": "4c707c81-dbbd-43be-a79a-7bc92a584839",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Faithbearer Paladin",
         "scryfallId": "af15a774-b97f-4bc0-913d-4d2a047fed8a",
         "oracleId": "725dc451-cae4-4345-9741-6c58e5a1a1dc",
@@ -13889,6 +13905,14 @@
         "oracleId": "2bd91ce8-1797-4dd7-8150-0d4caa7dad61",
         "firstSet": "inv",
         "firstPrintId": "cbc2670d-a3f4-47c2-b424-01fd379ff186",
+        "firstPrintSet": "inv"
+    },
+    {
+        "name": "Kavu Titan",
+        "scryfallId": "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
+        "oracleId": "df166d0e-f944-404d-83b9-8cf53e220774",
+        "firstSet": "inv",
+        "firstPrintId": "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
         "firstPrintSet": "inv"
     },
     {
@@ -21314,6 +21338,14 @@
         "source": "compiled"
     },
     {
+        "name": "Rooting Kavu",
+        "scryfallId": "12c25a4c-d93a-402b-999f-0b9919123cc5",
+        "oracleId": "e7438616-cc42-4a6d-a7e3-5856cb0782fa",
+        "firstSet": "inv",
+        "firstPrintId": "12c25a4c-d93a-402b-999f-0b9919123cc5",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Rootwater Hunter",
         "scryfallId": "cdf7ea34-2cde-4ec5-9b12-99b0002da986",
         "oracleId": "8e42ed82-8b56-46ad-a1ca-e29689a9d030",
@@ -23098,6 +23130,14 @@
         "firstPrintSet": "ala",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Silence",
+        "scryfallId": "1559d660-8a9d-422b-95d3-710a046583dd",
+        "oracleId": "8aed54cb-d1bb-45ad-adbe-38e55d84ff31",
+        "firstSet": "m10",
+        "firstPrintId": "1559d660-8a9d-422b-95d3-710a046583dd",
+        "firstPrintSet": "m10"
     },
     {
         "name": "Silent Artisan",
@@ -28506,6 +28546,14 @@
         "firstSet": "inv",
         "firstPrintId": "31e9e629-7c25-4d45-aa35-9ba5f95b43cb",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Vicious Rivalry",
+        "scryfallId": "6fa9cd18-3181-4373-ab65-49bf9de9487f",
+        "oracleId": "90898c76-21f9-4597-88fe-dc9179911cde",
+        "firstSet": "sos",
+        "firstPrintId": "6fa9cd18-3181-4373-ab65-49bf9de9487f",
+        "firstPrintSet": "sos"
     },
     {
         "name": "Vigilant Baloth",

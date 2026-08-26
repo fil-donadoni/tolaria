@@ -7,7 +7,6 @@ import type {
     BlockersConfirmedEvent,
     CardDefinition,
     CardPrint,
-    DelayedTriggerDef,
     GameEvent,
     PermanentFilter,
     PermanentView,
@@ -28,40 +27,6 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 import { lifeLostTrigger } from "../../abilities/triggers/lifeLostTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
-// "Draw a card at the beginning of the next turn's upkeep" cantrip rider
-// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. The
-// scheduling spell/ability calls `scheduleNextUpkeepDraw` from its `resolve`;
-// the matching `DelayedTriggerDef` (from `nextUpkeepDrawTrigger`) lives on the
-// card's `delayedTriggers[]`. The trigger carries no `targetPlayerId`, so it
-// fires at the VERY NEXT upkeep regardless of whose turn it is and dequeues
-// exactly once (`fireDelayedTriggers` in gre/phases.ts). The drawing player is
-// the spell's controller, captured in `payload.controller` (CR 113.7).
-//
-// Shared because the rider repeats verbatim across the whole cantrip cycle —
-// extracting it keeps each card definition to its unique body (per the
-// "extract on the second occurrence" convention).
-const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
-
-function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
-    ctx.scheduleDelayedTrigger(
-        sourceCardId,
-        NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        "next-upkeep",
-        {}
-    );
-}
-
-function nextUpkeepDrawTrigger(): DelayedTriggerDef {
-    return {
-        id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
-        oracleText: "At the beginning of the next turn's upkeep, draw a card.",
-        timing: "next-upkeep",
-        // CR 121.1 — the delayed trigger's controller draws one card.
-        // Migrated resolve()→effects[] (ADR 0045, closes #1280):
-        // DelayedTriggerDef now carries an `effects` site.
-        effects: [{ op: "draw", player: "controller", count: 1 }],
-    };
-}
 // ─────────────────────────────────────────────────────────────────────────────
 // Black free tranche (#632)
 //
@@ -1061,8 +1026,18 @@ export const gazeOfPain: CardDefinition = {
     ],
 };
 // Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
-// (CR 701.19c regeneration lock, via `setTargetCantBeRegeneratedThisTurn`) plus
-// the next-upkeep cantrip rider.
+// (CR 701.19c regeneration lock, `preventRegeneration` Op) plus the
+// next-upkeep cantrip rider (`delayedTrigger` Op, ADR 0048).
+//
+// FREED 2026-08-25 (#1841 audit, migrated by #2761). The old marker read
+// "Blocked on: a delayed-trigger-with-draw-body Op skin" — WRONG at HEAD. The
+// `delayedTrigger` Op takes an inline `effects` body, and Krovikan Fetish IN
+// THIS FILE already ships exactly `{ op: "delayedTrigger", timing:
+// "next-upkeep", effects: [{ op: "draw" }] }`. The regeneration-lock half has
+// had its Op (`preventRegeneration`, CR 701.19c) since #1283. Both halves are
+// expressible; this was a migration, not a blocker. The shared
+// `scheduleNextUpkeepDraw` / `nextUpkeepDrawTrigger` helper this card was the
+// last consumer of is deleted along with it.
 export const gravebind: CardDefinition = {
     id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
     name: "Gravebind",
@@ -1072,23 +1047,16 @@ export const gravebind: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    // FREED 2026-08-25 (#1841 audit). The old marker read "Blocked on: a
-    // delayed-trigger-with-draw-body Op skin" — WRONG at HEAD. The
-    // `delayedTrigger` Op (ADR 0048) takes an inline `effects` body, and
-    // Krovikan Fetish IN THIS FILE already ships exactly
-    // `{ op: "delayedTrigger", timing: "next-upkeep", effects: [{ op: "draw" }] }`.
-    // The regeneration-lock half has had its Op (`preventRegeneration`,
-    // CR 701.19c) since #1283. Both halves are expressible; this resolve() is
-    // a migration, not a blocker.
-    // tracked-by: #2761
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") {
-            ctx.setTargetCantBeRegeneratedThisTurn(t);
-        }
-        scheduleNextUpkeepDraw(ctx, gravebind.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    effects: [
+        { op: "preventRegeneration", target: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "Draw a card at the beginning of the next turn's upkeep.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Hecatomb — ETB "sacrifice this enchantment unless you sacrifice four
 // creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.21 sacrifice,

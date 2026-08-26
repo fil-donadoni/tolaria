@@ -31,6 +31,7 @@ import {
     empressGalina,
     exclude,
     factOrFiction,
+    faerieSquadron,
     manipulateFate,
     metathranAerostat,
     metathranTransport,
@@ -62,9 +63,12 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import {
+    applySourceStaticEffects,
     processPendingActionTriggers,
     resolveTopOfStack,
     runDamageReplacement,
+    unapplySourceStaticEffects,
+    type GameState,
 } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
@@ -1650,5 +1654,69 @@ describe("Well-Laid Plans (CR 615 shared-color damage prevention, issue #1083)",
         );
         expect(res).not.toBeNull();
         expect(res?.amount).toBe(3);
+    });
+});
+
+// Faerie Squadron exercises the kicker → entersWith-counters →
+// wasKicked-gated keyword-grant chain — the exact Pouncing Kavu template
+// (inv/red.ts, issue #1716), corrected onto this card in place of the old
+// marker's (wrong) `grantAbility`-on-a-conditional-ETB-trigger sketch (issue
+// #2761): that shape would reopen a stack window where the creature is on
+// the battlefield without flying before a trigger resolves, exactly the bug
+// `entersWith.counters` exists to avoid for the counters half.
+describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 122.1 / 702.9, issue #2761)", () => {
+    function enterKicked(kicked: boolean): GameState {
+        const state = makeState();
+        const item = pushSpell(state, faerieSquadron.id, "p1");
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("kicked: enters with two +1/+1 counters and flying", () => {
+        const state = enterKicked(true);
+        const squadron = state.players[0].battlefield.find(
+            (c) => c.card.id === faerieSquadron.id
+        )!;
+        expect(squadron.counters?.["+1/+1"]).toBe(2);
+        expect(squadron.wasKicked).toBe(true);
+        expect(squadron.staticAbilities).toContain("flying");
+    });
+
+    it("not kicked: no counters, no flying, wasKicked unset", () => {
+        const state = enterKicked(false);
+        const squadron = state.players[0].battlefield.find(
+            (c) => c.card.id === faerieSquadron.id
+        )!;
+        expect(squadron.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(squadron.wasKicked).toBeUndefined();
+        expect(squadron.staticAbilities).not.toContain("flying");
+    });
+
+    // Revert-sensitive regression: gating the grant on the +1/+1 counter
+    // COUNT rather than `wasKicked` would let an unrelated pump spell forge
+    // flying on a never-kicked Squadron.
+    it("(regression) unkicked, later pumped to 2+ +1/+1 counters externally: still does not gain flying", () => {
+        const state = enterKicked(false);
+        const squadron = state.players[0].battlefield.find(
+            (c) => c.card.id === faerieSquadron.id
+        )!;
+        expect(squadron.staticAbilities).not.toContain("flying");
+        squadron.counters = { "+1/+1": 2 };
+        unapplySourceStaticEffects(state, squadron);
+        applySourceStaticEffects(state, squadron);
+        expect(squadron.staticAbilities).not.toContain("flying");
+    });
+
+    it("wire format: flying survives projection", () => {
+        const state = enterKicked(true);
+        const squadron = state.players[0].battlefield.find(
+            (c) => c.card.id === faerieSquadron.id
+        )!;
+        const projected = projectPublicState(state, 1, "p1");
+        const slimSquadron = projected.players[0].battlefield.find(
+            (c) => c.id === squadron.id
+        )!;
+        expect(slimSquadron.staticAbilities).toContain("flying");
     });
 });

@@ -393,11 +393,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "4782fd4f-2474-4d0d-8301-e0b52af93746",
-        name: "Gravebind",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "879a8653-1538-4f78-a3d3-a900a4d9499b",
         name: "Great Defender",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
