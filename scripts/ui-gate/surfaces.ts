@@ -192,10 +192,35 @@ function fixtureRow(label: string): string {
 const DRAFT_PICK_TILE = "[role=button][aria-label^='Draft pick:']";
 
 /** The phone-only snap surface and its two strip halves (issue #2588). Absent
- *  at desktop/tablet widths, where the room renders the split instead. */
+ *  at desktop/tablet widths, where the room renders the STACKED arrangement
+ *  instead — Booster band on top, Pool band beneath, each with its own
+ *  scroller (issue #2820; there is no `"split"` layout value any more). */
 const DRAFT_SNAP_SCROLLER = "[data-slot=draft-snap-scroller]";
 const DRAFT_STRIP_DROP = "[data-slot=draft-strip-drop]";
 const DRAFT_POOL = "[data-slot=draft-pool]";
+
+/** The Pool's OWN scroll band in the stacked arrangement (issue #2820,
+ *  `limited-draft-table.tsx` — `min-h-[17.5rem] flex-1 overflow-y-auto`).
+ *
+ *  Named explicitly, because the thing it replaced — "walk UP from
+ *  `DRAFT_POOL` and scroll the first ancestor that overflows" — is precisely
+ *  the shape issue #2822 exists to kill, one element up from the event list.
+ *  An ancestor search does not say WHICH element it means, so when #2820
+ *  changed the arrangement under it the search silently kept resolving: at
+ *  every non-phone viewport it walked the whole chain to `<html>` and
+ *  scrolled NOTHING (measured on the rebased tree: `draft-stacked-pool`
+ *  508/508 at 1440x900x2, 287/287 at 820x1180x2, 441/441 at 1180x820x2 —
+ *  `scrollHeight === clientHeight` at each, and every ancestor above it the
+ *  same). Had ONE of those ancestors overflowed — `<main>` is one gesture
+ *  from being a page scroller on this app, `docs/findings/2582-…` — it would
+ *  have scrolled the PAGE and reported that as the pool at its far extent.
+ *
+ *  Its presence is now the walk's ASSERTION that the arrangement is still the
+ *  one the walk was written for: absent, the surface goes UNWALKED and a
+ *  human re-teaches it, rather than the lane quietly measuring elsewhere. The
+ *  scrolling itself reaches past it into the pool's own scrollers — see
+ *  `reachDraftPoolStop`. */
+const DRAFT_STACKED_POOL = "[data-slot=draft-stacked-pool]";
 
 /** A card tile inside the Pool/Sideboard pane, matched by the tooltip
  *  `DeckCardTile` always carries (`title="Remove <name>…"`,
@@ -210,6 +235,15 @@ const DRAFT_POOL_TILE = `${DRAFT_POOL} [data-card-tile][title^='Remove ']`;
  *  Booster panel and `draft-pool-peek`'s Pool panel assert the SAME mount
  *  point rather than two copies of the literal. */
 const DRAFT_PEEK_PANEL = "[data-peek-panel]";
+
+/** The one CTA that tells the POOL's `DeckZonePeek` apart from the BOOSTER's
+ *  own `PeekPanel` — both render `[data-peek-panel]`, and the Booster's is
+ *  already mounted by the time `draft-pool-peek` clicks anything
+ *  (`pinDraftSelection`). `Move to…` is appended by `deck-zone-peek.tsx`
+ *  alone, from its column-pin sheet. `EditingActionButton` publishes each
+ *  CTA's label as `data-editing-action` (`editing-action-button.tsx`), which
+ *  is the same handle the component suites drive. */
+const DRAFT_POOL_PEEK_CTA = `${DRAFT_PEEK_PANEL} [data-editing-action="Move to…"]`;
 
 /**
  * Pins the Draft Room's Selected Card state (issue #2677). `seat.selectedPickId`
@@ -308,9 +342,10 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
  * screen, and a collapsed MV row passes every happy-dom test there is.
  *
  * Off a phone there is no snap surface (`useViewportMode` calls both tablets
- * "desktop"), so the equivalent state is the stacked arrangement's Pool band
- * scrolled to its end — still the pool at its far extent, still a state
- * `draft-pick` never probes.
+ * "desktop"), so the equivalent state is every scroller the pool owns driven
+ * to its end — still the pool at its far extent, still a state `draft-pick`
+ * never probes. Which element that IS changed with issue #2820: see the
+ * scroll block below, and `DRAFT_STACKED_POOL`.
  *
  * Extracted (issue #2667 review) so `draft-pool-peek` can reach the SAME pool
  * stop and then go one gesture further (select a tile, mount the Peek Panel)
@@ -364,15 +399,72 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
             "the Draft Room rendered no pool pane — this seat's pool toggle may be off, or the pool is empty (this surface needs a NON-EMPTY pool: make a few picks first)"
         );
     }
-    await page.evaluate(`(() => {
+    if (!(await visible(page, DRAFT_STACKED_POOL, 4000))) {
+        throw new Unreachable(
+            `the Draft Room rendered a pool pane but no "${DRAFT_STACKED_POOL}" band to scroll it in — the non-phone arrangement changed (issue #2820 restored the stacked one) and this walk has to be re-taught which element IS the pool's scroller. Refusing to guess: scrolling whatever ancestor happens to overflow is how a walk starts measuring the page instead of the pool`
+        );
+    }
+    // Drive EVERY scroller the pool owns to its end, ON ITS OWN AXIS, and
+    // count how many actually had somewhere to go.
+    //
+    // Both halves of that are load-bearing, and each replaces a wrong
+    // assumption the split-era walk carried:
+    //
+    //   - The BAND is not where the pool's overflow lives. Measured on the
+    //     rebased tree, `draft-stacked-pool` is 508/508, 287/287 and 441/441
+    //     (`scrollHeight`/`clientHeight`) at the three non-phone viewports —
+    //     it never overflows, because its `flex-1` gives it whatever the
+    //     Booster band leaves and its `min-h-[17.5rem]` floor keeps that
+    //     honest. Scrolling only the band is a guaranteed no-op.
+    //   - The overflow lives INSIDE `[data-slot=draft-pool]`, in
+    //     `DeckZoneSurface`'s own card scroller (`deck-zone-surface.tsx:674`,
+    //     `flex overflow-auto md:snap-none` — `snap-x` in the columns
+    //     branch, so its far extent is the LAST Mana-Value column). At
+    //     820x1180x2 that box is 201px around a 358px column and 12 of the
+    //     24 pool tiles sit outside their port. A walk that leaves them there
+    //     has not reached "the pool at its far extent"; it has re-measured
+    //     `draft-pick`'s DOM under a second surface id, which is coverage
+    //     that reads as two rows and proves one.
+    //
+    // ONE AXIS PER SCROLLER, the one it actually scrolls on. `overflow-auto`
+    // is both axes, and pinning both ends at once is not "the far extent" —
+    // it is off the end of the content: driving the columns scroller's
+    // scrollTop to a 358px column's bottom inside a 201px port lifts every
+    // card clear of the port, and the row measures `cardsOcc 0 reach24`, a
+    // pool pane with no pool visible in it. Horizontal wins where it exists
+    // because that is the axis this pane READS on (`snap-x snap-mandatory`,
+    // left-to-right by Mana Value); the vertical overflow beside it is the
+    // starved-container debt the `starved` metric already reports, not a
+    // reading direction.
+    //
+    // `moved` is what makes the difference reportable rather than assumed: 0
+    // means every scroller already fit, so this row IS `draft-pick`'s DOM at
+    // that viewport and the `knownDebt` note has to say so.
+    const stop = (await page.evaluate(`(() => {
+        const roots = [document.querySelector("${DRAFT_STACKED_POOL}")];
         const pool = document.querySelector("${DRAFT_POOL}");
-        for (let p = pool && pool.parentElement; p; p = p.parentElement) {
-            if (p.scrollHeight > p.clientHeight + 2) {
-                p.scrollTop = p.scrollHeight;
-                return;
-            }
+        if (pool) roots.push(pool, ...pool.querySelectorAll("*"));
+        let scrollers = 0;
+        let moved = 0;
+        for (const el of roots) {
+            if (!el) continue;
+            const cs = getComputedStyle(el);
+            if (!/auto|scroll/.test(cs.overflowY + cs.overflowX)) continue;
+            const dy = el.scrollHeight - el.clientHeight;
+            const dx = el.scrollWidth - el.clientWidth;
+            if (dy <= 2 && dx <= 2) continue;
+            scrollers++;
+            if (dx > 2) el.scrollLeft = el.scrollWidth;
+            else el.scrollTop = el.scrollHeight;
+            if (el.scrollTop > 2 || el.scrollLeft > 2) moved++;
         }
-    })()`);
+        return { scrollers: scrollers, moved: moved };
+    })()`)) as { scrollers: number; moved: number };
+    if (stop.scrollers > 0 && stop.moved === 0) {
+        throw new Unreachable(
+            `the Draft Room's pool has ${stop.scrollers} overflowing scroller(s) and not one of them would move — this surface measures the pool AT its far extent, and it is not there`
+        );
+    }
     await page.waitForTimeout(400);
 }
 
@@ -1020,6 +1112,20 @@ export const SURFACES: readonly Surface[] = [
             if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+                );
+            }
+            // `[data-peek-panel]` alone cannot discharge this surface's claim.
+            // `reachDraftRoom` has ALREADY pinned a Booster selection
+            // (`pinDraftSelection`, issue #2677), and the Booster's own
+            // `PeekPanel` uses the SAME attribute — so a pool click that did
+            // nothing at all would leave the Booster's panel standing and the
+            // assertion above green, which is the "the test never reaches the
+            // code" shape. The two panels' CTA rows are what differ: only the
+            // Pool's `DeckZonePeek` appends `Move to…` (its column-pin sheet,
+            // `deck-zone-peek.tsx`), and the Booster's never offers it.
+            if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
                 );
             }
             await page.waitForTimeout(300);

@@ -365,16 +365,35 @@ landed while the player was parked on the pool), and `[data-draft-chevron]`
 with `data-animated` (absent under `prefers-reduced-motion: reduce`).
 
 `bun run check:ui` walks this route THREE times — `draft-pick` stops at the
-pack stop, `draft-pool-stop` runs step 1 and probes there (off a phone it
-scrolls the stacked arrangement's Pool band to its end instead), and `draft-pool-peek`
+pack stop, `draft-pool-stop` runs step 1 and probes there, and `draft-pool-peek`
 (issue #2667) goes one gesture further: from the same pool stop it taps the
-first Pool card tile (`[data-card-tile][title^='Remove ']` inside
-`[data-slot=draft-pool]`) and probes with the Pool's own `DeckZonePeek`
-(`[data-peek-panel]`) mounted — the state no walk reached before #2667, on
-every one of the five viewports including the two phone ones the issue's AC
-names (390x844x3 / 844x390x3). All three call `assertTwoSnapStops`, which
-drives the real scroller through eleven offsets and reds the lane unless
-exactly `{0, max}` rest.
+**last** Pool card tile (`[data-card-tile][title^='Remove ']` inside
+`[data-slot=draft-pool]`; the FIRST is buried under its own column pile at a
+realistic pool size, and Playwright waits out its whole timeout on it) and
+probes with the Pool's own `DeckZonePeek` (`[data-peek-panel]`) mounted — the
+state no walk reached before #2667, on every one of the five viewports
+including the two phone ones the issue's AC names (390x844x3 / 844x390x3).
+All three call `assertTwoSnapStops`, which drives the real scroller through
+eleven offsets and reds the lane unless exactly `{0, max}` rest.
+
+**Two things those two walks assert that are easy to get wrong by hand**
+(issue #2822, after the stacked arrangement came back in #2820/#2833):
+
+- **The pool stop off a phone is not the Pool BAND.** `[data-slot=draft-stacked-pool]`
+  never overflows — measured 508/508, 287/287 and 441/441
+  (`scrollHeight`/`clientHeight`) at `1440x900x2`, `820x1180x2` and
+  `1180x820x2` — because its `flex-1` takes whatever the Booster band leaves.
+  The overflow lives inside `[data-slot=draft-pool]`, in `DeckZoneSurface`'s
+  own card scroller, and at tablet portrait it is HORIZONTAL (`snap-x
+snap-mandatory`, left-to-right by Mana Value). The walk drives every
+  scroller the pool owns to its end **on that scroller's own axis**; pinning
+  both axes at once scrolls past the content and leaves a pool pane with no
+  pool visible in it. Do the same by hand: drag the Mana-Value columns to the
+  far right, do not scroll the band.
+- **`[data-peek-panel]` alone does not prove the POOL's panel is open.** The
+  Booster's own panel uses the same attribute and is already mounted by then
+  (`pinDraftSelection`). Check for `[data-editing-action="Move to…"]`, the
+  one CTA only `deck-zone-peek.tsx` appends.
 
 **Fixture requirement for `draft-pool-stop` / `draft-pool-peek`: the seat
 needs a non-empty pool.** `LimitedDraftPool` renders an `EmptyState` at

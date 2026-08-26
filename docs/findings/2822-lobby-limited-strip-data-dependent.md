@@ -32,6 +32,20 @@ fixture events #2822 seeds also moved `lobby.small` by +1 at `390x844x3` and
 `1180x820x2` when they landed (they are seated, so they enter through the
 re-entry strip, not the capped one).
 
+**Repeated after the rebase onto #2833, with the same result and a second
+direction.** The acceptance experiment was re-run on the rebased tree (one
+more `createLimitedEvent` between two full lane runs): every `limited-*` and
+`draft-*` row byte-identical again, and `lobby` the only surface that moved —
+`1440x900x2` `small 22 → 23` (FAIL, over the ceiling recorded in the round
+above), and `820x1180x2` `small 20 → 18`, DOWN. That second number is the
+part worth keeping: the drift is not a monotone ratchet that a ceiling can
+absorb, it is a reflow, so a ceiling re-recorded high enough to survive one
+extra event is simultaneously slack that would hide a real regression at
+another viewport. That interloper event was cancelled afterwards rather than
+left in place, precisely so this row's ceiling would not be ratcheted a second
+time for a surface #2822 does not own; the one from the round above is still
+on the deployment.
+
 **Why it may not deserve its own issue.** It might be one line on #2580's lane
 rather than a ticket: the mechanism is already understood and written up, and
 the fix could be as small as walking the lobby with the same `?label=` idea
