@@ -233,15 +233,15 @@ export const GLOSSARY = {
     // ─────────────────────────────────────────────────────────────────────
     "claim.live": {
         label: "live",
-        tip: "Someone is plausibly still on it: the evidence on disk and on the remote is consistent with work in flight. Rendered as ·",
+        tip: "Someone is plausibly still on it: the evidence on disk and on the remote is consistent with work in flight.",
     },
     "claim.orphan": {
         label: "orphan",
-        tip: "The claim is stale with nothing to show for it — no worktree, no branch, no PR — so the issue is held out of the queue by a run that is gone. Rendered as ×",
+        tip: "The claim is stale with nothing to show for it — no worktree, no branch, no PR — so the issue is held out of the queue by a run that is gone.",
     },
     "claim.suspect": {
         label: "suspect",
-        tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically. Rendered as ?",
+        tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically.",
     },
 
     // ─────────────────────────────────────────────────────────────────────
