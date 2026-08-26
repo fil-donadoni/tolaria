@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
@@ -665,5 +665,102 @@ describe("CardsPile — the count badge's containing block is a full tile box (i
             baseElement.querySelector<HTMLElement>("[data-pile-count]")!;
         const thumb = findCardWrapper(baseElement as HTMLElement, "only")!;
         expect(containingBlockOf(badge)).toBe(containingBlockOf(thumb));
+    });
+});
+
+describe("CardsPile — segmented type filter footer (issue #2729, plain browse only)", () => {
+    function typedCard(id: string, types: string[]): CardInstance {
+        const card = makeCard(id);
+        card.types = types;
+        return card;
+    }
+
+    it("renders a filter segment per type present, plus All, when 2+ real types are on the pile", () => {
+        const cards = [
+            typedCard("bolt", ["Instant"]),
+            typedCard("pup", ["Creature"]),
+            typedCard("mtn", ["Land"]),
+        ];
+        const { getByRole } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                title="Graveyard"
+            />
+        );
+        expect(
+            getByRole("radiogroup", { name: "Filter pile by card type" })
+        ).toBeTruthy();
+        expect(getByRole("radio", { name: "All" })).toHaveAttribute(
+            "aria-checked",
+            "true"
+        );
+        expect(getByRole("radio", { name: "Creatures" })).toBeTruthy();
+        expect(getByRole("radio", { name: "Instants" })).toBeTruthy();
+        expect(getByRole("radio", { name: "Lands" })).toBeTruthy();
+    });
+
+    it("clicking a segment shows only cards of that type", () => {
+        const cards = [
+            typedCard("bolt", ["Instant"]),
+            typedCard("pup", ["Creature"]),
+        ];
+        const { getByRole, baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                title="Graveyard"
+            />
+        );
+        fireEvent.click(getByRole("radio", { name: "Creatures" }));
+        expect(
+            baseElement.querySelector('[data-testid="card-image-pup"]')
+        ).not.toBeNull();
+        expect(
+            baseElement.querySelector('[data-testid="card-image-bolt"]')
+        ).toBeNull();
+    });
+
+    it("hides the filter footer when the pile has only one real type bucket", () => {
+        const cards = [
+            typedCard("bolt", ["Instant"]),
+            typedCard("shock", ["Instant"]),
+        ];
+        const { queryByRole } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                title="Graveyard"
+            />
+        );
+        expect(
+            queryByRole("radiogroup", { name: "Filter pile by card type" })
+        ).toBeNull();
+    });
+
+    it("hides the filter footer in picker mode (onCardClick set) — filtering out a legal target must never look like it vanished", () => {
+        const cards = [
+            typedCard("bolt", ["Instant"]),
+            typedCard("pup", ["Creature"]),
+        ];
+        const { queryByRole } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+                title="Choose a card"
+            />
+        );
+        expect(
+            queryByRole("radiogroup", { name: "Filter pile by card type" })
+        ).toBeNull();
     });
 });

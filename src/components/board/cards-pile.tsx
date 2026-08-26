@@ -13,6 +13,7 @@ import {
     PILE_GRID_TILE_W,
 } from "~/lib/card-layout";
 import GameDialog from "~/components/ui/game-dialog";
+import SegmentedControl from "~/components/ui/segmented-control";
 import ArrivalGlow from "./arrival-glow";
 import CardTilt3D from "./card-tilt-3d";
 import CardBack from "../cards/card-back";
@@ -194,6 +195,65 @@ function isCardFaceDown(
  *  fan's width is derived from it so the flex container hugs the cards with no
  *  empty trailing space. */
 const FAN_OVERLAP = 0.8;
+
+/** Priority order for the plain-browse type filter (issue #2729, "segmented
+ *  filter footer"). A card carrying several of these types (an artifact
+ *  creature) lands in the FIRST bucket that matches, same first-match-wins
+ *  shape as `buildCategorySections` above — a card never shows under two
+ *  filter buttons. Purely a client-side display grouping over a pile already
+ *  on screen: it never touches choice legality, which stays
+ *  `eligibleIds`/`onCardClick` (server-driven, CR 601.2c). */
+const PILE_FILTER_TYPE_ORDER = [
+    "Creature",
+    "Land",
+    "Instant",
+    "Sorcery",
+    "Artifact",
+    "Enchantment",
+    "Planeswalker",
+] as const;
+
+const PILE_FILTER_ALL = "all";
+
+/** Plural button label per bucket — a naive `${type}s` suffix mangles
+ *  "Sorcery" → "Sorcerys" and over-pluralizes the "Other" catch-all. */
+const PILE_FILTER_LABEL: Record<string, string> = {
+    Creature: "Creatures",
+    Land: "Lands",
+    Instant: "Instants",
+    Sorcery: "Sorceries",
+    Artifact: "Artifacts",
+    Enchantment: "Enchantments",
+    Planeswalker: "Planeswalkers",
+    Other: "Other",
+};
+
+/** First matching top-level type from `PILE_FILTER_TYPE_ORDER`, else
+ *  `"Other"` (Battle, Kindred-only, and any future type not in the list). */
+function pileFilterType(card: CardInstance): string {
+    const types = card.types ?? [];
+    for (const type of PILE_FILTER_TYPE_ORDER) {
+        if (types.includes(type)) return type;
+    }
+    return "Other";
+}
+
+/** The filter buttons to render: `"All"` plus one per type actually present
+ *  among `cards`, in `PILE_FILTER_TYPE_ORDER` (then `"Other"` last) —
+ *  mirrors `CategoryHeader`'s "empty sections show no header" rule so a
+ *  mono-type pile (an all-Mountain library) never grows a useless button. */
+function pileFilterOptions(
+    cards: CardInstance[]
+): { value: string; label: string }[] {
+    const present = new Set(cards.map(pileFilterType));
+    const types = [...PILE_FILTER_TYPE_ORDER, "Other"].filter((t) =>
+        present.has(t)
+    );
+    return [
+        { value: PILE_FILTER_ALL, label: "All" },
+        ...types.map((t) => ({ value: t, label: PILE_FILTER_LABEL[t] })),
+    ];
+}
 
 /** Whether a revealed card is a legal pick under an (optional) filtered
  *  search allow-list (issue #933). No `eligibleIds` means an unfiltered
@@ -566,18 +626,53 @@ function GridLayout({
         imageSizing,
     };
 
+    // Segmented type filter (issue #2729, "segmented filter footer") — PLAIN
+    // browse only: `onCardClick` set means this grid is a picker (a graveyard/
+    // exile CHOICE), where hiding a legal-but-filtered-out target behind a
+    // filter button would read as the target vanishing rather than as a view
+    // option. A categorized reveal (Atraxa/Niv-Mizzet) already groups by type
+    // via `categories` below, so the two features never compose. `> 2` (not
+    // `> 1`) excludes the degenerate "All / Other" pair a mono-type pile
+    // would otherwise grow — a single real bucket makes every filter button
+    // show the identical set of cards.
+    const filterOptions = useMemo(
+        () => (!onCardClick && !categories ? pileFilterOptions(cards) : []),
+        [cards, onCardClick, categories]
+    );
+    const showFilter = filterOptions.length > 2;
+    const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);
+    const activeFilterType = filterOptions.some((o) => o.value === filterType)
+        ? filterType
+        : PILE_FILTER_ALL;
+
     if (!categories) {
+        const visibleCards =
+            showFilter && activeFilterType !== PILE_FILTER_ALL
+                ? cards.filter((c) => pileFilterType(c) === activeFilterType)
+                : cards;
         return (
-            <div
-                className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
-            >
-                {cards.map((cardInstance) => (
-                    <GridCard
-                        key={cardInstance.id}
-                        cardInstance={cardInstance}
-                        {...cardProps}
-                    />
-                ))}
+            <div className="flex flex-col gap-1">
+                <div
+                    className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
+                >
+                    {visibleCards.map((cardInstance) => (
+                        <GridCard
+                            key={cardInstance.id}
+                            cardInstance={cardInstance}
+                            {...cardProps}
+                        />
+                    ))}
+                </div>
+                {showFilter && (
+                    <div className="sticky bottom-0 z-10 flex justify-center border-t border-border-subtle bg-surface pt-2 pb-1">
+                        <SegmentedControl
+                            options={filterOptions}
+                            value={activeFilterType}
+                            onChange={setFilterType}
+                            ariaLabel="Filter pile by card type"
+                        />
+                    </div>
+                )}
             </div>
         );
     }

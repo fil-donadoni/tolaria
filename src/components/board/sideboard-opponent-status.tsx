@@ -17,12 +17,14 @@ export default function SideboardOpponentStatus({
     return (
         <div className="flex items-center justify-center gap-2 text-xs">
             <span className="text-text-muted">{opponent.name}:</span>
+            {/* v4 (ADR 0103 §4, issue #2729): Beleren retired from chrome —
+                these status badges are dialog chrome, not a card face. */}
             {opponent.ready ? (
-                <span className="rounded-sm border border-success bg-success-soft px-2 py-0.5 font-beleren tracking-wide text-success-strong">
+                <span className="rounded-sm border border-success bg-success-soft px-2 py-0.5 tracking-wide text-success-strong">
                     ready
                 </span>
             ) : (
-                <span className="rounded-sm border border-border-accent/40 bg-surface-elevated px-2 py-0.5 font-beleren tracking-wide text-text-muted">
+                <span className="rounded-sm border border-border-accent/40 bg-surface-elevated px-2 py-0.5 tracking-wide text-text-muted">
                     sideboarding…
                 </span>
             )}

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import { interstitialChoiceState } from "~/lib/play-draw-choice";
 
 type PregameDialogProps = {
@@ -93,7 +94,10 @@ export default function PregameDialog({
             >
                 <div className="mt-1 flex flex-col gap-2">
                     <p className="text-center text-sm text-text-muted">
-                        <span className="font-beleren tracking-wide text-accent-strong">
+                        {/* v4 (ADR 0103 §4): Beleren is retired from chrome —
+                            a name callout in the game-menu chrome moves onto
+                            the display face, not the card face. */}
+                        <span className="text-display tracking-wide text-accent-strong">
                             {winnerName}
                         </span>{" "}
                         won the coin toss.
@@ -136,18 +140,30 @@ export default function PregameDialog({
                 <p className="text-center text-xs text-text-muted">
                     Choose to play first or draw first.
                 </p>
-                <div className="flex gap-3">
-                    {(["play", "draw"] as const).map((opt) => (
-                        <button
-                            key={opt}
-                            type="button"
-                            disabled={submitting}
-                            onClick={() => void submit(opt)}
-                            className="rounded-sm border border-accent bg-accent-soft px-5 py-2 font-beleren tracking-wide text-accent-strong transition-colors hover:bg-accent-soft/80 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            {opt === "play" ? "Play" : "Draw"}
-                        </button>
-                    ))}
+                {/* Two-column Play/Draw pair (ADR 0103 §22, prototype
+                    `identity-dialogs.tsx` "Modal · Pregame"): the ivory
+                    primary plate for Play, a hairline secondary for Draw —
+                    the same Button primitive every other dialog action uses,
+                    not a bespoke bordered `<button>`. */}
+                <div className="grid w-full grid-cols-2 gap-2">
+                    <Button
+                        type="button"
+                        variant="primary"
+                        size="lg"
+                        disabled={submitting}
+                        onClick={() => void submit("play")}
+                    >
+                        Play
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="lg"
+                        disabled={submitting}
+                        onClick={() => void submit("draw")}
+                    >
+                        Draw
+                    </Button>
                 </div>
             </div>
         </GameDialog>
