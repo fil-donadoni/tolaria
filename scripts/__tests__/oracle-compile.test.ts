@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildLockfile } from "../oracle-compile";
+import { buildLockfile, poolOracleIdsFromIndex } from "../oracle-compile";
 import type { CorpusCard } from "../oracle-corpus";
 import {
     compilerHash,
@@ -341,6 +341,22 @@ describe("fragment counts are per CARD, not per gap occurrence", () => {
         const { declared, distinctPairs, mismatched } = fragmentTallies(lock);
         expect(mismatched).toEqual([]);
         expect(declared).toBe(distinctPairs);
+    });
+});
+
+// #2702 round 2 fixup: `poolOracleIdsFromIndex` feeds the committed
+// per-format `pool` metric (PRD #2693 M1 progress). A `source: "compiled"`
+// row is the compiler's own output, not a hand-written CardDefinition — it
+// must never count toward its own progress metric.
+describe("poolOracleIdsFromIndex excludes source: compiled rows", () => {
+    it("counts only hand-written oracle ids toward the pool", () => {
+        const index = [
+            { oracleId: "hand-written-1" },
+            { oracleId: "compiled-1", source: "compiled" },
+        ];
+        const pool = poolOracleIdsFromIndex(index);
+        expect(pool.has("hand-written-1")).toBe(true);
+        expect(pool.has("compiled-1")).toBe(false);
     });
 });
 

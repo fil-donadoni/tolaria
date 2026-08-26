@@ -248,13 +248,28 @@ export function emitCardSource(card) {
 }
 
 /** Split resolved cards into those already in the lockfile (by oracleId) and
- *  the genuinely missing ones. */
+ *  the genuinely missing ones. A `source: "compiled"` row is the Oracle
+ *  compiler's own output (#2702), not a hand-written implementation — it
+ *  must NOT count as "already done" here, or the worklist importer becomes
+ *  permanently blind to every card the compiler covers. */
 export function dedupByOracle(cards, lockfile) {
-    const have = new Set(lockfile.map((e) => e.oracleId));
+    const have = new Set(
+        lockfile.filter((e) => e.source !== "compiled").map((e) => e.oracleId)
+    );
     const missing = [];
     const done = [];
     for (const c of cards) (have.has(c.oracleId) ? done : missing).push(c);
     return { missing, done };
+}
+
+/** Names to pre-skip before fetching from Scryfall — a hand-written
+ *  lockfile entry only. Same `source: "compiled"` exclusion as
+ *  `dedupByOracle`: a compiled row's name must still reach the fetch (and
+ *  the oracleId dedup above), or it can never be staged for hand-writing. */
+export function knownImplementedNames(lockfile) {
+    return new Set(
+        lockfile.filter((e) => e.source !== "compiled").map((e) => e.name)
+    );
 }
 
 // ── impure CLI (not exercised by tests) ──────────────────────────────────────
@@ -370,7 +385,7 @@ async function main() {
     // Pre-skip names already in the lockfile or the checkpoint, to avoid
     // refetching the bulk of a worklist (oracleId dedup below still catches
     // alt-name overlaps among the ones we do fetch).
-    const knownNames = new Set(lockfile.map((e) => e.name));
+    const knownNames = knownImplementedNames(lockfile);
     const toFetch = names.filter(
         (n) => !knownNames.has(n) && !checkpointedNames.has(n)
     );

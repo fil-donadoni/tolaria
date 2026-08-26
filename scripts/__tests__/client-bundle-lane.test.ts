@@ -29,8 +29,10 @@ import * as path from "path";
  * gates run it — which is the whole point, since it is the merge-train's gate
  * that decides whether `main` goes dark.
  *
- * This test is a string check on `package.json`, deliberately: the guard proper
- * is `vite build` itself, and all that can rot is its wiring.
+ * This test is a string check on `package.json` (plus, since #2702 round 2
+ * wrapped the raw `vite build` in a size-budget script, one level into that
+ * script's own source), deliberately: the guard proper is `vite build`
+ * itself, and all that can rot is its wiring.
  */
 
 const ROOT = path.resolve(__dirname, "../..");
@@ -38,15 +40,43 @@ const pkg = JSON.parse(
     fs.readFileSync(path.join(ROOT, "package.json"), "utf8")
 ) as { scripts: Record<string, string> };
 
+/** Strips line comments and block comments so a source scan below can't be
+ *  satisfied by a comment that merely TALKS about `vite build` (PR #2838
+ *  round 3 finding: `check-bundle-size.ts`'s own header says "real `vite
+ *  build`" / "a bare `vite build`" four times — the un-stripped grep passed
+ *  even after the real `execSync("bunx vite build ...")` call was deleted). */
+function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+/** `check:bundle` may point directly at `vite build`, or delegate to a
+ *  `scripts/*.ts` wrapper (issue #2702 round 2: `check-bundle-size.ts` adds a
+ *  chunk size budget around the same build) — either way it must still RUN a
+ *  real `vite build`, not silently drop it while keeping the script name.
+ *  For the delegated case this requires an actual process invocation
+ *  (`execSync(...)`/`spawnSync(...)`/`spawn(...)`) whose command contains
+ *  `vite build` — not just the bare substring anywhere in the file, which a
+ *  comment could satisfy forever regardless of what the code still does. */
+function resolvesToRealViteBuild(command: string): boolean {
+    if (/\bvite build\b/.test(command)) return true;
+    const match = command.match(/\bscripts\/([\w.-]+\.ts)\b/);
+    if (!match) return false;
+    const scriptPath = path.join(ROOT, "scripts", match[1]!);
+    if (!fs.existsSync(scriptPath)) return false;
+    const code = stripComments(fs.readFileSync(scriptPath, "utf8"));
+    return /\b(?:execSync|spawnSync|spawn)\s*\([^)]*\bvite build\b/.test(code);
+}
+
 describe("client-bundle lane (#2530)", () => {
     it("check:bundle runs a real vite build", () => {
         expect(
-            pkg.scripts["check:bundle"],
+            resolvesToRealViteBuild(pkg.scripts["check:bundle"]!),
             "`check:bundle` is the only lane that runs the resolver the browser " +
                 "gets. tsc's path mapping and Vite's alias resolve `@convex/cards` " +
                 "to DIFFERENT modules on purpose, so no amount of type-checking " +
-                "can stand in for it."
-        ).toMatch(/\bvite build\b/);
+                "can stand in for it. Its command (or the scripts/*.ts file it " +
+                "delegates to) must still invoke `vite build`."
+        ).toBe(true);
     });
 
     it("is reached from check:all:inner, so both check:all and check:pr run it", () => {

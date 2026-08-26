@@ -41,17 +41,30 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 export const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 const CARD_INDEX_PATH = join(ROOT, "data", "card-index.json");
 
-/** Oracle ids already covered by a hand-written definition (the current pool). */
+/** Oracle ids already covered by a hand-written definition (the current
+ *  pool) — feeds the committed per-format `pool` metric (PRD #2693 M1
+ *  progress). A `source: "compiled"` row is this very compiler's own output
+ *  (#2702), not a hand-written implementation; counting it here would let
+ *  the compiler inflate its own progress metric on every re-run. Exported
+ *  (pure, over an in-memory index) so that guarantee has a unit test. */
+export function poolOracleIdsFromIndex(
+    index: readonly { oracleId?: string; source?: string }[]
+): Set<string> {
+    return new Set(
+        index
+            .filter((e) => e.source !== "compiled")
+            .map((e) => e.oracleId)
+            .filter((id): id is string => typeof id === "string")
+    );
+}
+
 function poolOracleIds(): Set<string> {
     if (!existsSync(CARD_INDEX_PATH)) return new Set();
     const index = JSON.parse(readFileSync(CARD_INDEX_PATH, "utf8")) as {
         oracleId?: string;
+        source?: string;
     }[];
-    return new Set(
-        index
-            .map((e) => e.oracleId)
-            .filter((id): id is string => typeof id === "string")
-    );
+    return poolOracleIdsFromIndex(index);
 }
 
 function toOracleCard(card: CorpusCard): OracleCard {
