@@ -76,7 +76,15 @@ describe("modal scrim carries the heavy blur (#1891)", () => {
             // click-catcher had NO scrim at all — the board bled through the
             // open picker exactly like the bare-`bg-scrim` overlays did.
             "components/board/mana-choice-picker.tsx",
-            "components/cards/phyrexian-picker.tsx",
+            // Mode / alt-cost / Phyrexian / additional-cost cast-time pickers
+            // (issue #2731) all delegate their popover shell to the shared
+            // `AnchoredPicker` primitive, so the scrim now lives ONCE there
+            // instead of once per picker file — the four no longer contain
+            // the literal string themselves.
+            "components/ui/anchored-picker.tsx",
+            // The bespoke controller phase sheet (ADR 0103 §5, issue #2731) —
+            // it used to paint its own flat `bg-black/50` with no blur.
+            "components/board/controller-phase-sheet.tsx",
         ];
         for (const site of SITES) {
             const src = readFileSync(join(SRC_ROOT, site), "utf8");

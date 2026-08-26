@@ -58,12 +58,22 @@ export default function LimitedPickContextMenu({
             role="menu"
             aria-label="Draft pick actions"
             style={{ position: "fixed", top: state.y, left: state.x }}
-            className="z-modal min-w-40 rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+            // v4 (ADR 0103 §5, issue #2731): "bespoke lookalikes... adopt the
+            // same tokens" — the hairline frame + panel radius in place of the
+            // legacy `ring-foreground/10`, and a `--menu-row-gap` column so
+            // the two rows get real spacing, WITHOUT switching this menu onto
+            // the shared `ContextMenu` primitive itself: this popup
+            // deliberately opens on a genuine right-click (the ADR 0060
+            // Booster gesture), while `ContextMenuTrigger` elsewhere
+            // synthesizes that event from a left-click and reserves real
+            // right-click/long-press for the card preview — reusing it here
+            // would fight that convention rather than serve it.
+            className="z-modal flex min-w-40 flex-col gap-[var(--menu-row-gap)] rounded-[var(--panel-radius)] border border-[var(--hairline)] bg-popover p-1 text-sm text-popover-foreground shadow-md"
         >
             <button
                 type="button"
                 role="menuitem"
-                className="block w-full rounded-md px-2 py-1.5 text-left outline-none hover:bg-accent focus-visible:bg-accent"
+                className="flex min-h-[var(--menu-row-h)] w-full items-center rounded-md px-2 text-left outline-none hover:bg-accent focus-visible:bg-accent"
                 onClick={() => {
                     onPick(state.pickId);
                     onClose();
@@ -74,7 +84,7 @@ export default function LimitedPickContextMenu({
             <button
                 type="button"
                 role="menuitem"
-                className="block w-full rounded-md px-2 py-1.5 text-left outline-none hover:bg-accent focus-visible:bg-accent"
+                className="flex min-h-[var(--menu-row-h)] w-full items-center rounded-md px-2 text-left outline-none hover:bg-accent focus-visible:bg-accent"
                 onClick={() => {
                     onPickToSideboard(state.pickId);
                     onClose();

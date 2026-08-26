@@ -76,7 +76,10 @@ export default function ActionSheet({
             }}
         >
             <div
-                className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-surface backdrop-blur-sm shadow-2xl transition-transform duration-200"
+                // v4 (ADR 0103 §5, issue #2731): the hairline frame's top
+                // edge, so the sheet reads as the same material as every
+                // other re-skinned surface instead of a bare elevated box.
+                className="absolute bottom-0 left-0 right-0 rounded-t-2xl border-t border-[var(--hairline)] bg-surface backdrop-blur-sm shadow-2xl transition-transform duration-200"
                 style={{
                     transform: animIn
                         ? `translateY(${translateY}px)`
@@ -89,13 +92,15 @@ export default function ActionSheet({
                 onTouchEndCapture={onSwipeEnd}
             >
                 <div className="flex justify-center py-3">
-                    <div className="w-10 h-1 rounded-full bg-border-accent" />
+                    <div className="w-10 h-1 rounded-full bg-[var(--hairline-strong)]" />
                 </div>
-                <div className="px-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
+                <div className="flex flex-col gap-[var(--menu-row-gap)] px-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
                     {items.map((item) => (
                         <button
                             key={item.key}
-                            className="w-full text-left px-4 py-3 min-h-12 text-sm text-text rounded-lg active:bg-surface-elevated transition-colors"
+                            // `--menu-row-h` (44px, ADR 0103 §5) — a MIN, so a
+                            // wrapping label still grows the row.
+                            className="w-full min-h-[var(--menu-row-h)] text-left px-4 py-3 text-sm text-text rounded-lg active:bg-surface-elevated transition-colors"
                             onClick={(e) => {
                                 item.onSelect(e);
                                 handleClose();
