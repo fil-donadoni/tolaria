@@ -102,3 +102,18 @@ export const mc = (min, cost) =>
     min || cost
         ? `${Math.round(min)}' · ${fmtUsd(cost)}`
         : "<span class='mini'>—</span>";
+
+/**
+ * Whole minutes with this page's own minute mark ('), or the shared
+ * empty-cell placeholder when there is nothing to show (#2634). The ONE
+ * authority for a per-role minute cell — before this, the Issues and
+ * Sessions tables each duplicated `Math.round(v) + "'"` at four call sites
+ * apiece, the exact "toFixed sprinkled around" shape this exists to end.
+ */
+export const fmtMin = (m) =>
+    m ? `${Math.round(m)}'` : "<span class='mini'>—</span>";
+
+/** Dollars, or the shared empty-cell placeholder — the ternary the Issues
+ *  table's four cost columns used to repeat at every call site (#2634). */
+export const fmtUsdCell = (n) =>
+    n ? fmtUsd(n) : "<span class='mini'>—</span>";

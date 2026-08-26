@@ -1,5 +1,6 @@
 import { tier } from "./format.js";
 import { dayQ } from "./history-query.js";
+import { lookupTerm } from "./glossary.js";
 import {
     setIssueRows,
     renderIssueFilters,
@@ -40,6 +41,10 @@ export async function renderNarrative() {
     renderSessionFilters();
     renderSessionsTable();
 
-    // Family × role pivot.
+    // Family × role pivot — subtitle sourced from the glossary (#2634), the
+    // same `card.<id>` convention `history-refresh.js` uses for the Ranking
+    // and Table cards.
+    document.getElementById("fam-sub").textContent =
+        lookupTerm("card.family-role").tip;
     renderFamiliesTable(fam.rows);
 }
