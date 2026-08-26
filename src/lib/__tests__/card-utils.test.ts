@@ -56,7 +56,8 @@ import type {
     MayPayCost,
     TargetRequirement,
 } from "@convex/cards/types";
-import { getDefinition } from "@convex/cards";
+import { getDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
+import { turnFaceDown, turnFaceUp } from "@convex/gre/faceDown";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
     type FilterMatchContext,
@@ -867,6 +868,262 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
                 undefined
             )
         ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Face-down permanent target filters (CR 708.2, issue #1735) — a face-down
+// permanent's `card.card.id` must stay the sentinel for EVERY viewer,
+// INCLUDING its own controller: `supertypeFilter`, `colorFilter` and
+// `mvFilter` all resolve off this id, and before this fix the projection
+// restored the real id only for the controller, so a face-down legendary
+// creature rang as a legal Karakas target for its own controller (the exact
+// #1697 symptom, revived) while the server still enforced the face-down 2/2.
+// Every scenario below is projected through the REAL `projectPublicState` for
+// BOTH viewers — a controller-only or opponent-only assertion would miss the
+// bug by construction, since the opponent's view was never wrong.
+// ---------------------------------------------------------------------------
+
+describe("face-down permanent target filters read the sentinel for the controller too (issue #1735)", () => {
+    // Livonya Silone: Legendary supertype, R/G colors, mana value 6 — one
+    // fixture exercises all three id-derived filter dimensions named in the
+    // issue. Turned face down: colourless, no supertypes, mana value 0.
+    function projectFaceDownScenario(
+        req: TargetRequirement,
+        viewerId: "p1" | "p2"
+    ) {
+        const legendary = makeInstance(livonyaSilone.id, {
+            id: "fd-legendary",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        turnFaceDown(legendary);
+        const karakasInstance = makeInstance(karakas.id, {
+            id: "karakas-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [legendary] }),
+                makeServerPlayer("p2", { battlefield: [karakasInstance] }),
+            ],
+            pendingTarget: {
+                playerId: "p2",
+                cardInstanceId: "karakas-1",
+                targetType: req.type,
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        });
+
+        const projected = projectPublicState(state, 1, viewerId);
+        return {
+            players: projected.players as unknown as Player[],
+            pendingTarget: projected.pendingTarget as unknown as PendingTarget,
+            target: projected.players
+                .find((p) => p.id === "p1")!
+                .battlefield.find(
+                    (c) => c.id === "fd-legendary"
+                ) as unknown as CardInstance,
+        };
+    }
+
+    it("supertypeFilter (Karakas-style): a face-down legendary creature is NOT a legal target, for either viewer", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            supertypeFilter: ["Legendary"],
+        };
+        for (const viewerId of ["p1", "p2"] as const) {
+            const { players, pendingTarget, target } = projectFaceDownScenario(
+                req,
+                viewerId
+            );
+            // The wire id is the sentinel for BOTH viewers — the controller
+            // (p1) no longer gets the real id restored into `card.card.id`.
+            expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+            expect(
+                matchesPermanentTargetFilters(
+                    target,
+                    pendingTarget,
+                    players,
+                    "p2",
+                    undefined
+                )
+            ).toBe(false);
+        }
+    });
+
+    it("colorFilter: a face-down permanent is colorless for a colour-filtered target, for either viewer", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            colorFilter: "R",
+        };
+        for (const viewerId of ["p1", "p2"] as const) {
+            const { players, pendingTarget, target } = projectFaceDownScenario(
+                req,
+                viewerId
+            );
+            expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+            expect(
+                matchesPermanentTargetFilters(
+                    target,
+                    pendingTarget,
+                    players,
+                    "p2",
+                    undefined
+                )
+            ).toBe(false);
+        }
+    });
+
+    it("mvFilter: a face-down permanent is mana value 0, for either viewer", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            mvFilter: { min: 6 }, // Livonya Silone's real mana value
+        };
+        for (const viewerId of ["p1", "p2"] as const) {
+            const { players, pendingTarget, target } = projectFaceDownScenario(
+                req,
+                viewerId
+            );
+            expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+            expect(
+                matchesPermanentTargetFilters(
+                    target,
+                    pendingTarget,
+                    players,
+                    "p2",
+                    undefined
+                )
+            ).toBe(false);
+        }
+    });
+
+    it("the controller's own view still carries the identification affordance (knownCardId), separate from the sentinel", () => {
+        const { target } = projectFaceDownScenario(
+            { type: "Creature", count: 1 },
+            "p1"
+        );
+        expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(target.knownCardId).toBe(livonyaSilone.id);
+    });
+
+    it("the opponent's view carries neither the real id nor knownCardId", () => {
+        const { target } = projectFaceDownScenario(
+            { type: "Creature", count: 1 },
+            "p2"
+        );
+        expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(target.knownCardId).toBeUndefined();
+    });
+
+    it("turning the permanent face up restores normal filtering", () => {
+        const legendary = makeInstance(livonyaSilone.id, {
+            id: "fd-legendary",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        turnFaceDown(legendary);
+        turnFaceUp(legendary);
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            supertypeFilter: ["Legendary"],
+        };
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [legendary] }),
+                makeServerPlayer("p2", {
+                    battlefield: [
+                        makeInstance(karakas.id, {
+                            id: "karakas-1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            pendingTarget: {
+                playerId: "p2",
+                cardInstanceId: "karakas-1",
+                targetType: req.type,
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const target = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find(
+                (c) => c.id === "fd-legendary"
+            ) as unknown as CardInstance;
+        expect(target.card.id).toBe(livonyaSilone.id);
+        expect(
+            matchesPermanentTargetFilters(
+                target,
+                projected.pendingTarget as unknown as PendingTarget,
+                projected.players as unknown as Player[],
+                "p2",
+                undefined
+            )
+        ).toBe(true);
+    });
+
+    it("activated-ability affordance: a face-down permanent offers NO activated abilities, for either viewer (CR 708.2)", () => {
+        // Norritt — "{T}: Untap target blue creature." — has a real, unrestricted
+        // activated ability. Face down, the permanent is a vanilla 2/2 with
+        // `staticAbilities: []` and no activated abilities at all.
+        const norrittCard = makeInstance(norritt.id, {
+            id: "fd-norritt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        turnFaceDown(norrittCard);
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [norrittCard] }),
+                makeServerPlayer("p2"),
+            ],
+        });
+
+        for (const viewerId of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const wireCard = projected.players
+                .find((p) => p.id === "p1")!
+                .battlefield.find(
+                    (c) => c.id === "fd-norritt"
+                ) as unknown as CardInstance;
+            expect(wireCard.card.id).toBe(FACE_DOWN_CARD_ID);
+            expect(getStackAbilities(wireCard)).toHaveLength(0);
+        }
+    });
+
+    it("sanity: Norritt's untap ability IS offered face up (proves the face-down test above isn't vacuous)", () => {
+        const norrittCard = makeInstance(norritt.id, {
+            id: "up-norritt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [norrittCard] }),
+                makeServerPlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const wireCard = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find(
+                (c) => c.id === "up-norritt"
+            ) as unknown as CardInstance;
+        const abilities = getStackAbilities(wireCard);
+        expect(abilities.map((a) => a.id)).toContain("norritt-untap-blue");
     });
 });
 

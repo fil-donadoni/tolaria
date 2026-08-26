@@ -9,6 +9,7 @@ import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
+import { displayCardId } from "~/lib/card-utils";
 import {
     describeTargetProgress,
     formatTargetLabel,
@@ -100,13 +101,13 @@ export default function TargetSelectionBanner({
             ? stack.find((s) => s.id === pendingTarget.cardInstanceId)
             : undefined;
     const triggerSourceName = triggerSource
-        ? (tryGetDefinition(triggerSource.card.id)?.name ??
+        ? (tryGetDefinition(displayCardId(triggerSource))?.name ??
           tryGetEmblemDefinition(triggerSource.card.id)?.name)
         : undefined;
     const cardName = cardInHand
         ? getDefinition(cardInHand.card.id).name
         : sourcePermanent
-          ? getDefinition(sourcePermanent.card.id).name
+          ? getDefinition(displayCardId(sourcePermanent)).name
           : (triggerSourceName ?? (isCopyRetarget ? "Copy" : "spell"));
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,

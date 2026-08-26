@@ -8,9 +8,15 @@ function isCardInstance(card: CardLike): card is CardInstance {
     return "controllerId" in card;
 }
 
-/** Definition id, regardless of which shape `card` is. */
+/** Definition id, regardless of which shape `card` is. Prefers `knownCardId`
+ *  (issue #1735) when present: the controller's/caster's own face-down
+ *  permanent or stack item carries the real id there ONLY for identification
+ *  (art/name) — `card.card.id` itself stays the face-down sentinel for every
+ *  viewer, including the controller, so rules reads never see through it.
+ *  Display-only; never repoint a rules computation at this function. */
 export function getCardImageDefId(card: CardLike): string {
-    return isCardInstance(card) ? card.card.id : card.id;
+    if (!isCardInstance(card)) return card.id;
+    return card.knownCardId ?? card.card.id;
 }
 
 /**

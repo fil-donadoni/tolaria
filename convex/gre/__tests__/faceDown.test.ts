@@ -75,10 +75,14 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
         });
     }
 
-    it("controller sees the real id; the opponent sees only the placeholder", () => {
+    it("card.card.id stays the sentinel for EVERY viewer; knownCardId carries the controller's identification affordance (issue #1735)", () => {
         const state = faceDownState();
 
-        // p1's view: their own face-down exposes the real id; p2's stays hidden.
+        // p1's view: `card.card.id` is the sentinel even for p1's OWN
+        // face-down permanent (CR 708.2 — the game object has no real
+        // identity while face down, for id-derived rules reads). p1 still
+        // gets `knownCardId` on their own permanent, purely for the UI
+        // affordance; p2's permanent carries neither for p1.
         const p1View = projectPublicState(state, 1, "p1");
         const p1Own = p1View.players[0].battlefield.find(
             (c) => c.id === "mine"
@@ -86,8 +90,10 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
         const p1Opp = p1View.players[1].battlefield.find(
             (c) => c.id === "theirs"
         )!;
-        expect(p1Own.card.id).toBe(mahamotiDjinn.id);
+        expect(p1Own.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(p1Own.knownCardId).toBe(mahamotiDjinn.id);
         expect(p1Opp.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(p1Opp.knownCardId).toBeUndefined();
         // The real id must NOT leak through faceDownOf on the opponent's card.
         expect((p1Opp as { faceDownOf?: string }).faceDownOf).toBeUndefined();
 
@@ -99,8 +105,10 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
         const p2Opp = p2View.players[0].battlefield.find(
             (c) => c.id === "mine"
         )!;
-        expect(p2Own.card.id).toBe(mahamotiDjinn.id);
+        expect(p2Own.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(p2Own.knownCardId).toBe(mahamotiDjinn.id);
         expect(p2Opp.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(p2Opp.knownCardId).toBeUndefined();
         expect((p2Opp as { faceDownOf?: string }).faceDownOf).toBeUndefined();
     });
 

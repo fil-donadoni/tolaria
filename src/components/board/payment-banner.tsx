@@ -7,7 +7,7 @@ import { getDefinition } from "@convex/cards";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
-import { isManaCostCovered } from "~/lib/card-utils";
+import { displayCardId, isManaCostCovered } from "~/lib/card-utils";
 import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
 import { describeTapOtherProgress } from "~/lib/tap-other-progress";
 import {
@@ -131,7 +131,9 @@ export default function PaymentBanner(props: Props) {
                 (c) => c !== null && c.id === pa.cardInstanceId
             ) ??
             inGraveyard;
-        cardName = source ? getDefinition(source.card.id).name : "ability";
+        cardName = source
+            ? getDefinition(displayCardId(source)).name
+            : "ability";
         // CR 106.6 (issue #1713) — restricted mana eligible for an ability of
         // THIS source (Soldevi Machinist's artifact-ability mana) counts
         // toward coverage here too, mirroring the server's

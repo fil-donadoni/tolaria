@@ -10,6 +10,7 @@ import {
     damageSourcesForPlayer,
 } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
+import { displayCardId } from "~/lib/card-utils";
 import {
     assignmentIsRejected,
     damageAssignmentPlan,
@@ -199,8 +200,8 @@ export default function DamageAssignmentPanel({
                         <div key={sourceId} className="mb-2 last:mb-0">
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="font-medium">
-                                    {getDefinition(source.card.id).name ??
-                                        "Source"}{" "}
+                                    {getDefinition(displayCardId(source))
+                                        .name ?? "Source"}{" "}
                                     ({power} dmg)
                                 </span>
                                 <span
