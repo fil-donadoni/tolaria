@@ -12,6 +12,8 @@
         "oracle:compile": "bun scripts/oracle-compile.ts",
         "oracle:legality": "bun scripts/oracle-legality.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
+        "oracle:index": "bun scripts/oracle-index-backfill.ts",
+        "oracle:pool": "bun scripts/oracle-pool.ts",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",

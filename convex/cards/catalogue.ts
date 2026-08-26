@@ -161,6 +161,13 @@ import {
     tryGetDefinition,
     getDefinition,
 } from "./registry";
+// Compiled-card hydration seam (issue #2702) — see that module's header for
+// the full contract. Registered into the SAME `registry` map hand-written
+// cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
+import {
+    compiledReadyDefinitions,
+    excludeHandWritten,
+} from "./compiledCatalogue";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -372,8 +379,32 @@ for (const print of allPrints) {
     registerPrintAlias(print.printId, print.definitionId);
 }
 
+// Compiled-card hydration (issue #2702). `scripts/oracle-pool.ts` already
+// excludes an oracle id that ALSO has a hand-written entry in
+// `data/card-index.json` — this is the runtime backstop against the same
+// collision for a hand-written card added since the pool was last
+// regenerated (a fresher `allCards` than the pool's join saw): a hand-written
+// `CardDefinition` for a given print id is ALWAYS authoritative (PRD #2693
+// "gold as oracle"), so a compiled row is simply dropped, never allowed to
+// overwrite it via `preloadDefinitions`' set-wins-last-write semantics.
+const handWrittenIds = new Set(allCards.map((c) => c.id));
+const compiledToRegister = excludeHandWritten(
+    compiledReadyDefinitions,
+    handWrittenIds
+);
+preloadDefinitions(compiledToRegister);
+
+// Compiled names join the SAME lookup debug scenarios use
+// (`tryGetCardByName` — `convex/debugScenarios.ts`), so a compiled `ready`
+// card is reachable by name exactly like a hand-written one (issue #2702
+// acceptance criterion). Compiled entries are listed FIRST so a hand-written
+// card with the same name (should one ever exist post-`handWrittenIds`
+// filtering above) always wins the `Map` key.
 const nameRegistry = new Map<string, CardDefinition>(
-    allCards.map((card) => [card.name.toLowerCase(), card])
+    [...compiledToRegister, ...allCards].map((card) => [
+        card.name.toLowerCase(),
+        card,
+    ])
 );
 
 export const getCardByName = (name: string): CardDefinition => {

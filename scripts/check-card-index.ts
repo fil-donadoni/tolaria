@@ -42,6 +42,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAllCards } from "../convex/cards/index";
+import { isPollutionEntry } from "./lib/card-index-pollution";
 
 type Entry = {
     name: string;
@@ -52,6 +53,14 @@ type Entry = {
     firstPrintId?: string;
     firstPrintSet?: string;
     firstSet?: string;
+    /** Present + `"compiled"` iff this row exists ONLY because the Oracle
+     *  compiler reached `ready` for it (`scripts/oracle-index-backfill.ts`,
+     *  issue #2702) — it has no `CardDefinition` in the hand-written registry
+     *  to compare against, by construction (`convex/cards/compiledCatalogue.ts`
+     *  hydrates it through a SEPARATE seam, `data/oracle-compiled-pool.json`).
+     *  Excluded below from the "extra / pollution" check, which exists to
+     *  catch a stale hand-written entry, not a compiled one. */
+    source?: "compiled";
 };
 
 const lockPath = resolve("data/card-index.json");
@@ -71,8 +80,10 @@ const registryIds = new Set(cards.map((c) => c.id));
 
 // implemented but not indexed → stale lockfile
 const missing = cards.filter((c) => !lockIds.has(c.id));
-// indexed but not implemented → pollution
-const extra = lock.filter((e) => !registryIds.has(e.scryfallId));
+// indexed but not implemented → pollution. A compiled-sourced row is
+// EXPECTED to be absent from the hand-written registry (issue #2702) — it
+// is real data, not pollution, so it is excluded here rather than counted.
+const extra = lock.filter((e) => isPollutionEntry(e, registryIds));
 // ADR 0041 — implemented against a reprint instead of the first printing.
 const reprinted = lock.filter(
     (e) =>
