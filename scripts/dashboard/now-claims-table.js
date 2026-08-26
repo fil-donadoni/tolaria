@@ -76,6 +76,24 @@ function verdictMarkHtml(c) {
     );
 }
 
+/**
+ * The per-claim release action (#2636), offered on exactly the rows
+ * `classifyClaim` (via `c.verdict.state`, consumed here the same way the
+ * mark above consumes it, never re-derived) has already called `orphan` —
+ * "a button whose action is not currently sensible is not shown" (AC): a
+ * `live`/`suspect` claim has no release action, only the mark. `data-issue`
+ * is what `actions.js`'s click dispatch reads to know WHICH claim to release
+ * and to word the confirmation dialog's "Remove the in-progress label from
+ * #N" sentence.
+ */
+export function releaseButtonHtml(c) {
+    if (c.verdict?.state !== "orphan") return "";
+    return (
+        ` <button type="button" class="ls-action ls-release" data-action="claim.release" ` +
+        `data-issue="${esc(String(c.issue))}" aria-label="Release the claim on #${esc(String(c.issue))}">Release</button>`
+    );
+}
+
 function stageHtml(stage, issue) {
     const sentence = STAGE_SENTENCE[stage] ?? stage;
     // `data-issue` gives `nowControlKey` (`now-loop-status.js`) a per-row
@@ -147,7 +165,7 @@ function claimsBodyHtml(data) {
         claims
             .map((c) => {
                 return (
-                    `<tr><td>${verdictMarkHtml(c)}</td><td>${issueLink(c.issue)}</td><td>${esc(c.priority ?? "—")}</td>` +
+                    `<tr><td>${verdictMarkHtml(c)}${releaseButtonHtml(c)}</td><td>${issueLink(c.issue)}</td><td>${esc(c.priority ?? "—")}</td>` +
                     `<td>${stageHtml(c.stage, c.issue)}</td>` +
                     `<td>${ageHtml(c.ageHours)}</td>` +
                     `<td>${esc(c.title)}${blocksBadgeHtml(c)}</td></tr>`

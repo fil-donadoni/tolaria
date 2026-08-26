@@ -43,7 +43,10 @@ let isTypingTarget: (el: unknown) => boolean,
     resetShortcuts: () => void,
     sheetOpen: () => boolean,
     openSheet: () => void,
-    closeSheet: () => void;
+    closeSheet: () => void,
+    initActions: (root?: Element, onSuccess?: () => void) => void,
+    actionDialogOpen: () => boolean,
+    resetActions: () => void;
 
 beforeAll(async () => {
     const bootWin = new Window({ url: "http://localhost/" });
@@ -67,6 +70,21 @@ beforeAll(async () => {
         openSheet,
         closeSheet,
     } = mod);
+    // `shortcuts.js` now imports `actionDialogOpen` from this module itself
+    // (#2636 review round 1, finding 2) — importing it here too, dynamically
+    // and in the SAME `beforeAll` after `globalThis.document` is installed,
+    // resolves to the identical module instance (Node's ESM cache is keyed
+    // by resolved path), so `initActions`/`resetActions` here drive the
+    // exact dialog state `shortcuts.js`'s own `actionDialogOpen()` reads.
+    const actionsMod: {
+        initActions: (root?: Element, onSuccess?: () => void) => void;
+        actionDialogOpen: () => boolean;
+        resetActions: () => void;
+    } = await import(
+        // @ts-expect-error — plain browser JS, no type declarations.
+        "../dashboard/actions.js"
+    );
+    ({ initActions, actionDialogOpen, resetActions } = actionsMod);
     delete g.document;
 });
 
@@ -320,6 +338,7 @@ function mountPage(html = SHELL_HTML) {
     g.history = win.history;
     g.fetch = () => Promise.reject(new Error("test: no network"));
     resetShortcuts();
+    resetActions();
     return win;
 }
 
@@ -613,6 +632,82 @@ describe("shortcuts.js — the '?' sheet (#2635 AC: 'a sheet listing every short
 
         expect(win.document.activeElement).toBe(
             win.document.querySelector(".shortcuts-close")
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The action-confirmation dialog (`actions.js`, #2636) is a SECOND modal
+// this module knows nothing about building. `handleKeydown` must go inert
+// while it's open too, the same contract it already has for its own sheet
+// above (#2636 review round 1, finding 2 — proven by mutation: gating on
+// only `sheetOpen()`, pressing `2` with the confirm dialog open switched the
+// view underneath it, and `?` stacked the shortcut sheet on top of it).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("shortcuts.js — the action-confirmation dialog also makes other shortcuts inert (#2636 review round 1, finding 2)", () => {
+    const WITH_ACTION_BUTTON = `${SHELL_HTML}<div id="loop-status-body"><button type="button" class="ls-action" data-action="driver.stop">Stop driver</button></div>`;
+
+    it("'2' does NOT switch the view while the action-confirmation dialog is open", () => {
+        const win = mountPage(WITH_ACTION_BUTTON);
+        installShortcuts();
+        initActions();
+        win.document
+            .querySelector(".ls-action")!
+            .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        expect(actionDialogOpen()).toBe(true);
+
+        fireKey(win, "2");
+
+        expect(actionDialogOpen()).toBe(true); // still open
+        expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
+            "now"
+        ); // unchanged — this is the assertion that fails without the gate
+    });
+
+    it("'?' does NOT stack the shortcut sheet on top of an open action-confirmation dialog", () => {
+        const win = mountPage(WITH_ACTION_BUTTON);
+        installShortcuts();
+        initActions();
+        win.document
+            .querySelector(".ls-action")!
+            .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        expect(actionDialogOpen()).toBe(true);
+
+        fireKey(win, "?");
+
+        expect(actionDialogOpen()).toBe(true);
+        expect(sheetOpen()).toBe(false); // no second modal stacked on top
+    });
+
+    it("Escape while the action-confirmation dialog is open still closes IT specifically (`actions.js`'s own listener), not the (non-existent) shortcut sheet", () => {
+        const win = mountPage(WITH_ACTION_BUTTON);
+        installShortcuts();
+        initActions();
+        win.document
+            .querySelector(".ls-action")!
+            .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        expect(actionDialogOpen()).toBe(true);
+
+        fireKey(win, "Escape");
+
+        expect(actionDialogOpen()).toBe(false);
+    });
+
+    it("view-switch and sheet shortcuts work normally again once the action-confirmation dialog is closed", () => {
+        const win = mountPage(WITH_ACTION_BUTTON);
+        installShortcuts();
+        initActions();
+        win.document
+            .querySelector(".ls-action")!
+            .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        fireKey(win, "Escape");
+        expect(actionDialogOpen()).toBe(false);
+
+        fireKey(win, "2");
+
+        expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
+            "history"
         );
     });
 });

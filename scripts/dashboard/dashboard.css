@@ -485,6 +485,96 @@ tbody tr:hover {
     background: var(--plane);
 }
 
+/* Action buttons (#2636) — the three reversible driver operations
+   (`driver.stop` / `driver.resume` on the verdict band, `claim.release` on
+   an orphaned claims-table row). Always rendered ALONGSIDE the remedy's
+   existing `.ls-cmd`/`.ls-copy` pair, never instead of it, so a refused or
+   failed action still leaves the operator the command to run by hand
+   (`actions.js`'s AC: "falls back to the copyable command"). Visually
+   louder than `.ls-copy` — filled, not outlined — because this one has a
+   real, confirmed side effect, where copying is inert. */
+.ls-action {
+    margin-left: 4px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 8px;
+    cursor: pointer;
+    /* UNLIKE `.ls-copy` above (deliberately 32px, matching the page's other
+       decorative-adjacent controls), this button has a real, confirmed side
+       effect — the same reason its own module header calls it "visually
+       louder than `.ls-copy`". `.ls-light`'s 44px is the budget for a
+       control with real consequences, and this one has one too (#2636
+       review round 1, non-blocking finding: was 32px, under this
+       stylesheet's own AAA tap-target size elsewhere). */
+    min-height: 44px;
+}
+.ls-action:hover:not(:disabled) {
+    background: var(--plane);
+}
+.ls-action:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.ls-action:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+/* The action-confirmation dialog (#2636) reuses `.shortcuts-backdrop` /
+   `.shortcuts-sheet` (below) verbatim for its overlay chrome — same
+   dimming, same panel, same `[hidden]` cascade fix — via
+   `action-confirm-sheet` as an ADDITIONAL class on the same element
+   (`actions.js`), never a parallel set of rules for an identical look. Only
+   the confirm-specific content (the body paragraph, the inline error, the
+   Cancel/Confirm row) is new here. */
+.action-confirm-sheet p {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+.action-confirm-error {
+    margin: 0 0 10px;
+}
+.action-confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+.action-confirm-cancel,
+.action-confirm-ok {
+    font: inherit;
+    font-size: 13px;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+}
+.action-confirm-cancel {
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+.action-confirm-ok {
+    background: var(--text-primary);
+    color: var(--plane);
+    border: 1px solid var(--text-primary);
+}
+.action-confirm-cancel:disabled,
+.action-confirm-ok:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.action-confirm-cancel:focus-visible,
+.action-confirm-ok:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 2px;
+}
+
 /* Four traffic lights (#2630) — Driver, Queue, Claims, Batch.
 
    COLOUR IS NEVER THE ONLY CARRIER. Three channels ship together: the tone

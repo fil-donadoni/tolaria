@@ -1,5 +1,6 @@
 import { nowBodyHtml, nowSubtitleText } from "./now.js";
 import { initNowNav } from "./now-nav.js";
+import { initActions } from "./actions.js";
 
 /**
  * The Now view's TRANSPORT (#2519, split out in #2625, narrowed in #2630) —
@@ -65,12 +66,19 @@ export function nowControlKey(el) {
         return `tl-merge:${el.dataset.pr ?? ""}`;
     if (el.classList.contains("ls-stage"))
         return `stage:${el.dataset.issue ?? ""}`;
+    // #2636 — the verdict band's Stop/Resume button and a claims row's
+    // Release button. Keyed on `action`+`issue` together: the verdict band
+    // has at most one at a time (no `issue`, so the empty string is stable),
+    // but the claims table can render one Release button per orphaned row,
+    // and `action` alone is not unique across those.
+    if (el.classList.contains("ls-action"))
+        return `action:${el.dataset.action ?? ""}:${el.dataset.issue ?? ""}`;
     return null;
 }
 
 /** Everything in the Now body a keyboard can land on. */
 const NOW_CONTROLS =
-    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge, .ls-stage";
+    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge, .ls-stage, .ls-action";
 
 /**
  * Write `html` into `container` without destroying keyboard focus. Returns
@@ -118,6 +126,12 @@ export function renderLoopStatus(data) {
     // Idempotent, and after the first body exists: the listener is delegated
     // on the container, so it survives every subsequent innerHTML rewrite.
     initNowNav();
+    // Also idempotent (#2636) — `refreshLoopStatus` is passed rather than
+    // imported by `actions.js` itself, which would be a circular import
+    // (this module already imports `actions.js`); a successful action
+    // re-polls immediately instead of waiting up to 10s for the next
+    // scheduled poll.
+    initActions(undefined, refreshLoopStatus);
 }
 
 export async function refreshLoopStatus() {
