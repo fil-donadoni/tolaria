@@ -591,6 +591,7 @@ function GridLayout({
     eligibleIds,
     categories,
     captionFor,
+    activeFilterType,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -609,6 +610,15 @@ function GridLayout({
      *  an ordinary flat grid. */
     categories?: PileCategory[];
     captionFor?: (card: CardInstance) => string | null;
+    /** Segmented type filter (issue #2729) — `CardsPile` owns the filter
+     *  STATE and renders the `SegmentedControl` itself (sticky, syntactically
+     *  inside its own `<GameDialog>` — `shell-height-claims.guard.test.tsx`'s
+     *  sticky-site registry resolves ancestors from source text, so a sticky
+     *  element rendered by a SEPARATE function component, even one only ever
+     *  mounted inside GameDialog, does not read as "inside `<GameDialog>`").
+     *  This component only filters `cards` by the resolved value;
+     *  `PILE_FILTER_ALL` (or omitted) renders everything. */
+    activeFilterType?: string;
 }) {
     // One viewport read for the whole dialog (not per-card — see
     // `gridImageSizing`'s doc comment on the listener-count rationale).
@@ -626,53 +636,22 @@ function GridLayout({
         imageSizing,
     };
 
-    // Segmented type filter (issue #2729, "segmented filter footer") — PLAIN
-    // browse only: `onCardClick` set means this grid is a picker (a graveyard/
-    // exile CHOICE), where hiding a legal-but-filtered-out target behind a
-    // filter button would read as the target vanishing rather than as a view
-    // option. A categorized reveal (Atraxa/Niv-Mizzet) already groups by type
-    // via `categories` below, so the two features never compose. `> 2` (not
-    // `> 1`) excludes the degenerate "All / Other" pair a mono-type pile
-    // would otherwise grow — a single real bucket makes every filter button
-    // show the identical set of cards.
-    const filterOptions = useMemo(
-        () => (!onCardClick && !categories ? pileFilterOptions(cards) : []),
-        [cards, onCardClick, categories]
-    );
-    const showFilter = filterOptions.length > 2;
-    const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);
-    const activeFilterType = filterOptions.some((o) => o.value === filterType)
-        ? filterType
-        : PILE_FILTER_ALL;
-
     if (!categories) {
         const visibleCards =
-            showFilter && activeFilterType !== PILE_FILTER_ALL
+            activeFilterType && activeFilterType !== PILE_FILTER_ALL
                 ? cards.filter((c) => pileFilterType(c) === activeFilterType)
                 : cards;
         return (
-            <div className="flex flex-col gap-1">
-                <div
-                    className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
-                >
-                    {visibleCards.map((cardInstance) => (
-                        <GridCard
-                            key={cardInstance.id}
-                            cardInstance={cardInstance}
-                            {...cardProps}
-                        />
-                    ))}
-                </div>
-                {showFilter && (
-                    <div className="sticky bottom-0 z-10 flex justify-center border-t border-border-subtle bg-surface pt-2 pb-1">
-                        <SegmentedControl
-                            options={filterOptions}
-                            value={activeFilterType}
-                            onChange={setFilterType}
-                            ariaLabel="Filter pile by card type"
-                        />
-                    </div>
-                )}
+            <div
+                className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
+            >
+                {visibleCards.map((cardInstance) => (
+                    <GridCard
+                        key={cardInstance.id}
+                        cardInstance={cardInstance}
+                        {...cardProps}
+                    />
+                ))}
             </div>
         );
     }
@@ -766,6 +745,33 @@ export default function CardsPile({
     const reduceMotion = useReducedMotion();
     const gameCtx = useContext(GameContext);
     const recentArrivals = gameCtx?.recentArrivals;
+
+    // Segmented type filter (issue #2729, "segmented filter footer") — PLAIN
+    // browse only: `onCardClick` set means this grid is a picker (a
+    // graveyard/exile CHOICE), where hiding a legal-but-filtered-out target
+    // behind a filter button would read as the target vanishing rather than
+    // as a view option. A categorized reveal (Atraxa/Niv-Mizzet) already
+    // groups by type via `categories`, so the two features never compose.
+    // Fan layout keeps no filter (the prototype's segmented-filter stage is
+    // the wide GRID browse only). Owned HERE, not by `GridLayout` — its
+    // sticky footer must sit syntactically inside `<GameDialog>` below for
+    // `shell-height-claims.guard.test.tsx`'s sticky-site registry to resolve
+    // it as portaled rather than pinned against `<main>`. `> 2` (not `> 1`)
+    // excludes the degenerate "All / Other" pair a mono-type pile would
+    // otherwise grow — a single real bucket makes every filter button show
+    // the identical set of cards.
+    const filterOptions = useMemo(
+        () =>
+            layout === "grid" && !onCardClick && !categories
+                ? pileFilterOptions(cards)
+                : [],
+        [cards, layout, onCardClick, categories]
+    );
+    const showFilter = filterOptions.length > 2;
+    const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);
+    const activeFilterType = filterOptions.some((o) => o.value === filterType)
+        ? filterType
+        : PILE_FILTER_ALL;
 
     // Fully uncontrolled (no `open`/`onOpenChange`, no menu): there is no
     // dialog anything could drive open, so an empty pile stops here — the
@@ -983,7 +989,18 @@ export default function CardsPile({
                         eligibleIds={eligibleIds}
                         categories={categories}
                         captionFor={captionFor}
+                        activeFilterType={activeFilterType}
                     />
+                )}
+                {showFilter && (
+                    <div className="sticky bottom-0 z-10 flex justify-center border-t border-border-subtle bg-surface pt-2 pb-1">
+                        <SegmentedControl
+                            options={filterOptions}
+                            value={activeFilterType}
+                            onChange={setFilterType}
+                            ariaLabel="Filter pile by card type"
+                        />
+                    </div>
                 )}
                 {footer && (
                     <div className="sticky bottom-0 mt-2 flex justify-center border-t border-border-subtle bg-surface pt-3 pb-1">
