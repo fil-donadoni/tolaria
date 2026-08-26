@@ -184,34 +184,37 @@ describe("Dash — Bot move enumeration (CR 702.109a, issue #1964)", () => {
 });
 
 // Review round 1 (PR #2830, finding #2) — the two blade-registry
-// "discriminating pair" entries (`registry.ts`) do NOT flip when only the
-// `moveZone` self-cost sign (`opValuers.ts`'s `HAND_RETURN_SELF_COST`) is
-// reverted, and CANNOT: `rollout()`'s turn-boundary horizon
-// (`search.ts` — "the rollout stops at the START of the bot's next turn")
-// always plays PAST this turn's end step before any leaf is scored, and
-// Dash's delayed return fires "at the beginning of the next end step" (CR
-// 702.109a) — i.e. strictly BEFORE that horizon. So by the time
-// `scoreLeaf`/`evaluate` ever sees the position, a dashed Ragavan is ALREADY
-// back in the caster's hand (scored as a latent hand card) on every
-// non-lethal line — the ability-script term this issue fixes has already
-// left the board. It can only ever survive to matter if the SAME turn's
-// combat ends the game outright (`state.gameOver` breaks the rollout before
-// the horizon is reached) — which is exactly the "dashes Ragavan for the
-// lethal attack" entry's shape, and exactly why that entry's own comment
-// says the sign is proven by the unit tests, not by itself (measured:
-// reverting the sign alone doesn't flip its chosen move either — the WIN
-// dominates regardless of this term's sign, CLAUDE.md's "banded so a win
-// dominates material"). There is therefore no non-lethal FULL-SEARCH (move
-// choice) position that can discriminate this sign: whatever the board, the
-// leaf reached by any rollout that doesn't end the game this turn no longer
-// carries the term to discriminate on.
+// "discriminating pair" entries (`registry.ts`) do NOT flip their chosen
+// MOVE when only the `moveZone` self-cost sign (`opValuers.ts`'s
+// `HAND_RETURN_SELF_COST`) is reverted. Review round 2 corrected round 1's
+// EXPLANATION for why: it is NOT that the term is "architecturally
+// invisible" once `rollout()`'s turn-boundary horizon (`search.ts` — "the
+// rollout stops at the START of the bot's next turn") plays past Dash's
+// delayed return ("at the beginning of the next end step", CR 702.109a). A
+// dashed Ragavan back in the caster's hand IS scored, by the same latent
+// `cardValue` path (`evaluate.ts`) every hand card uses — `latentValue`'s
+// creature branch (`cardValue.ts`) adds the card's `dslAbilityValue` (its
+// own ability-script worth) to its body, and Ragavan carries no `aiValue`
+// override to suppress it. Measured directly: 31.25 (fixed) vs 58.75 (sign
+// reverted) — 27.5 points of same-signed difference at a real, non-lethal
+// leaf. The term is present; it just never swings either blade entry's
+// decision. The "hard-casts on an empty board" entry has nothing else to
+// race, so the permanent-body line already wins by a wide margin on every
+// OTHER term and a 27.5-point swing on top never changes it. The "dashes for
+// the lethal attack" entry lands in the win/loss band instead (CLAUDE.md's
+// "banded so a win dominates material") — the WIN dominates regardless of
+// this term's sign, not an invisible term. Neither is evidence the sign is
+// unreachable by a leaf; both are evidence it does not decide THESE
+// positions at THESE budgets.
 //
 // What DOES discriminate cleanly is `evaluate()` itself — the exact function
 // `scoreLeaf` calls — evaluated immediately after casting (still mid-turn,
 // still inside the term's live window, before the delayed return has had a
-// chance to fire). This is the earliest point a real, engine-built position
-// can show the sign, and it is the SAME evaluator the search's leaf scoring
-// uses; it is not a hand-rolled duplicate of the production value model.
+// chance to fire and before a full rollout has diluted it with everything
+// else it scores). This is the earliest point a real, engine-built position
+// can show the sign FLIPPING THE ROOT MOVE CHOICE, and it is the SAME
+// evaluator the search's leaf scoring uses; it is not a hand-rolled
+// duplicate of the production value model.
 describe("Dash — evaluate() correctly prices a dashed Ragavan BELOW a hard-cast one (issue #1964, review round 1)", () => {
     it("scores a DASHED Ragavan strictly below the SAME card hard-cast, right after casting", () => {
         const dashState = ragavanBoard(2);

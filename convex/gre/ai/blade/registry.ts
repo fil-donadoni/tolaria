@@ -2262,28 +2262,48 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 702.37e special action: 2/2 vanilla → 4/5 lifegain flier for {2}{W}{W}, with no competing use for the mana.",
     },
     {
-        // Issue #1964. Review round 1 established that `evaluate()`'s
-        // per-turn-leaf timing makes NO full-search (move-choice) blade entry
-        // able to discriminate the `moveZone` self-cost sign outside a
-        // same-turn WIN — `rollout()`'s turn-boundary horizon (`search.ts` —
-        // "the rollout stops at the START of the bot's next turn") always
-        // plays past Dash's delayed return ("at the beginning of the next
-        // end step", CR 702.109a) before any leaf is scored, so a non-lethal
-        // line never carries the term to a leaf; only `state.gameOver`
-        // short-circuiting the rollout (a lethal swing, landing in the
-        // win/loss band, CLAUDE.md's "banded so a win dominates material")
-        // ever bypasses that horizon — which is what THIS entry is, and
-        // why, like its sibling below, it does not itself prove the sign.
-        // The sign regression is pinned by the unit tests
-        // (`opValuers.bot.test.ts`, `cardScriptValue.bot.test.ts`,
-        // `triggerGate.bot.test.ts`) AND by a real, engine-built,
-        // `evaluate()`-level assertion (`dashMoves.bot.test.ts` — "evaluate()
-        // correctly prices a dashed Ragavan BELOW a hard-cast one"), which
-        // DOES flip (measured -27 fixed / +83 reverted) because it reads the
-        // position mid-turn, still inside the term's live window — the one
-        // place a full rollout structurally cannot look. This entry's own
-        // job is narrower and different: prove the Bot REACHES and RECOGNIZES
-        // the lethal dash line once `moves.ts`'s enumeration fix (same issue)
+        // Issue #1964. This used to be "half 1" of a discriminating pair with
+        // a sibling entry ("hard-casts Ragavan on an empty board with
+        // nothing to race") — review round 2 DELETED that sibling: mutation-
+        // tested with the whole `moves.ts` dash-enumeration branch stubbed
+        // out (`false &&`, so dash is never even offered), it still passed
+        // PLAIN on all 3 seeds at 400 iterations, identical to the unmutated
+        // registry. An entry that cannot go red under a mutation this PR can
+        // make is vacuous (ADR 0070 §1) — it "proved" the Bot declines to
+        // dash for no reason other than dash never being on the table, which
+        // is not what its label claimed. This entry does not need a partner
+        // to be meaningful: it is a straightforward reachability +
+        // correctness check on its own.
+        //
+        // Review round 1 measured that this entry's chosen MOVE does not
+        // flip when only the `moveZone` self-cost sign is reverted. Review
+        // round 2 corrected the EXPLANATION round 1 gave for that: the term
+        // is NOT "architecturally invisible" to a leaf, and `rollout()`'s
+        // turn-boundary horizon does not make it structurally impossible to
+        // see one. A dashed permanent that returns to hand before the
+        // horizon (CR 702.109a's delayed return, "at the beginning of the
+        // next end step") is scored there by the SAME latent `cardValue`
+        // path (`evaluate.ts`) every hand card uses, and that path's
+        // creature branch (`latentValue`, `cardValue.ts`) adds
+        // `dslAbilityValue` — the card's OWN ability-script worth — to its
+        // body; Ragavan carries no `aiValue` override to suppress it. So the
+        // sign term IS present at the leaf: measured directly, 31.25 (fixed)
+        // vs 58.75 (sign reverted) — 27.5 points of same-signed difference at
+        // a real, non-lethal leaf. What actually keeps THIS entry from
+        // proving the sign is narrower: this position is a same-turn WIN, so
+        // it lands in the win/loss band (CLAUDE.md's "banded so a win
+        // dominates material") regardless of a 27.5-point material term —
+        // the win dominates the decision, not an invisible term. The sign
+        // regression is pinned by the unit tests (`opValuers.bot.test.ts`,
+        // `cardScriptValue.bot.test.ts`, `triggerGate.bot.test.ts`) AND by a
+        // real, engine-built, `evaluate()`-level assertion
+        // (`dashMoves.bot.test.ts` — "evaluate() correctly prices a dashed
+        // Ragavan BELOW a hard-cast one"), which DOES flip the ROOT MOVE
+        // CHOICE at its own position — immediately after casting, before any
+        // rollout has diluted the term with everything else it scores
+        // (measured -27 fixed / +83 reverted). This entry's own job is
+        // narrower and different: prove the Bot REACHES and RECOGNIZES the
+        // lethal dash line once `moves.ts`'s enumeration fix (same issue)
         // makes it reachable at all — `MoveMatcher` has no field for
         // `alternativeCostId`, the only thing distinguishing a dash cast from
         // a plain one of the same card, hence the `predicate` shape.
@@ -2305,7 +2325,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Before issue #1964 this position was not even REACHABLE — the same
         // issue's `moves.ts` fix is what put a dash-cast Move on the table at
         // all (`enumerateCastMoves` used to read only the PRINTED cost).
-        label: "discriminating pair: dashes Ragavan for the lethal attack",
+        label: "dashes Ragavan for the lethal attack",
         spec: {
             cards: [
                 {
@@ -2327,29 +2347,33 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         // BEYOND-BUDGET, cause "branching" (`types.ts`'s own vocabulary: "too
         // many candidate moves at one decision — the right move is in the
-        // set but never gets enough visits"). Review round 1 re-verified,
-        // all 3 seeds: PLAIN at 400/800/1200 — production `hard`'s own
-        // ceiling (`difficulty.ts`) is 1200, so a budget inside the
-        // production range CANNOT pass this entry (confirmed directly, not
-        // assumed); "bring it into range" is therefore not achievable here,
-        // only "justify the number" is. DASH at 5000 was independently
-        // re-confirmed the same way. The rest of the shape (PLAIN at 2000;
-        // DASH at 3000/4000/6000, PLAIN again at 8000) is the original
-        // authoring-time sweep (ADR 0070 §2), not independently re-swept
-        // this round beyond the two points above. 5000 is pinned — not
-        // 4000 — because it sits at the CENTER of that reported 3000-6000
-        // plateau rather than near either edge, maximizing margin from both
-        // the "not yet found" boundary below and the reported 8000 anomaly
-        // above. This is the same "a `must` budget may exceed every
-        // production preset when the line genuinely needs more search than
-        // `hard` gets" precedent the Phyrexian Dreadnought/Raging Kavu
-        // entries above already set — `hard`'s 1200 iterations will simply
-        // never solve this specific four-attacker combinatorial tactic,
-        // which is a known, accepted search-depth limit, not a defect in
-        // this entry.
-        budget: { iterations: 5000 },
+        // set but never gets enough visits") — REVIEW ROUND 2: an independent
+        // re-sweep (3 seeds each) found FAIL at 400/800/1200/2000, PASS at
+        // 3000-6000, and FAIL AGAIN at 8000. That non-monotone shape settles
+        // the interpretation round 1 left open: this is NOT "needs more
+        // search" (a genuine compute shortfall reads monotone — once enough
+        // visits land on the right line, more search only holds it, never
+        // loses it again) — it is right-by-noise inside a 3000-6000 window.
+        // So the shipped bot, at ANY production budget (`hard`'s ceiling is
+        // 1200), does not reliably make this play; a `must` entry housed a
+        // window that only looks solved from inside it. Demoted to `stretch`
+        // and the declared `budget` brought back to this registry's norm
+        // (every other entry is ≤400 except one 2000 precedent) instead of
+        // living at 5000 — a `must`/blocking budget that size would add
+        // ~35s of real ISMCTS to every `bun run test`, to buy a pass that the
+        // 8000 point already shows is not a real solve. The 3000-6000
+        // plateau is recorded via `beyondBudget.passesAt` below, not
+        // smuggled into the declared budget (ADR 0070 §2 forbids raising the
+        // budget to turn an entry green — the same rule this demotion is
+        // now honoring instead of evading via an unset `beyondBudget` field).
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        tier: "must",
+        tier: "stretch",
+        beyondBudget: {
+            cause: "branching",
+            passesAt: { iterations: 5000 },
+            note: "A four-attacker combinatorial decision (which of 19 already-attacking power plus a newly-hasty Ragavan crosses lethal) needs enough visits to find the right line, but the visits it gets are noisy: FAIL at 400/800/1200/2000, PASS at 3000-6000, FAIL AGAIN at 8000 (review round 2 re-sweep, 3 seeds each). `passesAt: 5000` sits at the center of the one confirmed stable plateau, not a ceiling the entry monotonically clears — production `hard` (1200 iterations) never reaches even the edge of that plateau, so the bot does not make this play at any budget a real game runs.",
+        },
         expect: {
             predicate: (move) =>
                 move !== null &&
@@ -2358,71 +2382,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "casts Ragavan, Nimble Pilferer via its dash cost (not the plain cast)",
         },
-        note: "Half 1 of the pair below — 19 power already in play + Ragavan hasty = 21, crossing the opponent's 20 life; hard-casting caps this turn's attack at 19 (summoning sickness, CR 302.6) — one short. Needs 5000 iterations (beyond production `hard`'s 1200-iteration ceiling — BEYOND-BUDGET cause \"branching\", re-verified review round 1): the right line exists in the search tree from budget 3000 on, but a four-attacker combinatorial decision needs that much search to find it.",
-    },
-    {
-        // Issue #1964, review round 1. Same card, same affordable-both-ways
-        // mana as its sibling above, opposite board: nothing else in play on
-        // either side, nothing to race. A hard-cast Ragavan is a permanent
-        // 2/1 that keeps attacking every future turn it survives; a dashed
-        // one gets exactly ONE hit (this turn, summoning-sick-free via
-        // haste) and is gone — back to hand at the next end step (CR
-        // 702.109a), needing to be recast from scratch. With no combat
-        // pressure forcing an immediate swing (no lethal on the table, no
-        // blocker to dodge), keeping the permanent body is the better
-        // long-run line.
-        //
-        // Re-measured in review round 1 at a much finer budget granularity
-        // (25 through 400, all 3 seeds): reverting ONLY the sign fix still
-        // does NOT flip this entry at ANY budget in that range — confirming
-        // this is not a coarse-sweep miss. It CANNOT, structurally: this
-        // position never ends the game this turn, so `rollout()`'s
-        // turn-boundary horizon (`search.ts`) always plays past Dash's
-        // delayed return before any leaf is scored, and by then a dashed
-        // Ragavan is already back in the caster's hand — the term this
-        // issue fixes has already left the board by the time any leaf reads
-        // it (see the sibling entry above for the full mechanism). No
-        // non-lethal blade entry — this one included — can discriminate the
-        // sign via move choice; this entry's actual job is proving the Bot
-        // does not gratuitously dash a card with nothing to gain from it.
-        // The sign regression is pinned by the unit tests AND by a real,
-        // engine-built, `evaluate()`-level assertion that DOES flip
-        // (`dashMoves.bot.test.ts` — "evaluate() correctly prices a dashed
-        // Ragavan BELOW a hard-cast one"), which reads the position while
-        // still inside the term's live window instead of after a full
-        // rollout has already played past it.
-        label: "discriminating pair: hard-casts Ragavan on an empty board with nothing to race",
-        spec: {
-            cards: [
-                {
-                    name: "Ragavan, Nimble Pilferer",
-                    owner: "me",
-                    zone: "hand",
-                },
-                { name: "Mountain", owner: "me", zone: "battlefield" },
-                { name: "Mountain", owner: "me", zone: "battlefield" },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 3,
-            libraryCount: 20,
-        },
-        bot: "me",
-        // Measured (ADR 0070 §2, re-verified review round 1 at a finer
-        // granularity — 25/50/75/100/150/200/300/400, all 3 seeds, sign
-        // reverted included): PLAIN throughout, stable well below its
-        // sibling's budget, so 400 (the suite's typical `must` floor) is
-        // enough here.
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
-        tier: "must",
-        expect: {
-            predicate: (move) =>
-                move !== null &&
-                move.kind === "cast-spell" &&
-                move.alternativeCostId === undefined,
-            describe: "casts Ragavan, Nimble Pilferer PLAIN (not via dash)",
-        },
-        note: "Half 2 of the pair above (\"discriminating pair: dashes Ragavan for the lethal attack\") — together they prove the Bot reaches the dash-cast Move at all (issue #1964's `moves.ts` fix) and does not over- or under-use it once reachable. Neither half discriminates the `moveZone` self-cost SIGN (structurally impossible for a non-lethal move-choice entry — see the sibling's note); that is pinned by the unit tests plus a real, engine-built `evaluate()`-level assertion (`dashMoves.bot.test.ts`).",
+        note: '19 power already in play + Ragavan hasty = 21, crossing the opponent\'s 20 life; hard-casting caps this turn\'s attack at 19 (summoning sickness, CR 302.6) — one short. BEYOND-BUDGET, cause "branching" (review round 2): the right line is found only inside a 3000-6000 iteration plateau, not at production budgets or above — see `beyondBudget` for the honest, non-monotone shape. (Formerly "half 1" of a discriminating pair — the other half was deleted, review round 2, as vacuous: see the header comment above.)',
     },
 ];
 
