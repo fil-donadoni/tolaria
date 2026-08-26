@@ -136,9 +136,7 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
     return sources;
 }
 
-/** Scan every in-scope source for `tracked-by:` dispositions, dropping
- *  stub-context hits. Pure over the source list, so it can be driven with
- *  synthetic content in tests.
+/** Scan every in-scope source for `tracked-by:` dispositions.
  *
  *  Uses `scanTrackedByRefs`, NOT Guard B's `scanText` — deliberately (issue
  *  #2560 fixup round 1, finding 1). `scanText` only emits a record for a line
@@ -148,7 +146,37 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
  *  `findRottenMarkers`/`markersBlockingClosure` both ignore an untracked
  *  record — so anchoring directly on `tracked-by:` occurrences, rather than
  *  on the MARKER word, drops nothing this sweep used and picks up every real
- *  disposition `scanText`'s narrower gate missed. */
+ *  disposition `scanText`'s narrower gate missed.
+ *
+ *  **Stub context is NOT a blanket drop** (narrowed, issue #1841 — a
+ *  `clb/red.ts` colon-disposition ref (naming issue #925 — split from its
+ *  own `tracked-by` prefix right here so THIS prose does not itself register
+ *  as a live marker, the same self-reference hazard `divergence-markers.ts`
+ *  calls out for its own `#1324` example) sat inside a commented-out stub,
+ *  named a CLOSED issue, and no default `markers:lint` run ever saw it: the
+ *  original version of this function skipped EVERY stub-context hit
+ *  unconditionally). The two syntaxes this sweep resolves get different
+ *  treatment inside stub context:
+ *    - A `TODO(issue #NNN` hit stays excluded exactly as before — 26 of the
+ *      29 sites using that syntax are `check-stub-coverage.ts`'s own
+ *      "residue tranche" audit buckets (`#676`/`#679`/`#684`/`#1303`/
+ *      `#1305`/`#1307` — several closed and re-triaged by design as that
+ *      tool's ordinary churn), and re-litigating that whole domain from this
+ *      script was scoped OUT deliberately (see this file's own SCOPE note
+ *      above): measured on this branch, admitting those wholesale surfaces
+ *      six unrelated closed-issue "rotten" reports this sweep was never
+ *      meant to own.
+ *    - An explicit `tracked-by:` COLON disposition is still admitted, using
+ *      only `rec.trackedByNumbers` (never the `TODO(issue`-derived numbers
+ *      folded into the same line) — that syntax is an unambiguous, singular
+ *      tracking promise wherever it appears, stub or not, and dropping it
+ *      silently inside a stub is exactly the shape that let `clb/red.ts`
+ *      rot unnoticed for three weeks. Measured empirically the same way: on
+ *      this branch every OTHER `tracked-by:`-colon stub site names an open
+ *      issue, so admitting this syntax alone adds zero unrelated noise.
+ *  `check-stub-coverage.ts` still owns whether a stub's own comment run is
+ *  adequate at all; this function only ever asks whether an issue a comment
+ *  ALREADY names is still open. */
 export function scanRepoMarkers(
     sources: Iterable<{ file: string; text: string }>
 ): MarkerRecord[] {
@@ -156,8 +184,13 @@ export function scanRepoMarkers(
     for (const { file, text } of sources) {
         const lines = text.split("\n");
         for (const rec of scanTrackedByRefs(file, text)) {
-            if (isStubContext(lines, rec.line - 1)) continue;
-            out.push(rec);
+            if (!isStubContext(lines, rec.line - 1)) {
+                out.push(rec);
+                continue;
+            }
+            const trackedByOnly = rec.trackedByNumbers ?? [];
+            if (trackedByOnly.length === 0) continue;
+            out.push({ ...rec, issueNumbers: trackedByOnly });
         }
     }
     return out;

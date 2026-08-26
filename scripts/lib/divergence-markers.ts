@@ -382,6 +382,18 @@ export interface MarkerRecord extends MarkerHit {
     /** Issue numbers named in the marker's own paragraph (may be empty — an
      *  "out of scope" disposition or a bare `tracked-by:` names none). */
     issueNumbers: number[];
+    /** Populated ONLY by `scanTrackedByRefs`: the subset of `issueNumbers`
+     *  that matched the literal `tracked-by:` colon syntax specifically, as
+     *  opposed to the separate `TODO(issue #NNN` syntax (issue #1841). The
+     *  liveness sweep's stub-context filter (`scanRepoMarkers`,
+     *  `check-marker-liveness.ts`) uses this to admit a `tracked-by:`
+     *  disposition found INSIDE a commented-out stub's comment run while
+     *  still leaving a `TODO(issue` disposition there excluded — that
+     *  syntax's stub-context sites are `check-stub-coverage.ts`'s domain
+     *  (see that function's own doc comment for why the two syntaxes get
+     *  different stub-context treatment). Absent (not merely empty) from
+     *  `scanDivergenceMarkers`/`scanText` records, which never populate it. */
+    trackedByNumbers?: number[];
 }
 
 /** `scanDivergenceMarkers` over one file's full text, with `file` and
@@ -515,8 +527,11 @@ export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
             scanned = `${line} ${lines[i + 1].replace(COMMENT_PREFIX, "")}`;
         }
         const numbers = new Set<number>();
-        for (const m of scanned.matchAll(TRACKED_BY_G))
+        const trackedByNumbers = new Set<number>();
+        for (const m of scanned.matchAll(TRACKED_BY_G)) {
             numbers.add(Number(m[1]));
+            trackedByNumbers.add(Number(m[1]));
+        }
         for (const m of scanned.matchAll(TODO_ISSUE_G))
             numbers.add(Number(m[1]));
         if (numbers.size === 0) continue;
@@ -526,6 +541,7 @@ export function scanTrackedByRefs(file: string, text: string): MarkerRecord[] {
             tracked: true,
             text: line.trim(),
             issueNumbers: [...numbers].sort((a, b) => a - b),
+            trackedByNumbers: [...trackedByNumbers].sort((a, b) => a - b),
         });
     }
     return out;

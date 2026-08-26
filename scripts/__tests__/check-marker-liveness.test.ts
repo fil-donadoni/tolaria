@@ -234,12 +234,12 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
         expect(hits[0].issueNumbers).toEqual([4242]);
     });
 
-    it("still drops a stub-context hit even under the widened scan", () => {
+    it("still drops a stub-context TODO(issue #NNN) hit that carries no separate tracked-by: colon disposition", () => {
         const sources = [
             {
                 file: "convex/cards/sets/xyz/white.ts",
                 text: [
-                    "// TODO(issue #676 stub — Boast is unbuilt, tracked-by: #676)",
+                    "// TODO(issue #676 stub — Boast is unbuilt, no primitive)",
                     "// export const broadsideBombardiers: CardDefinition = {",
                     '//     name: "Broadside Bombardiers",',
                     "// };",
@@ -248,6 +248,66 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             },
         ];
         expect(scanRepoMarkers(sources)).toEqual([]);
+    });
+
+    describe("tracked-by: colon syntax inside stub context is now admitted (issue #1841 item 3) — the stub-context blind spot that hid clb/red.ts's rotten `tracked-by: #925` from every default `markers:lint` run", () => {
+        it("a bare `tracked-by: #NNN` comment inside a commented-out stub's own comment run is caught, unlike a TODO(issue #NNN) note in the same context", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/xyz/red.ts",
+                    text: [
+                        "// Delayed Blast Fireball — BLOCKED on Foretell.",
+                        "// tracked-by: #925",
+                        "// export const delayedBlastFireball: CardDefinition = {",
+                        '//     name: "Delayed Blast Fireball",',
+                        "// };",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            const hits = scanRepoMarkers(sources);
+            expect(hits).toHaveLength(1);
+            expect(hits[0].issueNumbers).toEqual([925]);
+        });
+
+        it("when a single stub-context line carries BOTH a TODO(issue #NNN) note and a separate tracked-by: colon ref to a DIFFERENT number, only the tracked-by: number is admitted — TODO(issue stays check-stub-coverage.ts's domain even sharing a line with an admitted ref", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/xyz/white.ts",
+                    text: [
+                        "// TODO(issue #676 stub — Boast is unbuilt); tracked-by: #1339",
+                        "// export const broadsideBombardiers: CardDefinition = {",
+                        '//     name: "Broadside Bombardiers",',
+                        "// };",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            const hits = scanRepoMarkers(sources);
+            expect(hits).toHaveLength(1);
+            expect(hits[0].issueNumbers).toEqual([1339]);
+        });
+
+        it("end-to-end: a tracked-by: colon ref inside stub context naming a CLOSED issue is caught rotten by findRottenMarkers — this is the exact clb/red.ts shape (a stub, `tracked-by: #925`, #925 closed) that a `markers:lint` run at HEAD-before-this-fix reported clean", () => {
+            const sources = [
+                {
+                    file: "convex/cards/sets/clb/red.ts",
+                    text: [
+                        "// Delayed Blast Fireball — BLOCKED on Foretell.",
+                        "// tracked-by: #925",
+                        "// export const delayedBlastFireball: CardDefinition = {",
+                        '//     name: "Delayed Blast Fireball",',
+                        "// };",
+                        "export {};",
+                    ].join("\n"),
+                },
+            ];
+            const markers = scanRepoMarkers(sources);
+            const states = new Map<number, "OPEN" | "CLOSED">([
+                [925, "CLOSED"],
+            ]);
+            expect(findRottenMarkers(markers, states)).toHaveLength(1);
+        });
     });
 
     describe("TODO(issue #NNN) syntax — the second live-ref shape resolved (issue #1841)", () => {
