@@ -22,13 +22,20 @@
  *
  * Idempotent: existing lockfile entries are preserved; only missing scryfallIds
  * are fetched and appended. Re-run after adding cards the tool didn't index.
+ *
+ * Also GRADUATES `source: "compiled"` rows (`oracle-index-backfill.ts`,
+ * issue #2702): if a hand-written `CardDefinition` now exists for a
+ * previously compiled-only oracle id (ADR 0108 guarantees the same
+ * `scryfallId`), the stale tag is cleared so `poolOracleIdsFromIndex` /
+ * `dedupByOracle` / `knownImplementedNames` count it as implemented again
+ * (`graduateCompiledEntries`, PR #2838 round 3).
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAllCards } from "../convex/cards/index";
 
-type Entry = {
+export type Entry = {
     name: string;
     scryfallId: string;
     oracleId: string;
@@ -39,7 +46,44 @@ type Entry = {
     firstPrintId: string;
     /** Set code of `firstPrintId`. */
     firstPrintSet: string;
+    /** Present + `"compiled"` iff this row was written ONLY by
+     *  `oracle-index-backfill.ts` (issue #2702) — absent (the default) means
+     *  a hand-written `CardDefinition` backed it, either from the start or
+     *  because it GRADUATED (see `graduateCompiledEntries` below). This
+     *  script's own writes (`byId.set` in the fetch loop) never set it —
+     *  only present on rows this script did not itself create. */
+    source?: "compiled";
 };
+
+/** A `source: "compiled"` row (`oracle-index-backfill.ts`, issue #2702) whose
+ *  `scryfallId` now ALSO has a hand-written `CardDefinition` has GRADUATED —
+ *  ADR 0108 makes the compiled row's `scryfallId` the same `firstPrintId` a
+ *  hand-written card for that oracle id takes, so the two rows collide on
+ *  the SAME id rather than living side by side. Every consumer of `source`
+ *  (`oracle-compile.ts`'s `poolOracleIdsFromIndex`, `list-to-cards.mjs`'s
+ *  `dedupByOracle`/`knownImplementedNames`) filters `source !== "compiled"`
+ *  to mean "counts as implemented" — leaving a graduated row tagged
+ *  `"compiled"` forever makes it under-count the PRD #2693 pool metric by
+ *  one AND re-stage an already-implemented card into the worklist importer
+ *  (PR #2838 round 3 finding). Mutates in place (the caller's `byId` Map
+ *  holds these same object references) and returns the count cleared, so a
+ *  zero-graduation run can skip the write. */
+export function graduateCompiledEntries(
+    entries: readonly Entry[],
+    registryScryfallIds: ReadonlySet<string>
+): number {
+    let graduated = 0;
+    for (const entry of entries) {
+        if (
+            entry.source === "compiled" &&
+            registryScryfallIds.has(entry.scryfallId)
+        ) {
+            delete entry.source;
+            graduated++;
+        }
+    }
+    return graduated;
+}
 
 /** Printings that are never a card's "first edition": Scryfall set types that
  *  are not real releases. Digital-only printings are excluded separately via
@@ -185,15 +229,8 @@ async function main() {
     const byId = new Map(existing.map((e) => [e.scryfallId, e]));
 
     const cards = getAllCards();
-    const missing = cards.filter((c) => !byId.has(c.id));
-    console.log(
-        `${cards.length} implemented cards, ${existing.length} already in lockfile, ` +
-            `${missing.length} to fetch.`
-    );
-    if (missing.length === 0) {
-        console.log("Lockfile already complete.");
-        return;
-    }
+    const registryScryfallIds = new Set(cards.map((c) => c.id));
+    const graduated = graduateCompiledEntries(existing, registryScryfallIds);
 
     const writeLock = () => {
         const merged = [...byId.values()].sort((a, b) =>
@@ -205,6 +242,22 @@ async function main() {
             "utf-8"
         );
     };
+
+    const missing = cards.filter((c) => !byId.has(c.id));
+    console.log(
+        `${cards.length} implemented cards, ${existing.length} already in lockfile, ` +
+            `${missing.length} to fetch.`
+    );
+    if (graduated > 0) {
+        console.log(
+            `${graduated} compiled row(s) graduated to hand-written — cleared stale source tag.`
+        );
+    }
+    if (missing.length === 0) {
+        if (graduated > 0) writeLock();
+        console.log("Lockfile already complete.");
+        return;
+    }
 
     // Resumable: resolve in 75-id batches and persist the lockfile after EACH
     // batch. A blocked/killed run loses at most one batch; re-running skips
@@ -243,7 +296,11 @@ async function main() {
     }
 }
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
+// Run only as a script, never on import (keeps `graduateCompiledEntries`'s
+// unit test network-free — same pattern as `oracle-compile.ts`).
+if (import.meta.main) {
+    main().catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
+}

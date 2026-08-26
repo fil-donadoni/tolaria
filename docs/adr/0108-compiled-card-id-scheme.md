@@ -118,12 +118,25 @@ this hydration.
 
 ## Consequences
 
-- **The graduation test is now a triviality, by design.** "A compiled card
-  that later becomes hand-written keeps its id" (#2702 acceptance criterion)
-  holds because the id was NEVER a function of compiled-vs-hand-written in
-  the first place — it is ADR 0041's rule, computed once, from
-  `data/card-index.json`, for every card regardless of source. There is
-  nothing "compiled" about the id to lose on graduation.
+- **The graduation test is now a triviality, by design — for the id.** "A
+  compiled card that later becomes hand-written keeps its id" (#2702
+  acceptance criterion) holds because the id was NEVER a function of
+  compiled-vs-hand-written in the first place — it is ADR 0041's rule,
+  computed once, from `data/card-index.json`, for every card regardless of
+  source. There is nothing "compiled" about the id to lose on graduation.
+  The `source: "compiled"` TAG on that same row is a separate fact, and one
+  the id's stability says nothing about: `backfill-card-index.ts` matches
+  existing rows by `scryfallId` and skips anything already present, so
+  without an explicit clearing step a graduated row would keep reading
+  `"compiled"` forever even though a real `CardDefinition` now backs it —
+  under-counting the PRD #2693 pool metric
+  (`oracle-compile.ts`'s `poolOracleIdsFromIndex`) and re-staging an
+  already-implemented card into the worklist importer
+  (`list-to-cards.mjs`'s `dedupByOracle`/`knownImplementedNames`), both of
+  which read the tag as "still compiled-only." `graduateCompiledEntries`
+  (`backfill-card-index.ts`, PR #2838 round 3) closes this: it clears
+  `source` on any row whose id has joined the hand-written registry, run as
+  part of every `backfill-card-index.ts` pass.
 - **Data completeness is progressive, exactly like `card-index.json` always
   was.** `backfill-card-index.ts`'s own docstring already describes itself
   as idempotent/incremental ("re-run after adding cards the tool didn't

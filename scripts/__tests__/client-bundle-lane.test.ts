@@ -40,17 +40,31 @@ const pkg = JSON.parse(
     fs.readFileSync(path.join(ROOT, "package.json"), "utf8")
 ) as { scripts: Record<string, string> };
 
+/** Strips line comments and block comments so a source scan below can't be
+ *  satisfied by a comment that merely TALKS about `vite build` (PR #2838
+ *  round 3 finding: `check-bundle-size.ts`'s own header says "real `vite
+ *  build`" / "a bare `vite build`" four times — the un-stripped grep passed
+ *  even after the real `execSync("bunx vite build ...")` call was deleted). */
+function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
 /** `check:bundle` may point directly at `vite build`, or delegate to a
  *  `scripts/*.ts` wrapper (issue #2702 round 2: `check-bundle-size.ts` adds a
  *  chunk size budget around the same build) — either way it must still RUN a
- *  real `vite build`, not silently drop it while keeping the script name. */
+ *  real `vite build`, not silently drop it while keeping the script name.
+ *  For the delegated case this requires an actual process invocation
+ *  (`execSync(...)`/`spawnSync(...)`/`spawn(...)`) whose command contains
+ *  `vite build` — not just the bare substring anywhere in the file, which a
+ *  comment could satisfy forever regardless of what the code still does. */
 function resolvesToRealViteBuild(command: string): boolean {
     if (/\bvite build\b/.test(command)) return true;
     const match = command.match(/\bscripts\/([\w.-]+\.ts)\b/);
     if (!match) return false;
     const scriptPath = path.join(ROOT, "scripts", match[1]!);
     if (!fs.existsSync(scriptPath)) return false;
-    return /\bvite build\b/.test(fs.readFileSync(scriptPath, "utf8"));
+    const code = stripComments(fs.readFileSync(scriptPath, "utf8"));
+    return /\b(?:execSync|spawnSync|spawn)\s*\([^)]*\bvite build\b/.test(code);
 }
 
 describe("client-bundle lane (#2530)", () => {
