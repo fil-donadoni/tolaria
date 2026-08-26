@@ -47,6 +47,10 @@ import {
 import { getEffectivePower } from "./layers";
 import { effectivePermanentView } from "./permanentView";
 import { tryGetDefinition } from "../cards/index";
+// Bot-side only (issue #2297): the enumerator below is reached from
+// `moves.ts`/`applyMove.ts`, never from `game.ts`, whose sole import from this
+// module is `buildActivationSacrificeSelection`.
+import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { matchesPermanentFilter, resolveExcludeSource } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { handCardMatchesFilter } from "./alternativeCost";
@@ -344,20 +348,84 @@ export function activationSacrificeVictims(
 
 /** How many VICTIM variants the enumerator may emit for one activation. WHICH
  *  card a tutor engine eats (Survival of the Fittest) or which creature a sac
- *  outlet swallows (Fallen Angel) is the decision the card is about, so that
- *  leg is searched rather than fixed — but the branching factor is capped, and
- *  indistinguishable candidates collapse to one variant. */
+ *  outlet swallows (Goblin Chirurgeon) is the decision the card is about, so
+ *  that leg is searched rather than fixed — but the branching factor is
+ *  capped, indistinguishable candidates collapse to one variant, and a victim
+ *  that would defeat the ability's own effect is skipped outright
+ *  ({@link sacrificeMustSpareSource}). */
 export const MAX_VICTIM_VARIANTS = 4;
+
+/** Whether the bot must keep the ability's OWN SOURCE off the list of victims
+ *  it names for the activation's sacrifice leg (issue #2297).
+ *
+ *  A bare "Sacrifice a creature:" cost does not say "another" (CR 109.2), so
+ *  the source is a legal victim and the SERVER will keep offering it — a human
+ *  may still name it, and `buildActivationSacrificeSelection` above is
+ *  unchanged. But when every effect the ability produces is delivered to
+ *  `$source` (`abilityBenefitIsConfinedToSource`), paying with the source
+ *  leaves the resolution with nothing to do (CR 609.3): the bot has spent a
+ *  creature for an empty resolution, which is strictly worse than not
+ *  activating. That variant is not worth a node, and when it is the ONLY
+ *  variant the activation itself is not worth a move — `enumerateMoves` drops
+ *  an activation whose pick list comes back empty.
+ *
+ *  Two costs are deliberately exempt, both because losing the source IS the
+ *  intended price and the ability was designed around it (CR 118.1 / 601.2h):
+ *  a fixed self-sacrifice (`cost.sacrifice` — "Sacrifice this creature:") and
+ *  its exile twin (`cost.exileThis`). */
+function sacrificeMustSpareSource(ability: ActivatedAbility): boolean {
+    if (ability.cost.sacrifice || ability.cost.exileThis) return false;
+    return abilityBenefitIsConfinedToSource(ability);
+}
 
 /** Every pick-plan worth searching over for one activation, cheapest-discard
  *  first. The first entry is always {@link planActivationCostPicks}'s default,
  *  so a caller that takes only the head reproduces the deterministic policy.
- *  Empty when a leg has no legal payment. */
+ *  Empty when a leg has no legal payment — or when every payment the board
+ *  offers would defeat the ability's own effect
+ *  ({@link sacrificeMustSpareSource}). */
 export function enumerateActivationCostPicks(
     state: GameState,
     player: PlayerState,
     source: CardInstanceState,
     ability: ActivatedAbility
+): (ActivationCostPicks | undefined)[] {
+    const spareSource = sacrificeMustSpareSource(ability);
+    const variants = enumerateActivationCostPickVariants(
+        state,
+        player,
+        source,
+        ability,
+        spareSource
+    );
+    if (!spareSource) return variants;
+    // The catch-all for every path the in-loop skip and the multi-victim
+    // re-plan below cannot reach: a discard-varying ability with a sacrifice
+    // leg, and — the one that actually bites — a selection
+    // `autoResolveFungible` already settled server-side, where the source is
+    // the ONLY candidate and never appears in `sacrificeIds` at all.
+    // `activationSacrificeVictims` is the same union `applyMove.ts` removes,
+    // so this sees exactly what the search would sacrifice. It is a LAST
+    // resort: a path that can pay around the source re-plans instead of being
+    // dropped whole ({@link replanSacrificeSparingSource}).
+    return variants.filter(
+        (picks) =>
+            !activationSacrificeVictims(
+                state,
+                player,
+                source,
+                ability,
+                picks
+            ).includes(source.id)
+    );
+}
+
+function enumerateActivationCostPickVariants(
+    state: GameState,
+    player: PlayerState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    spareSource: boolean
 ): (ActivationCostPicks | undefined)[] {
     const base = planActivationCostPicks(state, player, source, ability);
     if (base === null) return [];
@@ -401,6 +469,10 @@ export function enumerateActivationCostPicks(
         const seen = new Set<string>();
         const variants: ActivationCostPicks[] = [];
         for (const victim of nextSacrificeCandidates(state, sel)) {
+            // Skipped HERE, before the cap, rather than only in the caller's
+            // filter: a self-defeating victim that ate one of the four slots
+            // would silently cost a real candidate its variant.
+            if (spareSource && victim.id === source.id) continue;
             // Same fungibility notion the server's auto-resolve uses, so the
             // two agree on what counts as the same decision.
             const key = identityKey(state, victim);
@@ -418,5 +490,58 @@ export function enumerateActivationCostPicks(
         return variants.length > 0 ? variants : [base];
     }
 
+    // Everything the two varying branches above do not reach: a MULTI-victim
+    // payment (the ability's own leg plus a board-wide additional sacrifice,
+    // CR 601.2h) and a selection `autoResolveFungible` settled whole. Neither
+    // is enumerated combination-by-combination — the deterministic
+    // cheapest-first plan stands. But when that plan happens to name the
+    // SOURCE, the caller's catch-all would drop it WHOLE, killing an
+    // activation the board can pay around the source instead of re-planning.
+    // So re-plan once, sparing it, before giving up.
+    if (
+        spareSource &&
+        activationSacrificeVictims(
+            state,
+            player,
+            source,
+            ability,
+            base
+        ).includes(source.id)
+    ) {
+        const spared = replanSacrificeSparingSource(
+            state,
+            player,
+            source,
+            ability,
+            base
+        );
+        return spared ? [spared] : [];
+    }
     return [base];
+}
+
+/** The same deterministic sacrifice plan, re-picked with the ability's own
+ *  source spared (issue #2297). `null` when the board cannot pay around it —
+ *  including when the server already auto-resolved the source into the
+ *  selection at announcement (`autoResolveFungible`), which the payer never
+ *  gets to re-choose. */
+function replanSacrificeSparingSource(
+    state: GameState,
+    player: PlayerState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    base: ActivationCostPicks
+): ActivationCostPicks | null {
+    const sel = activationSacrificeSelection(state, player, source, ability);
+    if (!sel || sel.picked.includes(source.id)) return null;
+    const submitted = completeSacrificeSelection(
+        state,
+        sel,
+        undefined,
+        new Set([source.id])
+    );
+    if (submitted === null) return null;
+    return submitted.length > 0
+        ? { ...base, sacrificeIds: submitted }
+        : { ...base, sacrificeIds: undefined };
 }

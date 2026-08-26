@@ -262,13 +262,20 @@ describe("activation sacrifice cost (CR 701.21 / 118.5)", () => {
         const activations = enumerateMoves(state, BOT).filter(
             (m) => m.kind === "activate-ability"
         );
-        // Three legal victims (the Angel may eat itself, CR 701.21a).
+        // Three legal victims — the Angel IS one of them at the engine level
+        // (CR 109.2: the cost says "a creature", not "another"), and the
+        // server still offers it to a human. The BOT enumerator drops that
+        // variant (issue #2297): this ability's whole effect pumps `$source`,
+        // so paying with the source leaves the resolution with nothing to do
+        // (CR 609.3). The property under test here — one variant per
+        // DISTINCT victim, each naming its own — is unchanged; only the
+        // self-defeating victim is gone.
         const picked = activations.map((m) =>
             m.kind === "activate-ability"
                 ? m.costPicks?.sacrificeIds
                 : undefined
         );
-        expect(picked).toEqual([["bears"], ["angel"], ["wurm"]]);
+        expect(picked).toEqual([["bears"], ["wurm"]]);
     });
 
     it("executes end to end: the named victim is sacrificed and the ability commits", async () => {

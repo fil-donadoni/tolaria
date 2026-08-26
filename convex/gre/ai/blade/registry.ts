@@ -24,6 +24,7 @@ import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
 import { seatPlayerId } from "./matcher";
 import { getCardByName } from "../../../cards";
+import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable
@@ -132,6 +133,92 @@ function activationCostPicksArePaid(
         picked.add(ids[0]);
     }
     return picked.size === activations.length && picked.size >= 2;
+}
+
+/** Every permanent each enumerated activation of `cardName` would actually
+ *  sacrifice, plus the source's own instance id (issue #2297).
+ *
+ *  Reads `activationSacrificeVictims` rather than `move.costPicks.sacrificeIds`
+ *  because the two differ in exactly the case that matters: when the board
+ *  leaves no real choice, the server auto-resolves the victim at announcement
+ *  (`autoResolveFungible`) and it never appears in the submission list at all.
+ *  Asserting on `sacrificeIds` would report "no victim" for the position where
+ *  the source is the ONLY victim — a vacuous pass. */
+function enumeratedSacrificeVictims(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): { sourceId: string; victims: string[][] } | null {
+    const player = state.players[seat === "me" ? 0 : 1];
+    const defId = getCardByName(cardName).id;
+    const sources = player.battlefield.filter(
+        (c) => (c.card as { id?: string }).id === defId
+    );
+    // Exactly one, or "the source" is ambiguous and the entry proves nothing.
+    if (sources.length !== 1) return null;
+    const source = sources[0];
+    const victims: string[][] = [];
+    for (const move of enumerateMoves(state, player.id)) {
+        if (move.kind !== "activate-ability") continue;
+        if (move.cardInstanceId !== source.id) continue;
+        const ability = getCardByName(cardName).activatedAbilities?.find(
+            (a) => a.id === move.abilityId
+        );
+        if (!ability) return null;
+        victims.push(
+            activationSacrificeVictims(
+                state,
+                player,
+                source,
+                ability,
+                move.costPicks
+            )
+        );
+    }
+    return { sourceId: source.id, victims };
+}
+
+/** "A sac outlet whose whole effect is scoped to `$source` is never paid with
+ *  the source itself" (issue #2297, CR 609.3) — the activation stays
+ *  available, and every enumerated variant names some OTHER victim. */
+function sacrificeVictimSparesTheSource(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const found = enumeratedSacrificeVictims(state, seat, cardName);
+    if (!found) return false;
+    if (found.victims.length === 0) return false;
+    return found.victims.every(
+        (v) => v.length > 0 && !v.includes(found.sourceId)
+    );
+}
+
+/** "…and when the source is the only victim the board offers, the activation
+ *  is not a move at all" — the same rule with nothing left to name. */
+function noActivationEnumerated(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const found = enumeratedSacrificeVictims(state, seat, cardName);
+    return found !== null && found.victims.length === 0;
+}
+
+/** The DISCRIMINATING HALF (issue #2297): a sac outlet whose payoff does NOT
+ *  depend on its source keeps self-sacrifice enumerable. Sacrificing the last
+ *  creature to an outlet that draws / adds mana / damages / reanimates is a
+ *  real line (before a wrath; denying a gain-control effect), and pruning it
+ *  would be invisible damage. If the guard above ever widens into a blanket
+ *  ban on naming the source, this goes red. */
+function selfSacrificeStaysEnumerable(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const found = enumeratedSacrificeVictims(state, seat, cardName);
+    if (!found) return false;
+    return found.victims.some((v) => v.includes(found.sourceId));
 }
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
@@ -2489,6 +2576,93 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 "casts Ragavan, Nimble Pilferer via its dash cost (not the plain cast)",
         },
         note: '19 power already in play + Ragavan hasty = 21, crossing the opponent\'s 20 life; hard-casting caps this turn\'s attack at 19 (summoning sickness, CR 302.6) — one short. BEYOND-BUDGET, cause "branching" (review round 2): the right line is found only inside a 3000-6000 iteration plateau, not at production budgets or above — see `beyondBudget` for the honest, non-monotone shape. (Formerly "half 1" of a discriminating pair — the other half was deleted, review round 2, as vacuous: see the header comment above.)',
+    },
+    {
+        // Issue #2297 — the reported bug, as a position. The outlet's only
+        // effect pumps `$source`, and its cost says "a creature", not
+        // "another" (CR 109.2), so the source is a legal victim of its own
+        // ability. Paying with it means the ability resolves with nothing to
+        // pump (CR 609.3): a creature spent for an empty resolution.
+        label: "sac outlet: never eats itself when its whole payoff is on the source",
+        spec: {
+            cards: [
+                { name: "Fallen Angel", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                sacrificeVictimSparesTheSource(state, "me", "Fallen Angel"),
+            describe:
+                "every enumerated activation of the self-pumping sac outlet names a victim other than the outlet itself",
+        },
+        note: "Asserted on the LEGAL SET rather than the chosen move: the two variants differ only in which creature `costPicks` names, which no `MoveMatcher` field can express, and the wrong one must not be searchable at all — not merely out-preferred. Half 1 of a discriminating pair; half 2 is the Goblin Chirurgeon entry below.",
+    },
+    {
+        // The same rule with nothing left to name (issue #2297): the server
+        // would auto-resolve this selection to the source itself
+        // (`autoResolveFungible` — one candidate, one needed), so the victim
+        // never reaches `costPicks` and only the final-victim check sees it.
+        label: "sac outlet: does not activate at all when it is its own only victim",
+        spec: {
+            cards: [{ name: "Fallen Angel", owner: "me", zone: "battlefield" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                noActivationEnumerated(state, "me", "Fallen Angel"),
+            describe:
+                "the self-pumping sac outlet, alone on the battlefield, produces no activate-ability move",
+        },
+        note: "An empty pick list is how `enumerateMoves` drops an activation with no legal payment; here the payment is legal but self-defeating, and the same channel carries it. The engine is unchanged — `sacrifice-cost-activation.test.ts` asserts a human may still name the source.",
+    },
+    {
+        // NEGATIVE CONTROL (issue #2297). Goblin Chirurgeon is itself a
+        // Goblin, so it is a legal victim of its own "Sacrifice a Goblin"
+        // cost — but its effect regenerates a TARGETED creature, which
+        // survives the Chirurgeon's death. Eating itself to save something
+        // better is a real play and must stay searchable.
+        label: "sac outlet: still eats itself when the payoff is independent of the source",
+        spec: {
+            cards: [
+                { name: "Goblin Chirurgeon", owner: "me", zone: "battlefield" },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                selfSacrificeStaysEnumerable(state, "me", "Goblin Chirurgeon"),
+            describe:
+                "a source-independent sac outlet keeps a variant that names itself as the sacrifice victim",
+        },
+        note: "Half 2 of the discriminating pair. Without it the fix could be a blanket 'never name your own source' ban and every `must` entry above would still be green.",
     },
 ];
 
