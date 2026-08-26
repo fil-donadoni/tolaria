@@ -146,16 +146,20 @@ export const forceOfNegation: CardDefinition = {
 //      read the SAME `tapOtherCostCandidates` list the affordability gate
 //      does, which is the whole point of that helper existing.
 //
-//      The BOT still cannot reach this ability, and that half is genuinely
-//      out of scope here rather than forgotten: closing it means either a new
-//      standalone Move kind for `useStack: false` abilities
-//      (`enumerateAbilityMoves` excludes every one of them, and floating mana
-//      with no spend plan valuates as neutral — a standalone Move would be
-//      the wrong shape, not merely a missing one) or generalizing
-//      `planManaPayment`'s one-card-one-tap `PlanSource` model to a source
-//      that taps a DIFFERENT permanent, which every spell the bot casts runs
-//      through. tracked-by: #2420; the shape is shared with the
-//      already-shipped Farrelite Priest (`fem/white.ts`).
+//      RESOLVED 2026-08-26 (#1841 audit): this paragraph used to say the BOT
+//      could not reach this ability and pointed at #2420 as the tracker.
+//      #2420 closed 2026-08-25 (PR #2806) by generalizing exactly the seam
+//      this paragraph named — `planManaPayment`'s one-card-one-tap
+//      `PlanSource` model now has a "taps a DIFFERENT permanent" shape
+//      (`tapOtherIds`, `moves.ts:139,436,724`), and `activateManaAbility` /
+//      `payTapOtherAbilityCost` apply whatever pick the plan makes. The bot
+//      pays a blue spell's cost with Urza's ability like a human would,
+//      without ever tapping Urza itself (CR 602.1); see the Urza/Farrelite
+//      coverage in `moves.bot.test.ts` and `applyMove.bot.test.ts`. No
+//      standalone "activate and float the mana with no spend plan" Move was
+//      added — the bot only ever taps this ability as part of paying a
+//      cost, which is the ordinary use of a mana ability (CR 605.1a) and not
+//      a residual gap. Shape shared with Farrelite Priest (`fem/white.ts`).
 //
 //   3. "{5}: Shuffle your library, then exile the top card. Until end of
 //      turn, you may play that card without paying its mana cost." (CR

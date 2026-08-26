@@ -7,13 +7,26 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // damage to each opponent and each creature they control. If this spell was
 // cast from exile, it deals 5 damage to each opponent and each creature they
 // control instead. Foretell {4}{R}{R}." (CR 702.143 Foretell.) BLOCKED:
-// Foretell is `status: "planned"` in `mechanicsRegistry.ts` — no
+// Foretell is STILL `status: "planned"` in `mechanicsRegistry.ts` — no
 // foretell-exile-from-hand zone/timing, no later-turn foretell-cost cast
 // path, and no "was this spell cast from exile" resolve-time condition. The
 // card's own damage amount is conditioned on Foretell, so a partial
 // hand-cast-only implementation would misrepresent the oracle text. Do not
 // invent a name or paper over the gap with `resolve()`.
-// tracked-by: #925
+//
+// RE-POINTED 2026-08-26 (#1841 audit): #925 closed 2026-08-03 as
+// stateReason COMPLETED, which reads as "shipped" — it did NOT ship. Its own
+// last comment records it was superseded by PRD #2091 after a design grill
+// (2026-08-03): Foretell ships as six slices (#2092..#2097) with three of
+// #925's own premises corrected there (timing is CR 702.143a/116.2h any time
+// during your turn, not sorcery-speed; `StackItem` carries no `castFromZone`
+// today; the "cast from a non-hand zone" seam is per-keyword, not shared —
+// ADR 0088). This exact stub is #2097's own acceptance criterion ("closes
+// this issue" in #2097's body); #2097 sits under #2096 (the Foretell
+// keyword itself) and umbrella PRD #2091. No engine work happened between
+// #925's close and HEAD — Foretell is exactly as unbuilt as this paragraph
+// already said.
+// tracked-by: #2097
 // export const delayedBlastFireball: CardDefinition = {
 //     id: "400c76c6-f677-4e7e-87ad-2e526d4b498a",
 //     name: "Delayed Blast Fireball",
