@@ -59,3 +59,51 @@ hand-leg fail-closed precedent, `kicker.ts`'s file-level bound comment) —
 either is a real, scoped change to the same two hot paths #2081 already
 touched, not a one-line fix riding along with the permanent-cost-slot-collision
 fixup.
+
+---
+
+**Second, related gap (issue #2081 fixup, review round 2): the ENUMERATOR's
+own collision check reads the wrong mana cost under the SAME Citadel
+permission — but over-refuses, never over-offers.**
+
+`kickerPermanentSlotWouldCollide` (`convex/gre/kicker.ts:570`, called from
+`enumerateKickerVariants`) computes the mana cost it feeds Drought's
+board-wide static-sacrifice scan with `getInstanceManaCost(card)`
+(`convex/cards/registry.ts:647`) — a bare printed-cost lookup that knows
+nothing about zone or any cast permission. The real mutation prices the
+identical board-wide check with `castRawManaCost(state, card, castFromZone)`
+(`convex/game.ts:2755`), which returns `{}` for a cast made under Bolas's
+Citadel's `manaCostReplacement: "life-equal-to-mana-value"` permission
+(`convex/game.ts:2775-2784`, issue #2398) — the whole mana cost, black pips
+included, is replaced by a life payment, so Drought's "sacrifice a Swamp, one
+per black mana symbol" (CR 118.8) owes NOTHING under that permission.
+
+**Evidence.** Same trigger as the primary finding above: a permanent-leg
+Kicker card reached via Citadel's library-top branch
+(`moves.ts:2568`/`war/black.ts`), this time under Drought too. The mutation
+side (`assertKickerAnnouncementLegal` → `getStaticAdditionalSacrifices` fed
+`castRawManaCost`'s `{}`) sees zero black pips and therefore no board-wide
+sacrifice requirement — no collision, the kicked cast is legal. The
+enumerator side (`kickerPermanentSlotWouldCollide` fed `getInstanceManaCost`'s
+full printed cost) sees the real black pips, computes a nonzero requirement,
+and marks the pairing a collision — so `enumerateKickerVariants` silently
+drops a kicked variant the server would have accepted.
+
+**Why this is safe-direction, not a repeat of the primary finding.** The
+primary finding above is a valuation gap (the search prices a leg as free
+that the server charges) and the `kickerLegPermanentSlotWouldCollide`
+fixup (round 2) is a legality gap (the enumerator offers a Move the server
+rejects, reproducing the AC #3 stall). This one is neither: the enumerator
+REFUSES a legal line — the Bot never tries it, so it never stalls and never
+mis-values a board state that gets built, it just narrows the search's option
+set on this one already-narrow trigger (Citadel + Drought + a permanent-leg
+Kicker card on top of the library, at least as narrow as the primary
+finding's own trigger). Not fixed alongside the round-2 leg-collision fixup:
+threading `castFromZone`/the Citadel permission into
+`kickerPermanentSlotWouldCollide` (currently `state, cardDef, card, payments`
+only) means either duplicating `castRawManaCost`'s zone/permission branching
+in `kicker.ts` (the same file-boundary reason `foldBuybackCost`'s own doc
+comment gives for NOT importing from `game.ts`) or exporting a manaCost-source
+seam from `game.ts` — real, scoped work sharing nothing with the
+permanent-cost-slot collision this fixup round is about, and the batch this
+issue is in explicitly does not touch `game.ts`.

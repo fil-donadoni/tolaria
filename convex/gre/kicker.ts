@@ -547,11 +547,16 @@ export function kickedTargetRequirement(
  *  Mirrors `buildCastSacrificeSelection`'s TWO own-sacrifice sources that
  *  matter here (`game.ts`), read through exports that live outside `game.ts`
  *  so this needs no edit there:
- *   - the card's OWN `additionalCosts.sacrificeFilter` (CR 601.2f / 118.5) —
- *     none of the catalogue's 7 permanent-leg Kicker cards declare one today
- *     (census, issue #2081), so this branch is defence-in-depth for the next
- *     one that does;
- *   - a board-wide STATIC additional sacrifice (Drought, CR 118.5), scanned
+ *   - the card's OWN BASE `additionalCosts.sacrificeFilter` (CR 601.2f /
+ *     118.8) — none of the catalogue's 7 permanent-leg Kicker cards declare
+ *     one today (census, issue #2081), so this branch is defence-in-depth for
+ *     the next one that does. It reads the BASE field only — a CASTER-CHOSEN
+ *     `oneOf` leg's own `sacrificeFilter` is a SEPARATE collision this
+ *     function cannot see (this runs once, before `moves.ts` crosses
+ *     `kickerVariants` with `legVariants`, so no specific leg is known yet);
+ *     {@link kickerLegPermanentSlotWouldCollide} is the leg-aware companion
+ *     check, run AFTER that cross (issue #2081 fixup, review round 2);
+ *   - a board-wide STATIC additional sacrifice (Drought, CR 118.8), scanned
  *     via the SAME `getStaticAdditionalSacrifices` (`gre/state.ts`)
  *     `buildCastSacrificeSelection` calls — the live trigger today (Drought +
  *     Bog Down).
@@ -575,6 +580,47 @@ export function kickerPermanentSlotWouldCollide(
         getStaticAdditionalSacrifices(state, rawManaCost, card, "spell")
             .length > 0
     );
+}
+
+/** CR 601.2b / 601.2f / 601.2h (issue #2081 fixup, review round 2) — the
+ *  LEG-AWARE half of the same one-slot collision {@link
+ *  kickerPermanentSlotWouldCollide} checks: would a PAID Kicker's permanent
+ *  leg collide with the CASTER-CHOSEN `oneOf` leg `additionalCostLegId`
+ *  names, specifically? `kickerPermanentSlotWouldCollide` only ever sees the
+ *  card's BASE `additionalCosts.sacrificeFilter` (no leg resolved) — it runs
+ *  inside `enumerateKickerVariants`, which `moves.ts` calls BEFORE crossing
+ *  `kickerVariants` with `legVariants`, so it structurally cannot know which
+ *  leg any given Move will end up carrying. A `oneOf` leg reuses the exact
+ *  same field vocabulary as the base spec (`AdditionalCostLeg.sacrificeFilter`,
+ *  `resolveAdditionalCosts` flattens it on), so a leg like "sacrifice a Swamp
+ *  or pay 3 life" (the Bitter Triumph disjunction SHAPE, `lci/black.ts`, with
+ *  a sacrifice leg instead of a discard one) claims the cast's ONE
+ *  permanent-cost selection slot exactly like the base field does the moment
+ *  the caster picks it — and `assertKickerAnnouncementLegal` (`game.ts`)
+ *  prices the EFFECTIVE spec (`resolveAdditionalCosts`, the chosen leg
+ *  flattened on), not the base one, so a Kicker+leg pairing this check misses
+ *  reopens the exact live stall round 1 fixed for the board-wide case
+ *  (`announceCast`'s prelude throws "This spell's kicker cost cannot be paid
+ *  alongside its other additional costs" on a Move the enumerator itself
+ *  offered).
+ *
+ *  Callers run this AFTER `legVariants`/`kickerVariants` are crossed
+ *  (`moves.ts`'s `announceVariants` construction), one call per
+ *  (leg, kickerPayments) pair — the same place the leg becomes known. No
+ *  shipped card pairs a permanent-leg Kicker with a `oneOf` sacrifice leg
+ *  (census, issue #2081), so this is defence-in-depth for the next one that
+ *  does, exactly like the base-field branch above. */
+export function kickerLegPermanentSlotWouldCollide(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined,
+    additionalCostLegId: string | undefined
+): boolean {
+    if (!hasKickerPermanentLeg(cardDef, payments)) return false;
+    if (!additionalCostLegId) return false;
+    const leg = cardDef.additionalCosts?.oneOf?.find(
+        (l) => l.id === additionalCostLegId
+    );
+    return leg?.sacrificeFilter !== undefined;
 }
 
 /** How many DISTINCT repeat counts (beyond 0) a MULTIKICKER leg samples,

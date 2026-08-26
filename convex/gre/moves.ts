@@ -38,6 +38,7 @@ import {
     foldBuybackCost,
     foldKickerCosts,
     kickedTargetRequirement,
+    kickerLegPermanentSlotWouldCollide,
     kickerLifeCost,
     type KickerPayments,
 } from "./kicker";
@@ -1340,18 +1341,38 @@ function enumerateCastMoves(
     // `kickerVariants` are never both non-trivial for the same card — the
     // cross product below stays cheap regardless.
     const buybackVariants: boolean[] = def?.buyback ? [false, true] : [false];
+    // CR 601.2f / 601.2h (issue #2081 fixup, review round 2) — a paid
+    // Kicker's permanent leg can ALSO collide with the specific `oneOf` leg a
+    // given (leg, kickerPayments) pairing carries, not just with the card's
+    // BASE `additionalCosts.sacrificeFilter` (`enumerateKickerVariants`
+    // already filtered that half, and the board-wide static-sacrifice half,
+    // before `kickerVariants` above was built — neither depends on which
+    // leg gets chosen). This second check runs HERE, below the leg
+    // cross-product, because only here is the paired leg known —
+    // `kickerLegPermanentSlotWouldCollide`'s doc (`gre/kicker.ts`) has the
+    // full rationale.
     const announceVariants = legVariants.flatMap((additionalCostLegId) =>
-        kickerVariants.flatMap((kickerPayments) =>
-            buybackVariants.flatMap((buybackPaid) =>
-                modeShapes.map(({ modeId, mode }) => ({
-                    modeId,
-                    additionalCostLegId,
-                    kickerPayments,
-                    buybackPaid,
-                    groups: groupsFor(mode, kickerPayments),
-                }))
+        kickerVariants
+            .filter(
+                (kickerPayments) =>
+                    !def ||
+                    !kickerLegPermanentSlotWouldCollide(
+                        def,
+                        kickerPayments,
+                        additionalCostLegId
+                    )
             )
-        )
+            .flatMap((kickerPayments) =>
+                buybackVariants.flatMap((buybackPaid) =>
+                    modeShapes.map(({ modeId, mode }) => ({
+                        modeId,
+                        additionalCostLegId,
+                        kickerPayments,
+                        buybackPaid,
+                        groups: groupsFor(mode, kickerPayments),
+                    }))
+                )
+            )
     );
 
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
