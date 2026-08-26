@@ -3,11 +3,11 @@
     "header": {
         "grammarVersion": "v0",
         "compilerHash": "sha256:197a4a78e7e3a0e5dd067531ba31f2091f54c36b43a4c065913e100bac586ea8",
-        "registryHash": "sha256:e73017fde4a5c87aca77e84ec07773b421532f0c073bdbe9130f62b1542426a7",
+        "registryHash": "sha256:e20d133f2df78b6a341ce9ce7e81a965cef8ecd14f7b8cccd6ac1dd234b91f3b",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
-            "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260825210152.jsonl.gz",
-            "updatedAt": "2026-08-25T21:01:52.435+00:00",
+            "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260826090157.jsonl.gz",
+            "updatedAt": "2026-08-26T09:01:57.441+00:00",
             "cardCount": 34890,
             "sha256": "fe9122363a58e687b7531f1291bb5475e40f497b39ec97a0b400518adb2e2dd6"
         },
@@ -24,42 +24,42 @@
             "ready": 433,
             "quarantine": 219,
             "unparsed": 4723,
-            "pool": 1308
+            "pool": 1311
         },
         "pauper": {
             "total": 10793,
             "ready": 1135,
             "quarantine": 421,
             "unparsed": 9237,
-            "pool": 693
+            "pool": 694
         },
         "modern": {
             "total": 22450,
             "ready": 1123,
             "quarantine": 417,
             "unparsed": 20910,
-            "pool": 603
+            "pool": 607
         },
         "legacy": {
             "total": 31672,
             "ready": 1595,
             "quarantine": 643,
             "unparsed": 29434,
-            "pool": 1968
+            "pool": 1975
         },
         "vintage": {
             "total": 31690,
             "ready": 1595,
             "quarantine": 643,
             "unparsed": 29452,
-            "pool": 1986
+            "pool": 1993
         },
         "commander": {
             "total": 31830,
             "ready": 1596,
             "quarantine": 642,
             "unparsed": 29592,
-            "pool": 1999
+            "pool": 2006
         }
     },
     "fragments": [
