@@ -799,13 +799,13 @@ describe("Kicker — two kickers are paid independently (CR 702.33, ADR 0079)", 
     });
 });
 
-describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 601.2f / 118.5)", () => {
+describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 601.2f / 118.8)", () => {
     // REGRESSION (issue #1937 review). A mana-only Kicker still produces one
     // `kickerCostLegs` entry per payment, so gating the cast's permanent-cost
     // picker on "the kicker produced any leg" sent EVERY kicked cast down the
     // cost-legs branch — which returns `undefined` for a mana-only Kicker and
     // therefore silently DISCARDED the cast's own additional-cost sacrifice.
-    // Drought (board-wide, CR 118.5: 'Spells cost an additional "Sacrifice a
+    // Drought (board-wide, CR 118.8: 'Spells cost an additional "Sacrifice a
     // Swamp" for each black mana symbol') × Bloodchief's Thirst ({B}, one black
     // pip) is the shipped-card reproduction: unkicked the Swamp goes, kicked it
     // used to survive while the spell still reached the stack.
@@ -879,7 +879,7 @@ describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 6
 });
 
 // A probe whose printed cost carries a BLACK pip (so Drought imposes its
-// "Sacrifice a Swamp" additional cost, CR 118.5) AND whose Kicker owes a
+// "Sacrifice a Swamp" additional cost, CR 118.8) AND whose Kicker owes a
 // PERMANENT leg. No printed card has this shape — it is the only way to reach
 // the one-slot collision the announcement guard fails closed on.
 const PIP_SAC_PROBE_ID = "test:kicker-permleg-plus-additional-cost-probe";

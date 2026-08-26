@@ -291,25 +291,35 @@ export function hasKickerPermanentLeg(
 }
 
 /** CR 601.2f / 601.2h — the cast has exactly ONE permanent-cost selection slot,
- *  and a paid Kicker's permanent leg claims it. When the cast ALSO owes its own
+ *  and a paid Kicker's permanent leg OR the chosen ALTERNATIVE cost's own
+ *  permanent leg (CR 118.9 — Gush's "return two Islands", Fireblast's
+ *  "sacrifice two Mountains") claims it. When the cast ALSO owes its own
  *  additional-cost sacrifice — the card's own (CR 601.2f) or a board-wide one
- *  (Drought's "Sacrifice a Swamp", CR 118.5) — one of the two would have to be
+ *  (Drought's "Sacrifice a Swamp", CR 118.8) — one of the two would have to be
  *  dropped, i.e. the spell would reach the stack having silently MISPAID a
  *  cost. Fail CLOSED at announcement instead, exactly as `resolveKickerPayments`
  *  refuses a mixed sacrifice/return composition. `hasKickerPermanentLeg` is no
  *  longer vacuously `false` (Magma Burst, issue #1951, is a permanent-leg
  *  Kicker), so this `throw` branch is reachable in principle — but only for a
  *  card that ALSO owes its own additional-cost sacrifice on top of a
- *  permanent-leg Kicker, which no shipped card (Magma Burst included — its
- *  own base cost is pure mana) combines yet; merging the two selections
- *  remains the work the first card that needs BOTH at once pays for. */
+ *  permanent-leg Kicker or alt-cost permanent leg, which no shipped card
+ *  combines yet (no permanent-leg alt-cost card carries a black pip for
+ *  Drought to key off, issue #1985); merging the two selections remains the
+ *  work the first card that needs BOTH at once pays for. */
 export function assertKickerPermanentSlotFree(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
-    ownSacrifice: SacrificeSelection | undefined
+    ownSacrifice: SacrificeSelection | undefined,
+    /** CR 118.9 — the chosen alternative cost, so its OWN permanent leg is
+     *  weighed against `ownSacrifice` the same way a Kicker's is. Omitted by
+     *  callers that never see an alternative cost (the non-alt commit
+     *  branch). */
+    altCost?: CostLegs
 ): void {
     if (!ownSacrifice) return;
-    if (!hasKickerPermanentLeg(cardDef, payments)) return;
+    if (!hasKickerPermanentLeg(cardDef, payments) && !altCost?.permanent) {
+        return;
+    }
     throw new Error(
         "This spell's kicker cost cannot be paid alongside its other additional costs"
     );
@@ -344,6 +354,27 @@ export function buildCastPermanentCostChoice(
         ],
         reason
     );
+}
+
+/** CR 601.2f / 601.2h — the cast's SINGLE permanent-cost selection: trust
+ *  what `buildCastPermanentCostChoice` actually produced (the chosen alt
+ *  cost's own permanent leg + every paid Kicker's), falling back to the
+ *  board-wide/own additional-cost sacrifice (`buildCastSacrificeSelection`'s
+ *  `selection` — Drought's "Sacrifice a Swamp", CR 118.8, or the card's own)
+ *  ONLY when the former yields nothing. Shared verbatim by all three commit
+ *  paths (`finalizeTargetSelection`'s targeted path, `announceCast`'s
+ *  no-target alt-cost branch, and its no-target plain/kicker branch) so the
+ *  fallback rule can never drift between them again — issue #1985 was
+ *  exactly that drift: the alt-cost branch special-cased away the fallback
+ *  entirely and dropped `ownSacrifice` unconditionally. A genuine collision
+ *  (both legs claim the slot) is rejected upstream, fail-closed, by
+ *  `assertKickerPermanentSlotFree` — by the time this runs, at most one side
+ *  is non-`undefined` for any composition a real cast can reach. */
+export function resolveCastPermanentSelection(
+    castPermSel: SacrificeSelection | undefined,
+    ownSacrifice: SacrificeSelection | undefined
+): SacrificeSelection | undefined {
+    return castPermSel ?? ownSacrifice;
 }
 
 /** CR 601.2f / 601.2h — the cast's ONE hand-cost picker, folding the chosen

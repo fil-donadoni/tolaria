@@ -309,6 +309,7 @@ import {
     canPayKickerLegs,
     foldKickerCosts,
     kickerLifeCost,
+    resolveCastPermanentSelection,
     resolveKickerPayments,
     totalKickerCount,
 } from "./gre/kicker";
@@ -7056,32 +7057,44 @@ export function finalizeTargetSelection(
     // player-chosen filtered give-up, built as a `SacrificeSelection` and paid
     // through the SAME unified layer as every other cost sacrifice, so WHICH
     // permanents pay it is the caster's explicit choice (parks when real,
-    // auto-resolves when forced/fungible). The alt-cost cards carry no
-    // additional cost of their own, so the two selections never coexist — the
-    // alt choice takes the cast's single `sacrificeSelection` slot.
+    // auto-resolves when forced/fungible).
     // CR 702.33a — a paid Kicker's PERMANENT leg (sacrifice two lands, return a
     // creature you control) joins that same selection, marked `explicit` so it is
     // never auto-picked (ADR 0079).
     //
     // The branch is decided by what the builder actually PRODUCES, never by "did
-    // the kicker produce a leg at all": `kickerCostLegs` yields one entry per
-    // PAYMENT, so a mana-only Kicker — every shipped one — makes that count
-    // positive while contributing NOTHING to the permanent picker. Gating on it
-    // sent every kicked cast down this branch and silently discarded
-    // `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.5) went unpaid
-    // on a kicked spell. The builder returns `undefined` when nothing
-    // contributes, so the `?? additionalSac` fallback keeps the historical
-    // branch byte-identical for an unkicked or mana-only-kicked cast; when an
-    // ALT cost is chosen, dropping `additionalSac` is the historical (alt-cost
-    // cards carry none) behaviour and is preserved deliberately.
+    // the alt cost / kicker produce a leg at all": `kickerCostLegs` yields one
+    // entry per PAYMENT, so a mana-only Kicker — every shipped one — makes that
+    // count positive while contributing NOTHING to the permanent picker.
+    // Gating on it sent every kicked cast down this branch and silently
+    // discarded `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.8)
+    // went unpaid on a kicked spell (issue #1937). The builder returns
+    // `undefined` when nothing contributes, so `?? additionalSac` keeps the
+    // historical branch byte-identical for an unkicked or mana-only-kicked
+    // cast — and, as of issue #1985, for an ALT-cost cast too:
+    // `chosenAltCost` used to gate a SEPARATE branch that dropped
+    // `additionalSac` unconditionally, on the premise that "alt-cost cards
+    // carry no additional cost of their own" — true, but Drought's is a
+    // BOARD-WIDE cost, not a card-owned one, so it applies to an alt-cost cast
+    // exactly as it does to any other (CR 601.2f: additional costs apply to
+    // "the total cost", whichever cost — mana or alternative — was chosen,
+    // CR 118.9d). Snuff Out (`mmq/black.ts`, one black pip) cast under
+    // Drought is the shipped repro: the Swamp used to survive the alt-cost
+    // cast and the spell still reached the stack.
     //
-    // Defence-in-depth (issue #1986): `announceCast`'s shared prelude already
-    // ran the identical check (`assertKickerAnnouncementLegal`) before this
-    // spell's `pendingTarget` was ever written, so a colliding composition
-    // can no longer reach this line via the UI — a real cast either never
-    // opened target selection, or (unkicked / non-colliding) is guaranteed to
-    // pass here too.
-    assertKickerPermanentSlotFree(cardDef, kickerPayments, additionalSac);
+    // Defence-in-depth (issue #1986, widened #1985): `announceCast`'s shared
+    // prelude already ran the identical check (`assertKickerAnnouncementLegal`,
+    // now alt-cost-aware too) before this spell's `pendingTarget` was ever
+    // written, so a colliding composition — a Kicker OR an alt cost's own
+    // permanent leg claiming the slot `additionalSac` also needs — can no
+    // longer reach this line via the UI; a real cast either never opened
+    // target selection, or (non-colliding) is guaranteed to pass here too.
+    assertKickerPermanentSlotFree(
+        cardDef,
+        kickerPayments,
+        additionalSac,
+        chosenAltCost
+    );
     const castPermSel = buildCastPermanentCostChoice(
         state,
         playerId,
@@ -7090,9 +7103,7 @@ export function finalizeTargetSelection(
         kickerPayments,
         cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker")
     );
-    const castSac = chosenAltCost
-        ? castPermSel
-        : (castPermSel ?? additionalSac);
+    const castSac = resolveCastPermanentSelection(castPermSel, additionalSac);
     // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
     // "exile a blue card", Foil "discard an Island card and another card"). A
     // player-chosen filtered give-up FROM HAND, paid at commit through the
@@ -7448,8 +7459,17 @@ export function finalizeTargetSelection(
  *  additional costs (Drought). Throws (the cast/activation is illegal) when the
  *  announcing `player` controls too few permanents to pay the per-pip
  *  "sacrifice a <filter>" cost imposed on this spell/ability. Called at each
- *  announcement site, before entering the payment phase. */
-function assertStaticAdditionalCostAffordable(
+ *  announcement site, before entering the payment phase.
+ *
+ *  Exported (issue #1985) so a focused GRE-level test can drive the
+ *  no-target alt-cost commit branch's REAL composition (this call,
+ *  `buildCastSacrificeSelection`, `assertKickerPermanentSlotFree`,
+ *  `buildCastPermanentCostChoice`, in the same order `announceCast` runs
+ *  them) without going through the full mutation — the same reason
+ *  `buildCastSacrificeSelection` and `assertKickerAnnouncementLegal` are
+ *  already exported. The mutation ITSELF is also covered end to end, through
+ *  `gameMutationHarness` (`alternative-cost.test.ts`, issue #1985 round 2). */
+export function assertStaticAdditionalCostAffordable(
     state: GameState,
     rawManaCost: ManaCost | undefined,
     announced: CardInstanceState,
@@ -7551,7 +7571,7 @@ export function buildCastSacrificeSelection(
             specs.push({ filter: picker.filter, count: 1, snapshot: true });
         }
     }
-    // CR 702.34a / 118.5 — the flashback-only "Sacrifice a <filter>" cost, added
+    // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost, added
     // ONLY on a flashback (graveyard) cast. WHICH permanent is sacrificed is the
     // caster's explicit choice through the unified sacrificeChoice layer (never
     // auto-picked); exactly one is owed. Not snapshot-flagged (the flashback
@@ -7581,13 +7601,15 @@ export function buildCastSacrificeSelection(
 
 /** CR 601.2f / 601.2h — announcement-PRELUDE gate for a paid Kicker's
  *  permanent leg (CR 702.33a kicker — "sacrifice two lands", "return a creature you
- *  control") colliding with the cast's own additional-cost sacrifice (its own
+ *  control") OR the chosen ALTERNATIVE cost's own permanent leg (CR 118.9 —
+ *  Gush's "return two Islands", Fireblast's "sacrifice two Mountains")
+ *  colliding with the cast's own additional-cost sacrifice (its own
  *  `additionalCosts`, or a board-wide one like Drought, CR 118.5): the cast has
  *  exactly ONE permanent-cost selection slot, and honouring both would mean
  *  silently mispaying one of them (`assertKickerPermanentSlotFree`'s own
  *  docstring). Neither `buildCastSacrificeSelection`'s inputs nor
- *  `hasKickerPermanentLeg`'s depend on which targets were chosen, so this
- *  runs identically for a targeted or an untargeted cast.
+ *  `hasKickerPermanentLeg`'s/`altCost.permanent`'s depend on which targets were
+ *  chosen, so this runs identically for a targeted or an untargeted cast.
  *
  *  MUST be called from `announceCast`'s SHARED prelude — before the branch
  *  fork that writes `state.pendingTarget` (targeted) or `state.pendingCast`
@@ -7619,9 +7641,15 @@ export function assertKickerAnnouncementLegal(
      *  leg already flattened on, `resolveAdditionalCosts`). Passed in rather
      *  than re-read off `cardDef` so this prelude gate prices the same cost the
      *  commit downstream pays. */
-    effectiveAdditionalCosts: AdditionalCostSpec | undefined
+    effectiveAdditionalCosts: AdditionalCostSpec | undefined,
+    /** CR 118.9 — the chosen alternative cost, if any (issue #1985). Before
+     *  this parameter existed, this gate skipped entirely whenever there was
+     *  no Kicker, so an alt-cost-only cast whose alt cost carries its own
+     *  permanent leg never had the collision checked at all — only the
+     *  Kicker/own-sacrifice collision was guarded. */
+    chosenAltCost?: CostLegs
 ): void {
-    if (!kickerPayments) return;
+    if (!kickerPayments && !chosenAltCost?.permanent) return;
     const rawCost = castRawManaCost(state, cardInHand, castFromZone);
     const { selection: ownSac } = buildCastSacrificeSelection(
         state,
@@ -7632,7 +7660,12 @@ export function assertKickerAnnouncementLegal(
         cardDef.name ?? "Sacrifice",
         castFromZone
     );
-    assertKickerPermanentSlotFree(cardDef, kickerPayments, ownSac);
+    assertKickerPermanentSlotFree(
+        cardDef,
+        kickerPayments,
+        ownSac,
+        chosenAltCost
+    );
 }
 
 /** Apply a selection and extract the snapshot-flagged victim's mv/subtypes/power
@@ -8151,7 +8184,8 @@ export const announceCast = mutation({
             player,
             kickerPayments,
             castFromZone,
-            effectiveAdditionalCosts
+            effectiveAdditionalCosts,
+            chosenAltCost
         );
 
         // CR 702.27 — validate and canonicalize the optional Buyback choice
@@ -8418,6 +8452,51 @@ export const announceCast = mutation({
                 cardDef.flashSurcharge,
                 flashSurchargePaid
             );
+            // CR 601.2f / 118.8 — board-wide static NON-mana additional cost
+            // (Drought) and the card's own additional-cost sacrifice (alt-cost
+            // cards carry none today) apply to THIS cast exactly as they do to
+            // a mana-paid one: CR 118.9d — "any additional costs … that affect
+            // that spell are applied to that alternative cost." Gate on
+            // affordability at announcement, mirroring the non-alt commit path
+            // below; pip count comes from the spell's PRINTED mana cost. This
+            // was missing entirely on this branch (issue #1985): an
+            // unaffordable board-wide sacrifice slipped straight through.
+            const rawCost = castRawManaCost(state, cardInHand, castFromZone);
+            assertStaticAdditionalCostAffordable(
+                state,
+                rawCost,
+                cardInHand,
+                player,
+                "spell"
+            );
+            // CR 118.8 / 601.2f / 701.21a — assemble the cast's player-chosen
+            // filtered sacrifices (own additional cost + Drought), the SAME
+            // builder every other commit path uses. `ownSac` merges by
+            // FALLBACK with the alt cost's own permanent leg below (never by
+            // concatenation) — see `assertKickerPermanentSlotFree`'s guard
+            // just below for the genuine-collision case.
+            const { selection: ownSac, exilePicker: altExilePicker } =
+                buildCastSacrificeSelection(
+                    state,
+                    rawCost,
+                    cardInHand,
+                    player,
+                    effectiveAdditionalCosts,
+                    cardDef.name ?? "Sacrifice",
+                    castFromZone
+                );
+            // Defence-in-depth (issue #1986, widened #1985): `announceCast`'s
+            // shared prelude already ran the identical check
+            // (`assertKickerAnnouncementLegal`, alt-cost-aware) before this
+            // no-target branch was ever reached, so a colliding composition —
+            // a Kicker OR this alt cost's own permanent leg claiming the same
+            // slot `ownSac` needs — can no longer reach this line via the UI.
+            assertKickerPermanentSlotFree(
+                cardDef,
+                kickerPayments,
+                ownSac,
+                chosenAltCost
+            );
             const altChoice = buildCastPermanentCostChoice(
                 state,
                 args.playerId,
@@ -8426,6 +8505,17 @@ export const announceCast = mutation({
                 kickerPayments,
                 cardDef.name ?? "Alternative cost"
             );
+            // CR 601.2f / 118.8 / 118.9d (issue #1985) — trust what the builder
+            // actually produced; fall back to the board-wide/own sacrifice
+            // selection when the alt cost + Kicker legs yield nothing. Mirrors
+            // `finalizeTargetSelection`'s targeted-path fix and the kicker-arm
+            // template (`kickerPermSel ?? ownSac` below in the non-alt
+            // branch). Before this fix, `altChoice` alone was committed as
+            // `pendingCast.sacrificeSelection` unconditionally, so a plain
+            // alt-cost cast (no Kicker, no permanent leg of its own — Snuff
+            // Out's is life-only) silently dropped `ownSac`, i.e. Drought's
+            // "Sacrifice a Swamp" (CR 118.8) went unpaid and unchecked.
+            const castSac = resolveCastPermanentSelection(altChoice, ownSac);
             // CR 118.8 / 601.2f / 702.81a — the card's own hand-cost additional
             // leg and the retrace discard, through the SAME authority the other
             // two commit paths use. An ALTERNATIVE cost replaces the mana cost
@@ -8447,10 +8537,16 @@ export const announceCast = mutation({
                 (chosenAltCost.life ?? 0) +
                 kickerLifeCost(cardDef, kickerPayments);
             const parkPerm =
-                altChoice !== undefined &&
-                !isSacrificeSelectionComplete(altChoice);
+                castSac !== undefined && !isSacrificeSelectionComplete(castSac);
             const parkHand =
                 altHandChoice !== undefined && !altHandChoice.pickedCardIds;
+            // CR 118.8 / 601.2f — a board-wide/own EXILE additional cost
+            // (`buildCastSacrificeSelection`'s `exilePicker`) always parks,
+            // the same way it does on the non-alt commit path below; no
+            // shipped alt-cost card reaches this (they carry no additional
+            // cost of their own, and Drought's is a sacrifice, not an exile),
+            // so this is symmetry, not a live repair.
+            const parkExile = !!altExilePicker;
             const altManaCovered =
                 Object.keys(altManaCost).length === 0 ||
                 isManaCostCovered(
@@ -8463,7 +8559,7 @@ export const announceCast = mutation({
                     altManaCost,
                     getManaSubstitutions(state, player.id)
                 );
-            if (parkPerm || parkHand || !altManaCovered) {
+            if (parkPerm || parkHand || parkExile || !altManaCovered) {
                 // Park with the alt cost's mana leg (zeroed for every existing
                 // zero-mana alt cost, Dash's own amount otherwise): the commit
                 // gate in tryAutoCommitPendingCast fires once mana is covered
@@ -8482,7 +8578,10 @@ export const announceCast = mutation({
                         ? { chosenModeId: args.chosenModeId }
                         : {}),
                     ...(kickerPayments ? { kickerPayments } : {}),
-                    ...(altChoice ? { sacrificeSelection: altChoice } : {}),
+                    ...(castSac ? { sacrificeSelection: castSac } : {}),
+                    ...(altExilePicker
+                        ? { additionalCost: altExilePicker }
+                        : {}),
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
                         : {}),
@@ -8542,7 +8641,7 @@ export const announceCast = mutation({
                 altNotedManaSpent = payment.notedManaSpent;
                 commitLandsForCost(player, altManaCost);
             }
-            if (altChoice) sacrificeSnapshotFromSelection(altChoice, state);
+            if (castSac) sacrificeSnapshotFromSelection(castSac, state);
             if (altHandChoice?.pickedCardIds) {
                 payAlternativeCostHandChoice(
                     state,
@@ -8740,7 +8839,7 @@ export const announceCast = mutation({
             kickerPayments,
             cardDef.name ?? "Kicker"
         );
-        const castSac = kickerPermSel ?? ownSac;
+        const castSac = resolveCastPermanentSelection(kickerPermSel, ownSac);
         // CR 118.8 / 701.9 / 702.81a — the card's OWN "discard a card"
         // additional cost AND a retrace cast's "discard a land card" join the
         // cast's single hand-cost picker, exactly as they do on the targeted
