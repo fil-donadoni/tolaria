@@ -24,6 +24,7 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition, tryGetDefinition } from "../../cards";
+import { buildActivationSacrificeSelection } from "../activationCostPicks";
 import {
     matchesPermanentFilter,
     resolveExcludeSource,
@@ -47,6 +48,7 @@ import {
 import { grizzlyBears } from "../../cards/sets/lea";
 import { legionExtruder } from "../../cards/sets/big/red";
 import { orcGeneral } from "../../cards/sets/drk/red";
+import { fallenAngel } from "../../cards/sets/leg/black";
 import {
     makeInstance,
     makePlayer,
@@ -630,5 +632,64 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
         expect(state.players[0].graveyard.some((c) => c.id === "grunt-1")).toBe(
             true
         );
+    });
+});
+
+// Issue #2297 — the BOT stops naming a self-defeating victim, but the SERVER's
+// legality is untouched. A bare "Sacrifice a creature:" cost does not say
+// "another" (CR 109.2), so the source stays a legal victim of its own ability
+// and a human may still name it. These two are the counterweight to the
+// bot-side prune in `gre/ai/sourceConfinedBenefit.ts`: if the guard were ever
+// pushed down into `buildActivationSacrificeSelection` — the one function
+// `game.ts` imports from this module — they go red.
+describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 / 118.5, issue #2297)', () => {
+    it("offers the source among the sacrifice candidates alongside another creature", () => {
+        const angel = makeInstance(fallenAngel.id, { id: "angel-1" });
+        const bears = makeInstance(grizzlyBears.id, { id: "bears-1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [angel, bears] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Through the REAL production lowering — the one function `game.ts`
+        // imports from `activationCostPicks.ts` — not this file's mutation
+        // mirror, which re-implements it and would keep passing if the
+        // production one grew a source exclusion.
+        const selection = buildActivationSacrificeSelection(
+            state,
+            fallenAngel.activatedAbilities![0],
+            state.players[0].battlefield.find((c) => c.id === "angel-1")!,
+            state.players[0],
+            fallenAngel.name
+        )!;
+        expect(
+            sacrificeCandidates(state, "p1", selection.requirements[0].filter)
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(["angel-1", "bears-1"]);
+        // A real choice, so the server defers to the player rather than
+        // auto-resolving one of them (`autoResolveFungible`).
+        expect(selection.picked).toEqual([]);
+    });
+
+    it("accepts the source as the named victim and sacrifices it", () => {
+        const angel = makeInstance(fallenAngel.id, { id: "angel-1" });
+        const bears = makeInstance(grizzlyBears.id, { id: "bears-1" });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1", { battlefield: [angel, bears] }),
+                makePlayer("p2"),
+            ],
+        });
+        activateWithSacrificeCost(state, "p1", "angel-1", "fallen-angel-feast");
+        selectActivationCost(state, "p1", "angel-1");
+        expect(state.players[0].graveyard.some((c) => c.id === "angel-1")).toBe(
+            true
+        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "bears-1")
+        ).toBe(true);
     });
 });
