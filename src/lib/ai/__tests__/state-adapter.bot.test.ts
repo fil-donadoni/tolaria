@@ -289,9 +289,10 @@ describe("projectedToGameState — known-card overlay preserves the deck multise
     }
 
     const OWN_DECK = { playerId: "bot", cardIds: [MOUNTAIN, FOREST, ISLAND] };
+    const DECK_KNOWLEDGE = [OWN_DECK];
 
     const libIds = (state: PublicGameState) =>
-        projectedToGameState(state, OWN_DECK)
+        projectedToGameState(state, DECK_KNOWLEDGE)
             .players.find((p) => p.id === "bot")!
             .library.map((c) => c.card.id);
 

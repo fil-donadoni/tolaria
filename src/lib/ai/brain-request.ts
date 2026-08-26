@@ -16,7 +16,7 @@ import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
 import { projectedToGameState } from "./state-adapter";
-import type { OwnDeckList } from "./state-adapter";
+import type { DeckKnowledgeBySeat } from "./state-adapter";
 
 export type BrainRequest = {
     id: number;
@@ -25,10 +25,12 @@ export type BrainRequest = {
     /** Difficulty-scaled search budget (issue #114). Plain numbers only, so it
      *  survives the structured-clone `postMessage` hop. Omitted → default. */
     budget?: SearchBudget;
-    /** The bot's own decklist (issue #1509) — plain arrays/strings, so it
-     *  survives the structured-clone `postMessage` hop. Wires real card
-     *  identities into the bot's simulated library. Omitted → placeholders. */
-    ownDeck?: OwnDeckList;
+    /** Deck knowledge, per seat (issue #1509, generalised per-seat by #2788) —
+     *  plain arrays/strings, so it survives the structured-clone `postMessage`
+     *  hop. Wires real card identities into a named seat's simulated library.
+     *  A seat absent here stays blind (placeholders); omitted entirely, every
+     *  seat is blind. */
+    deckKnowledge?: DeckKnowledgeBySeat;
     /** Per-decision seed. Drawn by the CALLER so the handler stays pure and a
      *  test can pin the search; omitted, the handler draws one itself (the
      *  bot must still vary between equally-good lines across decisions). */
@@ -76,11 +78,11 @@ export function handleBrainRequest(
     req: BrainRequest,
     search: typeof searchWithTrace = searchWithTrace
 ): BrainResponse {
-    const { id, state, botId, budget, ownDeck } = req;
+    const { id, state, botId, budget, deckKnowledge } = req;
     const seed = req.seed ?? (Math.random() * 0x100000000) | 0;
     try {
         const { move, trace } = search(
-            projectedToGameState(state, ownDeck),
+            projectedToGameState(state, deckKnowledge),
             botId,
             budget ?? DEFAULT_BUDGET,
             seed
