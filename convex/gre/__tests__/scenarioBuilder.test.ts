@@ -22,8 +22,8 @@ import { forest } from "../../cards/sets/lea/colorless";
 import { fear } from "../../cards/sets/lea/black";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
-import { projectPublicState } from "../../gameProjections";
-import type { GameState } from "../state";
+import { projectFullState, projectPublicState } from "../../gameProjections";
+import type { GameState, PendingChoice } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
@@ -1046,5 +1046,155 @@ describe("specFromState (issue #2148)", () => {
         expect(
             dropped.some((d) => d.includes("abilitiesSuppressedBy a source"))
         ).toBe(false);
+    });
+
+    // Review finding on issue #2148/PR #2866, round 2 (low severity): the
+    // three `granted*` arrays are `auraId`-keyed exactly like
+    // `removedKeywords`/`abilitiesSuppressedBy` are `sourceId`-keyed — a
+    // dangling `auraId` (its aura has left both battlefields) is the same
+    // un-replayable shape `reportDanglingStripperResidue` already catches
+    // for the stripper arrays, one field over.
+    it("reports grantedStaticAbilities/grantedActivatedAbilities/grantedTriggeredAbilities sourced from an aura that has already left the battlefield (dangling auraId)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        const bear = state.players[0].battlefield[0];
+        // No permanent on either battlefield has this id — simulates an aura
+        // that has since left play, the one shape `applySourceStaticEffects`
+        // cannot replay on reload.
+        bear.grantedStaticAbilities = [
+            { ability: "flying", auraId: "gone-forever" },
+        ];
+        bear.grantedActivatedAbilities = [
+            {
+                sourceCardId: fear.id,
+                abilityId: "a1",
+                auraId: "gone-forever",
+            },
+        ];
+        bear.grantedTriggeredAbilities = [
+            {
+                sourceCardId: fear.id,
+                abilityId: "t1",
+                auraId: "gone-forever",
+            },
+        ];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        for (const field of [
+            "grantedStaticAbilities",
+            "grantedActivatedAbilities",
+            "grantedTriggeredAbilities",
+        ]) {
+            expect(
+                dropped.some(
+                    (d) =>
+                        d.includes(field) &&
+                        d.includes("no longer on either battlefield")
+                )
+            ).toBe(true);
+        }
+    });
+
+    it("does NOT flag grantedStaticAbilities/grantedActivatedAbilities/grantedTriggeredAbilities sourced from a still-present battlefield aura — applySourceStaticEffects re-derives it on reload (no false positive)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                { name: shivanDragon.name, owner: "me" },
+            ],
+        });
+        const [bear, dragon] = state.players[0].battlefield;
+        bear.grantedStaticAbilities = [
+            { ability: "flying", auraId: dragon.id },
+        ];
+        bear.grantedActivatedAbilities = [
+            { sourceCardId: fear.id, abilityId: "a1", auraId: dragon.id },
+        ];
+        bear.grantedTriggeredAbilities = [
+            { sourceCardId: fear.id, abilityId: "t1", auraId: dragon.id },
+        ];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        for (const field of [
+            "grantedStaticAbilities",
+            "grantedActivatedAbilities",
+            "grantedTriggeredAbilities",
+        ]) {
+            expect(
+                dropped.some(
+                    (d) =>
+                        d.includes(field) &&
+                        d.includes("no longer on either battlefield")
+                )
+            ).toBe(false);
+        }
+    });
+
+    // Review finding on issue #2148/PR #2866, round 2: the round-1 allowlist
+    // fix was correct in isolation but broke the ONLY production consumer —
+    // `debug-copy-scenario.tsx` never calls `specFromState` on a raw engine
+    // `GameState`; it feeds it `getFullState`'s `projectFullState` result
+    // (`FullGameState`), which adds a non-optional top-level `seq` that
+    // `GAME_STATE_ALLOWLIST` didn't know about. A test built on a hand-built
+    // `GameState` (every other test in this file) cannot see that class of
+    // bug — it has to cross the real projection boundary, per
+    // `.claude/rules/gre-development.md` § Proof-of-failure / SURFACE
+    // assertions.
+    it("reports nothing dropped for a clean position bridged through the REAL production path — projectFullState, not a hand-built GameState", () => {
+        const { state } = buildComprehensiveState();
+        const mySeatId = state.players[0].id;
+
+        const projected = projectFullState(state, 42);
+
+        const { dropped } = specFromState(projected as unknown as GameState, {
+            mySeatId,
+        });
+
+        expect(dropped).toEqual([]);
+    });
+
+    it("does not report the live-choice wire-projection fields (librarySearch/libraryPeek/revealedHand) as dropped while a search-library choice is on the stack", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        const me = state.players[0];
+        state.pendingChoices = [
+            {
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: "c1",
+                playerId: me.id,
+                kind: "search-library",
+                zone: "library",
+                zoneOwnerId: me.id,
+                count: 1,
+                prompt: "Search your library for a card.",
+            } as PendingChoice,
+        ];
+
+        const projected = projectFullState(state, 1);
+        // Sanity: the choice really did expose the library face-up on the
+        // wire, so this test is exercising the field it claims to.
+        expect(projected.players[0].librarySearch).toBeDefined();
+
+        const { dropped } = specFromState(projected as unknown as GameState, {
+            mySeatId: me.id,
+        });
+
+        for (const field of ["librarySearch", "libraryPeek", "revealedHand"]) {
+            expect(dropped.some((d) => d.includes(field))).toBe(false);
+        }
+        // The choice itself is genuinely unlowerable and SHOULD still be
+        // reported — this test only guards against the spurious extra.
+        expect(dropped.some((d) => d.startsWith("pendingChoices:"))).toBe(true);
     });
 });

@@ -816,12 +816,17 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
 /** The three `key -> template` grant arrays (`grantedStaticAbilities`,
  *  `grantedActivatedAbilities`, `grantedTriggeredAbilities`) are allowlisted
  *  wholesale (rebuild behaviour — see `CARD_STATE_ALLOWLIST`'s comment) for
- *  the common CONTINUOUS case (`auraId`-sourced, or no duration at all — a
- *  lord/anthem still on the battlefield). The one shape that ISN'T
- *  re-derived is a `duration`-scoped entry: a ONE-SHOT resolved effect's
- *  "gains flying until end of turn" grant, which has no source permanent for
- *  `applySourceStaticEffects` to replay. */
+ *  the common CONTINUOUS case: `auraId`-sourced WITH the aura still on
+ *  either battlefield, or no `duration`/`auraId` at all (a lord/anthem still
+ *  on the battlefield). Two shapes AREN'T re-derived — the same source-keyed
+ *  escape as `reportDanglingStripperResidue` one field over (CR 611.2,
+ *  issue #2148 review finding on #2866): a `duration`-scoped entry — a
+ *  ONE-SHOT resolved effect's "gains flying until end of turn" grant, which
+ *  has no source permanent for `applySourceStaticEffects` to replay — and an
+ *  `auraId`-scoped entry whose aura has since left BOTH battlefields, which
+ *  leaves `applySourceStaticEffects` nothing to walk on reload either. */
 function reportTemporaryGrantResidue(
+    state: GameState,
     card: CardInstanceState,
     label: string,
     dropped: string[]
@@ -832,10 +837,23 @@ function reportTemporaryGrantResidue(
         "grantedTriggeredAbilities",
     ] as const;
     for (const field of fields) {
-        const grants = card[field] as { duration?: unknown }[] | undefined;
+        const grants = card[field] as
+            | { duration?: unknown; auraId?: string }[]
+            | undefined;
         if (grants?.some((g) => g.duration !== undefined)) {
             dropped.push(
                 `${label}: a temporary (until-end-of-turn) ${field} entry — not spec-expressible, dropped`
+            );
+        }
+        if (
+            grants?.some(
+                (g) =>
+                    g.auraId !== undefined &&
+                    !sourceStillOnBattlefield(state, g.auraId)
+            )
+        ) {
+            dropped.push(
+                `${label}: ${field} sourced from an aura no longer on either battlefield — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
             );
         }
     }
@@ -903,7 +921,7 @@ function reportCardResidue(
     label: string,
     dropped: string[]
 ): void {
-    reportTemporaryGrantResidue(card, label, dropped);
+    reportTemporaryGrantResidue(state, card, label, dropped);
     reportDanglingStripperResidue(state, card, label, dropped);
     const extra = Object.keys(card).filter(
         (key) =>
@@ -1024,7 +1042,15 @@ function zoneCards(
  *  than restore from spec data (id/seq allocators, the `expectedInput`
  *  cache — ADR 0047 — and `mulligan`, which describes the RELOAD TARGET
  *  game, not the position being captured; mirrors `enteredOnTurn`/
- *  `chosenPlayerId` in `CARD_STATE_ALLOWLIST`'s own three-way split).
+ *  `chosenPlayerId` in `CARD_STATE_ALLOWLIST`'s own three-way split), PLUS
+ *  the wire-projection-only addition present when the caller bridges a
+ *  PROJECTED client state (`FullGameState`) into this function instead of a
+ *  raw engine `GameState` (`debug-copy-scenario.tsx` — the only production
+ *  caller feeds `getFullState`'s `projectFullState` result, never a raw
+ *  engine state) — never real engine state, so never "dropped" (issue #2866
+ *  review finding: the field appeared in `dropped` on every real click,
+ *  since `GAME_STATE_ALLOWLIST` had no such section though
+ *  `CARD_STATE_ALLOWLIST` already does, mirrored below).
  *
  *  Before this allowlist existed the field-by-field checks below were the
  *  ONLY thing standing between a new `GameState` field and silent data
@@ -1077,12 +1103,18 @@ const GAME_STATE_ALLOWLIST = new Set<string>([
     "nextInstanceId",
     "pendingEvents",
     "expectedInput",
+    // Wire-projection-only addition — see this Set's doc comment.
+    "seq",
 ]);
 
 /** `PlayerState` fields already accounted for elsewhere in `specFromState` —
- *  see `GAME_STATE_ALLOWLIST`'s doc for the same three-way split. `name`/
- *  `bgColor` describe the RELOAD TARGET game's own player record, not the
- *  captured position. */
+ *  see `GAME_STATE_ALLOWLIST`'s doc for the same three-way split, INCLUDING
+ *  its wire-projection-only tail: `FullPlayer` (`gameProjections.ts`) adds
+ *  `librarySearch`/`libraryPeek`/`revealedHand` while a search/peek/reveal
+ *  choice is live (undefined otherwise, so harmless then — spurious in
+ *  `dropped` the moment one of those choices is on the stack when the
+ *  projected state is bridged in). `name`/`bgColor` describe the RELOAD
+ *  TARGET game's own player record, not the captured position. */
 const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "id",
     "name",
@@ -1099,6 +1131,10 @@ const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "experienceCounters",
     "companion",
     "lastDrawnCardId",
+    // Wire-projection-only additions — see this Set's doc comment.
+    "librarySearch",
+    "libraryPeek",
+    "revealedHand",
 ]);
 
 /** Generic "top-level state residue" detector for `GameState`, the same
