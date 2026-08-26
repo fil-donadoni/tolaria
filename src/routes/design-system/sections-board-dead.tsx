@@ -26,11 +26,15 @@ export function BoardDeadSections() {
                 blurb="Board-only chrome atoms: preview dock glow, arrival glow, minimized-choice pill, nameplate mini-brackets, controller cue dots. Mostly token-clean already; cue dots + nameplate brackets migrate to signal/accent tokens."
             >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <Specimen label="card-preview-dock glow" tone="plain">
-                        <div className="card-preview-dock w-fit card-corner">
+                    <Specimen
+                        label="card-preview-dock (retired glow, v4 hairline)"
+                        tone="plain"
+                        note="the gold accent glow is gone (ADR 0103 §5, issue #2728) — panel-physical + hairline now"
+                    >
+                        <div className="card-preview-dock panel-physical hairline w-fit rounded-[var(--panel-radius)]">
                             <MockCard label="Preview dock" />
                         </div>
-                        <Where>index.css .card-preview-dock (#332)</Where>
+                        <Where>index.css .card-preview-dock (#332 → v4)</Where>
                     </Specimen>
                     <Specimen
                         label="arrival glow (phase 1)"

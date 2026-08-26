@@ -4,8 +4,12 @@
 // instance/context. This suite pins the ORIGINAL-face contract: a printed
 // snapshot independent of any live-instance overrides.
 import { describe, it, expect } from "vitest";
-import { getCardByName } from "@convex/cards";
-import { buildPreviewBody, buildEmblemPreviewBody } from "~/lib/preview-body";
+import { getCardByName, tryGetDefinition } from "@convex/cards";
+import {
+    buildPreviewBody,
+    buildEmblemPreviewBody,
+    computeEngineViewBadge,
+} from "~/lib/preview-body";
 import type { CardInstance } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 
@@ -377,5 +381,81 @@ describe("buildPreviewBody — chosen card name in the live oracle text", () => 
     it("leaves the printed text alone before a name is chosen (CR 400.7 — a reanimated Mage has none)", () => {
         const body = buildPreviewBody(MEDDLING_MAGE.id, mage());
         expect(body.oracleParagraphs?.some((p) => p.includes("("))).toBe(false);
+    });
+});
+
+// ADR 0103 §9 / issue #2728 — the Card Preview's Engine View slot reads how
+// the ENGINE implements a card's effect straight off the real
+// `CardDefinition` (never a projected/wire field — `projectPublicState`
+// never touches `CardDefinition`, and `tryGetDefinition` is a client-side
+// registry lookup, ADR 0045/0046).
+describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
+    it("reads DSL with an Op count for a scripted spell (Lightning Bolt — one dealDamage Op)", () => {
+        const def = tryGetDefinition(getCardByName("Lightning Bolt").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({
+            kind: "dsl",
+            opCount: 1,
+        });
+    });
+
+    it("reads protocol for a hand-written resolve() card (Word of Command)", () => {
+        const def = tryGetDefinition(getCardByName("Word of Command").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({ kind: "protocol" });
+    });
+
+    it("reads DSL with a ZERO Op count for a French-vanilla creature with no scripted effect (Grizzly Bears)", () => {
+        const def = tryGetDefinition(getCardByName("Grizzly Bears").id)!;
+        expect(computeEngineViewBadge(def)).toEqual({
+            kind: "dsl",
+            opCount: 0,
+        });
+    });
+
+    it("counts Ops nested under the `if` structural construct's then/else branches", () => {
+        const def = tryGetDefinition(getCardByName("Lightning Bolt").id)!;
+        const scripted = {
+            ...def,
+            effects: [
+                {
+                    op: "if" as const,
+                    predicate: { kind: "always" } as never,
+                    then: [
+                        { op: "draw", count: 1, player: "controller" } as never,
+                    ],
+                    else: [
+                        {
+                            op: "loseLife",
+                            amount: 1,
+                            player: "controller",
+                        } as never,
+                    ],
+                },
+            ],
+        };
+        // The `if` itself + one Op in `then` + one Op in `else` = 3.
+        expect(computeEngineViewBadge(scripted)).toEqual({
+            kind: "dsl",
+            opCount: 3,
+        });
+    });
+});
+
+// `buildPreviewBody` wires the badge onto `PreviewBodyContent.engineView` for
+// every real definition, and reports `null` — never a stale/misleading badge
+// — when there is no `CardDefinition` to read at all.
+describe("buildPreviewBody — engineView field (issue #2728)", () => {
+    it("carries the DSL badge for a scripted card", () => {
+        const body = buildPreviewBody(getCardByName("Lightning Bolt").id);
+        expect(body.engineView).toEqual({ kind: "dsl", opCount: 1 });
+    });
+
+    it("carries the protocol badge for a resolve() card", () => {
+        const body = buildPreviewBody(getCardByName("Word of Command").id);
+        expect(body.engineView).toEqual({ kind: "protocol" });
+    });
+
+    it("is null when the definition id doesn't resolve (no CardDefinition to read)", () => {
+        const body = buildPreviewBody("no-such-definition-id");
+        expect(body.engineView).toBeNull();
     });
 });

@@ -423,7 +423,13 @@ export default function CardPreview({
                             // already the 100dvh viewport, so this box need
                             // only cap itself at that same height, not a
                             // fraction smaller than it.
-                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[100dvh] max-w-[90vw]"
+                            //
+                            // v4 panel material (ADR 0103 §5, issue #2728):
+                            // hairline edge + `.panel-physical` (flat surface,
+                            // one top-light gradient, soft elevation shadow)
+                            // instead of the v3 opaque `bg-surface shadow-2xl`
+                            // — no corner brackets, no glow.
+                            className="panel-physical hairline flex flex-col rounded-[var(--panel-radius)] overflow-hidden max-h-[100dvh] max-w-[90vw]"
                             style={{ width: OVERLAY_WIDTH * overlayFactor }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
@@ -450,6 +456,10 @@ export default function CardPreview({
                     onImageLoaded={() => setImgLoaded(true)}
                     onPointerEnter={cancelHoverClose}
                     onPointerLeave={scheduleHoverClose}
+                    // Desktop lateral zoom (ADR 0103 issue body, issue
+                    // #2728): compact badge + "Alt: engine view" hint, not
+                    // the full slot — the dock has no room for the tree well.
+                    compactEngineView
                 />
             )}
             {/* Desktop quick-click preview: anchored beside the card, board and

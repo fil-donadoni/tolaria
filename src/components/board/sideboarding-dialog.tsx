@@ -250,7 +250,7 @@ export default function SideboardingDialog({
                         screens. */}
                     <div className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block">
                         {hoveredBody ? (
-                            <div className="card-preview-dock overflow-hidden rounded-2xl bg-surface">
+                            <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
                                 <CardPreviewBody {...hoveredBody} size="sm" />
                             </div>
                         ) : (

@@ -24,7 +24,11 @@ import {
     type Milestone,
 } from "~/lib/graveyard-milestones";
 import type { CardInstance, Player } from "~/types/game";
-import type { EmblemInstance } from "@convex/cards/types";
+import type {
+    CardDefinition,
+    EffectOp,
+    EmblemInstance,
+} from "@convex/cards/types";
 
 // The visual content of one card-preview face — the shape consumed by
 // `CardPreviewFace` and, through it, the three preview surfaces (anchored dock,
@@ -95,7 +99,96 @@ export type PreviewBodyContent = {
      *  no game context at all (the ORIGINAL face of a copy, emblems,
      *  designations). */
     isManualGame: boolean;
+    /** How the ENGINE implements this card's effect (ADR 0103 §9, issue
+     *  #2728) — drives the Card Preview's "Engine view" slot, which #2704
+     *  fills with the real keyword/target/effect tree; until then the slot
+     *  renders only this badge. `null` when there is no `CardDefinition` to
+     *  read (an emblem/designation face, or a definition-less id) — the slot
+     *  renders nothing rather than a misleading badge. Optional (not just
+     *  nullable) so existing hand-built `PreviewBodyContent` fixtures
+     *  predating this field keep compiling unchanged. */
+    engineView?: EngineViewBadge | null;
 };
+
+/** How the engine implements a card's effect, read off the real
+ *  `CardDefinition` — never a projected/wire field. `tryGetDefinition` is a
+ *  client-side registry lookup (`convex/cards/registry.ts`) and
+ *  `projectPublicState` never touches `CardDefinition`, so this is safe to
+ *  compute purely client-side (ADR 0045/0046, issue #2728). */
+export type EngineViewBadge =
+    | { kind: "protocol" }
+    | { kind: "dsl"; opCount: number };
+
+/** True when ANY resolution body on `def` is hand-written (`resolve()` /
+ *  `resolveSteps`) rather than an Effect Script — the DSL-first escape hatch
+ *  a card earns only with a recorded justification (ADR 0045). Walks every
+ *  site a resolution body can live: the card itself, a modal spell's modes,
+ *  every triggered/activated ability (and ITS modes), and the legacy
+ *  template-based delayed triggers (`DelayedTriggerDef`, CR 603.7a) — the
+ *  full census of `resolve`/`resolveSteps` producers in `CardDefinition`
+ *  (`convex/cards/types.ts`). */
+function hasProtocolResolve(def: CardDefinition): boolean {
+    const hasBody = (owner?: {
+        resolve?: unknown;
+        resolveSteps?: unknown[];
+    }): boolean =>
+        typeof owner?.resolve === "function" ||
+        (Array.isArray(owner?.resolveSteps) && owner.resolveSteps.length > 0);
+
+    if (hasBody(def)) return true;
+    if (def.modes?.some((m) => hasBody(m))) return true;
+    for (const ability of [
+        ...(def.triggeredAbilities ?? []),
+        ...(def.activatedAbilities ?? []),
+    ]) {
+        if (hasBody(ability)) return true;
+        if (ability.modes?.some((m) => hasBody(m))) return true;
+    }
+    if (def.delayedTriggers?.some((t) => hasBody(t))) return true;
+    return false;
+}
+
+/** Counts Effect Script Ops, walking every structural nesting shape the DSL
+ *  admits (ADR 0045/0046): a plain list, `if`'s `then`/`else` branches, and
+ *  the inline bodies of `forEach` / `delayedTrigger` / `reflexiveTrigger` —
+ *  all keyed `effects` (`convex/cards/types.ts`). A presence count, not the
+ *  interpreter-coverage `n/n` the real Engine View tree (#2704) computes. */
+function countEffectOps(effects: readonly EffectOp[] | undefined): number {
+    if (!effects) return 0;
+    let count = 0;
+    for (const op of effects) {
+        count += 1;
+        const nested = op as unknown as {
+            effects?: EffectOp[];
+            then?: EffectOp[];
+            else?: EffectOp[];
+        };
+        count += countEffectOps(nested.effects);
+        count += countEffectOps(nested.then);
+        count += countEffectOps(nested.else);
+    }
+    return count;
+}
+
+/** Reads the DSL/protocol badge straight off the real `CardDefinition` (see
+ *  {@link EngineViewBadge}). */
+export function computeEngineViewBadge(def: CardDefinition): EngineViewBadge {
+    if (hasProtocolResolve(def)) return { kind: "protocol" };
+    let opCount = def.effect ? 1 : 0;
+    opCount += countEffectOps(def.effects);
+    for (const mode of def.modes ?? []) opCount += countEffectOps(mode.effects);
+    for (const ability of [
+        ...(def.triggeredAbilities ?? []),
+        ...(def.activatedAbilities ?? []),
+    ]) {
+        opCount += countEffectOps(ability.effects);
+        for (const mode of ability.modes ?? [])
+            opCount += countEffectOps(mode.effects);
+    }
+    for (const t of def.delayedTriggers ?? [])
+        opCount += countEffectOps(t.effects);
+    return { kind: "dsl", opCount };
+}
 
 // Only the fields of the game context that a preview face reads. Accepting a
 // structural subset keeps this pure-ish builder decoupled from the full
@@ -273,6 +366,7 @@ export function buildPreviewBody(
         skipNextUntap: !!cardInstance?.skipNextUntap,
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
+        engineView: def ? computeEngineViewBadge(def) : null,
     };
 }
 

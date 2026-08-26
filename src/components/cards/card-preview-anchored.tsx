@@ -102,7 +102,10 @@ export default function CardPreviewAnchored({
             // so its events must be isolated or the card's context menu / tap
             // fires from inside the preview area.
             {...previewSurfaceIsolationProps}
-            className="pointer-events-auto fixed z-modal flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
+            // v4 panel material (ADR 0103 §5, issue #2728): hairline edge +
+            // `.panel-physical` instead of the v3 opaque `bg-surface
+            // shadow-2xl` — no corner brackets, no glow.
+            className="panel-physical hairline pointer-events-auto fixed z-modal flex flex-col rounded-[var(--panel-radius)] overflow-hidden"
             style={{
                 top: position.top,
                 left: position.left,

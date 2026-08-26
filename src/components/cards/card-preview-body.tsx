@@ -22,6 +22,10 @@ export type CardPreviewBodyProps = PreviewBodyContent & {
     originalBody?: PreviewBodyContent | null;
     /** Render a `Copy` badge on the single face (spell copy on the stack). */
     showCopyBadge?: boolean;
+    /** Forwarded to `CardPreviewFace` — the desktop lateral zoom
+     *  (`CardPreviewDock`) renders the Engine View slot compact (issue
+     *  #2728); every other host omits it for the full slot. */
+    compactEngineView?: boolean;
 };
 
 const LABEL_CLASS =
@@ -33,6 +37,7 @@ export default function CardPreviewBody({
     imageLoaded,
     originalBody,
     showCopyBadge,
+    compactEngineView,
     ...content
 }: CardPreviewBodyProps) {
     // Seeded from the user's saved Settings default (issue #2595,
@@ -64,11 +69,16 @@ export default function CardPreviewBody({
                         size={size}
                         onImageLoaded={onImageLoaded}
                         imageLoaded={imageLoaded}
+                        compactEngineView={compactEngineView}
                     />
                 </div>
                 <div className="flex flex-1 min-w-0 flex-col">
                     <div className={LABEL_CLASS}>Original</div>
-                    <CardPreviewFace {...originalBody} size={size} />
+                    <CardPreviewFace
+                        {...originalBody}
+                        size={size}
+                        compactEngineView={compactEngineView}
+                    />
                 </div>
             </div>
         );
@@ -114,6 +124,7 @@ export default function CardPreviewBody({
                 size={size}
                 onImageLoaded={onImageLoaded}
                 imageLoaded={imageLoaded}
+                compactEngineView={compactEngineView}
             />
         </>
     );
