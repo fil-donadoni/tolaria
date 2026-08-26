@@ -9,6 +9,7 @@
 // within 100dvh is the five-viewport probe's job, not this file's.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
+import { getCardByName } from "@convex/cards";
 import InspectOverlay from "../inspect-overlay";
 import type { EditingSurfaceAction } from "../editing-surface-action";
 
@@ -252,6 +253,60 @@ describe("InspectOverlay (issue #2583)", () => {
             document.querySelector('[aria-label="Close inspect overlay"]')!
         );
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ADR 0103 §9 / issue #2728 — the Engine View slot renders the DSL/protocol
+// badge read off the real `CardDefinition`, in EVERY orientation, without
+// disturbing this component's own real guard: the 100dvh cap (test above)
+// is a STATIC style declaration, and the slot lands inside the content
+// region's own `overflow-y-auto` (stacked) / split text column (landscape,
+// already `flex-1 min-h-0 overflow-y-auto`) — so more content there scrolls
+// instead of growing the panel.
+describe("InspectOverlay — Engine View slot (issue #2728)", () => {
+    const LIGHTNING_BOLT_ID = getCardByName("Lightning Bolt").id;
+
+    beforeEach(() => stubViewport("portrait"));
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+    });
+
+    it("renders the full slot (eyebrow + DSL badge + empty tree well) for a resolvable card", () => {
+        renderOverlay({ cardId: LIGHTNING_BOLT_ID });
+        expect(content().textContent).toContain("Engine view");
+        expect(content().textContent).toContain("DSL");
+        expect(
+            content().querySelector("[data-engine-view-slot]")
+        ).not.toBeNull();
+        expect(
+            content().querySelector("[data-engine-view-tree]")
+        ).not.toBeNull();
+    });
+
+    it("renders nothing for an identity with no CardDefinition (the default fixture id, 'bolt')", () => {
+        renderOverlay();
+        expect(content().textContent).not.toContain("Engine view");
+        expect(content().querySelector("[data-engine-view-slot]")).toBeNull();
+    });
+
+    it("does not perturb the 100dvh cap — the panel's cap is a fixed declaration, unaffected by whether the badge renders", () => {
+        renderOverlay({ cardId: LIGHTNING_BOLT_ID });
+        expect(panel().style.maxHeight).toBe("calc(100dvh - 1.5rem)");
+    });
+
+    it("in landscape (split), the badge lands in the SAME scrolling text column as the oracle text — the split layout is unchanged", () => {
+        stubViewport("landscape");
+        renderOverlay({ cardId: LIGHTNING_BOLT_ID });
+        expect(content().dataset.inspectContent).toBe("split");
+        const slot = content().querySelector(
+            "[data-engine-view-slot]"
+        ) as HTMLElement;
+        expect(slot).not.toBeNull();
+        // The split text column is `flex-1 min-h-0 overflow-y-auto`
+        // (`card-preview-face.tsx`) — the slot is a descendant of it, not a
+        // sibling that could grow the panel independently.
+        expect(slot.closest(".overflow-y-auto")).not.toBeNull();
     });
 });
 

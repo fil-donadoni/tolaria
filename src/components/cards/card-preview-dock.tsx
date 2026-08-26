@@ -65,7 +65,7 @@ export default function CardPreviewDock({
                 body was unclickable, so the printed scan was unreachable on
                 desktop. Hovering the panel holds it open (see handlers). */}
             <div
-                className="card-preview-dock pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-2xl bg-surface"
+                className="card-preview-dock panel-physical hairline pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-[var(--panel-radius)]"
                 style={{ width }}
                 // Portal'd, but still a REACT descendant of the card instance:
                 // isolate its events so the card's context menu / tap only ever

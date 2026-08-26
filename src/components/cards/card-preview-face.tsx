@@ -5,6 +5,7 @@ import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardPreviewAbilities from "./card-preview-abilities";
 import CardPreviewCounters from "./card-preview-counters";
+import CardPreviewEngineView from "./card-preview-engine-view";
 import CardPreviewNotedMana from "./card-preview-noted-mana";
 import OracleParagraph from "./oracle-paragraph";
 import type { PreviewBodyContent } from "~/lib/preview-body";
@@ -31,6 +32,12 @@ export type CardPreviewFaceProps = PreviewBodyContent & {
      *  between the two halves — oracle paragraphs, P/T, counters, noted mana,
      *  owner — is identical; only the two wrappers' classes differ. */
     layout?: "stacked" | "split";
+    /** Render the Engine View slot (`engineView`) in its COMPACT form — the
+     *  desktop lateral zoom (`CardPreviewDock`, ADR 0103 issue #2728): a
+     *  badge chip and an "Alt: engine view" hint, no header/tree well. Every
+     *  other host (mobile overlay, anchored pin, `InspectOverlay`) renders
+     *  the full slot by omitting this. */
+    compactEngineView?: boolean;
 };
 
 export default function CardPreviewFace({
@@ -59,10 +66,12 @@ export default function CardPreviewFace({
     attachedToName,
     skipNextUntap,
     milestones,
+    engineView,
     size,
     onImageLoaded,
     imageLoaded = true,
     layout = "stacked",
+    compactEngineView = false,
 }: CardPreviewFaceProps) {
     const split = layout === "split";
     const compact = size === "sm";
@@ -182,6 +191,10 @@ export default function CardPreviewFace({
                     </div>
                 )}
                 {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
+                <CardPreviewEngineView
+                    badge={engineView}
+                    compact={compactEngineView}
+                />
                 {hasPT && (
                     <div
                         className={`text-right font-semibold ${ptSize} border-t border-border-subtle pt-2 flex justify-end items-baseline gap-2`}

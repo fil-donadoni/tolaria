@@ -896,17 +896,15 @@
             0 2px 6px -2px rgb(0 0 0 / 0.6);
     }
 
-    /* Card preview dock glow (#332, Antique Bronze): a board-coherent gold
-       accent glow instead of the old off-theme gray `shadow-2xl` + no border.
-       Three layers: a soft inner accent ring (NOT a hard border), the outer gold
-       glow, and a depth drop shadow. No emerald/rose — those belong to the
-       controller pod's turn indicator. */
-    .card-preview-dock {
-        box-shadow:
-            0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent),
-            0 0 30px color-mix(in srgb, var(--color-accent) 32%, transparent),
-            0 22px 50px rgba(0, 0, 0, 0.6);
-    }
+    /* Card preview dock (#332 → v4, ADR 0103 §5, issue #2728): was a
+       board-coherent GOLD accent glow (inner ring + outer glow + drop
+       shadow) — an outer glow is a `signal-*` ring's job (ADR 0103 §8), not
+       a panel's, so on the quiet-chrome ground it read as a stray highlight
+       around the one panel that happened to keep its v3 rule. The class
+       stays (JS/test marker + positioning host, `card-preview-dock.tsx`);
+       the material itself is now `.panel-physical` + `.hairline` on the
+       element, same as every other v4 panel — nothing extra to declare
+       here. */
 
     /* Header band (v4, ADR 0103 §5): the engraved strip loses its gold
        gradient and its gold bottom border — the band is now the same surface

@@ -250,8 +250,18 @@ export default function SideboardingDialog({
                         screens. */}
                     <div className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block">
                         {hoveredBody ? (
-                            <div className="card-preview-dock overflow-hidden rounded-2xl bg-surface">
-                                <CardPreviewBody {...hoveredBody} size="sm" />
+                            <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
+                                {/* Engine View slot compact (issue #2728):
+                                    this column is 224px wide (`w-56`) — the
+                                    full slot's eyebrow header + tree well
+                                    belongs to the roomy surfaces (mobile
+                                    overlay, anchored pin, InspectOverlay),
+                                    not here. */}
+                                <CardPreviewBody
+                                    {...hoveredBody}
+                                    size="sm"
+                                    compactEngineView
+                                />
                             </div>
                         ) : (
                             <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">

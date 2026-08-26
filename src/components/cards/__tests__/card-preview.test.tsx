@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { getCardByName } from "@convex/cards";
 import CardPreview, { HOVER_DWELL_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
 import { GameContext } from "~/hooks/useGameContext";
@@ -766,5 +767,89 @@ describe("CardPreview — Arena click model (#332)", () => {
 
             expect(anchored()).toBeNull();
         });
+    });
+});
+
+// ADR 0103 §9 / issue #2728 — the Engine View slot, per SURFACE.
+//
+// Round-1 review finding 3: deleting the `compactEngineView` prop from
+// `<CardPreviewDock>` left `src/components/cards` and `src/components/editing`
+// fully green, so the compact-vs-full wiring — the issue's own "lateral zoom
+// carries an 'Alt: engine view' affordance" — had zero coverage, and neither
+// the mobile long-press overlay nor the anchored pin had a through-the-surface
+// assertion that it renders the FULL slot. `scripts/ui-gate/budgets.json` has
+// no dedicated walk for any of them either, so these dom assertions are the
+// only net. They render a REAL card id so the badge comes off the real
+// `CardDefinition` through `buildPreviewBody`, not off a hand-built body.
+describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
+    const BOLT_ID = getCardByName("Lightning Bolt").id;
+
+    function renderRealCardOnBoard() {
+        return render(
+            <GameContext value={GAME_CTX}>
+                <CardPreview cardId={BOLT_ID} cardName="Lightning Bolt">
+                    <div>face</div>
+                </CardPreview>
+            </GameContext>
+        );
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        resetPreviewSingleton();
+    });
+    afterEach(() => {
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
+        cleanup();
+    });
+
+    it("the desktop lateral zoom (hover dock) renders the COMPACT form — badge + hint, no header, no tree well", () => {
+        const { container } = renderRealCardOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+        hoverEnter(root);
+        dwellPast();
+
+        const panel = dock()!;
+        expect(panel).toBeTruthy();
+        expect(panel.textContent).toContain("Alt: engine view");
+        expect(panel.textContent).toContain("DSL");
+        expect(panel.querySelector("[data-engine-view-slot]")).toBeNull();
+        expect(panel.querySelector("[data-engine-view-tree]")).toBeNull();
+    });
+
+    it("the anchored pin renders the FULL slot — eyebrow header + empty tree well for #2704", () => {
+        const { container } = renderRealCardOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+        rightPress(root);
+        release();
+
+        const panel = anchored()!;
+        expect(panel).toBeTruthy();
+        expect(panel.textContent).toContain("Engine view");
+        expect(panel.textContent).not.toContain("Alt: engine view");
+        expect(panel.querySelector("[data-engine-view-slot]")).not.toBeNull();
+        const well = panel.querySelector("[data-engine-view-tree]")!;
+        expect(well).not.toBeNull();
+        expect(well.children.length).toBe(0);
+    });
+
+    it("the mobile long-press overlay renders the FULL slot", () => {
+        const { container } = renderRealCardOnBoard();
+        const root = container.firstElementChild as HTMLElement;
+
+        act(() => {
+            fireEvent.touchStart(root, {
+                touches: [{ clientX: 10, clientY: 10 }],
+            });
+            vi.advanceTimersByTime(400);
+        });
+
+        const overlay = document.querySelector(".fixed.inset-0")!;
+        expect(overlay).toBeTruthy();
+        expect(overlay.textContent).toContain("Engine view");
+        expect(overlay.textContent).not.toContain("Alt: engine view");
+        expect(overlay.querySelector("[data-engine-view-slot]")).not.toBeNull();
+        expect(overlay.querySelector("[data-engine-view-tree]")).not.toBeNull();
     });
 });

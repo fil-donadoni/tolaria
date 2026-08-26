@@ -136,7 +136,11 @@ export default function InspectOverlay({
                 ref={panelRef}
                 tabIndex={-1}
                 data-inspect-panel
-                className="flex w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-accent/50 bg-surface shadow-2xl"
+                // v4 panel material (ADR 0103 §5, issue #2728): hairline
+                // edge + `.panel-physical` instead of the v3 opaque
+                // `border-accent/50 bg-surface shadow-2xl` — no corner
+                // brackets, no glow.
+                className="panel-physical hairline flex w-full max-w-[720px] flex-col overflow-hidden rounded-[var(--panel-radius)]"
                 // The whole contract of this component in one declaration.
                 // `- 1.5rem` is the scrim's own `p-3` padding, both sides: a
                 // flat `100dvh` panel is TALLER than the padded content box
@@ -180,7 +184,12 @@ export default function InspectOverlay({
                             <ChevronLeft className="h-4 w-4" />
                         </button>
                     )}
-                    <div className="min-w-0 flex-1 truncate font-beleren text-sm text-parchment">
+                    {/* v4 (ADR 0103 §4): Beleren stays confined to the card
+                        domain — this is dialog CHROME naming the card, not
+                        the card's own face, so it reads in the Geist
+                        display face like the rest of the chrome (the
+                        implicit `font-sans` default, no override). */}
+                    <div className="min-w-0 flex-1 truncate text-sm text-parchment">
                         {body.displayName}
                     </div>
                     {body.printedImageSrc && (
