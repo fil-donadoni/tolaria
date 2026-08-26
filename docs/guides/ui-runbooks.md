@@ -29,27 +29,41 @@ next tree without a second round trip — that is the difference between a
 The uids in this file are illustrative. Read them from your own snapshot; they
 are per-session.
 
-## Start a solo game from cold (2026-08-17)
+## Start a solo game from cold (2026-08-26)
 
 A solo game is one user driving both seats, the viewer following priority. It
 is the default for any gameplay check.
 
+The lobby is a game main menu since #2726 (ADR 0103 §6), so this takes three
+lobby clicks, not two: pick a **deck**, pick a **Mode Tile**, then press the
+one **primary action** the tile named. A Mode Tile never starts anything on its
+own.
+
 1. `navigate_page` → `http://localhost:5173`
 2. `snapshot`. Branch on what the lobby says:
     - "You have an active game in progress" → see [Blocked by an active
-      game](#blocked-by-an-active-game-2026-08-17) below, then come back.
+      game](#blocked-by-an-active-game-2026-08-26) below, then come back.
     - otherwise continue.
-3. Click `Select` on the deck row you want, under PRESET DECKS or MY DECKS.
-   The PLAY box then names the deck instead of "No deck selected", and
-   `Solo Game` becomes enabled.
-4. Click `Solo Game`. The route changes to `/game` and the coin-toss dialog
-   opens.
-5. Click `Play` (or `Draw`). The toss is decided server-side; the dialog only
+3. Click a deck tile on a **Deck Shelf** ("Your decks" or "Preset decks"). The
+   tile's own click IS the select gesture — its accessible name is
+   `Select <deck name>`, and Open / Edit / Delete live behind the tile's `⋯`
+   overflow. The **Loadout** then names the deck instead of "No deck
+   selected", and the ambient art behind the menu swaps to the deck's Featured
+   Card. An already-selected tile and an illegal deck's tile are both
+   `disabled`.
+4. Click the **Solo game** Mode Tile. It takes `aria-pressed="true"` and the
+   Loadout's single ivory plate RENAMES itself to `Solo game`. Nothing has
+   started. Skipping this step leaves the cold-lobby default, `Play vs Bot`,
+   whose plate opens the vs-AI setup dialog instead of dealing a game — and
+   `Open a table` would host a seat and wait for a second player.
+5. Click the ivory plate now reading `Solo game`. The route changes to `/game`
+   and the coin-toss dialog opens.
+6. Click `Play` (or `Draw`). The toss is decided server-side; the dialog only
    asks the winner to choose.
-6. Mulligan prompt, **once per seat**. Click `Keep` for the first seat; the
+7. Mulligan prompt, **once per seat**. Click `Keep` for the first seat; the
    viewer auto-switches to the other seat and the prompt reappears — click
    `Keep` again.
-7. `snapshot`. `YOUR GO` plus `Pass` / `Pass Turn` buttons means the board is
+8. `snapshot`. `YOUR GO` plus `Pass` / `Pass Turn` buttons means the board is
    live and priority is with the seat you are viewing.
 
 Do not set `tolaria:selectedDeckId` by hand to skip step 3. Preset decks are
@@ -57,11 +71,20 @@ DB rows now (#770/#1455) and the old slugs (`mono-red-burn`, `le-deck`, …) no
 longer resolve — a stale id is silently cleared by the lobby and you land back
 on "No deck selected", having spent a navigation to learn it.
 
-### Blocked by an active game (2026-08-17)
+The executable copy of this sequence is `ensureBoard` in
+`scripts/ui-gate/surfaces.ts`. It addresses steps 3-5 by ATTRIBUTE —
+`[data-deck-tile] [data-deck-select]`, `[data-mode-tile="solo"]`,
+`[data-lobby-primary]` — because neither the deck tile nor the primary action
+carries a stable string: the tile's visible text is the deck name (the "Select"
+is an `aria-label`, invisible to Playwright's `:has-text`), and the plate is
+named by whichever Mode Tile is selected. Change the walk and this section
+together.
 
-One active game per user is a server guard (#155), so the PLAY buttons are
-disabled until the current one ends. The lobby offers `Resume` and
-`Concede Match`.
+### Blocked by an active game (2026-08-26)
+
+One active game per user is a server guard (#155), so the Loadout's primary
+action and the open-table rows are disabled until the current one ends. The
+lobby offers `Resume` and `Concede Match`.
 
 - Want the game that is running? `Resume`.
 - Want a fresh one? `Concede Match` → a confirm dialog titled "Concede match?"
@@ -69,8 +92,8 @@ disabled until the current one ends. The lobby offers `Resume` and
   cannot be undone**, so it is the user's call, not yours: ask before
   conceding a game you did not create in this session.
 
-After the dialog closes the lobby drops the banner and the PLAY buttons
-re-enable (still needing a deck selected).
+After the dialog closes the lobby drops the banner and the Loadout's primary
+action re-enables (still needing a deck selected).
 
 **Already inside a game?** Do not route back through the lobby. Debug panel →
 `Restart Solo` reuses the current deck and deals a fresh solo game in one

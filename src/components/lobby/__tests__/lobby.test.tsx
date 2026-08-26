@@ -165,9 +165,27 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
+/** One open (waiting) table, as `api.game.listOpenGames` returns it: a games
+ *  doc plus its Match's `bestOf` (PRD #387/#397). `mode` decides which join
+ *  mutation an `OpenTablesStrip` row would dispatch, so it is what makes a row
+ *  mode-compatible or not. */
+function makeOpenGame(overrides: Record<string, unknown> = {}) {
+    return {
+        _id: "game-open-1",
+        _creationTime: 0,
+        name: "Someone's game",
+        mode: "standard",
+        status: "waiting",
+        bestOf: 1 as const,
+        players: [{ id: "user-2", nickname: "Opponent" }],
+        ...overrides,
+    };
+}
+
 async function renderLobby(
     myLimitedEvents: unknown[] = [],
-    openLimitedEvents: unknown[] = []
+    openLimitedEvents: unknown[] = [],
+    openGames: unknown[] = []
 ) {
     // `api` is mocked to `{}`, so queries can't be distinguished by reference;
     // route by per-render call order instead. The lobby issues exactly FIVE
@@ -181,7 +199,7 @@ async function renderLobby(
     useQueryMock.mockImplementation(() => {
         const idx = queryCall++;
         if (idx % 5 === 0) return PRESET_DECKS;
-        if (idx % 5 === 1) return [];
+        if (idx % 5 === 1) return openGames;
         if (idx % 5 === 2) return null;
         if (idx % 5 === 3) return myLimitedEvents;
         return openLimitedEvents;
@@ -673,6 +691,147 @@ describe("Lobby deck shelf tile actions (issue #2726)", () => {
             to: "/decks/$slug/edit",
             params: { slug: "userdeck-manual-1" },
         });
+    });
+});
+
+// Preset ADMIN gating, the whole of it (round-2 review, finding 3). Every
+// preset-editing affordance the lobby can offer has to be absent for a
+// non-admin, not merely rejected on arrival: `/presets/$slug/edit` carries no
+// client guard, so a non-admin who reaches it gets an editor whose save dies at
+// the server's `assertIsAdmin`. `canEditPresets` is mocked false for this whole
+// file, and `beforeEach` selects a PRESET (`mono-red-burn`) — the default start
+// state, which is exactly the state that shipped the offered-Edit bug.
+describe("Lobby withholds preset editing from a non-admin (issue #2726)", () => {
+    it("offers a preset tile's overflow neither Edit nor Delete", async () => {
+        const { getByRole, queryByRole } = await renderLobby();
+        fireEvent.click(
+            getByRole("button", { name: "More actions for White Weenie" })
+        );
+        // Open survives — it is the one action a shelf tile cannot show
+        // inline, and it needs no rights at all.
+        expect(getByRole("menuitem", { name: "Open" })).toBeTruthy();
+        expect(queryByRole("menuitem", { name: "Edit" })).toBeNull();
+        expect(queryByRole("menuitem", { name: "Delete" })).toBeNull();
+    });
+
+    it("offers NO Loadout Edit while the active deck is a preset", async () => {
+        const { getAllByText, queryByRole } = await renderLobby();
+        // The preset really is the active deck — otherwise the assertion
+        // below would pass on an empty Loadout. Twice: the shelf tile it was
+        // picked from, and the Loadout it now fills.
+        expect(getAllByText("Mono Red Burn").length).toBe(2);
+        expect(queryByRole("button", { name: "Edit" })).toBeNull();
+        // "Change deck" is NOT rights-gated and must survive the withholding.
+        expect(queryByRole("button", { name: "Change deck" })).toBeTruthy();
+    });
+
+    it("keeps the Loadout Edit for a USER deck, which needs no admin right", async () => {
+        useUserDecksMock.mockReturnValue([MANUAL_USER_DECK]);
+        localStorage.setItem("tolaria:playMode", "cockatrice");
+        localStorage.setItem("tolaria:selectedDeckId", "userdeck-manual-1");
+        const { getByRole } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Edit" }));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/$slug/edit",
+            params: { slug: "userdeck-manual-1" },
+        });
+    });
+});
+
+// The SHARED gate reaching `OpenTablesStrip` (round-2 review, finding 4).
+// `lobbyGate.ts` was extracted so a table row can never be joinable under a
+// condition the Loadout's primary action refuses — and nothing proved the
+// lobby actually spends that gate on the strip, because no test in this file
+// ever seeded an open game, so the strip never rendered at all. These do.
+describe("Lobby spends the shared gate on open-table rows (issue #2726)", () => {
+    it("disables the row when the gate refuses (no deck selected)", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { getByRole, getByText } = await renderLobby(
+            [],
+            [],
+            [makeOpenGame()]
+        );
+        expect(getByText("Open tables to join")).toBeTruthy();
+        const join = getByRole("button", {
+            name: /Someone's game/,
+        }) as HTMLButtonElement;
+        expect(join.disabled).toBe(true);
+    });
+
+    it("enables the same row once the gate allows (deck selected)", async () => {
+        const { getByRole } = await renderLobby([], [], [makeOpenGame()]);
+        const join = getByRole("button", {
+            name: /Someone's game/,
+        }) as HTMLButtonElement;
+        expect(join.disabled).toBe(false);
+        fireEvent.click(join);
+        await vi.waitFor(() => {
+            expect(joinGame).toHaveBeenCalledWith(
+                expect.objectContaining({ gameId: "game-open-1" })
+            );
+        });
+    });
+});
+
+// The ui-gate board walk, executed against the real lobby (round-2 review,
+// finding 2). `ensureBoard` (`scripts/ui-gate/surfaces.ts`) reaches a live
+// board through three ATTRIBUTE hooks, because none of the three controls
+// carries a stable string: a Deck Shelf tile's text is the deck NAME, and the
+// Loadout's plate is named by whichever Mode Tile is selected. happy-dom cannot
+// prove the walk's LAYOUT assumptions, but it can prove the hooks exist, are
+// addressable by the exact selectors the walk uses, and dispatch the solo
+// game — which is the half that broke silently when the v3 literals
+// (`:has-text('Select')`, `:has-text('Solo Game')`) stopped matching and sent
+// `game-board` + `game-stress` UNWALKED at all five viewports.
+describe("Lobby drives the ui-gate board walk (issue #2726)", () => {
+    // Byte-identical to `ensureBoard`'s constants. If these drift, the walk
+    // reds instead of this file, which is the wrong place to find out.
+    const DECK_TILE_SELECT =
+        "[data-deck-tile] [data-deck-select]:not([disabled])";
+    const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
+    const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
+
+    it("reaches a solo game through the walk's own selectors", async () => {
+        localStorage.removeItem("tolaria:selectedDeckId");
+        const { container } = await renderLobby();
+
+        // Step 3 of the runbook: no deck yet, so the plate is gated and the
+        // walk's `:not([disabled])` form matches nothing.
+        expect(container.querySelector(LOBBY_PRIMARY)).toBeNull();
+        const deckTile =
+            container.querySelector<HTMLButtonElement>(DECK_TILE_SELECT);
+        expect(deckTile).not.toBeNull();
+        fireEvent.click(deckTile!);
+
+        // Step 4: the Mode Tile SELECTS. Still nothing started.
+        const solo = container.querySelector<HTMLButtonElement>(MODE_TILE_SOLO);
+        expect(solo).not.toBeNull();
+        fireEvent.click(solo!);
+        expect(createSoloGame).not.toHaveBeenCalled();
+
+        // Step 5: the plate — now ungated, and now reading "Solo game".
+        const primary =
+            container.querySelector<HTMLButtonElement>(LOBBY_PRIMARY);
+        expect(primary).not.toBeNull();
+        expect(primary!.textContent).toContain("Solo game");
+        fireEvent.click(primary!);
+        await vi.waitFor(() => {
+            expect(createSoloGame).toHaveBeenCalledTimes(1);
+        });
+        expect(createSoloGame.mock.calls[0][0].vsAi).toBeUndefined();
+    });
+
+    it("marks an already-selected tile disabled, which is how the walk skips the step", async () => {
+        const { container } = await renderLobby();
+        // `beforeEach` selects `mono-red-burn`; its tile carries the
+        // selected flag the walk probes and its button is out of the
+        // selectable set.
+        expect(
+            container.querySelectorAll('[data-deck-tile][data-selected="true"]')
+                .length
+        ).toBe(1);
+        const selectable = container.querySelectorAll(DECK_TILE_SELECT);
+        expect(selectable.length).toBe(PRESET_DECKS.length - 1);
     });
 });
 

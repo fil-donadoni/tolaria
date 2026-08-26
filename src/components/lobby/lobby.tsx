@@ -460,6 +460,22 @@ function Lobby() {
 
     const isAdmin = canEditPresets(user);
 
+    // The Loadout's Edit, gated exactly as `deck-detail.route.tsx` gates its
+    // own: a user deck always edits; a preset edits ONLY for an admin, and
+    // `undefined` withholds the control from everyone else. Without the
+    // `isAdmin` arm a normal player — whose selected deck is a preset in the
+    // default start state — is offered "Edit" and routed to
+    // `/presets/$slug/edit`, which has no client guard and can only fail at
+    // its `assertIsAdmin` save. v3's Play box withheld it the same way
+    // (`renderPresetActions = isAdmin ? … : undefined`).
+    const handleEditSelectedDeck = !selectedDeck
+        ? undefined
+        : selectedDeck.kind === "user"
+          ? () => handleEditDeck(selectedDeck.presetId)
+          : isAdmin
+            ? () => handleEditPreset(selectedDeck.presetId)
+            : undefined;
+
     const handleDeleteDeck = (presetId: string) => {
         const deck = userLobbyDecks.find((d) => d.presetId === presetId);
         if (!deck || deck.kind !== "user") return;
@@ -648,12 +664,7 @@ function Lobby() {
                             onMatchFormatChange={handleMatchFormatChange}
                             onPrimary={runPrimaryAction}
                             onJoinByCode={() => setJoinByCodeOpen(true)}
-                            onEditDeck={() => {
-                                if (!selectedDeck) return;
-                                if (selectedDeck.kind === "preset")
-                                    handleEditPreset(selectedDeck.presetId);
-                                else handleEditDeck(selectedDeck.presetId);
-                            }}
+                            onEditDeck={handleEditSelectedDeck}
                             onChangeDeck={handleChangeDeck}
                             busy={isBusy}
                             hasActiveGame={!!activeGame}

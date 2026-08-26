@@ -32,7 +32,14 @@ interface LobbyLoadoutProps {
      *  code for. Not a Mode Tile: it is a way INTO someone else's "Open a
      *  table", not a fifth thing to start. */
     onJoinByCode: () => void;
-    onEditDeck: () => void;
+    /** Edit the ACTIVE deck. `undefined` withholds the control entirely — the
+     *  case is a non-admin whose selected deck is a preset, which is the
+     *  DEFAULT start state (`/presets/$slug/edit` has no client guard of its
+     *  own; its save is rejected server-side by `assertIsAdmin`, so offering
+     *  the button would route a normal player to a dead end). The v3 Play box
+     *  withheld it the same way. `lobby.tsx` owns the gate, since it is the
+     *  same two-destination decision `deck-detail.route.tsx` makes. */
+    onEditDeck?: () => void;
     onChangeDeck: () => void;
     busy?: boolean;
     /** #155: a user holds at most one active game. While one exists, creating
@@ -146,24 +153,24 @@ export default function LobbyLoadout({
                         {!deck ? "No deck" : deck.isLegal ? "Legal" : "Illegal"}
                     </span>
                     <span className="flex-1" />
+                    {deck && onEditDeck && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={onEditDeck}
+                            title={`Edit ${deck.name}`}
+                        >
+                            Edit
+                        </Button>
+                    )}
                     {deck && (
-                        <>
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={onEditDeck}
-                                title={`Edit ${deck.name}`}
-                            >
-                                Edit
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={onChangeDeck}
-                            >
-                                Change deck
-                            </Button>
-                        </>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onChangeDeck}
+                        >
+                            Change deck
+                        </Button>
                     )}
                 </div>
 
@@ -191,6 +198,13 @@ export default function LobbyLoadout({
                         variant="primary"
                         size="lg"
                         className="w-full"
+                        // The ui-gate board walk's stable hook (`ensureBoard`,
+                        // `scripts/ui-gate/surfaces.ts`). This plate's name is
+                        // the SELECTED Mode Tile's title by design, so there is
+                        // no literal string a walk could address it by without
+                        // pinning the lobby's default mode; the attribute is
+                        // the seam instead.
+                        data-lobby-primary
                         disabled={!canRunPrimary}
                         onClick={onPrimary}
                     >

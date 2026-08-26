@@ -12,8 +12,10 @@ interface DeckShelfTileProps {
     onSelect: (presetId: string) => void;
     onOpen: (presetId: string) => void;
     /** Overflow actions. `undefined` when the viewer may not perform them (a
-     *  non-admin over a preset shelf), which removes the whole "⋯" trigger
-     *  rather than rendering a menu with one dead item. */
+     *  non-admin over a preset shelf), which drops that ITEM from the "⋯" menu
+     *  rather than rendering a dead row. The trigger itself always renders:
+     *  `onOpen` is mandatory, and Open is the one action a shelf tile can never
+     *  show inline (its own click is spent on selecting). */
     onEdit?: (presetId: string) => void;
     onDelete?: (presetId: string) => void;
 }
@@ -54,6 +56,13 @@ export default function DeckShelfTile({
         >
             <button
                 type="button"
+                // The ui-gate board walk's stable hook (`ensureBoard`,
+                // `scripts/ui-gate/surfaces.ts`). It cannot address this by
+                // text — the tile's visible text is the deck NAME — and the
+                // accessible name below is deliberately not a literal either.
+                // `:not([disabled])` over this attribute is what picks a tile
+                // that can actually take the selection.
+                data-deck-select
                 onClick={() => onSelect(deck.presetId)}
                 disabled={selected || !deck.isLegal}
                 // An explicit name, not the content-derived one: the tile's

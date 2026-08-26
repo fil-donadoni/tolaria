@@ -43,7 +43,7 @@ describe("Panel", () => {
         expect(classTokens(panel)).toContain("rounded-[var(--panel-radius)]");
     });
 
-    // The `ornament` prop outlived its behaviour on purpose: three call sites
+    // The `ornament` prop outlived its behaviour on purpose: two call sites
     // still pass it and this slice changes no consumer file (#2734 removes the
     // prop and those call sites together). Accepted, and inert — a Panel that
     // asks for the ornament must NOT get a corner ornament back.

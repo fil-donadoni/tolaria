@@ -1,13 +1,14 @@
-// Two-step "Play vs AI" setup (PRD #589 lobby flow). Clicking "Play vs AI" in
-// the Play panel no longer starts a match directly — it opens this dialog, the
-// second step, which collects the two vs-AI knobs (difficulty, AI opponent
-// deck) and only fires `createSoloGame` on Confirm. The player's OWN deck
-// remains the Lobby hero selection and is NOT asked here. Match format is NOT
-// vs-AI-specific — it governs Solo and Multiplayer too, so its selector
-// lives in the Play box (`dashboard-play-box`) and is not duplicated here.
+// Two-step "Play vs AI" setup (PRD #589 lobby flow). Running the primary
+// action while the "Play vs Bot" Mode Tile is selected no longer starts a match
+// directly — it opens this dialog, the second step, which collects the two
+// vs-AI knobs (difficulty, AI opponent deck) and only fires `createSoloGame` on
+// Confirm. The player's OWN deck remains the lobby's active-deck selection and
+// is NOT asked here. Match format is NOT vs-AI-specific — it governs Solo and
+// Multiplayer too, so its selector lives in the Loadout (`lobby-loadout`) and
+// is not duplicated here.
 //
 // The selectors are the same reusable controls that used to live inline in the
-// Play panel; they edit the lobby's persisted state through their setters, so
+// v3 Play box; they edit the lobby's persisted state through their setters, so
 // last-used values reappear as defaults on the next open.
 
 import type { Difficulty } from "@convex/gre";

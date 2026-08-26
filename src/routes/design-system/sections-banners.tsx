@@ -56,8 +56,9 @@ export function BannersSection() {
                         <Where>
                             join-game:166 · limited-draft-table:227 ·
                             limited-event-detail:92 · limited-events-page:89 ·
-                            dashboard-play-box:116 · lobby:406 (+1 /40 variant
-                            in deck-import-dialog:98)
+                            lobby:406 (+1 /40 variant in deck-import-dialog:98).
+                            The 6th copy lived in dashboard-play-box, which
+                            retired with its file in #2726.
                         </Where>
                     </Specimen>
                     <Specimen
