@@ -1,6 +1,6 @@
 import { esc, fmtDur, fmtUsd, fmtMin } from "./format.js";
 import { toggleDrill } from "./history-drilldown.js";
-import { labelFor } from "./glossary.js";
+import { labelFor, lookupTerm } from "./glossary.js";
 
 /**
  * The Sessions card (#2625) — same sort + filter treatment as Issues.
@@ -8,12 +8,15 @@ import { labelFor } from "./glossary.js";
  * module-private: rows enter only through `setSessionRows()`.
  *
  * `term` overrides `key` for the glossary lookup when the two names diverge
- * ("title" renders the glossary's "session" entry); every other column's
- * term IS its key. `key` alone drives sorting (#2634) — see the identical
- * note in `history-issues-table.js`.
+ * ("title" renders the glossary's own "history.session-title" entry, not the
+ * bare `session` dimension entry — that one's tip says the id is
+ * "deliberately absent from the filter pickers", which is misleading here
+ * since this table DOES offer a title/command/id search box, #2634 review);
+ * every other column's term IS its key. `key` alone drives sorting (#2634)
+ * — see the identical note in `history-issues-table.js`.
  */
-const SESSION_COLS = [
-    { key: "title", term: "session" },
+export const SESSION_COLS = [
+    { key: "title", term: "history.session-title" },
     { key: "cmd" },
     { key: "t0", num: true },
     { key: "wall_min", num: true },
@@ -76,8 +79,8 @@ function sessionCell(col, r) {
  *  "no sessions in range" from "filters hid all of them". */
 function sessionsEmptyMessage() {
     return sesState.rows.length
-        ? "No sessions match the selected command filter or search text."
-        : "No sessions ran in the selected date range.";
+        ? lookupTerm("empty.sessions.filtered").tip
+        : lookupTerm("empty.sessions.none").tip;
 }
 
 export function renderSessionsTable() {

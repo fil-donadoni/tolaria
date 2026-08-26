@@ -1,6 +1,5 @@
 import { tier } from "./format.js";
 import { dayQ } from "./history-query.js";
-import { lookupTerm } from "./glossary.js";
 import {
     setIssueRows,
     renderIssueFilters,
@@ -41,10 +40,10 @@ export async function renderNarrative() {
     renderSessionFilters();
     renderSessionsTable();
 
-    // Family × role pivot — subtitle sourced from the glossary (#2634), the
-    // same `card.<id>` convention `history-refresh.js` uses for the Ranking
-    // and Table cards.
-    document.getElementById("fam-sub").textContent =
-        lookupTerm("card.family-role").tip;
+    // Family × role pivot — its title/subtitle are static glossary copy with
+    // no dependency on `fam`, so `refresh()` writes them itself, synchronously
+    // and before any fetch (#2634 review finding 2): writing them HERE, after
+    // three awaited fetches, left the card with no subtitle at all whenever
+    // any of those three reads failed.
     renderFamiliesTable(fam.rows);
 }

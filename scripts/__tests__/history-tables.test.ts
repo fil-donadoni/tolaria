@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Window } from "happy-dom";
 
 // @ts-expect-error — browser ES modules with no type declarations; the
@@ -10,15 +10,19 @@ import {
     setIssueRows,
     renderIssueFilters,
     renderIssuesTable,
+    ISSUE_COLS,
 } from "../dashboard/history-issues-table.js";
 // @ts-expect-error — same.
 import {
     setSessionRows,
     renderSessionFilters,
     renderSessionsTable,
+    SESSION_COLS,
 } from "../dashboard/history-sessions-table.js";
 // @ts-expect-error — same.
 import { renderFamiliesTable } from "../dashboard/history-families-table.js";
+// @ts-expect-error — same.
+import { refresh } from "../dashboard/history-refresh.js";
 
 /**
  * #2634 — Issues/Sessions/Family×role headers read as human phrases with
@@ -52,8 +56,22 @@ function fireInput(win: Window, el: HTMLInputElement, value: string) {
 /** Every element matching `selector` must carry a `data-term` that resolves
  *  in the glossary — these History-only column names are outside the
  *  server-vocabulary completeness guard in `dashboard-glossary.test.ts`, so
- *  nothing else in the suite would catch a typo'd or missing term. */
-function assertAllTermsResolve(selector: string) {
+ *  nothing else in the suite would catch a typo'd or missing term.
+ *
+ *  `selector` itself matches only elements that HAVE `data-term` — a header
+ *  missing the attribute entirely simply drops out of the query, which is
+ *  what made the review-finding gap possible: stripping `data-term` from
+ *  every `<th>` still passed (`document.querySelectorAll(selector)` returns
+ *  an empty NodeList, `unresolved` stays `[]`, the assertion below is
+ *  vacuously true). `expectedCount` closes that: it is the column count from
+ *  the table module's OWN column list (`ISSUE_COLS.length` /
+ *  `SESSION_COLS.length`), so a header silently missing `data-term` now
+ *  shrinks the matched set below the expected total and fails loudly
+ *  (#2634 review finding 1). */
+function assertAllTermsResolve(selector: string, expectedCount?: number) {
+    if (expectedCount !== undefined) {
+        expect(document.querySelectorAll(selector).length).toBe(expectedCount);
+    }
     const unresolved: (string | null)[] = [];
     document.querySelectorAll(selector).forEach((el) => {
         const term = el.getAttribute("data-term");
@@ -139,7 +157,7 @@ describe("History Issues table (#2634)", () => {
     it("every header carries a data-term that resolves in the glossary", () => {
         setIssueRows([issueRow()]);
         renderIssuesTable();
-        assertAllTermsResolve("#issues-tbl th[data-term]");
+        assertAllTermsResolve("#issues-tbl th[data-term]", ISSUE_COLS.length);
     });
 
     it("never prints a raw float — a fractional per-role cost renders through the shared formatter", () => {
@@ -224,7 +242,10 @@ describe("History Sessions table (#2634)", () => {
     it("every header carries a data-term that resolves in the glossary", () => {
         setSessionRows([sessionRow()]);
         renderSessionsTable();
-        assertAllTermsResolve("#sessions-tbl th[data-term]");
+        assertAllTermsResolve(
+            "#sessions-tbl th[data-term]",
+            SESSION_COLS.length
+        );
     });
 
     it("sorts by the RAW field value, not the rendered label or cell text", () => {
@@ -330,6 +351,65 @@ describe("History Family × role pivot (#2634)", () => {
         expect(entry.label).toBe("Agent family × role");
         expect(entry.tip).toBe(
             "How cost splits across the agent families and the role each run played."
+        );
+    });
+});
+
+describe("History refresh — Family × role subtitle survives a failed /api read (#2634 review finding 2)", () => {
+    afterEach(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (globalThis as any).fetch;
+    });
+
+    /**
+     * The regression: `#fam-sub` used to be written INSIDE `renderNarrative()`
+     * after three awaited fetches, while the div's static fallback text was
+     * deleted from the markup in the same diff — so a failed `/api` read left
+     * the Family × role card with no subtitle at all, unlike `#ts-title` /
+     * `#rank-title` / `#rank-sub` / `#tbl-sub`, which `history-refresh.js`
+     * writes synchronously before any `await`. The fix moved `#fam-title` /
+     * `#fam-sub` into that same synchronous block in `refresh()` — both are
+     * static glossary copy with no dependency on fetched data, so there was
+     * never a reason to wait on the network for them.
+     */
+    it("writes #fam-title and #fam-sub synchronously, before any fetch settles or fails", async () => {
+        mountPage(
+            `<div id="issues-sub"></div>
+             <h2 id="fam-title"></h2>
+             <div id="fam-sub"></div>
+             <h2 id="ts-title"></h2>
+             <h2 id="rank-title"></h2>
+             <div id="rank-sub"></div>
+             <div id="tbl-sub"></div>
+             <table id="tbl"></table>`
+        );
+        // Every fetch this pass makes — the three narrative routes plus the
+        // color-seed/query calls — rejects, so the ONLY way #fam-title/
+        // #fam-sub end up populated is the synchronous write in refresh(),
+        // never a `.then()` off a successful read.
+        g.fetch = () => Promise.reject(new Error("api down"));
+
+        const pending = refresh();
+
+        // Assert BEFORE awaiting the returned promise: these two must already
+        // be set from the synchronous portion of refresh(), ahead of every
+        // `await` in the function.
+        expect(document.getElementById("fam-title")!.textContent).toBe(
+            lookupTerm("card.family-role").label
+        );
+        expect(document.getElementById("fam-sub")!.textContent).toBe(
+            lookupTerm("card.family-role").tip
+        );
+
+        await pending;
+
+        // Still populated once every failed read has settled — the failure
+        // path never clears or overwrites them.
+        expect(document.getElementById("fam-title")!.textContent).toBe(
+            lookupTerm("card.family-role").label
+        );
+        expect(document.getElementById("fam-sub")!.textContent).toBe(
+            lookupTerm("card.family-role").tip
         );
     });
 });

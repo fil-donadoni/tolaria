@@ -1,5 +1,5 @@
 import { esc, fmtUsd, mc } from "./format.js";
-import { labelFor } from "./glossary.js";
+import { labelFor, lookupTerm } from "./glossary.js";
 
 /**
  * The "Agent family × role" card (#2625, retitled + glossary-sourced #2634)
@@ -33,7 +33,9 @@ export function renderFamiliesTable(famRows) {
     const headRow =
         `<tr>${th("family")}${th("issues")}` +
         ROLE_COLS.map((c) => th(`role.${c}`)).join("") +
-        `${th("cost", "total")}</tr>`;
+        // Glossary-sourced ("total cost"), never a hand-maintained literal
+        // (#2634 review) — `cost`'s own label already reads correctly here.
+        `${th("cost")}</tr>`;
     const families = [...byFam.entries()].sort(
         (a, b) => b[1].total - a[1].total
     );
@@ -50,6 +52,6 @@ export function renderFamiliesTable(famRows) {
                       `<td><b>${fmtUsd(f.total)}</b></td></tr>`
               )
               .join("")
-        : `<tr><td colspan="${2 + ROLE_COLS.length + 1}"><div class="ls-empty">No agent activity is recorded against any issue family in the selected date range.</div></td></tr>`;
+        : `<tr><td colspan="${2 + ROLE_COLS.length + 1}"><div class="ls-empty">${esc(lookupTerm("empty.families.none").tip)}</div></td></tr>`;
     ftbl.innerHTML = `<thead>${headRow}</thead><tbody>${bodyHtml}</tbody>`;
 }

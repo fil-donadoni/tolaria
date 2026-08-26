@@ -454,6 +454,46 @@ export const GLOSSARY = {
         label: "Agent family × role",
         tip: "How cost splits across the agent families and the role each run played.",
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History Sessions table — the title column's own term (#2634 review).
+    // The bare `session` dimension entry above says the session id is
+    // "deliberately absent from the filter pickers" — true of the general
+    // dimension picker, but this table DOES offer a title/command/id search
+    // box next to it, so reusing that tip here would mislead. This column
+    // gets its own entry instead of qualifying `session`.
+    // ─────────────────────────────────────────────────────────────────────
+    "history.session-title": {
+        label: "session",
+        tip: "The session's title, or its id truncated when it never got one. Searchable via the search box next to this table.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History table empty states (#2634 review) — every sentence a table
+    // shows when it has nothing to render is glossary-sourced too, not a
+    // literal hardcoded in the table module, so "all text comes from the
+    // glossary" holds for empty-state copy as well as headers.
+    // ─────────────────────────────────────────────────────────────────────
+    "empty.issues.filtered": {
+        label: "no issues match",
+        tip: "No issues match the selected family, tier, state or search text.",
+    },
+    "empty.issues.none": {
+        label: "no issue activity",
+        tip: "No agent activity is recorded against any issue in the selected date range.",
+    },
+    "empty.sessions.filtered": {
+        label: "no sessions match",
+        tip: "No sessions match the selected command filter or search text.",
+    },
+    "empty.sessions.none": {
+        label: "no session activity",
+        tip: "No sessions ran in the selected date range.",
+    },
+    "empty.families.none": {
+        label: "no family activity",
+        tip: "No agent activity is recorded against any issue family in the selected date range.",
+    },
 };
 
 /**

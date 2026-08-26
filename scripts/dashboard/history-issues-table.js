@@ -1,6 +1,6 @@
 import { esc, tier, fmtNum, fmtUsd, fmtMin, fmtUsdCell } from "./format.js";
 import { toggleDrill } from "./history-drilldown.js";
-import { labelFor } from "./glossary.js";
+import { labelFor, lookupTerm } from "./glossary.js";
 
 /**
  * The Issues card (#2625) — client-side sort + filters over the fetched rows.
@@ -17,7 +17,7 @@ import { labelFor } from "./glossary.js";
  * relabelling a header cannot silently break its sort (the risk this ticket
  * exists to guard against).
  */
-const ISSUE_COLS = [
+export const ISSUE_COLS = [
     { key: "issue", num: true },
     { key: "first_ts", num: true },
     { key: "family" },
@@ -107,8 +107,8 @@ function issueFiltered() {
  *  everything", since only one of those means "loosen a filter". */
 function issuesEmptyMessage() {
     return issState.rows.length
-        ? "No issues match the selected family, tier, state or search text."
-        : "No agent activity is recorded against any issue in the selected date range.";
+        ? lookupTerm("empty.issues.filtered").tip
+        : lookupTerm("empty.issues.none").tip;
 }
 
 export function renderIssuesTable() {
