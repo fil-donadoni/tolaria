@@ -212,7 +212,13 @@ describe("actions.js — Confirm posts to /api/action with the boot token (#2636
         expect(JSON.parse(init.body)).toEqual({ action: "driver.stop" });
     });
 
-    it("claim.release posts {action:'claim.release', issue} for exactly the row clicked", async () => {
+    it("claim.release posts {action:'claim.release', issue} for exactly the row clicked, issue as a NUMBER", async () => {
+        // `telemetry-serve.ts`'s `claim.release` handler deliberately
+        // refuses a numeric STRING (400) — see its own comment — so
+        // `btn.dataset.issue` (always a string) must be coerced before it
+        // is POSTed. Asserting `issue: "2582"` here used to encode that bug
+        // rather than catch it (#2636 review round 1, finding 1/2); see the
+        // full-path integration test below for the client -> server proof.
         const win = mountPage();
         const fetchSpy = vi.fn().mockResolvedValue({
             json: async () => ({ ok: true, issue: 2582 }),
@@ -228,7 +234,65 @@ describe("actions.js — Confirm posts to /api/action with the boot token (#2636
         const [, init] = fetchSpy.mock.calls[0];
         expect(JSON.parse(init.body)).toEqual({
             action: "claim.release",
-            issue: "2582",
+            issue: 2582,
+        });
+    });
+
+    it("the exact body actions.js's own fetch call sends for claim.release is ACCEPTED by the real telemetry-serve handleRequest, and dispatches releaseClaim with the issue as a number (#2636 review round 1, findings 1 & 2 — full client -> server path, not two pieces tested in isolation)", async () => {
+        const win = mountPage();
+        const fetchSpy = vi.fn().mockResolvedValue({
+            json: async () => ({
+                ok: true,
+                action: "claim.release",
+                issue: 2582,
+            }),
+        });
+        g.fetch = fetchSpy;
+        initActions();
+        click(win, win.document.querySelector(".ls-release"));
+        click(win, win.document.querySelector(".action-confirm-ok"));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const [, init] = fetchSpy.mock.calls[0];
+
+        // Feed the CLIENT'S OWN request — its literal headers and body
+        // string, not a hand-rebuilt equivalent — into the REAL server
+        // route. This is the seam that shipped broken: actions.js and
+        // telemetry-serve.ts each had a passing test of its own half while
+        // the wire between them 400'd on every real click.
+        const { handleRequest } = await import("../telemetry-serve");
+        const calls: string[] = [];
+        const res = await handleRequest(
+            new Request("http://127.0.0.1:5174/api/action", {
+                method: "POST",
+                headers: { ...init.headers, origin: "http://127.0.0.1:5174" },
+                body: init.body,
+            }),
+            {
+                actionToken: "TEST-TOKEN",
+                allowedOrigins: new Set(["http://127.0.0.1:5174"]),
+                driverActions: {
+                    stopDriver: async () => {
+                        calls.push("stopDriver");
+                    },
+                    resumeDriver: async () => {
+                        calls.push("resumeDriver");
+                    },
+                    releaseClaim: async (issue: number) => {
+                        calls.push(`releaseClaim:${issue}`);
+                    },
+                },
+            }
+        );
+
+        expect(res.status).toBe(200);
+        expect(calls).toEqual(["releaseClaim:2582"]);
+        expect(await res.json()).toEqual({
+            ok: true,
+            action: "claim.release",
+            issue: 2582,
         });
     });
 
@@ -332,6 +396,88 @@ describe("actions.js — disables while the request is in flight, so a double cl
         await Promise.resolve();
         await Promise.resolve();
         await Promise.resolve();
+    });
+});
+
+describe("actions.js — a cancelled in-flight request does not cross-talk into the NEXT dialog (#2636 review round 1, finding 4)", () => {
+    it("Confirm driver.stop, Escape it mid-flight, open+confirm Release (also left hanging): the swallow bug is fixed (release actually sends), and the STALE stop response landing FIRST does not close or onSuccess the still-outstanding release dialog", async () => {
+        const win = mountPage();
+        let resolveStop: (v: unknown) => void = () => {};
+        let resolveRelease: (v: unknown) => void = () => {};
+        const fetchSpy = vi.fn((_url: string, init: { body: string }) => {
+            const body = JSON.parse(init.body);
+            if (body.action === "driver.stop") {
+                return new Promise((resolve) => {
+                    resolveStop = resolve;
+                });
+            }
+            // The release request ALSO hangs — this is what isolates the
+            // identity check from the `inFlight`-on-close fix above: if the
+            // release request had already completed by the time the stale
+            // stop response lands, `pending` would already be `null` and
+            // even the old `if (!pending) return` guard would happen to
+            // catch it. The bug needs the SECOND dialog still genuinely
+            // open, mid-request, when the FIRST one's stale response lands.
+            return new Promise((resolve) => {
+                resolveRelease = resolve;
+            });
+        });
+        g.fetch = fetchSpy;
+        const onSuccess = vi.fn();
+        initActions(undefined, onSuccess);
+
+        // 1. Open + confirm Stop — its request hangs.
+        click(
+            win,
+            win.document.querySelector(".ls-action[data-action='driver.stop']")
+        );
+        click(win, win.document.querySelector(".action-confirm-ok"));
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+        // 2. Cancel it while in flight.
+        fireKey(win, "Escape");
+        expect(actionDialogOpen()).toBe(false);
+
+        // 3. Open a DIFFERENT dialog (Release) and confirm it — also hangs.
+        // Before the `closeDialog`-clears-`inFlight` fix, step 2 would have
+        // left `inFlight` latched `true`, so this Confirm click would be
+        // silently swallowed (no second fetch at all).
+        click(win, win.document.querySelector(".ls-release"));
+        expect(actionDialogOpen()).toBe(true);
+        click(win, win.document.querySelector(".action-confirm-ok"));
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+        // 4. The STALE Stop response lands FIRST, while Release's own
+        // request is STILL outstanding. Before the identity fix,
+        // `if (!pending) return` was truthy here (`pending` is the Release
+        // dialog's own, non-null, object) and this stale resolution would
+        // wrongly `closeDialog()` + `onSuccess()` the Release dialog for a
+        // request that never actually completed.
+        resolveStop({
+            json: async () => ({ ok: true, action: "driver.stop" }),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(actionDialogOpen()).toBe(true); // still open — stale response is inert
+        expect(onSuccess).not.toHaveBeenCalled(); // not yet — release hasn't really resolved
+
+        // 5. NOW Release's own response lands — THIS is what should close
+        // the dialog and fire onSuccess, exactly once.
+        resolveRelease({
+            json: async () => ({
+                ok: true,
+                action: "claim.release",
+                issue: 2582,
+            }),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(actionDialogOpen()).toBe(false);
+        expect(onSuccess).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -446,19 +592,17 @@ describe("actions.js — the dialog traps Tab/Shift+Tab between Cancel and Confi
         );
     });
 
-    it("1/2/r-style keys reaching `document` while the dialog is open do not leak past it (defence in depth alongside shortcuts.js's own suppression)", () => {
-        const win = mountPage();
-        g.fetch = vi.fn();
-        initActions();
-        click(
-            win,
-            win.document.querySelector(".ls-action[data-action='driver.stop']")
-        );
-
-        fireKey(win, "a");
-
-        expect(actionDialogOpen()).toBe(true);
-    });
+    // A test previously lived here asserting "1/2/r-style keys … do not
+    // leak past it" — it fired the key `"a"` (handled nowhere in either
+    // module) and asserted only that the dialog stayed open, so it passed
+    // even with the ENTIRE suppression removed, and the claim it made was
+    // false: `shortcuts.js` gated only on its own sheet, so `2` really did
+    // switch the view out from under this dialog (#2636 review round 1,
+    // finding 2). The fix — `shortcuts.js`'s `handleKeydown` also checks
+    // `actionDialogOpen()` — and the load-bearing version of this test now
+    // live in `dashboard-shortcuts.test.ts`, alongside the sheet's own
+    // equivalent test, since gating other shortcuts is `shortcuts.js`'s
+    // behaviour to prove, not `actions.js`'s.
 });
 
 describe("actions.js — a button whose action is not recognised is ignored (defensive)", () => {

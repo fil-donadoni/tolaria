@@ -504,7 +504,14 @@ tbody tr:hover {
     border-radius: 5px;
     padding: 1px 8px;
     cursor: pointer;
-    min-height: 32px;
+    /* UNLIKE `.ls-copy` above (deliberately 32px, matching the page's other
+       decorative-adjacent controls), this button has a real, confirmed side
+       effect — the same reason its own module header calls it "visually
+       louder than `.ls-copy`". `.ls-light`'s 44px is the budget for a
+       control with real consequences, and this one has one too (#2636
+       review round 1, non-blocking finding: was 32px, under this
+       stylesheet's own AAA tap-target size elsewhere). */
+    min-height: 44px;
 }
 .ls-action:hover:not(:disabled) {
     background: var(--plane);

@@ -2,6 +2,7 @@ import { esc } from "./format.js";
 import { viewFromParams, switchView } from "./tabs.js";
 import { refreshLoopStatus } from "./now-loop-status.js";
 import { trapFocus as trapFocusIn } from "./dialog.js";
+import { actionDialogOpen } from "./actions.js";
 
 /**
  * The dashboard's keyboard layer (#2635, PRD #2621 D5/user stories 31-36):
@@ -22,7 +23,10 @@ import { trapFocus as trapFocusIn } from "./dialog.js";
  * telemetry.db). This module IS statically imported by `main.js` (the
  * keyboard layer is chrome, like `tabs.js`/`theme.js`, not a History
  * component), so it is bound by both rules: its own imports stay inside that
- * closure (`tabs.js`, `now-loop-status.js`, `format.js`), and reaching
+ * closure (`tabs.js`, `now-loop-status.js`, `format.js`, `dialog.js`,
+ * `actions.js` — the last already reachable transitively via
+ * `now-loop-status.js`, so importing `actionDialogOpen` from it directly adds
+ * no new module to the closure), and reaching
  * History's `refresh()` for the `r` shortcut goes through a DYNAMIC
  * `import()` inside `refreshVisibleView` below — the same sanctioned
  * mechanism `main.js` itself uses for `history-boot.js`, and for the same
@@ -283,6 +287,18 @@ export function handleKeydown(e, doc = document) {
         // typed to dismiss-and-read never also jumps the view underneath.
         return;
     }
+
+    // `actions.js`'s own confirmation dialog is a SECOND modal this module
+    // knows nothing about building — but the same "nothing outside a modal
+    // reacts to a key" contract still has to hold for it (#2636 review
+    // round 1, finding 2: `sheetOpen()` was the only gate here, so `2`
+    // pressed while the Release/Stop confirmation was open switched the
+    // whole view out from under it, and `?` stacked the shortcut sheet on
+    // top). UNLIKE the sheet above, this module does not own that dialog's
+    // Tab trap or Escape handling — `actions.js` binds its own `keydown`
+    // listener on `document` for that (see its module header) — so there is
+    // nothing to do here but go inert and let that listener run.
+    if (actionDialogOpen()) return;
 
     if (isTypingTarget(doc.activeElement)) return;
 

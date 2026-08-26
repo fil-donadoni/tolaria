@@ -65,6 +65,25 @@ function effectFor(action, issue) {
     return ACTION_EFFECT[action] ?? "";
 }
 
+/**
+ * Coerces a `.ls-action` button's `data-issue` (a DOM attribute — always a
+ * string, or absent) to the positive integer `/api/action`'s `claim.release`
+ * handler requires (`telemetry-serve.ts`'s `ACTION_ALLOW_LIST`, #2628).
+ * That handler deliberately REFUSES a numeric string rather than coercing it
+ * itself (`"2628 2629"` and `"2628"` are both strings — see its own
+ * comment), so the coercion has to happen here, once, before the request is
+ * built. Returns `undefined` for anything that is not a clean positive
+ * integer, including a missing attribute — a malformed row then fails
+ * closed by never opening a dialog, rather than opening one for an action
+ * the server would refuse anyway (#2636 review round 1, finding 1: the
+ * client posted the raw string and the server 400'd every release).
+ */
+function coerceIssue(raw) {
+    if (raw === undefined) return undefined;
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 function actionToken() {
     return (
         document.querySelector(`meta[name="${ACTION_TOKEN_META}"]`)?.content ??
@@ -236,6 +255,13 @@ function closeDialog() {
     if (!dialogEl) return;
     dialogEl.hidden = true;
     pending = null;
+    // Cleared here too, not only after a resolved fetch (#2636 review round
+    // 1, finding 4): Escape/backdrop/Cancel can close the dialog while a
+    // request is still in flight (there is no reason to force the operator
+    // to wait one out), and if `inFlight` stayed `true` the NEXT dialog's
+    // own Confirm click would be silently swallowed by the re-entrancy guard
+    // below — no fetch, no error, nothing visibly wrong.
+    inFlight = false;
     if (openerEl && typeof openerEl.focus === "function") openerEl.focus();
     openerEl = null;
 }
@@ -243,15 +269,21 @@ function closeDialog() {
 async function confirmPending() {
     if (!pending || inFlight) return;
     inFlight = true;
+    // Captured by IDENTITY, not just truthiness: cancelling this dialog
+    // (`closeDialog` above) nulls `pending`, but cancelling and then
+    // opening a DIFFERENT one reassigns it to a new object — `!pending`
+    // alone missed that second case entirely (#2636 review round 1, finding
+    // 4). Comparing identity after the await catches both: a stale response
+    // for a dialog that is no longer open, or no longer THIS open dialog,
+    // is inert either way.
+    const ownPending = pending;
     const { action, issue, onSuccess } = pending;
     setBusy(true);
     setError(null);
     const extra = action === "claim.release" ? { issue } : {};
     const result = await postAction(action, extra);
+    if (pending !== ownPending) return;
     inFlight = false;
-    // The dialog may have been cancelled while the request was in flight —
-    // `pending` would already be `null`; nothing left to update.
-    if (!pending) return;
     if (result.ok) {
         closeDialog();
         onSuccess?.();
@@ -285,7 +317,11 @@ export function initActions(
         if (!btn || btn.disabled) return;
         const action = btn.dataset.action;
         if (!ACTION_LABEL[action]) return;
-        openDialog(action, { issue: btn.dataset.issue, onSuccess });
+        const issue = coerceIssue(btn.dataset.issue);
+        // `claim.release` with no legible issue number is a malformed row —
+        // refuse to open a dialog for a request the server will 400 anyway.
+        if (action === "claim.release" && issue === undefined) return;
+        openDialog(action, { issue, onSuccess });
     });
 }
 
