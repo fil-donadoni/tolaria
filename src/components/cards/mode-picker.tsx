@@ -35,9 +35,20 @@ function ModeRow({
             key={mode.id}
             type="button"
             onClick={() => onSelect(mode.id)}
-            className="flex flex-col items-start gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors cursor-pointer"
+            // `border-border-strong` on hover, NOT the decorative
+            // `--hairline` pair (review finding, #2731 round 1 — the same
+            // fix `AnchoredPickerRow` got in `0671b4e8`, one function below
+            // in the shared shell): this row IS a `<button>`, so its own
+            // edge is a control boundary under WCAG 1.4.11, not decoration.
+            className="flex flex-col items-start gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-elevated border border-transparent hover:border-border-strong transition-colors cursor-pointer"
         >
-            <span className="flex items-center gap-1.5 font-beleren text-sm tracking-wide text-text">
+            {/* `.text-display` (review finding, #2731 round 1): the dialog
+                variant now matches the portal variant's face — both render
+                the SAME `ModeOption` label, so a leftover retired display
+                utility here rendered the two variants of the same picker in
+                two different fonts (`design-tokens.test.ts`'s residual-site
+                ratchet). */}
+            <span className="text-display flex items-center gap-1.5 text-sm tracking-wide text-text">
                 {mode.color && (
                     <ManaSymbol symbol={mode.color} className="size-4" />
                 )}
