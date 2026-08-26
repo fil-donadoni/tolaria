@@ -300,6 +300,11 @@ export const FRAME_V4_TOKENS: readonly TokenSpec[] = [
         value: "4.8% / 3.45%",
         role: "the printed Magic corner as a fraction of the card, so every card size shows the same corner (applied by .card-corner; call sites migrate in #2724)",
     },
+    {
+        name: "--panel-radius",
+        value: "6px",
+        role: "the panel/dialog corner (ADR 0103 §5, 4–6px) — a length, not the card's fraction",
+    },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -459,7 +459,25 @@
      * largest single step of "Beleren leaves the chrome". The v4 tone comes
      * for free from the re-derived tokens below: `--color-accent` is now ivory
      * and `--color-surface-base` graphite, so `.btn-tone-primary` IS the
-     * ADR's "opaque ivory plate with dark text" without a rule changing. */
+     * ADR's "opaque ivory plate with dark text" without a rule changing.
+     *
+     * v4 MATERIAL (ADR 0103 §3, issue #2723): the forged-plate language above
+     * survives only in `primary`. The other three tones become EDGES —
+     * "primary = opaque ivory plate with dark text + soft glow; secondary =
+     * hairline; ghost = text; danger = danger hairline". One plate per screen
+     * is the whole point: a screen where Cancel and Concede are also filled
+     * plates has three primary actions and no hierarchy.
+     *
+     * A control EDGE is `--color-border-strong` / `--color-danger`, never the
+     * decorative `--hairline` pair, even though the ADR calls the shape a
+     * "hairline". `--hairline-strong` is ivory/30 = 2.37:1 on `surface` and
+     * would put every secondary button's only boundary under WCAG 1.4.11's
+     * 3:1 for a control boundary — the exact invariant
+     * `design-tokens.test.ts`'s "border-strong is brighter than the strong
+     * hairline (a control edge is not decoration)" row exists to hold, and
+     * ADR 0103 §2 keeps those guards as the acceptance test for every value.
+     * Panel / Banner / divider — decoration, not controls — DO take the
+     * translucent pair. */
     .btn-base {
         @apply rounded-md border cursor-pointer;
         font-family: var(--font-display);
@@ -474,70 +492,61 @@
             filter 0.12s ease;
     }
 
-    /* Primary — flat-solid forged accent plate, dark engraved label. */
+    /* Primary — the ONE opaque ivory plate, dark label, soft resting glow.
+       The glow rests (it does not wait for hover): on a graphite ground it is
+       what makes the plate read as lit rather than as a white rectangle. */
     .btn-tone-primary {
         background-color: var(--color-accent);
-        border-color: color-mix(in srgb, var(--color-accent) 55%, #000);
+        border-color: transparent;
         color: var(--color-surface-base);
-        /* even inner hairline (symmetric — no top-only gloss) */
-        box-shadow: inset 0 0 0 1px
-            color-mix(in srgb, var(--color-accent-strong) 35%, transparent);
+        box-shadow: 0 8px 24px -12px
+            color-mix(in srgb, var(--color-accent) 60%, transparent);
     }
     .btn-tone-primary:hover {
         background-color: var(--color-accent-strong);
-        border-color: color-mix(in srgb, var(--color-accent) 70%, #000);
-        /* symmetric hover bloom: even glow on all sides, no fake drop shadow */
-        box-shadow:
-            inset 0 0 0 1px
-                color-mix(in srgb, var(--color-accent-strong) 55%, transparent),
-            0 0 22px color-mix(in srgb, var(--color-accent) 55%, transparent);
+        box-shadow: 0 10px 28px -10px
+            color-mix(in srgb, var(--color-accent) 75%, transparent);
     }
     .btn-tone-primary:active {
         filter: brightness(0.92);
     }
 
-    /* Secondary — flat dark plate, accent text + accent border. */
+    /* Secondary — hairline: no plate, a control edge and the text colour. */
     .btn-tone-secondary {
-        background-color: var(--color-surface-elevated);
-        border-color: color-mix(in srgb, var(--color-accent) 45%, #000);
-        color: var(--color-accent-strong);
-        box-shadow: inset 0 0 0 1px
-            color-mix(in srgb, var(--color-accent-strong) 8%, transparent);
+        background-color: transparent;
+        border-color: var(--color-border-strong);
+        color: var(--color-text);
+        box-shadow: none;
     }
     .btn-tone-secondary:hover {
         border-color: var(--color-accent);
         color: var(--color-parchment);
         background-color: color-mix(
             in srgb,
-            var(--color-surface-elevated) 80%,
-            var(--color-accent)
+            var(--color-accent) 8%,
+            transparent
         );
-        box-shadow: 0 0 16px
-            color-mix(in srgb, var(--color-accent) 28%, transparent);
     }
     .btn-tone-secondary:active {
         filter: brightness(0.92);
     }
 
-    /* Destructive — flat-solid garnet plate. */
+    /* Destructive — danger hairline. Same shape as secondary, danger edge and
+       danger-strong label (7.99:1 on surface; plain `danger` as a label was a
+       phase-3 contrast failure at 3.43:1). */
     .btn-tone-destructive {
-        background-color: var(--color-danger);
-        border-color: color-mix(in srgb, var(--color-danger) 55%, #000);
-        color: var(--color-parchment);
-        box-shadow: inset 0 0 0 1px
-            color-mix(in srgb, var(--color-danger-strong) 30%, transparent);
+        background-color: transparent;
+        border-color: var(--color-danger);
+        color: var(--color-danger-strong);
+        box-shadow: none;
     }
     .btn-tone-destructive:hover {
+        border-color: var(--color-danger-strong);
         background-color: color-mix(
             in srgb,
-            var(--color-danger) 85%,
-            var(--color-danger-strong)
+            var(--color-danger) 14%,
+            transparent
         );
-        border-color: color-mix(in srgb, var(--color-danger) 70%, #000);
-        box-shadow:
-            inset 0 0 0 1px
-                color-mix(in srgb, var(--color-danger-strong) 45%, transparent),
-            0 0 22px color-mix(in srgb, var(--color-danger) 50%, transparent);
     }
     .btn-tone-destructive:active {
         filter: brightness(0.92);
@@ -779,8 +788,14 @@
      * worse defect than an undersized one, so the rung waits for the slice
      * that re-homes that row: #2585 (filters into a bottom sheet / popover,
      * deck ≥60% height). Ship it there, in the same change. */
+
+    /* v4 (ADR 0103, issue #2723): the FIELD is now the recessed ground
+     * (`surface-base`) rather than a lift off the panel — a v4 input reads as
+     * a hole cut in the panel, not as a raised plate. Colour only: the
+     * geometry above is untouched, so the deferral it documents is unaffected
+     * and no ui-gate cell moves. */
     .input-field {
-        @apply rounded-sm border border-border-strong bg-surface-elevated/20 px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-accent focus:bg-surface-elevated/30 focus:ring-2 focus:ring-accent/50 focus:outline-none;
+        @apply rounded-sm border border-border-strong bg-surface-base px-4 py-2 text-sm text-text placeholder:text-text-disabled focus:border-accent focus:ring-2 focus:ring-accent/50 focus:outline-none;
     }
 
     /* ── Filter chips ──
@@ -807,13 +822,44 @@
        `.segment-pill` is the shared geometry every segmented control uses; the
        two tone classes below stay orthogonal to it. Height comes from the
        pointer token (ADR 0101 §2), so a segment is a 40px touch target on a
-       phone and a 28px control with a mouse. */
+       phone and a 28px control with a mouse.
+
+       v4 (ADR 0103, issue #2723): "the segmented control gets the dark field,
+       hairline and accent focus ring". There is NO shared segmented COMPONENT
+       — five consumers hand-build their markup on these three classes — so
+       the v4 skin has to land on the classes themselves or it would cost five
+       consumer edits, which the slice's "no consumer file edited" criterion
+       forbids. The field and the hairline therefore sit on the PILL, not on a
+       group wrapper the way the prototype draws them: each segment carries
+       its own recessed ground and edge, and the selected one is the ivory
+       plate. Geometry is unchanged apart from the 1px edge (the pills are
+       `border-box`), so no control changes height.
+
+       The edge is `--color-border-strong`, NOT the decorative `--hairline`
+       the ADR's prose names (PR #2827 round-1 review). Measured on these
+       tokens: the recessed field is only 1.083:1 against the panel
+       (`surface-base` #0b0d11 on `surface` #14171c), so the field does not
+       identify the control on its own and the BORDER is the sole boundary.
+       `--hairline` (ivory/12) is 1.344:1 there — under WCAG 1.4.11's 3:1 for
+       a control boundary; `--color-border-strong` is 3.383:1 on the panel and
+       3.663:1 against the field. Same rule the button tones already follow,
+       and `.input-field` right above uses `border-strong` over this identical
+       dark field. Decoration and control edges are different roles: where a
+       hairline is the ONLY thing bounding a control, it is not decoration. */
     .segment-pill {
-        @apply inline-flex items-center justify-center rounded-sm px-2 py-1 transition;
+        @apply inline-flex items-center justify-center rounded-sm border px-2 py-1 transition;
         min-height: var(--control-h-sm);
+        border-color: var(--color-border-strong);
+        background-color: var(--color-surface-base);
+    }
+    .segment-pill:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 1px;
     }
     .segment-active {
-        @apply bg-accent-soft/30 text-parchment;
+        background-color: var(--color-accent);
+        border-color: transparent;
+        color: var(--color-surface-base);
     }
     .segment-inactive {
         @apply text-text-muted hover:text-parchment;
@@ -824,21 +870,30 @@
         @apply text-[10px] uppercase tracking-wide text-text-disabled;
     }
 
-    /* ── Physical chrome (issue #595, Antique Bronze) ──
-       Layered OPAQUE bezel: inner gold hairline + even inner shade + drop
-       shadow. No asymmetric fake-3D — the inner shade is symmetric. */
+    /* ── Panel material (issue #595 → v4, ADR 0103 §5, issue #2723) ──
+       Was the Antique-Bronze OPAQUE bezel: an inner gold hairline, a heavy
+       inner shade and a black outer ring. v4 is "hairline + material": the
+       flat panel surface, ONE top-light gradient, and a soft elevation
+       shadow. No brackets, no inner gold ring, no inner vignette — on a
+       graphite ground the v3 bezel read as a brown box sitting on top of the
+       page rather than as a plane lifted off it.
+
+       Deliberately NO `border` shorthand here: `.panel-physical` is a shared
+       material, and two of its three consumers (`app-header.tsx`,
+       the design-system BoardBanner specimen) bring their own border
+       utilities. A shorthand would paint a second, opaque edge over theirs.
+       `Panel` sets its own hairline edge in `panel.tsx`. */
     .panel-physical {
-        background: linear-gradient(
+        background-color: var(--color-surface);
+        background-image: linear-gradient(
             180deg,
-            var(--color-surface-elevated),
-            var(--color-surface)
+            rgb(255 255 255 / 0.025),
+            rgb(255 255 255 / 0) 42%
         );
         box-shadow:
-            0 0 0 1px rgba(0, 0, 0, 0.65),
-            inset 0 0 0 1px
-                color-mix(in srgb, var(--color-accent) 22%, transparent),
-            inset 0 0 28px rgba(0, 0, 0, 0.42),
-            0 22px 50px rgba(0, 0, 0, 0.62);
+            inset 0 1px 0 rgb(255 255 255 / 0.03),
+            0 18px 40px -24px rgb(0 0 0 / 0.9),
+            0 2px 6px -2px rgb(0 0 0 / 0.6);
     }
 
     /* Card preview dock glow (#332, Antique Bronze): a board-coherent gold
@@ -853,34 +908,25 @@
             0 22px 50px rgba(0, 0, 0, 0.6);
     }
 
-    /* Engraved header band: darker inset strip under the title, gold rule. */
+    /* Header band (v4, ADR 0103 §5): the engraved strip loses its gold
+       gradient and its gold bottom border — the band is now the same surface
+       as the panel with the faintest top-light on it, and the ONE line under
+       it is `.panel-rule`. The v3 recipe drew two lines (a gold `border-bottom`
+       here plus the rule span), which on a hairline frame reads as a
+       double-struck edge. */
     .panel-header-band {
         background: linear-gradient(
             180deg,
-            color-mix(
-                in srgb,
-                var(--color-accent-soft) 55%,
-                var(--color-surface)
-            ),
-            var(--color-surface)
+            rgb(255 255 255 / 0.03),
+            rgb(255 255 255 / 0)
         );
-        border-bottom: 1px solid
-            color-mix(in srgb, var(--color-accent) 40%, transparent);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 236, 184, 0.1),
-            0 1px 0 rgba(0, 0, 0, 0.5);
     }
 
-    /* Gold rule (centred bright node sits on it via .divider-node). */
+    /* The one line under the header band: a plain hairline, full width — not
+       the v3 gold gradient that faded out at both ends around a bright centre
+       (a centred emphasis under a LEFT-aligned title). */
     .panel-rule {
-        background: linear-gradient(
-            90deg,
-            transparent,
-            color-mix(in srgb, var(--color-accent) 70%, transparent) 20%,
-            var(--color-accent-strong) 50%,
-            color-mix(in srgb, var(--color-accent) 70%, transparent) 80%,
-            transparent
-        );
+        background: var(--hairline-strong);
     }
 
     /* ── Panel v3 corner brackets (ADR 0101 §2, issue #2581) ──
@@ -952,24 +998,17 @@
             color-mix(in srgb, var(--color-accent) 50%, transparent);
     }
 
+    /* The ONE surviving ornament (ADR 0103 §5): a rule with a diamond. v4
+       drops the gold gradient and the node's glow — flat ivory at hairline
+       strength, so the ornament is a quiet punctuation mark rather than a
+       lit object competing with the card art. */
     .divider-line {
-        background: linear-gradient(
-            90deg,
-            transparent,
-            color-mix(in srgb, var(--color-accent) 65%, transparent),
-            transparent
-        );
+        background: var(--hairline-strong);
     }
 
     .divider-node {
-        background: radial-gradient(
-            circle at 35% 30%,
-            var(--color-accent-strong),
-            var(--color-accent) 60%,
-            var(--color-accent-soft)
-        );
-        box-shadow: 0 0 8px
-            color-mix(in srgb, var(--color-accent) 50%, transparent);
+        background: var(--color-accent);
+        opacity: 0.55;
     }
 
     /* ── Title Treatment (issue #597) ──
@@ -1358,6 +1397,12 @@
         --hairline: rgb(232 226 210 / 0.12);
         --hairline-strong: rgb(232 226 210 / 0.3);
         --card-radius: 4.8% / 3.45%;
+        /* The panel/dialog corner (§5: "4–6px radius"). NOT a card corner and
+         * deliberately not `--radius`-derived: `rounded-md` is 8px, which on a
+         * hairline frame reads soft, and the card surfaces have their own
+         * proportional rule above. One length, so every panel-like surface
+         * (Panel, its header band, the overlay frame) shows the same corner. */
+        --panel-radius: 6px;
 
         /* ── 8. Page-ground grain (§5) ──
          * An SVG fractal-noise tile, applied ONCE on `<body>` (see the

@@ -148,15 +148,18 @@ function PanelAnatomy() {
     const gap = bracketTitleGapPx();
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Specimen label="Panel v3 — the default frame" tone="plain">
+            <Specimen label="Panel — the default frame (now v4)" tone="plain">
                 <Panel>
                     <PanelHeader
-                        title="Panel v3"
+                        title="Panel v4"
                         subtitle="title left · 1px rule"
                     />
                     <PanelBody>
                         <p className="text-xs text-text-muted">
-                            Four 10px inset brackets at 1px / opacity .5. The
+                            The v3 frame was four 10px inset brackets at 1px /
+                            opacity .5. ADR 0103 §5 retired them (#2723): the
+                            frame is now the panel&apos;s own hairline EDGE.
+                            What v3 contributed and v4 keeps is the LAYOUT — the
                             band bleeds to the panel border and the title starts
                             at <code>--panel-header-pad-x</code> from it.
                         </p>
@@ -169,27 +172,29 @@ function PanelAnatomy() {
                     </PanelFooter>
                 </Panel>
             </Specimen>
-            <Specimen
-                label="Panel — rich ornament (opt-in, above 844x390)"
-                tone="plain"
-            >
+            <Specimen label="Panel — the retired ornament opt-in" tone="plain">
                 <Panel ornament tone="accent">
                     <PanelHeader title="Waiting state" />
                     <PanelBody>
                         <p className="text-xs text-text-muted">
-                            The 40px filigree survives on three surfaces only —
-                            lobby hero, Game Over, Match Result — behind an
-                            explicit <code>ornament</code> prop, never a
-                            heuristic. Below 844x390 it falls back to the
-                            brackets.
+                            This Panel passes <code>ornament</code> and gets
+                            nothing for it. v4 has no corner ornament at all —
+                            the 40px filigree that used to come back here is
+                            gone, and the one surviving ornament atom is{" "}
+                            <code>OrnamentalDivider</code>, which a waiting
+                            state places in its own content. The prop is still
+                            ACCEPTED so that #2723 changed no consumer file;
+                            #2734 drops it together with its three call sites.
                         </p>
                     </PanelBody>
                 </Panel>
             </Specimen>
             <div className="lg:col-span-2">
                 <p className="text-xs text-text-muted">
-                    <strong className="text-text">Clearance:</strong> a title
-                    never sits within{" "}
+                    <strong className="text-text">
+                        Clearance (historical, still enforced):
+                    </strong>{" "}
+                    a title never sat within{" "}
                     <code>--panel-title-bracket-clearance</code> of a bracket.
                     Title inset − (bracket inset + bracket size) ={" "}
                     <span className="font-mono text-accent-strong">
@@ -199,7 +204,10 @@ function PanelAnatomy() {
                     <code>src/__tests__/design-tokens.test.ts</code>, never
                     geometrically: happy-dom has no layout engine, so a
                     <code> getBoundingClientRect()</code> assertion would pass
-                    on a title sitting underneath the bracket.
+                    on a title sitting underneath the bracket. Panel no longer
+                    paints a bracket, but the two surfaces that still import{" "}
+                    <code>CornerBracketFrame</code> directly do, and the tokens
+                    stay declared until #2734 retires them.
                 </p>
             </div>
         </div>

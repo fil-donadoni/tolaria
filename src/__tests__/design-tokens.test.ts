@@ -691,7 +691,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
     // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
     // at which point this row and its constant are deleted with it.
-    const BELEREN_RESIDUAL_CEILING = 78;
+    const BELEREN_RESIDUAL_CEILING = 76;
 
     /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
      *  the class in its own assertions and would otherwise count itself. */
@@ -850,5 +850,170 @@ describe("index.html pins the roomy density default (issue #2595, PR #2620 round
     it('<html> carries data-density="roomy"', () => {
         const html = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
         expect(html).toMatch(/<html[^>]*\bdata-density="roomy"/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity v4 — the PRIMITIVE recipes (ADR 0103 §3 / §5, issue #2723).
+//
+// The primitives' dom tests (`panel.test.tsx`, `button.test.tsx`,
+// `banner.test.tsx`, `field.test.tsx`) assert which CLASS each variant
+// resolves to. They cannot assert what that class PAINTS: happy-dom has no
+// cascade and resolves no custom property, so `getComputedStyle` there returns
+// empty strings. These rows close that half of the contract by parsing the
+// stylesheet, exactly as the hairline and grain rows above do.
+//
+// The segmented control has no other home at all: there is no shared segmented
+// COMPONENT — five consumers hand-build their markup on `.segment-pill` /
+// `.segment-active` / `.segment-inactive` — so these three rules ARE its
+// contract, and this is where it is testable.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
+    describe("Panel material", () => {
+        it("the panel corner is the ADR's 4–6px, and not a card corner", () => {
+            const radius = pxValue(rootTokens["--panel-radius"]);
+            expect(radius).toBeGreaterThanOrEqual(4);
+            expect(radius).toBeLessThanOrEqual(6);
+            // A panel is not a card: mixing in the proportional card fraction
+            // is what made the v3 dialogs read as oversized cards.
+            expect(rootTokens["--panel-radius"]).not.toContain("%");
+        });
+
+        it(".panel-physical is hairline + material: top-light and elevation, no bezel", () => {
+            const body = ruleBody(css, ".panel-physical");
+            expect(body).toContain("background-color: var(--color-surface)");
+            expect(body).toContain("linear-gradient");
+            expect(body).toContain("box-shadow");
+            // The v3 bezel drew an inner GOLD hairline and an inner vignette,
+            // which on a graphite ground read as a brown box on top of the
+            // page rather than a plane lifted off it.
+            expect(body).not.toContain("--color-accent");
+        });
+
+        it(".panel-physical declares no border shorthand — three consumers bring their own", () => {
+            // `app-header.tsx` and the design-system BoardBanner specimen both
+            // add their own border utilities to this class. A shorthand here
+            // would paint a second, opaque edge over theirs.
+            expect(ruleBody(css, ".panel-physical")).not.toMatch(
+                /(^|\n)\s*border:/
+            );
+        });
+
+        it("the header band and its rule draw ONE hairline between them", () => {
+            // v3 drew the edge twice — a gold `border-bottom` on the band AND
+            // the `.panel-rule` span — which on a hairline frame reads as a
+            // double-struck line.
+            expect(ruleBody(css, ".panel-header-band")).not.toContain(
+                "border-bottom"
+            );
+            expect(ruleBody(css, ".panel-rule")).toContain(
+                "var(--hairline-strong)"
+            );
+        });
+
+        it("the one surviving ornament is on the hairline, not on gold", () => {
+            expect(ruleBody(css, ".divider-line")).toContain(
+                "var(--hairline-strong)"
+            );
+            expect(ruleBody(css, ".divider-line")).not.toContain(
+                "linear-gradient"
+            );
+        });
+    });
+
+    describe("Button tones", () => {
+        it("primary is the opaque ivory plate with a dark label and a resting glow", () => {
+            const body = ruleBody(css, ".btn-tone-primary");
+            expect(body).toContain("background-color: var(--color-accent)");
+            expect(body).toContain("color: var(--color-surface-base)");
+            // The glow RESTS: on a graphite ground a plate with no glow reads
+            // as a white rectangle rather than as a lit control.
+            expect(body).toContain("box-shadow: 0 8px 24px");
+        });
+
+        // The hierarchy the ADR is after: ONE plate per screen. A garnet
+        // Concede plate beside an ivory Confirm plate is two primary actions.
+        it.each([".btn-tone-secondary", ".btn-tone-destructive"] as const)(
+            "%s is a hairline edge, not a plate",
+            (selector) => {
+                const body = ruleBody(css, selector);
+                expect(body).toContain("background-color: transparent");
+                expect(body).toContain("box-shadow: none");
+            }
+        );
+
+        it("a control edge is border-strong or danger — never the decorative hairline", () => {
+            // ivory/30 is 2.37:1 on `surface`; a control whose only boundary is
+            // the decorative hairline fails WCAG 1.4.11's 3:1 for a control
+            // boundary. Decoration and control edges are different roles.
+            //
+            // `.segment-pill` joined this list in PR #2827's round-1 review: it
+            // shipped on `--hairline` (1.344:1) one describe-block from here.
+            // The rule is about CONTROLS, not about buttons — scoping it to the
+            // two button tones is what let a segmented control slip past it.
+            expect(ruleBody(css, ".btn-tone-secondary")).toContain(
+                "border-color: var(--color-border-strong)"
+            );
+            expect(ruleBody(css, ".segment-pill")).toContain(
+                "border-color: var(--color-border-strong)"
+            );
+            expect(ruleBody(css, ".btn-tone-destructive")).toContain(
+                "border-color: var(--color-danger)"
+            );
+            for (const selector of [
+                ".btn-tone-secondary",
+                ".btn-tone-destructive",
+                ".segment-pill",
+            ]) {
+                expect(ruleBody(css, selector), selector).not.toContain(
+                    "var(--hairline"
+                );
+            }
+        });
+
+        it("destructive keeps the high-contrast danger label", () => {
+            // 7.99:1 on surface. Plain `danger` as a label was a phase-3
+            // contrast failure at 3.43:1, and a hairline button has no plate
+            // behind the text to rescue it.
+            expect(ruleBody(css, ".btn-tone-destructive")).toContain(
+                "color: var(--color-danger-strong)"
+            );
+        });
+    });
+
+    describe("Segmented control", () => {
+        it("a segment is a recessed dark field with a control-strength edge", () => {
+            const body = ruleBody(css, ".segment-pill");
+            expect(body).toContain(
+                "background-color: var(--color-surface-base)"
+            );
+            // NOT the decorative `--hairline` the ADR's prose names (PR #2827
+            // round-1 review). Measured: the recessed field is 1.083:1 against
+            // the panel, so it does not identify the control on its own and
+            // this border is the SOLE boundary. `--hairline` is 1.344:1 there,
+            // under WCAG 1.4.11's 3:1; `--color-border-strong` is 3.383:1.
+            expect(body).toContain("border-color: var(--color-border-strong)");
+        });
+
+        it("a segment keeps its pointer-token height", () => {
+            // ADR 0101 §2: 40px on a coarse pointer, 28px with a mouse. The v4
+            // skin is colour + a 1px border-box edge; it must not have moved
+            // the rung.
+            expect(ruleBody(css, ".segment-pill")).toContain(
+                "min-height: var(--control-h-sm)"
+            );
+        });
+
+        it("a segment has a visible accent focus ring", () => {
+            const body = ruleBody(css, ".segment-pill:focus-visible");
+            expect(body).toContain("outline");
+            expect(body).toContain("var(--color-accent)");
+        });
+
+        it("the selected segment is the ivory plate, not a wash", () => {
+            const body = ruleBody(css, ".segment-active");
+            expect(body).toContain("background-color: var(--color-accent)");
+            expect(body).toContain("color: var(--color-surface-base)");
+        });
     });
 });

@@ -14,14 +14,14 @@ function classTokens(el: Element): string[] {
 }
 
 describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
-    it("renders the title with a full-width gold underline rule", () => {
+    it("renders the title with a full-width hairline underline rule", () => {
         const { baseElement } = render(
             <GameDialog open title="Lightning Bolt">
                 <p>body</p>
             </GameDialog>
         );
         expect(screen.getAllByText("Lightning Bolt").length).toBeGreaterThan(0);
-        // the gold underline rule sits in the portal (baseElement = document.body)
+        // the underline rule sits in the portal (baseElement = document.body)
         expect(
             baseElement.querySelectorAll(".panel-rule").length
         ).toBeGreaterThan(0);
@@ -75,10 +75,11 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
     });
 
-    // ADR 0101 §2 / issue #2581: the default frame is the v3 bracket set, not
-    // the 40px filigree. A dialog that says nothing gets brackets; only an
-    // explicit `ornament` (Game Over / Match Result) brings the filigree back.
-    it("renders the v3 corner brackets around the panel by default", () => {
+    // ADR 0103 §5 / issue #2723: the dialog inherits Panel's v4 frame, which
+    // has no corner ornament at all. A GameDialog draws neither the 40px
+    // filigree (issue #595) nor the 10px brackets that replaced it (#2581) —
+    // its frame is the panel's own hairline edge.
+    it("renders no corner ornament around the panel", () => {
         const { baseElement } = render(
             <GameDialog open title="Framed">
                 <p>body</p>
@@ -86,13 +87,16 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         );
         expect(
             baseElement.querySelectorAll('[data-slot="corner-bracket"]').length
-        ).toBe(4);
+        ).toBe(0);
         expect(
             baseElement.querySelectorAll('[data-slot="corner-filigree"]').length
         ).toBe(0);
     });
 
-    it("brings back the filigree only when the caller opts into ornament", () => {
+    // `ornament` is retired but still ACCEPTED (Game Over passes it, and this
+    // slice edits no consumer — #2734 removes the prop and its call sites
+    // together). It must be inert, not a way back to the filigree.
+    it("accepts the retired ornament prop without bringing the filigree back", () => {
         const { baseElement } = render(
             <GameDialog open title="Framed" ornament>
                 <p>body</p>
@@ -100,26 +104,25 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         );
         expect(
             baseElement.querySelectorAll('[data-slot="corner-filigree"]').length
-        ).toBe(4);
-        // The brackets stay mounted as the phone-viewport fallback, hidden by
-        // CSS above 844x390 (`compact-chrome:block`).
-        const brackets = baseElement.querySelector(
-            '[data-slot="corner-bracket-frame"]'
-        )!;
-        expect(classTokens(brackets)).toContain("compact-chrome:block");
+        ).toBe(0);
+        expect(
+            baseElement.querySelectorAll('[data-slot="corner-bracket"]').length
+        ).toBe(0);
     });
 
-    it("keeps the dialog title clear of the corner bracket", () => {
+    it("keeps the dialog title at the panel's own title inset", () => {
         render(
             <GameDialog open title="Framed">
                 <p>body</p>
             </GameDialog>
         );
         const title = screen.getByRole("heading", { name: "Framed" });
-        // Arithmetic clearance, not geometry: happy-dom has no layout engine.
+        // Arithmetic, not geometry: happy-dom has no layout engine.
         // `.panel-title-clear` pays the shortfall between the panel padding at
-        // the current density and `--panel-header-pad-x`; the token arithmetic
-        // itself is asserted in `src/__tests__/design-tokens.test.ts`.
+        // the current density and `--panel-header-pad-x`, so a title living in
+        // the Panel's padding box starts at the same inset from the panel
+        // border as one in `PanelHeader`'s full-bleed band. The token
+        // arithmetic itself is asserted in `src/__tests__/design-tokens.test.ts`.
         expect(classTokens(title)).toContain("panel-title-clear");
     });
 

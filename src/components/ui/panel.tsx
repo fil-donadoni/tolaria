@@ -1,13 +1,20 @@
 import * as React from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import CornerFiligreeFrame from "./corner-filigree-frame";
-import CornerBracketFrame from "./corner-bracket-frame";
 import SunburstIcon from "./sunburst-icon";
 import SubtitleFlourish from "./subtitle-flourish";
 
 type PanelSize = "default" | "wide" | "full";
 type PanelTone = "neutral" | "accent";
+
+/** The v4 frame is an EDGE, not an ornament (ADR 0103 §5). Both strengths are
+ *  the TRANSLUCENT hairline pair, never the flattened `border-*` hexes: a
+ *  Panel is routinely laid over card art, a gradient or an art-backed tile,
+ *  where a flattened edge paints a visible grey line. */
+const TONE_EDGE: Record<PanelTone, string> = {
+    neutral: "border-[var(--hairline)]",
+    accent: "border-[var(--hairline-strong)]",
+};
 
 /** Density scale v3 (ADR 0101 §2, issue #2581). Three rungs with base units
  *  8 / 10 / 12px, exposed as `--density-unit` / `--panel-pad` by the
@@ -49,26 +56,30 @@ const SIZE_CLASSES: Record<PanelSize, string> = {
  * Shared panel — the single chrome frame (ADR 0007 / ADR 0101 §2), composition
  * API (`Panel` + `PanelHeader` / `PanelBody` / `PanelFooter`).
  *
- * Physical look (issue #595): a layered OPAQUE bezel (`.panel-physical` — inner
- * gold hairline, even/symmetric inner shade, drop shadow; no asymmetric
- * fake-3D).
+ * **v4 frame — hairline + material, no brackets** (ADR 0103 §5, issue #2723).
+ * A 1px translucent-ivory edge, a 6px corner (`--panel-radius`), one top-light
+ * gradient and a soft elevation shadow (`.panel-physical`, re-skinned in
+ * `index.css`). Nothing is drawn at the corners.
  *
- * v3 frame (issue #2581): four **10px inset brackets** at 1px / opacity .5,
- * replacing the 40px SVG corner filigree the viewport audit measured
- * overlapping dialog titles. The filigree survives ONLY where a caller opts
- * back in with `ornament` — an explicit prop, never a heuristic, so a Panel
- * that says nothing gets v3.
+ * What this replaced, in two steps: the 40px SVG corner filigree of issue #595
+ * (which the ADR 0101 viewport audit measured overlapping dialog titles), then
+ * the four 10px inset brackets of issue #2581 that took its place. Both were
+ * ornament ON a box; v4's frame IS the box's edge, so a panel recedes and the
+ * card art carries the screen.
  *
- * `overlay` mode renders ONLY the frame, stretched `inset-0` to the nearest
+ * `overlay` mode renders ONLY the edge, stretched `inset-0` to the nearest
  * positioned ancestor, so an already-built `relative` panel can be framed
  * without re-wrapping it (and without the zero-height collapse a self-sizing
  * wrapper would cause).
+ *
+ * The frame carries the panel's own corner, NOT `.card-corner`: a card corner
+ * is a fraction of the card (`--card-radius`, ADR 0103 §7) and a panel is not
+ * a card. Mixing them is what made the v3 dialogs read as oversized cards.
  */
 function Panel({
     size = "default",
     tone = "neutral",
     density,
-    ornament = false,
     overlay = false,
     className,
     children,
@@ -86,68 +97,72 @@ function Panel({
      *  board-prompt rung, the `comfortable` phone-aware dialogs) still passes
      *  it explicitly — that pin is unaffected by any of this. */
     density?: PanelDensity;
-    /** Opt in to the rich 40px corner filigree instead of the v3 brackets.
-     *  ADR 0101 §2 allows it only in waiting states — the lobby hero, Game
-     *  Over and Match Result — and only above 844x390, so the ornament is
-     *  additionally gated to non-phone viewports and the brackets take over
-     *  below that. Explicit opt-in by design: inferring "is this the lobby?"
-     *  from context is how an ornament rule quietly grows exceptions. */
+    /** RETIRED by ADR 0103 §5 — accepted and ignored.
+     *
+     *  It used to opt a Panel back into the 40px corner filigree (lobby hero,
+     *  Game Over, Match Result). v4 has no corner ornament at all: the one
+     *  surviving ornament atom is `OrnamentalDivider`, which those waiting
+     *  states place themselves, in their own content.
+     *
+     *  The prop STAYS in the signature on purpose. Three call sites pass it
+     *  (`dashboard-play-box`, `game-over-dialog` via `GameDialog`,
+     *  the design-system v3 census) and this slice's contract is that no
+     *  consumer file changes — removing it would be a compile error in each.
+     *  Issue #2734 (the closure slice) drops the prop and its call sites
+     *  together. */
     ornament?: boolean;
     overlay?: boolean;
     className?: string;
     children?: React.ReactNode;
 }) {
-    const frame = ornament ? (
-        <>
-            {/* Above 844x390 the rich ornament; at or below it the v3
-                brackets. `compact-chrome` is the existing phone-shaped
-                variant (portrait <768px OR landscape <=500px tall) — the same
-                pair of queries `useViewportMode()` discriminates on. */}
-            <CornerFiligreeFrame
-                overlay
-                className="z-[1] compact-chrome:hidden"
+    // Overlay mode: the edge alone, stretched onto a caller's own positioned
+    // box. `pointer-events-none` because it sits over that box's content.
+    if (overlay)
+        return (
+            <div
+                data-slot="panel-frame"
+                aria-hidden
+                className={cn(
+                    "pointer-events-none absolute inset-0 rounded-[var(--panel-radius)] border",
+                    TONE_EDGE[tone],
+                    className
+                )}
             />
-            <CornerBracketFrame className="z-[1] hidden compact-chrome:block" />
-        </>
-    ) : (
-        // `z-[1]`: the frame is rendered BEFORE `children`, and PanelHeader's
-        // band now bleeds to the panel border — without a rung the top two
-        // corners paint underneath it. Decorative and `pointer-events-none`,
-        // so it steals nothing.
-        <CornerBracketFrame className="z-[1]" />
-    );
-
-    if (overlay) return frame;
+        );
 
     return (
         <div
             data-slot="panel"
             {...(density ? { "data-density": density } : {})}
             className={cn(
-                "panel-physical relative rounded-md border p-[var(--panel-pad)] text-text select-none",
-                tone === "accent" ? "border-accent/40" : "border-border-subtle",
+                "panel-physical relative rounded-[var(--panel-radius)] border p-[var(--panel-pad)] text-text select-none",
+                TONE_EDGE[tone],
                 SIZE_CLASSES[size],
                 className
             )}
         >
-            {frame}
             {children}
         </div>
     );
 }
 
 /**
- * Engraved header band (v3, ADR 0101 §2): small-caps Beleren title on the
- * LEFT over a darker full-bleed band, a 1px gold rule beneath, optional
- * leading sunburst icon, optional subtitle (clasp-flanked), and an optional
- * collapse chevron pinned right.
+ * Header band (ADR 0101 §2 layout, ADR 0103 §5 skin): display-face title on
+ * the LEFT over a full-bleed band, ONE hairline rule beneath, optional leading
+ * sunburst icon, optional subtitle (clasp-flanked), and an optional collapse
+ * chevron pinned right.
+ *
+ * v4 (issue #2723) quiets the band itself: the darker gold-washed strip and
+ * its gold `border-bottom` are gone (`.panel-header-band` / `.panel-rule` in
+ * `index.css`), leaving a faint top-light and a single ivory/30 rule. The v3
+ * recipe drew that edge twice — a border AND the rule span — which on a
+ * hairline frame reads as a double-struck line.
  *
  * The band bleeds to the panel border by cancelling `--panel-pad`, and the
- * title starts at `--panel-header-pad-x` measured FROM THAT BORDER — which is
- * exactly the quantity the bracket-clearance guard in `design-tokens.test.ts`
- * compares against the bracket reach. v2 centred the title over a band inset
- * by a hard-coded `-mx-4` regardless of density, which is how the 40px
- * ornament came to overlap dialog titles in the first place.
+ * title starts at `--panel-header-pad-x` measured FROM THAT BORDER. That
+ * inset is unchanged: v2 centred the title over a band inset by a hard-coded
+ * `-mx-4` regardless of density, which is how the 40px ornament came to
+ * overlap dialog titles in the first place.
  */
 function PanelHeader({
     title,
@@ -174,7 +189,7 @@ function PanelHeader({
             data-slot="panel-header"
             className={cn("flex flex-col", className)}
         >
-            <div className="panel-header-band relative -mx-[var(--panel-pad)] -mt-[var(--panel-pad)] flex items-center justify-between gap-3 rounded-t-md px-[var(--panel-header-pad-x)] py-[calc(var(--density-unit)*0.8)]">
+            <div className="panel-header-band relative -mx-[var(--panel-pad)] -mt-[var(--panel-pad)] flex items-center justify-between gap-3 rounded-t-[var(--panel-radius)] px-[var(--panel-header-pad-x)] py-[calc(var(--density-unit)*0.8)]">
                 {/* The icon well sits INSIDE the band. As a sibling COLUMN it
                     pushed the band into the remaining width, where the band's
                     own `-mx-[--panel-pad]` bleed then ran under the icon on the
@@ -199,7 +214,7 @@ function PanelHeader({
                         onClick={onToggleCollapse}
                         aria-label={collapsed ? "Expand" : "Collapse"}
                         aria-expanded={!collapsed}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-accent/60 text-text-muted transition-colors hover:text-accent-strong"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-[var(--hairline-strong)] text-text-muted transition-colors hover:text-parchment"
                     >
                         {collapsed ? (
                             <ChevronDown className="h-3 w-3" />
@@ -208,8 +223,8 @@ function PanelHeader({
                         )}
                     </button>
                 )}
-                {/* 1px gold rule under the band (v3: no diamond node — the
-                    centred node contradicts a left-aligned title). */}
+                {/* The one hairline rule under the band (no diamond node —
+                    a centred node contradicts a left-aligned title). */}
                 <span className="panel-rule absolute bottom-0 left-0 h-px w-full" />
             </div>
 
@@ -274,7 +289,7 @@ function PanelFooter({
             data-slot="panel-footer"
             data-layout={layout}
             className={cn(
-                "mt-[calc(var(--density-unit)*1.5)] flex flex-col items-stretch gap-2 border-t border-border-accent/20 pt-3",
+                "mt-[calc(var(--density-unit)*1.5)] flex flex-col items-stretch gap-2 border-t border-[var(--hairline)] pt-3",
                 layout === "responsive" &&
                     "sm:flex-row sm:items-center sm:justify-end",
                 className

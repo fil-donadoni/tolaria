@@ -15,6 +15,13 @@ import { cn } from "@/lib/utils";
  *   .btn-tone-primary/secondary/destructive/ghost  → same-named variant
  *   shadcn default → primary · outline → secondary
  *   ad-hoc "Beleren plates" → primary/destructive sm · text-links → link
+ *
+ * v4 (ADR 0103 §3, issue #2723) changes the MATERIAL behind these names, not
+ * the names: `primary` is the one opaque ivory plate with a resting glow;
+ * `secondary` and `destructive` become hairline edges (no fill), `ghost` stays
+ * text. The unions are unchanged, so no consumer moves — a screen that had a
+ * garnet Concede plate beside an ivory Confirm plate now has one plate and one
+ * danger edge, which is the hierarchy the ADR is after.
  */
 const buttonVariants = cva(
     "btn-base inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap select-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface disabled:text-text-disabled disabled:shadow-none disabled:filter-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -35,11 +42,17 @@ const buttonVariants = cva(
             // deliberately NOT retargeted here — enlarging every board HUD
             // glyph to a 44px square is a layout change with cross-surface
             // blast radius, tracked separately (#2792), not the token slice.
+            //
+            // v4 rungs 40 / 48 (ADR 0103, issue #2723). `max(--control-h,40px)`
+            // rather than a flat 40px, so the COARSE pointer keeps its 44px
+            // WCAG 2.5.8 target and only the fine-pointer rung moves (32 → 40).
+            // A flat 40 would have SHRUNK every touch button by 4px, which is
+            // the one direction this rung must never go.
             size: {
-                default: "min-h-[var(--control-h)] px-4 py-2 text-sm",
+                default: "min-h-[max(var(--control-h),40px)] px-4 py-2 text-sm",
                 sm: "min-h-[var(--control-h-sm)] px-3 py-1.5 text-xs",
                 xs: "px-2 py-0.5 text-xs",
-                lg: "min-h-[var(--control-h)] px-5 py-2.5 text-base",
+                lg: "min-h-12 px-5 py-2.5 text-base",
                 icon: "size-8 p-0",
                 "icon-sm": "size-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
                 "icon-xs": "size-6 p-0 [&_svg:not([class*='size-'])]:size-3",
