@@ -402,3 +402,394 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         expect(main).not.toMatch(/^import\s[^;]*history-/m);
     });
 });
+
+/**
+ * #2628 — the action endpoint. Three reversible driver operations behind
+ * three independent guards (loopback binding, boot token, `Origin`), and a
+ * refusal for everything else.
+ *
+ * The guards are tested ONE AT A TIME with every other input valid, which is
+ * what "independent, none a substitute for another" means operationally: a
+ * request that satisfies two of the three is still refused. A suite that only
+ * ever sent a fully-invalid request would pass against an implementation that
+ * checked a single guard.
+ */
+const ACTION_ORIGIN = "http://127.0.0.1:5174";
+const ACTION_ALLOWED_ORIGINS: ReadonlySet<string> = new Set([ACTION_ORIGIN]);
+/** Deliberately NOT a UUID: nothing in the handler may depend on the token's
+ *  shape, only on an exact byte comparison against the boot value. */
+const ACTION_TOKEN = "test-boot-token-abcdefghijklmnop";
+const ACTION_TOKEN_HEADER = "x-loop-action-token";
+
+/** Records which driver operation ran, and with what argument. The three
+ *  operations are injected exactly like `getLoopStatus` / `readAsset`: the
+ *  route's job is dispatch and refusal, and this is the seam that proves
+ *  which of the two happened without writing a stop-file or calling `gh`. */
+function recordingActions() {
+    const calls: string[] = [];
+    return {
+        calls,
+        driverActions: {
+            stopDriver: async () => {
+                calls.push("stopDriver");
+            },
+            resumeDriver: async () => {
+                calls.push("resumeDriver");
+            },
+            releaseClaim: async (issue: number) => {
+                calls.push(`releaseClaim:${issue}`);
+            },
+        },
+    };
+}
+
+function actionRequest(
+    body: unknown,
+    opts: {
+        token?: string | null;
+        origin?: string | null;
+        method?: string;
+        rawBody?: string;
+    } = {}
+): Request {
+    const headers = new Headers();
+    if (opts.token !== null)
+        headers.set(ACTION_TOKEN_HEADER, opts.token ?? ACTION_TOKEN);
+    if (opts.origin !== null)
+        headers.set("origin", opts.origin ?? ACTION_ORIGIN);
+    const method = opts.method ?? "POST";
+    return new Request(`${ACTION_ORIGIN}/api/action`, {
+        method,
+        headers,
+        ...(method === "GET" || method === "HEAD"
+            ? {}
+            : { body: opts.rawBody ?? JSON.stringify(body) }),
+    });
+}
+
+async function postAction(
+    body: unknown,
+    opts: Parameters<typeof actionRequest>[1] = {}
+) {
+    const { handleRequest } = await import("../telemetry-serve");
+    const rec = recordingActions();
+    const res = await handleRequest(actionRequest(body, opts), {
+        actionToken: ACTION_TOKEN,
+        allowedOrigins: ACTION_ALLOWED_ORIGINS,
+        driverActions: rec.driverActions,
+    });
+    return { res, calls: rec.calls, text: await res.text() };
+}
+
+describe("telemetry-serve — action endpoint dispatch (#2628)", () => {
+    it("driver.stop runs the stop operation and nothing else", async () => {
+        const { res, calls } = await postAction({ action: "driver.stop" });
+        expect(res.status).toBe(200);
+        expect(calls).toEqual(["stopDriver"]);
+    });
+
+    it("driver.resume runs the resume operation and nothing else", async () => {
+        const { res, calls } = await postAction({ action: "driver.resume" });
+        expect(res.status).toBe(200);
+        expect(calls).toEqual(["resumeDriver"]);
+    });
+
+    it("claim.release acts on exactly the issue named and no other", async () => {
+        const { res, calls } = await postAction({
+            action: "claim.release",
+            issue: 2628,
+        });
+        expect(res.status).toBe(200);
+        expect(calls).toEqual(["releaseClaim:2628"]);
+    });
+
+    it("claim.release refuses an issue that is not a positive integer — no operation runs", async () => {
+        for (const issue of [
+            undefined,
+            null,
+            "2628",
+            "2628 2629",
+            0,
+            -1,
+            1.5,
+            NaN,
+            [2628],
+            { number: 2628 },
+        ]) {
+            const { res, calls } = await postAction({
+                action: "claim.release",
+                issue,
+            });
+            expect(
+                res.status,
+                `issue=${JSON.stringify(issue)} must be refused`
+            ).toBe(400);
+            expect(calls).toEqual([]);
+        }
+    });
+
+    it("arming and disarming are absent from the allow-list — they stay a copied command by design", async () => {
+        for (const action of [
+            "driver.arm",
+            "driver.disarm",
+            "loop.arm",
+            "arm",
+            "disarm",
+        ]) {
+            const { res, calls } = await postAction({ action });
+            expect(res.status, `${action} must be refused`).toBe(400);
+            expect(calls).toEqual([]);
+        }
+    });
+
+    it("only POST reaches the endpoint", async () => {
+        const { res, calls } = await postAction(
+            { action: "driver.stop" },
+            { method: "GET" }
+        );
+        expect(res.status).toBe(405);
+        expect(calls).toEqual([]);
+    });
+});
+
+describe("telemetry-serve — action endpoint guards (#2628)", () => {
+    it("REFUSAL 1 — a request with no token is refused, with Origin and action both valid", async () => {
+        const { res, calls, text } = await postAction(
+            { action: "driver.stop" },
+            { token: null }
+        );
+        expect(res.status).toBe(401);
+        expect(calls).toEqual([]);
+        // The refusal must never echo the real token back to the caller.
+        expect(text).not.toContain(ACTION_TOKEN);
+    });
+
+    it("REFUSAL 2 — a request with a wrong token is refused, with Origin and action both valid", async () => {
+        for (const wrong of [
+            "",
+            "nope",
+            ACTION_TOKEN.slice(0, -1),
+            ACTION_TOKEN + "x",
+            // Case matters: the comparison is over bytes, not over a
+            // normalised form.
+            ACTION_TOKEN.toUpperCase(),
+        ]) {
+            const { res, calls, text } = await postAction(
+                { action: "driver.stop" },
+                { token: wrong }
+            );
+            expect(res.status, `token=${JSON.stringify(wrong)}`).toBe(401);
+            expect(calls).toEqual([]);
+            expect(text).not.toContain(ACTION_TOKEN);
+        }
+    });
+
+    it("surrounding whitespace on the TOKEN never reaches the handler — the header layer strips it, so this is a transport fact, not a forgiving comparison", () => {
+        // Recorded because the obvious "fix" for the assertion below is to
+        // add a `trim()` in the handler, which would be a normalisation the
+        // action allow-list deliberately refuses to do (REFUSAL 4). Header
+        // values carry no leading/trailing OWS by the time any handler runs
+        // (RFC 9110 §5.5), so ` <token> ` and `<token>` are the SAME header
+        // value on the wire and the handler cannot distinguish them.
+        // Whitespace sensitivity is meaningful for the action name, which
+        // arrives in a JSON body where it survives — and that is where the
+        // acceptance criterion asks for it.
+        const headers = new Headers();
+        headers.set(ACTION_TOKEN_HEADER, ` ${ACTION_TOKEN} `);
+        expect(headers.get(ACTION_TOKEN_HEADER)).toBe(ACTION_TOKEN);
+    });
+
+    it("REFUSAL 3 — a disallowed Origin is refused, with token and action both valid", async () => {
+        for (const origin of [
+            "http://evil.example",
+            "https://evil.example",
+            // A page on ANOTHER local port is another origin: the allow-list
+            // is literal and port-scoped, not "any loopback host".
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            // The opaque-origin serialisation a sandboxed frame sends.
+            "null",
+            ACTION_ORIGIN + "/",
+            ACTION_ORIGIN.toUpperCase(),
+        ]) {
+            const { res, calls } = await postAction(
+                { action: "driver.stop" },
+                { origin }
+            );
+            expect(res.status, `origin=${origin}`).toBe(403);
+            expect(calls).toEqual([]);
+        }
+    });
+
+    it("REFUSAL 3b — a MISSING Origin is refused too (fail closed), with token and action both valid", async () => {
+        const { res, calls } = await postAction(
+            { action: "driver.stop" },
+            { origin: null }
+        );
+        expect(res.status).toBe(403);
+        expect(calls).toEqual([]);
+    });
+
+    it("REFUSAL 4 — an action outside the allow-list is refused, including one differing only in case or whitespace", async () => {
+        for (const action of [
+            // unknown outright
+            "driver.restart",
+            "claim.take",
+            "",
+            // case
+            "Driver.Stop",
+            "DRIVER.STOP",
+            "Claim.Release",
+            // whitespace
+            " driver.stop",
+            "driver.stop ",
+            " driver.stop ",
+            "driver.stop\n",
+            "\tdriver.resume",
+            // prototype keys — the allow-list is a Map, so these are ordinary
+            // misses rather than inherited truthy values
+            "__proto__",
+            "constructor",
+            "toString",
+        ]) {
+            const { res, calls } = await postAction({ action });
+            expect(res.status, `action=${JSON.stringify(action)}`).toBe(400);
+            expect(calls).toEqual([]);
+        }
+    });
+
+    it("a non-string action, a non-object body and malformed JSON are all refused", async () => {
+        for (const body of [
+            { action: 1 },
+            { action: null },
+            { action: ["driver.stop"] },
+            { action: { toString: () => "driver.stop" } },
+            {},
+            null,
+            42,
+            "driver.stop",
+        ]) {
+            const { res, calls } = await postAction(body);
+            expect(res.status, `body=${JSON.stringify(body)}`).toBe(400);
+            expect(calls).toEqual([]);
+        }
+        const { res, calls } = await postAction(undefined, {
+            rawBody: "{not json",
+        });
+        expect(res.status).toBe(400);
+        expect(calls).toEqual([]);
+    });
+
+    it("the guards are independent — satisfying two of the three is still a refusal", async () => {
+        // token ✓ Origin ✗ action ✓
+        expect(
+            (
+                await postAction(
+                    { action: "driver.stop" },
+                    { origin: "http://x" }
+                )
+            ).res.status
+        ).toBe(403);
+        // token ✗ Origin ✓ action ✓
+        expect(
+            (await postAction({ action: "driver.stop" }, { token: "wrong" }))
+                .res.status
+        ).toBe(401);
+        // token ✓ Origin ✓ action ✗
+        expect((await postAction({ action: "Driver.Stop" })).res.status).toBe(
+            400
+        );
+    });
+});
+
+describe("telemetry-serve — action token lifecycle (#2628)", () => {
+    it("the boot token is injected into the served page, once, inside <head>", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const shell = readFileSync(
+            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
+            "utf8"
+        );
+        const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            readAsset: async () => shell,
+            actionToken: ACTION_TOKEN,
+        });
+        expect(res.status).toBe(200);
+        const html = await res.text();
+        const tags = html.match(/<meta name="loop-action-token"/g) ?? [];
+        expect(tags).toHaveLength(1);
+        expect(html).toContain(
+            `<meta name="loop-action-token" content="${ACTION_TOKEN}"`
+        );
+        expect(html.indexOf("loop-action-token")).toBeLessThan(
+            html.indexOf("</head>")
+        );
+    });
+
+    it("the shipped shell carries exactly one </head>, so the injection can never silently no-op", () => {
+        const shell = readFileSync(
+            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
+            "utf8"
+        );
+        expect(shell.match(/<\/head>/g) ?? []).toHaveLength(1);
+    });
+
+    it("the token is escaped on the way into the page — a token can never break out of the attribute", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            readAsset: async () => "<html><head></head><body></body></html>",
+            actionToken: `"><script>alert(1)</script>`,
+        });
+        const html = await res.text();
+        expect(html).not.toContain("<script>alert(1)</script>");
+        expect(html).toContain("&quot;&gt;&lt;script&gt;");
+    });
+
+    it("the token is never persisted and never logged — the module's only console call is the boot banner", () => {
+        const src = readFileSync(
+            join(import.meta.dirname, "..", "telemetry-serve.ts"),
+            "utf8"
+        );
+        const consoleCalls = src.match(/console\.\w+\(/g) ?? [];
+        expect(consoleCalls).toHaveLength(1);
+        const bannerLine = src
+            .split("\n")
+            .find(
+                (l) => l.includes("console.") && !l.trimStart().startsWith("*")
+            );
+        expect(bannerLine).toContain("telemetry dashboard →");
+        // Nothing writes the token (or anything else) to disk from here.
+        expect(src).not.toMatch(/writeFile|appendFile|writeFileSync/);
+    });
+
+    it("no exported binding leaks the boot token", async () => {
+        const mod = (await import("../telemetry-serve")) as Record<
+            string,
+            unknown
+        >;
+        const uuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+        for (const [name, value] of Object.entries(mod)) {
+            expect(
+                typeof value === "string" && uuid.test(value),
+                `export ${name} looks like the boot token`
+            ).toBe(false);
+        }
+    });
+
+    it("the default Origin allow-list is the loopback literals at the bound port — never derived from the request's own Host", async () => {
+        const { loopbackOrigins } = await import("../telemetry-serve");
+        expect([...loopbackOrigins(5174)].sort()).toEqual(
+            [
+                "http://127.0.0.1:5174",
+                "http://[::1]:5174",
+                "http://localhost:5174",
+            ].sort()
+        );
+        // A DNS-rebinding page reaches the server with Host: evil.example, so
+        // an allow-list derived from `req.url` would admit it. This one is
+        // built from literals, so it cannot.
+        expect(loopbackOrigins(5174).has("http://evil.example:5174")).toBe(
+            false
+        );
+    });
+});
