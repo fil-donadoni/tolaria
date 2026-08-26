@@ -84,10 +84,15 @@ export type BranchNames = {
     remote: string[];
 };
 
-export type ClaimVerdict =
-    | { state: "live"; reason: string }
-    | { state: "orphan"; reason: string }
-    | { state: "suspect"; reason: string };
+/** Every state a claim verdict can take. A runtime array, not a bare type
+ *  union, so a drift guard can ITERATE it — the dashboard glossary's
+ *  completeness test (#2629) reds when a state added here has no human label.
+ *  A type union alone is invisible at runtime and cannot be checked. */
+export const CLAIM_VERDICT_STATES = ["live", "orphan", "suspect"] as const;
+
+export type ClaimVerdictState = (typeof CLAIM_VERDICT_STATES)[number];
+
+export type ClaimVerdict = { state: ClaimVerdictState; reason: string };
 
 /**
  * Pure, because the alternative to a testable classifier here is a script that

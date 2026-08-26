@@ -377,6 +377,26 @@ tbody tr:hover {
 #tip b {
     font-weight: 600;
 }
+/* A term declared with `data-term` (#2629). The dotted rule is the only
+   affordance saying "there is an explanation here"; the focus ring is what
+   makes it reachable without a mouse. Both are drawn from the theme tokens, so
+   the trigger and its tooltip stay legible in light and dark alike. */
+.term {
+    border-bottom: 1px dotted var(--axis);
+    cursor: help;
+    /* Keeps the dotted rule off the text's descenders in a dense table row. */
+    text-decoration: none;
+}
+.term:hover,
+.term:focus-visible {
+    color: var(--text-primary);
+    border-bottom-color: var(--text-secondary);
+}
+.term:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
 .err {
     color: #d03b3b;
     font-size: 13px;

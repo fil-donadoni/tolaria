@@ -1,6 +1,7 @@
 import { initTabs } from "./tabs.js";
 import { initTheme } from "./theme.js";
 import { startLoopStatusPolling } from "./now-loop-status.js";
+import { installTooltipEngine } from "./tooltip.js";
 
 /**
  * The dashboard entry point (#2625) — the single module the shell loads.
@@ -20,6 +21,12 @@ const params = new URLSearchParams(location.search);
 
 initTheme(params);
 initTabs(params);
+
+// The glossary engine before anything renders (#2629): it is delegated plus a
+// MutationObserver, so every `data-term` that arrives afterwards — including
+// inside a table that re-renders by innerHTML — is picked up with no call at
+// the render site.
+installTooltipEngine();
 
 // Now first, and unconditionally.
 startLoopStatusPolling();
