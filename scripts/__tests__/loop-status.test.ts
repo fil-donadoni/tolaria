@@ -20,11 +20,14 @@ import {
     claimsHeld,
     deriveLoopVerdict,
     INTERESTING_RECEIPTS_CAP,
+    passesInWindow,
+    TIMELINE_WINDOW_HOURS,
     type LoopStatusInput,
     type LoopVerdictInput,
     type DriverState,
     type ClaimRow,
     type QueueDepth,
+    type DriverPassLine,
 } from "../lib/loop-status";
 import { type ClaimedIssue, type ClaimVerdict } from "../loop-doctor";
 import type { Receipt } from "../lib/receipt";
@@ -282,6 +285,46 @@ describe("loop-status — parseDriverPassLine / readRecentPasses", () => {
 
     it("returns an empty array when the log file does not exist", () => {
         expect(readRecentPasses("/nonexistent/loop-drain.log")).toEqual([]);
+    });
+});
+
+describe("loop-status — passesInWindow (#2631, the Now timeline's pass-block source)", () => {
+    const pass = (epoch: number, n: number): DriverPassLine => ({
+        epoch,
+        pass: n,
+        claudeExit: 0,
+        pct: "1",
+        queueBefore: 1,
+        queueAfter: 1,
+        reason: "-",
+    });
+    const NOW_SEC = 1_755_100_000;
+
+    it("keeps a pass exactly at the cutoff and drops one a second older", () => {
+        const cutoff = NOW_SEC - TIMELINE_WINDOW_HOURS * 3600;
+        const passes = [pass(cutoff - 1, 1), pass(cutoff, 2), pass(NOW_SEC, 3)];
+        const kept = passesInWindow(passes, NOW_SEC);
+        expect(kept.map((p) => p.pass)).toEqual([2, 3]);
+    });
+
+    it("defaults to TIMELINE_WINDOW_HOURS, not a silently different window", () => {
+        const justInside = pass(NOW_SEC - TIMELINE_WINDOW_HOURS * 3600 + 60, 1);
+        const justOutside = pass(
+            NOW_SEC - TIMELINE_WINDOW_HOURS * 3600 - 60,
+            2
+        );
+        const kept = passesInWindow([justInside, justOutside], NOW_SEC);
+        expect(kept.map((p) => p.pass)).toEqual([1]);
+    });
+
+    it("respects an explicit narrower window", () => {
+        const passes = [
+            pass(NOW_SEC - 5 * 3600, 1),
+            pass(NOW_SEC - 1 * 3600, 2),
+        ];
+        expect(passesInWindow(passes, NOW_SEC, 2).map((p) => p.pass)).toEqual([
+            2,
+        ]);
     });
 });
 

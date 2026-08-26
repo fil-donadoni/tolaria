@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    fetchRecentMergedPrs,
     gatherLoopStatus,
     renderGatheredLoopStatusText,
     type GatheredLoopStatus,
@@ -103,6 +104,90 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
         expect(result.claims?.some((c) => c.issue === 7)).toBe(true);
         expect(result.queueDepth?.total).toBe(1);
     });
+
+    it("reports recentMerges UNAVAILABLE — never an empty array — when the merged-PR read throws (#2631)", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: () => "[]",
+            queueRunner: () => "[]",
+            mergedPrRunner: () => {
+                throw new Error(
+                    "GraphQL: API rate limit already exceeded for user ID 117459688"
+                );
+            },
+        });
+        expect(result.recentMerges).toBeNull();
+        expect(result.recentMergesError).toContain("rate limit");
+        // The 2519-round-3 bug, re-expressed for this new read: this must
+        // NOT be the shape a swallowed failure would have produced.
+        expect(result.recentMerges).not.toEqual([]);
+        // The failure is isolated to ITS OWN section — claims/queueDepth
+        // stay healthy.
+        expect(result.claimsError).toBeNull();
+        expect(result.queueDepthError).toBeNull();
+    });
+
+    it("populates recentMerges with real data on a healthy read (#2631)", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: () => "[]",
+            queueRunner: () => "[]",
+            mergedPrRunner: () =>
+                JSON.stringify([
+                    {
+                        number: 2837,
+                        title: "feat: Now view",
+                        mergedAt: new Date().toISOString(),
+                    },
+                ]),
+        });
+        expect(result.recentMergesError).toBeNull();
+        expect(result.recentMerges).toEqual([
+            {
+                number: 2837,
+                title: "feat: Now view",
+                mergedAt: expect.any(String),
+            },
+        ]);
+    });
+
+    it("timelinePasses is always an array (a local FS read, never UNAVAILABLE) even when nothing else is knowable (#2631)", () => {
+        const result = gatherLoopStatus({
+            noPriority: true,
+            claimsRunner: () => {
+                throw new Error("boom");
+            },
+            queueRunner: () => {
+                throw new Error("boom");
+            },
+        });
+        expect(Array.isArray(result.timelinePasses)).toBe(true);
+    });
+});
+
+describe("loop-status — fetchRecentMergedPrs (#2631)", () => {
+    it("filters out a merge older than the window, even when gh returns it", () => {
+        const oldIso = new Date(Date.now() - 48 * 3600_000).toISOString();
+        const freshIso = new Date(Date.now() - 1 * 3600_000).toISOString();
+        const prs = fetchRecentMergedPrs(24, () =>
+            JSON.stringify([
+                { number: 1, title: "old", mergedAt: oldIso },
+                { number: 2, title: "fresh", mergedAt: freshIso },
+            ])
+        );
+        expect(prs.map((p) => p.number)).toEqual([2]);
+    });
+
+    it("tolerates a null mergedAt (state=merged should always carry one, but never throws if it doesn't)", () => {
+        const prs = fetchRecentMergedPrs(24, () =>
+            JSON.stringify([{ number: 1, title: "x", mergedAt: null }])
+        );
+        expect(prs).toEqual([]);
+    });
+
+    it("returns an empty array on an empty gh response", () => {
+        expect(fetchRecentMergedPrs(24, () => "")).toEqual([]);
+    });
 });
 
 const EMPTY_DRIVER = {
@@ -133,6 +218,9 @@ function gathered(
         batch: null,
         priorityWarning: null,
         receiptErrors: [],
+        timelinePasses: [],
+        recentMerges: [],
+        recentMergesError: null,
         ...overrides,
     };
 }

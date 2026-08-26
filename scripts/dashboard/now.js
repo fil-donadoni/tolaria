@@ -2,6 +2,7 @@ import { esc } from "./format.js";
 import { verdictBandHtml } from "./now-verdict-band.js";
 import { lightsHtml, SECTION_IDS } from "./now-lights.js";
 import { claimsSectionHtml } from "./now-claims-table.js";
+import { timelineSectionHtml } from "./now-timeline.js";
 
 /**
  * The Now view's composition root (#2630) — verdict band, four traffic
@@ -125,11 +126,19 @@ function claimsSectionWrapperHtml(data) {
     return `<div id="${SECTION_IDS.claims}" class="ls-section">${claimsSectionHtml(data)}</div>`;
 }
 
-/** The whole Now body: band, lights, then the sections the lights target. */
-export function nowBodyHtml(data) {
+/**
+ * The whole Now body: band, lights, timeline, then the sections the lights
+ * target (PRD #2621 D2: "verdict, then lights, then timeline... followed by
+ * the claims table and the batch summary"). `nowMs` threads down to
+ * `timelineSectionHtml`, the one sub-renderer whose output depends on the
+ * clock rather than on `data` alone — a default keeps every other call site
+ * (and every existing test) unchanged.
+ */
+export function nowBodyHtml(data, nowMs = Date.now()) {
     return (
         verdictBandHtml(data.verdict) +
         lightsHtml(data) +
+        timelineSectionHtml(data, nowMs) +
         `<div class="ls-grid">` +
         driverSectionHtml(data) +
         queueSectionHtml(data) +

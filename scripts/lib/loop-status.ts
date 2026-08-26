@@ -203,6 +203,44 @@ export interface DriverState {
     recentPasses: DriverPassLine[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Merged PRs (#2631) — the Now timeline's merge-tick data source.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One PR merged within the timeline window — fetched by
+ *  `fetchRecentMergedPrs` in `scripts/loop-status.ts` (`gh pr list --state
+ *  merged`), which this file never calls: everything here stays pure /
+ *  deterministic-given-its-inputs, per the module header. */
+export interface MergedPr {
+    number: number;
+    title: string;
+    mergedAt: string;
+}
+
+/** The Now timeline's window (#2631) — 24 hours, matching the issue's own
+ *  title ("24-hour timeline"). Exported so both the gather layer
+ *  (`scripts/loop-status.ts`, sizing its `gh pr list` fetch) and the
+ *  dashboard (`scripts/dashboard/now-timeline.js`, positioning items on the
+ *  axis) read the SAME number rather than two literal `24`s that could drift
+ *  apart. */
+export const TIMELINE_WINDOW_HOURS = 24;
+
+/**
+ * Passes started within the last `windowHours` hours (default
+ * `TIMELINE_WINDOW_HOURS`), newest-last — the Now timeline's pass-block data
+ * source (#2631). A pure filter over whatever `readRecentPasses` already
+ * read off disk; `nowSec` is unix SECONDS, matching `DriverPassLine.epoch`'s
+ * own unit (`date +%s` in `loop-drain.sh`).
+ */
+export function passesInWindow(
+    passes: DriverPassLine[],
+    nowSec: number,
+    windowHours: number = TIMELINE_WINDOW_HOURS
+): DriverPassLine[] {
+    const cutoff = nowSec - windowHours * 3600;
+    return passes.filter((p) => p.epoch >= cutoff);
+}
+
 /** One `loop-drain.log` line: `epoch pass claude_exit pct queue_before
  *  queue_after reason` (`scripts/loop-drain.sh`). `null` on a line that does
  *  not fit the shape — a truncated final line while the log is being

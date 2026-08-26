@@ -37,6 +37,13 @@ import { initNowNav } from "./now-nav.js";
  * either — a `data-copy` holds arbitrary command text, and building a
  * selector out of it means escaping it correctly. Comparing a `kind:value`
  * string against this same function run over the NEW nodes needs neither.
+ *
+ * The timeline (#2631) added three MORE kinds of focusable control — a pass
+ * block, a claim pin, a merge tick — and every poll recomputes their
+ * positions from the current clock (`now-timeline.js`), so the write almost
+ * never takes the "skip an unchanged write" path below; without an identity
+ * here EVERY poll would silently drop focus back to `<body>`, the exact bug
+ * PR #2837 round 2 fixed for the lights and the copy button.
  */
 export function nowControlKey(el) {
     if (!el || !el.classList) return null;
@@ -44,11 +51,18 @@ export function nowControlKey(el) {
         return `light:${el.dataset.target ?? ""}`;
     if (el.classList.contains("ls-copy"))
         return `copy:${el.dataset.copy ?? ""}`;
+    if (el.classList.contains("ls-tl-pass"))
+        return `tl-pass:${el.dataset.pass ?? ""}`;
+    if (el.classList.contains("ls-tl-claim"))
+        return `tl-claim:${el.dataset.issue ?? ""}`;
+    if (el.classList.contains("ls-tl-merge"))
+        return `tl-merge:${el.dataset.pr ?? ""}`;
     return null;
 }
 
 /** Everything in the Now body a keyboard can land on. */
-const NOW_CONTROLS = ".ls-light, .ls-copy";
+const NOW_CONTROLS =
+    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge";
 
 /**
  * Write `html` into `container` without destroying keyboard focus. Returns

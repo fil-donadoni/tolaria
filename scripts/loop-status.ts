@@ -47,16 +47,21 @@ import {
     approvedReviewIssues,
     buildLoopStatus,
     gatherSection,
+    passesInWindow,
     readDriverState,
+    readRecentPasses,
     renderClaimsLines,
     renderDriverLines,
     renderQueueDepthLines,
     renderReceiptsLines,
     renderVerdictLines,
+    TIMELINE_WINDOW_HOURS,
     worktreeIssueNumbers,
     type ClaimRow,
+    type DriverPassLine,
     type DriverState,
     type LoopVerdict,
+    type MergedPr,
     type QueueDepth,
     type ReadyQueueIssue,
     type ReceiptsSummary,
@@ -174,6 +179,49 @@ export function fetchUnclaimedReadyQueue(
         .map((i) => ({ number: i.number }));
 }
 
+/**
+ * PRs merged within `windowHours` — the Now timeline's merge-tick data
+ * source (#2631). Nothing in the existing gather already carries this:
+ * `Receipt` has no merged outcome (only `pr-open`), and the driver's own log
+ * records only a bash-local `merges` count that is never written to a line
+ * (`scripts/loop-drain.sh`'s `claims_held_check` comment). So this is a new
+ * read, mirroring `fetchUnclaimedReadyQueue`'s shape: `gh` has no
+ * finer-than-a-day "merged after TIMESTAMP" filter, so this over-fetches a
+ * bounded, newest-first page (`sort:updated-desc`) and filters precisely by
+ * `mergedAt` in JS, the same two-step `fetchUnclaimedReadyQueue` already
+ * uses for its own client-side `in-progress` filter.
+ */
+export function fetchRecentMergedPrs(
+    windowHours: number,
+    runner: (args: string[]) => string = ghChecked
+): MergedPr[] {
+    const cutoffMs = Date.now() - windowHours * 3600_000;
+    const raw = JSON.parse(
+        runner([
+            "pr",
+            "list",
+            "--state",
+            "merged",
+            "--search",
+            "sort:updated-desc",
+            "--json",
+            "number,title,mergedAt",
+            "--limit",
+            "50",
+        ]) || "[]"
+    ) as { number: number; title: string; mergedAt: string | null }[];
+    return raw
+        .filter(
+            (pr): pr is { number: number; title: string; mergedAt: string } =>
+                pr.mergedAt !== null && Date.parse(pr.mergedAt) >= cutoffMs
+        )
+        .map((pr) => ({
+            number: pr.number,
+            title: pr.title,
+            mergedAt: pr.mergedAt,
+        }));
+}
+
 export interface GatherLoopStatusOptions {
     noPriority?: boolean;
     /**
@@ -198,6 +246,9 @@ export interface GatherLoopStatusOptions {
     /** Test seam for the ready-for-agent queue read. Defaults to the real
      *  `ghChecked`. See `claimsRunner`. */
     queueRunner?: (args: string[]) => string;
+    /** Test seam for the recently-merged-PR read (#2631). Defaults to the
+     *  real `ghChecked`. See `claimsRunner`. */
+    mergedPrRunner?: (args: string[]) => string;
 }
 
 /**
@@ -231,6 +282,24 @@ export interface GatheredLoopStatus {
     batch: string | null;
     priorityWarning: string | null;
     receiptErrors: ReceiptFileError[];
+    /**
+     * Passes started in the last `TIMELINE_WINDOW_HOURS` (#2631) — the Now
+     * timeline's pass-block data source. A LOCAL read off `loop-drain.log`,
+     * like `driver.recentPasses`: no `gh`/`git` call, so (mirroring
+     * `DriverState`'s own contract) it has no failure mode and therefore no
+     * `*Error` sibling — an unreadable/missing log renders as `[]`, which is
+     * also the correct rendering of "no passes ran".
+     */
+    timelinePasses: DriverPassLine[];
+    /**
+     * PRs merged in the last `TIMELINE_WINDOW_HOURS` (#2631) — the Now
+     * timeline's merge-tick data source. `gh`-backed, so — mirroring
+     * `claims`/`queueDepth` — a failed read is `null` with a sibling
+     * `recentMergesError`, never a fabricated empty list (#2519 round 3,
+     * finding 5's contract, extended to this new read).
+     */
+    recentMerges: MergedPr[] | null;
+    recentMergesError: string | null;
 }
 
 /**
@@ -270,6 +339,15 @@ export function gatherLoopStatus(
         "ready-for-agent queue"
     );
 
+    // #2631 — the Now timeline's merge-tick data source. `gh`-backed, so
+    // fail-closed via `gatherSection` like every other `gh` read here: a
+    // failed fetch must render as "cannot tell", never as "nothing merged".
+    const mergedPrRunner = opts.mergedPrRunner ?? ghChecked;
+    const mergedPrsSection = gatherSection(
+        () => fetchRecentMergedPrs(TIMELINE_WINDOW_HOURS, mergedPrRunner),
+        "recently merged PRs"
+    );
+
     // `git worktree list` is a LOCAL read (no network, no `gh`) — outside
     // this finding's scope (a GitHub outage cannot cause it to fail) and
     // its only effect on failure is a coarser `stage` (falls back to
@@ -292,6 +370,19 @@ export function gatherLoopStatus(
         : { receipts: [], errors: [] };
 
     const driver = readDriverState({ telemetryDir });
+
+    // #2631 — the Now timeline's pass-block data source. A LOCAL read, like
+    // `driver` itself: `readRecentPasses` already reads the WHOLE log file
+    // into memory regardless of `limit` (`.slice(-limit)` runs after the
+    // read), so a generous limit costs nothing extra and simply avoids
+    // truncating a busy night's passes before `passesInWindow` gets to
+    // filter by time. `readDriverState`'s own `recentPasses` (capped at 5,
+    // for the driver light/section) is untouched — this is a SEPARATE read
+    // of the same file for a different consumer with a different window.
+    const timelinePasses = passesInWindow(
+        readRecentPasses(path.join(telemetryDir, "loop-drain.log"), 10_000),
+        Math.floor(Date.now() / 1000)
+    );
 
     const status = buildLoopStatus({
         claimedIssues:
@@ -332,6 +423,11 @@ export function gatherLoopStatus(
         batch: batch ?? null,
         priorityWarning: warning,
         receiptErrors: errors,
+        timelinePasses,
+        recentMerges:
+            mergedPrsSection.status === "ok" ? mergedPrsSection.data : null,
+        recentMergesError:
+            mergedPrsSection.status === "ok" ? null : mergedPrsSection.error,
     };
 }
 
