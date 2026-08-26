@@ -1,4 +1,4 @@
-import { state } from "./history-state.js";
+import { state, stateToParams } from "./history-state.js";
 import { q } from "./history-query.js";
 import { seedColors } from "./history-colors.js";
 import { lookupTerm, labelFor } from "./glossary.js";
@@ -11,6 +11,28 @@ import { renderTiles } from "./history-tiles.js";
 /** The glossary label for a metric/dimension, qualified by the current
  *  dataset first (glossary.js's `labelFor` — the one authority). */
 const termLabel = (name) => labelFor(name, state.table);
+
+/**
+ * Write the current `state` slice into the URL (#2635), preserving every
+ * OTHER param (`view`, `theme`) the way `tabs.js`'s own `replaceState` call
+ * does — a `new URLSearchParams(location.search)` base, never a fresh one.
+ * `replaceState`, not `pushState`: a filter tweak is not a browser-history
+ * stop a Back button should walk through one click at a time.
+ *
+ * Guarded on `location`/`history` existing: `history-filters.test.ts` and
+ * `history-tables.test.ts` drive `refresh()` against a happy-dom `document`
+ * installed on `globalThis` WITHOUT installing `location`/`history` (neither
+ * test needs them), so an unconditional read would throw a `ReferenceError`
+ * before either test's own fixtures/mocks ever ran. A page that lacks both
+ * globals has nothing to sync into, so skipping is the correct behaviour, not
+ * only the test-safe one.
+ */
+function syncUrlFromState() {
+    if (typeof location === "undefined" || typeof history === "undefined")
+        return;
+    const next = stateToParams(new URLSearchParams(location.search));
+    history.replaceState(null, "", `?${next}`);
+}
 
 /**
  * History's orchestrator (#2625): one function that turns the current `state`
@@ -41,9 +63,16 @@ const termLabel = (name) => labelFor(name, state.table);
  * a real `change` event with a deliberately partial fixture DOM that has
  * never included `#fam-title`/`#fam-sub`.
  *
- * Nothing here mutates `state`; it only reads it.
+ * Nothing here mutates `state`; it only reads it — including the URL sync
+ * below (#2635), which is why `refresh()` is the one place that call needed
+ * adding: every writer of `state` (`history-filters.js`'s binds and chip
+ * clicks, `history-metrics-table.js`'s header-click sort) already calls
+ * `refresh()` right after mutating it, so this is the single choke point
+ * where "state changed" becomes "the URL says so" without a second call site
+ * at each writer to forget.
  */
 export async function refresh() {
+    syncUrlFromState();
     renderNarrative().catch((e) => {
         document.getElementById("issues-sub").textContent =
             `error: ${e.message}`;

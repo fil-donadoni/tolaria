@@ -135,8 +135,8 @@ h1 {
     color: var(--text-secondary);
     font-size: 13px;
 }
-button.theme {
-    margin-left: auto;
+button.theme,
+button.shortcuts-btn {
     background: var(--surface-1);
     color: var(--text-secondary);
     border: 1px solid var(--border);
@@ -145,6 +145,13 @@ button.theme {
     cursor: pointer;
     font: inherit;
     font-size: 13px;
+}
+/* Pushes this button AND everything after it (the theme toggle) to the
+   header's right edge — moved here from `button.theme` so the two form one
+   right-aligned group (#2635) rather than each claiming the header's only
+   flex-auto margin. */
+button.shortcuts-btn {
+    margin-left: auto;
 }
 
 /* One filter row above everything it scopes. */
@@ -839,6 +846,97 @@ tbody tr:hover {
     outline-offset: 2px;
     border-radius: 3px;
 }
+/* An issue-number reference (#2635 AC: "issue numbers link to their
+   issues"). Deliberately its own colour role rather than the browser's
+   default link blue — this page draws every hue from the theme tokens, and a
+   raw blue would be the one spot on it that didn't. */
+.issue-link {
+    color: var(--series-1);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+.issue-link:hover,
+.issue-link:focus-visible {
+    border-bottom-color: currentColor;
+}
+.issue-link:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* The keyboard-shortcut sheet (#2635) — its own overlay, not `#tip`: a list
+   of shortcuts needs pointer events and a fixed, centred position, where
+   `#tip` is deliberately `pointer-events: none` and anchored next to a
+   cursor. See shortcuts.js's module header for why the two stay separate. */
+.shortcuts-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    padding: 20px;
+}
+.shortcuts-sheet {
+    background: var(--surface-1);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+.shortcuts-sheet h2 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.shortcuts-sheet dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 16px;
+    margin: 0;
+}
+.shortcuts-sheet dt {
+    justify-self: start;
+}
+.shortcuts-sheet dd {
+    margin: 0;
+    color: var(--text-secondary);
+    align-self: center;
+}
+.shortcuts-sheet kbd {
+    display: inline-block;
+    min-width: 1.4em;
+    text-align: center;
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+}
+.shortcuts-sheet .shortcuts-close {
+    margin-top: 18px;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+}
+.shortcuts-sheet .shortcuts-close:focus-visible,
+button.shortcuts-btn:focus-visible,
+button.theme:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 2px;
+}
+
 .err {
     color: #d03b3b;
     font-size: 13px;

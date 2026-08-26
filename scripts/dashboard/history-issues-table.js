@@ -1,4 +1,12 @@
-import { esc, tier, fmtNum, fmtUsd, fmtMin, fmtUsdCell } from "./format.js";
+import {
+    esc,
+    tier,
+    fmtNum,
+    fmtUsd,
+    fmtMin,
+    fmtUsdCell,
+    issueLink,
+} from "./format.js";
 import { toggleDrill } from "./history-drilldown.js";
 import { labelFor, lookupTerm } from "./glossary.js";
 
@@ -57,7 +65,7 @@ function issueCell(col, r) {
     const v = r[col.key];
     switch (col.key) {
         case "issue":
-            return `<td title="${esc(r.title)}">#${r.issue} ${esc((r.title ?? "").slice(0, 42))}</td>`;
+            return `<td title="${esc(r.title)}">${issueLink(r.issue)} ${esc((r.title ?? "").slice(0, 42))}</td>`;
         case "first_ts":
             return `<td>${new Date(v * 1000).toLocaleDateString([], { month: "2-digit", day: "2-digit" })}</td>`;
         case "family":
@@ -151,9 +159,14 @@ export function renderIssuesTable() {
         })
     );
     itbl.querySelectorAll("tr.expand").forEach((tr) =>
-        tr.addEventListener("click", () =>
-            toggleDrill(tr, `/api/runs?issue=${tr.dataset.issue}`)
-        )
+        tr.addEventListener("click", (e) => {
+            // The issue cell's `#N` is now a real link (#2635 AC) that opens
+            // in its own tab — a click on it must not ALSO toggle this row's
+            // drill-down, which is what a plain row-level listener would do
+            // since the click bubbles up from the anchor.
+            if (e.target.closest("a")) return;
+            toggleDrill(tr, `/api/runs?issue=${tr.dataset.issue}`);
+        })
     );
 }
 

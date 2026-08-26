@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Window } from "happy-dom";
 
 // @ts-expect-error — browser ES modules with no type declarations; the
@@ -205,6 +205,38 @@ describe("History Issues table (#2634)", () => {
             (tr) => tr.getAttribute("data-issue")
         );
         expect(order).toEqual(["1", "2"]); // 9 before 100 — a string sort would invert this
+    });
+
+    it("the issue cell links to the real GitHub issue (#2635 AC: 'issue numbers link to their issues')", () => {
+        setIssueRows([issueRow({ issue: 42 })]);
+        renderIssuesTable();
+        const link = document.querySelector(
+            "#issues-tbl a.issue-link"
+        ) as HTMLAnchorElement;
+        expect(link).toBeTruthy();
+        expect(link.getAttribute("href")).toBe(
+            "https://github.com/fil-donadoni/tolaria/issues/42"
+        );
+        expect(link.getAttribute("target")).toBe("_blank");
+        expect(link.textContent).toBe("#42");
+    });
+
+    it("clicking the issue link does not ALSO toggle the row's drill-down — the click bubbles from the anchor to the row's own listener (#2635)", () => {
+        setIssueRows([issueRow({ issue: 42 })]);
+        renderIssuesTable();
+        const fetchSpy = vi.fn();
+        g.fetch = fetchSpy;
+        const link = document.querySelector(
+            "#issues-tbl a.issue-link"
+        ) as HTMLAnchorElement;
+
+        link.click();
+
+        // `toggleDrill` is what would call `fetch` — if the row-click
+        // listener did not special-case a click landing on the link, this
+        // would have fired (and, unstubbed, thrown on a real network call).
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(document.querySelector("#issues-tbl tr.drill")).toBeNull();
     });
 
     it("empty state (no data at all) reads as a sentence, header row still present", () => {

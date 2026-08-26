@@ -53,6 +53,7 @@ export const DASHBOARD_ASSET_NAMES = [
     "main.js",
     "tabs.js",
     "theme.js",
+    "shortcuts.js",
     "format.js",
     "glossary.js",
     "tooltip.js",
