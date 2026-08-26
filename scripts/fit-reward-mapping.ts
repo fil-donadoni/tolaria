@@ -10,8 +10,9 @@
  * logistic P(win) = σ(k·margin) (scripts/lib/ladder/fit.ts — deterministic
  * Newton MLE on the symmetrically augmented corpus), prints the calibration
  * curve (empirical vs fitted per margin band), and emits the constant to land
- * in convex/gre/search.ts. Pure read-only reporting — the fitted constant is
- * applied by hand as CODE, never as a data-file dependency (ticket #1929 §2).
+ * in convex/gre/ai/evalWeights.ts (DEFAULT_EVAL_WEIGHTS.calibratedRewardK).
+ * Pure read-only reporting — the fitted constant is applied by hand as CODE,
+ * never as a data-file dependency (ticket #1929 §2).
  */
 import { readFileSync } from "node:fs";
 
@@ -120,8 +121,10 @@ for (const [label, pred] of STAGES) {
 const TERMINAL_BAND = 0.25;
 const OUTCOME_EPS = 0.05;
 const slope0 = ((1 - 2 * TERMINAL_BAND) * fit.k) / 4;
-console.log(`\nconstant to land in convex/gre/search.ts:`);
-console.log(`   const CALIBRATED_REWARD_K = ${fit.k.toExponential(6)};`);
+console.log(
+    `\nconstant to land in convex/gre/ai/evalWeights.ts (DEFAULT_EVAL_WEIGHTS):`
+);
+console.log(`   calibratedRewardK: ${fit.k.toExponential(6)},`);
 console.log(
     `\n   margin at 75% win prob: ${(Math.log(3) / fit.k).toFixed(1)} points` +
         `\n   margin at 90% win prob: ${(Math.log(9) / fit.k).toFixed(1)} points` +

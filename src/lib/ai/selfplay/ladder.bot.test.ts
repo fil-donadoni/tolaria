@@ -80,7 +80,7 @@ describe("playLadderGame (micro smoke)", () => {
     });
 
     it("runs a real candidate variant deterministically and cleans the seam up", () => {
-        const variant = { name: "ucb-tight", ucbC: 0.7 };
+        const variant = { name: "ucb-tight", evalWeights: { ucbC: 0.7 } };
         const a = playLadderGame(SPEC, variant);
         const b = playLadderGame(SPEC, variant);
         expect(b).toEqual(a);
@@ -108,6 +108,11 @@ describe("playLadderGame (micro smoke)", () => {
  * (S1 -> S0) versus the null variant; the assertion at the top of the test
  * pins that fact so a future engine change that made it stop mattering would
  * fail loudly here instead of silently making the rest of the test inert.
+ *
+ * `ucbC` moved under `evalWeights` (issue #2683: `SearchVariant.ucbC` was
+ * retired in favour of `SearchVariant.evalWeights.ucbC`, the one override
+ * path for every `EvalWeights` field) — the magnitude and its empirically
+ * verified effect are otherwise unchanged.
  */
 describe("playLadderGame: cross-game isolation (issue #2681)", () => {
     const SPECS: LadderGameSpec[] = [
@@ -133,7 +138,11 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
             iterations: 6,
         },
     ];
-    const VARIANTS = [{ name: "ucb-tight-lo", ucbC: 0.05 }, null, null];
+    const VARIANTS = [
+        { name: "ucb-tight-lo", evalWeights: { ucbC: 0.05 } },
+        null,
+        null,
+    ];
 
     /** Play the specs at the given original-index order, return outcomes
      *  keyed back by that original index (never by call position). Asserts
@@ -184,7 +193,7 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
  *
  * For that to be worth measuring, the perturbation must actually reach the
  * game — hence the precondition test below. Measured 2026-08-24 while
- * choosing the mechanism: nudging `ucbC` instead, at eps 1e-12 / 1e-9 / 1e-6,
+ * choosing the mechanism: nudging `evalWeights.ucbC` instead, at eps 1e-12 / 1e-9 / 1e-6,
  * changed NOTHING over four games (UCB scores are not separated that finely),
  * and a nudge big enough to bite would no longer be neutral.
  */
@@ -196,7 +205,7 @@ describe("placebo variant / searchSeedMask (issue #1929)", () => {
         expect(PLACEBO.searchSeedMask).toBeGreaterThan(0);
         // Neutrality is the whole point: it must not set any knob that
         // changes how the search decides.
-        expect(PLACEBO.ucbC).toBeUndefined();
+        expect(PLACEBO.evalWeights?.ucbC).toBeUndefined();
         expect(PLACEBO.rewardMapping).toBeUndefined();
     });
 
