@@ -8,8 +8,7 @@ import {
     limitedEventStatusHint,
 } from "~/lib/limitedEventStatus";
 import { cn } from "~/lib/utils";
-import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
-import ActionButton from "~/components/board/action-button";
+import { Button } from "~/components/ui/button";
 import LimitedStatusBadge from "~/components/limited/limited-status-badge";
 import DashboardLimitedOpenEvents from "./dashboard-limited-open-events";
 
@@ -17,26 +16,30 @@ import DashboardLimitedOpenEvents from "./dashboard-limited-open-events";
  *  just enough OPEN events to invite a same-session join, with "Browse /
  *  Create Events" as the escape hatch to the full list. Picked to keep the
  *  strip's height in the same order of magnitude as "Your Current Events"
- *  above it rather than growing unbounded with every event ever opened. */
+ *  beside it rather than growing unbounded with every event ever opened. */
 const MAX_DASHBOARD_OPEN_EVENTS = 3;
 
-/** First-class Limited box on the lobby dashboard (issue #1582), given equal
- *  visual weight to `DashboardPlayBox` via the SAME shared Panel component
- *  language — no bespoke frame. Offers the primary Limited actions at a
- *  glance: browse/create events (→ the events page — creation itself stays
- *  out of scope for the dashboard, issue #1582), quick re-entry into every
- *  event STILL IN PROGRESS where the viewer occupies a Seat (each with a
- *  status hint — open/drafting/deckbuilding/ready to play/playing —
- *  `limitedEventStatusHint` — and a link to its event detail), and (issue
- *  #2648, ADR 0101 §9 "open events joinable inline") a short, capped list of
- *  OPEN events the viewer can seat into without leaving the lobby. The
- *  re-entry list reuses `myCurrentLimitedEvents`/`useMyCurrentLimitedEvents`
- *  (issue #1578/#1589, narrowed by #2357); the joinable list reuses
- *  `listOpenLimitedEvents`/`useOpenLimitedEvents` (already the `/limited`
- *  lobby's own source) narrowed CLIENT-SIDE by `isLimitedEventJoinable` —
- *  no new query. A concluded event drops off the re-entry list and lives on
- *  `/limited/events` (`onViewAllEvents`) instead, with its final match
- *  record. */
+/** The lobby's live Limited footer (issue #1582, restyled from a full-width
+ *  Panel to the ADR 0103 §6 FOOTER by issue #2726).
+ *
+ *  Same job, a quarter of the height: Limited's headline entry point is now a
+ *  Mode Tile up in the grid, so the footer is only what is LIVE — the events
+ *  the viewer can walk back into (`myCurrentLimitedEvents`, #1578/#1589,
+ *  narrowed by #2357) and a short capped list of OPEN events they can seat
+ *  into without leaving the lobby (#2648, narrowed CLIENT-SIDE by
+ *  `isLimitedEventJoinable`; `openEvents` is the RAW `listOpenLimitedEvents`
+ *  output and includes both events the viewer already sits in and fully-seated
+ *  ones). No new query on either side.
+ *
+ *  Two escape hatches survive the restyle, in the footer's own header row:
+ *  "Browse / Create Events" (→ the events page; creation itself stays out of
+ *  scope for the lobby, #1582) and "Your Events (all)" (→ the full list, where
+ *  a concluded event lives with its final match record).
+ *
+ *  It is a `<section>` with an `<h2>`, not a `Panel`: a footer strip laid over
+ *  the deck-art ambient should read as the page's own last band, and stacking
+ *  a bordered material box under two Deck Shelves is exactly the "web page"
+ *  rhythm ADR 0103 §6 replaces. */
 export default function DashboardLimitedBox({
     events,
     openEvents,
@@ -68,14 +71,9 @@ export default function DashboardLimitedBox({
         [events]
     );
 
-    // The joinable subset (issue #2648): excludes an event the viewer is
-    // already seated in AND an event with no free Seat left, per
-    // `isLimitedEventJoinable` — `openEvents` alone (raw `listOpenLimitedEvents`
-    // output) is NOT this list, it is every "open"-status event including
-    // both of those. Newest first (matches `createLimitedEvent`'s own
-    // biggest-signal-first convention elsewhere in Limited), capped to
-    // `MAX_DASHBOARD_OPEN_EVENTS` — "Browse / Create Events" above is the
-    // escape hatch to the rest.
+    // The joinable subset (issue #2648). Newest first (matches
+    // `createLimitedEvent`'s own biggest-signal-first convention elsewhere in
+    // Limited), capped to `MAX_DASHBOARD_OPEN_EVENTS`.
     const joinableEvents = useMemo(
         () =>
             [...openEvents]
@@ -89,30 +87,30 @@ export default function DashboardLimitedBox({
     const hasJoinableEvents = joinableEvents.length > 0;
 
     return (
-        <Panel tone="accent" className="flex w-full flex-col">
-            <PanelHeader title="Limited" />
-            <PanelBody>
-                <p className="text-sm text-text-muted">
-                    Draft or Sealed, against other players or the Bot Drafter —
-                    build a Pool, then a deck.
-                </p>
+        <section
+            aria-labelledby="lobby-limited-footer"
+            className="flex flex-col gap-2"
+        >
+            <div className="flex flex-wrap items-center gap-2">
+                <h2
+                    id="lobby-limited-footer"
+                    className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted"
+                >
+                    Limited
+                </h2>
+                <span className="flex-1" />
+                <Button variant="secondary" size="sm" onClick={onBrowse}>
+                    Browse / Create Events
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onViewAllEvents}>
+                    Your Events (all)
+                </Button>
+            </div>
 
-                <div className="flex flex-wrap gap-2">
-                    <ActionButton
-                        onClick={onBrowse}
-                        label="Browse / Create Events"
-                        tone="primary"
-                    />
-                    <ActionButton
-                        onClick={onViewAllEvents}
-                        label="Your Events (all)"
-                        tone="secondary"
-                    />
-                </div>
-
+            <div className="grid gap-2 lg:grid-cols-2">
                 {hasOwnEvents && (
-                    <div className="flex flex-col gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    <div className="flex flex-col gap-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-disabled">
                             Your Current Events
                         </p>
                         <div className="flex flex-col gap-2">
@@ -127,15 +125,16 @@ export default function DashboardLimitedBox({
                                 return (
                                     <button
                                         key={event._id}
+                                        type="button"
                                         onClick={() => onOpen(id)}
                                         className={cn(
-                                            "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
+                                            "flex items-center justify-between gap-2 rounded-sm border px-3 py-2 text-sm transition",
                                             isPrimary
-                                                ? "border-accent bg-accent/10 text-text hover:border-accent"
-                                                : "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60"
+                                                ? "border-accent bg-accent/10 text-text"
+                                                : "border-[var(--hairline)] bg-surface/70 text-text hover:border-[var(--hairline-strong)]"
                                         )}
                                     >
-                                        <span className="flex items-center gap-2 font-medium">
+                                        <span className="flex min-w-0 items-center gap-2 font-medium">
                                             {isPrimary && (
                                                 <span
                                                     aria-hidden
@@ -143,9 +142,11 @@ export default function DashboardLimitedBox({
                                                     className="size-2 shrink-0 animate-pulse rounded-full bg-danger"
                                                 />
                                             )}
-                                            {limitedEventName(event)}
+                                            <span className="truncate">
+                                                {limitedEventName(event)}
+                                            </span>
                                         </span>
-                                        <span className="flex items-center gap-2">
+                                        <span className="flex shrink-0 items-center gap-2">
                                             <LimitedStatusBadge event={event} />
                                             {isPrimary && (
                                                 <span className="rounded-sm bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-surface-base">
@@ -167,14 +168,14 @@ export default function DashboardLimitedBox({
                         joinPendingEventId={joinPendingEventId}
                     />
                 )}
+            </div>
 
-                {!hasOwnEvents && !hasJoinableEvents && (
-                    <p className="text-xs text-text-muted">
-                        No events in progress — browse open events or create one
-                        to get started.
-                    </p>
-                )}
-            </PanelBody>
-        </Panel>
+            {!hasOwnEvents && !hasJoinableEvents && (
+                <p className="text-xs text-text-muted">
+                    No events in progress — browse open events or create one to
+                    get started.
+                </p>
+            )}
+        </section>
     );
 }
