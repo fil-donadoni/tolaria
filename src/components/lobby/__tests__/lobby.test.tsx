@@ -146,8 +146,11 @@ const MANUAL_USER_DECK = {
 
 vi.mock("~/lib/adminGating", () => ({ canEditPresets: () => false }));
 
-// Stub the chrome around the Play panel so the integration test stays focused
-// on the vs-AI flow (the real DashboardPlayBox + VsAiSetupDialog still render).
+// Stub the chrome around the lobby so the integration test stays focused on
+// the vs-AI flow. `DashboardPlayBox` is gone (issue #2726 retired it); what
+// still renders for real here is `LobbyModeTiles` / `LobbyLoadout` — which is
+// what now carries the "Play vs Bot" tile and the single primary action — plus
+// `VsAiSetupDialog` behind it.
 // The app header is no longer the Lobby's to render — it moved to `AppShell`
 // (`src/components/chrome/app-header.tsx`) so every section wears it — so
 // there is nothing to stub here beyond the background.

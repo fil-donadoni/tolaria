@@ -36,6 +36,24 @@ interface DeckRowMenuProps {
  * (`src/components/deckbuilder/deck-card-move-menu.tsx`): the surface
  * underneath is itself clickable, so both the trigger and the menu content
  * stop propagation.
+ *
+ * TAP TARGET (ADR 0101 §2, issue #2726 round-3 fixup). The trigger carries
+ * `min-h/min-w: var(--control-h)` — 44px on a coarse pointer, 32px on a fine
+ * one — on top of the `icon-sm` 28px square, because `min-*` beats the fixed
+ * `size-7`. Before this it was a flat 28px square at EVERY pointer, and a Deck
+ * Shelf turns that from one control into one per deck: `bun run check:ui`
+ * measured 61 of them sub-44px on both coarse-pointer tablet viewports
+ * (`lobby` `small` 77 vs ceilings 20 / 16), which is real WCAG 2.5.8 debt, not
+ * a measurement artifact. With the token it is 44px there and the metric drops
+ * to 16 at both, under the ceilings recorded on `main`, with no budget change.
+ *
+ * No `short-viewport:` trade-down, unlike `AppContextBar`'s overflow trigger
+ * (`src/components/chrome/app-context-bar.tsx`, issue #2662): that one sits in
+ * a bar whose height the landscape phone pays for in layout, and 44px there
+ * cost ~11% of the screen. This trigger is `absolute`ly positioned inside its
+ * tile (`deck-shelf-tile.tsx`), so its size adds nothing to any row's height —
+ * on any viewport — and the 900px-desktop no-scroll criterion is untouched.
+ * The `icon-sm` rung itself is deliberately not retargeted globally (#2792).
  */
 export default function DeckRowMenu({
     deckName,
@@ -53,7 +71,13 @@ export default function DeckRowMenu({
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger
-                render={<Button variant="ghost" size="icon-sm" />}
+                render={
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="min-h-[var(--control-h)] min-w-[var(--control-h)]"
+                    />
+                }
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`More actions for ${deckName}`}
                 title="More actions"

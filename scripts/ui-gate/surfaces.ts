@@ -645,8 +645,14 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
         //    action ungates. An already-selected tile and an illegal one are
         //    both `disabled`, so this addresses the first tile that can
         //    actually take the selection — and the step is skipped outright
-        //    when a tile already carries the selection, which is the state a
-        //    later viewport's walk inherits through localStorage.
+        //    when a tile already carries the selection. That is the SECOND
+        //    `ensureBoard` call inside one viewport (`game-board` then
+        //    `game-stress`, both below), which shares the context and so the
+        //    `tolaria:selectedDeckId` the first call wrote. It is NOT how a
+        //    later VIEWPORT starts: `index.ts`'s `browser.newContext({viewport,
+        //    …})` passes no `storageState`, so every viewport begins with empty
+        //    storage and viewports 2-5 reach a board through the `Resume`
+        //    branch above, on the game viewport 1 created.
         if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
             if (!(await clickIfVisible(page, DECK_TILE_SELECT, 6000))) {
                 throw new Unreachable(
