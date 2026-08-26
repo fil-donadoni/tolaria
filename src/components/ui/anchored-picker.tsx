@@ -97,7 +97,13 @@ export function AnchoredPickerRow({
             type="button"
             onClick={onSelect}
             className={cn(
-                "flex min-h-[var(--menu-row-h)] w-full cursor-pointer flex-col items-start justify-center gap-0.5 rounded-sm border border-transparent px-3 py-1.5 text-left transition-colors hover:border-border-subtle hover:bg-surface-elevated",
+                // `border-border-strong` on hover, NOT the decorative
+                // `--hairline` pair (`src/index.css` — "A control EDGE is
+                // `--color-border-strong` / `--color-danger`, never the
+                // decorative `--hairline` pair"; `control-edge-usage.test.ts`):
+                // this row IS a `<button>`, so its own edge is a control
+                // boundary under WCAG 1.4.11, not decoration.
+                "flex min-h-[var(--menu-row-h)] w-full cursor-pointer flex-col items-start justify-center gap-0.5 rounded-sm border border-transparent px-3 py-1.5 text-left transition-colors hover:border-border-strong hover:bg-surface-elevated",
                 className
             )}
             {...rest}
