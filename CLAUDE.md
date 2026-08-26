@@ -221,9 +221,7 @@ prose is the fallback for judgment, not the home of invariants.
 
 - `convex/gre/**`, `convex/cards/**` → CR compliance, testing, patterns
 - `src/components/**` → one-component-per-file, type sourcing, UI testing
-- `convex/gre/{search,evaluate,moves,applyMove,determinize,difficulty,shouldThink,describeMove}.ts`,
-  `convex/gre/ai/**`, `src/lib/ai/**` → Bot verification doctrine — blade
-  first, fix the class not the card, ladder for strength claims only
+- `convex/gre/ai/**`, `src/lib/ai/**` → Bot verification doctrine — blade first
 
 ### Development cycle
 

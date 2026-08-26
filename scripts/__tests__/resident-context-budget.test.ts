@@ -39,8 +39,15 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
  * Headroom is deliberately ~7%: enough that ordinary edits to a norm never
  * trip it, tight enough that a repeat of the +4,723-byte regrowth the audit
  * measured goes red before it lands.
+ *
+ * Re-measured 2026-08-26 (issue #2688) at 44,926 bytes: `.claude/rules/
+ * bot-development.md` is a genuinely new norm (the Bot verification
+ * doctrine, previously opt-in prose in `/bot-slice`, now auto-loaded), not
+ * prose regrowth — the case this file's own header calls out as the one
+ * where raising the ceiling is the correct response. Same ~7% headroom
+ * policy re-applied to the new baseline.
  */
-const CEILING_BYTES = 44_000;
+const CEILING_BYTES = 48_000;
 
 function residentFiles(): string[] {
     const out: string[] = [];

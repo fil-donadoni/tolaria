@@ -62,6 +62,7 @@ export function isDocPath(p: string): boolean {
 export const DOC_GATE_TESTS = [
     "scripts/__tests__/action-space.test.ts",
     "scripts/__tests__/adr-index.test.ts",
+    "scripts/__tests__/bot-globs.test.ts",
     "scripts/__tests__/findings.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
@@ -86,6 +87,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts the lane classifier treats them as UNRECOGNISED (fail-closed ⇒ full gate); it reads no repo document",
     "scripts/__tests__/check-marker-liveness.test.ts":
         "the docs/adr and .md paths are synthetic examples fed to inScope()'s scope filter — the test asserts the filter EXCLUDES them (a real divergence marker is always a COMMENT in compiled source — `//` or `/** */` alike — never prose in a .md file); it reads no repo document",
+    "scripts/__tests__/receipt.test.ts":
+        '`"CLAUDE.md"` appears only as a targetFiles/blade fixture value (a sample path a receipt might name) — the test never opens or reads the file',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
