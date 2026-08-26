@@ -14,6 +14,12 @@ import { labelFor, lookupTerm } from "./glossary.js";
  * since this table DOES offer a title/command/id search box, #2634 review);
  * every other column's term IS its key. `key` alone drives sorting (#2634)
  * — see the identical note in `history-issues-table.js`.
+ *
+ * DELIBERATELY OUT OF THE #2635 URL ROUND TRIP (round 2 review) — same scope
+ * call as `history-issues-table.js`'s `issState`: `sesState.cmd`/`text`
+ * (this table's own filter+search) is a separate, module-private object the
+ * shared `history-state.js` round trip never reaches, so it does not survive
+ * a bookmark today.
  */
 export const SESSION_COLS = [
     { key: "title", term: "history.session-title" },

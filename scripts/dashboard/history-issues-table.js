@@ -17,6 +17,17 @@ import { labelFor, lookupTerm } from "./glossary.js";
  * `issState` is module-private: rows arrive through `setIssueRows()` and
  * nothing outside this file reads or writes the sort/filter fields.
  *
+ * DELIBERATELY OUT OF THE #2635 URL ROUND TRIP (round 2 review): `stateToParams`
+ * / `paramsToState` (`history-state.js`) only ever walk the SHARED
+ * `history-state.js` singleton — the dataset/metric/split/date-range/chip
+ * filter bar. `issState.family`/`tier`/`state`/`text` (this table's own
+ * sort+filter, including the `#if-text` search box `/` focuses) are a
+ * SEPARATE, module-private object and do not survive a bookmark today. The
+ * #2635 AC's wording ("History's filter state round-trips") reads broadly
+ * enough to cover this table too; narrowing it to the shared filter bar was
+ * a scope call made in review, not an oversight — noted here so the next
+ * reader does not mistake the gap for a bug in `stateToParams` itself.
+ *
  * Column headers render the glossary LABEL, never the raw abbreviation
  * (#2634: `impl '` → "implement minutes", `fix ×` → "fixup rounds", …), and
  * carry `data-term` so the shared tooltip engine explains each one on hover

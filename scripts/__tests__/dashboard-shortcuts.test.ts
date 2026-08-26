@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
 import { Window } from "happy-dom";
+import { readFileSync } from "node:fs";
 // @ts-expect-error — browser ES modules with no type declarations; the
 // dashboard is deliberately plain JS with no build step (#2625), same as
 // `dashboard-glossary.test.ts`'s imports of sibling dashboard/*.js files.
@@ -7,6 +16,7 @@ import {
     state,
     stateToParams,
     paramsToState,
+    setMeta,
 } from "../dashboard/history-state.js";
 // @ts-expect-error — same.
 import { viewFromParams } from "../dashboard/tabs.js";
@@ -31,7 +41,9 @@ const g = globalThis as any;
 let isTypingTarget: (el: unknown) => boolean,
     installShortcuts: () => void,
     resetShortcuts: () => void,
-    sheetOpen: () => boolean;
+    sheetOpen: () => boolean,
+    openSheet: () => void,
+    closeSheet: () => void;
 
 beforeAll(async () => {
     const bootWin = new Window({ url: "http://localhost/" });
@@ -41,13 +53,38 @@ beforeAll(async () => {
         installShortcuts: () => void;
         resetShortcuts: () => void;
         sheetOpen: () => boolean;
+        openSheet: () => void;
+        closeSheet: () => void;
     } = await import(
         // @ts-expect-error — plain browser JS, no type declarations.
         "../dashboard/shortcuts.js"
     );
-    ({ isTypingTarget, installShortcuts, resetShortcuts, sheetOpen } = mod);
+    ({
+        isTypingTarget,
+        installShortcuts,
+        resetShortcuts,
+        sheetOpen,
+        openSheet,
+        closeSheet,
+    } = mod);
     delete g.document;
 });
+
+/**
+ * `dashboard.css`'s own text, read once — the cascade regression below (round
+ * 2 review, blocker) loads it into a REAL happy-dom `<style>` element rather
+ * than asserting on the property `shortcuts.js` sets, because the bug it
+ * guards lives entirely in the cascade: `closeSheet()` only ever sets
+ * `sheetEl.hidden = true` (an IDL property, always `true` after the call,
+ * fix or no fix), while what a browser actually PAINTS depends on which CSS
+ * rule wins. `import.meta.url` goes through a local first, the same
+ * indirection `board-portrait-chips.test.tsx` uses for `index.css` — Vite's
+ * import-analysis plugin pattern-matches the literal
+ * `new URL("../dashboard/dashboard.css", import.meta.url)` shape and rewrites
+ * it to a dev-server URL, which then makes `readFileSync` throw.
+ */
+const dashboardCssUrl = new URL("../dashboard/dashboard.css", import.meta.url);
+const dashboardCss = readFileSync(dashboardCssUrl, "utf8");
 
 /**
  * The dashboard's keyboard layer, shortcut sheet and URL round trip (#2635).
@@ -227,10 +264,33 @@ describe("shortcuts.js — isTypingTarget (#2635 AC: 'no shortcut fires while a 
         );
     });
 
+    it("is true for a <select> — round 2 review: History's five comboboxes (family/tier/state/cmd/dataset pickers) use letter/digit keys as native typeahead, not shortcuts", () => {
+        expect(
+            isTypingTarget(
+                el(`<select><option>a</option><option>b</option></select>`)
+            )
+        ).toBe(true);
+    });
+
+    it('is true for a role="textbox" host — defensive: no such widget exists in this dashboard today, but a future custom text-entry host built without a real <input> must not ship silently broken', () => {
+        expect(
+            isTypingTarget(el(`<div role="textbox" contenteditable="true">`))
+        ).toBe(true);
+        // The ARIA role alone is enough, independent of contenteditable.
+        expect(isTypingTarget(el(`<div role="textbox"></div>`))).toBe(true);
+    });
+
     it("is false for a button, a checkbox, or nothing focused", () => {
         expect(isTypingTarget(el(`<button></button>`))).toBe(false);
         expect(isTypingTarget(el(`<input type="checkbox">`))).toBe(false);
         expect(isTypingTarget(null)).toBe(false);
+    });
+
+    it("is false for a merely-focusable [tabindex] host that is not a typing widget — the tooltip engine's glossary terms (#2629) give nearly every table header and claim-stage cell a tabindex purely to open a tooltip on focus, and none of them consume a keystroke as text", () => {
+        expect(
+            isTypingTarget(el(`<th tabindex="0" data-term="cost"></th>`))
+        ).toBe(false);
+        expect(isTypingTarget(el(`<span tabindex="0"></span>`))).toBe(false);
     });
 });
 
@@ -317,6 +377,23 @@ describe("shortcuts.js — 1/2 switch views (#2635)", () => {
         );
     });
 
+    it("does NOT switch views while a History filter combobox has focus — round 2 review's exact repro: focus #if-family, press '1', the view must not jump to Now underneath the still-focused dropdown", () => {
+        const win = mountPage(
+            `${SHELL_HTML}<select id="if-family"><option>a</option><option>b</option></select>`
+        );
+        installShortcuts();
+        fireKey(win, "2"); // start from History, so "1" is the distinguishing key
+        (
+            win.document.getElementById("if-family") as unknown as HTMLElement
+        ).focus();
+
+        fireKey(win, "1");
+
+        expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
+            "history"
+        );
+    });
+
     it("ignores a modified keypress (Cmd/Ctrl/Alt+key) — those are the browser's own shortcuts", () => {
         const win = mountPage();
         installShortcuts();
@@ -348,6 +425,71 @@ describe("shortcuts.js — '/' focuses the visible view's search box (#2635)", (
         );
         installShortcuts();
         expect(() => fireKey(win, "/")).not.toThrow();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 'r' refreshes the visible view (round 2 review, medium: zero behavioural
+// coverage — deleting `case "r"` AND its SHORTCUTS row left all 18 tests
+// green, because the only assertion touching the key was
+// `backdrop.textContent.toContain("r")`, vacuous for a single letter that
+// also occurs inside other rows' descriptions)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("shortcuts.js — 'r' refreshes the visible view (#2635 AC)", () => {
+    it("on the Now view, calls the loop-status endpoint `refreshLoopStatus` reads from", () => {
+        // `refreshVisibleView`'s Now branch is a direct, unawaited call to
+        // `refreshLoopStatus()` — no dynamic `import()` in the way — so the
+        // `fetch` it issues happens synchronously within `fireKey` itself,
+        // same as `now-loop-status.js`'s own `refreshLoopStatus` does on a
+        // poll tick. `#loop-status-sub` must exist for the promise's own
+        // catch branch (a rejected fetch, same shape as this suite's default
+        // stub) to have somewhere to write the error — a missing target
+        // there would throw inside an unhandled rejection instead of failing
+        // this test where the assertion actually lives.
+        const win = mountPage(`${SHELL_HTML}<div id="loop-status-sub"></div>`);
+        installShortcuts();
+        const fetchSpy = vi.fn(() => Promise.reject(new Error("test stub")));
+        g.fetch = fetchSpy;
+
+        fireKey(win, "r");
+
+        expect(fetchSpy).toHaveBeenCalledWith("/api/loop-status");
+    });
+
+    it("on the History view, is a no-op while getMeta() is null — history-refresh.js dereferences getMeta() unconditionally and would throw against an unset store", async () => {
+        setMeta(null); // deterministic regardless of test order elsewhere
+        const win = mountPage();
+        installShortcuts();
+        fireKey(win, "2"); // switch to History
+        const fetchSpy = vi.fn();
+        g.fetch = fetchSpy;
+
+        fireKey(win, "r");
+        // The History branch's first step is a dynamic `import()`, which is
+        // ALWAYS asynchronous even for an already-loaded module — unlike the
+        // Now branch above, nothing runs synchronously here. Give the
+        // microtask queue a few turns to reach (and stop at) the
+        // `getMeta()` check.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("does NOT fire while a text input has focus", () => {
+        const win = mountPage(`${SHELL_HTML}<div id="loop-status-sub"></div>`);
+        installShortcuts();
+        const fetchSpy = vi.fn(() => Promise.reject(new Error("test stub")));
+        g.fetch = fetchSpy;
+        (
+            win.document.getElementById("if-text") as unknown as HTMLElement
+        ).focus();
+
+        fireKey(win, "r");
+
+        expect(fetchSpy).not.toHaveBeenCalled();
     });
 });
 
@@ -411,5 +553,132 @@ describe("shortcuts.js — the '?' sheet (#2635 AC: 'a sheet listing every short
         expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
             "now"
         ); // unchanged
+    });
+
+    it("Escape closes the sheet even after focus has left it onto a text input behind it (round 2 review, medium) — before this fix `isTypingTarget`'s early return sat AHEAD of the Escape branch, so this exact sequence left the sheet wedged open with no keyboard way out", () => {
+        const win = mountPage();
+        installShortcuts();
+        fireKey(win, "?");
+        expect(sheetOpen()).toBe(true);
+
+        // Simulates Tab having walked focus off the sheet's close button —
+        // the scenario the missing focus trap used to allow.
+        (
+            win.document.getElementById("if-text") as unknown as HTMLElement
+        ).focus();
+
+        fireKey(win, "Escape");
+
+        expect(sheetOpen()).toBe(false);
+    });
+
+    it("traps BOTH Tab and Shift+Tab back onto the close button — its only focusable descendant — after focus has left the sheet onto the page behind the backdrop", () => {
+        // happy-dom's synthetic `keydown` dispatch never moves focus on its
+        // own the way a real browser's native Tab handling would — a
+        // version of this test that dispatched Tab WITHOUT first moving
+        // focus away passed even with the trap fully disabled (confirmed by
+        // running it: `trapFocus` short-circuited to a no-op and this still
+        // stayed green, the exact vacuous shape proof-of-failure exists to
+        // catch). Moving focus to `#if-text` first, exactly as the missing
+        // trap used to allow, is what makes each assertion load-bearing.
+        const win = mountPage();
+        installShortcuts();
+        fireKey(win, "?");
+        const closeBtn = win.document.querySelector(".shortcuts-close");
+        const ifText = win.document.getElementById(
+            "if-text"
+        ) as unknown as HTMLElement;
+
+        ifText.focus();
+        fireKey(win, "Tab");
+        expect(win.document.activeElement).toBe(closeBtn);
+
+        ifText.focus();
+        fireKey(win, "Tab", { shiftKey: true });
+        expect(win.document.activeElement).toBe(closeBtn);
+    });
+
+    it("re-traps focus back onto the close button even if something moved it off the sheet by other means (e.g. a programmatic .focus() call), proving the trap is not merely 'never lose focus in the first place'", () => {
+        const win = mountPage();
+        installShortcuts();
+        fireKey(win, "?");
+        (
+            win.document.getElementById("if-text") as unknown as HTMLElement
+        ).focus();
+        expect(win.document.activeElement).not.toBe(
+            win.document.querySelector(".shortcuts-close")
+        );
+
+        fireKey(win, "Tab");
+
+        expect(win.document.activeElement).toBe(
+            win.document.querySelector(".shortcuts-close")
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The backdrop cascade against the REAL stylesheet (round 2 review, blocker)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("shortcuts.js — the shortcuts-backdrop cascade against dashboard.css's own text", () => {
+    /**
+     * `closeSheet()` only ever does `sheetEl.hidden = true` — an IDL
+     * property that reads back `true` whether or not the fix is in place, so
+     * every OTHER test in this file that asserts `backdrop.hidden` or
+     * `sheetOpen()` stays green even if `dashboard.css` reintroduces the
+     * cascade bug (`.shortcuts-backdrop { display: flex }`, an author
+     * declaration, outranking the plain `[hidden]` attribute with no rule of
+     * its own — happy-dom's UA stylesheet, unlike a real browser's, does not
+     * even supply `[hidden] { display: none }` for free; verified directly:
+     * a bare `hidden` div with NO stylesheet loaded computes `display:
+     * block` here). The only way to see what a real browser would actually
+     * PAINT is to load `dashboard.css`'s own text into a real `<style>`
+     * element and read `getComputedStyle` back — which is exactly how the
+     * round-2 review found this bug in the first place.
+     */
+    function backdropWithRealCss() {
+        const win = mountPage();
+        win.document.head.innerHTML = `<style>${dashboardCss}</style>`;
+        installShortcuts();
+        const backdrop = win.document.getElementById(
+            "shortcuts-backdrop"
+        ) as unknown as HTMLElement | null;
+        return { win, backdrop };
+    }
+
+    it("computes display:none on the CLOSED backdrop before it is ever opened", () => {
+        // `sheet()` is built lazily on first use, so open once to force the
+        // element to exist, then close it — the steady state every page load
+        // not currently showing the sheet is actually in.
+        const { win, backdrop } = backdropWithRealCss();
+        expect(backdrop).toBeNull(); // not built yet — nothing painted at all
+        openSheet();
+        closeSheet();
+        const built = win.document.getElementById("shortcuts-backdrop")!;
+        expect(built.hidden).toBe(true); // the property side — always true
+        // The cascade side — what a real browser paints. Pre-fix this was
+        // "flex": a full-viewport layer sitting over the whole dashboard,
+        // swallowing every click, with `sheetOpen()` reporting `false`
+        // underneath it.
+        expect(win.getComputedStyle(built).display).toBe("none");
+    });
+
+    it("computes display:flex on the OPEN backdrop — the fix must not simply always hide it", () => {
+        const { win } = backdropWithRealCss();
+        openSheet();
+        const built = win.document.getElementById("shortcuts-backdrop")!;
+        expect(built.hidden).toBe(false);
+        expect(win.getComputedStyle(built).display).toBe("flex");
+    });
+
+    it("closing an already-open sheet flips the cascade back to none, not just the property", () => {
+        const { win } = backdropWithRealCss();
+        openSheet();
+        const built = win.document.getElementById("shortcuts-backdrop")!;
+        expect(win.getComputedStyle(built).display).toBe("flex");
+
+        closeSheet();
+        expect(win.getComputedStyle(built).display).toBe("none");
     });
 });

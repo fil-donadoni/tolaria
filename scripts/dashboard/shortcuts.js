@@ -55,26 +55,49 @@ const NON_TEXT_INPUT_TYPES = new Set([
 ]);
 
 /**
- * Whether `el` is somewhere a keystroke inserts a character rather than
- * triggering a shortcut — the #2635 AC's hard case: typing `1` into History's
- * issue search must filter the table, never jump to the Now view.
- * `<input type="date">`/`type="search"` (the filter bar's own fields) count
- * exactly as much as a bare text field — a date input still consumes digit
- * keys, and the AC's wording ("a text input, textarea, or contenteditable")
- * is deliberately about what the element DOES with a keystroke, not its
- * literal tag.
+ * Whether `el` is somewhere a keystroke inserts a character OR drives native
+ * typeahead rather than triggering a shortcut — the #2635 AC's hard case:
+ * typing `1` into History's issue search must filter the table, never jump
+ * to the Now view. `<input type="date">`/`type="search"` (the filter bar's
+ * own fields) count exactly as much as a bare text field — a date input
+ * still consumes digit keys, and the AC's wording ("a text input, textarea,
+ * or contenteditable") is deliberately about what the element DOES with a
+ * keystroke, not its literal tag.
+ *
+ * `SELECT` (round 2 review, medium): History renders five native comboboxes
+ * (`if-family`/`if-tier`/`if-state` in `history-issues-table.js`, `sf-cmd` in
+ * `history-sessions-table.js`, plus the filter bar's own dataset/metric/split
+ * pickers) where a letter or digit key is the browser's own typeahead —
+ * jump-to-option, not "type a shortcut". Proven with a scratch test: focus
+ * `#if-family`, dispatch `1`, and the view switched to Now underneath the
+ * still-focused dropdown.
+ *
+ * `role="textbox"` (defensive): no such ARIA widget exists in this dashboard
+ * today, but a future custom text-entry host built without a real `<input>`
+ * would otherwise ship silently broken.
+ *
+ * Deliberately NOT a blanket `[tabindex]` check, despite that shape covering
+ * `SELECT` and `role="textbox"` for free — `tooltip.js`'s `enhanceTerms`
+ * (#2629) gives every glossary TERM `tabindex="0"` purely so it can open a
+ * tooltip on focus (nearly every table header, plus every claim-stage cell,
+ * `now-loop-status.js`), and none of those consume a keystroke as text.
+ * Suppressing every shortcut while ANY of those merely holds focus would
+ * make `1`/`2`/`r` unusable for most of a keyboard user's time on the page —
+ * the opposite of what #2635 asks for — so the guard stays keyed on what an
+ * element DOES with a key, never on whether it is merely focusable.
  *
  * Exported for direct testing without dispatching a synthetic `keydown`.
  */
 export function isTypingTarget(el) {
     if (!el) return false;
     const tag = el.tagName;
-    if (tag === "TEXTAREA") return true;
+    if (tag === "TEXTAREA" || tag === "SELECT") return true;
     if (tag === "INPUT") {
         const type = (el.getAttribute("type") || "text").toLowerCase();
         return !NON_TEXT_INPUT_TYPES.has(type);
     }
-    return !!el.isContentEditable;
+    if (el.isContentEditable) return true;
+    return el.getAttribute("role") === "textbox";
 }
 
 const currentView = () => viewFromParams(new URLSearchParams(location.search));
@@ -203,6 +226,42 @@ function toggleSheet() {
     else openSheet();
 }
 
+/** Elements a keyboard user can land on — used only by `trapFocus` below,
+ *  not a general utility (a `<details>`/`<summary>` or a `<video>` control
+ *  strip would need more than this, but the sheet contains neither). */
+const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * A real focus trap for the sheet (round 2 review, medium). `aria-modal`
+ * declares that nothing behind the dialog is reachable, but nothing
+ * previously enforced it: Tab could walk focus off the sheet's own close
+ * button and onto the page behind it — and once there, the sheet stayed
+ * open with no keyboard way back in, since the typing-suppression check
+ * (`isTypingTarget`) could then also swallow Escape (see `handleKeydown`).
+ * Cycles Tab/Shift+Tab between the sheet's first and last focusable
+ * descendant; today that is the SAME element (only the close button is
+ * focusable), so this degrades to "Tab always returns to the close button",
+ * exactly the right trap for a one-control dialog, and stays correct if a
+ * later change adds a second one.
+ */
+function trapFocus(e, doc) {
+    if (e.key !== "Tab") return;
+    const root = sheetEl?.querySelector(".shortcuts-sheet");
+    const focusables = root
+        ? [...root.querySelectorAll(FOCUSABLE_SELECTOR)]
+        : [];
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = doc.activeElement;
+    const inside = root.contains(active);
+    if (e.shiftKey ? active === first || !inside : active === last || !inside) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The keydown switch
 // ─────────────────────────────────────────────────────────────────────────────
@@ -212,26 +271,39 @@ function toggleSheet() {
  *  `KeyboardEvent` dispatch exercises the wiring in `installShortcuts`'s own
  *  test, this one exercises the decision table in isolation. */
 export function handleKeydown(e, doc = document) {
-    if (isTypingTarget(doc.activeElement)) return;
     // Cmd/Ctrl/Alt+key are the browser's own shortcuts (Cmd+R reload, etc.);
     // never intercept a modified keypress.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-    if (e.key === "Escape") {
-        if (sheetOpen()) {
+    if (sheetOpen()) {
+        // While the sheet is open it owns Tab and Escape/`?` UNCONDITION-
+        // ALLY, regardless of where focus has drifted to — round 2 review,
+        // medium: `isTypingTarget`'s early return used to sit AHEAD of the
+        // Escape branch, so once focus left the sheet (no trap existed
+        // before this fix) onto a text input behind it, Escape stopped
+        // closing the sheet at all. Both the check and the branch now live
+        // inside this block, before that early return is ever reached.
+        if (e.key === "Tab") {
+            trapFocus(e, doc);
+            return;
+        }
+        if (e.key === "Escape" || e.key === "?") {
             e.preventDefault();
             closeSheet();
+            return;
         }
+        // Every other shortcut is inert while the sheet is open, so `1`
+        // typed to dismiss-and-read never also jumps the view underneath.
         return;
     }
+
+    if (isTypingTarget(doc.activeElement)) return;
+
     if (e.key === "?") {
         e.preventDefault();
         toggleSheet();
         return;
     }
-    // The sheet is a modal: every other shortcut is inert while it is open,
-    // so `1` typed to dismiss-and-read never also jumps the view underneath.
-    if (sheetOpen()) return;
 
     switch (e.key) {
         case "1":

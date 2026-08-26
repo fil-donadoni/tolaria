@@ -109,6 +109,16 @@ export function stateToParams(params) {
  * `state` shape this version does not understand) is caught and skipped
  * rather than left to throw out of `history-boot.js` — a bad link degrades to
  * "the default filter", never a wedged page.
+ *
+ * Genericity caveat (round 2 review): the type to restore as is inferred
+ * from the field's CURRENT value, not a declared schema — so a future field
+ * whose default happens to be `null` but is meant to hold an object (`sort`'s
+ * own shape today) restores as a plain string instead of round-tripping
+ * through JSON, on that one field's very first load. `sort` itself dodges
+ * this only because nothing has ever needed it to hold an object; a
+ * genuinely schema-driven round trip would need `state`'s fields to declare
+ * their own type rather than inferring it from a live value that can BE the
+ * ambiguous case.
  */
 export function paramsToState(params) {
     for (const key of Object.keys(state)) {

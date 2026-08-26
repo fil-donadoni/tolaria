@@ -879,6 +879,16 @@ tbody tr:hover {
     z-index: 30;
     padding: 20px;
 }
+/* Same hazard `.view[hidden]` (below, #2625) already documents: an author
+   `display: flex` above outranks the plain `[hidden]` state, so
+   `closeSheet()`'s `sheetEl.hidden = true` (shortcuts.js) would leave this
+   full-viewport backdrop painted and swallowing every click underneath it.
+   Caught only by cascading this file's real text through happy-dom's
+   `getComputedStyle` — see `dashboard-shortcuts.test.ts`'s
+   "the shortcuts-backdrop cascade" describe block. */
+.shortcuts-backdrop[hidden] {
+    display: none !important;
+}
 .shortcuts-sheet {
     background: var(--surface-1);
     color: var(--text-primary);
