@@ -212,6 +212,7 @@ describe("process-gh-issues reads receipts from artifacts (issue #2186)", () => 
             "restructures",
             "proofOfFailure",
             "scenario",
+            "blade",
         ]) {
             expect(
                 body(),
