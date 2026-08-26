@@ -339,6 +339,26 @@ export const GLOSSARY = {
         label: "work family",
         tip: "The kind of work the issue was, grouped so unlike things are not averaged together.",
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History card subtitles (#2633) — the one-line question each chart
+    // card answers. `label` doubles as the card's own heading (kept in sync
+    // with the static `<h2>` in telemetry-dashboard.html); `tip` is the
+    // subtitle sentence the card renders ahead of any per-query detail it
+    // adds itself (stacking behaviour, "top 18, descending", …).
+    // ─────────────────────────────────────────────────────────────────────
+    "card.over-time": {
+        label: "Over time",
+        tip: "How the selected metric moved day by day.",
+    },
+    "card.ranking": {
+        label: "Ranking",
+        tip: "Which values of the current split-by dimension cost the most.",
+    },
+    "card.table": {
+        label: "Table",
+        tip: "Every metric for the current slice, side by side.",
+    },
 };
 
 /**
