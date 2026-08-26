@@ -21,6 +21,8 @@ import {
     showTip,
     hideTip,
 } from "../dashboard/tooltip.js";
+// @ts-expect-error — same, pure `data → markup` module (#2631 module header).
+import { timelineHtml } from "../dashboard/now-timeline.js";
 
 /**
  * The dashboard glossary and its tooltip engine (#2629).
@@ -318,6 +320,93 @@ describe("dashboard tooltip engine — declared terms (#2629)", () => {
         expect(th.textContent).toBe("cmd");
         fire(win, th, "mouseover");
         expect(tipOf(win).innerHTML).toContain("command family");
+    });
+
+    it("never paints an aria-label over an empty element's own visual content (#2631/#2842)", () => {
+        // The exact shape of the Now timeline's merge tick (`.ls-tl-merge`,
+        // `now-timeline.js`): a 5px-wide colour mark with NO visible label
+        // by design, its accessible name carried entirely by its own
+        // `aria-label`. A #2842 review measured the OLD behaviour in a real
+        // browser: every one of a live day's 40 ticks rendered the literal
+        // word "merged" — the glossary label filled into `textContent`
+        // because the element was empty — a 45px text run painted over a
+        // 5px box.
+        const win = mountPage(
+            `<button id="tick" data-term="pr.merged" aria-label="PR #123 merged: fix things"></button>`
+        );
+        installTooltipEngine();
+        const tick = win.document.getElementById("tick")!;
+
+        // The whole point: textContent stays EMPTY — no fill, no overlap —
+        // while the tooltip/description machinery still works exactly as
+        // for any other declared term.
+        expect(tick.textContent).toBe("");
+        expect(tick.getAttribute("aria-label")).toBe(
+            "PR #123 merged: fix things"
+        );
+        expect(tick.getAttribute("tabindex")).toBe("0");
+        expect(tick.getAttribute("aria-describedby")).toBe("tip");
+
+        fire(win, tick, "mouseover");
+        expect(tipOf(win).innerHTML).toContain("merged");
+    });
+
+    it("the real Now timeline, run through the real engine, resolves every declared term and rewrites no control's own visual content (#2842 review, finding 1's suggested guard)", () => {
+        // Not a hand-built fixture — the ACTUAL `timelineHtml` output (pass
+        // block, claim pin, merge tick), pushed through the real
+        // `installTooltipEngine`, the same combination that shipped the
+        // "merged" text-overwrite bug. `unknown` must be empty (every
+        // data-term this view declares resolves to a real glossary entry)
+        // and no `aria-label`-carrying control's `textContent` may come out
+        // non-empty (the merge tick's whole design: a bare colour mark with
+        // no visible label of its own).
+        const html = timelineHtml(
+            {
+                timelinePasses: [
+                    {
+                        pass: 1,
+                        claudeExit: 137,
+                        pct: "n/a",
+                        queueBefore: 5,
+                        queueAfter: 3,
+                        reason: "claims-held",
+                        epoch: Math.floor(Date.now() / 1000) - 3600,
+                    },
+                ],
+                claims: [
+                    {
+                        issue: 2582,
+                        title: "an orphaned claim",
+                        ageHours: 2,
+                        verdict: { state: "orphan", reason: "" },
+                    },
+                ],
+                recentMerges: [
+                    {
+                        number: 2842,
+                        title: "a merged PR",
+                        mergedAt: new Date(
+                            Date.now() - 2 * 3600_000
+                        ).toISOString(),
+                    },
+                ],
+            },
+            Date.now()
+        );
+        const win = mountPage(`<div id="host">${html}</div>`);
+        const { unknown } = installTooltipEngine();
+        expect(unknown).toEqual([]);
+
+        // Pass blocks and claim pins carry a DELIBERATE visible glyph
+        // (`● ▲ ■` / `× ? ·`, inside an `aria-hidden` child span) — only the
+        // merge tick is a bare colour mark with no visible content of its
+        // own, and it is the one this test exists to guard.
+        const ticks = Array.from(win.document.querySelectorAll(".ls-tl-merge"));
+        expect(ticks.length).toBeGreaterThan(0); // sanity: this ran
+        for (const el of ticks) {
+            expect(el.hasAttribute("aria-label")).toBe(true);
+            expect(el.textContent).toBe("");
+        }
     });
 
     it("picks up a term rendered AFTER install — the innerHTML re-render case", async () => {

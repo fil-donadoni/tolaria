@@ -47,16 +47,21 @@ import {
     approvedReviewIssues,
     buildLoopStatus,
     gatherSection,
+    passesInWindow,
     readDriverState,
+    readRecentPasses,
     renderClaimsLines,
     renderDriverLines,
     renderQueueDepthLines,
     renderReceiptsLines,
     renderVerdictLines,
+    TIMELINE_WINDOW_HOURS,
     worktreeIssueNumbers,
     type ClaimRow,
+    type DriverPassLine,
     type DriverState,
     type LoopVerdict,
+    type MergedPr,
     type QueueDepth,
     type ReadyQueueIssue,
     type ReceiptsSummary,
@@ -174,6 +179,108 @@ export function fetchUnclaimedReadyQueue(
         .map((i) => ({ number: i.number }));
 }
 
+/**
+ * A page size big enough that an ordinary day never truncates: the PR's own
+ * verification measured a real 40-41-merge day (a #2842 review flagged the
+ * original 50 as "one busy day from silently dropping data" — headroom, not
+ * a ceiling calibrated to what was observed once). `fetchRecentMergedPrs`
+ * still reports when even THIS was not enough, rather than let a genuinely
+ * record day look like a complete read.
+ */
+const MERGED_PR_FETCH_LIMIT = 200;
+
+/**
+ * `fetchRecentMergedPrs`'s result: the filtered, in-window PRs plus whether
+ * the underlying `gh` page could have missed one (#2842 review finding).
+ *
+ * `raw.length === limit` ALONE is not the right test, and was measured wrong
+ * live on this repo: the page is sorted by `updated`, not `merged` (`gh pr
+ * list` has no finer-than-a-day "merged after TIMESTAMP" filter), and a
+ * `--search sort:updated-desc` page exhausts its `limit` on almost every
+ * poll — this repo's own automation relabels/comments on old, long-merged
+ * PRs constantly, so 200 rows sorted by "touched most recently" reaches back
+ * WEEKS before it reaches 200, even though every PR actually merged in the
+ * last 24h sits at the very top. Flagging every one of those as truncated
+ * would be a truncation banner permanently on, i.e. noise, not a signal.
+ *
+ * The tight test uses the ordering the API actually promises: since merging
+ * a PR is itself an update, `updatedAt >= mergedAt` always — so any PR
+ * merged within the window necessarily has `updatedAt` within the window
+ * too, and sorting by `updated-desc` is GUARANTEED to surface it before the
+ * page runs out, UNLESS the page's own limit is exhausted before its
+ * `updatedAt` values even reach back past the window's cutoff. That is
+ * `raw.length === limit && the OLDEST row we got still has updatedAt >=
+ * cutoff` — a page that ran out mid-window, not merely a full page.
+ */
+export interface MergedPrFetchResult {
+    prs: MergedPr[];
+    truncated: boolean;
+}
+
+/**
+ * PRs merged within `windowHours` — the Now timeline's merge-tick data
+ * source (#2631). Nothing in the existing gather already carries this:
+ * `Receipt` has no merged outcome (only `pr-open`), and the driver's own log
+ * records only a bash-local `merges` count that is never written to a line
+ * (`scripts/loop-drain.sh`'s `claims_held_check` comment). So this is a new
+ * read, mirroring `fetchUnclaimedReadyQueue`'s shape: `gh` has no
+ * finer-than-a-day "merged after TIMESTAMP" filter, so this over-fetches a
+ * bounded, newest-first page (`sort:updated-desc`) and filters precisely by
+ * `mergedAt` in JS, the same two-step `fetchUnclaimedReadyQueue` already
+ * uses for its own client-side `in-progress` filter.
+ */
+export function fetchRecentMergedPrs(
+    windowHours: number,
+    runner: (args: string[]) => string = ghChecked,
+    limit: number = MERGED_PR_FETCH_LIMIT
+): MergedPrFetchResult {
+    const cutoffMs = Date.now() - windowHours * 3600_000;
+    const raw = JSON.parse(
+        runner([
+            "pr",
+            "list",
+            "--state",
+            "merged",
+            "--search",
+            "sort:updated-desc",
+            "--json",
+            "number,title,mergedAt,updatedAt",
+            "--limit",
+            String(limit),
+        ]) || "[]"
+    ) as {
+        number: number;
+        title: string;
+        mergedAt: string | null;
+        updatedAt: string;
+    }[];
+    const prs = raw
+        .filter(
+            (
+                pr
+            ): pr is {
+                number: number;
+                title: string;
+                mergedAt: string;
+                updatedAt: string;
+            } => pr.mergedAt !== null && Date.parse(pr.mergedAt) >= cutoffMs
+        )
+        .map((pr) => ({
+            number: pr.number,
+            title: pr.title,
+            mergedAt: pr.mergedAt,
+        }));
+    // The page ran out (`raw.length === limit`) AND it ran out before its
+    // own `updatedAt` values crossed back past the window's cutoff — see
+    // `MergedPrFetchResult`'s doc comment. A page that fills up on rows all
+    // older than the window (this repo's routine shape: old PRs relabelled
+    // recently) still fully covers the window and is NOT truncated.
+    const oldestUpdatedMs =
+        raw.length > 0 ? Date.parse(raw[raw.length - 1]!.updatedAt) : -Infinity;
+    const truncated = raw.length >= limit && oldestUpdatedMs >= cutoffMs;
+    return { prs, truncated };
+}
+
 export interface GatherLoopStatusOptions {
     noPriority?: boolean;
     /**
@@ -198,6 +305,9 @@ export interface GatherLoopStatusOptions {
     /** Test seam for the ready-for-agent queue read. Defaults to the real
      *  `ghChecked`. See `claimsRunner`. */
     queueRunner?: (args: string[]) => string;
+    /** Test seam for the recently-merged-PR read (#2631). Defaults to the
+     *  real `ghChecked`. See `claimsRunner`. */
+    mergedPrRunner?: (args: string[]) => string;
 }
 
 /**
@@ -231,6 +341,34 @@ export interface GatheredLoopStatus {
     batch: string | null;
     priorityWarning: string | null;
     receiptErrors: ReceiptFileError[];
+    /**
+     * Passes started in the last `TIMELINE_WINDOW_HOURS` (#2631) — the Now
+     * timeline's pass-block data source. A LOCAL read off `loop-drain.log`,
+     * like `driver.recentPasses`: no `gh`/`git` call, so (mirroring
+     * `DriverState`'s own contract) it has no failure mode and therefore no
+     * `*Error` sibling — an unreadable/missing log renders as `[]`, which is
+     * also the correct rendering of "no passes ran".
+     */
+    timelinePasses: DriverPassLine[];
+    /**
+     * PRs merged in the last `TIMELINE_WINDOW_HOURS` (#2631) — the Now
+     * timeline's merge-tick data source. `gh`-backed, so — mirroring
+     * `claims`/`queueDepth` — a failed read is `null` with a sibling
+     * `recentMergesError`, never a fabricated empty list (#2519 round 3,
+     * finding 5's contract, extended to this new read).
+     */
+    recentMerges: MergedPr[] | null;
+    recentMergesError: string | null;
+    /**
+     * True when `fetchRecentMergedPrs`'s underlying `gh` page was exhausted
+     * (#2842 review finding) — the fetch limit is generous (200, ~5x a real
+     * measured 40-41-merge day), but a busy enough day can still hit it, and
+     * silent truncation reads as "everything is here" when it is not.
+     * `false`, never `null`, on a failed read (`recentMergesError` already
+     * covers "cannot tell" — truncation is a property of a SUCCESSFUL page,
+     * not a second failure mode).
+     */
+    recentMergesTruncated: boolean;
 }
 
 /**
@@ -270,6 +408,15 @@ export function gatherLoopStatus(
         "ready-for-agent queue"
     );
 
+    // #2631 — the Now timeline's merge-tick data source. `gh`-backed, so
+    // fail-closed via `gatherSection` like every other `gh` read here: a
+    // failed fetch must render as "cannot tell", never as "nothing merged".
+    const mergedPrRunner = opts.mergedPrRunner ?? ghChecked;
+    const mergedPrsSection = gatherSection(
+        () => fetchRecentMergedPrs(TIMELINE_WINDOW_HOURS, mergedPrRunner),
+        "recently merged PRs"
+    );
+
     // `git worktree list` is a LOCAL read (no network, no `gh`) — outside
     // this finding's scope (a GitHub outage cannot cause it to fail) and
     // its only effect on failure is a coarser `stage` (falls back to
@@ -292,6 +439,19 @@ export function gatherLoopStatus(
         : { receipts: [], errors: [] };
 
     const driver = readDriverState({ telemetryDir });
+
+    // #2631 — the Now timeline's pass-block data source. A LOCAL read, like
+    // `driver` itself: `readRecentPasses` already reads the WHOLE log file
+    // into memory regardless of `limit` (`.slice(-limit)` runs after the
+    // read), so a generous limit costs nothing extra and simply avoids
+    // truncating a busy night's passes before `passesInWindow` gets to
+    // filter by time. `readDriverState`'s own `recentPasses` (capped at 5,
+    // for the driver light/section) is untouched — this is a SEPARATE read
+    // of the same file for a different consumer with a different window.
+    const timelinePasses = passesInWindow(
+        readRecentPasses(path.join(telemetryDir, "loop-drain.log"), 10_000),
+        Math.floor(Date.now() / 1000)
+    );
 
     const status = buildLoopStatus({
         claimedIssues:
@@ -332,6 +492,15 @@ export function gatherLoopStatus(
         batch: batch ?? null,
         priorityWarning: warning,
         receiptErrors: errors,
+        timelinePasses,
+        recentMerges:
+            mergedPrsSection.status === "ok" ? mergedPrsSection.data.prs : null,
+        recentMergesError:
+            mergedPrsSection.status === "ok" ? null : mergedPrsSection.error,
+        recentMergesTruncated:
+            mergedPrsSection.status === "ok"
+                ? mergedPrsSection.data.truncated
+                : false,
     };
 }
 

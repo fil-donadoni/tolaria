@@ -269,6 +269,28 @@ export const GLOSSARY = {
     },
 
     // ─────────────────────────────────────────────────────────────────────
+    // Now timeline (#2631) — pass outcomes and merge ticks. Claim pins reuse
+    // the `claim.live` / `claim.orphan` / `claim.suspect` entries above
+    // verbatim; nothing new is declared for them.
+    // ─────────────────────────────────────────────────────────────────────
+    "pass.landed": {
+        label: "landed something",
+        tip: "An issue closed or main's tip moved during this pass — the only outcome that means work actually reached the tree, not just that a claim was taken.",
+    },
+    "pass.ran-nothing": {
+        label: "ran, landed nothing",
+        tip: "The pass finished on its own terms but nothing closed and main did not move. Two of these in a row is what stops the driver with reason no-progress.",
+    },
+    "pass.died": {
+        label: "died",
+        tip: "The pass did not finish on its own terms: forcibly terminated while still holding claims, stopped on a rate limit, or crashed. Distinct from landing nothing — here the loop lost work rather than simply finding none.",
+    },
+    "pr.merged": {
+        label: "merged",
+        tip: "A pull request closed its issue by merging into main — the outcome every claim on this page exists to reach.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
     // Loop-status panel abbreviations
     // ─────────────────────────────────────────────────────────────────────
     pct: {

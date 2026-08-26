@@ -63,6 +63,7 @@ export const DASHBOARD_ASSET_NAMES = [
     "now-lights.js",
     "now-nav.js",
     "now-claims-table.js",
+    "now-timeline.js",
     "history-boot.js",
     "history-state.js",
     "history-colors.js",

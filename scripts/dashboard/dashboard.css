@@ -541,6 +541,190 @@ tbody tr:hover {
     line-height: 1.4;
 }
 
+/* 24-hour timeline (#2631) — passes as blocks, claims as pins with an
+   open-ended tail, merges as ticks, on one shared time axis. Reuses the
+   `--state-*` tokens and the `● ▲ ■` / `× ? ·` glyph vocabulary the four
+   lights and the claims table already established, rather than a parallel
+   one: a died pass and the Claims light's ORPHANED word share both a hue
+   AND a shape family. */
+.ls-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 4px;
+}
+.ls-tl-track {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    align-items: center;
+    gap: 8px;
+}
+.ls-tl-track-label {
+    font-size: 11px;
+    /* --text-secondary, not --muted (measured 3.41:1 against --plane, below
+       WCAG AA's 4.5:1 — the SAME pre-existing gap PR #2837 already found on
+       .ls-pass/table th, not repeated here since the fix was this cheap). */
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.ls-tl-lane {
+    position: relative;
+    height: 26px;
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.ls-tl-track-claims .ls-tl-lane,
+.ls-tl-track-merges .ls-tl-lane {
+    height: 22px;
+}
+
+/* Pass blocks — width carries duration, colour+glyph carry outcome. */
+.ls-tl-pass {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    min-width: 6px;
+    border: none;
+    border-radius: 3px;
+    padding: 0;
+    cursor: help;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+.ls-tl-pass.tone-good {
+    background: var(--state-good);
+}
+.ls-tl-pass.tone-warn {
+    background: var(--state-warn);
+}
+.ls-tl-pass.tone-bad {
+    background: var(--state-bad);
+}
+.ls-tl-pass .ls-tl-glyph {
+    font-size: 9px;
+    line-height: 1;
+    color: var(--surface-1);
+}
+.ls-tl-pass:focus-visible,
+.ls-tl-claim:focus-visible,
+.ls-tl-merge:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 1px;
+}
+
+/* Claim pins — a fixed dot at the (proxy) take time, with a dashed tail
+   running to "now". Every pin here is, by construction, still held (a
+   released claim is simply absent from the next poll) — the tail is
+   therefore always open, which is the point: many long open tails is what
+   an outage looks like. */
+.ls-tl-claim-wrap {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+}
+.ls-tl-claim {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    /* Centre the 14px pin on its wrap's own `left:X%` anchor (#2842 review
+       finding) instead of leading with it: at X=100% (a claim taken this
+       instant) an un-centred pin's own box started AT the right edge and
+       rendered fully outside the lane. `margin-left`, not `transform`,
+       because the pin is the FIRST flex child of `.ls-tl-claim-wrap` and
+       the tail is the second — a transform doesn't reflow layout, so it
+       would shift the pin without pulling the tail's start point along and
+       leave a gap between them; a negative margin shifts BOTH, keeping the
+       tail visually contiguous with the pin's (now centred) edge. */
+    margin-left: -7px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    cursor: help;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    line-height: 1;
+}
+.ls-tl-claim.tone-good {
+    background: var(--state-good);
+    color: var(--surface-1);
+}
+.ls-tl-claim.tone-warn {
+    background: var(--state-warn);
+    color: var(--surface-1);
+}
+.ls-tl-claim.tone-bad {
+    background: var(--state-bad);
+    color: var(--surface-1);
+}
+.ls-tl-claim-tail {
+    height: 2px;
+    margin-left: 2px;
+    background: repeating-linear-gradient(
+        to right,
+        var(--muted) 0 4px,
+        transparent 4px 8px
+    );
+}
+
+/* Merge ticks — a thin vertical mark, no glyph (too narrow to hold one); the
+   colour is the page's own accent, not a state hue, because a merge is
+   always the good outcome and never needs to be told apart from a bad one.
+   5px, not 3px (measured: the shared occlusion probe's own "rendered at
+   zero size" floor is <4px in either dimension — every one of a real 42-tick
+   day scored `zero` at 3px, indistinguishable from a control that failed to
+   render at all). */
+.ls-tl-merge {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    width: 5px;
+    min-width: 5px;
+    border: none;
+    padding: 0;
+    cursor: help;
+    background: var(--series-1);
+    border-radius: 1px;
+    /* Centre the 5px tick on its own `left:X%` (#2842 review finding):
+       `left` positions a box's LEFT edge, so a merge that landed at
+       exactly "now" (left: 100%) rendered its whole 5px box past the
+       lane's right edge, fully outside it. A merge at left: 0% has the
+       mirror problem on the left edge — this fixes both, symmetrically,
+       with no JS-side pixel math (the lane's width is responsive and
+       unknown to `now-timeline.js`). */
+    transform: translateX(-50%);
+}
+
+.ls-tl-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-left: 68px;
+    font-size: 10px;
+    /* --text-secondary — see .ls-tl-track-label's own note. */
+    color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+    .ls-tl-track {
+        grid-template-columns: 40px 1fr;
+    }
+    .ls-tl-track-label {
+        font-size: 10px;
+    }
+    .ls-tl-axis {
+        margin-left: 48px;
+    }
+}
+
 /* The detail section a light jumps to (#2630). Without a landing mark the
    scroll is indistinguishable from the page having moved on its own. */
 .ls-section {

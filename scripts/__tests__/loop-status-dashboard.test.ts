@@ -20,6 +20,8 @@ import {
 } from "../dashboard/now-lights.js";
 // @ts-expect-error — see above; pure, so the `node` project can call it.
 import { nowBodyHtml } from "../dashboard/now.js";
+// @ts-expect-error — see above; pure, so the `node` project can call it.
+import { TIMELINE_SECTION_ID } from "../dashboard/now-timeline.js";
 
 /**
  * #2624 — the dashboard is the SECOND consumer of the shared verdict. Before
@@ -406,6 +408,47 @@ describe("telemetry dashboard — Now traffic lights (#2630)", () => {
     });
 });
 
+describe("telemetry dashboard — Now timeline (#2631)", () => {
+    it("is wired to the LIVE payload, not a constant, and sits BETWEEN the lights and the driver/queue/batch grid (PRD #2621 D2)", () => {
+        const src = stripLineComments(NOW);
+        expect(src).toContain("timelineSectionHtml(data");
+        const html = nowBodyHtml(payload(), Date.now()) as string;
+        const lightsIdx = html.indexOf('class="ls-lights"');
+        const timelineIdx = html.indexOf(`id="${TIMELINE_SECTION_ID}"`);
+        const gridIdx = html.indexOf('class="ls-grid"');
+        expect(lightsIdx).toBeGreaterThan(-1);
+        expect(timelineIdx).toBeGreaterThan(-1);
+        expect(gridIdx).toBeGreaterThan(-1);
+        expect(lightsIdx).toBeLessThan(timelineIdx);
+        expect(timelineIdx).toBeLessThan(gridIdx);
+    });
+
+    it("keeps focus on a pass block across a poll whose payload changed", () => {
+        // Exercised through the REAL reducer (`nowBodyHtml`), not a
+        // hand-built view — the structural rule for a SURFACE assertion
+        // (`.claude/rules/gre-development.md` § Proof-of-failure, shape 3).
+        const nowMs = Date.now();
+        const html = nowBodyHtml(
+            payload({
+                timelinePasses: [
+                    {
+                        epoch: Math.floor(nowMs / 1000) - 3600,
+                        pass: 1,
+                        claudeExit: 0,
+                        pct: "1",
+                        queueBefore: 1,
+                        queueAfter: 1,
+                        reason: "claims-held",
+                    },
+                ],
+            }),
+            nowMs
+        ) as string;
+        expect(html).toContain('class="ls-tl-pass tone-bad"');
+        expect(html).toContain('data-term="pass.died"');
+    });
+});
+
 describe("telemetry dashboard — remedy copy affordance (#2630)", () => {
     it("copies the COMMAND, never the sentence that names it", () => {
         // `verdict.remedy` is prose: "`bun run loop:doctor` to inspect, …".
@@ -606,6 +649,49 @@ describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 revie
         );
         expect(body.querySelector(".ls-copy")).toBeNull();
         expect(doc.activeElement.className ?? "").not.toContain("ls-light");
+    });
+
+    it("keeps focus on the same timeline pass block across a poll — every poll recomputes its position, so this is the common case, not the exception (#2631)", () => {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const withPass = (over: Record<string, unknown> = {}) =>
+            payload({
+                timelinePasses: [
+                    {
+                        epoch: nowSec - 3600,
+                        pass: 7,
+                        claudeExit: 0,
+                        pct: "1",
+                        queueBefore: 1,
+                        queueAfter: 1,
+                        reason: "claims-held",
+                    },
+                ],
+                ...over,
+            });
+        renderLoopStatus(withPass());
+        const before = body.querySelector(".ls-tl-pass");
+        expect(before, "a pass block renders").toBeTruthy();
+        before.focus();
+        expect(doc.activeElement).toBe(before);
+
+        // A DIFFERENT field changes (queue depth) — the timeline itself is
+        // identical, but every poll re-renders it (it depends on the clock,
+        // not only on `data`), so this is NOT the "unchanged write" skip
+        // path; it must go through the restore-by-identity path.
+        renderLoopStatus(
+            withPass({
+                queueDepth: {
+                    P0: 9,
+                    P1: 9,
+                    P2: 9,
+                    unprioritized: 9,
+                    total: 36,
+                },
+            })
+        );
+        expect(doc.activeElement).not.toBe(doc.body);
+        expect(doc.activeElement.className).toContain("ls-tl-pass");
+        expect(doc.activeElement.getAttribute("data-pass")).toBe("7");
     });
     /* eslint-enable @typescript-eslint/no-explicit-any */
 });
