@@ -760,12 +760,26 @@ export default function CardsPile({
     // excludes the degenerate "All / Other" pair a mono-type pile would
     // otherwise grow — a single real bucket makes every filter button show
     // the identical set of cards.
+    //
+    // `!footer` (round-2 review fixup, issue #2729): a caller can supply a
+    // `footer` on a plain grid browse with no `onCardClick` —
+    // `RevealHandView`'s undismissable "Done" acknowledgement of a
+    // `forceOpen` reveal-hand prompt is exactly that shape. Both the filter
+    // row and `footer` below render `sticky bottom-0` as direct siblings of
+    // the same `GameDialog` scroller, so without this gate they stack on the
+    // same edge and the filter (`z-10`) paints over the footer — the ONLY
+    // way to dismiss a prompt the user cannot otherwise escape. The other
+    // callers with a footer (`player-graveyard`/`player-exile`/
+    // `player-library`) escape only incidentally, by always pairing `footer`
+    // with `onCardClick` (already excluded above) for the same `is*Choice`
+    // flag. The correct fix is not z-index or "sticky-er" — a caller with a
+    // footer never gets a filter, full stop.
     const filterOptions = useMemo(
         () =>
-            layout === "grid" && !onCardClick && !categories
+            layout === "grid" && !onCardClick && !categories && !footer
                 ? pileFilterOptions(cards)
                 : [],
-        [cards, layout, onCardClick, categories]
+        [cards, layout, onCardClick, categories, footer]
     );
     const showFilter = filterOptions.length > 2;
     const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);

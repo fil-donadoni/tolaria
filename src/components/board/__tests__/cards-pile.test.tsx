@@ -765,4 +765,30 @@ describe("CardsPile — segmented type filter footer (issue #2729, plain browse 
             queryByRole("radiogroup", { name: "Filter pile by card type" })
         ).toBeNull();
     });
+
+    it("hides the filter footer when a `footer` is supplied on a plain grid browse (round-2 review, issue #2729) — RevealHandView's undismissable Done ack must never be painted over by a sibling sticky row", () => {
+        const cards = [
+            typedCard("bolt", ["Instant"]),
+            typedCard("pup", ["Creature"]),
+            typedCard("mtn", ["Land"]),
+        ];
+        const { queryByRole, baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                title="Reveal hand"
+                footer={<button type="button">Done</button>}
+            />
+        );
+        expect(
+            queryByRole("radiogroup", { name: "Filter pile by card type" })
+        ).toBeNull();
+        // Only ONE `sticky bottom-0` element may sit in the dialog scroller —
+        // the footer's — never two competing for the same edge.
+        const stickyBottoms = baseElement.querySelectorAll(".sticky.bottom-0");
+        expect(stickyBottoms.length).toBe(1);
+        expect(queryByRole("button", { name: "Done" })).toBeTruthy();
+    });
 });

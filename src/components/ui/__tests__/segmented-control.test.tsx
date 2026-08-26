@@ -150,6 +150,32 @@ describe("SegmentedControl (issue #2729, WAI-ARIA radiogroup pattern)", () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
+    it("falls back to the first segment as the sole tab stop when `value` matches no option (round-2 review, issue #2729)", () => {
+        render(
+            <SegmentedControl
+                options={OPTIONS}
+                value={
+                    "stale-out-of-range" as (typeof OPTIONS)[number]["value"]
+                }
+                onChange={vi.fn()}
+                ariaLabel="Filter by card type"
+            />
+        );
+        expect(
+            screen.getByRole("radio", { name: "All" }).getAttribute("tabindex")
+        ).toBe("0");
+        expect(
+            screen
+                .getByRole("radio", { name: "Creatures" })
+                .getAttribute("tabindex")
+        ).toBe("-1");
+        expect(
+            screen
+                .getByRole("radio", { name: "Lands" })
+                .getAttribute("tabindex")
+        ).toBe("-1");
+    });
+
     it("ArrowRight moves focus to the next segment", () => {
         render(
             <SegmentedControl

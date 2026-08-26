@@ -89,6 +89,14 @@ export default function SegmentedControl<Value extends string>({
         >
             {options.map((option, index) => {
                 const selected = option.value === value;
+                // Roving-tabindex fallback (round-2 review fixup, issue
+                // #2729): `value` can land on something that matches no
+                // option (out-of-range, stale, or an initial empty string) —
+                // with a plain `selected ? 0 : -1` that leaves EVERY pill at
+                // -1, dropping the whole group out of the tab order. The
+                // conventional fix: when nothing is selected, the first
+                // option takes the one tab stop instead.
+                const noSelection = !options.some((o) => o.value === value);
                 return (
                     <button
                         key={option.value}
@@ -96,7 +104,9 @@ export default function SegmentedControl<Value extends string>({
                         role="radio"
                         aria-checked={selected}
                         disabled={disabled}
-                        tabIndex={selected ? 0 : -1}
+                        tabIndex={
+                            selected || (noSelection && index === 0) ? 0 : -1
+                        }
                         onClick={() => onChange(option.value)}
                         onKeyDown={(event) => handleKeyDown(event, index)}
                         className={cn(
