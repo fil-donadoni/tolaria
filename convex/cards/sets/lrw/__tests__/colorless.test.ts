@@ -30,6 +30,7 @@ import {
     applyLandEntrySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { applyPlayLand } from "../../../../gre/playLand";
 import {
     FACE_DOWN_CARD_ID,
     getDefinition,
@@ -574,29 +575,40 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         );
     });
 
-    it("CR 400.7 / 607 — a bounced-and-replayed land offers ONLY its own hidden card, not the previous incarnation's", () => {
-        // Instance ids survive zone changes and `exiledBySourceId` is cleared
-        // only when the exiled card leaves EXILE — so before the fix the
-        // returned land (a NEW object per CR 400.7) still read as the linking
-        // source of the card its PREVIOUS battlefield existence exiled.
+    it("CR 400.7 / 607 / 608.2b — a bounced-and-replayed land offers ONLY its own hidden card, not the previous incarnation's (issue #2001)", () => {
+        // Instance ids survive zone changes. Before issue #2001's fix,
+        // `exiledBySourceId` was cleared the moment the SOURCE departed the
+        // battlefield — which broke CR 608.2b (an ability already on the
+        // stack referencing the pile at departure time). The clear now runs
+        // at the source's NEXT battlefield ENTRY instead, so the link must
+        // survive the bounce and only die when this same instance id is a
+        // new object again.
         const { state, isle } = setup(8, 15);
         const first = hideOne(state, isle);
 
-        // Bounce the land, then replay it (same instance id) and hide again.
+        // Bounce the land — CR 608.2b: the link SURVIVES the departure.
         removePermanentTo(state, "isle", "hand");
-        const returned = state.players[0].hand.find((c) => c.id === "isle")!;
-        state.players[0].hand = state.players[0].hand.filter(
-            (c) => c.id !== "isle"
-        );
-        returned.zone = "battlefield";
-        state.players[0].battlefield.push(returned);
+        expect(
+            state.players[0].exile.find((c) => c.id === first)!.exiledBySourceId
+        ).toBe("isle");
 
-        // The stale link died with the previous battlefield existence.
+        // Replay it (same instance id) through the REAL entry funnel
+        // (`applyPlayLand` → `settleEnteredLand` →
+        // `clearExileLinksToEnteringSource`) rather than a raw splice, so this
+        // test actually exercises the funnel the fix wires the clear into.
+        const returned = applyPlayLand(state, state.players[0], "isle")!;
+
+        // CR 400.7 — the re-entering land is a NEW object: the stale link
+        // from its PREVIOUS battlefield existence is gone.
         expect(
             state.players[0].exile.find((c) => c.id === first)!.exiledBySourceId
         ).toBeUndefined();
 
-        resolveTrigger(state, returned, HIDEAWAY_TRIGGER_ID);
+        // `applyPlayLand`'s own PERMANENT_ENTERED emission already queued
+        // Shelldock Isle's hideaway ETB trigger onto the stack (triggers never
+        // auto-resolve) — resolve it now instead of `resolveTrigger`'s manual
+        // push, which would double up the trigger.
+        resolveTopOfStack(state);
         const second = state.pendingChoices![0].candidateIds![0];
         submitPick(state, second);
         expect(second).not.toBe(first);

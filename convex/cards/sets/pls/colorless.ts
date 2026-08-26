@@ -301,10 +301,19 @@ export const meteorCrater: CardDefinition = {
 // "your hand"; both mtgjson's `text` field and the 2004-10-04 ruling
 // confirm "its owner's hand"). CR 400.7 / 607: the link is per-INSTANCE,
 // keyed to THIS permanent's own id — Skyship Weatherlight leaving the
-// battlefield does not return the remaining exiled cards (2004-10-04
+// battlefield does not RETURN the remaining exiled cards (2004-10-04
 // ruling: "If this card leaves the battlefield, the remaining cards that
 // were exiled don't come back"), and a second Skyship Weatherlight's own
-// pile is entirely disjoint (each stamps its own `exiledBySourceId`). An
+// pile is entirely disjoint (each stamps its own `exiledBySourceId`).
+//
+// Departure does NOT clear the link (issue #2001, CR 608.2b — last known
+// information): an activation already on the stack when this Weatherlight
+// is destroyed/bounced in response still resolves against the pile it
+// stamped, exactly like Isochron Scepter's imprint surviving the Scepter's
+// own destruction. The link is instead dropped the moment THIS instance id
+// next enters the battlefield (`clearExileLinksToEnteringSource`,
+// `convex/gre/state.ts`) — that re-entry is the CR 400.7 "new object" that
+// actually severs it, not the departure. An
 // EMPTY pile is a CR 608.2b no-op — per the acceptance criterion's chosen
 // disambiguation, the ability is still activatable (its mana/tap cost is
 // still paid) but resolves with no effect, matching the same ruling that

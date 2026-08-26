@@ -962,6 +962,40 @@ describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
             expect(state.players[0].hand).toHaveLength(0);
             expect(state.players[0].library).toHaveLength(0);
         });
+
+        it("an activation already on the stack when the source is destroyed still moves a card (CR 608.2b, issue #2001)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            // The ability was activated (and is on the stack) BEFORE the
+            // source is destroyed in response — the real failure scenario in
+            // issue #2001 (Shatter destroys Skyship Weatherlight while its
+            // own activated ability is pending). `removePermanentTo` must NOT
+            // clear the link the still-resolving ability depends on: CR
+            // 608.2b — last known information — lets it resolve normally.
+            removePermanentTo(state, "skyship", "graveyard", "destroy");
+            fireSkyshipActivated(state, skyship);
+            expect(state.players[0].hand.map((c) => c.id)).toEqual(["linked"]);
+            expect(state.players[0].exile).toHaveLength(0);
+        });
     });
 });
 
