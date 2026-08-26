@@ -2,7 +2,8 @@
  * Issue #2297 — the bot must not pay a sacrifice-cost activation with the
  * ability's OWN SOURCE when the ability's whole effect is delivered to
  * `$source`: the cost is paid, the source is in the graveyard before the
- * ability resolves, and the resolution does nothing (CR 608.2b).
+ * ability resolves, and the resolution does nothing (CR 609.3 — an effect
+ * that attempts the impossible does only as much as possible).
  *
  * The rows below come from a census of every activated ability in
  * `convex/cards/sets/**` whose `cost` carries a `sacrificeFilter` AND which
@@ -86,7 +87,7 @@ function enumeratedVictims(
     );
 }
 
-describe("source-confined benefit predicate (CR 608.2b, issue #2297)", () => {
+describe("source-confined benefit predicate (CR 609.3, issue #2297)", () => {
     // --- rows that ARE confined to $source -------------------------------
     it('"gets +2/+1 until end of turn" — pump on $source is confined', () => {
         expect(

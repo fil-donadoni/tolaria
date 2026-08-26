@@ -179,7 +179,7 @@ function enumeratedSacrificeVictims(
 }
 
 /** "A sac outlet whose whole effect is scoped to `$source` is never paid with
- *  the source itself" (issue #2297, CR 608.2b) — the activation stays
+ *  the source itself" (issue #2297, CR 609.3) — the activation stays
  *  available, and every enumerated variant names some OTHER victim. */
 function sacrificeVictimSparesTheSource(
     state: GameState,
@@ -2582,7 +2582,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // effect pumps `$source`, and its cost says "a creature", not
         // "another" (CR 109.2), so the source is a legal victim of its own
         // ability. Paying with it means the ability resolves with nothing to
-        // pump (CR 608.2b): a creature spent for an empty resolution.
+        // pump (CR 609.3): a creature spent for an empty resolution.
         label: "sac outlet: never eats itself when its whole payoff is on the source",
         spec: {
             cards: [

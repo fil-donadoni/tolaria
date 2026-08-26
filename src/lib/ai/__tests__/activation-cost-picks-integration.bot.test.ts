@@ -267,7 +267,7 @@ describe("activation sacrifice cost (CR 701.21 / 118.5)", () => {
         // server still offers it to a human. The BOT enumerator drops that
         // variant (issue #2297): this ability's whole effect pumps `$source`,
         // so paying with the source leaves the resolution with nothing to do
-        // (CR 608.2b). The property under test here — one variant per
+        // (CR 609.3). The property under test here — one variant per
         // DISTINCT victim, each naming its own — is unchanged; only the
         // self-defeating victim is gone.
         const picked = activations.map((m) =>

@@ -363,7 +363,7 @@ export const MAX_VICTIM_VARIANTS = 4;
  *  may still name it, and `buildActivationSacrificeSelection` above is
  *  unchanged. But when every effect the ability produces is delivered to
  *  `$source` (`abilityBenefitIsConfinedToSource`), paying with the source
- *  leaves the resolution with nothing to do (CR 608.2b): the bot has spent a
+ *  leaves the resolution with nothing to do (CR 609.3): the bot has spent a
  *  creature for an empty resolution, which is strictly worse than not
  *  activating. That variant is not worth a node, and when it is the ONLY
  *  variant the activation itself is not worth a move — `enumerateMoves` drops

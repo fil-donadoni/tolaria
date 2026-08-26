@@ -4,13 +4,14 @@
  * enumerator (issue #2297).
  *
  * THE DECISION IT SERVES. An activation cost of the shape "Sacrifice a
- * creature:" (`cost.sacrificeFilter`, CR 118.5 / 701.16) does not say
+ * creature:" (`cost.sacrificeFilter`, CR 118.5 / 701.21 Sacrifice) does not say
  * "another" (CR 109.2), so the ability's own source is a legal victim of its
  * own cost. Naming it is legal — the engine offers it to a human and always
  * will — but for an ability whose effect is delivered ONLY to `$source` it is
  * self-defeating: the cost is paid, the source is in the graveyard before the
- * ability resolves, and the resolution does nothing at all (CR 608.2b — the
- * ability does as much as it can, which is nothing). The bot spent a creature
+ * ability resolves, and the resolution does nothing at all (CR 609.3 — an
+ * effect that attempts the impossible does only as much as possible, which
+ * here is nothing at all). The bot spent a creature
  * for an empty resolution.
  *
  * WHY A PREDICATE OVER THE Op VOCABULARY, and not a rule about sacrifice
@@ -50,14 +51,14 @@ import { SOURCE_BINDING } from "../effects/interpreter";
  *
  *   - `pump` (CR 611.1, layer 7c) — a P/T buff on the named permanent.
  *   - `counters` (CR 122) — counters put on or removed from it.
- *   - `tapUntap` (CR 701.20 / 701.26) — its tapped status.
+ *   - `tapUntap` (CR 701.26 Tap and Untap) — its tapped status.
  *   - `skipNextUntap` (CR 302.6 / 502.1) — a restriction carried by it.
  *   - `grantAbility` (CR 613.1f, layer 6) — an ability it gains.
  *   - `addSubtype` / `setSubtype` (layer 4) — its subtypes.
  *   - `setColor` (layer 5) — its colors.
  *   - `setCardTypes` (layer 4) — its card types.
  *   - `animate` / `setBasePT` (layers 4 / 7b) — its type line and base P/T.
- *   - `regenerate` (CR 701.15) — a regeneration shield on it.
+ *   - `regenerate` (CR 701.19 Regenerate) — a regeneration shield on it.
  *   - `preventDamage` (CR 615) — a prevention shield on it. Its
  *     player-scoped and `all-combat` shapes carry no `target` at all and are
  *     rejected by the `$source` check below, not by this list.
