@@ -41,9 +41,28 @@ export default function LobbyModeTile({
             className={cn(
                 "group relative isolate flex min-h-[7.5rem] flex-col justify-end overflow-hidden rounded-[var(--panel-radius)] border text-left transition",
                 "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                // The resting edge is `border-strong`, NOT the decorative
+                // `--hairline` pair the ADR's prose names for panels
+                // (`.btn-base` in `src/index.css`; #2847 round-3). Worth the
+                // argument, because an art-backed tile LOOKS like the one case
+                // where the frame is decoration around a picture: the art would
+                // bound the control and the hairline would only refine it.
+                // It does not. The overlay gradient below ends at
+                // `rgba(0,0,0,0.86)`, which composites to about `rgb(18,18,18)`
+                // over mid-art — roughly 1.2-1.4:1 against the `surface` panel
+                // ground (#14171c, L=0.0085). So across the whole bottom of the
+                // tile, exactly where the chip/title/line sit, the art supplies
+                // NO boundary and the border is the sole bound, which is the
+                // condition `.segment-pill`'s comment states: where a hairline
+                // is the only thing bounding a control, it is not decoration.
+                // `--color-border-strong` is 3.38:1 there, and stays plainly
+                // distinct from the selected state's ivory `--color-accent`
+                // (#6f6b62 vs #efe9da, plus the 3px accent ring), so the
+                // pressed/unpressed reading is unaffected. Same treatment as
+                // the sibling `deck-shelf-tile.tsx` and `draft-lab-seat-card`.
                 selected
                     ? "border-accent shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_16%,transparent)]"
-                    : "border-[var(--hairline)] hover:border-[var(--hairline-strong)]"
+                    : "border-border-strong hover:border-accent/60"
             )}
         >
             <img
