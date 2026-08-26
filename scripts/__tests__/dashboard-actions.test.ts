@@ -214,11 +214,9 @@ describe("actions.js — Confirm posts to /api/action with the boot token (#2636
 
     it("claim.release posts {action:'claim.release', issue} for exactly the row clicked", async () => {
         const win = mountPage();
-        const fetchSpy = vi
-            .fn()
-            .mockResolvedValue({
-                json: async () => ({ ok: true, issue: 2582 }),
-            });
+        const fetchSpy = vi.fn().mockResolvedValue({
+            json: async () => ({ ok: true, issue: 2582 }),
+        });
         g.fetch = fetchSpy;
         initActions();
         click(win, win.document.querySelector(".ls-release"));
