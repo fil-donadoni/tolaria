@@ -78,7 +78,13 @@ describe("DivideTargetStepper v4 re-skin (CR 601.2d, issue #2730)", () => {
                 onPlus={() => {}}
             />
         );
-        expect(screen.getByLabelText("Assign one less")).toBeDisabled();
-        expect(screen.getByLabelText("Assign one more")).toBeDisabled();
+        expect(
+            (screen.getByLabelText("Assign one less") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+        expect(
+            (screen.getByLabelText("Assign one more") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
     });
 });
