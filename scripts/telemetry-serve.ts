@@ -999,18 +999,21 @@ function resolvePort(): number {
  */
 export function startServer(port: number = resolvePort()) {
     // The Origin allow-list is built from the port the server ACTUALLY bound,
-    // not from `resolvePort()` (#2628): `startServer(0)` lets the OS pick, and
-    // an allow-list naming port 0 would refuse the page this very server just
-    // served. Computed on the first request, when `server` is assigned.
-    let origins: ReadonlySet<string> | null = null;
+    // not from the one requested (#2628): `startServer(0)` lets the OS pick,
+    // and an allow-list naming port 0 would refuse the page this very server
+    // just served. Reassigned below, before `Bun.serve` can dispatch a first
+    // request — read through a `let` rather than off `server` inside its own
+    // initializer, which TypeScript cannot type (TS7022/TS7023).
+    let origins: ReadonlySet<string> = loopbackOrigins(port);
     const server = Bun.serve({
         port,
         hostname: "127.0.0.1",
-        fetch: (req) =>
-            handleRequest(req, {
-                allowedOrigins: (origins ??= loopbackOrigins(server.port)),
-            }),
+        fetch: (req) => handleRequest(req, { allowedOrigins: origins }),
     });
+    // `server.port` is optional in Bun's types (a unix-socket server has
+    // none); this one is always a TCP listener, so the fallback is the
+    // requested port rather than a widening of the allow-list.
+    origins = loopbackOrigins(server.port ?? port);
     console.log(`telemetry dashboard → http://127.0.0.1:${server.port}`);
     return server;
 }
