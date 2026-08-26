@@ -8,19 +8,46 @@
 // See per-card behaviour in the mmq (Gush/Thwart) and vis (Fireblast) set tests.
 
 import { describe, it, expect } from "vitest";
-import type { AlternativeCost, CostLegs } from "../../cards/types";
+import type {
+    AlternativeCost,
+    CardDefinition,
+    CostLegs,
+} from "../../cards/types";
 import {
     canPayAlternativeCost,
     buildAlternativeCostChoice,
     buildCostLegsHandChoice,
     buildCostLegsPermanentChoice,
+    getAlternativeCost,
     matchingPermanentsForAltCost,
 } from "../alternativeCost";
 import {
     applySacrificeSelection,
     isSacrificeSelectionComplete,
 } from "../sacrificeChoice";
-import { island, mountain } from "../../cards/sets/lea";
+import {
+    assertKickerPermanentSlotFree,
+    buildCastPermanentCostChoice,
+    resolveCastPermanentSelection,
+} from "../kicker";
+import {
+    finalizeTargetSelection,
+    assertStaticAdditionalCostAffordable,
+    buildCastSacrificeSelection,
+    castRawManaCost,
+} from "../../game";
+import { getPlayer, type GameState, type PendingTarget } from "../state";
+import { registerTokenDefinition } from "../../cards";
+import {
+    island,
+    mountain,
+    forest,
+    swamp,
+    grizzlyBears,
+} from "../../cards/sets/lea";
+import { snuffOut } from "../../cards/sets/mmq/black";
+import { drought } from "../../cards/sets/ice/white";
+import { onceUponATime } from "../../cards/sets/eld/green";
 import {
     makeInstance,
     makePlayer,
@@ -301,5 +328,244 @@ describe("merged cost legs must agree on their terminal action (CR 601.2f, issue
         expect(
             buildCostLegsHandChoice(player, [exileLeg, exileLeg], "x1")?.action
         ).toBe("exile");
+    });
+});
+
+describe("Alternative cost — the board-wide additional-cost sacrifice survives an alt-cost cast, targeted path (CR 601.2f / 118.5 / 118.9, issue #1985)", () => {
+    // REGRESSION (issue #1985). `finalizeTargetSelection`'s single
+    // permanent-cost slot used to gate on `chosenAltCost` and unconditionally
+    // drop `additionalSac` whenever an alternative cost was chosen, on the
+    // premise (recorded in PR #1979 / issue #1937) that "alt-cost cards carry
+    // no additional cost of their own" — true, but Drought's is a BOARD-WIDE
+    // cost (CR 118.5), not a card-owned one, so it applies to an alt-cost
+    // cast exactly as CR 118.9d says any additional cost does: "any
+    // additional costs … that affect that spell are applied to that
+    // alternative cost." Snuff Out (`mmq/black.ts`, printed {X:3}{B}, one
+    // black pip) cast under Drought while paying its "pay 4 life" pitch cost
+    // is the shipped repro: the Swamp used to survive the alt-cost cast and
+    // the spell still reached the stack unpaid.
+    function snuffOutUnderDrought(useAltCost: boolean) {
+        const snuff = makeInstance(snuffOut.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "snuffD",
+        });
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "drought2",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swamp2",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "victimSnuff",
+            power: 2,
+            toughness: 2,
+        });
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [snuff],
+                    battlefield: [droughtInst, swampInst],
+                    life: 20,
+                    // 4 black covers the un-pitched {X:3}{B}; unused when the
+                    // alt cost (4 life, no mana) is chosen instead.
+                    manaPool: { W: 0, U: 0, B: 4, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "snuffD",
+            targetType: ["Creature"],
+            count: 1,
+            selected: [{ type: "permanent", id: "victimSnuff" }],
+            ...(useAltCost ? { alternativeCostId: "pitch-pay-4-life" } : {}),
+        };
+        finalizeTargetSelection(state, pt, "p1");
+        return state;
+    }
+
+    it("sacrifices the Swamp on a MANA-paid cast (baseline, byte-identical)", () => {
+        const state = snuffOutUnderDrought(false);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "swamp2")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "swamp2")).toBe(true);
+        expect(state.stack.some((s) => s.id === "snuffD")).toBe(true);
+    });
+
+    it("STILL sacrifices the Swamp on an ALT-COST (pitch) cast", () => {
+        const state = snuffOutUnderDrought(true);
+        const p1 = getPlayer(state, "p1");
+        // Before the fix the Swamp survived and the spell reached the stack
+        // anyway — an alt-cost cast resolving with an unpaid additional cost.
+        expect(p1.battlefield.some((c) => c.id === "swamp2")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "swamp2")).toBe(true);
+        expect(state.stack.some((s) => s.id === "snuffD")).toBe(true);
+        // The alt cost itself was still paid too (4 life, no mana spent).
+        expect(p1.life).toBe(16);
+        expect(p1.manaPool.B).toBe(4);
+    });
+});
+
+describe("Alternative cost — the no-target commit branch pays the board-wide sacrifice too (CR 601.2f / 118.5, issue #1985)", () => {
+    // REGRESSION (issue #1985, site B). `announceCast`'s no-target ALT-COST
+    // branch never built the board-wide/own additional-cost sacrifice
+    // (`ownSac`) at all — not even the affordability check
+    // (`assertStaticAdditionalCostAffordable`) ran — and committed
+    // `pendingCast.sacrificeSelection` from the alt cost's own permanent leg
+    // ALONE. No shipped alt-cost card carries a black pip (Drought's key), so
+    // this drives the REAL exported pieces `announceCast`'s alt-cost branch
+    // now runs, in the SAME order, against a synthetic green-pip
+    // "Drought-shaped" static-additional-cost source (mirrors
+    // `kicker.test.ts`'s `kickerAltProbe` precedent: a composition no shipped
+    // card combines, testing the MECHANISM `StaticAdditionalCost` generically
+    // rather than the literal Drought card) paired with the REAL Once Upon a
+    // Time — a no-target spell whose alt cost is entirely leg-free (no
+    // mana/permanent/life/hand leg at all), so `buildCastPermanentCostChoice`
+    // always returns `undefined` for it: EVERY alt-cost cast of this shape
+    // dropped the board-wide sacrifice 100% of the time before the fix.
+    const GREEN_DROUGHT_PROBE_ID =
+        "test:board-wide-additional-cost-green-probe";
+    const greenDroughtProbe: CardDefinition = {
+        id: GREEN_DROUGHT_PROBE_ID,
+        rarity: "common",
+        name: "Green Drought Probe",
+        manaCost: { W: 2 },
+        types: ["Enchantment"],
+        staticEffects: [
+            {
+                kind: "additional-cost",
+                appliesToSpell: () => true,
+                appliesToAbility: () => true,
+                perPipColor: "G",
+                sacrificeFilter: { subtypes: ["Forest"] },
+            },
+        ],
+    };
+    registerTokenDefinition(greenDroughtProbe);
+
+    /** Drives the EXACT composition `announceCast`'s no-target alt-cost
+     *  branch now runs, in the same order, over the given state — the
+     *  ADR-0001 pattern (no convex-test mutation harness) `kicker.test.ts`
+     *  and `additional-cost-cast.test.ts` already use. */
+    function buildOnceUponATimeCastSac(state: GameState, instanceId: string) {
+        const player = getPlayer(state, "p1");
+        const cardInHand = player.hand.find((c) => c.id === instanceId)!;
+        const rawCost = castRawManaCost(state, cardInHand, "hand");
+        assertStaticAdditionalCostAffordable(
+            state,
+            rawCost,
+            cardInHand,
+            player,
+            "spell"
+        );
+        const { selection: ownSac } = buildCastSacrificeSelection(
+            state,
+            rawCost,
+            cardInHand,
+            player,
+            undefined,
+            onceUponATime.name ?? "Sacrifice",
+            "hand"
+        );
+        const chosenAltCost = getAlternativeCost(
+            onceUponATime,
+            "free-first-spell"
+        );
+        assertKickerPermanentSlotFree(
+            onceUponATime,
+            undefined,
+            ownSac,
+            chosenAltCost
+        );
+        const altChoice = buildCastPermanentCostChoice(
+            state,
+            "p1",
+            chosenAltCost,
+            onceUponATime,
+            undefined,
+            "Alternative cost"
+        );
+        return resolveCastPermanentSelection(altChoice, ownSac);
+    }
+
+    it("builds and applies the board-wide Forest sacrifice for a leg-free alt-cost cast", () => {
+        const onceInst = makeInstance(onceUponATime.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "onceD",
+        });
+        const probeInst = makeInstance(GREEN_DROUGHT_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "probe1",
+        });
+        const forestInst = makeInstance(forest.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "forest1",
+        });
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [onceInst],
+                    battlefield: [probeInst, forestInst],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const castSac = buildOnceUponATimeCastSac(state, "onceD");
+        // Before the fix `altChoice` alone (always `undefined` for a
+        // leg-free alt cost) was committed, so `castSac` was `undefined` and
+        // this Forest was never at risk.
+        expect(castSac?.requirements).toEqual([
+            { filter: { subtypes: ["Forest"] }, count: 1 },
+        ]);
+        expect(castSac?.picked).toEqual(["forest1"]);
+        // Apply through the REAL sacrifice-application function — proves the
+        // Forest actually leaves the battlefield, not just that the
+        // selection object looks right.
+        applySacrificeSelection(state, castSac!);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "forest1")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "forest1")).toBe(true);
+    });
+
+    it("rejects announcement when the board-wide sacrifice is unaffordable (no Forest)", () => {
+        const onceInst = makeInstance(onceUponATime.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "onceD2",
+        });
+        const probeInst = makeInstance(GREEN_DROUGHT_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "probe2",
+        });
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [onceInst],
+                    battlefield: [probeInst], // no Forest to sacrifice
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Before the fix this affordability check never ran on the no-target
+        // alt-cost branch at all, so an unpayable board-wide sacrifice
+        // slipped straight through to a committed cast.
+        expect(() => buildOnceUponATimeCastSac(state, "onceD2")).toThrow(
+            /additional cost/i
+        );
     });
 });
