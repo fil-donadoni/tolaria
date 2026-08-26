@@ -23,6 +23,13 @@ import path from "path";
  *
  * Run:  bun run test:blade          (must tier — blocking)
  *       bun run test:blade:stretch  (stretch tier — report-only)
+ *
+ * A search VARIANT leg (issue #2684) is opt-in through the environment, the
+ * same way the tier is:
+ *       BLADE_VARIANT=action-priors bun run test:blade
+ * installs that `LADDER_VARIANTS` entry around every entry of the tier. Unset
+ * (the default, and what `bun run test` runs) touches the variant module state
+ * not at all.
  */
 
 const alias = {
