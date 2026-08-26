@@ -1,4 +1,4 @@
-import { state, setMeta } from "./history-state.js";
+import { state, setMeta, paramsToState } from "./history-state.js";
 import { renderFilters } from "./history-filters.js";
 import { refresh } from "./history-refresh.js";
 import { onThemeChange } from "./theme.js";
@@ -28,13 +28,13 @@ export async function bootstrapHistory(params) {
     setMeta(META);
     state.from = META.range?.min_day ?? "";
     state.to = META.range?.max_day ?? "";
-    // Applied after the defaults so an explicit param always wins,
-    // and validated against META so a stale link can't wedge the
-    // page.
-    for (const k of ["table", "metric", "split", "from", "to"]) {
-        const v = params.get(k);
-        if (v) state[k] = v;
-    }
+    // Applied after the defaults so an explicit param always wins, and
+    // validated against META (below) so a stale link can't wedge the page.
+    // `paramsToState` (#2635) restores every field `state` declares — not
+    // just the five this loop used to name by hand — so `filters` (chip
+    // selections) and `sort`/`sortDir` (the Table card's column sort) round
+    // trip through a bookmark too.
+    paramsToState(params);
     if (!META.dimensions[state.table]) state.table = "agent_runs";
     document.getElementById("meta-line").textContent =
         `${META.counts.spans.toLocaleString()} spans · ${META.counts.llm.toLocaleString()} messages · ` +

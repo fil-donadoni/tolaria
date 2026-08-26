@@ -17,6 +17,18 @@
             <header>
                 <h1>Tolaria telemetry</h1>
                 <span class="sub" id="meta-line">loading…</span>
+                <!--
+                    #2635 — the only affordance that makes the keyboard layer
+                    discoverable without already knowing `?` opens it.
+                -->
+                <button
+                    class="shortcuts-btn"
+                    id="shortcuts-btn"
+                    type="button"
+                    aria-haspopup="dialog"
+                >
+                    Keyboard shortcuts
+                </button>
                 <button class="theme" id="theme">theme</button>
             </header>
 

@@ -1,4 +1,4 @@
-import { esc, fmtClock } from "./format.js";
+import { esc, fmtClock, issueLink } from "./format.js";
 import { verdictBandHtml } from "./now-verdict-band.js";
 import { lightsHtml, SECTION_IDS } from "./now-lights.js";
 import { claimsSectionHtml } from "./now-claims-table.js";
@@ -151,7 +151,7 @@ function batchSectionHtml(data) {
         .map((r) =>
             r.role === "missing"
                 ? `<div class="ls-pass">missing · session ${esc(r.session)}</div>`
-                : `<div class="ls-pass">#${r.issue} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
+                : `<div class="ls-pass">${issueLink(r.issue)} · ${esc(r.role)} · ${esc(r.outcome)}${r.pr ? ` · PR #${r.pr}` : ""}</div>`
         )
         .join("");
     if (data.batch == null) {

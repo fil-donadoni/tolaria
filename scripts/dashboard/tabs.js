@@ -30,14 +30,25 @@ function showView(view) {
     }
 }
 
+/**
+ * Show `view` and rewrite `?view=` in place — the one function that changes
+ * which view is visible, so a tab click and a `1`/`2` keyboard shortcut
+ * (`shortcuts.js`, #2635) can never disagree about what "switch to Now" does.
+ * `replaceState`, not `pushState`, so the back button still leaves the
+ * dashboard rather than walking a stack of tab switches.
+ */
+export function switchView(view) {
+    showView(view);
+    const next = new URLSearchParams(location.search);
+    next.set("view", view);
+    history.replaceState(null, "", `?${next}`);
+}
+
 export function initTabs(params) {
     showView(viewFromParams(params));
     for (const v of VIEWS) {
-        document.getElementById(`tab-${v}`).addEventListener("click", () => {
-            showView(v);
-            const next = new URLSearchParams(location.search);
-            next.set("view", v);
-            history.replaceState(null, "", `?${next}`);
-        });
+        document
+            .getElementById(`tab-${v}`)
+            .addEventListener("click", () => switchView(v));
     }
 }

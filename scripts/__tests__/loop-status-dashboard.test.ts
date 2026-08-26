@@ -584,6 +584,15 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
         expect(html).not.toContain("blocks undefined");
         expect(html).not.toContain("ls-blocks");
     });
+
+    it("the issue column is a real GitHub link (round 2 review, low: now-claims-table.js was one of two `issueLink()` producer sites the PR's own census enumerated with no test — a regression here would have shipped silently)", () => {
+        const html = nowBodyHtml(
+            payload({ claims: [claim("live", 2582)] })
+        ) as string;
+        expect(html).toContain(
+            '<a class="issue-link" href="https://github.com/fil-donadoni/tolaria/issues/2582" target="_blank" rel="noopener noreferrer">#2582</a>'
+        );
+    });
 });
 
 describe("telemetry dashboard — Now batch heading (#2632)", () => {
@@ -632,6 +641,46 @@ describe("telemetry dashboard — Now batch heading (#2632)", () => {
             "389 receipts · 4 implement, 2 review, 383 missing session markers"
         );
         expect(html).not.toContain("missing missing:");
+    });
+
+    it("an interesting (non-`missing`) receipt row's issue number is a real GitHub link (round 2 review, low: now.js was the other of two `issueLink()` producer sites with no test)", () => {
+        const html = nowBodyHtml(
+            payload({
+                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
+                receiptsSummary: {
+                    total: 3,
+                    counts: [],
+                    interesting: [
+                        {
+                            issue: 2635,
+                            role: "implement",
+                            outcome: "failed",
+                            pr: 2852,
+                        },
+                    ],
+                },
+            })
+        ) as string;
+        expect(html).toContain(
+            '<a class="issue-link" href="https://github.com/fil-donadoni/tolaria/issues/2635" target="_blank" rel="noopener noreferrer">#2635</a>'
+        );
+        expect(html).toContain("PR #2852");
+
+        // The sibling `missing` shape takes the OTHER branch of the same
+        // ternary (now.js:154) and must never carry a link — there is no
+        // issue number to link to.
+        const missingHtml = nowBodyHtml(
+            payload({
+                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
+                receiptsSummary: {
+                    total: 1,
+                    counts: [],
+                    interesting: [{ role: "missing", session: "abc12345" }],
+                },
+            })
+        ) as string;
+        expect(missingHtml).not.toContain("issue-link");
+        expect(missingHtml).toContain("missing · session abc12345");
     });
 });
 

@@ -1,4 +1,4 @@
-import { esc, fmtAgo } from "./format.js";
+import { esc, fmtAgo, issueLink } from "./format.js";
 
 /**
  * The claimed-issues table of the Now panel (#2519, split out in #2625,
@@ -147,7 +147,7 @@ function claimsBodyHtml(data) {
         claims
             .map((c) => {
                 return (
-                    `<tr><td>${verdictMarkHtml(c)}</td><td>#${c.issue}</td><td>${esc(c.priority ?? "—")}</td>` +
+                    `<tr><td>${verdictMarkHtml(c)}</td><td>${issueLink(c.issue)}</td><td>${esc(c.priority ?? "—")}</td>` +
                     `<td>${stageHtml(c.stage, c.issue)}</td>` +
                     `<td>${ageHtml(c.ageHours)}</td>` +
                     `<td>${esc(c.title)}${blocksBadgeHtml(c)}</td></tr>`

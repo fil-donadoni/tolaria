@@ -117,3 +117,23 @@ export const fmtMin = (m) =>
  *  table's four cost columns used to repeat at every call site (#2634). */
 export const fmtUsdCell = (n) =>
     n ? fmtUsd(n) : "<span class='mini'>—</span>";
+
+/**
+ * The dashboard's own repo slug (#2635 AC: "issue numbers link to their
+ * issues"), mirroring the default `TOLARIA_PROJECT_REPO` already hardcoded
+ * server-side in `scripts/loop-status.ts` and `scripts/queue-plan.ts` — a
+ * plain browser ES module has no build step and no `process.env` to read an
+ * override from, and this page is loopback-only, single-user tooling (PRD
+ * #2621 D11), not something that warrants a server round trip just to learn
+ * its own repo slug.
+ */
+export const GITHUB_REPO = "fil-donadoni/tolaria";
+
+/** An issue number → its GitHub URL. */
+export const issueUrl = (n) => `https://github.com/${GITHUB_REPO}/issues/${n}`;
+
+/** An issue number → a clickable `#N` anchor. Opens in a new tab — following
+ *  a reference to the issue that produced this row is never meant to
+ *  navigate the operator away from the dashboard they were reading. */
+export const issueLink = (n) =>
+    `<a class="issue-link" href="${issueUrl(n)}" target="_blank" rel="noopener noreferrer">#${esc(String(n))}</a>`;

@@ -1,4 +1,12 @@
-import { esc, tier, fmtNum, fmtUsd, fmtMin, fmtUsdCell } from "./format.js";
+import {
+    esc,
+    tier,
+    fmtNum,
+    fmtUsd,
+    fmtMin,
+    fmtUsdCell,
+    issueLink,
+} from "./format.js";
 import { toggleDrill } from "./history-drilldown.js";
 import { labelFor, lookupTerm } from "./glossary.js";
 
@@ -8,6 +16,17 @@ import { labelFor, lookupTerm } from "./glossary.js";
  *
  * `issState` is module-private: rows arrive through `setIssueRows()` and
  * nothing outside this file reads or writes the sort/filter fields.
+ *
+ * DELIBERATELY OUT OF THE #2635 URL ROUND TRIP (round 2 review): `stateToParams`
+ * / `paramsToState` (`history-state.js`) only ever walk the SHARED
+ * `history-state.js` singleton — the dataset/metric/split/date-range/chip
+ * filter bar. `issState.family`/`tier`/`state`/`text` (this table's own
+ * sort+filter, including the `#if-text` search box `/` focuses) are a
+ * SEPARATE, module-private object and do not survive a bookmark today. The
+ * #2635 AC's wording ("History's filter state round-trips") reads broadly
+ * enough to cover this table too; narrowing it to the shared filter bar was
+ * a scope call made in review, not an oversight — noted here so the next
+ * reader does not mistake the gap for a bug in `stateToParams` itself.
  *
  * Column headers render the glossary LABEL, never the raw abbreviation
  * (#2634: `impl '` → "implement minutes", `fix ×` → "fixup rounds", …), and
@@ -57,7 +76,7 @@ function issueCell(col, r) {
     const v = r[col.key];
     switch (col.key) {
         case "issue":
-            return `<td title="${esc(r.title)}">#${r.issue} ${esc((r.title ?? "").slice(0, 42))}</td>`;
+            return `<td title="${esc(r.title)}">${issueLink(r.issue)} ${esc((r.title ?? "").slice(0, 42))}</td>`;
         case "first_ts":
             return `<td>${new Date(v * 1000).toLocaleDateString([], { month: "2-digit", day: "2-digit" })}</td>`;
         case "family":
@@ -151,9 +170,14 @@ export function renderIssuesTable() {
         })
     );
     itbl.querySelectorAll("tr.expand").forEach((tr) =>
-        tr.addEventListener("click", () =>
-            toggleDrill(tr, `/api/runs?issue=${tr.dataset.issue}`)
-        )
+        tr.addEventListener("click", (e) => {
+            // The issue cell's `#N` is now a real link (#2635 AC) that opens
+            // in its own tab — a click on it must not ALSO toggle this row's
+            // drill-down, which is what a plain row-level listener would do
+            // since the click bubbles up from the anchor.
+            if (e.target.closest("a")) return;
+            toggleDrill(tr, `/api/runs?issue=${tr.dataset.issue}`);
+        })
     );
 }
 
