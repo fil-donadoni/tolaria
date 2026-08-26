@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { jackedRabbit } from "../white";
 import { grizzlyBears } from "../../lea/green";
+import { ephemerate } from "../../mh1/white";
 import {
     makeInstance,
     makePlayer,
@@ -361,5 +362,61 @@ describe("Jacked Rabbit — CR 400.7 clears the X snapshot on a zone change (iss
         expect(reanimatedRabbit.counters?.["+1/+1"] ?? 0).toBe(0);
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].hand).toHaveLength(1); // still just the earlier draw
+    });
+});
+
+// Departure-time LKI (issue #2042) — the shipped repro for CR 603.4's
+// resolution-time re-check against CR 608.2h. This is the case the two
+// regressions above deliberately sidestepped ("avoids the unrelated LKI
+// question of what a trigger already on the stack does when its source
+// departs"): the Ravenous trigger is ALREADY on the stack when Ephemerate
+// blinks the rabbit, so CR 400.7 makes the returned permanent a NEW object and
+// the re-check must read the departed one's last known information.
+describe("Jacked Rabbit — Ravenous survives a blink taken in response (CR 603.4 / 608.2h / 400.7)", () => {
+    it("X=6, blinked by Ephemerate while the Ravenous trigger is on the stack: still draws 1", () => {
+        const { state, rabbit } = castForX(6);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "jacked-rabbit-ravenous-draw"
+        );
+
+        // Ephemerate resolves ON TOP of the waiting trigger: exile the rabbit,
+        // then return it under the same instance id.
+        pushSpell(state, ephemerate.id, "p1", [
+            { type: "permanent", id: rabbit.id },
+        ]);
+        resolveTopOfStack(state);
+
+        const returned = state.players[0].battlefield.find(
+            (c) => c.card.id === jackedRabbit.id
+        )!;
+        // Preconditions that make this a real repro rather than a tautology:
+        // the id really is reused, and the field the intervening-if reads
+        // really was wiped by `resetBattlefieldTransientState`.
+        expect(returned.id).toBe(rabbit.id);
+        expect(returned.chosenXOnCast).toBeUndefined();
+        // The returning rabbit's own Ravenous ETB sees X=0, so it adds no
+        // second trigger — only the original one is still waiting.
+        const ravenous = state.stack.filter(
+            (i) => i.triggeredAbilityId === "jacked-rabbit-ravenous-draw"
+        );
+        expect(ravenous).toHaveLength(1);
+        expect(ravenous[0].sourceLki?.chosenXOnCast).toBe(6);
+
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.players[0].library).toHaveLength(1);
+    });
+
+    it("X=4, blinked the same way: still draws nothing (the snapshot is not a licence to fire)", () => {
+        const { state, rabbit } = castForX(4);
+        expect(state.stack).toHaveLength(0);
+        pushSpell(state, ephemerate.id, "p1", [
+            { type: "permanent", id: rabbit.id },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(2);
     });
 });

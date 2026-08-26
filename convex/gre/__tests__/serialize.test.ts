@@ -657,6 +657,46 @@ describe("game_state serialize round-trip", () => {
         expect(normal.stack[0].dynamicCantBeCountered).toBeUndefined();
     });
 
+    it("preserves a trigger's departure-time LKI snapshot (CR 608.2h, issue #2042)", () => {
+        // A pending choice taken between a blink and the trigger's resolution
+        // is a stable save point, so `sourceLki` must survive the round trip:
+        // without it the reloaded item falls back to the live same-id
+        // permanent and the CR 603.4 re-check reads the NEW object again.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        const departed = {
+            ...spell,
+            id: "departed-source",
+            zone: "battlefield" as const,
+            chosenXOnCast: 6,
+            hasAttackedThisTurn: true,
+            counters: { vitality: 2 },
+        };
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                triggeredAbilityId: "some-trigger",
+                triggerSourceId: departed.id,
+                sourceLki: departed,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        const lki = expanded.stack[0].sourceLki;
+        expect(lki).toBeDefined();
+        expect(lki!.id).toBe("departed-source");
+        expect(lki!.ownerId).toBe("p1");
+        expect(lki!.chosenXOnCast).toBe(6);
+        expect(lki!.hasAttackedThisTurn).toBe(true);
+        expect(lki!.counters).toEqual({ vitality: 2 });
+        // Absent on the overwhelming majority of triggers (omitted, not
+        // serialized as an empty object).
+        state.stack[0].sourceLki = undefined;
+        const normal = expandState(compactState(state));
+        expect(normal.stack[0].sourceLki).toBeUndefined();
+    });
+
     it("preserves a fired inline delayed trigger's body on the stack item (ADR 0048, CR 603.7a)", () => {
         const state = freshState();
         const spell = state.players[0].hand[0];

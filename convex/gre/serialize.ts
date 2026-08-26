@@ -1391,6 +1391,27 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
         base.triggeredAbilityId = item.triggeredAbilityId;
     }
     if (item.triggerSourceId) base.triggerSourceId = item.triggerSourceId;
+    // CR 608.2h / 113.7a (issue #2042) — the departure-time LKI snapshot of
+    // this trigger's source permanent must survive a save taken while the
+    // trigger sits on the stack (a pending choice between the blink and the
+    // trigger's resolution is a stable save point). Without it the reloaded
+    // item falls back to the live same-id permanent and the CR 603.4
+    // intervening-if re-check reads the wrong object again. Recurses through
+    // `compactCard`, exactly like `stormSnapshot` recurses through
+    // `compactStackItem`, so it never ships a fat card def.
+    if (item.sourceLki) {
+        const lki = compactCard(
+            item.sourceLki,
+            { ownerId: item.sourceLki.ownerId },
+            ctx
+        );
+        // `compactCard` omits `ownerId` when it equals the `opts` owner, so
+        // force-write it: the snapshot is a standalone record with no
+        // containing zone to imply an owner (same trick `compactStackItem`
+        // uses for the stack item itself, two lines into this function).
+        lki.ownerId = item.sourceLki.ownerId;
+        base.sourceLki = lki;
+    }
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
     // CR 114 — an emblem-sourced trigger resolves its effect from the emblem
     // registry keyed by `emblemSourceId` (`resolveTopOfStack`, state.ts). It
@@ -1521,6 +1542,19 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     }
     if (compact.triggerSourceId) {
         item.triggerSourceId = compact.triggerSourceId as string;
+    }
+    // CR 608.2h / 113.7a (issue #2042) — rehydrate the source's departure-time
+    // LKI snapshot. `zone: "battlefield"` because the snapshot is by
+    // construction the permanent as it last sat on the battlefield.
+    if (compact.sourceLki) {
+        item.sourceLki = expandCard(
+            compact.sourceLki as CompactCard,
+            {
+                ownerId: (compact.sourceLki as CompactCard).ownerId as string,
+                zone: "battlefield",
+            },
+            ctx
+        );
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];

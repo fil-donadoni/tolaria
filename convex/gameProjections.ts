@@ -334,6 +334,17 @@ function slimCard<
     // the snapshot rather than doubling the payload with a duplicate,
     // un-slimmed card.
     delete (slimmed as { stormSnapshot?: unknown }).stormSnapshot;
+    // CR 608.2h / 113.7a (issue #2042) — `sourceLki`, the departure-time
+    // snapshot of a trigger's source permanent, is the same shape hazard as
+    // `stormSnapshot` directly above and gets the same treatment: it is a
+    // resolution-time engine artifact (a full nested `CardInstanceState` with
+    // its OWN fat `card` field and its own `knownTo`) that no client renders,
+    // so it is stripped rather than shipped. Everything it holds WAS public
+    // battlefield state, so this is payload and drift hygiene rather than a
+    // privacy boundary — but stripping is the fail-closed default: a field
+    // that never crosses the wire cannot leak a future non-public one
+    // (#1977/#1982), and the engine reads it server-side only.
+    delete (slimmed as { sourceLki?: unknown }).sourceLki;
     return slimmed;
 }
 

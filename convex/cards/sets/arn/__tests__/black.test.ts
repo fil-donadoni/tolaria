@@ -57,10 +57,12 @@ import {
 import {
     resolveActivated,
     resolveTrigger,
+    pushTrigger,
     answerChoice,
     upkeepEvent,
     endStepEvent,
 } from "./helpers";
+import { ephemerate } from "../../mh1/white";
 
 describe("Juzám Djinn (upkeep: 1 damage to you)", () => {
     it("deals 1 to its controller on upkeep", () => {
@@ -219,6 +221,67 @@ describe("Erg Raiders (end step: 2 damage to you unless it attacked / just arriv
         expect(ability.matches(endStepEvent("p1"), erg, state)).toBe(false);
         resolveTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
         expect(state.players[0].life).toBe(20);
+    });
+
+    // Departure-time LKI (issue #2042). Erg Raiders is the OPPOSITE polarity to
+    // Jacked Rabbit: a blink taken while the end-step trigger waits leaves the
+    // returned permanent with no attack record, so the intervening-if reads
+    // "didn't attack" and the ability wrongly RESOLVES — 2 damage its
+    // controller should never take. CR 400.7 makes that returned permanent a
+    // NEW object, so CR 608.2h requires the re-check to use the departed
+    // object's last known information.
+    //
+    // The trigger is pushed directly (`pushTrigger`) rather than scanned: the
+    // factory folds this intervening-if into `matches` too, so a scan can
+    // never leave an already-attacked Raiders' trigger on the stack — but a
+    // COPY of a triggered ability reaches the stack without re-running
+    // `matches` (CR 707.10), and it is the resolution-time leg that is under
+    // test here either way. It still resolves through the real
+    // `resolveTopOfStack`.
+    it("blinked while its end-step trigger is on the stack: deals 0, the attack record is read from the departed object", () => {
+        const erg = makeInstance(ergRaiders.id, {
+            id: "erg",
+            hasAttackedThisTurn: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+
+        // Ephemerate resolves on top: exile the Raiders, return it under the
+        // same instance id with its combat history wiped.
+        pushSpell(state, ephemerate.id, "p1", [
+            { type: "permanent", id: erg.id },
+        ]);
+        resolveTopOfStack(state);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.card.id === ergRaiders.id
+        )!;
+        expect(returned.id).toBe(erg.id);
+        expect(returned.hasAttackedThisTurn).toBeUndefined();
+
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("blinked while its end-step trigger is on the stack after NOT attacking: still deals 2 (the fix is not one-directional)", () => {
+        const erg = makeInstance(ergRaiders.id, { id: "erg" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [erg] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushTrigger(state, erg, "erg-raiders-end-step", endStepEvent("p1"));
+        pushSpell(state, ephemerate.id, "p1", [
+            { type: "permanent", id: erg.id },
+        ]);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(18);
     });
 
     it("does not trigger the turn it came under your control (CR 603.2)", () => {

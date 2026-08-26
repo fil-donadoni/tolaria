@@ -14,7 +14,15 @@ import type {
     PlayerState,
     StackItem,
 } from "../state";
-import { resolveTopOfStack } from "../state";
+import {
+    applyControlChange,
+    phaseOutPermanent,
+    putReanimatedSetOnBattlefield,
+    removePermanentTo,
+    resolveTopOfStack,
+} from "../state";
+import { compactState, expandState } from "../serialize";
+import { projectPublicState } from "../../gameProjections";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition, GameEvent } from "../../cards/types";
 
@@ -280,5 +288,365 @@ describe("intervening-if allowlist — wasKicked (issue #1753, CR 603.4 / 614.1c
         expect(state.players[0].hand).toHaveLength(1);
         expect(state.players[0].library).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Departure-time LKI (issue #2042) — CR 603.4 re-check against CR 608.2h
+// ---------------------------------------------------------------------------
+//
+// CR 400.7 makes a permanent that changes zones a NEW object, but the engine
+// never reallocates the instance id, so a blink returns a same-id permanent
+// whose battlefield-transient fields `resetBattlefieldTransientState` has
+// wiped. CR 608.2h says a resolution-time read of "the source of the ability
+// itself" must use last known information once that object is no longer in the
+// zone it was expected to be in — which the engine could not tell apart from
+// "it never moved", because the id matched either way.
+//
+// `removePermanentTo` now stamps `StackItem.sourceLki` at the single
+// battlefield-departure funnel, and `resolveTopOfStackInner` prefers it. These
+// tests drive the REAL production paths (`removePermanentTo` /
+// `putReanimatedSetOnBattlefield` / `resolveTopOfStack`), both polarities, plus
+// the two tiers that must NOT change (live object, never-on-the-battlefield
+// source) and the census's must-NOT departures (control change, phasing).
+
+const BLINK_SOURCE_ID = "test-departure-lki-card";
+const BLINK_X_ABILITY = "test-trigger-blink-x";
+const BLINK_ATTACK_ABILITY = "test-trigger-blink-attack";
+const BLINK_COUNTER_ABILITY = "test-trigger-blink-counter";
+
+/** Synthetic source carrying one intervening-if per POLARITY of the bug, each
+ *  reading a different field `resetBattlefieldTransientState` deletes on
+ *  re-entry — the three shapes the 2026-08-05 catalogue census found across
+ *  five shipped cards:
+ *   - `chosenXOnCast` (Jacked Rabbit): blink makes it read 0 and the trigger
+ *     wrongly FIZZLES;
+ *   - `hasAttackedThisTurn` (Erg Raiders, the Clockwork pair): blink makes it
+ *     read "didn't attack" and the trigger wrongly RESOLVES;
+ *   - `counters` (Living Artifact): both directions, and the field a permanent
+ *     that never left must still be read LIVE for. */
+const blinkTestCard: CardDefinition = {
+    id: BLINK_SOURCE_ID,
+    name: "Test Departure-LKI Source",
+    rarity: "common",
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: BLINK_X_ABILITY,
+            oracleText:
+                "At the beginning of the end step, if X is 5 or more, draw a card.",
+            event: "PHASE_BEGIN",
+            matches: (event) => event.type === "PHASE_BEGIN",
+            interveningIf: (_event, self) => (self.chosenXOnCast ?? 0) >= 5,
+            resolve: (ctx) => ctx.drawCards(ctx.controller, 1),
+        },
+        {
+            id: BLINK_ATTACK_ABILITY,
+            oracleText:
+                "At the beginning of the end step, if this didn't attack this turn, you gain 2 life.",
+            event: "PHASE_BEGIN",
+            matches: (event) => event.type === "PHASE_BEGIN",
+            interveningIf: (_event, self) => self.hasAttackedThisTurn !== true,
+            resolve: (ctx) => ctx.gainLife(ctx.controller, 2),
+        },
+        {
+            id: BLINK_COUNTER_ABILITY,
+            oracleText:
+                "At the beginning of the end step, if this has a vitality counter on it, you gain 1 life.",
+            event: "PHASE_BEGIN",
+            matches: (event) => event.type === "PHASE_BEGIN",
+            interveningIf: (_event, self) =>
+                (self.counters?.["vitality"] ?? 0) > 0,
+            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
+        },
+    ],
+};
+
+beforeAll(() => {
+    registerTokenDefinition(blinkTestCard);
+});
+
+/** Seeds p1 with the synthetic source on the battlefield and ONE trigger from
+ *  it already on the stack, built the way `buildTriggerItem` builds one (a
+ *  `...self` spread plus the trigger legs). `stackOverrides` lets a test make
+ *  the trigger-time snapshot differ from the live permanent, which is the only
+ *  way to tell the three LKI tiers apart. */
+function setupDepartureState(opts: {
+    abilityId: string;
+    source?: Partial<CardInstanceState>;
+    stackOverrides?: Partial<StackItem>;
+    sourceZone?: "battlefield" | "graveyard";
+}): { state: GameState; source: CardInstanceState } {
+    const source = makeBareCard("blink-src", {
+        card: { id: BLINK_SOURCE_ID },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        zone: opts.sourceZone ?? "battlefield",
+        ...opts.source,
+    });
+    const libraryCard = makeBareCard("blink-lib", {
+        card: { id: BLINK_SOURCE_ID },
+        zone: "library",
+    });
+    const event: GameEvent = {
+        type: "PHASE_BEGIN",
+        phase: "END_STEP",
+        activePlayerId: "p1",
+    };
+    const stackItem: StackItem = {
+        ...source,
+        zone: "stack",
+        id: "blink-stack-1",
+        castById: "p1",
+        triggeredAbilityId: opts.abilityId,
+        triggerSourceId: source.id,
+        triggerEvent: event,
+        ...opts.stackOverrides,
+    };
+    const p1 = makeBarePlayer("p1", [libraryCard]);
+    if ((opts.sourceZone ?? "battlefield") === "battlefield") {
+        p1.battlefield = [source];
+    } else {
+        p1.graveyard = [source];
+    }
+    const p2 = makeBarePlayer("p2", []);
+    const state: GameState = {
+        players: [p1, p2],
+        stack: [stackItem],
+        turn: 1,
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        passCount: 0,
+        phase: "END_STEP",
+        rngSeed: 0,
+        rngCounter: 0,
+    };
+    return { state, source };
+}
+
+/** CR 400.7 round trip under a REUSED instance id — the shape a blink
+ *  (Ephemerate), a bounce-and-replay or a reanimation onto the same row all
+ *  produce. Both legs are production entry points: `removePermanentTo` is the
+ *  battlefield-departure funnel, `putReanimatedSetOnBattlefield` the entry path
+ *  that runs `resetBattlefieldTransientState`. */
+function departAndReturn(state: GameState, instanceId: string): void {
+    const left = removePermanentTo(state, instanceId, "graveyard");
+    expect(left).not.toBeNull();
+    const gy = state.players[0].graveyard;
+    const idx = gy.findIndex((c) => c.id === instanceId);
+    const [card] = gy.splice(idx, 1);
+    putReanimatedSetOnBattlefield(state, [{ card, controllerId: "p1" }]);
+}
+
+describe("departure-time LKI for intervening-if (CR 603.4 / 608.2h / 400.7, issue #2042)", () => {
+    it("blinked mid-trigger: the X snapshot is read from the DEPARTED object, so the trigger still resolves", () => {
+        // Jacked Rabbit's polarity: without the departure snapshot the
+        // re-check reads the returned object's wiped `chosenXOnCast` (0), and
+        // an X=6 trigger fizzles.
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            source: { chosenXOnCast: 6 },
+        });
+        departAndReturn(state, source.id);
+        // Precondition: the returned permanent really has lost the field —
+        // otherwise this test would pass for the wrong reason.
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === source.id
+        )!;
+        expect(returned.chosenXOnCast).toBeUndefined();
+        expect(state.stack[0].sourceLki?.chosenXOnCast).toBe(6);
+
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("blinked mid-trigger: the combat history is read from the DEPARTED object, so the trigger fizzles (opposite polarity)", () => {
+        // Erg Raiders' polarity, and the dangerous one: the fresh object has
+        // no attack record, so the predicate reads TRUE and the ability
+        // wrongly RESOLVES — silently wrong AND active, not merely inert.
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_ATTACK_ABILITY,
+            source: { hasAttackedThisTurn: true },
+        });
+        departAndReturn(state, source.id);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === source.id
+        )!;
+        expect(returned.hasAttackedThisTurn).toBeUndefined();
+
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("blinked mid-trigger: counters are read from the DEPARTED object (CR 121.2 — they ceased to exist)", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_COUNTER_ABILITY,
+            source: { counters: { vitality: 2 } },
+        });
+        departAndReturn(state, source.id);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === source.id
+        )!;
+        expect(returned.counters?.["vitality"] ?? 0).toBe(0);
+        // The snapshot holds its OWN copy of the counter map — `creature.counters`
+        // is deleted at the funnel, so a shared reference would read as gone.
+        expect(state.stack[0].sourceLki?.counters?.["vitality"]).toBe(2);
+
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("never left: the re-check still reads the LIVE object, so a counter gained AFTER the trigger was queued is seen", () => {
+        // Living Artifact's case, and the regression the naive "always prefer
+        // a snapshot" fix breaks: the trigger-time spread has no counters, and
+        // the permanent is the SAME object (CR 400.7 never applied), so the
+        // live value is the correct one to read.
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_COUNTER_ABILITY,
+        });
+        expect(state.stack[0].counters?.["vitality"] ?? 0).toBe(0);
+        source.counters = { vitality: 1 };
+
+        resolveTopOfStack(state);
+        expect(state.stack[0]?.sourceLki).toBeUndefined();
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("never left: a counter REMOVED after the trigger was queued is likewise seen live, and the trigger fizzles", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_COUNTER_ABILITY,
+            source: { counters: { vitality: 1 } },
+        });
+        delete source.counters;
+
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("left and did NOT return: unchanged — the graveyard-zone source (Nether Shadow shape) still resolves off the stack item", () => {
+        // Tier 3. The source was never on the battlefield, so no departure
+        // ever ran and `sourceLki` is absent; the `?? top` fallback and its
+        // `triggerSourceId` id-pinning must keep working.
+        const { state } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            sourceZone: "graveyard",
+            stackOverrides: { chosenXOnCast: 6 },
+        });
+        expect(state.stack[0].sourceLki).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("left and did NOT return: a source that departs while its trigger waits fizzles/resolves off the departure snapshot", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_ATTACK_ABILITY,
+            source: { hasAttackedThisTurn: true },
+        });
+        removePermanentTo(state, source.id, "graveyard");
+        expect(state.stack[0].sourceLki?.hasAttackedThisTurn).toBe(true);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("blinked TWICE: the second departure does not overwrite the first snapshot", () => {
+        // The back door the presence-is-the-signal design would otherwise
+        // leave open: the LKI of the object the ability was sourced from is
+        // fixed the instant that object ceased to exist.
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            source: { chosenXOnCast: 6 },
+        });
+        departAndReturn(state, source.id);
+        expect(state.stack[0].sourceLki?.chosenXOnCast).toBe(6);
+        departAndReturn(state, source.id);
+        expect(state.stack[0].sourceLki?.chosenXOnCast).toBe(6);
+
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("stamps ONLY the stack items sourced from the departing instance", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            source: { chosenXOnCast: 6 },
+        });
+        const other: StackItem = {
+            ...state.stack[0],
+            id: "other-stack-1",
+            triggerSourceId: "some-other-permanent",
+        };
+        state.stack.unshift(other);
+        removePermanentTo(state, source.id, "graveyard");
+        expect(
+            state.stack.find((i) => i.id === "other-stack-1")!.sourceLki
+        ).toBeUndefined();
+        expect(
+            state.stack.find((i) => i.id === "blink-stack-1")!.sourceLki
+        ).toBeDefined();
+    });
+
+    // Census must-NOT rows: the three battlefield-array removals that are not
+    // CR 400.7 zone changes. None of them may stamp — a stamp there would
+    // freeze the re-check against a stale object that never stopped existing.
+    it("a control change does NOT stamp (CR 400.7 — the permanent never leaves the battlefield)", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_COUNTER_ABILITY,
+            source: { counters: { vitality: 1 } },
+        });
+        applyControlChange(state, source.id, "p2", "some-source");
+        expect(state.stack[0].sourceLki).toBeUndefined();
+        // Still the same object, so the live counter is still read and the
+        // trigger resolves — for its ORIGINAL controller (CR 603.3a: the
+        // ability's controller is fixed when it is put on the stack, and the
+        // control change does not follow it there).
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("phasing out does NOT stamp (CR 702.26d — phasing is not a zone change)", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_COUNTER_ABILITY,
+            source: { counters: { vitality: 1 } },
+        });
+        phaseOutPermanent(state, source.id, {
+            returnOn: { kind: "end-of-turn" },
+        });
+        expect(state.stack[0].sourceLki).toBeUndefined();
+    });
+
+    it("survives a DB round trip while the trigger waits on the stack", () => {
+        // A pending choice between the blink and the trigger's resolution is a
+        // stable save point; a dropped snapshot would silently restore the bug
+        // on reload.
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            source: { chosenXOnCast: 6 },
+        });
+        departAndReturn(state, source.id);
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.stack[0].sourceLki?.chosenXOnCast).toBe(6);
+        expect(reloaded.stack[0].sourceLki?.id).toBe(source.id);
+        expect(reloaded.stack[0].sourceLki?.ownerId).toBe("p1");
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[0].hand).toHaveLength(1);
+    });
+
+    it("never crosses the wire (projectPublicState strips it, like stormSnapshot)", () => {
+        const { state, source } = setupDepartureState({
+            abilityId: BLINK_X_ABILITY,
+            source: { chosenXOnCast: 6 },
+        });
+        departAndReturn(state, source.id);
+        expect(state.stack[0].sourceLki).toBeDefined();
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            (projected.stack[0] as { sourceLki?: unknown }).sourceLki
+        ).toBeUndefined();
     });
 });

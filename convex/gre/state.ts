@@ -1887,6 +1887,39 @@ export type StackItem = CardInstanceState & {
      *  time; read by `SpellContext.sourceInstanceId` on resolution so the
      *  resolver can re-inspect the source (intervening-if, CR 603.4). */
     triggerSourceId?: string;
+    /** CR 608.2h / 113.7a departure-time LAST KNOWN INFORMATION for the source
+     *  permanent named by `triggerSourceId` (issue #2042). Stamped by
+     *  `removePermanentTo` — the single battlefield-departure funnel — onto
+     *  every stack item already sourced from the departing instance, and
+     *  preferred over the live battlefield lookup by `resolveTopOfStackInner`
+     *  when it re-evaluates `TriggeredAbility.interveningIf` (CR 603.4).
+     *
+     *  Why the stack item and not the card: CR 400.7 makes a returning
+     *  permanent a NEW object, but the engine never reallocates the instance
+     *  id, so a blink (Ephemerate) puts a same-id permanent back on the
+     *  battlefield with `resetBattlefieldTransientState` having wiped exactly
+     *  the fields an `interveningIf` reads (`chosenXOnCast`,
+     *  `hasAttackedThisTurn`, `counters`). A card-level snapshot would be
+     *  wiped by that same reset (see `countersAtLeave`, which is); a
+     *  stack-item snapshot survives it and dies with the item, so it needs no
+     *  prune window.
+     *
+     *  Its PRESENCE is itself the "this source departed since the trigger was
+     *  created" signal — that is why no battlefield-ENTRY stamp exists (entry
+     *  is not a single funnel; departure is). Written once, never overwritten:
+     *  the LKI of the object the ability was sourced from is fixed the moment
+     *  that object ceased to exist, so a SECOND departure of the new same-id
+     *  object must not replace it.
+     *
+     *  A THIRD LKI shape, deliberately: `removePermanentTo` already computes
+     *  EFFECTIVE (layer-folded) P/T for the PERMANENT_LEFT payload that death
+     *  triggers read, and ADR 0086 proposes a store of COPIABLE values for
+     *  `createTokenCopyOf`. This one is neither — it is the raw instance
+     *  record as it last sat on the battlefield, because `interveningIf`
+     *  predicates read raw instance fields (`self.hasAttackedThisTurn`,
+     *  `self.counters`), never effective or copiable ones. Do not unify the
+     *  three: they answer different questions. */
+    sourceLki?: CardInstanceState;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
     /** CR 122 / 603.3 (issue #1189) — set the FIRST time this triggered
@@ -5755,13 +5788,30 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // invocation, item removed, TRIGGER_FIZZLED queued so downstream
             // triggers can react and the event log records the fizzle.
             if (ability.interveningIf && top.triggerSourceId) {
-                // CR 603.10 LKI: locate the source wherever it lives. On the
-                // battlefield `sourceCard.id` is the real instance id; off it
-                // (graveyard-zone triggers like Nether Shadow) we fall back to
-                // the stack item, whose `id` was reallocated — so pin the
-                // identity to `triggerSourceId` instead.
+                // CR 608.2h / 113.7a LKI, in three tiers.
+                //
+                // 1. `top.sourceLki` (issue #2042) — the departure-time
+                //    snapshot `removePermanentTo` stamps when THIS source
+                //    leaves the battlefield. Its presence is the signal that
+                //    the object the ability was sourced from ceased to exist
+                //    (CR 400.7), so it wins over the live lookup: after a
+                //    blink the same instance id is back on the battlefield
+                //    carrying a NEW object whose transient fields were wiped,
+                //    and CR 608.2h requires the re-check to read the departed
+                //    object's last known information instead.
+                // 2. The live battlefield permanent — the ordinary case, and
+                //    it must stay live: a permanent that never left is the
+                //    same object, so counters or combat history it gained
+                //    AFTER the trigger went on the stack are legitimately
+                //    visible here (Living Artifact, `lea/green.ts`).
+                // 3. The stack item itself — a source that was never on the
+                //    battlefield at all (graveyard-zone triggers like Nether
+                //    Shadow). Its `id` was reallocated, so pin the identity to
+                //    `triggerSourceId` in that tier only.
                 const located = findOnBattlefield(state, top.triggerSourceId);
-                const sourceCard = located?.card ?? top;
+                const sourceCard = top.sourceLki ?? located?.card ?? top;
+                const sourceIsRealInstance =
+                    top.sourceLki !== undefined || located !== undefined;
                 // Issue #1792 — this used to be a hand-written field
                 // allowlist and drifted four times (combat-history flags,
                 // `echoPending`, `chosenModeId`, `wasKicked`/`chosenXOnCast`),
@@ -5781,7 +5831,9 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 // only drift surface.
                 const selfView: PermanentView = {
                     ...(sourceCard as unknown as PermanentView),
-                    id: located ? sourceCard.id : top.triggerSourceId,
+                    id: sourceIsRealInstance
+                        ? sourceCard.id
+                        : top.triggerSourceId,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {
@@ -9619,6 +9671,48 @@ export function removePermanentTo(
     // source's removal; CR 608.2h — last known information backs the read).
     // The link is instead dropped at this same id's NEXT battlefield entry,
     // in `clearExileLinksToEnteringSource` (see its doc).
+    // CR 608.2h / 113.7a (issue #2042) — departure-time LAST KNOWN INFORMATION
+    // for every triggered ability ALREADY on the stack that names this
+    // instance as its source. CR 400.7 makes the object that leaves here cease
+    // to exist, so a CR 603.4 intervening-if re-check at resolution must read
+    // the object as it last existed on the battlefield — not whatever sits
+    // under the same instance id later, which after a blink (Ephemerate) is a
+    // NEW object whose `chosenXOnCast` / `hasAttackedThisTurn` / `counters`
+    // `resetBattlefieldTransientState` has wiped.
+    //
+    // Taken HERE, at the single battlefield-departure funnel, and BEFORE the
+    // reverts and transient strips below, so the snapshot is the permanent as
+    // it stood on the battlefield. Deliberately NOT at trigger time (a field
+    // the predicate reads can legitimately change between the trigger going on
+    // the stack and the departure) and deliberately NOT on the card (see
+    // `countersAtLeave`, which lives on the card and is itself deleted by
+    // `resetBattlefieldTransientState` on re-entry — exactly the moment this
+    // snapshot is needed).
+    //
+    // Written ONCE per stack item: the LKI of the object an ability was
+    // sourced from is fixed the instant that object ceased to exist, so a
+    // second departure of the new same-id object must not overwrite it (that
+    // would restore the bug for a double blink). The three battlefield-array
+    // removals that do NOT come through this funnel are all deliberate
+    // NON-departures and must not stamp: `applyControlChange` /
+    // `revertControlChange` (the permanent never leaves the battlefield zone,
+    // so it stays the same object) and `phaseOutPermanent` (CR 702.26d — the
+    // phasing event doesn't actually cause a permanent to change zones).
+    //
+    // Scoped to `state.stack` on purpose: a queued DELAYED trigger
+    // (`DelayedTriggerInstance`) carries neither `triggerSourceId` nor an
+    // `interveningIf` — it fires through `fireDelayedTriggers` and builds its
+    // stack item then — so there is nothing there to stamp today. A delayed
+    // trigger that ever gains an intervening-if would have to extend this
+    // walk.
+    for (const item of state.stack) {
+        if (item.triggerSourceId === creature.id && !item.sourceLki) {
+            item.sourceLki = { ...creature };
+            if (creature.counters) {
+                item.sourceLki.counters = { ...creature.counters };
+            }
+        }
+    }
     const wasCreature = creature.types.includes("Creature");
     const snapshotControllerId = creature.controllerId;
     const snapshotDamagedBy = creature.damagedBySources ?? [];
