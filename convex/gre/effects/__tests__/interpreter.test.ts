@@ -24211,7 +24211,7 @@ describe("Effect Script Op: loseAllAbilitiesWhileSourceRemains (CR 613.1f layer 
     });
 
     it("is a no-op (still resolves) when 'up to one' is declined — CR 608.2b", () => {
-        const { state, target, host } = makeScenario();
+        const { state, host } = makeScenario();
         hostEtbOnStack(state, host);
         chooseHostTarget(state, null);
         expect(() => resolveTopOfStack(state)).not.toThrow();
