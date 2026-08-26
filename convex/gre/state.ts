@@ -5810,8 +5810,12 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 //    `triggerSourceId` in that tier only.
                 const located = findOnBattlefield(state, top.triggerSourceId);
                 const sourceCard = top.sourceLki ?? located?.card ?? top;
+                // `findOnBattlefield` returns NULL, not undefined — a
+                // `!== undefined` test here reads a miss as a hit and pins the
+                // selfView to the stack item's reallocated id, which fizzles
+                // every graveyard-zone trigger (Nether Shadow).
                 const sourceIsRealInstance =
-                    top.sourceLki !== undefined || located !== undefined;
+                    top.sourceLki !== undefined || located !== null;
                 // Issue #1792 — this used to be a hand-written field
                 // allowlist and drifted four times (combat-history flags,
                 // `echoPending`, `chosenModeId`, `wasKicked`/`chosenXOnCast`),

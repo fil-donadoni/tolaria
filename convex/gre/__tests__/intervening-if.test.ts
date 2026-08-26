@@ -314,6 +314,7 @@ const BLINK_SOURCE_ID = "test-departure-lki-card";
 const BLINK_X_ABILITY = "test-trigger-blink-x";
 const BLINK_ATTACK_ABILITY = "test-trigger-blink-attack";
 const BLINK_COUNTER_ABILITY = "test-trigger-blink-counter";
+const BLINK_IDENTITY_ABILITY = "test-trigger-blink-identity";
 
 /** Synthetic source carrying one intervening-if per POLARITY of the bug, each
  *  reading a different field `resetBattlefieldTransientState` deletes on
@@ -350,6 +351,18 @@ const blinkTestCard: CardDefinition = {
             matches: (event) => event.type === "PHASE_BEGIN",
             interveningIf: (_event, self) => self.hasAttackedThisTurn !== true,
             resolve: (ctx) => ctx.gainLife(ctx.controller, 2),
+        },
+        {
+            id: BLINK_IDENTITY_ABILITY,
+            oracleText:
+                "At the beginning of the end step, if this is the permanent the ability came from, you gain 1 life.",
+            event: "PHASE_BEGIN",
+            matches: (event) => event.type === "PHASE_BEGIN",
+            // The selfView's `id` must be the SOURCE's instance id in every
+            // tier, never the stack item's reallocated one — the shape a
+            // graveyard-zone trigger reads to find itself in its zone.
+            interveningIf: (_event, self) => self.id === "blink-src",
+            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
         },
         {
             id: BLINK_COUNTER_ABILITY,
@@ -540,6 +553,21 @@ describe("departure-time LKI for intervening-if (CR 603.4 / 608.2h / 400.7, issu
         expect(state.stack[0].sourceLki).toBeUndefined();
         resolveTopOfStack(state);
         expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("left and did NOT return: the selfView id stays pinned to triggerSourceId, not the stack item's own id", () => {
+        // The id-pinning leg of tier 3, and a live regression vector: the
+        // graveyard-zone source is not on any battlefield, so a truthiness
+        // slip in the "did we find a real instance?" test hands the predicate
+        // the stack item's reallocated id and every Nether Shadow-shaped
+        // trigger fizzles.
+        const { state } = setupDepartureState({
+            abilityId: BLINK_IDENTITY_ABILITY,
+            sourceZone: "graveyard",
+        });
+        expect(state.stack[0].id).not.toBe("blink-src");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(21);
     });
 
     it("left and did NOT return: a source that departs while its trigger waits fizzles/resolves off the departure snapshot", () => {
