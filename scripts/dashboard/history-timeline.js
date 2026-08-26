@@ -2,6 +2,8 @@ import { fmtMetric, isAdditive } from "./format.js";
 import { showTip, hideTip } from "./tooltip.js";
 import { el, barPath, niceTicks } from "./svg.js";
 import { colorFor, OTHER, MAX_SERIES } from "./history-colors.js";
+import { lookupTerm, labelFor } from "./glossary.js";
+import { state } from "./history-state.js";
 
 /**
  * The "Over time" card (#2625) — stacked daily bars for an additive metric,
@@ -10,6 +12,10 @@ import { colorFor, OTHER, MAX_SERIES } from "./history-colors.js";
  * Owns `#ts`, `#ts-sub` and `#ts-legend`. `#ts-title` stays with
  * `history-refresh.js`, which writes it BEFORE awaiting the query so the
  * heading updates even when the query then fails — the behaviour today.
+ *
+ * `#ts-sub` leads with the glossary's fixed "what question does this
+ * answer" sentence (`card.over-time`, #2633), then the per-query stacking
+ * detail this function alone knows.
  */
 export function renderTimeSeries(rows, split, metric) {
     const svg = document.getElementById("ts");
@@ -49,12 +55,16 @@ export function renderTimeSeries(rows, split, metric) {
         );
     }
 
-    document.getElementById("ts-sub").textContent = additive
-        ? 'Stacked; series past the eighth fold into "Other".'
-        : `Not stacked — ${metric.replace(/_/g, " ")} is a per-row statistic, so its parts do not add up.` +
-          (dropped > 0
-              ? ` Top ${MAX_SERIES} series shown; ${dropped} omitted.`
-              : "");
+    const metricLabel = labelFor(metric, state.table);
+    const question = lookupTerm("card.over-time").tip;
+    document.getElementById("ts-sub").textContent =
+        `${question} ` +
+        (additive
+            ? 'Stacked; series past the eighth fold into "Other".'
+            : `Not stacked — ${metricLabel} is a per-row statistic, so its parts do not add up.` +
+              (dropped > 0
+                  ? ` Top ${MAX_SERIES} series shown; ${dropped} omitted.`
+                  : ""));
 
     const barW = Math.max(
         9,

@@ -339,6 +339,26 @@ export const GLOSSARY = {
         label: "work family",
         tip: "The kind of work the issue was, grouped so unlike things are not averaged together.",
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // History card subtitles (#2633) — the one-line question each chart
+    // card answers. `label` doubles as the card's own heading (kept in sync
+    // with the static `<h2>` in telemetry-dashboard.html); `tip` is the
+    // subtitle sentence the card renders ahead of any per-query detail it
+    // adds itself (stacking behaviour, "top 18, descending", …).
+    // ─────────────────────────────────────────────────────────────────────
+    "card.over-time": {
+        label: "Over time",
+        tip: "How the selected metric moved day by day.",
+    },
+    "card.ranking": {
+        label: "Ranking",
+        tip: "Which values of the current split-by dimension cost the most.",
+    },
+    "card.table": {
+        label: "Table",
+        tip: "Every metric for the current slice, side by side.",
+    },
 };
 
 /**
@@ -364,4 +384,29 @@ export function lookupTerm(term) {
     return Object.prototype.hasOwnProperty.call(GLOSSARY, bare)
         ? GLOSSARY[bare]
         : undefined;
+}
+
+/**
+ * The dashboard's ONE qualify-then-fallback label policy (#2633/#2839): a
+ * raw dimension/metric/dataset name, qualified by `scope` (typically the
+ * current dataset) when given, resolved through `lookupTerm`'s own
+ * exact-then-bare fallback, and — only when nothing in the glossary
+ * resolves at all — humanized from the raw term (`cmd_bucket` →
+ * `"cmd bucket"`) so a term the glossary hasn't caught up with still reads
+ * as words instead of a raw column name.
+ *
+ * Every History card (tiles, table, timeline, ranking, the orchestrator's
+ * own titles, and the filter bar) renders labels through THIS function —
+ * it used to be five near-identical private copies plus a sixth variant,
+ * one per module, which is exactly the failure mode "primitive reuse"
+ * guards against: the policy drifting six ways the day a seventh caller
+ * needed a tweak. Do not re-add a local copy; import this.
+ *
+ * @param {string} term - the raw, unqualified name (e.g. "messages")
+ * @param {string} [scope] - the qualifying scope (e.g. the current dataset)
+ * @returns {string}
+ */
+export function labelFor(term, scope) {
+    const key = scope ? `${scope}.${term}` : term;
+    return lookupTerm(key)?.label ?? String(term).replace(/_/g, " ");
 }

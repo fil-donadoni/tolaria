@@ -1,12 +1,15 @@
 import { fmtMetric } from "./format.js";
 import { showTip, hideTip } from "./tooltip.js";
 import { el } from "./svg.js";
+import { labelFor } from "./glossary.js";
+import { state } from "./history-state.js";
 
 /**
  * The "Ranking" card (#2625) — top 18 values of the current split, descending.
  * Owns `#rank`; `#rank-title` / `#rank-sub` stay with history-refresh.js.
  */
 export function renderRanking(rows, split, metric) {
+    const metricLabel = labelFor(metric, state.table);
     const svg = document.getElementById("rank");
     svg.innerHTML = "";
     const data = rows
@@ -52,7 +55,7 @@ export function renderRanking(rows, split, metric) {
         p.addEventListener("mousemove", (e) =>
             showTip(
                 e,
-                `<b>${d.k}</b><br>${metric}: <b>${fmtMetric(metric, d.v)}</b>`
+                `<b>${d.k}</b><br>${metricLabel}: <b>${fmtMetric(metric, d.v)}</b>`
             )
         );
         p.addEventListener("mouseleave", hideTip);
