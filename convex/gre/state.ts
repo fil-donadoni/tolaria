@@ -6587,6 +6587,14 @@ function finalizeSpellResolution(
             }
         }
         item.zone = "battlefield";
+        // CR 400.7 / 608.2h (issue #2001) — a cast-and-resolved permanent is
+        // a genuine battlefield entry (the exile/as-enters-choice redirects
+        // above already returned before this point). If this instance id
+        // held the battlefield before (bounced-then-recast), any exile link
+        // its previous incarnation stamped is stale on THIS new object —
+        // see `clearExileLinksToEnteringSource`'s doc. A first-ever cast is a
+        // no-op (no prior incarnation ever stamped this id).
+        clearExileLinksToEnteringSource(state, item.id);
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
         // switches off here: Grist stops being a 1/1 Insect creature the
         // instant it resolves as a planeswalker. Before the layer-4 grants
@@ -9403,28 +9411,51 @@ export function combatPartnerIds(state: GameState, id: string): string[] {
     return [...partners];
 }
 
-/** CR 400.7 / 607 — drops every per-source exile provenance link
- *  (`exiledBySourceId`, issue #791) stamped by the permanent that is LEAVING
- *  the battlefield, scoping the link to ONE battlefield existence of its
- *  source.
+/** CR 400.7 / 608.2h (issue #2001) — drops every per-source exile provenance
+ *  link (`exiledBySourceId`, issue #791) stamped by a PREVIOUS battlefield
+ *  existence of the permanent that is now ENTERING the battlefield, scoping
+ *  the link to ONE battlefield existence of its source.
  *
  *  Instance ids survive zone changes, and the stamp is otherwise cleared only
  *  when the STAMPED card leaves exile — never when the STAMPING permanent
- *  leaves the battlefield. So a permanent that left and came back read as the
- *  same linking source as its previous incarnation, even though CR 400.7 makes
- *  the returned permanent a NEW object whose CR 607 linked ability may refer
- *  only to what its OWN exile did. Concretely: a bounced-and-replayed hideaway
- *  land (CR 702.75, issue #783) whose first hidden card is still in exile
- *  granted a free play of BOTH hidden cards; Currency Converter (issue #791)
- *  could likewise retrieve a previous incarnation's exiles.
+ *  leaves the battlefield. So a permanent that left and came back would read
+ *  as the same linking source as its previous incarnation, even though CR
+ *  400.7 makes the returned permanent a NEW object whose CR 607 linked
+ *  ability may refer only to what its OWN exile did. Concretely: a
+ *  bounced-and-replayed hideaway land (CR 702.75, issue #783) whose first
+ *  hidden card is still in exile would grant a free play of BOTH hidden
+ *  cards; Currency Converter (issue #791) could likewise retrieve a previous
+ *  incarnation's exiles.
  *
- *  Cards linked to a permanent that is now gone simply stay in exile unlinked —
- *  correct, since nothing on the battlefield can name them any more. Called
- *  from the single battlefield-departure funnel below, so it covers dies /
- *  sacrifice / destroy / bounce / exile alike. Deliberately NOT called for
- *  phasing out (CR 702.26h — not a zone change) or a control change (the
- *  permanent never leaves the battlefield). */
-function clearExileLinksFromDepartingSource(
+ *  Called from every real battlefield-ENTRY funnel (`finalizeSpellResolution`
+ *  for a cast-and-resolved permanent, `stageReanimatedOnBattlefield` for
+ *  reanimation / tutor-to-battlefield, `settleEnteredLand` for every play-a-
+ *  land origin) — NOT from `removePermanentTo`'s departure path any more.
+ *  Moving the clear to entry is the fix for issue #2001: CR 113.7a ("Once
+ *  activated or triggered, an ability exists on the stack independently of
+ *  its source. Destruction or removal of the source after that time won't
+ *  affect the ability") plus CR 608.2h's general current-vs-last-known-
+ *  information rule let a resolving ability use its source's LAST KNOWN
+ *  INFORMATION once the source has left the zone it was in — Skyship
+ *  Weatherlight's `randomExileToHand` and Currency Converter's retrieve are
+ *  both UNTARGETED, so CR 608.2b's target-legality re-check never runs for
+ *  them; 113.7a/608.2h are what actually license reading the source's pile
+ *  after it is gone. An activated ability already on the stack when its
+ *  source is destroyed/bounced must still see the pile it stamped — clearing
+ *  at departure destroyed that pile before the ability could read it. CR
+ *  400.7 is instead preserved at the OTHER end: the moment a permanent
+ *  bearing the same instance id re-enters the battlefield, it is a new
+ *  object with no memory of what its previous incarnation exiled, so stale
+ *  links pointing at this id are dropped right here, before anything can
+ *  observe them.
+ *
+ *  A card whose linking source departed and never returns simply stays
+ *  linked forever — harmless, since nothing but THIS id's own future
+ *  re-entry (or the card leaving exile) will ever look at or clear the
+ *  stamp. Deliberately NOT called for phasing in (CR 702.26h — not a zone
+ *  change) or a control change (the permanent never leaves the battlefield,
+ *  so it is not a new object and keeps its pile). */
+export function clearExileLinksToEnteringSource(
     state: GameState,
     sourceInstanceId: string
 ): void {
@@ -9580,10 +9611,14 @@ export function removePermanentTo(
     const found = findOnBattlefield(state, cardId);
     if (!found) return null;
     const [creature] = found.player.battlefield.splice(found.idx, 1);
-    // CR 400.7 / 607 — the departure ends this battlefield existence of the
-    // permanent, so every exile link IT stamped dies with it (see the helper's
-    // doc: a re-entering permanent is a new object and must not inherit them).
-    clearExileLinksFromDepartingSource(state, cardId);
+    // CR 113.7a / 608.2h (issue #2001) — every exile link this permanent
+    // stamped is DELIBERATELY left intact here. A departure is not when CR
+    // 400.7 makes a new object relevant to this link: an activated ability
+    // already on the stack when this permanent is destroyed/bounced/
+    // sacrificed still needs its pile (CR 113.7a — the ability survives its
+    // source's removal; CR 608.2h — last known information backs the read).
+    // The link is instead dropped at this same id's NEXT battlefield entry,
+    // in `clearExileLinksToEnteringSource` (see its doc).
     const wasCreature = creature.types.includes("Creature");
     const snapshotControllerId = creature.controllerId;
     const snapshotDamagedBy = creature.damagedBySources ?? [];
@@ -11476,6 +11511,12 @@ function stageReanimatedOnBattlefield(
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
     resetBattlefieldTransientState(card);
+    // CR 400.7 / 608.2h (issue #2001) — this id is genuinely entering the
+    // battlefield (the land-blocked and exile-redirect branches above return
+    // before this point), so any exile link a PREVIOUS incarnation of this
+    // same instance id stamped is now stale — drop it before anything can
+    // read it as this new object's own pile.
+    clearExileLinksToEnteringSource(state, card.id);
     card.zone = "battlefield";
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.

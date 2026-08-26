@@ -13,7 +13,12 @@ import { currencyConverter } from "../colorless";
 import { forest, grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger, answerChoice } from "./helpers";
-import type { GameState, StackItem } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    removePermanentTo,
+    type GameState,
+    type StackItem,
+} from "../../../../gre/state";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 
@@ -193,6 +198,31 @@ describe("Currency Converter — retrieve exiled card + conditional token (CR 11
         resolveActivated(state, cc, "currency-converter-retrieve");
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].battlefield).toHaveLength(1); // just the artifact
+    });
+
+    it("an activation already on the stack when the artifact is destroyed still retrieves (CR 113.7a / 608.2h, issue #2001)", () => {
+        const { state, cc } = retrieveState();
+        // Push the ability onto the stack WITHOUT resolving yet — mirrors it
+        // being activated, then the source destroyed in response, the same
+        // shape as the reported Skyship Weatherlight failure. The retrieve
+        // ability is UNTARGETED, so CR 608.2b's target-legality re-check
+        // never runs for it; CR 113.7a (the ability survives its source's
+        // removal) + CR 608.2h (last known information) are what license
+        // reading the destroyed artifact's pile.
+        state.stack.push({
+            ...cc,
+            zone: "stack",
+            castById: cc.controllerId,
+            abilityId: "currency-converter-retrieve",
+            targets: [],
+        });
+        removePermanentTo(state, "cc", "graveyard", "destroy");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].candidateIds?.sort()).toEqual([
+            "bearX",
+            "landX",
+        ]);
     });
 });
 

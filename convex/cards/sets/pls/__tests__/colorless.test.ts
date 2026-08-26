@@ -44,11 +44,17 @@ import {
     getProducibleColors,
 } from "../../../../gre/constants";
 import { getLegalActions } from "../../../../gre/rules";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import {
     applyCostModifiers,
     applySourceStaticEffects,
+    buildSpellContext,
     canPayMayPayCost,
     getCostModifiers,
     normalizeManaCost,
@@ -961,6 +967,170 @@ describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
             expect(state.players[0].exile.map((c) => c.id)).toContain("linked");
             expect(state.players[0].hand).toHaveLength(0);
             expect(state.players[0].library).toHaveLength(0);
+        });
+
+        it("an activation already on the stack when the source is destroyed still moves a card (CR 113.7a / 608.2h, issue #2001)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            // The ability was activated (and is on the stack) BEFORE the
+            // source is destroyed in response — the real failure scenario in
+            // issue #2001 (Shatter destroys Skyship Weatherlight while its
+            // own activated ability is pending). `removePermanentTo` must NOT
+            // clear the link the still-resolving ability depends on: CR
+            // 113.7a (the ability exists on the stack independently of its
+            // source) plus CR 608.2h's last-known-information rule let it
+            // resolve normally — the ability is UNTARGETED, so CR 608.2b's
+            // target-legality re-check is not what is doing the work here.
+            removePermanentTo(state, "skyship", "graveyard", "destroy");
+            fireSkyshipActivated(state, skyship);
+            expect(state.players[0].hand.map((c) => c.id)).toEqual(["linked"]);
+            expect(state.players[0].exile).toHaveLength(0);
+        });
+    });
+
+    describe("bounced and recast — the exile link dies at the NEW object's entry (CR 400.7, issue #2001)", () => {
+        it("re-resolving the same instance id as a spell (finalizeSpellResolution) clears the stale link", () => {
+            // Guards the `finalizeSpellResolution` call site specifically
+            // (convex/gre/state.ts) — the funnel a bounced-and-RECAST
+            // permanent actually resolves through, distinct from the
+            // departure-survives-the-link probe above. Skyship Weatherlight
+            // is a plain artifact spell (no `resolve`/`effects` of its own),
+            // so casting it runs the generic single-shot spell-resolution
+            // path straight into `finalizeSpellResolution`.
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            // Bounce it — the link survives the departure (CR 113.7a/608.2h).
+            removePermanentTo(state, "skyship", "hand");
+            expect(
+                state.players[0].exile.find((c) => c.id === "linked")!
+                    .exiledBySourceId
+            ).toBe("skyship");
+
+            // Recast: push the SAME instance id back onto the stack as a
+            // spell (mirrors casting the returned card from hand) and let it
+            // resolve through the real `resolveTopOfStack` → single-shot
+            // spell resolution → `finalizeSpellResolution` funnel.
+            const recast: StackItem = {
+                ...makeInstance(skyshipWeatherlight.id, {
+                    id: "skyship",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                }),
+                castById: "p1",
+                targets: [],
+            };
+            state.stack.push(recast);
+            resolveTopOfStack(state);
+
+            // CR 400.7 — the re-entering artifact is a NEW object: the stale
+            // link from its PREVIOUS battlefield existence is gone. Before
+            // issue #2001's fix, this call site was unguarded and the whole
+            // suite stayed green with the `clearExileLinksToEnteringSource`
+            // call deleted here.
+            expect(
+                state.players[0].exile.find((c) => c.id === "linked")!
+                    .exiledBySourceId
+            ).toBeUndefined();
+        });
+
+        it("reanimating the same instance id (stageReanimatedOnBattlefield) clears the stale link", () => {
+            // Guards the OTHER real battlefield-entry funnel
+            // (`stageReanimatedOnBattlefield`, via `ctx.returnToBattlefield`)
+            // — a reanimated permanent is just as much a CR 400.7 new object
+            // as a recast one, and issue #2001's "the one that matters most"
+            // scenario is exactly this shape: a source dies, its own exile
+            // link survives the departure (CR 113.7a/608.2h), and it is
+            // later reanimated under the SAME instance id.
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            // Destroy it into the graveyard — the link survives the
+            // departure.
+            removePermanentTo(state, "skyship", "graveyard", "destroy");
+            expect(
+                state.players[0].exile.find((c) => c.id === "linked")!
+                    .exiledBySourceId
+            ).toBe("skyship");
+
+            // Reanimate the SAME instance id through the real
+            // `ctx.returnToBattlefield` primitive (Resurrection's own entry
+            // point), which funnels through `putReanimatedOnBattlefield` →
+            // `stageReanimatedOnBattlefield`.
+            const vehicle = pushSpell(state, lightningBolt.id, "p1");
+            const ctx = buildSpellContext(state, vehicle);
+            const entered = ctx.returnToBattlefield(
+                "p1",
+                "skyship",
+                "graveyard"
+            );
+            expect(entered).toBe(true);
+
+            // CR 400.7 — the reanimated artifact is a NEW object: the stale
+            // link from its PREVIOUS battlefield existence is gone. Before
+            // issue #2001's fix, this call site was unguarded and the whole
+            // suite stayed green with the `clearExileLinksToEnteringSource`
+            // call deleted here.
+            expect(
+                state.players[0].exile.find((c) => c.id === "linked")!
+                    .exiledBySourceId
+            ).toBeUndefined();
         });
     });
 });
