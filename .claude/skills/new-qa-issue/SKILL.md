@@ -66,6 +66,7 @@ What should happen after the fix. Be specific about edge cases.
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
 - [ ] `bun run check:all` and `bun run test` pass
+- [ ] `area:game-bot` only: `Blade: <expected position and move | none — <why>>`
 
 **Out of scope:**
 
@@ -83,6 +84,12 @@ What should happen after the fix. Be specific about edge cases.
 - Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo).
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
+- **`area:game-bot` issues carry a mandatory `Blade:` acceptance line**
+  (issue #2688) — the area is picked in Step 5b, after this draft exists, so
+  add it retroactively once the area is known: `Blade: <expected position
+and move | none — <why>>`, declaring whether this issue is expected to add
+  or change a blade entry (`.claude/rules/bot-development.md`, `/bot-slice`)
+  or deliberately carries none.
 
 ### Step 5 — Pick a model label (only to ESCALATE)
 
@@ -142,6 +149,9 @@ scorecard) · `area:admin` (auth, profiles, deck management, matchmaking,
 Convex infra) · `area:docs`.
 
 Boundary rule: a card needing a new seam/keyword is `mechanics`, not `cards`.
+
+**`area:game-bot`** additionally requires going back to the Step 4 draft and
+adding the mandatory `Blade:` acceptance-criteria line (see Step 4).
 
 ### Step 6 — Pick the queue label (exactly ONE)
 
@@ -221,6 +231,7 @@ for a work ticket that keeps its own scope.
 - [ ] Acceptance criteria are testable
 - [ ] Out of scope section present
 - [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)
+- [ ] If `area:game-bot`: acceptance criteria include the `Blade:` line
 - [ ] Queue label decided — **exactly one** of `ready-for-agent` / `needs-triage`, never both
 - [ ] User confirmed before creation
 - [ ] Labels applied: category + exactly one queue label (+ `model:*` only if escalated)

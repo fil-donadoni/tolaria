@@ -338,6 +338,19 @@ describe("receipts survive an orchestrator restart", () => {
         expect(receipt.scenario).toEqual(scenario);
     });
 
+    it("carries the blade field across a fresh read", () => {
+        writeReceipt(
+            tmp,
+            "sess-1",
+            workReceipt({
+                targetFiles: ["convex/gre/ai/beneficence.ts"],
+                blade: { labels: ["damnation-empty-board"] },
+            })
+        );
+        const [receipt] = readReceipts(tmp, "sess-1").receipts as WorkReceipt[];
+        expect(receipt.blade).toEqual({ labels: ["damnation-empty-board"] });
+    });
+
     it("names files by issue and role, and rejects a batch id that escapes the directory", () => {
         expect(receiptFilename(parseReceipt(workReceipt()) as Receipt)).toBe(
             "2182-implement.json"
@@ -1031,5 +1044,108 @@ describe("issue #2656: writeReceipt lands in the PRIMARY checkout, not a linked 
         const receipt = receipts[0] as WorkReceipt;
         expect(receipt.issue).toBe(2656);
         expect(receipt.pr).toBe(9003);
+    });
+});
+
+describe("the `blade` field — mandatory when targetFiles touches the Bot globs (issue #2688)", () => {
+    it("is not required when targetFiles never touches the Bot globs", () => {
+        const parsed = parseReceipt(workReceipt()) as WorkReceipt;
+        expect(parsed.blade).toBeUndefined();
+    });
+
+    it("accepts { labels: [...] } naming the blade entries", () => {
+        const parsed = parseReceipt(
+            workReceipt({
+                targetFiles: ["convex/gre/ai/beneficence.ts"],
+                blade: { labels: ["damnation-empty-board"] },
+            })
+        ) as WorkReceipt;
+        expect(parsed.blade).toEqual({ labels: ["damnation-empty-board"] });
+    });
+
+    it('accepts { none: "<reason>" } as a declared decision', () => {
+        const parsed = parseReceipt(
+            workReceipt({
+                targetFiles: ["src/lib/ai/executor.ts"],
+                blade: { none: "pure refactor, no decision changed" },
+            })
+        ) as WorkReceipt;
+        expect(parsed.blade).toEqual({
+            none: "pure refactor, no decision changed",
+        });
+    });
+
+    it("rejects a Bot-touching receipt with no blade field at all", () => {
+        let error: unknown;
+        try {
+            parseReceipt(workReceipt({ targetFiles: ["convex/gre/ai/x.ts"] }));
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ReceiptError);
+        expect((error as ReceiptError).field).toBe("blade");
+    });
+
+    it("rejects a Bot-touching receipt when only ONE of several targetFiles matches", () => {
+        let error: unknown;
+        try {
+            parseReceipt(
+                workReceipt({
+                    targetFiles: ["CLAUDE.md", "convex/gre/ai/x.ts"],
+                })
+            );
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ReceiptError);
+        expect((error as ReceiptError).field).toBe("blade");
+    });
+
+    it("rejects blade carrying both labels and none", () => {
+        let error: unknown;
+        try {
+            parseReceipt(
+                workReceipt({
+                    targetFiles: ["convex/gre/ai/x.ts"],
+                    blade: { labels: ["x"], none: "y" } as never,
+                })
+            );
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ReceiptError);
+        expect((error as ReceiptError).field).toBe("blade");
+    });
+
+    it("rejects an empty labels array", () => {
+        let error: unknown;
+        try {
+            parseReceipt(
+                workReceipt({
+                    targetFiles: ["convex/gre/ai/x.ts"],
+                    blade: { labels: [] },
+                })
+            );
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ReceiptError);
+        expect((error as ReceiptError).field).toBe("blade.labels");
+    });
+
+    it("rejects an empty none reason", () => {
+        let error: unknown;
+        try {
+            parseReceipt(
+                workReceipt({
+                    targetFiles: ["convex/gre/ai/x.ts"],
+                    blade: { none: "  " },
+                })
+            );
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ReceiptError);
+        expect((error as ReceiptError).field).toBe("blade.none");
     });
 });
