@@ -111,7 +111,6 @@ import {
     hasCastableInstant,
     hasCastableFlashPermanent,
     materialMargin,
-    WIN_SCORE,
     type PositionBreakdown,
 } from "./evaluate";
 import { describeMove } from "./describeMove";
@@ -154,13 +153,23 @@ import {
 } from "./ai/decisionTelemetry";
 // Ladder A/B config seam (issue #1924) — null in live play, so every knob
 // below stays at its production default outside a ladder run.
-import { getSearchVariant } from "./ai/searchVariant";
+import { getSearchVariant, resolveEvalWeights } from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "./pendingChoiceSubmit";
+// Explicit calibration surface (issue #2683) — `runSearchWithTrace` resolves
+// the active vector ONCE (`resolveEvalWeights(getSearchVariant())`) and
+// threads it down as an explicit parameter through the whole search; nothing
+// below this file's entry point reads `getSearchVariant()` for a weight.
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type EvalWeights,
+    rewardPerMarginPoint,
+    terminalMagnitude,
+} from "./ai/evalWeights";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -180,14 +189,13 @@ export type SearchBudget = {
 // decision pace, so the opponent stays fluid.
 export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 1500 };
 
-/** UCB1 exploration constant. */
-const UCB_C = 1.4;
-/** Weight of the soft reactive prior added to UCB1 (ADR 0021 slice 3, issue
- *  #223). Sized to meaningfully bias EXPLORING an instant-speed response in its
- *  window when the edge is barely visited, yet — because it decays as
- *  1/(1+visits) — to fall below the UCB1 exploration term within a handful of
- *  visits, so it can never dominate the accumulated reward. */
-const REACTIVE_PRIOR_C = 0.5;
+// `weights.ucbC` (issue #2683, was the module const `UCB_C`): the UCB1
+// exploration constant. `weights.reactivePriorC` (was `REACTIVE_PRIOR_C`):
+// weight of the soft reactive prior added to UCB1 (ADR 0021 slice 3, issue
+// #223), sized to meaningfully bias EXPLORING an instant-speed response in
+// its window when the edge is barely visited, yet — because it decays as
+// 1/(1+visits) — to fall below the UCB1 exploration term within a handful of
+// visits, so it can never dominate the accumulated reward.
 /** Rollout horizon, in EXTRA full bot turns beyond the first (ADR 0015). The
  *  rollout always plays forward to the start of the bot's NEXT turn — a complete
  *  round in which BOTH players had symmetric opportunity to act — then this many
@@ -208,57 +216,64 @@ const MAX_ROLLOUT_PLIES = 300;
  *  guards against a pathological no-progress cycle (e.g. mutual passing across
  *  empty turns until someone decks). */
 const MAX_TREE_DEPTH = 40;
-/** Chance the rollout policy plays a uniform-random move instead of the
- *  immediate-best one — keeps playouts from collapsing to a single line. */
-const ROLLOUT_EPSILON = 0.25;
-/** Lower exploration epsilon on a REACTIVE COMBAT line (ADR 0021, issue #229):
- *  a declared combat where a player holds castable interaction. The multi-step
- *  hold→attack→block→respond ambush is a narrow, response-conditioned line — at
- *  the flat 0.25 epsilon a random move (skipping the in-response pump, or a
- *  nonsense block) dilutes it to a minority playout, so its high-variance mean
- *  stays just below the low-variance sorcery-speed dump. Dropping the random
- *  rate when interaction is live lets the sane reactive line (the
- *  `selectRolloutMove` default policy now casts the pump in its window) play out
- *  reliably, so the held line's real value surfaces. Still > 0, so the tree is
- *  not collapsed to a single line. */
-const ROLLOUT_EPSILON_REACTIVE = 0.05;
-/** Soft penalty subtracted from a discouraged move's reward in the rollout
- *  default policy (ADR 0020 §4). Small — a fraction of the reward band — so it
- *  only breaks ties / suppresses no-payoff lines: any move with real value (a
- *  lethal dork attack, a must-cast instant) clears it easily. Pure policy bias;
- *  the move stays legal and explorable by the tree. */
-const ROLLOUT_GUARDRAIL_PENALTY = 0.05;
-/** A terminal `evaluate` magnitude dominates every material term. */
-const TERMINAL = WIN_SCORE / 2;
-/** Width of the reward band reserved, at each terminal extreme, for the
- *  surviving material margin (issue #138). A won position always outranks every
- *  non-won one and a lost one ranks below all, but WITHIN the band the material
- *  still discriminates: a win that threw a creature away for nothing scores
- *  below a win that kept it, so a free chump attack never ties "no attacks". A
- *  flat `return 1` for every win erased that signal. */
-const TERMINAL_BAND = 0.25;
-/** Material margin (in `evaluate` units) that fills a half-band. Kept LINEAR up
- *  to this cap — not `tanh` — so a single creature's worth of material shifts
- *  the reward by a fixed, decision-relevant amount regardless of how far ahead
- *  the bot already is. `tanh` saturates near a decided position and was the root
- *  cause: the creature delta vanished into the flat tail. Forge-scale (ADR
- *  0018): a vanilla 2/2 is worth ~170, so this cap (~3 creatures) keeps one
- *  creature's worth a meaningful, non-saturating fraction of the band. */
-const MATERIAL_FULL = 500;
+// `weights.rolloutEpsilon` (issue #2683, was `ROLLOUT_EPSILON`): chance the
+// rollout policy plays a uniform-random move instead of the immediate-best
+// one — keeps playouts from collapsing to a single line.
+//
+// `weights.rolloutEpsilonReactive` (was `ROLLOUT_EPSILON_REACTIVE`): lower
+// exploration epsilon on a REACTIVE COMBAT line (ADR 0021, issue #229): a
+// declared combat where a player holds castable interaction. The multi-step
+// hold→attack→block→respond ambush is a narrow, response-conditioned line —
+// at the flat 0.25 epsilon a random move (skipping the in-response pump, or a
+// nonsense block) dilutes it to a minority playout, so its high-variance mean
+// stays just below the low-variance sorcery-speed dump. Dropping the random
+// rate when interaction is live lets the sane reactive line (the
+// `selectRolloutMove` default policy now casts the pump in its window) play
+// out reliably, so the held line's real value surfaces. Still > 0, so the
+// tree is not collapsed to a single line.
+//
+// `weights.rolloutGuardrailPenalty` (was `ROLLOUT_GUARDRAIL_PENALTY`): soft
+// penalty subtracted from a discouraged move's reward in the rollout default
+// policy (ADR 0020 §4). Small — a fraction of the reward band — so it only
+// breaks ties / suppresses no-payoff lines: any move with real value (a
+// lethal dork attack, a must-cast instant) clears it easily. Pure policy
+// bias; the move stays legal and explorable by the tree.
+//
+// `weights.terminalBand` (was `TERMINAL_BAND`): width of the reward band
+// reserved, at each terminal extreme, for the surviving material margin
+// (issue #138). A won position always outranks every non-won one and a lost
+// one ranks below all, but WITHIN the band the material still discriminates:
+// a win that threw a creature away for nothing scores below a win that kept
+// it, so a free chump attack never ties "no attacks". A flat `return 1` for
+// every win erased that signal.
+//
+// `weights.materialFull` (was `MATERIAL_FULL`): material margin (in
+// `evaluate` units) that fills a half-band. Kept LINEAR up to this cap — not
+// `tanh` — so a single creature's worth of material shifts the reward by a
+// fixed, decision-relevant amount regardless of how far ahead the bot already
+// is. `tanh` saturates near a decided position and was the root cause: the
+// creature delta vanished into the flat tail. Forge-scale (ADR 0018): a
+// vanilla 2/2 is worth ~170, so this cap (~3 creatures) keeps one creature's
+// worth a meaningful, non-saturating fraction of the band.
+
 /** Reward gained per `evaluate` margin point in the OPEN band of
- *  `rewardFromValue` — its linear slope, `(1 − 2·TERMINAL_BAND) / (2·
- *  MATERIAL_FULL)`. Exported for the decision telemetry (issue #1893, map
- *  #1892 evidence 1): dividing a reward gap by this converts it back into
- *  margin points, the currency `evaluate` and the map reason in. */
+ *  `rewardFromValue` — its linear slope. Kept exported at the PRODUCTION
+ *  vector's value (issue #2683: `rewardPerMarginPoint(DEFAULT_EVAL_WEIGHTS)`,
+ *  byte-identical to the old `(1 − 2·TERMINAL_BAND) / (2·MATERIAL_FULL)`) for
+ *  the decision telemetry (issue #1893, map #1892 evidence 1): dividing a
+ *  reward gap by this converts it back into margin points, the currency
+ *  `evaluate` and the map reason in. A non-default weights vector's own slope
+ *  is `rewardPerMarginPoint(weights)`, computed fresh where it matters
+ *  (`rewardFromValue` below). */
 export const REWARD_PER_MARGIN_POINT =
-    (1 - 2 * TERMINAL_BAND) / (2 * MATERIAL_FULL);
+    rewardPerMarginPoint(DEFAULT_EVAL_WEIGHTS);
 
 /** Map a material margin to [-1, 1], linear (constant slope) until it saturates
- *  at ±`MATERIAL_FULL`. Linear is deliberate: the discriminating quantity is a
- *  fixed material delta, which must move the reward by the same amount whether
- *  the absolute margin is small or large. */
-function materialSignal(margin: number): number {
-    const x = margin / MATERIAL_FULL;
+ *  at ±`weights.materialFull`. Linear is deliberate: the discriminating
+ *  quantity is a fixed material delta, which must move the reward by the same
+ *  amount whether the absolute margin is small or large. */
+function materialSignal(margin: number, weights: EvalWeights): number {
+    const x = margin / weights.materialFull;
     return x < -1 ? -1 : x > 1 ? 1 : x;
 }
 
@@ -290,16 +305,22 @@ function materialSignal(margin: number): number {
  *  Kept behind the variant flag as the measurement it is: the constant is
  *  refitted by the same script once `evaluate` itself carries more signal
  *  (#2686 eval fidelity, then the fitted eval of map step 5), which is where
- *  the calibration becomes worth landing. */
-export const CALIBRATED_REWARD_K = 9.983957e-4;
+ *  the calibration becomes worth landing.
+ *
+ *  Exported at the production value (issue #2683: `DEFAULT_EVAL_WEIGHTS`'s
+ *  `calibratedRewardK`) so `scripts/fit-reward-mapping.ts` and existing tests
+ *  keep a plain top-level constant; `calibratedSignal` below reads
+ *  `weights.calibratedRewardK` directly so a non-default vector's own fit is
+ *  honoured. */
+export const CALIBRATED_REWARD_K = DEFAULT_EVAL_WEIGHTS.calibratedRewardK;
 
 /** Calibrated replacement for `materialSignal` in the OPEN band: the fitted
  *  win probability rescaled to [-1, 1]. The terminal bands keep the linear
  *  material tie-break — outcome dominance and the within-band surviving-
  *  material discrimination (issue #138) are properties the calibration must
  *  not disturb; what it replaces is the mid-game margin RESOLUTION. */
-function calibratedSignal(margin: number): number {
-    return 2 / (1 + Math.exp(-CALIBRATED_REWARD_K * margin)) - 1;
+function calibratedSignal(margin: number, weights: EvalWeights): number {
+    return 2 / (1 + Math.exp(-weights.calibratedRewardK * margin)) - 1;
 }
 
 export type Edge = {
@@ -408,10 +429,10 @@ export function decidingPlayer(state: GameState): string | null {
     return state.priorityPlayerId;
 }
 
-/** Reward-per-combo-point — the fraction of the [0,1] reward band a single
- *  Forge-scale combo point buys. Tuned so an assembled 2-card combo (5000 pts)
- *  adds ~0.15 to the reward — enough to break ties without saturating. */
-const COMBO_REWARD = 0.00003;
+// `weights.comboReward` (issue #2683, was the module const `COMBO_REWARD`):
+// reward-per-combo-point — the fraction of the [0,1] reward band a single
+// Forge-scale combo point buys. Tuned so an assembled 2-card combo (5000 pts)
+// adds ~0.15 to the reward — enough to break ties without saturating.
 
 /** Map an `evaluate` score (bot perspective) to a reward in [0, 1].
  *
@@ -422,35 +443,51 @@ const COMBO_REWARD = 0.00003;
  *    * open  → (BAND, 1 − BAND), material-driven.
  *  The material map is linear (see `materialSignal`), so losing a creature for
  *  nothing costs the same slice of reward whether the bot is even or far ahead —
- *  the suicidal-attack signal no longer saturates away. */
-export function reward(state: GameState, botId: string): number {
-    const base = rewardFromValue(evaluate(state, botId));
-    const combo = Math.min(0.15, comboScore(state, botId) * COMBO_REWARD);
+ *  the suicidal-attack signal no longer saturates away.
+ *
+ *  `weights` (issue #2683) defaults to `DEFAULT_EVAL_WEIGHTS` for callers
+ *  outside the search (tests, other modules); `scoreLeaf` below always passes
+ *  the search's own resolved vector explicitly. */
+export function reward(
+    state: GameState,
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
+    const base = rewardFromValue(evaluate(state, botId, weights), weights);
+    const combo = Math.min(
+        0.15,
+        comboScore(state, botId) * weights.comboReward
+    );
     return Math.min(1, base + combo);
 }
 
 /** The reward-band shaping applied to an `evaluate` value, factored out of
  *  `reward` so the rollout default policy can shape a combat-augmented value
  *  (ADR 0021 slice 2) through the IDENTICAL band — terminal extremes reserve
- *  `TERMINAL_BAND` for the surviving material margin, the open middle is linear
- *  in the material signal. */
-function rewardFromValue(v: number): number {
-    if (v >= TERMINAL) {
-        const material = 0.5 + 0.5 * materialSignal(v - WIN_SCORE);
-        return 1 - TERMINAL_BAND + TERMINAL_BAND * material;
+ *  `weights.terminalBand` for the surviving material margin, the open middle
+ *  is linear in the material signal. `v` must already have been produced by
+ *  `evaluate(.., weights)` with the SAME vector — the `±weights.winScore`
+ *  offset below undoes exactly the offset `evaluate` applied. */
+function rewardFromValue(v: number, weights: EvalWeights): number {
+    const terminal = terminalMagnitude(weights);
+    if (v >= terminal) {
+        const material =
+            0.5 + 0.5 * materialSignal(v - weights.winScore, weights);
+        return 1 - weights.terminalBand + weights.terminalBand * material;
     }
-    if (v <= -TERMINAL) {
-        const material = 0.5 + 0.5 * materialSignal(v + WIN_SCORE);
-        return TERMINAL_BAND * material;
+    if (v <= -terminal) {
+        const material =
+            0.5 + 0.5 * materialSignal(v + weights.winScore, weights);
+        return weights.terminalBand * material;
     }
     // Open band: variant-selectable margin mapping (issue #1929) — production
     // default is the linear clip; the ladder A/Bs the calibrated logistic.
     const signal =
         getSearchVariant()?.rewardMapping === "calibrated"
-            ? calibratedSignal(v)
-            : materialSignal(v);
+            ? calibratedSignal(v, weights)
+            : materialSignal(v, weights);
     const material = 0.5 + 0.5 * signal;
-    return TERMINAL_BAND + (1 - 2 * TERMINAL_BAND) * material;
+    return weights.terminalBand + (1 - 2 * weights.terminalBand) * material;
 }
 
 // ---------------------------------------------------------------------------
@@ -1121,10 +1158,14 @@ export function applyMoveInSearch(
 type Leaf = { reward: number; margin: number };
 
 /** Score a stable leaf from the bot's perspective. */
-function scoreLeaf(state: GameState, botId: string): Leaf {
+function scoreLeaf(
+    state: GameState,
+    botId: string,
+    weights: EvalWeights
+): Leaf {
     return {
-        reward: reward(state, botId),
-        margin: materialMargin(state, botId),
+        reward: reward(state, botId, weights),
+        margin: materialMargin(state, botId, weights),
     };
 }
 
@@ -1145,7 +1186,7 @@ function scoreLeaf(state: GameState, botId: string): Leaf {
  *  which EITHER player holds castable interaction — so the narrow ambush /
  *  cautious-block line plays out reliably instead of being diluted by random
  *  moves; the flat `ROLLOUT_EPSILON` otherwise. Pure read of `state`. */
-function rolloutEpsilonFor(state: GameState): number {
+function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
     // A reactive combat line: any combat phase (the attack declaration that
     // baits the block, the block, and the response window) while SOME player
     // holds castable interaction. Covering the whole combat — not only a
@@ -1158,12 +1199,17 @@ function rolloutEpsilonFor(state: GameState): number {
         state.phase === "COMBAT_DAMAGE" ||
         state.phase === "BEGINNING_OF_COMBAT" ||
         state.phase === "END_OF_COMBAT";
-    if (!inCombat) return ROLLOUT_EPSILON;
+    if (!inCombat) return weights.rolloutEpsilon;
     const anyHeld = state.players.some((p) => hasCastableInstantHint(p));
-    return anyHeld ? ROLLOUT_EPSILON_REACTIVE : ROLLOUT_EPSILON;
+    return anyHeld ? weights.rolloutEpsilonReactive : weights.rolloutEpsilon;
 }
 
-function rollout(state: GameState, botId: string, rng: () => number): Leaf {
+function rollout(
+    state: GameState,
+    botId: string,
+    rng: () => number,
+    weights: EvalWeights
+): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
     let botTurnStarts = 0;
@@ -1190,14 +1236,14 @@ function rollout(state: GameState, botId: string, rng: () => number): Leaf {
         if (moves.length === 0) break;
 
         let chosen: Move;
-        if (moves.length === 1 || rng() < rolloutEpsilonFor(state)) {
+        if (moves.length === 1 || rng() < rolloutEpsilonFor(state, weights)) {
             chosen = moves[Math.floor(rng() * moves.length)];
         } else {
-            chosen = selectRolloutMove(state, pid, botId, moves, rng);
+            chosen = selectRolloutMove(state, pid, botId, moves, rng, weights);
         }
         applyMoveInSearch(state, pid, chosen);
     }
-    return scoreLeaf(state, botId);
+    return scoreLeaf(state, botId, weights);
 }
 
 /** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
@@ -1451,7 +1497,8 @@ function findActivationSource(
 export function policyValue(
     probe: GameState,
     botId: string,
-    move: Move
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
@@ -1459,7 +1506,7 @@ export function policyValue(
     ) {
         resolveTopOfStack(probe);
     }
-    let v = evaluate(probe, botId);
+    let v = evaluate(probe, botId, weights);
     const combat = probe.combat;
     if (
         combat &&
@@ -1477,7 +1524,7 @@ export function policyValue(
         // Strip it so the policy holds priority and lets the actual combat (with
         // the trick) resolve downstream. Policy-only, so the shared leaf
         // magnitudes / reward band are untouched.
-        v -= declaredCombatDelta(probe, botId);
+        v -= declaredCombatDelta(probe, botId, weights);
     }
     // Fold the declared block exchange in for ANY move taken at a confirmed,
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
@@ -1487,7 +1534,7 @@ export function policyValue(
     // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
     // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
     // this third consumer of the term cannot double it to ±2·WIN_SCORE.
-    return v + declaredBlockDelta(probe, botId);
+    return v + declaredBlockDelta(probe, botId, weights);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -1511,7 +1558,8 @@ export function selectRolloutMove(
     pid: string,
     botId: string,
     moves: Move[],
-    rng: () => number
+    rng: () => number,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): Move {
     const moverIsBot = pid === botId;
     let bestScore = -Infinity;
@@ -1521,10 +1569,13 @@ export function selectRolloutMove(
         applyMoveInSearch(probe, pid, move);
         // `policyValue` is from the bot's view; flip for the opponent so each
         // mover greedily maximizes ITS own reward (a competent opponent).
-        const r = rewardFromValue(policyValue(probe, botId, move));
+        const r = rewardFromValue(
+            policyValue(probe, botId, move, weights),
+            weights
+        );
         let moverReward = moverIsBot ? r : 1 - r;
         if (isDiscouragedRolloutMove(state, pid, move)) {
-            moverReward -= ROLLOUT_GUARDRAIL_PENALTY;
+            moverReward -= weights.rolloutGuardrailPenalty;
         }
         // Setup-attack bonus (ADR 0021 slice 3): nudge the default policy to
         // ATTACK when it holds a castable trick, so the rollout actually plays
@@ -1533,7 +1584,7 @@ export function selectRolloutMove(
         // clearly-losing one (a creature that just dies in the block), the
         // mirror of the pre-block guardrail.
         if (isAmbushSetupAttack(state, pid, move)) {
-            moverReward += ROLLOUT_GUARDRAIL_PENALTY;
+            moverReward += weights.rolloutGuardrailPenalty;
         }
         if (moverReward > bestScore) {
             bestScore = moverReward;
@@ -1549,10 +1600,14 @@ export function selectRolloutMove(
 // One ISMCTS iteration
 // ---------------------------------------------------------------------------
 
-function ucb1(edge: Edge): number {
+/** UCB1 selection score for `edge` (issue #2683: `weights.ucbC` is the SOLE
+ *  source of the exploration constant — no `getSearchVariant()` read here;
+ *  the caller already resolved the active vector once, at the top of the
+ *  search, via `resolveEvalWeights`). */
+function ucb1(edge: Edge, weights: EvalWeights): number {
     const exploit = edge.totalReward / edge.visits;
-    const c = getSearchVariant()?.ucbC ?? UCB_C;
-    const explore = c * Math.sqrt(Math.log(edge.avail) / edge.visits);
+    const explore =
+        weights.ucbC * Math.sqrt(Math.log(edge.avail) / edge.visits);
     return exploit + explore;
 }
 
@@ -1658,7 +1713,8 @@ export function reactivePrior(
     state: GameState,
     pid: string,
     move: Move,
-    visits: number
+    visits: number,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     if (
         !isReactiveInstantCast(state, pid, move) &&
@@ -1667,17 +1723,20 @@ export function reactivePrior(
     ) {
         return 0;
     }
-    return REACTIVE_PRIOR_C / (1 + visits);
+    return weights.reactivePriorC / (1 + visits);
 }
 
-/** Weight of a choice-node prior in UCB1 selection (PRD #1423, issue #1425).
- *  Like `REACTIVE_PRIOR_C` this is a DECAYING bias (`/(1 + visits)`), so an
- *  ordering hint can never outvote an edge's accumulated reward — a prior that
- *  ranked a candidate wrongly is washed out after a handful of visits. */
-const CHOICE_PRIOR_C = 0.75;
-
-function choicePriorBonus(prior: number, visits: number): number {
-    return prior <= 0 ? 0 : (CHOICE_PRIOR_C * prior) / (1 + visits);
+/** Weight of a choice-node prior in UCB1 selection (PRD #1423, issue #1425;
+ *  `weights.choicePriorC`, was `CHOICE_PRIOR_C`). Like `reactivePriorC` this
+ *  is a DECAYING bias (`/(1 + visits)`), so an ordering hint can never outvote
+ *  an edge's accumulated reward — a prior that ranked a candidate wrongly is
+ *  washed out after a handful of visits. */
+function choicePriorBonus(
+    prior: number,
+    visits: number,
+    weights: EvalWeights
+): number {
+    return prior <= 0 ? 0 : (weights.choicePriorC * prior) / (1 + visits);
 }
 
 /** A move paired with the tree key it is stored under and its ordering prior.
@@ -1783,6 +1842,7 @@ function iterate(
     rootState: GameState,
     botId: string,
     rng: () => number,
+    weights: EvalWeights,
     prunedRootKeys?: ReadonlySet<string>
 ): void {
     const world = determinize(rootState, botId, rng);
@@ -1824,7 +1884,7 @@ function iterate(
             };
             node.children.set(pick.key, edge);
             path.push(edge);
-            backpropagate(path, rollout(world, botId, rng), botId);
+            backpropagate(path, rollout(world, botId, rng, weights), botId);
             return;
         }
 
@@ -1836,9 +1896,9 @@ function iterate(
             const edge = node.children.get(k.key)!;
             edge.avail += 1;
             const val =
-                ucb1(edge) +
-                reactivePrior(world, pid, edge.move, edge.visits) +
-                choicePriorBonus(k.prior, edge.visits);
+                ucb1(edge, weights) +
+                reactivePrior(world, pid, edge.move, edge.visits, weights) +
+                choicePriorBonus(k.prior, edge.visits, weights);
             if (val > bestVal) {
                 bestVal = val;
                 bestEdge = edge;
@@ -1856,7 +1916,7 @@ function iterate(
     }
 
     // Reached a terminal/at-depth leaf without expanding: score it as-is.
-    backpropagate(path, scoreLeaf(world, botId), botId);
+    backpropagate(path, scoreLeaf(world, botId, weights), botId);
 }
 
 /** Propagate a bot-perspective leaf along the visited edges, each edge storing
@@ -1966,7 +2026,8 @@ export function buildTrace(
     rootState: GameState,
     botId: string,
     stats: SearchStats,
-    chosen: Move
+    chosen: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
     for (const edge of root.children.values()) {
@@ -2002,7 +2063,7 @@ export function buildTrace(
             meanReward: edge.visits > 0 ? edge.totalReward / edge.visits : 0,
             meanMargin: edge.visits > 0 ? edge.totalMargin / edge.visits : 0,
             avail: edge.avail,
-            eval: evaluateBreakdown(probe, botId),
+            eval: evaluateBreakdown(probe, botId, weights),
             ...(unavailable ? { unavailable: true } : {}),
         });
     }
@@ -2020,20 +2081,21 @@ export function buildTrace(
     };
 }
 
-/** Fraction of the top visit count within which two root moves count as
- *  "equally explored" (issue #138). UCB1's exploration term keeps near-equal
- *  candidates within a few percent of each other in visits, so the single
- *  most-visited move is effectively decided by rollout noise — which let a
- *  suicidal chump attack tie "no attacks". Among candidates this close in
- *  visits, the robust pick is the higher mean reward, where the (now
- *  non-saturating) material signal lives. Reduces to plain most-visited when one
- *  move is clearly dominant (the lethal/response cases keep their pick). */
-const VISIT_TOL = 0.15;
-/** Two root moves count as the same OUTCOME when their mean rewards are within
- *  this band — they win/lose/stall about as often. Sits below the reward
- *  reserved per material point so a genuine win-probability difference still
- *  wins, while outcome-equal candidates fall through to the material tie-break. */
-const OUTCOME_EPS = 0.05;
+// `weights.visitTol` (issue #2683, was the module const `VISIT_TOL`): fraction
+// of the top visit count within which two root moves count as "equally
+// explored" (issue #138). UCB1's exploration term keeps near-equal candidates
+// within a few percent of each other in visits, so the single most-visited
+// move is effectively decided by rollout noise — which let a suicidal chump
+// attack tie "no attacks". Among candidates this close in visits, the robust
+// pick is the higher mean reward, where the (now non-saturating) material
+// signal lives. Reduces to plain most-visited when one move is clearly
+// dominant (the lethal/response cases keep their pick).
+//
+// `weights.outcomeEps` (was `OUTCOME_EPS`): two root moves count as the same
+// OUTCOME when their mean rewards are within this band — they win/lose/stall
+// about as often. Sits below the reward reserved per material point so a
+// genuine win-probability difference still wins, while outcome-equal
+// candidates fall through to the material tie-break.
 
 /** Robust root selection (issue #138). UCB1 keeps near-equal candidates within a
  *  few percent of each other in visits, so picking the single most-visited move
@@ -2083,13 +2145,15 @@ function isWastefulAttack(state: GameState, move: Move): boolean {
 export function blockDeltaOf(
     state: GameState,
     move: Move,
-    botId: string
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     if (move.kind !== "declare-blockers") return -Infinity;
     const probe = cloneGameState(state);
     applyMoveInSearch(probe, botId, move);
     return (
-        declaredBlockDelta(probe, botId) + lethalUnblockedDelta(probe, botId)
+        declaredBlockDelta(probe, botId, weights) +
+        lethalUnblockedDelta(probe, botId, weights)
     );
 }
 
@@ -2115,8 +2179,9 @@ export function blockDeltaOf(
 // a drawn card + a fresh untap/main phase of tempo + an extra combat. Mapped
 // through the SAME open-band transform `rewardFromValue` uses, so the credit
 // adds to a stored mean reward (the [0,1] band) on a consistent scale. Tuned
-// with the self-play harness (issue #244).
-const EXTRA_TURN_VALUE = 350; // ≈ draw (150) + untap/main tempo (50) + combat (150)
+// with the self-play harness (issue #244). `weights.extraTurnValue` (issue
+// #2683, was the module const `EXTRA_TURN_VALUE`): ≈ draw (150) + untap/main
+// tempo (50) + combat (150).
 
 /** How many extra turns `move` grants `botId` once it resolves (0 if none).
  *  Effect-keyed: clones `state`, applies the move, settles the stack (the same
@@ -2154,14 +2219,15 @@ function botExtraTurnGrantDelta(
 function extraTurnRewardCredit(
     state: GameState,
     move: Move,
-    botId: string
+    botId: string,
+    weights: EvalWeights
 ): number {
     const grants = botExtraTurnGrantDelta(state, move, botId);
     if (grants <= 0) return 0;
     return (
-        (1 - 2 * TERMINAL_BAND) *
+        (1 - 2 * weights.terminalBand) *
         0.5 *
-        materialSignal(grants * EXTRA_TURN_VALUE)
+        materialSignal(grants * weights.extraTurnValue, weights)
     );
 }
 
@@ -2244,9 +2310,10 @@ function targetsOnlyOwnPermanents(
 function resolvedMarginDelta(
     state: GameState,
     move: Move,
-    botId: string
+    botId: string,
+    weights: EvalWeights
 ): number {
-    const before = materialMargin(state, botId);
+    const before = materialMargin(state, botId, weights);
     const probe = cloneGameState(state);
     try {
         applyMoveInSearch(probe, botId, move);
@@ -2254,7 +2321,7 @@ function resolvedMarginDelta(
     } catch {
         return 0;
     }
-    return materialMargin(probe, botId) - before;
+    return materialMargin(probe, botId, weights) - before;
 }
 
 /** Whether `move` is a SELF-HARM removal cast: it targets only the bot's own
@@ -2271,10 +2338,11 @@ function resolvedMarginDelta(
 function isSelfHarmRemovalCast(
     state: GameState,
     move: Move,
-    botId: string
+    botId: string,
+    weights: EvalWeights
 ): boolean {
     if (!targetsOnlyOwnPermanents(state, move, botId)) return false;
-    return resolvedMarginDelta(state, move, botId) < 0;
+    return resolvedMarginDelta(state, move, botId, weights) < 0;
 }
 
 // --- Cast-variant ranking (issue #1888, generalises issue #365) -------------
@@ -2305,17 +2373,23 @@ function isSelfHarmRemovalCast(
 // legality change, and never a suppression: a spell with no correctly-directed
 // variant (a "target opponent draws" punisher, which can only point at the
 // opponent) has no sibling to be redirected to and is cast unchanged.
-const MISDIRECTION_WEIGHT = 1_000_000;
+// `weights.misdirectionWeight` (issue #2683, was the module const
+// `MISDIRECTION_WEIGHT`).
 
 /** Rank of one announcement variant for `botId`: resolved material payoff,
  *  minus a dominating penalty per misdirected target slot. Compared only
  *  against other variants of the SAME announcement, so the absolute scale is
  *  irrelevant. Both terms are move-kind-agnostic, so this ranks an activated
  *  ability's target tuples exactly as it ranks a cast's. */
-function castVariantScore(state: GameState, move: Move, botId: string): number {
+function castVariantScore(
+    state: GameState,
+    move: Move,
+    botId: string,
+    weights: EvalWeights
+): number {
     return (
-        resolvedMarginDelta(state, move, botId) -
-        MISDIRECTION_WEIGHT * misdirectedTargetCount(state, move, botId)
+        resolvedMarginDelta(state, move, botId, weights) -
+        weights.misdirectionWeight * misdirectedTargetCount(state, move, botId)
     );
 }
 
@@ -2427,7 +2501,8 @@ function colorModeTiebreak(
     rootState: GameState,
     pool: Edge[],
     bestMean: number,
-    mean: (e: Edge) => number
+    mean: (e: Edge) => number,
+    weights: EvalWeights
 ): Edge | null {
     const headChoice = rootState.pendingChoices?.[0];
     if (!headChoice) return null;
@@ -2448,7 +2523,9 @@ function colorModeTiebreak(
         if (!color || color === "C") return 0;
         return (evidence[color] ?? 0) / total;
     };
-    const contenders = pool.filter((e) => mean(e) >= bestMean - OUTCOME_EPS);
+    const contenders = pool.filter(
+        (e) => mean(e) >= bestMean - weights.outcomeEps
+    );
     if (contenders.length === 0) return null;
     // Track the top share AND the runner-up's, not just the top: a flat
     // manabase can put several contenders at the SAME positive share, and
@@ -2481,21 +2558,22 @@ export function selectRootMove(
     // Every other call site (the whole rest of the test suite) hand-builds a
     // `Node`, so this stays optional and the telemetry record simply omits
     // the fields when absent.
-    searchStats?: SearchStats
+    searchStats?: SearchStats,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
 
     const maxVisits = pool.reduce((m, e) => Math.max(m, e.visits), 0);
     const explored = pool.filter(
-        (e) => e.visits >= maxVisits * (1 - VISIT_TOL)
+        (e) => e.visits >= maxVisits * (1 - weights.visitTol)
     );
 
     const mean = (e: Edge) => e.totalReward / e.visits;
     const meanMargin = (e: Edge) => e.totalMargin / e.visits;
     const bestMean = explored.reduce((m, e) => Math.max(m, mean(e)), -Infinity);
     const contenders = explored.filter(
-        (e) => mean(e) >= bestMean - OUTCOME_EPS
+        (e) => mean(e) >= bestMean - weights.outcomeEps
     );
 
     let best = contenders[0];
@@ -2535,7 +2613,7 @@ export function selectRootMove(
                 gapMarginPoints:
                     gapReward === null
                         ? null
-                        : gapReward / REWARD_PER_MARGIN_POINT,
+                        : gapReward / rewardPerMarginPoint(weights),
                 chosenDeficitReward: bestMean - mean(edge),
                 mechanism: mech,
                 pickIsMeanArgmax: mean(edge) === bestMean,
@@ -2553,7 +2631,13 @@ export function selectRootMove(
     // that follow, and firing early keeps this rule visible in `mechanism`
     // rather than silently overwritten by a later, unrelated pass.
     if (rootState) {
-        const colorPick = colorModeTiebreak(rootState, pool, bestMean, mean);
+        const colorPick = colorModeTiebreak(
+            rootState,
+            pool,
+            bestMean,
+            mean,
+            weights
+        );
         if (colorPick && colorPick !== best) {
             best = colorPick;
             mechanism = "colour-mode-evidence";
@@ -2574,7 +2658,7 @@ export function selectRootMove(
         const creditOf = (e: Edge) => {
             let c = creditCache.get(e);
             if (c === undefined) {
-                c = extraTurnRewardCredit(rootState, e.move, botId);
+                c = extraTurnRewardCredit(rootState, e.move, botId, weights);
                 creditCache.set(e, c);
             }
             return c;
@@ -2610,7 +2694,7 @@ export function selectRootMove(
         // alternatives, keep the best-material one.
         const productive = pool.filter(
             (e) =>
-                mean(e) >= bestMean - OUTCOME_EPS &&
+                mean(e) >= bestMean - weights.outcomeEps &&
                 !isWastefulAttack(rootState, e.move)
         );
         if (productive.length > 0) {
@@ -2636,14 +2720,14 @@ export function selectRootMove(
         const blocks = pool.filter(
             (e) =>
                 e.move.kind === "declare-blockers" &&
-                mean(e) >= bestMean - OUTCOME_EPS
+                mean(e) >= bestMean - weights.outcomeEps
         );
         if (blocks.length > 0) {
             const prev = best;
             best = blocks
                 .map((e) => ({
                     e,
-                    delta: blockDeltaOf(rootState, e.move, botId),
+                    delta: blockDeltaOf(rootState, e.move, botId, weights),
                 }))
                 .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
             if (best !== prev) mechanism = "block-quality";
@@ -2682,14 +2766,14 @@ export function selectRootMove(
         const scoreOf = (e: Edge) => {
             let s = scoreCache.get(e);
             if (s === undefined) {
-                s = castVariantScore(rootState, e.move, botId);
+                s = castVariantScore(rootState, e.move, botId, weights);
                 scoreCache.set(e, s);
             }
             return s;
         };
         const variants = pool.filter(
             (e) =>
-                mean(e) >= bestMean - OUTCOME_EPS &&
+                mean(e) >= bestMean - weights.outcomeEps &&
                 isCastVariantOf(e.move, best.move)
         );
         for (const edge of variants) {
@@ -2709,10 +2793,11 @@ export function selectRootMove(
         // (`targetsOnlyOwnPermanents` rejects any other kind): "hold it for
         // later" is a spell-in-hand affordance, and an already-on-board ability
         // that only hurts the bot loses on reward, not by being held.
-        if (isSelfHarmRemovalCast(rootState, best.move, botId)) {
+        if (isSelfHarmRemovalCast(rootState, best.move, botId, weights)) {
             const hold = pool.find(
                 (e) =>
-                    e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+                    e.move.kind === "pass" &&
+                    mean(e) >= bestMean - weights.outcomeEps
             );
             if (hold) return finish(hold, "self-harm-removal");
         }
@@ -2746,7 +2831,7 @@ export function selectRootMove(
     if (best.move.kind === "pass") {
         const develop = pool.find(
             (e) =>
-                mean(e) >= bestMean - OUTCOME_EPS &&
+                mean(e) >= bestMean - weights.outcomeEps &&
                 (e.move.kind === "play-land" ||
                     (!!rootState &&
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
@@ -2788,7 +2873,9 @@ export function selectRootMove(
         // reason. A dump with REAL value out-rewards `pass` by more than
         // `OUTCOME_EPS` and never reaches here.
         const hold = pool.find(
-            (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+            (e) =>
+                e.move.kind === "pass" &&
+                mean(e) >= bestMean - weights.outcomeEps
         );
         if (hold) return finish(hold, "hold-trick");
     }
@@ -2923,6 +3010,15 @@ function runSearchWithTrace(
     const decider = decidingPlayer(state);
     if (decider !== playerId) return { move: null, trace: null };
 
+    // Explicit calibration surface (issue #2683). Resolved ONCE, here, from
+    // whatever `SearchVariant` the ladder installed around this call (null in
+    // live play and every test that doesn't set one, so this is
+    // `DEFAULT_EVAL_WEIGHTS` outside a ladder run) — the ONE consultation of
+    // `getSearchVariant()` for a weight anywhere in this file. Everything
+    // below threads `weights` down as an explicit parameter instead of
+    // re-reading the module-global at its own point of use.
+    const weights = resolveEvalWeights(getSearchVariant());
+
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
     // 3: that cost 42.6% of the wall clock of an iteration-budgeted search).
@@ -2966,7 +3062,7 @@ function runSearchWithTrace(
     // a real game) usually cuts it short.
     let stoppedBy: SearchStopReason = "iterations";
     while (i < maxIter) {
-        iterate(root, state, playerId, rng, prunedRootKeys);
+        iterate(root, state, playerId, rng, weights, prunedRootKeys);
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
             stoppedBy = "time";
@@ -2982,8 +3078,11 @@ function runSearchWithTrace(
         stoppedBy,
     };
 
-    const move = selectRootMove(root, moves, state, playerId, stats);
-    return { move, trace: buildTrace(root, state, playerId, stats, move) };
+    const move = selectRootMove(root, moves, state, playerId, stats, weights);
+    return {
+        move,
+        trace: buildTrace(root, state, playerId, stats, move, weights),
+    };
 }
 
 /** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an

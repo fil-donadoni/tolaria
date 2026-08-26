@@ -65,25 +65,33 @@ import {
     dslRealizedAbilityValueById,
     latentValue,
 } from "./cardValue";
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./ai/evalWeights";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
  *  comparable by their material margin. Forge-scale material tops out in the
- *  low tens of thousands even on a wide board, far below this. */
-export const WIN_SCORE = 1_000_000;
+ *  low tens of thousands even on a wide board, far below this.
+ *
+ *  Kept as a top-level export — byte-identical to `DEFAULT_EVAL_WEIGHTS.winScore`
+ *  (issue #2683) — for the many call sites that want the production constant
+ *  without threading a weights vector (search.ts's terminal-detection
+ *  branches, tests). `evaluate()` itself reads `weights.winScore`, not this. */
+export const WIN_SCORE = DEFAULT_EVAL_WEIGHTS.winScore;
 
-// --- Forge-scale material weights (ADR 0018) -------------------------------
+// --- Forge-scale material weights (ADR 0018, issue #2683) ------------------
 // Tuned for ordering (see file header). On the ~100-base scale a 2/2 vanilla is
-// worth ~170, so life, hand and mana are scaled to stay commensurate.
-const W_LIFE = 8; // per life point (20 life ≈ one creature)
-const W_PERMANENT = 5; // board-presence bonus for every permanent in play
-// Per untapped mana source (available-mana proxy). Weighted so DEVELOPING a land
-// stays strictly positive (issue #149): a land drop is −cardValue(land) (leaves
-// hand) +W_PERMANENT (enters battlefield, not a creature so no creature value)
-// +W_MANA (adds an untapped source). A basic land's latent `cardValue` is
-// NONCREATURE_BASE (8, MV 0), so the delta is −8 +5 +12 = +9 > 0 — the greedy
-// 1-ply selection and the ISMCTS tie-break both prefer the drop over passing.
-const W_MANA = 12;
+// worth ~170, so life, hand and mana are scaled to stay commensurate. Extracted
+// into `EvalWeights` (issue #2683) so calibration, a fitted eval, and ladder
+// strength experiments can swap a vector instead of editing these constants —
+// `weights.lifeWeight` / `weights.permanentWeight` / `weights.manaWeight` below
+// are `DEFAULT_EVAL_WEIGHTS`'s `8` / `5` / `12`, this file's old `W_LIFE` /
+// `W_PERMANENT` / `W_MANA`. `W_MANA` (`weights.manaWeight`) is weighted so
+// DEVELOPING a land stays strictly positive (issue #149): a land drop is
+// −cardValue(land) (leaves hand) +permanentWeight (enters battlefield, not a
+// creature so no creature value) +manaWeight (adds an untapped source). A
+// basic land's latent `cardValue` is NONCREATURE_BASE (8, MV 0), so the delta
+// is −8 +5 +12 = +9 > 0 at the default vector — the greedy 1-ply selection and
+// the ISMCTS tie-break both prefer the drop over passing.
 
 // --- Reactive flexibility (ADR 0021 slice 1, issue #221; board half issue
 // --- #1890 item 3) ---------------------------------------------------------
@@ -116,8 +124,9 @@ const W_MANA = 12;
 // `mana` term uses (CR 601 colored requirements are not modelled here). Bounded
 // by `FLEX_CARD_CAP` so a hand stuffed with cheap instants cannot let the term
 // dominate genuine material — it only ever tips otherwise-close lines.
-const W_FLEX = 6; // bonus per castable held instant (small: < a land drop's +9)
-const FLEX_CARD_CAP = 3; // at most this many instants contribute (bound the term)
+// `weights.flexWeight` / `weights.flexCardCap` below (issue #2683) — bonus per
+// castable held instant (small: < a land drop's +9), capped at this many
+// instants (bound the term).
 
 // --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
 // The worth of a specific card while it is NOT in play (hand / library /
@@ -497,29 +506,34 @@ function hasFlexibleActivation(
 function flexibilityTerm(
     state: GameState,
     player: PlayerState,
-    availableMana: number
+    availableMana: number,
+    weights: EvalWeights
 ): number {
     let castable = 0;
     for (const card of player.hand) {
-        if (castable >= FLEX_CARD_CAP) break;
+        if (castable >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
         if (manaValue(getInstanceManaCost(card)) > availableMana) continue;
         castable += 1;
     }
     for (const perm of player.battlefield) {
-        if (castable >= FLEX_CARD_CAP) break;
+        if (castable >= weights.flexCardCap) break;
         if (!hasFlexibleActivation(state, player, perm, availableMana))
             continue;
         castable += 1;
     }
-    return castable * W_FLEX;
+    return castable * weights.flexWeight;
 }
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
-function playerTerms(state: GameState, player: PlayerState): EvalTerms {
+function playerTerms(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): EvalTerms {
     const terms: EvalTerms = {
-        life: player.life * W_LIFE,
+        life: player.life * weights.lifeWeight,
         // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
         // the old flat per-card constant. A bomb in hand now outweighs a spare
         // land, and pitching a good card for no effect is a decisive loss.
@@ -531,7 +545,7 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
     };
 
     for (const perm of player.battlefield) {
-        terms.permanents += W_PERMANENT;
+        terms.permanents += weights.permanentWeight;
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(state, perm);
         } else {
@@ -566,11 +580,11 @@ function playerTerms(state: GameState, player: PlayerState): EvalTerms {
         }
     }
     const availableMana = availableManaFor(player);
-    terms.mana = availableMana * W_MANA;
+    terms.mana = availableMana * weights.manaWeight;
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).
-    terms.flexibility = flexibilityTerm(state, player, availableMana);
+    terms.flexibility = flexibilityTerm(state, player, availableMana, weights);
     return terms;
 }
 
@@ -581,19 +595,33 @@ function sumTerms(t: EvalTerms): number {
 }
 
 /** Material score of one player's resources, from their own perspective. */
-function playerScore(state: GameState, player: PlayerState): number {
-    return sumTerms(playerTerms(state, player));
+function playerScore(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    return sumTerms(playerTerms(state, player, weights));
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
  *  Terminal positions dominate: a win returns ≥ +WIN_SCORE, a loss ≤ −WIN_SCORE
- *  (offset by the surviving material margin so winning lines stay comparable). */
-export function evaluate(state: GameState, playerId: string): number {
+ *  (offset by the surviving material margin so winning lines stay comparable).
+ *
+ *  `weights` (issue #2683) defaults to `DEFAULT_EVAL_WEIGHTS` — today's
+ *  production constants, byte-for-byte — so every existing call site (the
+ *  search, greedy selection, the self-play ladder, tests) is unaffected by
+ *  this parameter's addition unless it explicitly passes a different vector. */
+export function evaluate(
+    state: GameState,
+    playerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
 
-    const margin = playerScore(state, me) - playerScore(state, opp);
+    const margin =
+        playerScore(state, me, weights) - playerScore(state, opp, weights);
 
     // Terminal detection. A recorded game-over is authoritative; otherwise a
     // player at ≤ 0 life has effectively lost (SBA may not have run on this
@@ -604,13 +632,15 @@ export function evaluate(state: GameState, playerId: string): number {
         // CR 104.4a — a drawn game is a neutral terminal: neither a win nor a
         // loss for either player (Divine Intervention).
         if (state.gameOver.isDraw) return 0;
-        if (state.gameOver.winnerId === playerId) return WIN_SCORE + margin;
-        if (state.gameOver.loserId === playerId) return -WIN_SCORE + margin;
+        if (state.gameOver.winnerId === playerId)
+            return weights.winScore + margin;
+        if (state.gameOver.loserId === playerId)
+            return -weights.winScore + margin;
     }
     const oppLost = opp.life <= 0;
     const meLost = me.life <= 0;
-    if (oppLost && !meLost) return WIN_SCORE + margin;
-    if (meLost && !oppLost) return -WIN_SCORE + margin;
+    if (oppLost && !meLost) return weights.winScore + margin;
+    if (meLost && !oppLost) return -weights.winScore + margin;
 
     // Open position: add the Danger Clock race term (ADR 0018) and, on a
     // declare-attackers leaf, the expected combat exchange (ADR 0020 §3). Both
@@ -621,8 +651,8 @@ export function evaluate(state: GameState, playerId: string): number {
         margin +
         comboScore(state, playerId) +
         dangerClock(state, playerId) +
-        declaredCombatDelta(state, me.id) +
-        lethalUnblockedDelta(state, playerId)
+        declaredCombatDelta(state, me.id, weights) +
+        lethalUnblockedDelta(state, playerId, weights)
     );
 }
 
@@ -807,7 +837,8 @@ function declaredFaceDamage(
  */
 export function lethalUnblockedDelta(
     state: GameState,
-    viewerId: string
+    viewerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     const declared = declaredFaceDamage(state);
     if (!declared) return 0;
@@ -832,8 +863,8 @@ export function lethalUnblockedDelta(
     // CR 704.5a — a player at 0 or less life loses. Damage already locked in
     // that takes the defender there is a loss, one SBA sweep early.
     if (damage <= 0 || damage < defender.life) return 0;
-    if (viewerId === defender.id) return -WIN_SCORE;
-    if (viewerId === attacker.id) return WIN_SCORE;
+    if (viewerId === defender.id) return -weights.winScore;
+    if (viewerId === attacker.id) return weights.winScore;
     return 0;
 }
 
@@ -850,21 +881,25 @@ export function lethalUnblockedDelta(
 // / lexicographic tie-breaks still decide those; the bonus only tips a plan that
 // spares a genuinely more valuable source (Mishra's Factory, a dual land).
 
-/** Per extra distinct color an untapped source can produce (a dual land untapped
- *  outranks a basic). Small — only tips otherwise-equal auto-tap plans. */
-const W_SOURCE_BREADTH = 4;
-/** An untapped source that also has a non-mana activated ability (a manland that
- *  can animate/attack — Mishra's Factory). Larger than a color of breadth so a
- *  manland is spared even against a dual land, but far below a creature's worth
- *  so it never distorts material. */
-const W_SOURCE_DUAL_PURPOSE = 20;
+// `weights.sourceBreadthWeight` (issue #2683, was `W_SOURCE_BREADTH`): per
+// extra distinct color an untapped source can produce (a dual land untapped
+// outranks a basic). Small — only tips otherwise-equal auto-tap plans.
+// `weights.sourceDualPurposeWeight` (was `W_SOURCE_DUAL_PURPOSE`): an untapped
+// source that also has a non-mana activated ability (a manland that can
+// animate/attack — Mishra's Factory). Larger than a color of breadth so a
+// manland is spared even against a dual land, but far below a creature's
+// worth so it never distorts material.
 
 /** Bonus for the quality of the mana sources a player leaves UNTAPPED (issue
  *  #794). Sums, over each untapped mana source: its extra color breadth (CR
  *  106.4, colored producible mana beyond one) and a flat bonus if it is
  *  dual-purpose (has a non-mana activated ability). Pure; reads only the live
  *  battlefield. */
-function untappedSourceQuality(state: GameState, playerId: string): number {
+function untappedSourceQuality(
+    state: GameState,
+    playerId: string,
+    weights: EvalWeights
+): number {
     const me = state.players.find((p) => p.id === playerId);
     if (!me) return 0;
     const battlefields = state.players.map((p) => ({
@@ -888,8 +923,9 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
         // currently offers, not the five-colour no-board fallback its static
         // `manaChoices` carries.
         const breadth = getProducibleColorsOnBoard(perm, battlefields).size;
-        if (breadth > 1) bonus += (breadth - 1) * W_SOURCE_BREADTH;
-        if (hasNonManaActivatedAbility(perm)) bonus += W_SOURCE_DUAL_PURPOSE;
+        if (breadth > 1) bonus += (breadth - 1) * weights.sourceBreadthWeight;
+        if (hasNonManaActivatedAbility(perm))
+            bonus += weights.sourceDualPurposeWeight;
     }
     return bonus;
 }
@@ -906,9 +942,13 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
  */
 export function evaluateAutoTapPosition(
     state: GameState,
-    playerId: string
+    playerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
-    return evaluate(state, playerId) + untappedSourceQuality(state, playerId);
+    return (
+        evaluate(state, playerId, weights) +
+        untappedSourceQuality(state, playerId, weights)
+    );
 }
 
 /** The expected material + life swing of a combat ALREADY DECLARED but not yet
@@ -919,7 +959,8 @@ export function evaluateAutoTapPosition(
  *  walking into death. Zero when no combat is pending blocks. */
 export function declaredCombatDelta(
     state: GameState,
-    viewerId: string
+    viewerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     const combat = state.combat;
     if (
@@ -969,7 +1010,7 @@ export function declaredCombatDelta(
     const attackerDelta =
         value(outcome.deadBlockerIds, defender) -
         value(outcome.deadAttackerIds, attacker) +
-        outcome.faceDamage * W_LIFE;
+        outcome.faceDamage * weights.lifeWeight;
 
     return ownView ? attackerDelta : -attackerDelta;
 }
@@ -995,7 +1036,11 @@ export function declaredCombatDelta(
  *  casting it in the block step wins the exchange. The dead creatures' WORTH
  *  still comes from `evaluateCreature` (permanent P/T): you lose the base
  *  creature, not its one-turn pumped body. */
-export function declaredBlockDelta(state: GameState, viewerId: string): number {
+export function declaredBlockDelta(
+    state: GameState,
+    viewerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
     const combat = state.combat;
     if (
         !combat ||
@@ -1097,7 +1142,9 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     // here too would show the rollout default policy ±2·WIN_SCORE. So the tie-
     // break gets it at its own seam, `blockDeltaOf`, where it is counted once.
     const defenderDelta =
-        value(deadAttackers) - value(deadBlockers) - faceDamage * W_LIFE;
+        value(deadAttackers) -
+        value(deadBlockers) -
+        faceDamage * weights.lifeWeight;
 
     // Cautious multi-block (ADR 0021, issue #229). If the ATTACKER holds castable
     // interaction (a pump or instant removal), a block that only WINS when the
@@ -1108,7 +1155,7 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
     // keeps blockers back / single-blocks when the attacker is loaded, and
     // blocks normally when the attacker is tapped out / empty-handed (no
     // castable interaction → zero penalty, current behavior).
-    const caution = cautiousBlockPenalty(state, attacker, byAttacker);
+    const caution = cautiousBlockPenalty(state, attacker, byAttacker, weights);
     const defenderDeltaHedged = defenderDelta - caution;
 
     return viewerId === defender.id
@@ -1116,11 +1163,12 @@ export function declaredBlockDelta(state: GameState, viewerId: string): number {
         : -defenderDeltaHedged;
 }
 
-/** Fraction of the worst-case trick swing folded into the block valuation. Soft:
- *  the discount is the EXPECTED cost of an over-committed block against a loaded
- *  attacker, not a certainty (the attacker may have no trick, may not have mana,
- *  may save it). A hedged expectation, exactly as the issue specifies. */
-const BLOCK_CAUTION_FRACTION = 0.5;
+// `weights.blockCautionFraction` (issue #2683, was `BLOCK_CAUTION_FRACTION`):
+// fraction of the worst-case trick swing folded into the block valuation.
+// Soft: the discount is the EXPECTED cost of an over-committed block against a
+// loaded attacker, not a certainty (the attacker may have no trick, may not
+// have mana, may save it). A hedged expectation, exactly as the issue
+// specifies.
 
 /** The hedged penalty subtracted from a declared block when the attacker holds
  *  castable interaction (ADR 0021, issue #229). For each attacker the defender
@@ -1142,7 +1190,8 @@ const BLOCK_CAUTION_FRACTION = 0.5;
 function cautiousBlockPenalty(
     state: GameState,
     attacker: PlayerState,
-    blockersByAttacker: Map<string, CardInstanceState[]>
+    blockersByAttacker: Map<string, CardInstanceState[]>,
+    weights: EvalWeights
 ): number {
     const held = castableHeldInteraction(attacker);
     if (!held.pump && !held.removal) return 0;
@@ -1212,7 +1261,7 @@ function cautiousBlockPenalty(
         }
     }
 
-    return BLOCK_CAUTION_FRACTION * worstSwing;
+    return weights.blockCautionFraction * worstSwing;
 }
 
 /** Pure material margin from `playerId`'s view: sum(self terms) − sum(opp
@@ -1221,11 +1270,15 @@ function cautiousBlockPenalty(
  *  position is even or decided. The ISMCTS search (issue #138) accumulates it
  *  per edge to break ties between candidates whose win/loss outcome is identical
  *  but whose surviving material differs (e.g. a free chump attack vs passing). */
-export function materialMargin(state: GameState, playerId: string): number {
+export function materialMargin(
+    state: GameState,
+    playerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
-    return playerScore(state, me) - playerScore(state, opp);
+    return playerScore(state, me, weights) - playerScore(state, opp, weights);
 }
 
 /** `playerId`'s view of a position, decomposed into per-player, per-term
@@ -1249,7 +1302,8 @@ export type PositionBreakdown = {
 
 export function evaluateBreakdown(
     state: GameState,
-    playerId: string
+    playerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): PositionBreakdown {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
@@ -1264,14 +1318,14 @@ export function evaluateBreakdown(
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
-    const self = playerTerms(state, me);
-    const oppTerms = playerTerms(state, opp);
+    const self = playerTerms(state, me, weights);
+    const oppTerms = playerTerms(state, opp, weights);
     const margin = sumTerms(self) - sumTerms(oppTerms);
     return {
         self,
         opp: oppTerms,
         margin,
         danger: dangerClock(state, playerId),
-        total: evaluate(state, playerId),
+        total: evaluate(state, playerId, weights),
     };
 }

@@ -18,12 +18,29 @@
 // entry in `LADDER_VARIANTS` so `bun run ladder --variant <name>` can A/B it.
 // The knob stays until the ladder verdict lands the change as the new default
 // (flag removed) or kills it.
+//
+// `evalWeights` (issue #2683) is the general form of that "new optional
+// knob": ANY `EvalWeights` field, not just `ucbC`, can be overridden here with
+// no new field and no new consultation site, because `search.ts` now threads
+// the resolved vector explicitly instead of reading each constant at its own
+// point of use. `resolveEvalWeights` below is the ONE place the override is
+// applied — `runSearchWithTrace` calls it once per search and threads the
+// result down; nothing downstream reads `getSearchVariant()` for a weight
+// again. `ucbC` used to be its own dedicated field with its own read
+// (`getSearchVariant()?.ucbC ?? UCB_C` at the old `ucb1`) — a second override
+// path alongside this one. Retired in the same change that added
+// `evalWeights`: `evalWeights.ucbC` is now the ONLY way a variant overrides
+// it, so there is exactly one mechanism, not two competing ones.
+
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./evalWeights";
 
 export type SearchVariant = {
     /** Registry name — recorded in ladder JSONL headers and reports. */
     name: string;
-    /** Override for the UCB1 exploration constant (`UCB_C` in search.ts). */
-    ucbC?: number;
+    /** Partial override of the production `EvalWeights` vector (issue #2683)
+     *  — e.g. `{ ucbC: 0.7 }` or `{ manaWeight: 16 }`. Unset fields keep their
+     *  `DEFAULT_EVAL_WEIGHTS` value; `resolveEvalWeights` does the merge. */
+    evalWeights?: Partial<EvalWeights>;
     /** XOR mask applied to the per-decision search seed, for the candidate
      *  seat only (issue #1929). Changes WHICH determinizations ISMCTS samples
      *  and nothing else — same policy, same budget, same rules — so it is
@@ -47,6 +64,20 @@ export function setSearchVariant(v: SearchVariant | null): void {
 
 export function getSearchVariant(): SearchVariant | null {
     return activeVariant;
+}
+
+/** Resolve the ACTIVE `EvalWeights` vector for one search: `DEFAULT_EVAL_WEIGHTS`
+ *  overridden field-by-field by `variant?.evalWeights` (issue #2683). The ONE
+ *  consultation of a variant's weight overrides — called once, at the top of
+ *  `runSearchWithTrace` (`search.ts`), which threads the result down as an
+ *  explicit parameter through the whole search instead of leaving every
+ *  constant's use site to re-read the module-global itself. `null`/undefined
+ *  variant (live play, every test that doesn't install one) returns
+ *  `DEFAULT_EVAL_WEIGHTS` verbatim — zero behaviour change outside a ladder
+ *  run that actually sets `evalWeights`. */
+export function resolveEvalWeights(variant: SearchVariant | null): EvalWeights {
+    if (!variant?.evalWeights) return DEFAULT_EVAL_WEIGHTS;
+    return { ...DEFAULT_EVAL_WEIGHTS, ...variant.evalWeights };
 }
 
 /** The named candidate configs `bun run ladder --variant <name>` can run.
@@ -98,5 +129,16 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     "reward-calibrated": {
         name: "reward-calibrated",
         rewardMapping: "calibrated",
+    },
+
+    /** WORKED EXAMPLE ONLY (issue #2683) — demonstrates that `evalWeights` can
+     *  override a leaf-evaluator weight with no code edit ("a ladder variant
+     *  can be `W_MANA: 16` with no code edit", the ticket's own example). NOT
+     *  a strength claim: this refactor claims no strength, so this entry has
+     *  never been run through the ladder and carries no verdict. Delete or
+     *  replace it the moment a real `manaWeight` experiment needs the slot. */
+    "eval-weights-demo": {
+        name: "eval-weights-demo",
+        evalWeights: { manaWeight: 16 },
     },
 };
