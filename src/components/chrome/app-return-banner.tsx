@@ -101,11 +101,23 @@ export default function AppReturnBanner({
     }
 
     return (
+        // v4 (ADR 0103 §3/§5, issue #2730): the hairline strip + status dot
+        // every other banner already uses (`Banner`'s recipe), not the
+        // `border-accent/40 bg-accent/15` wash — this band keeps its own
+        // fixed-height contract (`h-9`, the layout budget `shellBands`
+        // reads) rather than `Banner` itself, whose padding/height are a
+        // different shape, but the colour language now matches.
         <div
             data-slot="app-return-banner"
-            className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-accent/40 bg-accent/15 px-3 text-xs"
+            className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[var(--hairline)] bg-surface px-3 text-xs"
         >
-            <span className="min-w-0 truncate">{message}</span>
+            <span className="flex min-w-0 items-center gap-2">
+                <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full bg-accent"
+                />
+                <span className="min-w-0 truncate">{message}</span>
+            </span>
             <Button
                 type="button"
                 variant="primary"

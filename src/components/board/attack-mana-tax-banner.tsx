@@ -81,10 +81,13 @@ export default function AttackManaTaxBanner({
                 className={`cursor-move select-none ${innerClassName}`.trim()}
             >
                 <Panel density="compact" className="w-72 max-w-full px-6 py-4">
-                    <p className="text-center font-beleren text-sm tracking-wide text-parchment">
+                    {/* v4 (ADR 0103 §4, issue #2730): title off Beleren onto
+                        the chrome display face; the shared `.panel-rule`
+                        hairline replaces the repeated gold-gradient divider. */}
+                    <p className="text-display text-center text-sm text-text">
                         Attack Tax
                     </p>
-                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/50 to-transparent my-2.5" />
+                    <div className="panel-rule my-2.5 h-px w-full" />
 
                     <div className="flex items-center justify-center gap-1.5 py-1">
                         {symbols.map((s, i) => (

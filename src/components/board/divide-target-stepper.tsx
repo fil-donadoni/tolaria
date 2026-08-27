@@ -19,15 +19,26 @@ export default function DivideTargetStepper({
     // `w-11 h-11` (44px, #1770 mobile QA sweep touch-target audit): was
     // `w-6 h-6` (24px). Flex-centred rather than `leading-none` (which only
     // mattered for the old fixed height) so the glyph stays centred.
+    //
+    // v4 (ADR 0103 §3/§5, issue #2730): the dial was a fully bespoke recipe
+    // (`bg-accent-soft`/`shadow-[...]` glow, the retired card-domain count
+    // face) — quiet hairline chrome for the outer plate, but the two `<button>`
+    // edges below are `border-border-strong`, NOT the hairline pair: a
+    // control boundary needs >=3:1 contrast against `surface`
+    // (`--color-border-strong` 3.38:1) — `--hairline-strong` (2.37:1) reads
+    // fine on a decorative panel frame but fails WCAG 1.4.11 on an
+    // interactive edge (`control-edge-usage.test.ts`, issue #2727 round-2
+    // review — the sweep cannot see a lowercase local like this one, so this
+    // is a by-hand fix, not one the guard caught).
     const btn =
-        "flex w-11 h-11 items-center justify-center rounded-full text-sm font-beleren bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer";
+        "flex w-11 h-11 items-center justify-center rounded-full text-sm border border-border-strong bg-surface text-text-muted hover:border-accent hover:text-text disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer";
     const stop = (fn: () => void) => (e: React.MouseEvent) => {
         e.stopPropagation();
         fn();
     };
     return (
         <div
-            className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle rounded-full px-1.5 py-1 shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
+            className="flex items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-surface/85 px-1.5 py-1 backdrop-blur-md"
             onClick={(e) => e.stopPropagation()}
         >
             <button
@@ -39,7 +50,7 @@ export default function DivideTargetStepper({
             >
                 −
             </button>
-            <span className="min-w-5 text-center font-beleren text-parchment tabular-nums">
+            <span className="text-display min-w-5 text-center text-text tabular-nums">
                 {n}
             </span>
             <button

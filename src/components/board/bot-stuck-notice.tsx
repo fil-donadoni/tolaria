@@ -9,6 +9,8 @@
 
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { useState } from "react";
+import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 
 /** Player-facing name for the window the AI could not act in. Deliberately
  *  plain English — the player is not expected to know ADR 0047. */
@@ -44,21 +46,31 @@ export default function BotStuckNotice({
     };
 
     return (
-        <div
-            role="alert"
-            className="pointer-events-auto fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-surface px-4 py-2 text-sm text-fg shadow-lg"
-        >
-            <span>
-                The AI could not act ({WINDOW_LABEL[stuck.expectedKind]}).
-            </span>
-            <button
-                type="button"
-                onClick={handle}
-                disabled={pending}
-                className="rounded border border-border px-2 py-1 text-xs font-medium disabled:opacity-50"
+        // v4 (ADR 0103 §3/§5, issue #2730): the shared `Banner` (hairline
+        // strip + status dot) instead of a bespoke `rounded-md
+        // border-border bg-surface shadow-lg` box — the same primitive
+        // `ErrorToast` and `ActiveGameNotice` already went through. `danger`
+        // tone: a stuck bot is exactly the "needs the player's attention now"
+        // case the tone's text-colour survival rule exists for.
+        <div className="pointer-events-auto fixed bottom-20 left-1/2 z-50 -translate-x-1/2">
+            <Banner
+                tone="danger"
+                role="alert"
+                className="flex-row items-center gap-3"
             >
-                {pending ? "Continuing…" : "Continue game"}
-            </button>
+                <span>
+                    The AI could not act ({WINDOW_LABEL[stuck.expectedKind]}).
+                </span>
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="xs"
+                    onClick={handle}
+                    disabled={pending}
+                >
+                    {pending ? "Continuing…" : "Continue game"}
+                </Button>
+            </Banner>
         </div>
     );
 }

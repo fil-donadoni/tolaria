@@ -5,6 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { MutationError } from "~/lib/mutation-error";
 import { copyMinified } from "~/lib/clipboard";
 import { Banner } from "~/components/ui/banner";
+import { Button } from "~/components/ui/button";
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 
 type ErrorToastProps = {
@@ -70,32 +71,35 @@ export default function ErrorToast({
                         clipboard, so wrapping to a second line here loses
                         nothing the user couldn't already recover, while
                         showing strictly more of the title in place. */}
-                    <p className="min-w-0 flex-1 line-clamp-2 font-beleren text-xs tracking-wide px-1 sm:px-2 sm:text-sm">
+                    {/* v4 (ADR 0103 §4, issue #2730): title off Beleren onto
+                        the chrome display face; Copy/Dismiss move onto the
+                        shared `Button` (destructive/ghost) instead of two
+                        hand-rolled `<button>` recipes, keeping the >=24x24
+                        WCAG 2.5.8 hit-area floor via an explicit
+                        `min-h-6 min-w-6` override on Button's own compact
+                        `xs` rung. */}
+                    <p className="text-display min-w-0 flex-1 line-clamp-2 px-1 text-xs sm:px-2 sm:text-sm">
                         {error.title}
                     </p>
-                    <button
+                    <Button
                         type="button"
+                        variant="destructive"
+                        size="xs"
                         onClick={handleCopy}
-                        // min-h-6/min-w-6 (review fixup, WCAG 2.5.8 / #1770
-                        // sweep): guarantee a >=24x24 hit area on mobile
-                        // without growing the VISIBLE compact px-1.5/py-0.5
-                        // recipe — the padding stays tight, min-h/min-w just
-                        // floor the layout box.
-                        className="inline-flex shrink-0 min-h-6 min-w-6 items-center justify-center font-beleren text-xs tracking-wide border border-danger/45 rounded-sm px-1.5 py-0.5 hover:bg-danger/20 transition-colors sm:px-2"
+                        className="min-h-6 min-w-6 rounded-sm"
                     >
                         {copied ? "Copied!" : "Copy"}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="button"
+                        variant="ghost"
+                        size="xs"
                         onClick={onDismiss}
                         aria-label="Dismiss error"
-                        // Same >=24x24 hit-area floor as Copy above — the
-                        // bare "×" glyph with px-1/leading-none alone was
-                        // ~18x14, well under the WCAG 2.5.8 minimum.
-                        className="inline-flex shrink-0 min-h-6 min-w-6 items-center justify-center font-beleren text-sm leading-none px-1 hover:text-parchment transition-colors"
+                        className="min-h-6 min-w-6 px-1 text-sm leading-none"
                     >
                         ×
-                    </button>
+                    </Button>
                 </span>
             </Banner>
         </div>

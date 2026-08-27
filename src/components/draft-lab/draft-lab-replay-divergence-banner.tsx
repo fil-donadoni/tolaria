@@ -12,7 +12,15 @@
 // The `firstDivergedPickIndex > 1` branch below states the no-faithful-picks
 // case in words instead.
 import type { ReplayResult } from "@/lib/limited/draftReplayEngine";
+import { Banner } from "~/components/ui/banner";
 
+/** v4 (ADR 0103 §3/§5, issue #2730): the shared `Banner` instead of a
+ *  bespoke `bg-signal-self/10` / `bg-signal-opponent/10` wash. `signal-self`
+ *  / `signal-opponent` name PLAYER identity (ADR 0103 §3 keeps their hues for
+ *  exactly that reason) — this banner is not about a player, it is about
+ *  replay fidelity, so it borrowed the "self = good, opponent = bad" colour
+ *  association rather than using it. `success` / `danger` are the tones that
+ *  actually carry "faithful" / "no longer faithful" meaning. */
 export default function DraftLabReplayDivergenceBanner({
     result,
 }: {
@@ -22,11 +30,11 @@ export default function DraftLabReplayDivergenceBanner({
 
     if (result.firstDivergedPickIndex === null) {
         return (
-            <p className="rounded-sm bg-signal-self/10 px-2 py-1.5 text-[11px] text-signal-self">
+            <Banner tone="success" className="text-[11px]">
                 No divergence — all {total} reconstructed picks match what the
                 current scorer would pick. This replay is faithful start to
                 finish.
-            </p>
+            </Banner>
         );
     }
 
@@ -34,7 +42,7 @@ export default function DraftLabReplayDivergenceBanner({
     const firstDiverged = result.firstDivergedPickIndex;
 
     return (
-        <p className="rounded-sm bg-signal-opponent/10 px-2 py-1.5 text-[11px] text-signal-opponent">
+        <Banner tone="danger" className="text-[11px]">
             {firstDiverged > 1 ? (
                 <>
                     Faithful through pick {firstDiverged - 1} of {total}.{" "}
@@ -51,6 +59,6 @@ export default function DraftLabReplayDivergenceBanner({
             packs, which a fully retuned redraft would not actually have seen
             past this point, so treat everything from here on as illustrative,
             not a faithful reconstruction.
-        </p>
+        </Banner>
     );
 }

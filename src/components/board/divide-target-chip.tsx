@@ -21,7 +21,9 @@ export default function DivideTargetChip({ item }: { item: DivideTargetItem }) {
                     </div>
                 ) : (
                     <div className="w-16 aspect-[5/7] card-corner border border-border-subtle bg-surface-elevated flex flex-col items-center justify-center gap-1 px-1 text-center">
-                        <span className="text-2xl font-beleren text-accent-strong tabular-nums leading-none">
+                        {/* v4 (ADR 0103 §4, issue #2730): off Beleren onto
+                            the chrome display face. */}
+                        <span className="text-display text-2xl text-accent-strong tabular-nums leading-none">
                             {item.life}
                         </span>
                         <span className="text-[9px] uppercase tracking-wide text-text-muted leading-tight">
@@ -30,7 +32,18 @@ export default function DivideTargetChip({ item }: { item: DivideTargetItem }) {
                     </div>
                 )}
                 {assigned > 0 && (
-                    <div className="absolute -top-2 -left-2 z-10 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-parchment text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] tabular-nums">
+                    // v4 (ADR 0103 §2/§3, issue #2730): `bg-signal-target-
+                    // strong` / `ring-text` (design tokens) replace
+                    // `bg-red-600` / `ring-parchment` — a raw Tailwind
+                    // palette colour and the retired parchment ring, found
+                    // adjacent to the stepper this same slice re-skinned.
+                    // `signal-target` (not `danger`) because this badge
+                    // reports an assignment inside the SAME divide-targeting
+                    // flow `TargetSelectionBanner`'s chip already marks with
+                    // that hue (ADR 0103 §3 — a signal token keeps its
+                    // meaning, and this is the targeting signal, not a
+                    // danger one).
+                    <div className="absolute -top-2 -left-2 z-10 min-w-6 h-6 px-1 rounded-full bg-signal-target-strong ring-2 ring-text text-surface-base text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] tabular-nums">
                         {assigned}
                     </div>
                 )}

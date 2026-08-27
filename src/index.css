@@ -749,6 +749,25 @@
             opacity: 0.4;
         }
     }
+    /* Pulsing status dot (ADR 0103 §3, issue #2730): a box-shadow RING that
+     * expands and fades, the shape the `prototype/identity-v4` HUD badges use
+     * (`.px-hud.pulse .dot`, `px-pulse`) for "this needs your input NOW"
+     * (`MinimizedChoiceIndicator`). Replaces the v3 `shadow-[0_0_30px_...]`
+     * static glow: a glow reads as decoration, a widening ring reads as a
+     * heartbeat. `signal-pending` (amber, "waiting/urgent",
+     * `design-tokens.ts`) is the semantic token — not `accent`, reserved for
+     * the one ivory primary action. Applied only under
+     * `prefers-reduced-motion: no-preference` (see that media block below). */
+    @keyframes dot-pulse-ring {
+        0%,
+        100% {
+            box-shadow: 0 0 0 0
+                color-mix(in srgb, var(--color-signal-pending) 60%, transparent);
+        }
+        50% {
+            box-shadow: 0 0 0 6px transparent;
+        }
+    }
     /* Hover brightens a ring only where a pointer can hover — the picker
        dialogs relied on `hover:ring-*-strong` for this. */
     @media (hover: hover) {
@@ -1224,6 +1243,11 @@
     }
     [data-draft-chevron="left"][data-animated="true"] {
         animation-name: draftSwipeNudgeX;
+    }
+
+    /* 8. HUD badge status dot — pending choice minimized (issue #2730). */
+    .dot-pulse-ring {
+        animation: dot-pulse-ring 1.4s ease-in-out infinite;
     }
 }
 

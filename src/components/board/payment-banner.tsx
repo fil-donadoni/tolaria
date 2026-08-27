@@ -188,10 +188,13 @@ export default function PaymentBanner(props: Props) {
                 className={`cursor-move select-none ${innerClassName}`.trim()}
             >
                 <Panel density="compact" className="px-5 py-3">
-                    <p className="font-beleren text-sm tracking-wide text-parchment">
-                        {cardName}
-                    </p>
-                    <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent my-1.5" />
+                    {/* v4 (ADR 0103 §4, issue #2730): source name off Beleren
+                        onto the chrome display face; the rule below is the
+                        shared `.panel-rule` hairline (Panel's own header
+                        rule) rather than the repeated gold-gradient divider
+                        recipe six prompt bars carried independently. */}
+                    <p className="text-display text-sm text-text">{cardName}</p>
+                    <div className="panel-rule my-1.5 h-px w-full" />
                     <p className="text-text-muted text-xs">{subtitle}</p>
                     {manaOwed && (
                         <Button

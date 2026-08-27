@@ -85,10 +85,14 @@ export default function MulliganPrompt({
                     className="flex flex-col items-center gap-3 px-6 py-4"
                 >
                     <div className="flex flex-col items-center gap-1 w-full">
-                        <p className="font-beleren text-sm tracking-wide text-parchment">
+                        {/* v4 (ADR 0103 §4, issue #2730): title off Beleren
+                            onto the chrome display face; rule is the shared
+                            `.panel-rule` hairline, not the six-times-repeated
+                            gold-gradient divider. */}
+                        <p className="text-display text-sm text-text">
                             Mulligan
                         </p>
-                        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                        <div className="panel-rule h-px w-full" />
                         <p className="text-text-muted text-xs">
                             {viewerMulls > 0
                                 ? `you have taken ${viewerMulls} mulligan${viewerMulls === 1 ? "" : "s"}`
@@ -122,7 +126,7 @@ export default function MulliganPrompt({
                     ) : (
                         <p className="text-text-muted text-xs">
                             Waiting for{" "}
-                            <span className="text-parchment font-beleren">
+                            <span className="text-display text-text">
                                 {declaringPlayer?.name ?? "opponent"}
                             </span>
                         </p>

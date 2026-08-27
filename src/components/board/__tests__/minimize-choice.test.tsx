@@ -238,8 +238,16 @@ describe("MinimizedChoiceIndicator (issue #315)", () => {
         const min = makeMinimized({ isMinimized: true });
         const { container, getByText } = renderIndicator(min);
         const btn = container.querySelector("button")!;
-        // Accent + pulse so the player can't forget play is blocked.
-        expect(btn.className).toContain("animate-pulse");
+        // v4 (ADR 0103 §3/§5, issue #2730): the WHOLE-badge `animate-pulse`
+        // glow this used to assert is retired — the visibility cue moved
+        // onto a single pulsing status dot (`dot-pulse-ring`, the same
+        // box-shadow-ring keyframe every HUD badge's "needs your input" dot
+        // uses now), which is still an always-visible, always-moving
+        // attention cue (#315's actual requirement) — just not a whole-
+        // button pulse anymore.
+        const dot = btn.querySelector("[aria-hidden]");
+        expect(dot).not.toBeNull();
+        expect(dot!.className).toContain("dot-pulse-ring");
         // The choice kind label is surfaced ("Choose" for choose-permanents).
         expect(getByText(/Choose/)).toBeTruthy();
     });

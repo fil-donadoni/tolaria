@@ -32,10 +32,13 @@ export default function SacrificeBanner({
                 className={`cursor-move select-none ${innerClassName}`.trim()}
             >
                 <Panel density="compact" className="px-5 py-3">
-                    <p className="font-beleren text-sm tracking-wide text-parchment">
+                    {/* v4 (ADR 0103 §4, issue #2730): title off Beleren onto
+                        the chrome display face; the shared `.panel-rule`
+                        hairline replaces the repeated gold-gradient divider. */}
+                    <p className="text-display text-sm text-text">
                         Attack cost
                     </p>
-                    <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent my-1.5" />
+                    <div className="panel-rule my-1.5 h-px w-full" />
                     <p className="text-text-muted text-xs">
                         {describeSacrificeChoice(selection)} to attack
                     </p>
