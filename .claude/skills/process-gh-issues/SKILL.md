@@ -327,7 +327,7 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     Do not close a parent on a partial count, and do not close one whose `total` is 0 — a zero means nobody wired the sub-issue edges, not that there is no work left.
 
 - **Post-merge health check.** A gate that passed on the rebased tree can still be followed by a red `main` — a required check that only runs on `main`, a deployment step, a second merge that raced yours. After the last merge of the batch, read the tip's check runs (the §0 `gh api … /check-runs` call). Red → run §0b triage immediately: the culprit is almost certainly a commit **this loop just merged**, which is the revert case. Do not start another batch on a red tip.
-- **AFK handoff — the last action of the pass, after Release and the final report.** Run `sh scripts/loop-handoff.sh --from-pass` on **every** exit path that reaches a report, including a pass that landed nothing. It decides for itself: quiet exit-0 no-op unless the checkout is armed and no driver already owns it, otherwise it detaches a `loop:drain` driver. **A blocked handoff is never an error** — the batch that just landed stays a success. Conditions and flags: `references/afk-driver.md`.
+- **A pass NEVER starts or arms the AFK driver (ADR 0109).** The old end-of-pass handoff (`sh scripts/loop-handoff.sh --from-pass`) is a dead switch — calling it is harmless but owed nowhere. Do not launch `loop:drain`, `loop:afk` or any background driver from inside a pass, whatever state `.claude/telemetry/afk.conf` is in: unattended runs begin only with an explicit human `bun run loop:afk --start` in a terminal. The pass ends at its final report.
 
 - Pass complete. With `MAX_PASSES = 1` (default), **exit here** — the driver starts a fresh process for the next batch (see § Running unattended).
 
@@ -370,7 +370,7 @@ This skill implements **one pass**. Continuous operation is an outer loop that r
 
 **Headless: nothing waits on a background job.** Under `claude -p` the turn's end ends the process: a backgrounded gate never reports back and the pass dies with its batch claimed. Gate in the foreground — `references/afk-driver.md` § Dead passes.
 
-Start an unattended run with **`bun run loop:afk`** (ADR 0097/0099): it arms the checkout and detaches the out-of-process driver into its own session, so the run outlives the terminal, the SSH connection and the Claude Code process that started it, and every finished pass hands the baton on (§4 last step) even if the driver died. `bun run loop:drain` runs the same driver in the foreground. Commands, arming, permission mode, stop reasons, crash retry, budget proxy: `references/afk-driver.md`.
+Start an unattended run with **`bun run loop:afk --start --budget <tokens>`** (ADR 0097/0099/0109): a HUMAN types it in a terminal, it refuses to start without a token budget, and it detaches the out-of-process driver into its own session, so the run outlives the terminal, the SSH connection and the Claude Code process that started it — the DRIVER launches every subsequent pass. A pass never hands the baton to a new driver (ADR 0109). `bun run loop:drain` runs the same driver in the foreground. Commands, permission mode, stop reasons, crash retry, budget proxy: `references/afk-driver.md`.
 
 ## The queue is the only source of work
 

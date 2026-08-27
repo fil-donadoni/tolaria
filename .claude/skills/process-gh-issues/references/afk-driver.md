@@ -3,17 +3,18 @@
 <!-- Loaded on demand by .claude/skills/process-gh-issues/SKILL.md — not part of the frame. -->
 
 Entered when setting up or debugging continuous unattended draining (§ Running
-unattended). Full rationale: ADR 0097 (the driver) and ADR 0099 (the handoff
-that starts it, and the crash-retry policy).
+unattended). Full rationale: ADR 0097 (the driver), ADR 0099 (the handoff and
+the crash-retry policy) and ADR 0109 (a pass never starts the driver; budget
+mandatory).
 
 ---
 
 Two layers, one job:
 
-| Layer                                  | What it is                                                                                                     |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `loop:drain` (`scripts/loop-drain.sh`) | a POSIX `sh` loop around a fresh `claude -p "/process-gh-issues"` per pass — the "Ralph" pattern               |
-| `loop:afk` (`scripts/loop-handoff.sh`) | arms the checkout and **detaches** that driver, so one command (or one finished pass) starts an unattended run |
+| Layer                                  | What it is                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `loop:drain` (`scripts/loop-drain.sh`) | a POSIX `sh` loop around a fresh `claude -p "/process-gh-issues"` per pass — the "Ralph" pattern |
+| `loop:afk` (`scripts/loop-handoff.sh`) | **detaches** that driver when a HUMAN types `--start`/`--resume` — never from a pass (ADR 0109)  |
 
 The driver never re-uses a conversation, so it never trips the deny-guard
 `/loop` trips.
@@ -21,12 +22,12 @@ The driver never re-uses a conversation, so it never trips the deny-guard
 ## Starting a run — one command, then walk away
 
 ```sh
-bun run loop:afk                     # arm (if needed) + detach a driver
-bun run loop:afk --status            # armed? driver alive? stop-file? last 5 passes
+bun run loop:afk --budget <tokens>   # detach a driver (budget is MANDATORY — ADR 0109)
+bun run loop:afk --status            # conf? driver alive? stop-file? last 5 passes
 bun run loop:afk --stop              # stop after the current pass finishes
 bun run loop:afk --resume            # clear the stop-file and start again
-bun run loop:afk --arm               # record the conf without starting anything
-bun run loop:afk --disarm            # end-of-pass handoff stops firing
+bun run loop:afk --arm               # record the conf (defaults for --start) without starting anything
+bun run loop:afk --disarm            # remove the stored defaults
 ```
 
 The detached driver runs in **its own session** (`setsid` via `perl`, plus
@@ -35,21 +36,28 @@ process that launched it, and is not killed by a process-group signal aimed at
 that parent. It runs under `caffeinate -i -s` (opt out with `--no-caffeinate`)
 because a Mac that sleeps stops the run as surely as a crash does.
 
-**Arming is what makes a finished pass start the next one.** `/process-gh-issues`
-ends with `sh scripts/loop-handoff.sh --from-pass` (SKILL.md §4, last step),
-which no-ops unless `.claude/telemetry/afk.conf` exists. Arming is therefore a
-deliberate, durable, revocable human act — an ordinary interactive pass must
-never silently fork an hours-long run that auto-approves every permission
-prompt. The conf records that permission mode **in plain text** so it can be
-read, audited and deleted; it is parsed, never sourced or `eval`'d (an
-unattended process reads it and then runs `claude` with what it finds).
+**A pass NEVER starts the driver (ADR 0109).** The end-of-pass handoff
+(`--from-pass`) of ADR 0099 is a dead switch: it exits 0 unconditionally and
+detaches nothing, kept only so older prompts that still call it stay
+harmless. The failure it removes: a weeks-old `afk.conf` turned ONE
+interactive `/process-gh-issues` into an unattended, unbudgeted multi-day
+drain (observed repeatedly; the 2026-08-25→27 burn ran that way). Unattended
+runs begin ONLY with an explicit human `bun run loop:afk --start` /
+`--resume` (or a foreground `bun run loop:drain`) in a terminal, and refuse
+to start without a token budget (`--budget`, a conf-recorded `BUDGET`, or
+`TOLARIA_LOOP_TOKEN_BUDGET`).
 
-The handoff also no-ops — quietly, exit 0, never failing the batch that just
-landed — when the pass was itself started by the driver
-(`TOLARIA_LOOP_DRAIN=1`; without this check every driven pass would fork
-another driver and the fan-out would be exponential), when a driver is already
-running over this checkout (its pid file, liveness-checked so a killed driver
-leaves no stale lock), or when the stop-file exists.
+`.claude/telemetry/afk.conf` (written by `--arm` / `--start`) is now only a
+set of stored defaults for `--start`. It records the permission mode **in
+plain text** so it can be read, audited and deleted; it is parsed, never
+sourced or `eval`'d (an unattended process reads it and then runs `claude`
+with what it finds).
+
+`--start` refuses — loudly, exit 1 — when the shell is itself a driven pass
+(`TOLARIA_LOOP_DRAIN=1`; without this check every driven pass typing it would
+fork another driver and the fan-out would be exponential), when a driver is
+already running over this checkout (its pid file, liveness-checked so a
+killed driver leaves no stale lock), or when the stop-file exists.
 
 `bun run loop:drain` remains the way to run the driver in the **foreground** of
 a terminal you are watching.
@@ -67,7 +75,7 @@ are checked once the pass finishes. The pass log and
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `stop-file`   | `.claude/telemetry/loop-stop` exists — `touch` it to stop the driver after the current pass finishes (the kill switch for a run in flight)                                                                                           |
 | `max-passes`  | `--max-passes` reached                                                                                                                                                                                                               |
-| `budget`      | the local-proxy token pct crossed `--max-pct` (disabled, and said so once at startup, when no budget is configured)                                                                                                                  |
+| `budget`      | the local-proxy token pct crossed `--max-pct` (a budget is always configured — the driver refuses to start without one, ADR 0109)                                                                                                    |
 | `usage-error` | a budget IS configured but its pct couldn't be read back — the reader crashed, exited non-zero, or returned something unparsable. **Fails CLOSED**: stops the run exactly like `budget` would, never skips the check and runs anyway |
 | `queue-empty` | no unclaimed `ready-for-agent` issues left — the ordinary, healthy end of a run; do not poll aggressively, a human must refill the queue                                                                                             |
 
@@ -153,22 +161,22 @@ bun run loop:drain \
 
 ## Flags
 
-| Flag                       | Env fallback                | Default                            |
-| -------------------------- | --------------------------- | ---------------------------------- |
-| `--budget`                 | `TOLARIA_LOOP_TOKEN_BUDGET` | unset (guard disabled)             |
-| `--max-pct`                | —                           | `80`                               |
-| `--window-hours`           | —                           | `5`                                |
-| `--max-passes`             | —                           | `0` (unlimited)                    |
-| `--stop-file`              | —                           | `.claude/telemetry/loop-stop`      |
-| `--claude-args`            | —                           | empty (warns; see Permissions)     |
-| `--prompt`                 | —                           | `/process-gh-issues` (scopes it)   |
-| `--max-consecutive-errors` | —                           | `3`                                |
-| `--error-backoff-secs`     | —                           | `60` (doubles per retry)           |
-| `--error-backoff-max-secs` | —                           | `900`                              |
-| `--pid-file`               | —                           | `.claude/telemetry/loop-drain.pid` |
-| `--single-instance`        | —                           | off (the handoff always passes it) |
-| `--start-delay`            | —                           | `0` (the handoff passes `45`)      |
-| `--dry-run`                | —                           | off                                |
+| Flag                       | Env fallback                | Default                                               |
+| -------------------------- | --------------------------- | ----------------------------------------------------- |
+| `--budget`                 | `TOLARIA_LOOP_TOKEN_BUDGET` | **required** — refuses to start unbudgeted (ADR 0109) |
+| `--max-pct`                | —                           | `80`                                                  |
+| `--window-hours`           | —                           | `5`                                                   |
+| `--max-passes`             | —                           | `0` (unlimited)                                       |
+| `--stop-file`              | —                           | `.claude/telemetry/loop-stop`                         |
+| `--claude-args`            | —                           | empty (warns; see Permissions)                        |
+| `--prompt`                 | —                           | `/process-gh-issues` (scopes it)                      |
+| `--max-consecutive-errors` | —                           | `3`                                                   |
+| `--error-backoff-secs`     | —                           | `60` (doubles per retry)                              |
+| `--error-backoff-max-secs` | —                           | `900`                                                 |
+| `--pid-file`               | —                           | `.claude/telemetry/loop-drain.pid`                    |
+| `--single-instance`        | —                           | off (the handoff always passes it)                    |
+| `--start-delay`            | —                           | `0` (the handoff passes `45`)                         |
+| `--dry-run`                | —                           | off                                                   |
 
 Every numeric flag is validated at startup — a non-numeric value (a typo, a
 suffix like `2M`, a separator like `2_000_000`) is a loud `exit 2`, never a

@@ -270,17 +270,28 @@ if [ -z "$CLAUDE_ARGS" ]; then
     echo "  That is a security-relevant choice this driver will not default for you." >&2
 fi
 
-# ── budget guard is opt-in: no budget configured -> disabled, said once. A
-# silently-disabled guard is the failure mode to avoid (see the PRD). Once
-# opted in, the guard must FAIL CLOSED: if the pct can't be read back (the
+# ── budget guard is MANDATORY (ADR 0109). It used to be opt-in, and the one
+# thing that predictably went wrong is exactly what the opt-in allowed: every
+# launcher after 2026-08-23 forgot the flag and the driver ran unthrottled
+# for days (the 2026-08-25→27 91%-in-48h burn). No budget -> refuse to start.
+# Once running, the guard FAILS CLOSED: if the pct can't be read back (the
 # reader is missing, crashes, or emits something we can't parse a number
 # from), that is treated exactly like "budget exceeded" — see stop reason
 # `usage-error` below — never "skip the check and run anyway."
+# TOLARIA_LOOP_ALLOW_NO_BUDGET is a TEST-ONLY hatch: the driver's own suite
+# exercises dozens of behaviours that are not about the budget guard. Never
+# set it for a real run.
 BUDGET_ENABLED=1
 case "$BUDGET" in
     "" | 0 | 0.0 | -*)
-        BUDGET_ENABLED=0
-        echo "loop-drain: no --budget / TOLARIA_LOOP_TOKEN_BUDGET configured — the token-budget guard is DISABLED for this run." >&2
+        if [ -n "${TOLARIA_LOOP_ALLOW_NO_BUDGET:-}" ]; then
+            BUDGET_ENABLED=0
+            echo "loop-drain: TOLARIA_LOOP_ALLOW_NO_BUDGET set (test-only hatch) — the token-budget guard is DISABLED for this run." >&2
+        else
+            echo "loop-drain: --budget / TOLARIA_LOOP_TOKEN_BUDGET is REQUIRED — this driver refuses to run unbudgeted (ADR 0109)." >&2
+            echo "loop-drain: e.g. --budget 200000000; the guard stops the run once the ${WINDOW_HOURS}h weighted usage reaches --max-pct (${MAX_PCT}%) of it." >&2
+            exit 1
+        fi
         ;;
 esac
 
