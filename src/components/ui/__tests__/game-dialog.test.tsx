@@ -93,23 +93,6 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         ).toBe(0);
     });
 
-    // `ornament` is retired but still ACCEPTED (Game Over passes it, and this
-    // slice edits no consumer — #2734 removes the prop and its call sites
-    // together). It must be inert, not a way back to the filigree.
-    it("accepts the retired ornament prop without bringing the filigree back", () => {
-        const { baseElement } = render(
-            <GameDialog open title="Framed" ornament>
-                <p>body</p>
-            </GameDialog>
-        );
-        expect(
-            baseElement.querySelectorAll('[data-slot="corner-filigree"]').length
-        ).toBe(0);
-        expect(
-            baseElement.querySelectorAll('[data-slot="corner-bracket"]').length
-        ).toBe(0);
-    });
-
     it("keeps the dialog title at the panel's own title inset", () => {
         render(
             <GameDialog open title="Framed">

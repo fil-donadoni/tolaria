@@ -20,7 +20,6 @@ import {
     DENSITY_RUNGS,
     FLUID_TYPE_TOKENS,
     CONTROL_HEIGHT_TOKENS,
-    bracketTitleGapPx,
 } from "@/lib/design-tokens";
 
 /** Live specimens: each step rendered AT its own clamp, so resizing the window
@@ -144,76 +143,6 @@ function ControlHeightSpecimens() {
     );
 }
 
-function PanelAnatomy() {
-    const gap = bracketTitleGapPx();
-    return (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Specimen label="Panel — the default frame (now v4)" tone="plain">
-                <Panel>
-                    <PanelHeader
-                        title="Panel v4"
-                        subtitle="title left · 1px rule"
-                    />
-                    <PanelBody>
-                        <p className="text-xs text-text-muted">
-                            The v3 frame was four 10px inset brackets at 1px /
-                            opacity .5. ADR 0103 §5 retired them (#2723): the
-                            frame is now the panel&apos;s own hairline EDGE.
-                            What v3 contributed and v4 keeps is the LAYOUT — the
-                            band bleeds to the panel border and the title starts
-                            at <code>--panel-header-pad-x</code> from it.
-                        </p>
-                    </PanelBody>
-                    <PanelFooter>
-                        <Button size="sm" variant="secondary">
-                            Cancel
-                        </Button>
-                        <Button size="sm">Confirm</Button>
-                    </PanelFooter>
-                </Panel>
-            </Specimen>
-            <Specimen label="Panel — the retired ornament opt-in" tone="plain">
-                <Panel ornament tone="accent">
-                    <PanelHeader title="Waiting state" />
-                    <PanelBody>
-                        <p className="text-xs text-text-muted">
-                            This Panel passes <code>ornament</code> and gets
-                            nothing for it. v4 has no corner ornament at all —
-                            the 40px filigree that used to come back here is
-                            gone, and the one surviving ornament atom is{" "}
-                            <code>OrnamentalDivider</code>, which a waiting
-                            state places in its own content. The prop is still
-                            ACCEPTED so that #2723 changed no consumer file;
-                            #2734 drops it together with its three call sites.
-                        </p>
-                    </PanelBody>
-                </Panel>
-            </Specimen>
-            <div className="lg:col-span-2">
-                <p className="text-xs text-text-muted">
-                    <strong className="text-text">
-                        Clearance (historical, still enforced):
-                    </strong>{" "}
-                    a title never sat within{" "}
-                    <code>--panel-title-bracket-clearance</code> of a bracket.
-                    Title inset − (bracket inset + bracket size) ={" "}
-                    <span className="font-mono text-accent-strong">
-                        {gap}px
-                    </span>
-                    . Asserted arithmetically from the tokens in{" "}
-                    <code>src/__tests__/design-tokens.test.ts</code>, never
-                    geometrically: happy-dom has no layout engine, so a
-                    <code> getBoundingClientRect()</code> assertion would pass
-                    on a title sitting underneath the bracket. Panel no longer
-                    paints a bracket, but the two surfaces that still import{" "}
-                    <code>CornerBracketFrame</code> directly do, and the tokens
-                    stay declared until #2734 retires them.
-                </p>
-            </div>
-        </div>
-    );
-}
-
 export function V3Sections() {
     return (
         <Section
@@ -250,10 +179,32 @@ export function V3Sections() {
             </Sub>
 
             <Sub
-                title="Panel v3 anatomy"
-                note="10px brackets, title left + rule"
+                title="Panel header inset"
+                note="title starts --panel-header-pad-x from the panel border"
             >
-                <PanelAnatomy />
+                <Specimen label="Panel — the v4 frame" tone="plain">
+                    <Panel>
+                        <PanelHeader
+                            title="Panel v4"
+                            subtitle="title left · 1px rule"
+                        />
+                        <PanelBody>
+                            <p className="text-xs text-text-muted">
+                                No corner ornament of any kind (ADR 0103 §5,
+                                issue #2734) — the frame is the panel&apos;s own
+                                hairline EDGE. The one surviving layout term is
+                                the title inset itself:{" "}
+                                <code>--panel-header-pad-x</code>.
+                            </p>
+                        </PanelBody>
+                        <PanelFooter>
+                            <Button size="sm" variant="secondary">
+                                Cancel
+                            </Button>
+                            <Button size="sm">Confirm</Button>
+                        </PanelFooter>
+                    </Panel>
+                </Specimen>
                 <TokenRows group={V3_TOKEN_GROUPS[4]} />
             </Sub>
         </Section>

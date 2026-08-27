@@ -52,11 +52,6 @@ type GameDialogProps = {
      *  that preference. See `Panel`'s `PanelDensity` doc for the v2 → v3
      *  rename. */
     density?: PanelDensity;
-    /** Opt in to the rich corner filigree instead of the v3 brackets
-     *  (ADR 0101 §2). Allowed only in waiting states — Game Over / Match
-     *  Result — and the Panel additionally gates it to viewports above
-     *  844x390. Every other dialog leaves it off and gets v3 brackets. */
-    ornament?: boolean;
     className?: string;
     children: React.ReactNode;
 };
@@ -73,9 +68,9 @@ const sizeClasses: Record<GameDialogSize, string> = {
 };
 
 /**
- * Gameplay dialog in the Zelda-TotK item-panel shape (issue #597): sunburst icon
- * well, bold Beleren title + full-width gold underline rule, optional stat
- * row, body, footer actions, and the Panel's subtle SVG corner filigree.
+ * Gameplay dialog in the Zelda-TotK item-panel shape (issue #597): sunburst
+ * icon well, Geist display title + hairline rule (ADR 0103 §4/§5), optional
+ * stat row, body, footer actions, on the Panel's hairline + material frame.
  *
  * Padding keeps the frame clear of content — the Panel adds its density's
  * padding all round, the title carries `.panel-title-clear`, and the footer
@@ -97,7 +92,6 @@ export default function GameDialog({
     showCloseButton = false,
     onMinimize,
     density,
-    ornament = false,
     className,
     children,
 }: GameDialogProps) {
@@ -130,7 +124,6 @@ export default function GameDialog({
                 <Panel
                     tone="neutral"
                     density={density}
-                    ornament={ornament}
                     // `flex flex-col` + `max-h-[calc(100dvh-2rem)]` (issue
                     // #2666): the cap lives HERE, on the whole visible dialog
                     // surface (header + scrolling body + footer), not on the

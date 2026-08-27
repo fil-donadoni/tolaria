@@ -68,7 +68,7 @@ export default function HandCardConfirmPill({
             type="button"
             {...{ [TAP_STAGE_KEEP_ATTR]: "" }}
             data-hand-confirm-pill=""
-            className="fixed z-modal min-h-11 min-w-24 rounded-full border border-accent-strong bg-accent px-5 text-sm font-beleren tracking-wide text-surface-base shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+            className="fixed z-modal min-h-11 min-w-24 rounded-full border border-accent-strong bg-accent px-5 text-sm text-display tracking-wide text-surface-base shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
             style={{
                 left: pos?.left ?? 0,
                 top: pos?.top ?? 0,

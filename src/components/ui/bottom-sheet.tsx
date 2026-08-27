@@ -91,7 +91,7 @@ export default function BottomSheet({
                     <div className="w-10 h-1 rounded-full bg-[var(--hairline-strong)]" />
                 </div>
                 <div className="flex shrink-0 items-center justify-between px-3 pt-1">
-                    <span className="font-beleren text-sm text-parchment">
+                    <span className="text-display text-sm text-parchment">
                         {title}
                     </span>
                     <button

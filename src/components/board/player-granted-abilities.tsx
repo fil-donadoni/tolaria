@@ -49,7 +49,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
                         onClick={() => handleClick(grant)}
                         disabled={disabled}
                         title={grant.oracleText}
-                        className={`text-xs font-beleren tracking-wide px-3 py-1.5 rounded-sm whitespace-nowrap shadow-md transition-colors border ${
+                        className={`text-xs text-display tracking-wide px-3 py-1.5 rounded-sm whitespace-nowrap shadow-md transition-colors border ${
                             disabled
                                 ? "bg-surface-elevated border-border-subtle text-text-disabled cursor-not-allowed"
                                 : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 cursor-pointer"

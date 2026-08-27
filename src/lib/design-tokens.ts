@@ -192,27 +192,6 @@ export const MOTION_TOKENS: readonly TokenSpec[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 export const PANEL_FRAME_TOKENS: readonly TokenSpec[] = [
     {
-        name: "--panel-bracket-inset",
-        value: "4px",
-        role: "bracket offset from the panel border",
-    },
-    {
-        name: "--panel-bracket-size",
-        value: "10px",
-        role: "bracket arm length (was a 40px filigree)",
-    },
-    { name: "--panel-bracket-width", value: "1px", role: "bracket stroke" },
-    {
-        name: "--panel-bracket-opacity",
-        value: "0.5",
-        role: "bracket opacity",
-    },
-    {
-        name: "--panel-title-bracket-clearance",
-        value: "4px",
-        role: "minimum gap between bracket and title (ADR 0101 §2)",
-    },
-    {
         name: "--panel-header-pad-x",
         value: "20px",
         role: "title inset from the panel border",
@@ -249,8 +228,8 @@ export const V3_TOKEN_GROUPS: readonly TokenGroup[] = [
     },
     {
         id: "panel-frame",
-        title: "Panel v3 frame",
-        blurb: "10px inset brackets at 1px / opacity .5. The title inset must exceed the bracket reach by the clearance token — asserted arithmetically, since happy-dom has no layout engine.",
+        title: "Panel header inset",
+        blurb: "The Panel v3 corner bracket/filigree frame was retired by ADR 0103 §5 (issue #2734) — the frame is now the panel's own hairline edge. The one surviving layout term is the title inset from the panel border.",
         tokens: PANEL_FRAME_TOKENS,
     },
 ] as const;
@@ -471,18 +450,4 @@ export function pxValue(value: string): number {
     const m = /^(-?[\d.]+)px$/.exec(value.trim());
     if (!m) throw new Error(`not a px length: ${value}`);
     return Number(m[1]);
-}
-
-/** The ADR 0101 §2 clearance invariant, as arithmetic over the frame tokens:
- *  a Panel title never sits within `--panel-title-bracket-clearance` of a
- *  corner bracket. Returns the actual gap in px (negative = overlap). */
-export function bracketTitleGapPx(
-    tokens: Record<string, string> = Object.fromEntries(
-        PANEL_FRAME_TOKENS.map((t) => [t.name, t.value])
-    )
-): number {
-    const reach =
-        pxValue(tokens["--panel-bracket-inset"]) +
-        pxValue(tokens["--panel-bracket-size"]);
-    return pxValue(tokens["--panel-header-pad-x"]) - reach;
 }

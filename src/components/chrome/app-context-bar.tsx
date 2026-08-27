@@ -93,7 +93,7 @@ export default function AppContextBar({
                 <span />
             )}
             {title && (
-                <span className="min-w-0 truncate font-beleren text-sm tracking-[0.14em] text-accent-strong">
+                <span className="min-w-0 truncate text-display text-sm tracking-[0.14em] text-accent-strong">
                     {title}
                 </span>
             )}

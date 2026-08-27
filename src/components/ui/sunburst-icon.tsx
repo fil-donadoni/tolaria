@@ -16,7 +16,7 @@ export default function SunburstIcon({
         <span
             data-slot="sunburst-icon"
             className={cn(
-                "sunburst-well flex shrink-0 items-center justify-center rounded-md drop-shadow-[0_0_20px_rgba(201,162,75,0.4)]",
+                "sunburst-well flex shrink-0 items-center justify-center rounded-md drop-shadow-[0_0_20px_color-mix(in_srgb,var(--color-accent-strong)_40%,transparent)]",
                 className
             )}
             style={{ width: size, height: size }}

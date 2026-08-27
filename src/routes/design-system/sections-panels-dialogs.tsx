@@ -105,16 +105,15 @@ export function PanelsDialogsSections() {
                             </Where>
                             <p className="mt-2 text-xs text-text-muted">
                                 <strong className="text-text">
-                                    Retired from Panel, not yet deleted.
+                                    Deleted (issue #2734).
                                 </strong>{" "}
                                 <code>CornerBracket*</code> /{" "}
-                                <code>CornerFiligree*</code> left the frame in
-                                #2723 but are NOT orphaned: two production
-                                surfaces still import them directly (
-                                <code>chrome/app-header.tsx</code>,{" "}
-                                <code>board/player-nameplate.tsx</code>). #2734
-                                re-skins those two and deletes the atoms, their
-                                CSS recipes and the{" "}
+                                <code>CornerFiligree*</code> left Panel itself
+                                in #2723; the last production consumer (
+                                <code>chrome/app-header.tsx</code>) dropped its
+                                manual <code>CornerBracketFrame</code> overlay
+                                in #2734, which deleted the four atom
+                                components, their CSS recipes and the{" "}
                                 <code>--panel-bracket-*</code> tokens together.
                             </p>
                         </Specimen>
