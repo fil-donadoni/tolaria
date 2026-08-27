@@ -6,6 +6,7 @@ import {
     PopoverTrigger,
 } from "~/components/ui/popover";
 import BottomSheet from "~/components/ui/bottom-sheet";
+import { Button } from "~/components/ui/button";
 import { useSurfaceClass } from "~/hooks/useSurfaceClass";
 import { cn } from "~/lib/utils";
 
@@ -107,19 +108,19 @@ export default function DeckFiltersButton({
                     title="Filters"
                     marker="data-filters-sheet"
                     footer={
-                        <div className="border-t border-border-subtle/40 px-3 pt-2">
-                            <button
+                        <div className="border-t border-[var(--hairline)] px-3 pt-2 pb-2">
+                            <Button
                                 type="button"
+                                variant="primary"
                                 onClick={() => setSheetOpen(false)}
-                                style={{ minHeight: "var(--control-h)" }}
-                                className="w-full rounded-md bg-accent px-3 font-semibold text-surface-base"
+                                className="w-full"
                             >
                                 {resultCount === null
                                     ? "Pick a filter to see cards"
                                     : `Show ${resultCount} ${
                                           resultCount === 1 ? "card" : "cards"
                                       }`}
-                            </button>
+                            </Button>
                         </div>
                     }
                 >

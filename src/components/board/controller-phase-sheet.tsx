@@ -152,12 +152,17 @@ export default function ControllerPhaseSheet({
             data-phase-sheet
             className="fixed inset-0 z-sheet flex flex-col justify-end md:hidden"
         >
-            {/* Dimmed backdrop — tap to dismiss (touch + mouse both fire click). */}
+            {/* Dimmed backdrop — tap to dismiss (touch + mouse both fire
+                click). `modal-scrim` (ADR 0103 §5, issue #2731): this bespoke
+                sheet adopts the SAME scrim every other full-screen overlay
+                uses (`modal-scrim.guard.test.ts`) instead of its own flat
+                `bg-black/50`, which had no blur and let the live board bleed
+                through. */}
             <button
                 type="button"
                 aria-label="Close phase list"
                 onClick={onClose}
-                className="absolute inset-0 bg-black/50"
+                className="absolute inset-0 modal-scrim"
             />
             <div
                 // `pb-[env(safe-area-inset-bottom)]` (issue #2594): this
@@ -166,7 +171,12 @@ export default function ControllerPhaseSheet({
                 // pattern — without it the home-indicator strip on a
                 // notched phone sits on top of the last phase row instead of
                 // below the sheet's own padding.
-                className="relative flex max-h-[70vh] w-full flex-col animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+                //
+                // `border-[var(--hairline)]` (ADR 0103 §5, issue #2731): the
+                // bespoke lookalike adopts the same hairline frame token
+                // `ActionSheet`/`BottomSheet` re-skinned to, in place of the
+                // legacy flattened `border-border-subtle`.
+                className="relative flex max-h-[70vh] w-full flex-col animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-[var(--hairline)] bg-surface shadow-2xl backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
                 style={{
                     transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
                     transition: dragging
@@ -188,7 +198,7 @@ export default function ControllerPhaseSheet({
                     onPointerCancel={onHandlePointerCancel}
                     onLostPointerCapture={onHandleLostPointerCapture}
                 >
-                    <div className="h-1 w-10 rounded-full bg-border-accent" />
+                    <div className="h-1 w-10 rounded-full bg-[var(--hairline-strong)]" />
                 </div>
                 {/* The bottom bar's Phase tab shows the abbreviated
                  *  `compact` step word in this portrait context, so the

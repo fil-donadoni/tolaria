@@ -19,6 +19,59 @@ import { join } from "node:path";
 const moduleUrl = import.meta.url;
 const SRC_ROOT = new URL("../..", moduleUrl).pathname;
 
+/** Line and block comments removed from a `.tsx`/`.ts` source string, string
+ *  and template-literal contents left untouched — a state-machine scan, not a
+ *  regex, so a double-slash inside a quoted string or a URL (`"https://…"`)
+ *  is never mistaken for a line comment. `design-tokens.test.ts`'s
+ *  `stripComments` strips CSS block comments only; component sources also
+ *  carry line comments, which is exactly where this guard's per-site check
+ *  got fooled (review finding, #2731 round 1): a site whose real `className`
+ *  had its `modal-scrim` token reverted to a bare `bg-black/50` still passed
+ *  because an explanatory comment above it also said the words
+ *  "modal-scrim". */
+function stripCodeComments(source: string): string {
+    let out = "";
+    let i = 0;
+    const n = source.length;
+    while (i < n) {
+        const two = source.slice(i, i + 2);
+        if (two === "//") {
+            while (i < n && source[i] !== "\n") i++;
+            continue;
+        }
+        if (two === "/*") {
+            const end = source.indexOf("*/", i + 2);
+            i = end === -1 ? n : end + 2;
+            continue;
+        }
+        const ch = source[i];
+        if (ch === '"' || ch === "'" || ch === "`") {
+            const quote = ch;
+            out += ch;
+            i++;
+            while (i < n) {
+                const c = source[i];
+                out += c;
+                i++;
+                if (c === "\\") {
+                    // Escaped char (e.g. `\"` or `\\`) — copy it verbatim and
+                    // keep scanning; it never closes the string.
+                    if (i < n) {
+                        out += source[i];
+                        i++;
+                    }
+                    continue;
+                }
+                if (c === quote) break;
+            }
+            continue;
+        }
+        out += ch;
+        i++;
+    }
+    return out;
+}
+
 /** Recursively collect component/source files under src/, skipping tests. */
 function sourceFiles(dir: string): string[] {
     const out: string[] = [];
@@ -76,13 +129,44 @@ describe("modal scrim carries the heavy blur (#1891)", () => {
             // click-catcher had NO scrim at all — the board bled through the
             // open picker exactly like the bare-`bg-scrim` overlays did.
             "components/board/mana-choice-picker.tsx",
-            "components/cards/phyrexian-picker.tsx",
+            // Mode / alt-cost / Phyrexian / additional-cost cast-time pickers
+            // (issue #2731) all delegate their popover shell to the shared
+            // `AnchoredPicker` primitive, so the scrim now lives ONCE there
+            // instead of once per picker file — the four no longer contain
+            // the literal string themselves.
+            "components/ui/anchored-picker.tsx",
+            // The bespoke controller phase sheet (ADR 0103 §5, issue #2731) —
+            // it used to paint its own flat `bg-black/50` with no blur.
+            "components/board/controller-phase-sheet.tsx",
         ];
         for (const site of SITES) {
             const src = readFileSync(join(SRC_ROOT, site), "utf8");
-            expect(src, `${site} must use modal-scrim`).toContain(
-                "modal-scrim"
-            );
+            // Comments stripped FIRST: a file can carry the literal string
+            // `modal-scrim` only in an explanatory comment while its actual
+            // `className` was reverted to a bare `bg-black/50` — the check
+            // must fail in that case, not read the prose as the code.
+            expect(
+                stripCodeComments(src),
+                `${site} must use modal-scrim in its actual code, not only in a comment`
+            ).toContain("modal-scrim");
         }
+    });
+
+    it("stripCodeComments strips // and /* */ comments but leaves string/template contents — including a `//` inside a URL — untouched", () => {
+        const source = [
+            "// a leading line comment mentioning modal-scrim",
+            'const url = "https://example.com/modal-scrim";',
+            "/* a block comment mentioning modal-scrim */",
+            'const cls = "real-modal-scrim-usage"; // trailing comment',
+            "const tmpl = `also has // not a comment inside`;",
+        ].join("\n");
+        const stripped = stripCodeComments(source);
+        expect(stripped).not.toContain("a leading line comment");
+        expect(stripped).not.toContain("a block comment");
+        expect(stripped).not.toContain("trailing comment");
+        // The URL's `//` must survive — it is string content, not a comment.
+        expect(stripped).toContain("https://example.com/modal-scrim");
+        expect(stripped).toContain("real-modal-scrim-usage");
+        expect(stripped).toContain("also has // not a comment inside");
     });
 });
