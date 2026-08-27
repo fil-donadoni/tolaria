@@ -11,6 +11,7 @@ import {
     DOC_GATE_TESTS_EXCLUDED,
     buildShipMergeCommand,
 } from "../docs-lane";
+import { remoteBranchDeleteStep } from "../land";
 
 /**
  * The documentation lane (`bun run wt:docs` / `bun run docs:ship`).
@@ -203,9 +204,12 @@ describe("docs-lane — the landing runs under the merge lock (#2537)", () => {
     });
 
     it("wraps ref cleanup and teardown so they cannot fail a landed merge", () => {
-        expect(cmd).toContain(
-            "(git push origin --delete 'docs/adr-0101' || true)"
-        );
+        // The remote-branch delete goes through `remoteBranchDeleteStep`
+        // (issue #2877), asserted verbatim so this test also proves the
+        // lane doesn't reimplement or diverge from `land.ts`'s helper — see
+        // `remoteBranchDeleteStep`'s own describe block in land.test.ts for
+        // the DIAGNOSTIC-filtering behaviour it provides.
+        expect(cmd).toContain(remoteBranchDeleteStep("docs/adr-0101"));
         expect(cmd).toContain(
             "(git -C '/repo' worktree remove --force '/repo-docs' || true)"
         );
