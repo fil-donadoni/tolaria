@@ -38,6 +38,23 @@ export interface DeckCardTileProps {
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
+    /** Fired on a native double click (issue #2861, Draft Room desktop
+     *  Pool/Sideboard only — see that surface's own doc comment for why this
+     *  is safe there but was rejected for the BUILD view's own single click
+     *  (PR #2641): there, `onClick` already MOVES the card, so double-click
+     *  shares its prefix with the gesture it would have to arbitrate against.
+     *  Here `onClick` only opens a (deliberately delayed) menu, so there is
+     *  no move to race. Absent ⇒ no `dblclick` listener at all, which is
+     *  every other caller (unchanged). */
+    onDoubleClick?: () => void;
+    /** Fired on a real right-click — the TILE calls `preventDefault` itself
+     *  before invoking this (issue #2861), so no caller has to remember to.
+     *  Presence is ALSO what disables {@link CardImage}'s own
+     *  right-click preview pin (`disableRightClickPreview`) — otherwise that
+     *  native `pointerdown`-driven gesture fires first and opens the zoom pin
+     *  before this handler ever sees the `contextmenu` event. Absent ⇒ the
+     *  preview pin keeps owning real right-click, unchanged everywhere else. */
+    onContextMenu?: (e: React.MouseEvent) => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
@@ -63,6 +80,8 @@ export default function DeckCardTile({
     dragData,
     title,
     onClick,
+    onDoubleClick,
+    onContextMenu,
     stackIndex,
     isFeatured,
     isSelected,
@@ -136,6 +155,22 @@ export default function DeckCardTile({
             {...{ [CARD_TILE_ATTR]: "" }}
             title={title}
             onClick={onClick}
+            onDoubleClick={onDoubleClick}
+            onContextMenu={
+                onContextMenu
+                    ? (e) => {
+                          // The tile owns `preventDefault` itself (review
+                          // finding, issue #2861 PR): every real caller wants
+                          // the native menu suppressed and none of them has
+                          // any other use for the event, so leaving it to
+                          // each caller left the native "Save image…" menu
+                          // popping up ON TOP of the Inspect Overlay this was
+                          // supposed to replace.
+                          e.preventDefault();
+                          onContextMenu(e);
+                      }
+                    : undefined
+            }
             onKeyDown={handleKeyDown}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
@@ -173,7 +208,11 @@ export default function DeckCardTile({
             {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
                 the DRAG (gesture model A), so the hold-preview is off — the
                 card is read through the Peek Panel's Inspect CTA instead. */}
-            <CardImage card={{ id: cardId }} holdPreview={false} />
+            <CardImage
+                card={{ id: cardId }}
+                holdPreview={false}
+                disableRightClickPreview={!!onContextMenu}
+            />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card.
                 Not one of the three card-ring ROLES (ADR 0103 §8) — it says

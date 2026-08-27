@@ -7,14 +7,22 @@ import type { BoosterDragData } from "./limitedDraftDrag";
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
 /** One pickable card in the pack in front of the viewer (PRD #1107, issue
- *  #1112; gestures per ADR 0060, issue #1248):
+ *  #1112; gestures per ADR 0060, issue #1248 — re-worked by issue #2861 for
+ *  desktop's card-context-menu regime):
  *
- *  - single click → SELECTS only (`onSelect`) — never commits a Pick. The
- *    Selected Card is what a timer expiry Auto-Picks (issue #1249).
+ *  - single click → always SELECTS (`onSelect`) — never commits a Pick by
+ *    itself. The Selected Card is what a timer expiry Auto-Picks (issue
+ *    #1249). Desktop additionally opens the pack menu right there
+ *    (`onOpenMenu`, no delay — there is no double-click gesture left to
+ *    arbitrate against on that regime, see below).
  *  - double click → commits the Pick (`onPick`) into the card's Mana-Value
- *    column by default.
- *  - right click → opens the "Pick" / "Pick to sideboard" context menu
- *    (`onOpenMenu`).
+ *    column by default. Phone-only since issue #2861: passing no `onPick`
+ *    at all is what retires this gesture on desktop, where the menu already
+ *    carries "Pick" and drag-and-drop still works.
+ *  - right click → phone opens the "Pick" / "Pick to sideboard" context menu
+ *    (`onOpenContextMenu`, unchanged); desktop opens the Inspect Overlay
+ *    directly instead (`onInspect`, issue #2861) — the two are mutually
+ *    exclusive, the caller passes exactly one.
  *  - drag → also commits the Pick, to whichever Pool column or the
  *    Sideboard it's dropped on (handled by the shared `DragDropProvider` in
  *    `limited-draft-table.tsx`; this component only registers the
@@ -31,6 +39,8 @@ export default function LimitedDraftPackCard({
     onSelect,
     onPick,
     onOpenMenu,
+    onOpenContextMenu,
+    onInspect,
     pending,
 }: {
     card: DraftPackCard;
@@ -38,8 +48,20 @@ export default function LimitedDraftPackCard({
      *  (`seat.selectedPickId`). */
     selected: boolean;
     onSelect: (pickId: string) => void;
-    onPick: (pickId: string) => void;
-    onOpenMenu: (pickId: string, x: number, y: number) => void;
+    /** Double-click commits the Pick. Absent ⇒ no `dblclick` listener at all
+     *  (desktop, issue #2861). */
+    onPick?: (pickId: string) => void;
+    /** Left click ALSO opens the pack menu, right there, no delay (desktop,
+     *  issue #2861). Absent ⇒ a click only selects (phone, unchanged). */
+    onOpenMenu?: (pickId: string, x: number, y: number) => void;
+    /** Real right-click opens the phone's "Pick" / "Pick to sideboard" menu
+     *  (unchanged). Mutually exclusive with `onInspect` — the caller passes
+     *  exactly one. */
+    onOpenContextMenu?: (pickId: string, x: number, y: number) => void;
+    /** Real right-click opens the Inspect Overlay directly instead (desktop,
+     *  issue #2861) — what a right-click already means everywhere else in
+     *  the app. Mutually exclusive with `onOpenContextMenu`. */
+    onInspect?: (pickId: string) => void;
     pending: boolean;
 }) {
     const data: BoosterDragData = {
@@ -63,18 +85,24 @@ export default function LimitedDraftPackCard({
             aria-pressed={selected}
             title={card.cardName}
             aria-label={`Draft pick: ${card.cardName}${selected ? " (selected)" : ""}`}
-            onClick={() => {
+            onClick={(e) => {
                 if (pending) return;
                 onSelect(card.pickId);
+                onOpenMenu?.(card.pickId, e.clientX, e.clientY);
             }}
-            onDoubleClick={() => {
-                if (pending) return;
-                onPick(card.pickId);
-            }}
+            onDoubleClick={
+                onPick
+                    ? () => {
+                          if (pending) return;
+                          onPick(card.pickId);
+                      }
+                    : undefined
+            }
             onContextMenu={(e) => {
                 e.preventDefault();
                 if (pending) return;
-                onOpenMenu(card.pickId, e.clientX, e.clientY);
+                if (onInspect) onInspect(card.pickId);
+                else onOpenContextMenu?.(card.pickId, e.clientX, e.clientY);
             }}
             className={cn(
                 // No `outline-none` (issue #2593). This tile is the Draft

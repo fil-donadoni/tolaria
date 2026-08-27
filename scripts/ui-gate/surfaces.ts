@@ -245,6 +245,15 @@ const DRAFT_PEEK_PANEL = "[data-peek-panel]";
  *  is the same handle the component suites drive. */
 const DRAFT_POOL_PEEK_CTA = `${DRAFT_PEEK_PANEL} [data-editing-action="Move to…"]`;
 
+/** The Draft Room's card context menu (issue #2861), replacing the Pool's
+ *  `DeckZonePeek` off a phone (tablet/desktop, `useViewportMode`'s single
+ *  "desktop" bucket). One `role=menu` per surface — Booster, Pool, Sideboard
+ *  — distinguished the same way `DRAFT_POOL_PEEK_CTA` told the Pool's old
+ *  Peek Panel apart from the Booster's: only the Pool's own menu ever offers
+ *  "Move to…" (`limited-draft-table.tsx`'s `desktopPoolMenuActionsFor`). */
+const DRAFT_POOL_MENU_MOVE_ITEM =
+    '[role=menu] [role=menuitem]:has-text("Move to…")';
+
 /**
  * Pins the Draft Room's Selected Card state (issue #2677). `seat.selectedPickId`
  * is SERVER state (`selectDraftPick`, ADR 0060) that survives across gate runs
@@ -283,6 +292,17 @@ async function pinDraftSelection(page: Page): Promise<void> {
         throw new Unreachable(
             'clicked a Draft Room pack tile to pin the Selected Card seat state, but no tile\'s aria-label ever gained "(selected)" — the selectDraftPick round-trip did not land'
         );
+    }
+    // Issue #2861: on the desktop/tablet regime that same click ALSO opens
+    // the Booster's pack menu (`onOpenMenu`, no delay) — a TRANSIENT popup a
+    // real player dismisses before moving on, never the room's settled state.
+    // Left open, it sits at the click point rather than docked to a screen
+    // edge (unlike the retired Peek Panel), occluding whatever pack tiles
+    // happen to fall under it and skewing every walk that shares this helper
+    // (`draft-pick`, `draft-pool-stop`, `draft-pool-peek`). Escape is a no-op
+    // on a phone, where this same click never opens one.
+    if (await visible(page, "[role=menu]", 500)) {
+        await page.keyboard.press("Escape");
     }
 }
 
@@ -1142,23 +1162,54 @@ export const SURFACES: readonly Surface[] = [
             }
             await poolTile.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
             await poolTile.click({ timeout: STEP_TIMEOUT });
-            if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
+
+            // Issue #2861 retires the Pool's `DeckZonePeek` off a phone: the
+            // desktop/tablet regime (`useViewportMode`'s single "desktop"
+            // bucket — no snap scroller mounted) now opens a card context
+            // menu instead, on a short delay (the double-click window). The
+            // phone regimes are UNCHANGED — same `DeckZonePeek` mount this
+            // walk always asserted.
+            if (await visible(page, DRAFT_SNAP_SCROLLER, 500)) {
+                if (!(await visible(page, DRAFT_PEEK_PANEL, STEP_TIMEOUT))) {
+                    throw new Unreachable(
+                        "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+                    );
+                }
+                // `[data-peek-panel]` alone cannot discharge this surface's
+                // claim. `reachDraftRoom` has ALREADY pinned a Booster
+                // selection (`pinDraftSelection`, issue #2677), and the
+                // Booster's own `PeekPanel` uses the SAME attribute — so a
+                // pool click that did nothing at all would leave the
+                // Booster's panel standing and the assertion above green,
+                // which is the "the test never reaches the code" shape. The
+                // two panels' CTA rows are what differ: only the Pool's
+                // `DeckZonePeek` appends `Move to…` (its column-pin sheet,
+                // `deck-zone-peek.tsx`), and the Booster's never offers it.
+                if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
+                    throw new Unreachable(
+                        `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
+                    );
+                }
+                await page.waitForTimeout(300);
+                return;
+            }
+
+            // The menu opens on a delay so a double click can still cancel it
+            // (`openDesktopPoolMenu`) — `visible()`'s own polling absorbs
+            // that, no extra wait needed.
+            if (
+                !(await visible(page, DRAFT_POOL_MENU_MOVE_ITEM, STEP_TIMEOUT))
+            ) {
                 throw new Unreachable(
-                    "selected a Pool card tile but the Pool's Peek Panel (`[data-peek-panel]`) never mounted"
+                    `selected a Pool card tile but no menu offering ${DRAFT_POOL_MENU_MOVE_ITEM} ever mounted — either the menu never opened, or it opened for a different surface (the Booster's own menu never offers "Move to…")`
                 );
             }
-            // `[data-peek-panel]` alone cannot discharge this surface's claim.
-            // `reachDraftRoom` has ALREADY pinned a Booster selection
-            // (`pinDraftSelection`, issue #2677), and the Booster's own
-            // `PeekPanel` uses the SAME attribute — so a pool click that did
-            // nothing at all would leave the Booster's panel standing and the
-            // assertion above green, which is the "the test never reaches the
-            // code" shape. The two panels' CTA rows are what differ: only the
-            // Pool's `DeckZonePeek` appends `Move to…` (its column-pin sheet,
-            // `deck-zone-peek.tsx`), and the Booster's never offers it.
-            if (!(await visible(page, DRAFT_POOL_PEEK_CTA, STEP_TIMEOUT))) {
+            // The retired Peek Panel must never come back for this regime —
+            // the whole point of issue #2861 is that no rail mounts here any
+            // more, for any selection.
+            if (await visible(page, DRAFT_PEEK_PANEL, 500)) {
                 throw new Unreachable(
-                    `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
+                    "the desktop Pool menu opened, but a `[data-peek-panel]` ALSO mounted — issue #2861 retires that rail entirely on this regime"
                 );
             }
             await page.waitForTimeout(300);

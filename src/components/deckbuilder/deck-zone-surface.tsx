@@ -144,6 +144,19 @@ export interface DeckZoneSurfaceProps {
      *  the Peek Panel is the primary move path. Absent ⇒ a click keeps its
      *  pre-#2584 meaning and fires {@link DeckZoneSurfaceProps.onCardClick}. */
     onCardSelect?: (selection: DeckZoneSelection) => void;
+    /** A tile was DOUBLE-clicked (issue #2861, Draft Room desktop
+     *  Pool/Sideboard only — moves the card to the other zone). Requires
+     *  {@link onCardSelect} to also be set: double-click is a refinement of
+     *  the "tap selects" contract, never of the BUILD view's plain
+     *  click-moves-immediately one. Absent ⇒ no `dblclick` listener at all
+     *  on any tile of this Zone, which is every other caller (unchanged). */
+    onCardDoubleClick?: (selection: DeckZoneSelection) => void;
+    /** A tile's real right-click (issue #2861, Draft Room desktop
+     *  Pool/Sideboard only — opens the Inspect Overlay directly). Presence
+     *  also disables that tile's own right-click preview pin — see
+     *  `DeckCardTile`'s `onContextMenu` doc comment. Absent ⇒ the preview pin
+     *  keeps owning right-click, unchanged everywhere else. */
+    onCardContextMenu?: (selection: DeckZoneSelection) => void;
     /** The selected tile's key (`DeckZoneSelection.tileKey`) — draws the
      *  selection ring on exactly the copy that was tapped. */
     selectedTileKey?: string | null;
@@ -192,6 +205,8 @@ export default function DeckZoneSurface({
     headerRight,
     featuredCardId,
     onCardSelect,
+    onCardDoubleClick,
+    onCardContextMenu,
     selectedTileKey,
     onAddColumn,
     onRenameColumn,
@@ -431,6 +446,12 @@ export default function DeckZoneSurface({
                                     onClick: onCardSelect
                                         ? () => onCardSelect(selection)
                                         : () => onCardClick(card),
+                                    onDoubleClick: onCardDoubleClick
+                                        ? () => onCardDoubleClick(selection)
+                                        : undefined,
+                                    onContextMenu: onCardContextMenu
+                                        ? () => onCardContextMenu(selection)
+                                        : undefined,
                                     isFeatured:
                                         !!featuredCardId &&
                                         card.cardId === featuredCardId,
@@ -448,6 +469,8 @@ export default function DeckZoneSurface({
             cardTitle,
             onCardClick,
             onCardSelect,
+            onCardDoubleClick,
+            onCardContextMenu,
             selectedTileKey,
             featuredCardId,
             onPin,

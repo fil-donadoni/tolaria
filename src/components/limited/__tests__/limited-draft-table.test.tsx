@@ -1,11 +1,17 @@
 // Draft pick gestures through the REAL projection (ADR 0060, issue #1248,
-// seam 3). Drives `LimitedDraftTable` from a `limitedEvents` row through
+// seam 3; re-worked for the desktop card-context-menu regime by issue #2861).
+// Drives `LimitedDraftTable` from a `limitedEvents` row through
 // `projectLimitedEvent` — the same wire the client actually receives (per
 // `.claude/rules/gre-development.md`'s "Frontend wiring analysis": a
-// hand-built view masks a dropped field). Proves: single click selects and
-// NEVER commits; double click / the context-menu commit; "Pick to
-// sideboard" composes submitPick + setPoolArrangementEntry with the
-// resolved poolIndex; a selected card renders highlighted.
+// hand-built view masks a dropped field).
+//
+// `layout` decides the GESTURE regime independently of `useViewportMode()`
+// (`stubViewport` below, which only affects the Peek Panel reserve AXIS on
+// the phone path): the default (`"stacked"`, omitted) is the DESKTOP regime
+// issue #2861 introduces — a card context menu, no Peek rail at all; passing
+// `layout: "phone-portrait"` / `"phone-landscape"` reaches the PHONE regime,
+// which issue #2861 leaves unchanged (the strip CTA row, the Pool/Sideboard
+// `DeckZonePeek`).
 import {
     describe,
     it,
@@ -21,6 +27,7 @@ import {
     waitFor,
     cleanup,
     within,
+    act,
 } from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import {
@@ -65,8 +72,7 @@ const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains (land)
  *  "reserves room for the sheet" ran in the configuration where it did
  *  nothing (issue #2583 review). Stub the queries so both branches are
  *  reachable. Module-scoped (not a per-`describe` helper) so every describe
- *  block below — including the Pool/Sideboard one added by issue #2667 — can
- *  reach the phone/sheet regime, not only the Booster's own Peek Panel suite. */
+ *  block below can reach the phone/sheet regime. */
 function stubViewport(mode: "portrait" | "landscape") {
     vi.stubGlobal("matchMedia", (query: string) => ({
         matches:
@@ -126,16 +132,20 @@ afterEach(() => {
     // and otherwise what stops one test's viewport regime leaking into the
     // next.
     vi.unstubAllGlobals();
+    // A couple of describe blocks use fake timers for the Pool/Sideboard
+    // menu's own open delay (issue #2861) — always restore real ones so a
+    // forgotten `vi.useRealTimers()` in one test can never leak into the next.
+    vi.useRealTimers();
 });
 
 type EventRowOverrides = {
     selectedPickId?: string;
     poolLength?: number;
     pickDeadline?: number;
-    /** Explicit Pool, overriding the auto-generated all-Bolt one — issue
-     *  #2667's Pool/Sideboard tests need a SECOND distinct card (a land) so
-     *  Grouping `mv`'s default view produces more than one Column to "Move
-     *  to…" between. */
+    /** Explicit Pool, overriding the auto-generated all-Bolt one — the
+     *  Pool/Sideboard tests need a SECOND distinct card (a land) so Grouping
+     *  `mv`'s default view produces more than one Column to "Move to…"
+     *  between. */
     pool?: { scryfallId: string; cardId: string; cardName: string }[];
     poolArrangement?: LimitedEventRow["seats"][number]["poolArrangement"];
 };
@@ -187,7 +197,11 @@ function eventRow(overrides: EventRowOverrides): LimitedEventRow {
     };
 }
 
-function renderTable(overrides: EventRowOverrides, manager?: DragDropManager) {
+function renderTable(
+    overrides: EventRowOverrides,
+    manager?: DragDropManager,
+    layout?: "stacked" | "phone-portrait" | "phone-landscape"
+) {
     const view = projectLimitedEvent(eventRow(overrides), "user1");
     const seat = view.seats.find((s) => s.seatIndex === 0)!;
     // `projectLimitedEvent`'s pure return type has no `autoBuiltDeck` — that
@@ -206,12 +220,17 @@ function renderTable(overrides: EventRowOverrides, manager?: DragDropManager) {
             // REAL drag (`dragOnto`) — omitted, `LimitedDraftTable` mints its
             // own private one, exactly as the app does.
             manager={manager}
+            layout={layout}
         />
     );
 }
 
-describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060, issue #1248)", () => {
-    it("a single click on a Booster card SELECTS it and never commits", () => {
+const menu = () => document.querySelector('[role="menu"]');
+const menuItems = () =>
+    [...document.querySelectorAll('[role="menuitem"]')] as HTMLElement[];
+
+describe("LimitedDraftTable Booster gestures — desktop regime (default, issue #2861)", () => {
+    it("a single click SELECTS the card and opens the pack menu with Pick / → Side / Inspect", () => {
         const { getAllByRole } = renderTable({});
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.click(cards[0]);
@@ -220,10 +239,145 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
             pickId: "r0-p0-c0",
         });
         expect(submitPickMock).not.toHaveBeenCalled();
+        expect(menu()).toBeTruthy();
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Booster 1 pick actions"
+        );
+        expect(menuItems().map((el) => el.textContent)).toEqual([
+            "Pick",
+            "→ Side",
+            "Inspect",
+        ]);
+    });
+
+    it("double click has no effect — double-click-to-pick is retired on desktop", () => {
+        const { getAllByRole } = renderTable({});
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.doubleClick(cards[0]);
+        expect(submitPickMock).not.toHaveBeenCalled();
+        expect(menu()).toBeNull();
+    });
+
+    it('the menu\'s "Pick" commits the Pick', async () => {
+        const { getAllByRole } = renderTable({});
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]);
+        fireEvent.click(menuItems().find((el) => el.textContent === "Pick")!);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        expect(menu()).toBeNull();
+    });
+
+    it('the menu\'s "→ Side" commits the Pick AND sideboards the new Pool card at the resolved poolIndex', async () => {
+        // The seat already has 3 Pool cards — the new pick lands at index 3.
+        const { getAllByRole } = renderTable({ poolLength: 3 });
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]);
+        fireEvent.click(menuItems().find((el) => el.textContent === "→ Side")!);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        await waitFor(() =>
+            expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                poolIndex: 3,
+                sideboard: true,
+            })
+        );
+    });
+
+    it('the menu\'s "Inspect" opens the Inspect Overlay, whose own "Pick" commits and closes it', async () => {
+        const { getAllByRole } = renderTable({});
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]);
+        fireEvent.click(
+            menuItems().find((el) => el.textContent === "Inspect")!
+        );
+        expect(menu()).toBeNull();
+        const overlay = document.querySelector("[data-inspect-panel]");
+        expect(overlay).toBeTruthy();
+
+        const overlayActionEls = () =>
+            [
+                ...document.querySelectorAll(
+                    "[data-inspect-panel] [data-editing-action]"
+                ),
+            ] as HTMLElement[];
+        expect(
+            overlayActionEls().map((el) => el.dataset.editingAction)
+        ).toEqual(["Pick", "→ Side"]);
+        fireEvent.click(overlayActionEls()[0]);
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
+    });
+
+    it("a right click opens the Inspect Overlay directly, with no menu at all", () => {
+        const { getAllByRole } = renderTable({});
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.contextMenu(cards[0]);
+        expect(menu()).toBeNull();
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+    });
+
+    it("the seat's selectedPickId (through the real projection) renders that exact card highlighted", () => {
+        const { getAllByRole } = renderTable({ selectedPickId: "r0-p0-c1" });
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        const pressedStates = cards.map((c) => c.getAttribute("aria-pressed"));
+        expect(pressedStates.filter((p) => p === "true")).toHaveLength(1);
+    });
+
+    // Issue #2238: the Pick Timer used to render inline in the meta row and
+    // this suite never exercised a non-null `pickDeadline` at all. Assert it
+    // mounts (through the real projection, seam 3) once the seat carries one.
+    it("mounts the Pick Timer above the Booster when the seat has a pickDeadline", () => {
+        const { getByRole } = renderTable({ pickDeadline: Date.now() + 5000 });
+        expect(getByRole("timer").textContent).toMatch(/left|Auto-picking/);
+    });
+
+    // Issue #2861's whole point: no reserved-space toggle, ever, on this
+    // regime — no `[data-peek-panel]` and no padding change on select.
+    it("reserves nothing for a selection — no Peek rail mounts in the desktop regime", () => {
+        const { container, getAllByRole } = renderTable({});
+        const surface = () =>
+            container.querySelector("[data-slot=draft-surface]") as HTMLElement;
+        expect(surface().style.paddingRight).toBe("");
+        expect(surface().style.paddingBottom).toBe("");
+
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]);
+        expect(surface().style.paddingRight).toBe("");
+        expect(surface().style.paddingBottom).toBe("");
+        expect(document.querySelector("[data-peek-panel]")).toBeNull();
+    });
+});
+
+describe("LimitedDraftTable Booster gestures — phone regime (unchanged, ADR 0060/#2588)", () => {
+    it("a single click on a Booster card SELECTS it and never commits", () => {
+        const { getAllByRole } = renderTable({}, undefined, "phone-portrait");
+        const cards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(cards[0]);
+        expect(selectDraftPickMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            pickId: "r0-p0-c0",
+        });
+        expect(submitPickMock).not.toHaveBeenCalled();
+        expect(menu()).toBeNull();
     });
 
     it("a double click on a Booster card commits the Pick", async () => {
-        const { getAllByRole } = renderTable({});
+        const { getAllByRole } = renderTable({}, undefined, "phone-portrait");
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.doubleClick(cards[0]);
         await waitFor(() =>
@@ -234,15 +388,12 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
         );
     });
 
-    it("the seat's selectedPickId (through the real projection) renders that exact card highlighted", () => {
-        const { getAllByRole } = renderTable({ selectedPickId: "r0-p0-c1" });
-        const cards = getAllByRole("button", { name: /Draft pick/ });
-        const pressedStates = cards.map((c) => c.getAttribute("aria-pressed"));
-        expect(pressedStates.filter((p) => p === "true")).toHaveLength(1);
-    });
-
     it('the context menu\'s "Pick" commits the Pick', async () => {
-        const { getAllByRole, getByRole } = renderTable({});
+        const { getAllByRole, getByRole } = renderTable(
+            {},
+            undefined,
+            "phone-portrait"
+        );
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.contextMenu(cards[0]);
         fireEvent.click(getByRole("menuitem", { name: "Pick" }));
@@ -255,8 +406,11 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
     });
 
     it('the context menu\'s "Pick to sideboard" commits the Pick AND sideboards the new Pool card at the resolved poolIndex', async () => {
-        // The seat already has 3 Pool cards — the new pick lands at index 3.
-        const { getAllByRole, getByRole } = renderTable({ poolLength: 3 });
+        const { getAllByRole, getByRole } = renderTable(
+            { poolLength: 3 },
+            undefined,
+            "phone-portrait"
+        );
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.contextMenu(cards[0]);
         fireEvent.click(getByRole("menuitem", { name: "Pick to sideboard" }));
@@ -277,31 +431,17 @@ describe("LimitedDraftTable pick gestures through projectLimitedEvent (ADR 0060,
     });
 
     it("a right click never selects or commits by itself — only opens the menu", () => {
-        const { getAllByRole } = renderTable({});
+        const { getAllByRole } = renderTable({}, undefined, "phone-portrait");
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.contextMenu(cards[0]);
         expect(selectDraftPickMock).not.toHaveBeenCalled();
         expect(submitPickMock).not.toHaveBeenCalled();
     });
-
-    // Issue #2238: the Pick Timer used to render inline in the meta row and
-    // this suite never exercised a non-null `pickDeadline` at all. Assert it
-    // mounts (through the real projection, seam 3) once the seat carries one.
-    it("mounts the Pick Timer above the Booster when the seat has a pickDeadline", () => {
-        const { getByRole } = renderTable({ pickDeadline: Date.now() + 5000 });
-        expect(getByRole("timer").textContent).toMatch(/left|Auto-picking/);
-    });
 });
 
-// The Draft Room is the FIRST adopter of the editing-surface gesture
-// primitives (PRD #2405 D16, issue #2583), and it is the adopter because its
-// tap ALREADY means "select" (ADR 0060 above) — the gesture core's `tap →
-// select → Peek Panel` needs no change of meaning here. These run the full
-// path — real projection → real table → real PeekPanel → real mutation mock —
-// because the panel being correct in isolation says nothing about whether the
-// surface ever renders it.
-describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
-    const panel = () => document.querySelector("[data-peek-panel]");
+// The phone strip's CTA row (PRD #2405 D16, issue #2583/#2588) — unchanged by
+// issue #2861, which only retires the DESKTOP arm of this same selection.
+describe("LimitedDraftTable phone strip CTA row (PRD #2405 D16, issue #2583/#2588)", () => {
     const actionEls = () =>
         [
             ...document.querySelectorAll("[data-editing-action]"),
@@ -313,25 +453,11 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
             ),
         ] as HTMLElement[];
 
-    afterEach(() => vi.unstubAllGlobals());
-
-    // `[data-slot]`, not a class list: the surface's classes are layout and
-    // they changed the moment the Draft Room stopped being a block inside the
-    // event page (issue #2587). A class-keyed selector went silently null
-    // there, which reads as "no reserve" — the very bug these assert.
-    const surfaceOf = (container: HTMLElement) =>
-        container.querySelector("[data-slot=draft-surface]") as HTMLElement;
-
-    it("shows no panel until a card is selected", () => {
-        renderTable({});
-        expect(panel()).toBeNull();
-    });
-
-    it("a selected card opens the panel with the Draft Room's CTA row", () => {
-        renderTable({ selectedPickId: "r0-p0-c1" });
-        expect(panel()).toBeTruthy();
-        expect(panel()!.getAttribute("aria-label")).toBe(
-            "Selected card: Lightning Bolt"
+    it("a selected card's CTA row carries Pick / → Side / Inspect", () => {
+        renderTable(
+            { selectedPickId: "r0-p0-c1" },
+            undefined,
+            "phone-portrait"
         );
         expect(actionEls().map((el) => el.dataset.editingAction)).toEqual([
             "Pick",
@@ -340,8 +466,12 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
         ]);
     });
 
-    it("the panel's primary CTA commits the SELECTED pick", async () => {
-        renderTable({ selectedPickId: "r0-p0-c1" });
+    it("the row's primary CTA commits the SELECTED pick", async () => {
+        renderTable(
+            { selectedPickId: "r0-p0-c1" },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(actionEls()[0]);
         await waitFor(() =>
             expect(submitPickMock).toHaveBeenCalledWith({
@@ -351,26 +481,12 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
         );
     });
 
-    it('the panel\'s "→ Side" CTA commits the Pick AND sideboards it', async () => {
-        renderTable({ selectedPickId: "r0-p0-c0", poolLength: 2 });
-        fireEvent.click(actionEls()[1]);
-        await waitFor(() =>
-            expect(submitPickMock).toHaveBeenCalledWith({
-                eventId: "event-1",
-                pickId: "r0-p0-c0",
-            })
+    it('the row\'s "Inspect" CTA opens the Inspect Overlay', () => {
+        renderTable(
+            { selectedPickId: "r0-p0-c0" },
+            undefined,
+            "phone-portrait"
         );
-        await waitFor(() =>
-            expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
-                eventId: "event-1",
-                poolIndex: 2,
-                sideboard: true,
-            })
-        );
-    });
-
-    it('the panel\'s "Inspect" CTA opens the Inspect Overlay', () => {
-        renderTable({ selectedPickId: "r0-p0-c0" });
         expect(document.querySelector("[data-inspect-overlay]")).toBeNull();
         fireEvent.click(actionEls()[2]);
         const overlay = document.querySelector("[data-inspect-panel]");
@@ -380,87 +496,12 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
         );
     });
 
-    // The reserve has to be on the axis the RESOLVED panel layout eats. Both
-    // branches, because only ONE of the five UI-gate viewports resolves to
-    // the sheet: `useViewportMode`'s `"portrait"` is `(orientation: portrait)
-    // and (max-width: 767px)`, so 1440×900, 844×390, 820×1180 and 1180×820
-    // all render the RAIL — a `fixed top-0 right-0 bottom-0` strip that
-    // occludes the right edge of the Booster grid and the Pool unless the
-    // surface reserves WIDTH for it.
-    it("reserves the sheet's HEIGHT in portrait, so it never covers the Pool", () => {
-        stubViewport("portrait");
-        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
-        expect(panel()!.getAttribute("data-peek-panel")).toBe("sheet");
-        expect(surfaceOf(container).style.paddingBottom).toBe(
-            PEEK_PANEL_SHEET_RESERVE
-        );
-        expect(surfaceOf(container).style.paddingRight).toBe("");
-    });
-
-    it("reserves the rail's WIDTH in landscape, so it never covers the Booster grid", () => {
-        stubViewport("landscape");
-        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
-        expect(panel()!.getAttribute("data-peek-panel")).toBe("rail");
-        expect(surfaceOf(container).style.paddingRight).toBe(
-            PEEK_PANEL_RAIL_WIDTH
-        );
-        expect(surfaceOf(container).style.paddingBottom).toBe("");
-    });
-
-    it("reserves the rail's WIDTH on desktop too — the default regime", () => {
-        // No `matchMedia` at all: `useViewportMode` falls back to "desktop",
-        // which is the rail. This is the configuration the ORIGINAL guarding
-        // test ran in while asserting a bottom reserve.
-        const { container } = renderTable({ selectedPickId: "r0-p0-c0" });
-        expect(panel()!.getAttribute("data-peek-panel")).toBe("rail");
-        expect(surfaceOf(container).style.paddingRight).toBe(
-            PEEK_PANEL_RAIL_WIDTH
-        );
-    });
-
-    it("reserves nothing at all while no card is selected", () => {
-        const { container } = renderTable({});
-        expect(surfaceOf(container).style.paddingRight).toBe("");
-        expect(surfaceOf(container).style.paddingBottom).toBe("");
-    });
-
-    it("closing the panel leaves the card selected but the panel gone", () => {
-        renderTable({ selectedPickId: "r0-p0-c0" });
-        fireEvent.click(
-            document.querySelector('[aria-label="Close Lightning Bolt panel"]')!
-        );
-        expect(panel()).toBeNull();
-        // Closing is a dismissal, not a deselection: the Selected Card is what
-        // a timer expiry auto-picks (issue #1249) and must survive it.
-        expect(selectDraftPickMock).not.toHaveBeenCalled();
-    });
-
-    // The dismissal is remembered per pick id; a fresh select must supersede
-    // it. Without that, tapping the SAME card again leaves
-    // `peekClosedFor === selectedPickId` forever — and since this slice sets
-    // `holdPreview={false}` on the pack card, that card would have no touch
-    // read path left for the rest of the draft.
-    it("re-tapping a card whose panel was dismissed brings the panel BACK", () => {
-        const { getAllByRole } = renderTable({ selectedPickId: "r0-p0-c0" });
-        fireEvent.click(
-            document.querySelector('[aria-label="Close Lightning Bolt panel"]')!
-        );
-        expect(panel()).toBeNull();
-
-        const cards = getAllByRole("button", { name: /Draft pick/ });
-        fireEvent.click(cards[0]); // the same card — pickId r0-p0-c0
-        expect(selectDraftPickMock).toHaveBeenCalledWith({
-            eventId: "event-1",
-            pickId: "r0-p0-c0",
-        });
-        expect(panel()).toBeTruthy();
-    });
-
-    // The overlay's own CTA row is NOT the panel's: "Inspect" would be a
-    // silent no-op inside the thing it opens, and a "Pick" that does not
-    // dismiss leaves a full-screen card over the next pack.
     it("the Inspect Overlay drops the Inspect CTA and closes after the primary fires", async () => {
-        renderTable({ selectedPickId: "r0-p0-c0" });
+        renderTable(
+            { selectedPickId: "r0-p0-c0" },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(actionEls()[2]); // "Inspect"
         expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
         expect(
@@ -478,13 +519,203 @@ describe("LimitedDraftTable Peek Panel (PRD #2405 D16, issue #2583)", () => {
     });
 });
 
-// Issue #2667: the Pool/Sideboard half of the ONE selection model, reusing
-// `DeckZonePeek` byte-for-byte from the deckbuilder rather than a second
-// "Move to…"/Inspect implementation. Run through the real projection → real
-// `LimitedDraftTable` → real `LimitedDraftPool` → real `DeckZoneSurface`, same
-// discipline as the Booster's own Peek Panel suite above — the panel being
-// correct in isolation says nothing about whether this surface ever mounts it.
-describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
+// Issue #2861: the desktop Pool/Sideboard menu — a click opens it on a short
+// delay (the double-click window), a double click cancels that and moves the
+// card instead, a real right-click opens the Inspect Overlay directly.
+describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
+    const boltInPool = [
+        { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+    ];
+
+    beforeEach(() => vi.useFakeTimers());
+
+    it("a click opens the menu after the double-click window, with → Side / Move to… / Inspect for a Pool card", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(menu()).toBeNull(); // not yet — still inside the delay window
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+        expect(menu()).toBeTruthy();
+        expect(menu()!.getAttribute("aria-label")).toBe("Pool card actions");
+        expect(menuItems().map((el) => el.textContent)).toEqual([
+            "→ Side",
+            "Move to…",
+            "Inspect",
+        ]);
+    });
+
+    it('the same holds for a Sideboard card, minus "Move to…" (the Sideboard has no Columns to pin into)', () => {
+        const { getByTitle } = renderTable({
+            pool: boltInPool,
+            poolArrangement: [{ poolIndex: 0, sideboard: true }],
+        });
+        fireEvent.click(getByTitle(/from the Sideboard/));
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Sideboard card actions"
+        );
+        expect(menuItems().map((el) => el.textContent)).toEqual([
+            "→ Pool",
+            "Inspect",
+        ]);
+    });
+
+    it('the menu\'s "→ Side" moves the card to the Sideboard', () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+        fireEvent.click(menuItems().find((el) => el.textContent === "→ Side")!);
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+        expect(menu()).toBeNull();
+    });
+
+    it('the menu\'s "Move to…" opens an ActionSheet of Column destinations, and choosing one pins the card', () => {
+        const { getByTitle, getByRole } = renderTable({
+            pool: [
+                ...boltInPool,
+                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+            ],
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+        fireEvent.click(
+            menuItems().find((el) => el.textContent === "Move to…")!
+        );
+        expect(menu()).toBeNull();
+        // The Bolt defaults into "MV 1" (`mv:1`); moving it into the OTHER
+        // generated Column this pool has (`mv:lands`, the Plains' own) is
+        // what proves the Pin actually names a DIFFERENT Column.
+        fireEvent.click(getByRole("button", { name: "Lands" }));
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:lands",
+        });
+    });
+
+    it('the menu\'s "Inspect" opens the Inspect Overlay with the zone-move CTA', () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+        fireEvent.click(
+            menuItems().find((el) => el.textContent === "Inspect")!
+        );
+        expect(menu()).toBeNull();
+        const overlayActionEls = () =>
+            [
+                ...document.querySelectorAll(
+                    "[data-inspect-panel] [data-editing-action]"
+                ),
+            ] as HTMLElement[];
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+        expect(
+            overlayActionEls().map((el) => el.dataset.editingAction)
+        ).toEqual(["→ Side"]);
+    });
+
+    it("a real right click opens the Inspect Overlay directly, with no menu", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        fireEvent.contextMenu(getByTitle(/^Remove Lightning Bolt/));
+        expect(menu()).toBeNull();
+        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+    });
+
+    // The load-bearing regression this AC calls out by name: a browser fires
+    // click, click, dblclick — so a naive "open on click" would flash the
+    // menu open before the move ever lands. A double click must cancel the
+    // pending open outright.
+    it("a double click moves the card immediately and never leaves the menu open", () => {
+        const { getByTitle } = renderTable({ pool: boltInPool });
+        const tile = getByTitle(/^Remove Lightning Bolt/);
+        fireEvent.click(tile);
+        fireEvent.doubleClick(tile);
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+        expect(menu()).toBeNull();
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledTimes(1);
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: true,
+        });
+    });
+
+    it("a double click on a Sideboard card moves it back to the Pool with no Card Pin", () => {
+        const { getByTitle } = renderTable({
+            pool: boltInPool,
+            poolArrangement: [{ poolIndex: 0, sideboard: true }],
+        });
+        const tile = getByTitle(/from the Sideboard/);
+        fireEvent.click(tile);
+        fireEvent.doubleClick(tile);
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+        expect(menu()).toBeNull();
+        expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            sideboard: false,
+        });
+        // No `column` field at all — the move must never assert a Pin.
+        const [args] = setPoolArrangementEntryMock.mock.calls.at(-1)!;
+        expect(args).not.toHaveProperty("column");
+    });
+
+    // The unmount-mid-timer hazard `deck-card-tile.tsx`'s own doc comment
+    // warns about (PR #2641): a pending action owned by a component that
+    // unmounts must not throw or leak a `setState` after unmount.
+    it("unmounting with a pending menu-open timer does not throw", () => {
+        const { getByTitle, unmount } = renderTable({ pool: boltInPool });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        expect(() => unmount()).not.toThrow();
+        expect(() => act(() => vi.advanceTimersByTime(1000))).not.toThrow();
+    });
+
+    // Review finding (PR #2881): a click on a Pool tile starts the delayed
+    // open; without cancelling it, clicking a DIFFERENT surface's menu open
+    // inside that same 200ms window left the Pool's timer running, and it
+    // fired afterwards and silently replaced whatever the player had already
+    // moved on to.
+    it("clicking a Booster card while a Pool menu-open is still pending cancels the stale Pool timer — the Booster's menu is not later clobbered", () => {
+        const { getByTitle, getAllByRole } = renderTable({
+            pool: boltInPool,
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+
+        const boosterCards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(boosterCards[0]);
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Booster 1 pick actions"
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Booster 1 pick actions"
+        );
+    });
+});
+
+// Issue #2667 (unchanged by issue #2861, which only retires the DESKTOP arm
+// of this selection): the Pool/Sideboard half of the PHONE selection model,
+// reusing `DeckZonePeek` byte-for-byte from the deckbuilder.
+describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () => {
     const panels = () =>
         [...document.querySelectorAll("[data-peek-panel]")] as HTMLElement[];
     const actionEls = () =>
@@ -496,7 +727,11 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
     ];
 
     it("tapping a Pool card opens the Peek Panel targeted at that card, with Inspect in its CTA row", () => {
-        const { getByTitle } = renderTable({ pool: boltInPool });
+        const { getByTitle } = renderTable(
+            { pool: boltInPool },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         expect(panels()).toHaveLength(1);
         expect(panels()[0].getAttribute("aria-label")).toBe(
@@ -508,10 +743,14 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
     });
 
     it("the same holds for a card in the Sideboard", () => {
-        const { getByTitle } = renderTable({
-            pool: boltInPool,
-            poolArrangement: [{ poolIndex: 0, sideboard: true }],
-        });
+        const { getByTitle } = renderTable(
+            {
+                pool: boltInPool,
+                poolArrangement: [{ poolIndex: 0, sideboard: true }],
+            },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/from the Sideboard/));
         expect(panels()).toHaveLength(1);
         expect(panels()[0].getAttribute("aria-label")).toBe(
@@ -524,7 +763,11 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
     });
 
     it("Inspect from a Pool selection opens the full card read; closing it returns to the Draft Room with the selection intact", () => {
-        const { getByTitle } = renderTable({ pool: boltInPool });
+        const { getByTitle } = renderTable(
+            { pool: boltInPool },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "Inspect")!
@@ -543,15 +786,24 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         );
     });
 
-    it("selecting a Pool card while a pack card is selected clears the pack selection, and vice versa — at no point are two panels mounted", () => {
-        const { getByTitle, getAllByRole } = renderTable({
-            selectedPickId: "r0-p0-c0", // pack: "Lightning Bolt"
-            pool: [{ scryfallId: "s1", cardId: PLAINS_ID, cardName: "Plains" }],
-        });
-        expect(panels()).toHaveLength(1);
-        expect(panels()[0].getAttribute("aria-label")).toBe(
-            "Selected card: Lightning Bolt"
+    // On PHONE the Booster's own selection never gets a fixed panel at all
+    // (it inlines into the strip, unchanged) — so the only panel that can
+    // ever mount here is the Pool's. This still proves the cross-clearing
+    // this describe block is named for: a Pool selection clears the
+    // Booster's SERVER-side selection, and picking a Booster card clears the
+    // Pool's own local one.
+    it("selecting a Pool card while a pack card is selected clears the pack's server-side selection, and picking a Booster card closes the Pool panel", () => {
+        const { getByTitle, getAllByRole } = renderTable(
+            {
+                selectedPickId: "r0-p0-c0", // pack: "Lightning Bolt"
+                pool: [
+                    { scryfallId: "s1", cardId: PLAINS_ID, cardName: "Plains" },
+                ],
+            },
+            undefined,
+            "phone-portrait"
         );
+        expect(panels()).toHaveLength(0);
 
         fireEvent.click(getByTitle(/^Remove Plains/));
         expect(panels()).toHaveLength(1);
@@ -564,40 +816,28 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
             pickId: null,
         });
 
-        // …and back the other way: picking a Booster card while the Pool
-        // panel is open clears the Pool's own local selection.
+        // …and back the other way: picking a Booster card closes the Pool
+        // panel — the Pool's own local selection is cleared.
         const boosterCards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.click(boosterCards[0]);
-        expect(panels()).toHaveLength(1);
-        expect(panels()[0].getAttribute("aria-label")).toBe(
-            "Selected card: Lightning Bolt"
-        );
+        expect(panels()).toHaveLength(0);
     });
 
-    // Issue #2667 round 3 (PR #2797 review round 2): a column pin from the
-    // panel used to send `sideboard: false` unconditionally, on the
-    // assumption a Pool selection can never go stale about its own Zone — an
-    // assumption a concurrent drag breaks (see the DRAG regression test
-    // below). The pin now sends NO `sideboard` field at all — "don't touch
-    // the Zone", the same contract the build view's own `handlePin`
-    // (`pool-deck-builder-form.tsx`) has always used for a pin — so the
-    // resolved Arrangement below still comes out unsideboarded, but via
-    // "never asserted" rather than "explicitly asserted false".
     it("moving a Pool card to a specific Column from the panel persists the same Pool Arrangement entry a long-press drag onto that Column persists, without asserting the Zone", () => {
-        const { getByTitle, getByRole } = renderTable({
-            pool: [
-                ...boltInPool,
-                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
-            ],
-        });
+        const { getByTitle, getByRole } = renderTable(
+            {
+                pool: [
+                    ...boltInPool,
+                    { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+                ],
+            },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "Move to…")!
         );
-        // The Bolt defaults into "MV 1" (`mv:1`); moving it into the OTHER
-        // generated Column this pool has (`mv:lands`, the Plains' own) is
-        // what proves the Pin actually names a DIFFERENT Column rather than
-        // a no-op re-pin of the one it is already in.
         fireEvent.click(getByRole("button", { name: "Lands" }));
         expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
             eventId: "event-1",
@@ -607,7 +847,11 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
     });
 
     it("zone moves (Pool <-> Sideboard) from the panel persist and are reflected in the Main / Sideboard counts", () => {
-        const { getByTitle } = renderTable({ pool: boltInPool });
+        const { getByTitle } = renderTable(
+            { pool: boltInPool },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "→ Side")!
@@ -619,23 +863,17 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         });
     });
 
-    // Review finding (PR #2797 round 1, HIGH): the zone-move CTA used to leave
-    // `poolSelection` STALE after firing — the panel stayed open holding a
-    // selection whose zone (`"maindeck"`) no longer matched reality (the card
-    // was now in the Sideboard). A player who then tapped "Move to…" on that
-    // stale panel reached `handlePoolPin`, which hard-codes `sideboard: false`
-    // on the assumption `onPin` is only ever reachable from a Pool selection —
-    // an assumption the stale selection broke, silently pulling the card back
-    // OUT of the Sideboard the very next write. Asserting the panel is GONE
-    // after "→ Side" is what proves the stale path is now unreachable: with
-    // no open selection there is no "Move to…" CTA left to tap at all.
     it("→ Side clears the Pool selection so the panel cannot be walked into the stale-selection trap", () => {
-        const { getByTitle } = renderTable({
-            pool: [
-                ...boltInPool,
-                { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
-            ],
-        });
+        const { getByTitle } = renderTable(
+            {
+                pool: [
+                    ...boltInPool,
+                    { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+                ],
+            },
+            undefined,
+            "phone-portrait"
+        );
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         expect(panels()).toHaveLength(1);
 
@@ -648,30 +886,13 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
             sideboard: true,
         });
 
-        // The panel — and with it, the "Move to…" CTA — is gone. There is no
-        // longer a stale selection to walk into a Column pin through.
         expect(panels()).toHaveLength(0);
         expect(
             actionEls().find((el) => el.dataset.editingAction === "Move to…")
         ).toBeUndefined();
-
-        // Nothing further was written: in particular no SECOND
-        // `setPoolArrangementEntry` call reverting `sideboard` back to
-        // `false` (the exact corruption the stale selection produced).
         expect(setPoolArrangementEntryMock).toHaveBeenCalledTimes(1);
     });
 
-    // Review round 2 (PR #2797), the reason this is round 3: round 1's fix
-    // above only closed the CTA door — `setPoolSelection(null)` fires from
-    // the PANEL's own "→ Side"/"→ Pool" buttons, so it can only ever save a
-    // player who moved the card THROUGH the panel. A Pool ⇄ Sideboard DRAG
-    // is a second, independent door onto the exact same stale-selection
-    // trap: `handleDragEnd` → `handleMoveArrangement` writes the Arrangement
-    // directly and never touches `poolSelection` at all, so the panel stays
-    // open, still reading the PRE-drag zone, with "Move to…" still offered.
-    // This reproduces that exact path and proves the ROOT fix — a column pin
-    // no longer asserts a Zone (`handlePoolPin`/`poolArrangementPatch`) — is
-    // what makes it safe now, not a second per-door clear.
     it("a DRAG to the Sideboard, with the panel still open, does not let a follow-up 'Move to…' pin pull the card back out of the Sideboard", async () => {
         const manager = new DragDropManager();
         const { container, getByTitle, getByRole } = renderTable(
@@ -681,16 +902,13 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
                     { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
                 ],
             },
-            manager
+            manager,
+            "phone-portrait"
         );
 
-        // Tap-select the Bolt: opens the panel with `poolSelection.zone ===
-        // "maindeck"`.
         fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
         expect(panels()).toHaveLength(1);
 
-        // Drag the SAME tile into the Sideboard — NOT the panel's own "→
-        // Side" CTA, so `poolSelection` never hears about the move.
         const pool = paneOf(container, /^Pool 2/);
         const sideboardPane = paneOf(container, /^Sideboard 0/);
         await dragOnto(
@@ -704,8 +922,6 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
             sideboard: true,
         });
 
-        // The panel is STILL open, holding the now-stale "maindeck"
-        // selection — the exact trap the reviewer walked.
         expect(panels()).toHaveLength(1);
         const moveTo = actionEls().find(
             (el) => el.dataset.editingAction === "Move to…"
@@ -714,9 +930,6 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         fireEvent.click(moveTo!);
         fireEvent.click(getByRole("button", { name: "Lands" }));
 
-        // The pin write must never assert a Zone: no call ever sends
-        // `sideboard: false`, so the card the drag just sideboarded is not
-        // silently pulled back into the Pool.
         for (const [args] of setPoolArrangementEntryMock.mock.calls) {
             expect((args as { sideboard?: boolean }).sideboard).not.toBe(false);
         }
@@ -727,19 +940,20 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         });
     });
 
-    // The Booster's own Peek Panel deliberately does NOT reserve on a phone
-    // (its CTAs inline into the strip there, `draft-selection-actions.tsx`);
-    // the Pool's `DeckZonePeek` opens the real FIXED panel at every viewport
-    // (issue #2667 AC), so the surface underneath must reserve for it there
-    // too — unlike the Booster row a few tests up, which asserts NOTHING is
-    // reserved while no card is selected.
-    //
-    // No `matchMedia` stub here (same default the existing "reserves the
-    // rail's WIDTH on desktop too" test relies on) — `useViewportMode`
-    // falls back to `"desktop"`, i.e. the RAIL. This is the desktop/tablet
-    // half of the pair; the phone/SHEET half is the next test.
-    it("reserves the rail's WIDTH for the Pool's panel on desktop, even though the Booster's own panel never mounts here", () => {
-        const { container, getByTitle } = renderTable({ pool: boltInPool });
+    it("reserves the rail's WIDTH for the Pool's panel in landscape", () => {
+        stubViewport("landscape");
+        // `layout="phone-portrait"` (not `"phone-landscape"`) so the actual
+        // `LimitedDraftPool` tiles are reachable at all — the landscape ARM
+        // renders a compact sneak-peek strip instead of the full Pool grid.
+        // `useViewportMode()` (which `stubViewport` controls, and which
+        // decides the reserve AXIS below) is a media query wholly independent
+        // of this `layout` prop, so this combination still exercises the
+        // rail axis honestly.
+        const { container, getByTitle } = renderTable(
+            { pool: boltInPool },
+            undefined,
+            "phone-portrait"
+        );
         const surface = () =>
             container.querySelector("[data-slot=draft-surface]") as HTMLElement;
         expect(surface().style.paddingRight).toBe("");
@@ -747,19 +961,13 @@ describe("LimitedDraftTable Pool/Sideboard Peek Panel (issue #2667)", () => {
         expect(surface().style.paddingRight).toBe(PEEK_PANEL_RAIL_WIDTH);
     });
 
-    // Review finding (PR #2797 round 1): the test above was NAMED as if it
-    // covered the phone/sheet geometry issue #2667's AC actually names
-    // (390x844x3 / 844x390x3), but ran with no `matchMedia` stub at all, so
-    // `useViewportMode` never resolved anything but `"desktop"` — the sheet
-    // reserve the AC's phone viewports depend on had evidence at NO layer.
-    // Stubbed `"portrait"` the way `stubViewport` a few tests up already
-    // does, this is that missing coverage: the Pool's panel is NOT
-    // phone-special-cased (unlike the Booster's), so it must reserve the
-    // sheet's HEIGHT in portrait exactly like the Booster panel does when IT
-    // is the one open (see "reserves the sheet's HEIGHT in portrait" above).
-    it("reserves the sheet's HEIGHT for the Pool's panel in portrait, even though the Booster's own panel never mounts there", () => {
+    it("reserves the sheet's HEIGHT for the Pool's panel in portrait", () => {
         stubViewport("portrait");
-        const { container, getByTitle } = renderTable({ pool: boltInPool });
+        const { container, getByTitle } = renderTable(
+            { pool: boltInPool },
+            undefined,
+            "phone-portrait"
+        );
         const surface = () =>
             container.querySelector("[data-slot=draft-surface]") as HTMLElement;
         expect(surface().style.paddingBottom).toBe("");
