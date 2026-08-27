@@ -23,6 +23,7 @@ import { getCardByName } from "../../../cards";
 import { createInitialGameState, type PlayerInput } from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
 import { decidingPlayer, searchWithTrace } from "../../search";
+import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import {
@@ -368,6 +369,24 @@ export function runBladeScenario(
     }
 }
 
+/** Lower an entry's `deckKnowledge` (card NAMES, per seat) into the engine's
+ *  `DeckKnowledgeBySeat` (definition ids, per player id) — issue #2789.
+ *
+ *  A name that resolves to no card THROWS, like every other authoring mistake
+ *  in this file: a silently-dropped card would quietly widen the unseen
+ *  remainder, and an entry whose whole point is "this deck cannot contain the
+ *  answer" would then pass for the wrong reason. */
+function bladeDeckKnowledge(
+    state: GameState,
+    scenario: BladeScenario
+): DeckKnowledgeBySeat | undefined {
+    if (!scenario.deckKnowledge?.length) return undefined;
+    return scenario.deckKnowledge.map(({ seat, cards }) => ({
+        playerId: seatPlayerId(state, seat),
+        cardIds: cards.map((name) => getCardByName(name).id),
+    }));
+}
+
 function runBladeScenarioInner(scenario: BladeScenario): BladeResult {
     const seeds: BladeSeedResult[] = [];
     for (const seed of seedsFor(scenario)) {
@@ -396,7 +415,8 @@ function runBladeScenarioInner(scenario: BladeScenario): BladeResult {
             state,
             botId,
             { iterations: scenario.budget.iterations },
-            seed
+            seed,
+            bladeDeckKnowledge(state, scenario)
         );
         const reason = checkExpectation(scenario, state, move);
         seeds.push({

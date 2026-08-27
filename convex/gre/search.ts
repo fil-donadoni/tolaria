@@ -116,6 +116,7 @@ import {
 } from "./evaluate";
 import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
+import type { DeckKnowledgeBySeat } from "./deckKnowledge";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import {
@@ -2143,9 +2144,10 @@ function iterate(
     rng: () => number,
     weights: EvalWeights,
     prunedRootKeys?: ReadonlySet<string>,
-    actionPriors: ActionPriorConfig | null = null
+    actionPriors: ActionPriorConfig | null = null,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): void {
-    const world = determinize(rootState, botId, rng);
+    const world = determinize(rootState, botId, rng, deckKnowledge);
     const path: Edge[] = [];
     let node = root;
 
@@ -3311,7 +3313,8 @@ export function searchWithTrace(
     state: GameState,
     playerId: string,
     budget: SearchBudget,
-    seed: number
+    seed: number,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): { move: Move | null; trace: DecisionTrace | null } {
     // The DECISION scope for `dominance.ts`' choice-level probe (PR #1914
     // review finding 1). The cast-level probe is already once-per-decision by
@@ -3322,7 +3325,7 @@ export function searchWithTrace(
     // was proved against.
     beginDominanceDecision();
     try {
-        return runSearchWithTrace(state, playerId, budget, seed);
+        return runSearchWithTrace(state, playerId, budget, seed, deckKnowledge);
     } finally {
         endDominanceDecision();
     }
@@ -3332,7 +3335,8 @@ function runSearchWithTrace(
     state: GameState,
     playerId: string,
     budget: SearchBudget,
-    seed: number
+    seed: number,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): { move: Move | null; trace: DecisionTrace | null } {
     const decider = decidingPlayer(state);
     if (decider !== playerId) return { move: null, trace: null };
@@ -3401,7 +3405,8 @@ function runSearchWithTrace(
             rng,
             weights,
             prunedRootKeys,
-            actionPriors
+            actionPriors,
+            deckKnowledge
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
@@ -3433,7 +3438,8 @@ export function search(
     state: GameState,
     playerId: string,
     budget: SearchBudget,
-    seed: number
+    seed: number,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): Move | null {
-    return searchWithTrace(state, playerId, budget, seed).move;
+    return searchWithTrace(state, playerId, budget, seed, deckKnowledge).move;
 }

@@ -2664,6 +2664,118 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Half 2 of the discriminating pair. Without it the fix could be a blanket 'never name your own source' ban and every `must` entry above would still be green.",
     },
+
+    // ── The informed opponent: play around what the deck can still hold ─────
+    //
+    // A DISCRIMINATING PAIR (issue #2789, PRD #2787). The two entries below are
+    // byte-identical boards — same creatures, same lands, and the same single
+    // card physically in the opponent's hand — differing ONLY in the decklist
+    // the search is allowed to know. That is what makes them a measurement of
+    // the opponent model and of nothing else: no other input varies, so a
+    // difference in the chosen move can only come from what the bot DEDUCED
+    // about a card it cannot see.
+    //
+    // THE POSITION. The bot is `me` (players[0], the active player) and owes
+    // its `declare-attackers`. It has a Hill Giant (3/3). The opponent has a
+    // Grizzly Bears (2/2), an untapped Forest, and one card in hand.
+    //
+    //   * With no trick, the Bears cannot profitably block a 3/3 — it dies for
+    //     nothing — so the attack is 3 free damage and correct.
+    //   * With Giant Growth, the Bears blocks as a 5/5, kills the Hill Giant
+    //     and survives. The attack trades the bot's only creature for nothing.
+    //
+    // The consequence is forced by the rules, not probabilistic: each decklist
+    // holds exactly one card and nothing of the opponent's sits in a public
+    // zone to subtract, so `unseenRemainder` admits exactly ONE identity and
+    // the sampled hand is the same on every seed and every iteration.
+    //
+    // WHY THIS IS AN ATTACK AND NOT A BLOCK. Measured while authoring: the
+    // mirror-image BLOCK position does not discriminate, because a block is
+    // settled by `selectRootMove`'s combat tie-breaks, which read the REAL root
+    // state rather than a determinized world — so no opponent model can reach
+    // them. An attack root leaves the decision to the tree and the rollouts,
+    // which do see the sampled worlds. That gap is real and is NOT fixed here;
+    // it is reported in the PR as a follow-up rather than papered over.
+    //
+    // WHAT IT WAS BEFORE. Measured on this exact board with the trick sitting
+    // PHYSICALLY in the opponent's hand and no deck knowledge: the bot attacks
+    // on all five seeds anyway. The blind path pools that hand with a 20-card
+    // library and re-deals, so Giant Growth reaches the imagined hand about one
+    // iteration in twenty-one — the textbook `hidden-information` dilution.
+    // Sampling from the decklist is what makes it visible every iteration.
+    {
+        label: "informed opponent: does NOT attack into the trick its deck must be holding",
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                // Physically a Mountain in BOTH entries — `determinize`
+                // re-derives this seat's hidden zones from the decklist, so
+                // what sits here is never what the bot reasons about.
+                { name: "Mountain", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        deckKnowledge: [{ seat: "opp", cards: ["Giant Growth"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "declare-attackers", card: "Hill Giant" }],
+        },
+        note: "Twin of the entry below; only the decklist differs (issue #2789).",
+    },
+    {
+        label: "informed opponent: DOES attack when the deck cannot hold the trick",
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Mountain", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // Same board, same card in hand — but this deck admits only a land, so
+        // there is no trick to walk into and holding back donates 3 damage.
+        deckKnowledge: [{ seat: "opp", cards: ["Mountain"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Hill Giant" }],
+        },
+        note: "Twin of the entry above; only the decklist differs (issue #2789).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

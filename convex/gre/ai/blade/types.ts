@@ -269,6 +269,23 @@ export type BladeScenario = {
     /** Seat the bot plays. Must be the seat that holds priority in the built
      *  state, or the search returns `null` (nothing owed). */
     bot: BladeSeat;
+    /** Decklists the search is allowed to know, per seat (issue #2789).
+     *
+     *  Card NAMES, like every other field here, so an entry stays readable in
+     *  a diff and immune to id churn; the runner resolves them and maps `seat`
+     *  to the built state's player id.
+     *
+     *  Naming the OPPONENT's seat is what turns the imagined opponent from a
+     *  hand of placeholders — which resolve to no `CardDefinition` and are
+     *  therefore never cast — into one holding cards that decklist still
+     *  admits. Because a blade board is built full-information, this also
+     *  BLINDS what the search would otherwise read straight out of that hand:
+     *  `determinize` re-derives the seat's hidden zones from the decklist, so
+     *  the entry asserts what the bot deduces, never what it can see.
+     *
+     *  Omitted (the default, and every pre-existing entry): every seat is
+     *  blind and the run is byte-identical to before this field existed. */
+    deckKnowledge?: { seat: BladeSeat; cards: string[] }[];
     /** Iterations ONLY — a `timeMs` budget would make the result depend on the
      *  machine, which defeats the whole point of the suite. */
     budget: { iterations: number };

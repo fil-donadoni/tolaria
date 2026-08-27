@@ -425,3 +425,92 @@ describe("deck knowledge is addressed PER SEAT, not just single-seat pass-throug
         );
     });
 });
+
+// ── A seat with a HIDDEN hand gets no library reconstruction (issue #2789) ──
+//
+// Carried forward from the #2788 review, and it only bites once a SECOND seat
+// is populated. `makeRealLibrary` can subtract only the hand entries it can
+// SEE; a non-viewer's hand arrives on the wire as `null[]`, so none of it comes
+// off the decklist and the leftover multiset still holds the cards that seat is
+// holding. Truncating it to `library.count` then pins those identities into
+// library slots on nothing but decklist order, and the bot can "draw" a card
+// its opponent has in hand. The symptom is silent — nothing throws, and
+// `library.count` reconciles, because the count was never what was wrong.
+describe("a seat with a HIDDEN hand keeps placeholders (issue #2789)", () => {
+    it("pins NO identity into a non-viewer's library, whatever the decklist order", () => {
+        // Deck order puts the two Bolts FIRST. They are the cards actually in
+        // the human's hand, so a decklist-order truncation would name them as
+        // the top of the library — the exact shape the review flagged.
+        const humanDeck = [BOLT, BOLT, FOREST, FOREST, FOREST];
+        const state = makeState({
+            players: [
+                makePlayer("bot", { library: dummyLibrary("bot", 3) }),
+                makePlayer("human", {
+                    hand: [
+                        makeInstance(BOLT, {
+                            id: "human-h0",
+                            controllerId: "human",
+                            ownerId: "human",
+                            zone: "hand",
+                        }),
+                        makeInstance(BOLT, {
+                            id: "human-h1",
+                            controllerId: "human",
+                            ownerId: "human",
+                            zone: "hand",
+                        }),
+                    ],
+                    library: dummyLibrary("human", 3),
+                }),
+            ],
+        });
+        // Projected for the BOT, so the human's hand is `null[]` — two hidden
+        // cards whose identities the bot cannot read.
+        const projected = projectPublicState(state, 1, "bot");
+        const world = projectedToGameState(projected, [
+            { playerId: "human", cardIds: humanDeck },
+        ]);
+
+        const humanLib = world.players.find((p) => p.id === "human")!.library;
+        // The count is a public fact and survives untouched (CR 704.5b).
+        expect(humanLib).toHaveLength(3);
+        // Every slot is opaque: the adapter declines to guess, and identities
+        // come from `determinize`'s sampling instead.
+        expect(humanLib.every((c) => defIdOf(c) === PLACEHOLDER_CARD_ID)).toBe(
+            true
+        );
+        // In particular it never claims the human's library holds the Bolts
+        // that are in fact in their hand.
+        expect(humanLib.some((c) => defIdOf(c) === BOLT)).toBe(false);
+    });
+
+    it("leaves the VIEWER's own seat exact — its hand is visible, so nothing is guessed away", () => {
+        const botDeck = [FOREST, FOREST, FOREST, BOLT];
+        const state = makeState({
+            players: [
+                makePlayer("bot", {
+                    hand: [
+                        makeInstance(BOLT, {
+                            id: "bot-h0",
+                            controllerId: "bot",
+                            ownerId: "bot",
+                            zone: "hand",
+                        }),
+                    ],
+                    library: dummyLibrary("bot", 3),
+                }),
+                makePlayer("human", { library: dummyLibrary("human", 3) }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "bot");
+        const world = projectedToGameState(projected, [
+            { playerId: "bot", cardIds: botDeck },
+        ]);
+
+        const botLib = world.players.find((p) => p.id === "bot")!.library;
+        expect(botLib).toHaveLength(3);
+        // The Bolt is visibly in hand, so it is subtracted by IDENTITY and the
+        // three Forests remain fully known — no placeholder fallback at all.
+        expect(botLib.every((c) => defIdOf(c) === FOREST)).toBe(true);
+    });
+});

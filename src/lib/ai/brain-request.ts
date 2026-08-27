@@ -85,7 +85,13 @@ export function handleBrainRequest(
             projectedToGameState(state, deckKnowledge),
             botId,
             budget ?? DEFAULT_BUDGET,
-            seed
+            seed,
+            // The SAME knowledge, to both consumers (issue #2789): the adapter
+            // rebuilds a known library's identities, and `determinize` samples
+            // an informed OPPONENT's hidden zones from their decklist. Handing
+            // it to one and not the other is how the two would drift into
+            // disagreeing about which seat the search is allowed to know.
+            deckKnowledge
         );
         return { id, move, trace };
     } catch (e) {

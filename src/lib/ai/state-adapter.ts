@@ -53,40 +53,34 @@
 // keeps the placeholder path: opaque instances whose id resolves to no
 // `CardDefinition`, so `getLegalActions` never surfaces them as legal moves
 // even after a simulated draw puts one in hand. This blind mode is not a
-// fallback to delete later: the lower difficulty levels use it on purpose, and
-// the future belief-pool sampler (PRD #2787) will be a THIRD mode alongside
-// it, never a replacement for the placeholder machinery.
+// fallback to delete later: the lower difficulty levels use it on purpose.
+//
+// WHERE AN INFORMED OPPONENT'S IDENTITIES ACTUALLY COME FROM (issue #2789).
+// Not from here. This adapter reconstructs a library only for a seat whose
+// HAND it can read — in practice the bot's own. For any other informed seat it
+// emits placeholders at the right counts and `determinize` samples both hidden
+// zones together from the decklist's unseen remainder, once per ISMCTS
+// iteration. The split matters: this function runs ONCE per decision and would
+// have to commit to a single hand/library split, while the sampler re-draws
+// every iteration, which is what makes the search reason over a DISTRIBUTION of
+// opponent hands rather than one guess.
 
-import type { CardInstanceState, GameState } from "@convex/gre";
-import { PLACEHOLDER_CARD_ID } from "@convex/gre";
+import type {
+    CardInstanceState,
+    DeckKnowledgeBySeat,
+    GameState,
+    SeatDeckKnowledge,
+} from "@convex/gre";
+import { knowledgeFor, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import type { PublicGameState, PublicPlayer } from "@convex/gameProjections";
 import { tryGetDefinition } from "@convex/cards";
 
-/** One seat's known deck content, wired into the adapter so that seat's
- *  library reconstructs with real card identities (issue #1509). `cardIds` are
- *  card DEFINITION ids (the maindeck as of game start); `playerId` selects
- *  which seat it belongs to. */
-export type SeatDeckKnowledge = { playerId: string; cardIds: string[] };
-
-/** Deck knowledge available to the search, addressed PER SEAT rather than as a
- *  single seat's list (issue #2788 — a prefactor for the opponent model, PRD
- *  #2787). Plain array of plain records — arrays/strings only — so it survives
- *  the structured-clone `postMessage` hop unchanged. A seat absent from this
- *  array is BLIND: it keeps today's opaque placeholders (see the header note).
- *  Today only the bot's own seat is ever populated, so every imagined world is
- *  byte-identical to before this type existed. */
-export type DeckKnowledgeBySeat = SeatDeckKnowledge[];
-
-/** Look up one seat's deck knowledge, if the caller supplied any for it. The
- *  single fail-closed discriminator the whole per-seat generalisation rests
- *  on: a seat is informed if and only if it has an entry HERE, never by an
- *  implicit "today only one seat is ever populated" invariant. */
-function knowledgeFor(
-    deckKnowledge: DeckKnowledgeBySeat | undefined,
-    playerId: string
-): string[] | undefined {
-    return deckKnowledge?.find((k) => k.playerId === playerId)?.cardIds;
-}
+// The per-seat deck-knowledge type now lives in the ENGINE
+// (`convex/gre/deckKnowledge.ts`, issue #2789): `determinize` is a consumer
+// too, and `convex/gre/` cannot import from `src/`. Re-exported here so every
+// existing import site keeps working, and so the adapter and the search can
+// never drift onto two different shapes of the same fact.
+export type { SeatDeckKnowledge, DeckKnowledgeBySeat };
 
 /** One opaque hidden-zone instance — identity intentionally absent. The ZONE is
  *  part of the instance id so a player's hand placeholder and their library
@@ -176,7 +170,29 @@ function removeOne(multiset: Map<string, number>, cardId: string): void {
  *  truncated or padded with placeholders to the wire `count` so the deck-out
  *  SBA (CR 704.5b) stays exact even when deck accounting drifts (mulliganed
  *  cards, tokens, cards that left the game). Order is irrelevant here —
- *  `determinize` reshuffles every ISMCTS iteration. */
+ *  `determinize` reshuffles every ISMCTS iteration.
+ *
+ *  A SEAT WITH HIDDEN HAND CARDS GETS NO RECONSTRUCTION AT ALL (issue #2789,
+ *  carried forward from the #2788 review). The subtraction below can only
+ *  remove hand entries it can SEE. That is exact for the bot's own seat, whose
+ *  hand is visible, and unsound for every other: a non-viewer's hand arrives as
+ *  `null[]`, so none of it comes off the decklist and the leftover multiset
+ *  still contains the very cards that seat is holding. Truncating that
+ *  multiset to `count` then PINS specific identities into library slots on
+ *  nothing better than decklist order — and the bot can "draw" a card its
+ *  opponent has in hand.
+ *
+ *  Trimming by the hidden-hand COUNT does not repair this: in a consistent game
+ *  the leftover is already exactly `hand + library` cards, so the trim removes
+ *  the same number the truncation would have and the surviving identities are
+ *  unchanged. The error is about WHICH cards, not how many.
+ *
+ *  So the honest answer is to decline: the seat keeps opaque placeholders, and
+ *  the identities come from `determinize`, which SAMPLES hand and library
+ *  together from the unseen remainder every ISMCTS iteration instead of
+ *  committing to one arbitrary split here. `library.count` is preserved either
+ *  way, so the deck-out SBA (CR 704.5b) is unaffected. The symptom this
+ *  replaces was silent — nothing threw, and the count always reconciled. */
 function makeRealLibrary(
     state: PublicGameState,
     player: PublicPlayer,
@@ -191,8 +207,10 @@ function makeRealLibrary(
     }
 
     // Subtract the bot-owned cards already visible outside the library.
+    let hiddenHandCards = 0;
     for (const c of player.hand) {
         if (c) removeOne(remaining, c.card.id);
+        else hiddenHandCards++;
     }
     for (const c of player.battlefield) removeOne(remaining, c.card.id);
     for (const c of player.graveyard) removeOne(remaining, c.card.id);
@@ -209,7 +227,9 @@ function makeRealLibrary(
     }
 
     const cards: CardInstanceState[] = [];
-    const take = Math.min(realIds.length, count);
+    // Any hidden hand card makes every surviving identity a guess (see the
+    // header note) — decline the reconstruction and let `determinize` sample.
+    const take = hiddenHandCards > 0 ? 0 : Math.min(realIds.length, count);
     for (let i = 0; i < take; i++) {
         cards.push(makeRealInstance(player.id, i, realIds[i]));
     }
