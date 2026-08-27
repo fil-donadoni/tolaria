@@ -16,21 +16,40 @@
 // a correctness property, not a fidelity nicety: an imagined fifth copy is a
 // card the opponent provably cannot hold, and the bot would play around it.
 //
-// WHAT COUNTS AS SEEN. Every zone the observer can read: the seat's
-// battlefield, graveyard and exile, plus that seat's own SPELLS on the stack.
+// WHAT COUNTS AS SEEN. A copy of a card is subtracted when the OBSERVER can
+// point at it somewhere public. Getting the boundary wrong fails in both
+// directions, and both are real bugs: subtract too little and the Brain
+// imagines a fifth copy of a four-of it can see three of; subtract too much
+// and it under-imagines, ruling out cards the deck could still hold.
+//
+// The scan is therefore by OWNERSHIP ACROSS THE WHOLE BOARD, not over the
+// seat's own five piles — a card does not stop being that seat's copy because
+// it is somewhere else:
+//
+//   * every battlefield, matched on `ownerId` — a permanent whose control
+//     changed sits on the OTHER player's battlefield with `ownerId` unchanged
+//     (`applyControlChange`), and the observer can plainly see it;
+//   * `state.phasedOut` — phased-out permanents leave the battlefield array
+//     entirely but stay face-up and public (CR 702.26);
+//   * graveyards and exile, again by `ownerId`, since a card owned by this seat
+//     can rest in the opponent's graveyard;
+//   * that seat's own SPELLS on the stack.
+//
 // Hand and library are exactly the zones being sampled, so they are NOT
-// subtracted — subtracting them would be circular, and for a wire-projected
-// opponent they hold placeholders with no identity to subtract anyway.
+// subtracted here — that would be circular. The caller subtracts the
+// individual hidden-zone cards the observer is separately entitled to see.
 //
-// Only SPELLS count on the stack (`isSpellStackItem`). An ability's stack item
-// carries its SOURCE card's identity while that source sits on the battlefield:
-// subtracting it would remove the same physical card twice and shrink the pool
-// below what the decklist actually admits.
+// Only SPELLS count on the stack (`isSpellStackItem`), and never a COPY: an
+// ability's stack item carries its SOURCE card's identity while that source
+// sits on the battlefield, and a copy of a spell is not a card at all
+// (CR 707.10), so subtracting either removes one physical card twice.
 //
-// Face-down permanents are deliberately NOT subtracted: a face-down permanent
-// has no visible card identity, so the observer cannot rule that identity out
-// of the hidden pool, and subtracting it would narrow the pool using knowledge
-// the observer does not have.
+// UNREADABLE IDENTITIES ARE NOT SUBTRACTED. A face-down permanent, and a card
+// in a hidden zone the observer has not been shown, have no identity the
+// observer may act on — ruling them out would narrow the pool using knowledge
+// it does not have. `knownTo` is the engine's own record of who knows an
+// instance's identity while it sits in a hidden zone (library, hand, face-down
+// exile), so it is what this asks rather than a second, parallel notion.
 
 import { isSpellStackItem } from "./constants";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
@@ -66,10 +85,19 @@ function removeOne(multiset: Map<string, number>, cardId: string): void {
     else multiset.set(cardId, n - 1);
 }
 
-/** A permanent whose face is down has no readable identity, so it cannot be
- *  subtracted from the hidden pool — see the header note. */
-function isFaceDown(card: CardInstanceState): boolean {
-    return card.faceDown === true;
+/** Can `observerId` act on this instance's identity?
+ *
+ *  Two independent ways the answer is no, and the diff between them is why
+ *  this is one predicate rather than a `faceDown` check:
+ *    - `faceDown` — a face-down permanent (the battlefield case);
+ *    - `knownTo` set and missing the observer — the hidden-zone case, which is
+ *      how face-down EXILE is modelled (impulse draw, foretell): those cards
+ *      keep their real `card.id` and are gated by `knownTo` alone, so a
+ *      `faceDown` check does not see them.
+ *  `knownTo` absent means the zone is public and everyone reads it. */
+function readableBy(card: CardInstanceState, observerId: string): boolean {
+    if (card.faceDown === true) return false;
+    return card.knownTo === undefined || card.knownTo.includes(observerId);
 }
 
 /** `CardInstanceState.card` is a `Record<string, unknown>`, so its `id` needs
@@ -97,23 +125,38 @@ function cardIdOf(card: CardInstanceState): string {
 export function unseenRemainder(
     state: GameState,
     player: PlayerState,
-    deckCardIds: readonly string[]
+    deckCardIds: readonly string[],
+    observerId: string
 ): string[] {
     const remaining = new Map<string, number>();
     for (const id of deckCardIds) {
         remaining.set(id, (remaining.get(id) ?? 0) + 1);
     }
 
-    for (const c of player.battlefield) {
-        if (!isFaceDown(c)) removeOne(remaining, cardIdOf(c));
+    /** Subtract one copy for a card this seat OWNS and the observer can read. */
+    const account = (c: CardInstanceState): void => {
+        if (c.ownerId !== player.id) return;
+        if (!readableBy(c, observerId)) return;
+        removeOne(remaining, cardIdOf(c));
+    };
+
+    // By OWNERSHIP across every battlefield, graveyard and exile — a stolen
+    // permanent, or a card that died under the opponent, is still this seat's
+    // copy and the observer can see it.
+    for (const seat of state.players) {
+        for (const c of seat.battlefield) account(c);
+        for (const c of seat.graveyard) account(c);
+        for (const c of seat.exile) account(c);
     }
-    for (const c of player.graveyard) removeOne(remaining, cardIdOf(c));
-    for (const c of player.exile) {
-        if (!isFaceDown(c)) removeOne(remaining, cardIdOf(c));
+    // Phased-out permanents are off the battlefield array but still public.
+    for (const bundle of state.phasedOut ?? []) {
+        for (const c of bundle.cards) account(c);
     }
     for (const item of state.stack) {
         if (item.ownerId !== player.id) continue;
         if (!isSpellStackItem(item)) continue;
+        // A copy is not a card (CR 707.10) — it never left the library.
+        if (item.isCopy) continue;
         removeOne(remaining, cardIdOf(item));
     }
 

@@ -7,6 +7,7 @@ import { getCardByName } from "../../cards";
 import { PLACEHOLDER_CARD_ID } from "../constants";
 import { unseenRemainder } from "../deckKnowledge";
 import { determinize } from "../determinize";
+import type { GameState } from "../state";
 import { makeRng } from "../rng";
 import {
     makeInstance,
@@ -467,6 +468,58 @@ describe("determinize — informed opponent sampling (issue #2789)", () => {
         expect(cardIds(out.players[0].hand)).toEqual([BOLT]);
     });
 
+    it("keeps a hidden card the observer HAS been shown, instead of guessing over it", () => {
+        // A face-up-revealed opponent hand card (a Thoughtseige-style pick, a
+        // reveal effect) carries `knownTo` naming the observer. Sampling over
+        // it would have the bot forget a card it is looking at RIGHT NOW —
+        // strictly worse than the blind path, which at least only moves it.
+        const state = wireShapedState(2, 4);
+        const revealed = makeInstance(GIANT, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "p2-revealed",
+            zone: "hand",
+        });
+        revealed.knownTo = ["p1", "p2"];
+        state.players[1].hand = [revealed, ...opaque("p2", "hand", 1)];
+
+        for (const seed of [1, 2, 3, 4, 5, 6]) {
+            const out = determinize(
+                state,
+                "p1",
+                makeRng(seed),
+                knowledge(OPP_DECK)
+            );
+            const hand = out.players[1].hand;
+            expect(hand).toHaveLength(2);
+            // The REAL instance survives — same id, so a move naming it still
+            // round-trips to the server.
+            expect(hand.map((c) => c.id)).toContain("p2-revealed");
+            // …and it was struck from the pool, so the deck's single Hill
+            // Giant is not dealt a second time somewhere the observer cannot
+            // see.
+            const hidden = cardIds([...hand, ...out.players[1].library]);
+            expect(hidden.filter((id) => id === GIANT)).toHaveLength(1);
+        }
+    });
+
+    it("still samples a hidden card the observer has NOT been shown", () => {
+        // The mirror: `knownTo` naming only its owner must not pin anything,
+        // or the informed path would leak the opponent's real hand.
+        const state = wireShapedState(1, 4);
+        const secret = makeInstance(GIANT, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "p2-secret",
+            zone: "hand",
+        });
+        secret.knownTo = ["p2"];
+        state.players[1].hand = [secret];
+
+        const out = determinize(state, "p1", makeRng(9), knowledge(OPP_DECK));
+        expect(out.players[1].hand.map((c) => c.id)).not.toContain("p2-secret");
+    });
+
     it("is reproducible: same seed and knowledge → identical world", () => {
         const state = wireShapedState(2, 4);
         const a = determinize(state, "p1", makeRng(77), knowledge(OPP_DECK));
@@ -527,33 +580,117 @@ describe("unseenRemainder — what the decklist still admits (issue #2789)", () 
                 }),
             ],
         });
-        const out = unseenRemainder(state, state.players[1], DECK);
+        const out = unseenRemainder(state, state.players[1], DECK, "p1");
         expect(out.sort()).toEqual([BEARS, BOLT].sort());
     });
 
-    it("does not subtract a face-down permanent — its identity is not readable", () => {
-        const faceDown = makeInstance(BEARS, {
+    it("does not subtract a card in exile the observer has not been shown", () => {
+        // Face-down EXILE (impulse draw, foretell) keeps the card's real id and
+        // is gated by `knownTo` alone — a `faceDown` check does not see it, so
+        // this is the shape that actually leaks (review finding on PR #2874).
+        const hidden = makeInstance(BOLT, {
             controllerId: "p2",
-            id: "morph",
+            ownerId: "p2",
+            id: "exiled",
+            zone: "exile",
         });
-        faceDown.faceDown = true;
+        hidden.knownTo = ["p2"];
         const state = makeState({
             players: [
                 makePlayer("p1", {}),
-                makePlayer("p2", { battlefield: [faceDown] }),
+                makePlayer("p2", { exile: [hidden] }),
             ],
         });
-        const out = unseenRemainder(state, state.players[1], DECK);
-        // Both Bears still admitted: the observer cannot rule either out.
-        expect(out.filter((id) => id === BEARS)).toHaveLength(2);
+        // p1 cannot read it — the Bolt stays admitted.
+        expect(unseenRemainder(state, state.players[1], DECK, "p1")).toContain(
+            BOLT
+        );
+        // p2 can, so from THEIR viewpoint it is accounted for.
+        expect(
+            unseenRemainder(state, state.players[1], DECK, "p2")
+        ).not.toContain(BOLT);
+    });
+
+    it("subtracts a permanent whose CONTROL changed — it is still this seat's copy", () => {
+        // `applyControlChange` splices the instance onto the new controller's
+        // battlefield and leaves `ownerId` alone. Scanning only the seat's own
+        // battlefield misses it, and the bot imagines a second copy of a card
+        // it is looking at on its OWN board.
+        const stolen = makeInstance(GIANT, {
+            controllerId: "p1",
+            ownerId: "p2",
+            id: "stolen",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stolen] }),
+                makePlayer("p2", {}),
+            ],
+        });
+        const out = unseenRemainder(state, state.players[1], DECK, "p1");
+        expect(out).not.toContain(GIANT);
+    });
+
+    it("subtracts a phased-out permanent — off the battlefield but still public", () => {
+        const state = makeState({
+            players: [makePlayer("p1", {}), makePlayer("p2", {})],
+        });
+        state.phasedOut = [
+            {
+                id: "bundle",
+                cards: [
+                    makeInstance(GIANT, {
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        id: "phased",
+                    }),
+                ],
+                returnOn: "untap-cycle",
+            },
+        ] as unknown as GameState["phasedOut"];
+        const out = unseenRemainder(state, state.players[1], DECK, "p1");
+        expect(out).not.toContain(GIANT);
+    });
+
+    it("does not subtract a spell COPY on the stack — a copy is not a card", () => {
+        const real = makeInstance(BOLT, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "real-bolt",
+            zone: "stack",
+        });
+        const copy = makeInstance(BOLT, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "copy-bolt",
+            zone: "stack",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", {}), makePlayer("p2", {})],
+        });
+        state.stack = [
+            { ...real, castById: "p2" },
+            { ...copy, castById: "p2", isCopy: true },
+        ] as GameState["stack"];
+        // DECK holds one Bolt; the real spell accounts for it, the copy must
+        // not account for a second one that was never in the deck.
+        const out = unseenRemainder(state, state.players[1], DECK, "p1");
+        expect(out.filter((id) => id === BOLT)).toHaveLength(0);
+        // …and with only the COPY on the stack, the Bolt is still admitted.
+        state.stack = [
+            { ...copy, castById: "p2", isCopy: true },
+        ] as GameState["stack"];
+        expect(unseenRemainder(state, state.players[1], DECK, "p1")).toContain(
+            BOLT
+        );
     });
 
     it("is deterministic in ORDER — the decklist's, not a Map's insertion order", () => {
         const state = makeState({
             players: [makePlayer("p1", {}), makePlayer("p2", {})],
         });
-        const a = unseenRemainder(state, state.players[1], DECK);
-        const b = unseenRemainder(state, state.players[1], DECK);
+        const a = unseenRemainder(state, state.players[1], DECK, "p1");
+        const b = unseenRemainder(state, state.players[1], DECK, "p1");
         expect(a).toEqual(DECK);
         expect(a).toEqual(b);
     });

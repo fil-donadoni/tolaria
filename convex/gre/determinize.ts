@@ -53,6 +53,13 @@
 // wire-projected state there is nothing to discard — those slots held
 // placeholders.
 //
+// Except where the observer HAS been shown a hidden card (`knownTo`): a
+// face-up-revealed hand card, a scry-kept top card, a searched pile. Those keep
+// their real instances and are struck from the pool, so the sample fills only
+// the slots that are genuinely unknown. Overwriting them would be strictly
+// worse than the blind path — which at least MOVES the real instance rather
+// than deleting it — and would have the bot forget a card it is looking at.
+//
 // The observer's OWN seat never takes this path even when it has an entry: the
 // bot sees its own hand, and re-sampling it would DESTROY information the bot
 // legitimately has (`determinizeObserver` keeps the hand and shuffles only the
@@ -129,7 +136,14 @@ export function determinize(
         // that decklist still admits (issue #2789).
         const deckCardIds = knowledgeFor(deckKnowledge, player.id);
         if (deckCardIds) {
-            determinizeInformedOpponent(next, player, deckCardIds, rng, pinTop);
+            determinizeInformedOpponent(
+                next,
+                player,
+                deckCardIds,
+                observerId,
+                rng,
+                pinTop
+            );
         } else {
             // Opponent hand + library are both hidden and interchangeable.
             determinizeOpponent(player, rng, pinTop);
@@ -250,17 +264,39 @@ function determinizeInformedOpponent(
     state: GameState,
     player: PlayerState,
     deckCardIds: readonly string[],
+    observerId: string,
     rng: () => number,
     pinTop: boolean
 ): void {
-    const handSize = player.hand.length;
     const top = pinTop ? player.library[0] : undefined;
-    const librarySlots = player.library.length - (top !== undefined ? 1 : 0);
 
-    const remainder = unseenRemainder(state, player, deckCardIds);
-    if (top !== undefined) {
-        // Strike the pinned card from the pool — it is already placed.
-        const at = remainder.indexOf(String(top.card.id ?? ""));
+    // A hidden-zone card the observer HAS been shown is not a guess to make —
+    // it is a fact to keep. `knownTo` is the engine's record of exactly that
+    // (a look effect adds the looker, a reveal adds everyone, face-down exile
+    // adds the controller), and it is how a face-up-revealed hand card, a
+    // scry-kept top card and a searched pile all reach here.
+    //
+    // Replacing one of those with a sampled guess is strictly worse than the
+    // blind path, which at least MOVES the real instance instead of deleting
+    // it: the bot would forget a card it is looking at right now — and it bites
+    // hardest exactly when it matters, since a revealed opponent hand is
+    // usually revealed because the bot is mid-decision over it.
+    const seen = (c: CardInstanceState): boolean =>
+        c !== top && c.knownTo?.includes(observerId) === true;
+
+    const keptHand = player.hand.filter(seen);
+    const keptLibrary = player.library.filter(seen);
+    const handSlots = player.hand.length - keptHand.length;
+    const librarySlots =
+        player.library.length -
+        keptLibrary.length -
+        (top !== undefined ? 1 : 0);
+
+    const remainder = unseenRemainder(state, player, deckCardIds, observerId);
+    // Strike every already-placed card from the pool, or it could be dealt a
+    // SECOND time into a slot the observer cannot see.
+    for (const c of [...(top ? [top] : []), ...keptHand, ...keptLibrary]) {
+        const at = remainder.indexOf(String(c.card.id ?? ""));
         if (at >= 0) remainder.splice(at, 1);
     }
 
@@ -271,9 +307,16 @@ function determinizeInformedOpponent(
             ? imagineCard(player.id, zone, index, pool[taken++])
             : unknownCard(player.id, zone, index);
 
-    player.hand = Array.from({ length: handSize }, (_, i) => draw("hand", i));
-    const rest = Array.from({ length: librarySlots }, (_, i) =>
-        draw("library", i)
-    );
+    // Known cards keep their real instances (and their real ids, which a move
+    // naming one must round-trip to the server with); the unknown slots around
+    // them are sampled.
+    player.hand = [
+        ...keptHand.map((c) => inZone(c, "hand")),
+        ...Array.from({ length: handSlots }, (_, i) => draw("hand", i)),
+    ];
+    const rest = [
+        ...keptLibrary.map((c) => inZone(c, "library")),
+        ...Array.from({ length: librarySlots }, (_, i) => draw("library", i)),
+    ];
     player.library = top !== undefined ? [top, ...rest] : rest;
 }
