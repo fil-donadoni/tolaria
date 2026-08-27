@@ -31,14 +31,42 @@
 //     so `determinizeObserver`'s shuffle does real work here: it hides the
 //     ORDER the bot must not know while keeping the content the bot legitimately
 //     does, re-sampling a plausible draw/fetch order every ISMCTS iteration.
-//   * The OPPONENT's hidden zones still arrive as counts with no identities (the
-//     adapter fills them with opaque placeholders, not real cards), so pooling
-//     and re-dealing them is a faithful no-op — the bot searches without
-//     inventing specific opponent cards.
+//   * The OPPONENT's hidden zones arrive as counts with no identities (the
+//     adapter fills them with opaque placeholders). BLIND — no entry in
+//     `deckKnowledge` — pooling and re-dealing them is a faithful no-op, and
+//     the bot searches without inventing specific opponent cards.
 // Fed a full-information state (as the unit tests do), it re-deals for real.
+//
+// INFORMED SEATS (issue #2789, PRD #2787). When the caller supplies deck
+// knowledge for a seat OTHER than the observer, that seat's hidden zones stop
+// being re-dealt and start being SAMPLED from the cards its decklist still
+// admits (`unseenRemainder`). This is the difference between imagining an
+// opponent who has surrendered — placeholders resolve to no `CardDefinition`,
+// so the simulated opponent never casts anything from this moment to the end
+// of the game, a systematic optimism no search budget can correct — and one who
+// holds real cards and plays them.
+//
+// The sample REPLACES the seat's current hidden contents rather than permuting
+// them, and that is the point on a full-information state: the observer is not
+// entitled to what is actually in that hand, so re-deriving it from the
+// decklist is what models the observer's ignorance faithfully. On a
+// wire-projected state there is nothing to discard — those slots held
+// placeholders.
+//
+// The observer's OWN seat never takes this path even when it has an entry: the
+// bot sees its own hand, and re-sampling it would DESTROY information the bot
+// legitimately has (`determinizeObserver` keeps the hand and shuffles only the
+// library order).
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";
+import { PLACEHOLDER_CARD_ID } from "./constants";
+import { tryGetDefinition } from "../cards";
+import {
+    knowledgeFor,
+    unseenRemainder,
+    type DeckKnowledgeBySeat,
+} from "./deckKnowledge";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -57,11 +85,18 @@ function inZone(
 
 /** Sample one plausible world consistent with `observerId`'s observations.
  *  Public state is identical to the input; hidden zones are re-dealt uniformly
- *  at random while preserving every zone's card count. Pure. */
+ *  at random while preserving every zone's card count. Pure.
+ *
+ *  `deckKnowledge` names the seats whose decklist the search is allowed to
+ *  know (issue #2789). A seat listed here, other than the observer, has its
+ *  hidden zones SAMPLED from that decklist's unseen remainder instead of
+ *  re-dealt from its own contents; every other seat is unchanged, so a call
+ *  without this argument behaves exactly as it did before it existed. */
 export function determinize(
     state: GameState,
     observerId: string,
-    rng: () => number
+    rng: () => number,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): GameState {
     const next = cloneGameState(state);
 
@@ -88,6 +123,13 @@ export function determinize(
         if (player.id === observerId) {
             // Own hand is known; only the library ORDER is hidden.
             determinizeObserver(player, rng, pinTop);
+            continue;
+        }
+        // A decklist for this seat turns the re-deal into a SAMPLE from what
+        // that decklist still admits (issue #2789).
+        const deckCardIds = knowledgeFor(deckKnowledge, player.id);
+        if (deckCardIds) {
+            determinizeInformedOpponent(next, player, deckCardIds, rng, pinTop);
         } else {
             // Opponent hand + library are both hidden and interchangeable.
             determinizeOpponent(player, rng, pinTop);
@@ -130,5 +172,108 @@ function determinizeOpponent(
     const pool = shuffleWithRng([...player.hand, ...hidden], rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
     const rest = pool.slice(handSize).map((c) => inZone(c, "library"));
+    player.library = top !== undefined ? [top, ...rest] : rest;
+}
+
+/** One imagined hidden card, hydrated from its definition so a simulated
+ *  draw → cast reads a fully-formed card — the same shape the state adapter's
+ *  `makeRealInstance` builds for a known library.
+ *
+ *  The instance id is namespaced `imagined:` and carries the zone plus the
+ *  slot, so it can never collide with a real instance id, with the adapter's
+ *  `libcard:` / `placeholder:` ids, or with the SAME seat's other hidden zone
+ *  at the same index — instance ids key the search's choice candidates and its
+ *  dominance memo, and two cards sharing one id there is a silent mis-match. */
+function imagineCard(
+    playerId: string,
+    zone: "hand" | "library",
+    index: number,
+    cardId: string
+): CardInstanceState {
+    const def = tryGetDefinition(cardId);
+    return {
+        id: `imagined:${zone}:${playerId}:${index}`,
+        card: { id: cardId },
+        types: def?.types ?? [],
+        subtypes: def?.subtypes ?? [],
+        power: def?.power,
+        toughness: def?.toughness,
+        staticAbilities: def?.staticAbilities ?? [],
+        controllerId: playerId,
+        ownerId: playerId,
+        zone,
+        isTapped: false,
+    };
+}
+
+/** The "we ran out of decklist" filler. Deck accounting drifts (a card that
+ *  left the game, a sideboard swap, a token that was never in the deck), and
+ *  the zone COUNTS are public facts that must survive regardless: an imagined
+ *  library one card short would deck the opponent out early (CR 704.5b) and
+ *  hand the bot a phantom win. Opaque on purpose — a placeholder resolves to
+ *  no `CardDefinition`, so `getLegalActions` never offers it as a move. */
+function unknownCard(
+    playerId: string,
+    zone: "hand" | "library",
+    index: number
+): CardInstanceState {
+    return {
+        id: `imagined:${zone}:${playerId}:${index}`,
+        card: { id: PLACEHOLDER_CARD_ID },
+        controllerId: playerId,
+        ownerId: playerId,
+        zone,
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+    };
+}
+
+/** Sample an INFORMED opponent's hidden zones from their decklist (issue
+ *  #2789). Hand and library are filled from the unseen remainder — the
+ *  decklist minus every copy already accounted for in a public zone — so the
+ *  bot reasons about an opponent holding cards that deck could still be
+ *  holding, and never a fifth copy of a four-of.
+ *
+ *  Both hidden zones are drawn from ONE shuffled pool, exactly as the blind
+ *  path pools hand and library: a card the observer cannot see could equally be
+ *  in either zone, and splitting the draws would make the hand and the library
+ *  independently sampled from the same finite multiset — which double-counts.
+ *
+ *  `pinTop` withholds index 0 of the library from the sample entirely and puts
+ *  the real card straight back: a CR 401.5 continuously-revealed top card is
+ *  PUBLIC, so it can neither move nor be replaced by a guess. Its identity is
+ *  also struck from the remainder first, or the card the observer is looking at
+ *  right now could be dealt a second time into the hand. */
+function determinizeInformedOpponent(
+    state: GameState,
+    player: PlayerState,
+    deckCardIds: readonly string[],
+    rng: () => number,
+    pinTop: boolean
+): void {
+    const handSize = player.hand.length;
+    const top = pinTop ? player.library[0] : undefined;
+    const librarySlots = player.library.length - (top !== undefined ? 1 : 0);
+
+    const remainder = unseenRemainder(state, player, deckCardIds);
+    if (top !== undefined) {
+        // Strike the pinned card from the pool — it is already placed.
+        const at = remainder.indexOf(String(top.card.id ?? ""));
+        if (at >= 0) remainder.splice(at, 1);
+    }
+
+    const pool = shuffleWithRng(remainder, rng);
+    let taken = 0;
+    const draw = (zone: "hand" | "library", index: number) =>
+        taken < pool.length
+            ? imagineCard(player.id, zone, index, pool[taken++])
+            : unknownCard(player.id, zone, index);
+
+    player.hand = Array.from({ length: handSize }, (_, i) => draw("hand", i));
+    const rest = Array.from({ length: librarySlots }, (_, i) =>
+        draw("library", i)
+    );
     player.library = top !== undefined ? [top, ...rest] : rest;
 }

@@ -145,6 +145,13 @@ export { recordDeclaration } from "./mulligan";
 // single information-set tree by UCB1, and runs truncated `evaluate`-scored
 // rollouts. Reuses the real GRE for move application (no second simulator).
 export { determinize } from "./determinize";
+
+// Per-seat deck knowledge (issue #2789, PRD #2787). THE single authority on
+// "which card identities may this seat's hidden zones still hold?" — consulted
+// by `determinize` to sample an informed opponent's hand/library, and by the
+// client adapter to rebuild a known library. A seat with no entry is BLIND.
+export { knowledgeFor, unseenRemainder } from "./deckKnowledge";
+export type { DeckKnowledgeBySeat, SeatDeckKnowledge } from "./deckKnowledge";
 export {
     search,
     searchWithTrace,

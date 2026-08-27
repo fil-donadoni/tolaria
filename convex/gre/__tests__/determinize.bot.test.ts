@@ -4,6 +4,8 @@
 // reproducible given the RNG stream. See `convex/gre/determinize.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { PLACEHOLDER_CARD_ID } from "../constants";
+import { unseenRemainder } from "../deckKnowledge";
 import { determinize } from "../determinize";
 import { makeRng } from "../rng";
 import {
@@ -289,5 +291,270 @@ describe("determinize — a CR 401.5 revealed library top is pinned (issue #1095
         state.players[0].library = [];
         const out = determinize(state, "p1", makeRng(3));
         expect(out.players[0].library).toEqual([]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue #2789 / PRD #2787 — the INFORMED opponent. With a decklist for the
+// opponent's seat, their hidden zones stop being re-dealt from whatever they
+// happen to hold and start being SAMPLED from what that decklist still admits.
+// Without it the simulated opponent holds placeholders, resolves to no
+// `CardDefinition`, and therefore never casts anything from this moment to the
+// end of the game — a systematic optimism no search budget corrects.
+describe("determinize — informed opponent sampling (issue #2789)", () => {
+    /** `hiddenCount` opaque placeholders, exactly what the state adapter hands
+     *  the search for a blind seat's hidden zone. */
+    const opaque = (owner: string, zone: "hand" | "library", n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+            id: `placeholder:${zone}:${owner}:${i}`,
+            card: { id: PLACEHOLDER_CARD_ID },
+            controllerId: owner,
+            ownerId: owner,
+            zone,
+            types: [],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+        }));
+
+    /** The production shape: observer p1 sees its own hand; opponent p2's
+     *  hidden zones arrive as counts filled with placeholders. */
+    const wireShapedState = (handCount: number, libraryCount: number) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [makeInstance(BOLT, { id: "p1-h0", zone: "hand" })],
+                }),
+                makePlayer("p2", {
+                    hand: opaque("p2", "hand", handCount),
+                    library: opaque("p2", "library", libraryCount),
+                }),
+            ],
+        });
+
+    const OPP_DECK = [BEARS, BEARS, BEARS, BEARS, GIANT, BOLT, MOUNTAIN];
+    const knowledge = (cardIds: string[]) => [{ playerId: "p2", cardIds }];
+    const cardIds = (cards: { card: Record<string, unknown> }[]) =>
+        cards.map((c) => String(c.card.id ?? ""));
+
+    it("fills the opponent's hidden zones with REAL identities from their decklist", () => {
+        const state = wireShapedState(2, 4);
+        const out = determinize(state, "p1", makeRng(11), knowledge(OPP_DECK));
+
+        const hidden = [...out.players[1].hand, ...out.players[1].library];
+        expect(hidden).toHaveLength(6);
+        // Nothing opaque survives: every slot is a card the deck could hold.
+        expect(cardIds(hidden)).not.toContain(PLACEHOLDER_CARD_ID);
+        for (const id of cardIds(hidden)) expect(OPP_DECK).toContain(id);
+    });
+
+    it("is a no-op for a seat with NO entry — the blind path is untouched", () => {
+        const state = wireShapedState(2, 4);
+        const blind = determinize(state, "p1", makeRng(11));
+        // Knowledge for a seat that is not in this game changes nothing.
+        const other = determinize(state, "p1", makeRng(11), [
+            { playerId: "nobody", cardIds: OPP_DECK },
+        ]);
+        expect(JSON.stringify(other)).toBe(JSON.stringify(blind));
+    });
+
+    it("never imagines a fifth copy of a four-of (evidence consistency)", () => {
+        // Three Bears already accounted for in public zones, so the deck admits
+        // exactly ONE more — and the hidden zones have six slots to fill.
+        const state = wireShapedState(2, 4);
+        state.players[1].battlefield = [
+            makeInstance(BEARS, { controllerId: "p2", id: "p2-bf-0" }),
+            makeInstance(BEARS, { controllerId: "p2", id: "p2-bf-1" }),
+        ];
+        state.players[1].graveyard = [
+            makeInstance(BEARS, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "p2-gy-0",
+                zone: "graveyard",
+            }),
+        ];
+
+        for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+            const out = determinize(
+                state,
+                "p1",
+                makeRng(seed),
+                knowledge(OPP_DECK)
+            );
+            const hidden = cardIds([
+                ...out.players[1].hand,
+                ...out.players[1].library,
+            ]);
+            expect(hidden.filter((id) => id === BEARS)).toHaveLength(1);
+            // Counts are public facts and survive regardless (CR 704.5b).
+            expect(out.players[1].hand).toHaveLength(2);
+            expect(out.players[1].library).toHaveLength(4);
+        }
+    });
+
+    it("pads with placeholders when the decklist runs out, keeping counts exact", () => {
+        // Two cards of deck knowledge against six hidden slots: four slots have
+        // no identity the deck can supply. A short library would deck the
+        // opponent out early and hand the bot a phantom win (CR 704.5b).
+        const state = wireShapedState(2, 4);
+        const out = determinize(
+            state,
+            "p1",
+            makeRng(3),
+            knowledge([BOLT, GIANT])
+        );
+
+        expect(out.players[1].hand).toHaveLength(2);
+        expect(out.players[1].library).toHaveLength(4);
+        const hidden = cardIds([
+            ...out.players[1].hand,
+            ...out.players[1].library,
+        ]);
+        expect(hidden.filter((id) => id === PLACEHOLDER_CARD_ID)).toHaveLength(
+            4
+        );
+    });
+
+    it("keeps a CR 401.5 revealed top card pinned, and out of the imagined hand", () => {
+        const SPY = getCardByName("Goblin Spy").id;
+        const state = wireShapedState(2, 4);
+        // p2 controls the Spy, so p2's top card is public to p1 as well.
+        state.players[1].battlefield = [
+            makeInstance(SPY, { controllerId: "p2", id: "p2-spy" }),
+        ];
+        state.players[1].library = [
+            makeInstance(GIANT, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "p2-top",
+                zone: "library",
+            }),
+            ...opaque("p2", "library", 3),
+        ];
+
+        for (const seed of [1, 2, 3, 4, 5, 6]) {
+            const out = determinize(
+                state,
+                "p1",
+                makeRng(seed),
+                knowledge(OPP_DECK)
+            );
+            // The real instance is still at index 0 — not a guess of the same
+            // name, the SAME instance.
+            expect(out.players[1].library[0].id).toBe("p2-top");
+            // …and it was struck from the pool, so it is not dealt a SECOND
+            // time into the hand: the deck holds exactly one Hill Giant.
+            const hidden = cardIds([
+                ...out.players[1].hand,
+                ...out.players[1].library,
+            ]);
+            expect(hidden.filter((id) => id === GIANT)).toHaveLength(1);
+            expect(out.players[1].library).toHaveLength(4);
+            expect(out.players[1].hand).toHaveLength(2);
+        }
+    });
+
+    it("never re-samples the OBSERVER's own hand, even with an entry for that seat", () => {
+        const state = wireShapedState(2, 4);
+        const out = determinize(state, "p1", makeRng(5), [
+            { playerId: "p1", cardIds: OPP_DECK },
+            { playerId: "p2", cardIds: OPP_DECK },
+        ]);
+        // The bot SEES its own hand; re-deriving it from the decklist would
+        // destroy information it legitimately has.
+        expect(out.players[0].hand.map((c) => c.id)).toEqual(["p1-h0"]);
+        expect(cardIds(out.players[0].hand)).toEqual([BOLT]);
+    });
+
+    it("is reproducible: same seed and knowledge → identical world", () => {
+        const state = wireShapedState(2, 4);
+        const a = determinize(state, "p1", makeRng(77), knowledge(OPP_DECK));
+        const b = determinize(state, "p1", makeRng(77), knowledge(OPP_DECK));
+        expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    });
+
+    it("samples a DIFFERENT hand across seeds", () => {
+        const state = wireShapedState(2, 4);
+        const hands = [1, 2, 3, 4, 5, 6, 7, 8].map((s) =>
+            cardIds(
+                determinize(state, "p1", makeRng(s), knowledge(OPP_DECK))
+                    .players[1].hand
+            )
+                .sort()
+                .join(",")
+        );
+        expect(new Set(hands).size).toBeGreaterThan(1);
+    });
+
+    it("does not mutate the input state", () => {
+        const state = wireShapedState(2, 4);
+        const snapshot = JSON.stringify(state);
+        determinize(state, "p1", makeRng(42), knowledge(OPP_DECK));
+        expect(JSON.stringify(state)).toBe(snapshot);
+    });
+});
+
+describe("unseenRemainder — what the decklist still admits (issue #2789)", () => {
+    const DECK = [BEARS, BEARS, GIANT, BOLT];
+
+    it("subtracts public zones but never the hidden zones themselves", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {}),
+                makePlayer("p2", {
+                    // Hidden zones hold a Bolt; subtracting them would be
+                    // circular — these are the zones being sampled.
+                    hand: [
+                        makeInstance(BOLT, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "h",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(BEARS, { controllerId: "p2", id: "bf" }),
+                    ],
+                    graveyard: [
+                        makeInstance(GIANT, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "gy",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const out = unseenRemainder(state, state.players[1], DECK);
+        expect(out.sort()).toEqual([BEARS, BOLT].sort());
+    });
+
+    it("does not subtract a face-down permanent — its identity is not readable", () => {
+        const faceDown = makeInstance(BEARS, {
+            controllerId: "p2",
+            id: "morph",
+        });
+        faceDown.faceDown = true;
+        const state = makeState({
+            players: [
+                makePlayer("p1", {}),
+                makePlayer("p2", { battlefield: [faceDown] }),
+            ],
+        });
+        const out = unseenRemainder(state, state.players[1], DECK);
+        // Both Bears still admitted: the observer cannot rule either out.
+        expect(out.filter((id) => id === BEARS)).toHaveLength(2);
+    });
+
+    it("is deterministic in ORDER — the decklist's, not a Map's insertion order", () => {
+        const state = makeState({
+            players: [makePlayer("p1", {}), makePlayer("p2", {})],
+        });
+        const a = unseenRemainder(state, state.players[1], DECK);
+        const b = unseenRemainder(state, state.players[1], DECK);
+        expect(a).toEqual(DECK);
+        expect(a).toEqual(b);
     });
 });

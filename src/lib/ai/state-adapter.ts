@@ -57,36 +57,22 @@
 // the future belief-pool sampler (PRD #2787) will be a THIRD mode alongside
 // it, never a replacement for the placeholder machinery.
 
-import type { CardInstanceState, GameState } from "@convex/gre";
-import { PLACEHOLDER_CARD_ID } from "@convex/gre";
+import type {
+    CardInstanceState,
+    DeckKnowledgeBySeat,
+    GameState,
+    SeatDeckKnowledge,
+} from "@convex/gre";
+import { knowledgeFor, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import type { PublicGameState, PublicPlayer } from "@convex/gameProjections";
 import { tryGetDefinition } from "@convex/cards";
 
-/** One seat's known deck content, wired into the adapter so that seat's
- *  library reconstructs with real card identities (issue #1509). `cardIds` are
- *  card DEFINITION ids (the maindeck as of game start); `playerId` selects
- *  which seat it belongs to. */
-export type SeatDeckKnowledge = { playerId: string; cardIds: string[] };
-
-/** Deck knowledge available to the search, addressed PER SEAT rather than as a
- *  single seat's list (issue #2788 — a prefactor for the opponent model, PRD
- *  #2787). Plain array of plain records — arrays/strings only — so it survives
- *  the structured-clone `postMessage` hop unchanged. A seat absent from this
- *  array is BLIND: it keeps today's opaque placeholders (see the header note).
- *  Today only the bot's own seat is ever populated, so every imagined world is
- *  byte-identical to before this type existed. */
-export type DeckKnowledgeBySeat = SeatDeckKnowledge[];
-
-/** Look up one seat's deck knowledge, if the caller supplied any for it. The
- *  single fail-closed discriminator the whole per-seat generalisation rests
- *  on: a seat is informed if and only if it has an entry HERE, never by an
- *  implicit "today only one seat is ever populated" invariant. */
-function knowledgeFor(
-    deckKnowledge: DeckKnowledgeBySeat | undefined,
-    playerId: string
-): string[] | undefined {
-    return deckKnowledge?.find((k) => k.playerId === playerId)?.cardIds;
-}
+// The per-seat deck-knowledge type now lives in the ENGINE
+// (`convex/gre/deckKnowledge.ts`, issue #2789): `determinize` is a consumer
+// too, and `convex/gre/` cannot import from `src/`. Re-exported here so every
+// existing import site keeps working, and so the adapter and the search can
+// never drift onto two different shapes of the same fact.
+export type { SeatDeckKnowledge, DeckKnowledgeBySeat };
 
 /** One opaque hidden-zone instance — identity intentionally absent. The ZONE is
  *  part of the instance id so a player's hand placeholder and their library
@@ -176,7 +162,18 @@ function removeOne(multiset: Map<string, number>, cardId: string): void {
  *  truncated or padded with placeholders to the wire `count` so the deck-out
  *  SBA (CR 704.5b) stays exact even when deck accounting drifts (mulliganed
  *  cards, tokens, cards that left the game). Order is irrelevant here —
- *  `determinize` reshuffles every ISMCTS iteration. */
+ *  `determinize` reshuffles every ISMCTS iteration.
+ *
+ *  HIDDEN HAND CARDS ARE SUBTRACTED BY COUNT (issue #2789, carried forward
+ *  from the #2788 review). The loop below can only subtract hand entries it can
+ *  SEE, which is exact for the bot's own seat and wrong for every other: a
+ *  non-viewer's hand arrives as `null[]`, so none of it comes off the decklist
+ *  and the rebuilt library holds real cards that seat is actually holding — the
+ *  bot can then "draw" a card its opponent has in hand. The count is public
+ *  (CR 402.2) even though the identities are not, so the honest reconstruction
+ *  removes that MANY cards without claiming to know WHICH: the slots become
+ *  placeholders, and `library.count` keeps reconciling. The symptom is silent
+ *  otherwise — nothing throws and the count still adds up. */
 function makeRealLibrary(
     state: PublicGameState,
     player: PublicPlayer,
@@ -191,8 +188,10 @@ function makeRealLibrary(
     }
 
     // Subtract the bot-owned cards already visible outside the library.
+    let hiddenHandCards = 0;
     for (const c of player.hand) {
         if (c) removeOne(remaining, c.card.id);
+        else hiddenHandCards++;
     }
     for (const c of player.battlefield) removeOne(remaining, c.card.id);
     for (const c of player.graveyard) removeOne(remaining, c.card.id);
@@ -208,8 +207,13 @@ function makeRealLibrary(
         for (let i = 0; i < n; i++) realIds.push(id);
     }
 
+    // At most this many of the remainder can still be IN the library: the rest
+    // is in the hand we cannot read. Never negative — a drifted deck list can
+    // leave fewer known cards than the hidden hand holds.
+    const knowable = Math.max(0, realIds.length - hiddenHandCards);
+
     const cards: CardInstanceState[] = [];
-    const take = Math.min(realIds.length, count);
+    const take = Math.min(knowable, count);
     for (let i = 0; i < take; i++) {
         cards.push(makeRealInstance(player.id, i, realIds[i]));
     }
