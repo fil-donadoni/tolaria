@@ -590,8 +590,17 @@ A sequence of game choices a **Player** with **Priority** proposes in one breath
 _Avoid_: Combo, infinite, macro, auto-repeat
 
 **Determinization**:
-Guessing a concrete possible world for the hidden information (the opponent's **Hand** and the order of the **Library**) so the **Brain** can reason about an otherwise-hidden position as if it were fully known.
+Guessing a concrete possible world for the hidden information (the opponent's **Hand** and the order of the **Library**) so the **Brain** can reason about an otherwise-hidden position as if it were fully known. Re-guessed once per search iteration, so the **Brain** reasons over many possible worlds rather than one.
+How the opponent's hidden cards are filled in depends on whether the search has **Deck Knowledge** for that seat: without it they are anonymous placeholders the simulated opponent can never cast, with it they are real cards drawn from the **Unseen Remainder**.
 _Avoid_: Sampling, guessing, simulation
+
+**Deck Knowledge**:
+The decklists the search is permitted to know, named one seat at a time. A seat with no entry is blind and keeps anonymous placeholders — that absence is the permission check, so knowledge is never acquired by accident.
+_Avoid_: Cheating, peeking, perfect information
+
+**Unseen Remainder**:
+What a seat's decklist could still be hiding: the whole list minus every copy already accounted for somewhere public (**Battlefield**, **Graveyard**, exile, a spell on the **Stack**). It is what keeps an imagined **Hand** honest — a four-of with three copies already visible admits exactly one more, so the **Brain** can never imagine a fifth.
+_Avoid_: Remaining deck, unknown cards, the rest of the library
 
 **Difficulty**:
 How much thinking the **Bot** is allowed before moving. A stronger **Bot** is the same **Brain** given a larger search budget, not different logic.
