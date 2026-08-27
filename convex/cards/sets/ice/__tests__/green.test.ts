@@ -57,7 +57,11 @@ import {
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { mountain } from "../../lea";
 import { untapStep } from "../../../../gre/phases";
-import { getDefinition, getCardByName } from "../../../index";
+import {
+    getDefinition,
+    getCardByName,
+    withTemporaryDefinition,
+} from "../../../index";
 import {
     resolveTopOfStack,
     tapPermanent,
@@ -1880,14 +1884,19 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
     // Proof-of-failure (drop `activateFromGraveyard`): mirrors the
     // authoritative gate at `game.ts` (`activateAbilityOnState`) that rejects
     // a graveyard-source activation for an ability not opted in via
-    // `activateFromGraveyard` — verified by temporarily setting it to
-    // `false` and observing the exact rejection this test guards against.
+    // `activateFromGraveyard` — verified by serving a VARIANT Whiteout whose
+    // ability carries `activateFromGraveyard: false` through
+    // `withTemporaryDefinition` (the catalogue definition is deep-frozen in
+    // node test setup and may not be mutated in place).
     it("would be rejected from the graveyard if activateFromGraveyard were dropped (proof-of-failure guard)", () => {
         const state = setup(true);
-        const original = ability.activateFromGraveyard;
-        (ability as { activateFromGraveyard?: boolean }).activateFromGraveyard =
-            false;
-        try {
+        const variant = {
+            ...whiteout,
+            activatedAbilities: whiteout.activatedAbilities!.map((a) =>
+                a.id === ability.id ? { ...a, activateFromGraveyard: false } : a
+            ),
+        };
+        withTemporaryDefinition(variant, () => {
             expect(() =>
                 activateAbilityOnState(state, {
                     playerId: "p1",
@@ -1895,11 +1904,7 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
                     abilityId: ability.id,
                 })
             ).toThrow(/can't be activated from the graveyard/);
-        } finally {
-            (
-                ability as { activateFromGraveyard?: boolean }
-            ).activateFromGraveyard = original;
-        }
+        });
     });
 
     it("builds a matching pendingActivation via buildPendingActivation (fromGraveyard + sacrificeSelection)", () => {

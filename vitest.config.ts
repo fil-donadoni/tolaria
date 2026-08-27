@@ -167,6 +167,12 @@ export default defineConfig({
                 test: {
                     name: "node",
                     environment: "node",
+                    // Deep-freezes the shared catalogue: `isolate: false`
+                    // shares module state across files, so an in-place
+                    // mutation of a card definition would silently poison
+                    // later files in the worker (order-dependent heisen-red,
+                    // observed 2026-08-27). See vitest.setup.node.ts.
+                    setupFiles: ["./vitest.setup.node.ts"],
                     include: [
                         "convex/**/*.test.ts",
                         "scripts/**/*.test.ts",
@@ -191,6 +197,9 @@ export default defineConfig({
                 test: {
                     name: "bot-node",
                     environment: "node",
+                    // Same shared-module-state hazard as the `node` project
+                    // (`isolate: false`) — same frozen catalogue.
+                    setupFiles: ["./vitest.setup.node.ts"],
                     include: BOT_GLOB_NODE,
                     exclude: botExclude,
                     isolate: false,
