@@ -75,9 +75,7 @@ export default function RandomRevealOverlay({
                     />
                 )}
 
-                <p className="font-beleren text-sm tracking-wide text-parchment">
-                    {label}
-                </p>
+                <p className="text-display text-sm text-text">{label}</p>
                 {consequence && (
                     <p className="text-xs text-text-muted">{consequence}</p>
                 )}

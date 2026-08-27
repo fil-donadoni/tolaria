@@ -95,9 +95,7 @@ export default function RevealNotificationOverlay() {
                 density="compact"
                 className="flex flex-col items-center gap-4 px-8 py-6"
             >
-                <p className="font-beleren text-sm tracking-wide text-parchment">
-                    {heading}
-                </p>
+                <p className="text-display text-sm text-text">{heading}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                     {active.cards.map((c) => (
                         <div key={c.instanceId} className="w-40 aspect-5/7">

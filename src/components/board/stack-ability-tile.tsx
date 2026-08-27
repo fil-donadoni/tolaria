@@ -62,7 +62,7 @@ export default function StackAbilityTile({
                         staticAbilities={def?.staticAbilities ?? []}
                     />
                 )}
-                <div className="absolute top-1 left-1 text-[9px] uppercase tracking-wider font-semibold text-text bg-black/70 px-1.5 py-0.5 rounded">
+                <div className="absolute top-1 left-1 text-[9px] uppercase tracking-wider font-semibold text-text bg-surface-base/80 border border-border-subtle px-1.5 py-0.5 rounded">
                     {badgeLabel}
                 </div>
             </div>

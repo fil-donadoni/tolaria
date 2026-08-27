@@ -245,10 +245,10 @@ export default function PileDivisionPicker({
                     {...dragHandlers}
                     className="flex flex-col items-center text-center gap-1 cursor-move w-full"
                 >
-                    <p className="font-beleren text-sm tracking-wide text-parchment">
+                    <p className="text-display text-sm text-text">
                         {isPick ? "Choose a Pile" : "Divide into Two Piles"}
                     </p>
-                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                    <div className="panel-rule h-px w-full" />
                     <p className="text-text-muted text-xs">
                         {formatOracleText(choice.prompt)}
                     </p>
