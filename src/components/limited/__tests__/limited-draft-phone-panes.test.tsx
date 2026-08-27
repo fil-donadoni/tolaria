@@ -474,20 +474,30 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
                 void manager.actions.stop();
             });
 
-            const inspect = actionEls().find(
-                (el) => el.dataset.editingAction === "Inspect"
-            )!;
-            fireEvent.click(inspect);
+            // Issue #2861: the DESKTOP regime (`"stacked"`) reaches Inspect
+            // via a real right-click on the Booster card directly, no CTA row
+            // to find — the phone regimes keep their strip's own row.
+            if (layout === "stacked") {
+                fireEvent.contextMenu(
+                    document.querySelector('[aria-label^="Draft pick:"]')!
+                );
+            } else {
+                const inspect = actionEls().find(
+                    (el) => el.dataset.editingAction === "Inspect"
+                )!;
+                fireEvent.click(inspect);
+            }
             expect(
                 document.querySelectorAll("[data-inspect-overlay]").length
             ).toBe(1);
         }
     );
 
-    it.each(Object.keys(REGISTERED) as Layout[])(
-        "%s mounts exactly one pick context menu on the menu path",
-        (layout) => {
-            renderTable(layout, { selectedPickId: "r0-p0-c1" });
+    it("phone regimes mount exactly one pick context menu on the real right-click, issue #2861 leaving them unchanged", () => {
+        for (const layout of ["phone-portrait", "phone-landscape"] as const) {
+            const { unmount } = renderTable(layout, {
+                selectedPickId: "r0-p0-c1",
+            });
             fireEvent.contextMenu(
                 document.querySelector('[aria-label^="Draft pick:"]')!
             );
@@ -496,8 +506,22 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
                     '[role=menu][aria-label="Draft pick actions"]'
                 ).length
             ).toBe(1);
+            unmount();
         }
-    );
+    });
+
+    // Issue #2861: the desktop regime retires the real right-click menu in
+    // favour of opening the Inspect Overlay directly there — a LEFT click is
+    // what opens its menu now, and exactly one, never a second copy from a
+    // nested provider.
+    it('"stacked" mounts exactly one pack menu on a left click, and it opens no Inspect Overlay by itself', () => {
+        renderTable("stacked", { selectedPickId: "r0-p0-c1" });
+        fireEvent.click(document.querySelector('[aria-label^="Draft pick:"]')!);
+        expect(document.querySelectorAll("[role=menu]").length).toBe(1);
+        expect(document.querySelectorAll("[data-inspect-overlay]").length).toBe(
+            0
+        );
+    });
 
     it("the landscape POOL arm registers its pane drops in the same injected manager", () => {
         // The other half of the landscape fork: after the swipe the pack
@@ -528,12 +552,19 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
         }
     });
 
-    it("mounts the Peek Panel OFF the phone regimes only", () => {
-        renderTable("stacked", { selectedPickId: "r0-p0-c1" });
-        expect(document.querySelectorAll("[data-peek-panel]").length).toBe(1);
-        cleanup();
-        renderTable("phone-landscape", { selectedPickId: "r0-p0-c1" });
-        expect(document.querySelectorAll("[data-peek-panel]").length).toBe(0);
+    // Issue #2861 retires the Booster's own `<PeekPanel>` outright — it used
+    // to mount on `"stacked"` only (the phone regimes always inlined the CTA
+    // row into the strip instead); now no regime mounts it at all.
+    it("mounts no Peek Panel on any regime any more (issue #2861)", () => {
+        for (const layout of Object.keys(REGISTERED) as Layout[]) {
+            const { unmount } = renderTable(layout, {
+                selectedPickId: "r0-p0-c1",
+            });
+            expect(document.querySelectorAll("[data-peek-panel]").length).toBe(
+                0
+            );
+            unmount();
+        }
     });
 });
 

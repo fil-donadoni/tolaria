@@ -1,34 +1,40 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import type { EditingSurfaceAction } from "~/components/editing/editing-surface-action";
 
-export interface LimitedPickContextMenuState {
-    pickId: string;
+export interface LimitedDraftMenuState {
     x: number;
     y: number;
+    /** `aria-label` for the popup — distinguishes the Booster's own menu from
+     *  the Pool's / the Sideboard's for assistive tech. */
+    label: string;
+    actions: readonly EditingSurfaceAction[];
 }
 
 /**
- * Right-click context menu on a Booster card (ADR 0060, issue #1248, PRD
- * #1107 story 26): "Pick" (commits into the card's Mana-Value column, same
- * as a double-click) and "Pick to sideboard" (commits AND parks the new
- * Pool card straight into the Sideboard). A small self-contained menu
- * (position-anchored at the click point, closes on outside click/Escape/an
- * item choice) rather than the app's shared `~/components/ui/context-menu`
- * — that shared wrapper deliberately reserves a REAL right-click for the
- * card-zoom preview everywhere else in the app (`card-preview.tsx`) and only
- * opens on a synthesized left-click instead; the Booster explicitly wants a
- * genuine right-click to open ITS menu (the literal ADR 0060 gesture), so
- * reusing that wrapper would fight its own convention rather than serve it.
+ * The Draft Room's card context menu (ADR 0060, issue #1248; generalised to
+ * every card surface — Booster, Pool, Sideboard — by issue #2861). Renders
+ * whatever {@link EditingSurfaceAction}s its caller built, the SAME
+ * descriptors the Peek Panel / Inspect Overlay are built from elsewhere in
+ * the app — so a label or behavior can never diverge between the Booster's
+ * menu, the Pool's, and the Sideboard's.
+ *
+ * A small self-contained menu (position-anchored at the click point, closes
+ * on outside click/Escape/an item choice) rather than the app's shared
+ * `~/components/ui/context-menu` — that shared wrapper is a Popper anchored
+ * to its TRIGGER element, and this menu already carries its own click-point
+ * anchor from before issue #2861 generalised it; re-deriving it onto a
+ * trigger-anchored primitive would be a second popover implementation for no
+ * behavioral gain. It opens on a LEFT click (re-bound from the Booster's
+ * original real right-click by issue #2861: a real right-click now opens the
+ * Inspect Overlay directly, matching what right-click already means
+ * everywhere else in the app).
  */
 export default function LimitedPickContextMenu({
     state,
-    onPick,
-    onPickToSideboard,
     onClose,
 }: {
-    state: LimitedPickContextMenuState;
-    onPick: (pickId: string) => void;
-    onPickToSideboard: (pickId: string) => void;
+    state: LimitedDraftMenuState;
     onClose: () => void;
 }) {
     const menuRef = useRef<HTMLDivElement>(null);
@@ -56,42 +62,31 @@ export default function LimitedPickContextMenu({
         <div
             ref={menuRef}
             role="menu"
-            aria-label="Draft pick actions"
+            aria-label={state.label}
             style={{ position: "fixed", top: state.y, left: state.x }}
             // v4 (ADR 0103 §5, issue #2731): "bespoke lookalikes... adopt the
             // same tokens" — the hairline frame + panel radius in place of the
             // legacy `ring-foreground/10`, and a `--menu-row-gap` column so
             // the two rows get real spacing, WITHOUT switching this menu onto
-            // the shared `ContextMenu` primitive itself: this popup
-            // deliberately opens on a genuine right-click (the ADR 0060
-            // Booster gesture), while `ContextMenuTrigger` elsewhere
-            // synthesizes that event from a left-click and reserves real
-            // right-click/long-press for the card preview — reusing it here
-            // would fight that convention rather than serve it.
+            // the shared `ContextMenu` primitive itself — see the doc comment
+            // above for why.
             className="z-modal flex min-w-40 flex-col gap-[var(--menu-row-gap)] rounded-[var(--panel-radius)] border border-[var(--hairline)] bg-popover p-1 text-sm text-popover-foreground shadow-md"
         >
-            <button
-                type="button"
-                role="menuitem"
-                className="flex min-h-[var(--menu-row-h)] w-full items-center rounded-md px-2 text-left outline-none hover:bg-accent focus-visible:bg-accent"
-                onClick={() => {
-                    onPick(state.pickId);
-                    onClose();
-                }}
-            >
-                Pick
-            </button>
-            <button
-                type="button"
-                role="menuitem"
-                className="flex min-h-[var(--menu-row-h)] w-full items-center rounded-md px-2 text-left outline-none hover:bg-accent focus-visible:bg-accent"
-                onClick={() => {
-                    onPickToSideboard(state.pickId);
-                    onClose();
-                }}
-            >
-                Pick to sideboard
-            </button>
+            {state.actions.map((action) => (
+                <button
+                    key={action.label}
+                    type="button"
+                    role="menuitem"
+                    disabled={action.disabled}
+                    className="flex min-h-[var(--menu-row-h)] w-full items-center rounded-md px-2 text-left outline-none hover:bg-accent focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                    onClick={() => {
+                        action.onSelect();
+                        onClose();
+                    }}
+                >
+                    {action.label}
+                </button>
+            ))}
         </div>,
         document.body
     );
