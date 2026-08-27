@@ -11,11 +11,15 @@
 #      immune, optionally under `caffeinate` so the Mac does not sleep through
 #      the run), so it keeps going after the shell, the SSH connection, or the
 #      Claude Code session that launched it is gone.
-#   2. `--from-pass` — the LAST action of a `/process-gh-issues` pass. It
-#      no-ops unless the checkout is ARMED, so an ordinary interactive pass
-#      never silently forks an hours-long unattended run; when armed, it hands
-#      the baton to a detached driver, and the machine keeps draining the
-#      queue with no further human input.
+#   2. `--from-pass` — DEAD SWITCH (ADR 0109). It used to detach the driver
+#      at the end of a `/process-gh-issues` pass whenever an `afk.conf` was
+#      present. In practice a weeks-old conf turned a single interactive pass
+#      into an unattended, sometimes unbudgeted, multi-day drain (the
+#      2026-08-25→27 91%-in-48h burn ran that way). A pass NEVER starts the
+#      driver: `--from-pass` is now an unconditional exit-0 no-op, kept only
+#      so older prompts that still call it stay harmless. Unattended runs
+#      begin ONLY with an explicit human `--start` / `--resume` (or
+#      `bun run loop:drain`) in a terminal.
 #
 # Arming is deliberately a separate, durable, human act (`--arm`, or the
 # `--start` that implies it): the driver runs `claude` with whatever
@@ -72,9 +76,9 @@ loop-handoff — start / stop / inspect the detached AFK driver.
   bun run loop:afk --resume            same, but clears the stop-file first
   bun run loop:afk --stop              ask the running driver to stop after the current pass
   bun run loop:afk --status            armed? driver alive? stop-file? last log lines
-  bun run loop:afk --arm               write the conf without starting anything
-  bun run loop:afk --disarm            remove the conf (end-of-pass handoff stops firing)
-  sh scripts/loop-handoff.sh --from-pass   invoked BY a pass; no-ops unless armed
+  bun run loop:afk --arm               write the conf (defaults for --start) without starting anything
+  bun run loop:afk --disarm            remove the conf
+  sh scripts/loop-handoff.sh --from-pass   dead switch (ADR 0109): always a no-op — a pass never starts the driver
 
 Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --claude-args <str>          default: --dangerously-skip-permissions
@@ -292,7 +296,7 @@ case "$MODE" in
                 echo "prompt:     $DEFAULT_PROMPT (default — the whole queue, by board priority)"
             fi
         else
-            echo "armed:      no — end-of-pass handoff will not fire"
+            echo "armed:      no — no stored defaults for --start"
         fi
         if _pid=$(driver_pid); then
             echo "driver:     running (pid $_pid)"
@@ -314,12 +318,15 @@ case "$MODE" in
         write_conf
         echo "loop-handoff: armed. conf:"
         sed 's/^/  /' "$CONF_FILE"
-        echo "loop-handoff: nothing started — 'bun run loop:afk' to start now, or the next finished /process-gh-issues pass will."
+        echo "loop-handoff: nothing started — the conf is only defaults for an explicit 'bun run loop:afk --start'. A pass NEVER starts the driver (ADR 0109)."
+        if [ -z "$(conf_get BUDGET)" ]; then
+            echo "loop-handoff: WARNING — no BUDGET in the conf; --start will refuse unless --budget is passed (or TOLARIA_LOOP_TOKEN_BUDGET is set)." >&2
+        fi
         ;;
 
     disarm)
         rm -f "$CONF_FILE"
-        echo "loop-handoff: disarmed — the end-of-pass handoff will no longer start a driver."
+        echo "loop-handoff: disarmed — the stored --start defaults are gone."
         echo "loop-handoff: a driver already running is NOT stopped by this; use 'bun run loop:afk --stop'."
         ;;
 
@@ -342,6 +349,14 @@ case "$MODE" in
             echo "loop-handoff: not starting — $reason" >&2
             exit 1
         fi
+        # Budget is MANDATORY (ADR 0109). Refuse HERE, loudly, rather than
+        # detach a driver that dies with the same refusal into a detach log
+        # nobody is watching. Env counts: the detached driver inherits
+        # TOLARIA_LOOP_TOKEN_BUDGET from this shell.
+        if [ -z "${ARG_BUDGET:-$(conf_get BUDGET)}" ] && [ -z "${TOLARIA_LOOP_TOKEN_BUDGET:-}" ]; then
+            echo "loop-handoff: refusing to start without a token budget — pass --budget <tokens> (e.g. --budget 200000000), record one with --arm --budget, or set TOLARIA_LOOP_TOKEN_BUDGET. An unbudgeted driver ran unthrottled for days (ADR 0109)." >&2
+            exit 1
+        fi
         write_conf
         echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
         echo "loop-handoff: every pass will run: claude -p \"$(conf_get PROMPT)\""
@@ -356,18 +371,11 @@ case "$MODE" in
         ;;
 
     from-pass)
-        # Called at the end of a pass. EVERY negative outcome here is a quiet
-        # exit 0: this runs inside a successful pass, and a handoff that
-        # cannot start is never a reason to fail the batch that just landed.
-        if [ ! -f "$CONF_FILE" ]; then
-            echo "loop-handoff: not armed — this pass ends here. 'bun run loop:afk' to run unattended."
-            exit 0
-        fi
-        if ! reason=$(blocked_reason); then
-            echo "loop-handoff: no handoff — $reason"
-            exit 0
-        fi
-        launch_driver
+        # DEAD SWITCH (ADR 0109) — see the header. A pass NEVER starts the
+        # driver, armed or not, blockers or not. Exit 0 unconditionally: this
+        # runs at the end of a successful pass and must never fail the batch.
+        echo "loop-handoff: end-of-pass handoff is permanently disabled — a pass never starts the driver (ADR 0109). Unattended runs: 'bun run loop:afk --start'."
+        exit 0
         ;;
 
     *)

@@ -237,6 +237,11 @@ const run = (opts: RunOpts = {}) =>
             // Hermetic: never let a real budget configured in the outer
             // shell leak into a test that isn't about the budget guard.
             TOLARIA_LOOP_TOKEN_BUDGET: "",
+            // The budget guard is MANDATORY since ADR 0109 — an unbudgeted
+            // driver refuses to start. This hatch exists FOR THIS SUITE:
+            // most tests here are about pass mechanics, not the guard.
+            // Budget-guard tests override it back to "".
+            TOLARIA_LOOP_ALLOW_NO_BUDGET: "1",
             // Hermetic, and load-bearing for #2622: the driver's own fix puts
             // this var in the pass's environment, so every descendant of a
             // pass inherits it — including `bun run test` -> vitest -> this
@@ -364,10 +369,24 @@ describe("budget threshold", () => {
         expect(passLogCount()).toBe(1);
     });
 
-    it("warns once and disables the guard when no budget is configured", () => {
+    it("REFUSES to run when no budget is configured (mandatory, ADR 0109)", () => {
+        // The opt-in era ended 2026-08-27: every launcher after 2026-08-23
+        // forgot the flag and the driver ran unthrottled for days.
+        stubGhCountingFrom(0);
+        const r = run({
+            args: ["--claude-args", "x"],
+            env: { TOLARIA_LOOP_ALLOW_NO_BUDGET: "" },
+        });
+        expect(r.status).toBe(1);
+        expect(`${r.stderr}`).toMatch(/REQUIRED/);
+        // Refused BEFORE doing anything: no pass log line, no pid file.
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("the test-only hatch says so out loud when it disables the guard", () => {
         stubGhCountingFrom(0);
         const r = run({ args: ["--claude-args", "x"] });
-        expect(`${r.stderr}`).toMatch(/budget guard is DISABLED/);
+        expect(`${r.stderr}`).toMatch(/test-only hatch.*DISABLED/);
     });
 });
 

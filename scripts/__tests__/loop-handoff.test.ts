@@ -7,11 +7,11 @@ import * as path from "path";
 vi.setConfig({ testTimeout: 15_000 });
 
 /**
- * `scripts/loop-handoff.sh` is the AFK entry point: it arms a checkout for
- * unattended draining and detaches `scripts/loop-drain.sh` into its own
- * session, either because a human asked (`--start`) or because a
- * `/process-gh-issues` pass just finished on an armed checkout
- * (`--from-pass`). See ADR 0099.
+ * `scripts/loop-handoff.sh` is the AFK entry point: it detaches
+ * `scripts/loop-drain.sh` into its own session ONLY when a human asks
+ * (`--start` / `--resume`), always with a token budget. `--from-pass` — the
+ * end-of-pass autostart of ADR 0099 — is a dead switch since ADR 0109: a
+ * pass never starts the driver.
  *
  * Everything here runs the real `sh` script against a scratch cwd, exactly
  * as `loop-drain.test.ts` does. `--dry-run` is used wherever the assertion is
@@ -53,6 +53,10 @@ const run = (opts: RunOpts = {}) =>
             // pass" marker, and a real AFK run in the outer shell would
             // otherwise silently switch every test to the no-op branch.
             TOLARIA_LOOP_DRAIN: "",
+            // Hermetic: budget is mandatory on --start (ADR 0109); a budget
+            // configured in the outer shell must not leak into tests that
+            // prove the refusal.
+            TOLARIA_LOOP_TOKEN_BUDGET: "",
             ...opts.env,
         },
     });
@@ -71,23 +75,25 @@ afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("arming — an unattended run is an explicit, durable, revocable act", () => {
-    it("does not fire the end-of-pass handoff on an unarmed checkout", () => {
-        // The reason arming exists at all: an ordinary interactive
-        // `/process-gh-issues` must not silently fork an hours-long run that
-        // auto-approves every permission prompt.
+describe("a pass NEVER starts the driver (ADR 0109)", () => {
+    it("--from-pass is a no-op on an unarmed checkout", () => {
         const r = run({ args: ["--from-pass", "--dry-run"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/not armed/);
+        expect(r.stdout).toMatch(/never starts the driver/);
         expect(r.stdout).not.toMatch(/would detach/);
     });
 
-    it("fires the end-of-pass handoff once armed", () => {
-        run({ args: ["--arm"] });
+    it("--from-pass is a no-op EVEN WHEN armed, budgeted and unblocked", () => {
+        // The incident this pins down: a weeks-old afk.conf plus ONE
+        // interactive /process-gh-issues pass used to detach an unattended
+        // multi-day drain nobody asked for. Armed, budgeted, no stop-file,
+        // no live driver — and STILL nothing may be detached from a pass.
+        run({ args: ["--arm", "--budget", "12345"] });
         const r = run({ args: ["--from-pass", "--dry-run"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/would detach/);
-        expect(r.stdout).toMatch(/scripts\/loop-drain\.sh/);
+        expect(r.stdout).toMatch(/never starts the driver/);
+        expect(r.stdout).not.toMatch(/would detach/);
+        expect(r.stdout).not.toMatch(/driver detached/);
     });
 
     it("--arm writes the permission mode in plain text and starts nothing", () => {
@@ -99,17 +105,14 @@ describe("arming — an unattended run is an explicit, durable, revocable act", 
         expect(fs.existsSync(PID())).toBe(false);
     });
 
-    it("--disarm removes the marker so the handoff stops firing", () => {
+    it("--disarm removes the stored --start defaults", () => {
         run({ args: ["--arm"] });
         const r = run({ args: ["--disarm"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.existsSync(CONF())).toBe(false);
-        expect(run({ args: ["--from-pass", "--dry-run"] }).stdout).toMatch(
-            /not armed/
-        );
     });
 
-    it("carries the recorded knobs into the driver argv", () => {
+    it("carries the recorded knobs into the driver argv on --start", () => {
         run({
             args: [
                 "--arm",
@@ -125,7 +128,7 @@ describe("arming — an unattended run is an explicit, durable, revocable act", 
                 "7",
             ],
         });
-        const out = run({ args: ["--from-pass", "--dry-run"] }).stdout;
+        const out = run({ args: ["--start", "--dry-run"] }).stdout;
         expect(out).toMatch(/--budget 12345/);
         expect(out).toMatch(/--max-pct 70/);
         expect(out).toMatch(/--max-passes 9/);
@@ -141,47 +144,62 @@ describe("arming — an unattended run is an explicit, durable, revocable act", 
             CONF(),
             "CLAUDE_ARGS=--dangerously-skip-permissions $(touch pwned)\n"
         );
-        const r = run({ args: ["--from-pass", "--dry-run"] });
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.existsSync(path.join(tmp, "pwned"))).toBe(false);
     });
 });
 
-describe("blocked-start guards — every reason a driver must NOT be detached", () => {
-    it("no-ops when the pass was itself started BY the driver", () => {
-        // Without this the fan-out is exponential: every driven pass would
-        // detach another driver at its end.
-        run({ args: ["--arm"] });
+describe("budget is mandatory on --start (ADR 0109)", () => {
+    it("bare --start refuses without a budget from flag, conf or env", () => {
+        const r = run({ args: ["--start", "--dry-run"] });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/without a token budget/);
+    });
+
+    it("a conf-recorded budget satisfies --start", () => {
+        run({ args: ["--arm", "--budget", "777"] });
+        const r = run({ args: ["--start", "--dry-run"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/--budget 777/);
+    });
+
+    it("TOLARIA_LOOP_TOKEN_BUDGET in the environment satisfies --start", () => {
+        // The detached driver inherits the env, so an env budget is a real
+        // budget — refusing it would only teach people to pass --budget 1.
         const r = run({
-            args: ["--from-pass", "--dry-run"],
-            env: { TOLARIA_LOOP_DRAIN: "1" },
+            args: ["--start", "--dry-run"],
+            env: { TOLARIA_LOOP_TOKEN_BUDGET: "888" },
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/TOLARIA_LOOP_DRAIN=1/);
+        expect(r.stdout).toMatch(/would detach/);
+    });
+});
+
+describe("blocked-start guards — every reason a driver must NOT be detached", () => {
+    it("--start refuses inside a driven pass (TOLARIA_LOOP_DRAIN=1)", () => {
+        // Without this the fan-out is exponential: a driven pass typing
+        // --start would detach another driver alongside its own.
+        const r = run({
+            args: ["--start", "--dry-run", "--budget", "1"],
+            env: { TOLARIA_LOOP_DRAIN: "1" },
+        });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/TOLARIA_LOOP_DRAIN=1/);
         expect(r.stdout).not.toMatch(/would detach/);
     });
 
-    it("no-ops when the stop-file exists (the kill switch outranks arming)", () => {
-        run({ args: ["--arm"] });
-        fs.writeFileSync(STOP(), "");
-        const r = run({ args: ["--from-pass", "--dry-run"] });
-        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).not.toMatch(/would detach/);
-    });
-
-    it("no-ops when a driver is already running over this checkout", () => {
-        run({ args: ["--arm"] });
+    it("--start refuses when a driver is already running over this checkout", () => {
         fs.writeFileSync(PID(), String(process.pid));
-        const r = run({ args: ["--from-pass", "--dry-run"] });
-        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/already running/);
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/already running/);
         expect(r.stdout).not.toMatch(/would detach/);
     });
 
     it("ignores a STALE pid file — a killed driver must not block every future run", () => {
-        run({ args: ["--arm"] });
         fs.writeFileSync(PID(), "2147483647");
-        const r = run({ args: ["--from-pass", "--dry-run"] });
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/would detach/);
     });
@@ -196,7 +214,7 @@ describe("blocked-start guards — every reason a driver must NOT be detached", 
 
     it("a blocked --start is a LOUD exit 1 — a human typed it and must be told", () => {
         fs.writeFileSync(STOP(), "");
-        const r = run({ args: ["--start", "--dry-run"] });
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.status).toBe(1);
         expect(r.stderr).toMatch(/stop-file/);
     });
@@ -211,8 +229,10 @@ describe("stop / resume / status", () => {
 
     it("--resume clears the stop-file and starts, while --start refuses", () => {
         run({ args: ["--stop"] });
-        expect(run({ args: ["--start", "--dry-run"] }).status).toBe(1);
-        const r = run({ args: ["--resume", "--dry-run"] });
+        expect(
+            run({ args: ["--start", "--dry-run", "--budget", "1"] }).status
+        ).toBe(1);
+        const r = run({ args: ["--resume", "--dry-run", "--budget", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.existsSync(STOP())).toBe(false);
         expect(r.stdout).toMatch(/would detach/);
@@ -228,7 +248,7 @@ describe("stop / resume / status", () => {
     });
 
     it("warns loudly when the armed run auto-approves every permission prompt", () => {
-        const r = run({ args: ["--start", "--dry-run"] });
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.stderr).toMatch(/answers every permission prompt/);
     });
 
@@ -242,9 +262,14 @@ describe("stop / resume / status", () => {
 describe("--prompt — scoping an unattended run to part of the queue", () => {
     const SCOPED = "/process-gh-issues figli di 2405";
 
-    /** What the handoff would hand the driver, as one string. */
+    /** What the handoff would hand the driver, as one string. The env
+     * budget keeps these tests about --prompt, not about the mandatory
+     * budget (which has its own describe above). */
     const driverArgv = (): string =>
-        run({ args: ["--from-pass", "--dry-run"] }).stdout;
+        run({
+            args: ["--start", "--dry-run"],
+            env: { TOLARIA_LOOP_TOKEN_BUDGET: "1" },
+        }).stdout;
 
     it("records the default prompt when --prompt is absent", () => {
         // The regression that protects every existing armed checkout: no
@@ -310,8 +335,9 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
         );
         const out = run({ args: ["--status"] }).stdout;
         expect(out).toMatch(/prompt:\s+\/process-gh-issues \(default/);
-        // …and the driver is started with no --prompt at all, so its own
-        // default is the single authority for that legacy conf.
-        expect(driverArgv()).not.toMatch(/--prompt/);
+        // …and a --start normalises the legacy conf through write_conf, so
+        // the driver gets the DEFAULT prompt explicitly — never a blank or
+        // truncated one.
+        expect(driverArgv()).toMatch(/--prompt \/process-gh-issues/);
     });
 });
