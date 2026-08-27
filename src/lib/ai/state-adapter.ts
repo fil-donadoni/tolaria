@@ -53,9 +53,17 @@
 // keeps the placeholder path: opaque instances whose id resolves to no
 // `CardDefinition`, so `getLegalActions` never surfaces them as legal moves
 // even after a simulated draw puts one in hand. This blind mode is not a
-// fallback to delete later: the lower difficulty levels use it on purpose, and
-// the future belief-pool sampler (PRD #2787) will be a THIRD mode alongside
-// it, never a replacement for the placeholder machinery.
+// fallback to delete later: the lower difficulty levels use it on purpose.
+//
+// WHERE AN INFORMED OPPONENT'S IDENTITIES ACTUALLY COME FROM (issue #2789).
+// Not from here. This adapter reconstructs a library only for a seat whose
+// HAND it can read — in practice the bot's own. For any other informed seat it
+// emits placeholders at the right counts and `determinize` samples both hidden
+// zones together from the decklist's unseen remainder, once per ISMCTS
+// iteration. The split matters: this function runs ONCE per decision and would
+// have to commit to a single hand/library split, while the sampler re-draws
+// every iteration, which is what makes the search reason over a DISTRIBUTION of
+// opponent hands rather than one guess.
 
 import type {
     CardInstanceState,
@@ -164,16 +172,27 @@ function removeOne(multiset: Map<string, number>, cardId: string): void {
  *  cards, tokens, cards that left the game). Order is irrelevant here —
  *  `determinize` reshuffles every ISMCTS iteration.
  *
- *  HIDDEN HAND CARDS ARE SUBTRACTED BY COUNT (issue #2789, carried forward
- *  from the #2788 review). The loop below can only subtract hand entries it can
- *  SEE, which is exact for the bot's own seat and wrong for every other: a
- *  non-viewer's hand arrives as `null[]`, so none of it comes off the decklist
- *  and the rebuilt library holds real cards that seat is actually holding — the
- *  bot can then "draw" a card its opponent has in hand. The count is public
- *  (CR 402.2) even though the identities are not, so the honest reconstruction
- *  removes that MANY cards without claiming to know WHICH: the slots become
- *  placeholders, and `library.count` keeps reconciling. The symptom is silent
- *  otherwise — nothing throws and the count still adds up. */
+ *  A SEAT WITH HIDDEN HAND CARDS GETS NO RECONSTRUCTION AT ALL (issue #2789,
+ *  carried forward from the #2788 review). The subtraction below can only
+ *  remove hand entries it can SEE. That is exact for the bot's own seat, whose
+ *  hand is visible, and unsound for every other: a non-viewer's hand arrives as
+ *  `null[]`, so none of it comes off the decklist and the leftover multiset
+ *  still contains the very cards that seat is holding. Truncating that
+ *  multiset to `count` then PINS specific identities into library slots on
+ *  nothing better than decklist order — and the bot can "draw" a card its
+ *  opponent has in hand.
+ *
+ *  Trimming by the hidden-hand COUNT does not repair this: in a consistent game
+ *  the leftover is already exactly `hand + library` cards, so the trim removes
+ *  the same number the truncation would have and the surviving identities are
+ *  unchanged. The error is about WHICH cards, not how many.
+ *
+ *  So the honest answer is to decline: the seat keeps opaque placeholders, and
+ *  the identities come from `determinize`, which SAMPLES hand and library
+ *  together from the unseen remainder every ISMCTS iteration instead of
+ *  committing to one arbitrary split here. `library.count` is preserved either
+ *  way, so the deck-out SBA (CR 704.5b) is unaffected. The symptom this
+ *  replaces was silent — nothing threw, and the count always reconciled. */
 function makeRealLibrary(
     state: PublicGameState,
     player: PublicPlayer,
@@ -207,13 +226,10 @@ function makeRealLibrary(
         for (let i = 0; i < n; i++) realIds.push(id);
     }
 
-    // At most this many of the remainder can still be IN the library: the rest
-    // is in the hand we cannot read. Never negative — a drifted deck list can
-    // leave fewer known cards than the hidden hand holds.
-    const knowable = Math.max(0, realIds.length - hiddenHandCards);
-
     const cards: CardInstanceState[] = [];
-    const take = Math.min(knowable, count);
+    // Any hidden hand card makes every surviving identity a guess (see the
+    // header note) — decline the reconstruction and let `determinize` sample.
+    const take = hiddenHandCards > 0 ? 0 : Math.min(realIds.length, count);
     for (let i = 0; i < take; i++) {
         cards.push(makeRealInstance(player.id, i, realIds[i]));
     }
