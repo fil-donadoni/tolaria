@@ -53,6 +53,20 @@ DSL-first, frontend wiring walk, proof-of-failure for every guarding test.
 Iterate with targeted runs only (`bunx vitest run <path>`). Card variants in
 tests go through `withTemporaryDefinition` — the catalogue is frozen.
 
+**COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure means editing the
+subject and reverting it, and with no orchestrator there is no second copy of
+your work: `git checkout <file>` on a file with uncommitted changes discards
+the IMPLEMENTATION, not the break. So commit the work first, then break →
+run → revert against a clean baseline. Both failure modes are silent, and
+both were observed the first time this skill was run for real (#2789):
+
+- reverting a break wiped the whole implementation of the file, which then had
+  to be rewritten from context;
+- the SECOND revert left a later break's `perl` substitution matching nothing,
+  so the test passed, and a vacuous-looking green nearly got recorded as a
+  proof. **Assert the patch applied** (`grep -c` the broken text) before
+  believing a red — and before believing a green.
+
 ## 4. Review — ONE round, routed by risk
 
 Pick by the DIFF (not the issue label alone):
