@@ -16,6 +16,7 @@ import {
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
+    isTestOnlySrcDiff,
     type LandFacts,
     type LockedCommandOptions,
 } from "../land";
@@ -35,7 +36,7 @@ const GATE = resolve(__dirname, "..", "gate.ts");
 
 /**
  * `bun run land <PR#>` (issue #2517) — one `gate.ts heavy` invocation
- * wrapping fetch → rebase → check:all → test → push → merge, so `main`
+ * wrapping fetch → rebase → check:lane → push → merge (ADR 0110), so `main`
  * cannot move between "gate green" and "merge" the way it did under the
  * three-separate-steps merge-train.
  *
@@ -144,12 +145,14 @@ describe("land.ts — the locked command", () => {
         teardown: true,
     };
 
-    it("wraps fetch, rebase, both gates, the push and the merge in ONE string", () => {
+    it("wraps fetch, rebase, the lane gate, the push and the merge in ONE string", () => {
         const cmd = buildLockedCommand(base);
         expect(cmd).toContain("git fetch origin main");
         expect(cmd).toContain("git rebase origin/main");
-        expect(cmd).toContain("bun run check:all");
-        expect(cmd).toContain("bun run test");
+        // The LANE gate, not the full gate (ADR 0110 §3): the full gate is
+        // the post-merge health detach asserted below.
+        expect(cmd).toContain("bun run check:lane");
+        expect(cmd).not.toContain("bun run check:all");
         expect(cmd).toContain("git push --force-with-lease origin");
         // The merge is `pr-merge.ts` since #2536 (settle-aware retry), but
         // what this test guards is unchanged: it is textually inside the ONE
@@ -198,7 +201,7 @@ describe("land.ts — the locked command", () => {
         );
     });
 
-    it("orders fetch/rebase < gates < push < merge", () => {
+    it("orders fetch/rebase < lane gate < push < merge < health detach", () => {
         const cmd = buildLockedCommand(base);
         const at = (needle: string) => {
             const i = cmd.indexOf(needle);
@@ -211,26 +214,39 @@ describe("land.ts — the locked command", () => {
         expect(at("git rebase origin/main")).toBeGreaterThan(
             at("git fetch origin main")
         );
-        expect(at("bun run check:all")).toBeGreaterThan(
+        expect(at("bun run check:lane")).toBeGreaterThan(
             at("git rebase origin/main")
         );
-        expect(at("bun run test")).toBeGreaterThan(at("bun run check:all"));
         expect(at("git push --force-with-lease")).toBeGreaterThan(
-            at("bun run test")
+            at("bun run check:lane")
         );
         expect(at("pr-merge.ts")).toBeGreaterThan(
             at("git push --force-with-lease")
         );
+        expect(at("health-main.ts")).toBeGreaterThan(at("pr-merge.ts"));
     });
 
-    it("--no-merge gates and pushes but omits the merge", () => {
+    it("detaches the post-merge health gate, non-gating, with the lock hold scrubbed (ADR 0110)", () => {
+        const cmd = buildLockedCommand(base);
+        // After the green-sha write, in the primary checkout, backgrounded
+        // with nohup and wrapped so it can never fail the landing.
+        const healthIdx = cmd.indexOf("health-main.ts");
+        expect(healthIdx).toBeGreaterThan(
+            cmd.indexOf("git rev-parse origin/main >")
+        );
+        expect(cmd).toMatch(
+            /\(cd '\/repo' && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun '[^']*health-main\.ts' >> '[^']*detach\.log' 2>&1 &\) \|\| true/
+        );
+    });
+
+    it("--no-merge gates and pushes but omits the merge and the health detach", () => {
         const cmd = buildLockedCommand({ ...base, merge: false });
-        expect(cmd).toContain("bun run check:all");
-        expect(cmd).toContain("bun run test");
+        expect(cmd).toContain("bun run check:lane");
         expect(cmd).toContain("git push --force-with-lease");
         expect(cmd).not.toContain("pr-merge.ts");
         expect(cmd).not.toContain("worktree remove");
         expect(cmd).not.toContain("green-sha");
+        expect(cmd).not.toContain("health-main.ts");
     });
 
     it("--keep merges but skips worktree teardown", () => {
@@ -320,7 +336,7 @@ describe("land.ts — the locked command", () => {
         expect(r.stdout).toContain("TOKEN=[]");
     });
 
-    it("an earlier step's failure (e.g. `check:all` going red) exits on its own status, never laundered into the concurrency-refusal message (review round 3)", () => {
+    it("an earlier step's failure (e.g. the lane gate going red) exits on its own status, never laundered into the concurrency-refusal message (review round 3)", () => {
         // `&&`/`||` are equal-precedence and left-associative: splicing
         // VERIFY_MERGED_TIP bare into the `&&` chain let a failure anywhere
         // EARLIER cascade past every `&&`-joined step and trip its `||`
@@ -332,7 +348,7 @@ describe("land.ts — the locked command", () => {
         // short-circuit, the merge step and the rest included.
         const cmd = buildLockedCommand(base)
             .replace(rebaseStep(), "true")
-            .replace("bun run check:all", "false");
+            .replace("bun run check:lane", "false");
         const r = spawnSync("sh", ["-c", cmd], { encoding: "utf8" });
         expect(r.status).toBe(1);
         expect(r.stderr).not.toContain("refusing to record green-sha");
@@ -709,4 +725,44 @@ describe("land.ts — safeSkinReceiptInvalid tolerates a diff-classification fai
     // 'origin/main...HEAD': unknown revision…") instead of returning `false`
     // cleanly. Reverted after confirming red; recorded in the PR receipt's
     // `proofOfFailure` list.
+});
+
+describe("land.ts — isTestOnlySrcDiff (ADR 0110 §4)", () => {
+    // A src/** diff made only of test files cannot reach the DOM, so it owes
+    // no check:ui receipt. The incident: a one-line test-constant green-main
+    // repair (2026-08-27) was refused over a receipt for a diff with no
+    // rendered surface.
+    it("is true for a diff whose only src files are tests", () => {
+        expect(isTestOnlySrcDiff(["src/__tests__/design-tokens.test.ts"])).toBe(
+            true
+        );
+        expect(
+            isTestOnlySrcDiff([
+                "src/lib/__tests__/card-utils.test.ts",
+                "src/components/board/Stack.test.tsx",
+                "scripts/land.ts",
+            ])
+        ).toBe(true);
+    });
+
+    it("is false as soon as ONE non-test src file is in the diff", () => {
+        expect(
+            isTestOnlySrcDiff([
+                "src/__tests__/design-tokens.test.ts",
+                "src/components/board/Stack.tsx",
+            ])
+        ).toBe(false);
+    });
+
+    it("is false for a diff with no src files at all (not this exemption's business)", () => {
+        expect(isTestOnlySrcDiff(["convex/gre/stack.ts"])).toBe(false);
+        expect(isTestOnlySrcDiff([])).toBe(false);
+    });
+
+    it("does not treat a non-test file under a test-ish name as a test", () => {
+        // `contest.ts` / `latest.tsx` must not match a sloppy substring
+        // check — the regex anchors on `.test.` and `__tests__/`.
+        expect(isTestOnlySrcDiff(["src/lib/contest.ts"])).toBe(false);
+        expect(isTestOnlySrcDiff(["src/lib/latest.tsx"])).toBe(false);
+    });
 });

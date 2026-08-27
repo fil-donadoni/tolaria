@@ -195,20 +195,22 @@ Engine/Convex/script work owes nothing here. Rule:
 ### Skills
 
 Work-intake skills converge on: grill → `/to-prd` → `/to-tickets` → issues
-labelled `ready-for-agent`; `/process-gh-issues` is the single implementer
-draining that queue. Pick intake by where work comes FROM:
+labelled `ready-for-agent`; **`/next-issue` drains that queue one issue per
+session** (ADR 0110 — single-session pipeline). Pick intake by where work
+comes FROM:
 
-| Skill                | Trigger                         | Does                                                                |
-| -------------------- | ------------------------------- | ------------------------------------------------------------------- |
-| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets           |
-| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD |
-| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation |
-| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker     |
-| `/process-gh-issues` | Draining the queue              | File-disjoint batch, parallel implement, review, serial merge-train |
-| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                     |
-| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                         |
-| `/new-op`            | Card needs a missing DSL verb   | Walks all seven Op registration sites + the Op's permanent test     |
-| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine  |
+| Skill                | Trigger                         | Does                                                                                                           |
+| -------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/next-issue`        | Draining the queue              | ONE issue end-to-end in this session: pick → worktree → implement → one routed review → land                   |
+| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                                                      |
+| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD                                            |
+| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation                                            |
+| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker                                                |
+| `/process-gh-issues` | LEGACY fan-out (ADR 0110)       | File-disjoint batch, parallel implement, review, serial merge-train — being retired in favour of `/next-issue` |
+| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                                                                |
+| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                                                    |
+| `/new-op`            | Card needs a missing DSL verb   | Walks all seven Op registration sites + the Op's permanent test                                                |
+| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine                                             |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
 via branch + PR + gate like any source file
@@ -260,11 +262,12 @@ prose is the fallback for judgment, not the home of invariants.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When              | Run                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| Iterating         | targeted only — `bunx vitest run <path>`. Formatting is automatic.                               |
-| Pre-PR            | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim) |
-| Before done/merge | **`bun run check:all`** + **`bun run test`**, both zero-error                                    |
+| When       | Run                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Iterating  | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                                                      |
+| Pre-PR     | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim)                                                        |
+| Merge      | `bun run land <PR#>` — rebase + **`check:lane`** under the machine mutex (ADR 0110)                                                                     |
+| Post-merge | **`bun run health:main`** (detached by `land` automatically) — `check:all` + full 3-suite `test` on the merged tip; verdict via `bun run health:status` |
 
 - **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
   classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
@@ -288,9 +291,9 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
   enforces it.
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
-- **There is no CI: the local gate is the only gate.** Nothing may be left to
-  CI, and the merge-train always takes Lane B (local full gate on the rebased
-  tree).
+- **There is no CI: the local gates are the only gates.** Nothing may be left
+  to CI. The full offline gate runs post-merge (`health:main`, ADR 0110) —
+  running it by hand before a merge is never wrong, just not owed.
 
 **CPU admission control** (`scripts/gate.ts`) — several sessions share this
 machine:
@@ -314,19 +317,26 @@ seconds, no lock). Anything else: own worktree + full gate. Rationale and
 measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 
 **Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
-mutex serialises gating; `land` extends it across rebase → gate → push → merge,
-so the tree that lands is the tree that was gated. `deny-guard.sh` § 1 denies a
+mutex serialises gating; `land` extends it across rebase → `check:lane` →
+push → merge, so the tree that lands is the tree that was gated, then detaches
+the post-merge health gate (ADR 0110). `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
 `bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
-gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`.
+gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
+a byte-exact `check:ui` receipt only if its diff can reach the DOM — a
+test-only `src/**` diff is exempt (ADR 0110 §4).
 
 **Fresh worktrees need `bun run worktree:init`.** The tell for a missing
 bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
 baseline).
 
-**Zero-red is absolute (green-main invariant).** `main` is always green. "Not
-my test" is not an exemption; never branch off red, never merge on red, never
-silence a test. Red baseline → fix or surface first.
+**Green-main invariant (ADR 0110): `main` is green within one health cycle.**
+`land` proves the lane; `health:main` proves the rest on the merged tip and
+leaves a durable `RED` marker on failure (`bun run health:status`). A RED
+marker means fix-forward FIRST — never stack unrelated work on a red tip,
+never silence a test, "not my test" is not an exemption. (The old per-PR
+full gate did not actually keep `main` green under concurrency — see ADR
+0110 §3 for the incident.)
 
 **Browser verification is a gate for UI-affecting diffs** — `bun run check:ui`,
 five viewports, `.claude/rules/chrome-debug.md`. It stays outside `check:all`

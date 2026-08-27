@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * `bun run land <PR#>` — land a merge-train PR inside ONE `gate.ts heavy`
- * invocation: fetch → rebase origin/main → check:all → test →
+ * `bun run land <PR#>` — land a PR inside ONE `gate.ts heavy`
+ * invocation: fetch → rebase origin/main → check:lane →
  * push --force-with-lease → `pr-merge.ts` (settle-aware squash merge) →
  * write green-sha → tear down the worktree.
  *
@@ -80,6 +80,7 @@
  *   bun run land <PR#> --keep       …merge, but skip worktree teardown
  */
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -95,6 +96,22 @@ import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
  */
 export function computeSkinReceiptInvalid(lane: Lane, prBody: string): boolean {
     return lane === "skin" && !verifyReceiptText(prBody).ok;
+}
+
+/**
+ * A `src/**` diff made ONLY of test files cannot reach the DOM, so it owes
+ * no `check:ui` receipt (ADR 0110 §4; `.claude/rules/chrome-debug.md`
+ * already said nothing is owed — this makes the classifier agree). The
+ * incident that forced it: a one-line test-constant green-main repair was
+ * refused over a receipt for a diff with no rendered surface (2026-08-27).
+ * Pure, so it is testable without git.
+ */
+export function isTestOnlySrcDiff(paths: string[]): boolean {
+    const src = paths.filter((p) => p.startsWith("src/"));
+    if (src.length === 0) return false;
+    return src.every(
+        (p) => /(^|\/)__tests__\//.test(p) || /\.test\.[tj]sx?$/.test(p)
+    );
 }
 
 /**
@@ -116,7 +133,9 @@ export function computeSkinReceiptInvalid(lane: Lane, prBody: string): boolean {
  */
 export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
     try {
-        const lane = classifyLane(changedPaths("origin/main", cwd, true)).lane;
+        const paths = changedPaths("origin/main", cwd, true);
+        const lane = classifyLane(paths).lane;
+        if (lane === "skin" && isTestOnlySrcDiff(paths)) return false;
         return computeSkinReceiptInvalid(lane, prBody);
     } catch (err) {
         console.warn(
@@ -128,6 +147,7 @@ export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
+const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -299,11 +319,16 @@ const VERIFY_MERGED_TIP =
 const UNSET_GITHUB_TOKEN = "unset GITHUB_TOKEN";
 
 export function buildLockedCommand(opts: LockedCommandOptions): string {
+    // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
+    // the checks the classified diff owes (degrading to `check:pr` verbatim
+    // on anything it cannot place), and the FULL gate moves post-merge — the
+    // `health:main` detach below gates the merged tip in its own worktree.
+    // Rationale and the incident that showed per-PR full gates did not keep
+    // `main` green under concurrency anyway: ADR 0110 §3.
     const steps: string[] = [
         UNSET_GITHUB_TOKEN,
         rebaseStep(),
-        "bun run check:all",
-        "bun run test",
+        "bun run check:lane",
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];
     if (opts.merge) {
@@ -327,6 +352,25 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         const greenSha = join(opts.primaryCheckout, GREEN_SHA_REL);
         steps.push(`mkdir -p ${shQuote(dirname(greenSha))}`);
         steps.push(`git rev-parse origin/main > ${shQuote(greenSha)}`);
+        // Post-merge health gate (ADR 0110): detach the FULL gate on the
+        // merged tip. Non-gating (`|| true`) — a merged PR's landing never
+        // fails on it; the verdict lands in `.claude/telemetry/health/`
+        // (`bun run health:status`). `env -u` scrubs the lock hold this
+        // locked shell exports, so the health gate QUEUES on the machine
+        // mutex like any other heavy gate instead of free-riding a hold that
+        // is released the moment this shell exits.
+        const healthDir = join(
+            opts.primaryCheckout,
+            ".claude/telemetry/health"
+        );
+        steps.push(`mkdir -p ${shQuote(healthDir)}`);
+        // `|| true` stays INSIDE the outer parens: a bare `… && (X &) || true`
+        // step would launder every earlier failure in the `&&` chain (the
+        // VERIFY_MERGED_TIP precedence bug, review round 3 — the guarding
+        // test caught this exact shape being reintroduced here).
+        steps.push(
+            `((cd ${shQuote(opts.primaryCheckout)} && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun ${shQuote(HEALTH_MAIN)} >> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
+        );
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.
@@ -439,6 +483,17 @@ function main(): void {
     if (reason) fail(`refusing — ${reason}`);
 
     const primary = primaryCheckout(cwd);
+
+    // Post-merge health verdict (ADR 0110): a RED marker means the full gate
+    // found `main` broken after an earlier merge. Landing is still allowed —
+    // the fix-forward that repairs `main` arrives through a `land` — but
+    // nobody should stack new work on a red tip without knowing.
+    if (existsSync(join(primary, ".claude/telemetry/health/RED"))) {
+        console.warn(
+            "land: WARNING — the post-merge health gate is RED on main (`bun run health:status`). Fixing main comes before landing unrelated work."
+        );
+    }
+
     const command = buildLockedCommand({
         branch,
         pr,
