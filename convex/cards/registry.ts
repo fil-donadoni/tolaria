@@ -92,6 +92,40 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
     for (const def of defs) setRegistryEntry(def.id, def);
 }
 
+/** TEST-ONLY seam. Serves `def` from the registry for the duration of `fn`,
+ *  then restores whatever entry (if any) held that id before — the single,
+ *  centralised implementation of "temporarily alter what `getDefinition`
+ *  returns".
+ *
+ *  Exists because the node test projects run `isolate: false` (one module
+ *  registry per worker) and the shared catalogue is DEEP-FROZEN in test
+ *  setup (`vitest.setup.node.ts`): a test may not mutate a shared definition
+ *  in place, not even with a `finally` restore — a dropped or incomplete
+ *  restore silently poisons every later file in the worker (the
+ *  order-dependent heisen-red of 2026-08-27). Build the variant definition
+ *  with shallow spreads of the frozen original (`structuredClone` throws on
+ *  `resolve()` closures) and hand it here; the restore is written once,
+ *  here, instead of per-test.
+ *
+ *  Never call from production code: the window in which the registry serves
+ *  the variant is exactly `fn`'s synchronous extent. */
+export function withTemporaryDefinition<T>(
+    def: CardDefinition,
+    fn: () => T
+): T {
+    const previous = registry.get(def.id);
+    setRegistryEntry(def.id, def);
+    try {
+        return fn();
+    } finally {
+        if (previous) {
+            setRegistryEntry(def.id, previous);
+        } else {
+            registry.delete(def.id);
+        }
+    }
+}
+
 // ADR 0054 — implicit keyword expansion. `fading N` / `vanishing N` cards
 // declare only the keyword string; the seam injects the enter-with-counters
 // entry and the synthesized upkeep/sacrifice triggers. Memoized by definition

@@ -58,7 +58,11 @@ import type {
     MayPayCost,
     TargetRequirement,
 } from "@convex/cards/types";
-import { getDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
+import {
+    getDefinition,
+    withTemporaryDefinition,
+    FACE_DOWN_CARD_ID,
+} from "@convex/cards";
 import { turnFaceDown, turnFaceUp } from "@convex/gre/faceDown";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
@@ -2397,13 +2401,11 @@ describe("getAnyPlayerStackAbilities", () => {
     // consults, so a printed timing restriction on an opponent-only ability
     // would be silently ignored (offered outside its legal window). No
     // shipped card currently combines `activatableByOpponentsOnly` with a
-    // timing restriction (Clergy of the Holy Nimbus declares neither), so the
-    // ability is constructed here as a test fixture and pushed onto Clergy's
-    // real `activatedAbilities` array (the SAME object `getDefinition`
-    // returns, since Clergy carries no fading/vanishing/exalted/prowess
-    // keyword for `expandDefinition` to clone over) rather than editing a
-    // card definition file. Restored in `finally` so no other test observes
-    // the synthetic ability.
+    // timing restriction (Clergy of the Holy Nimbus declares neither), so a
+    // VARIANT Clergy definition carrying the fixture ability is served
+    // through `withTemporaryDefinition` — the catalogue object itself is
+    // deep-frozen in node test setup (vitest.setup.node.ts) and may not be
+    // mutated, restore-in-finally included.
     it("honors a controllerTurnOnly timing restriction on the opponentOnly branch (constructed test-fixture ability)", () => {
         const syntheticAbilityId = "test-clergy-opponent-only-controller-turn";
         const syntheticAbility: ActivatedAbility = {
@@ -2415,8 +2417,14 @@ describe("getAnyPlayerStackAbilities", () => {
             activatableByOpponentsOnly: true,
             controllerTurnOnly: true,
         };
-        clergyOfTheHolyNimbus.activatedAbilities!.push(syntheticAbility);
-        try {
+        const variant = {
+            ...clergyOfTheHolyNimbus,
+            activatedAbilities: [
+                ...(clergyOfTheHolyNimbus.activatedAbilities ?? []),
+                syntheticAbility,
+            ],
+        };
+        withTemporaryDefinition(variant, () => {
             const card = makeCardInstance({
                 card: { id: CLERGY_ID },
                 types: ["Creature"],
@@ -2444,12 +2452,7 @@ describe("getAnyPlayerStackAbilities", () => {
                 buildTriggerStateView([], "p1")
             ).map((a) => a.id);
             expect(controllerActiveTurnIds).toContain(syntheticAbilityId);
-        } finally {
-            clergyOfTheHolyNimbus.activatedAbilities =
-                clergyOfTheHolyNimbus.activatedAbilities!.filter(
-                    (a) => a.id !== syntheticAbilityId
-                );
-        }
+        });
     });
 });
 
