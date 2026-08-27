@@ -42,7 +42,7 @@ export default function DraftPoolStrip({
                     {stop === "pack" && <DraftSwipeChevron direction="up" />}
                     <span data-slot="draft-pool-count">Pool · {mainCount}</span>
                 </span>
-                <span className="font-beleren text-[12px] text-accent-strong">
+                <span className="text-display text-[12px] text-accent-strong">
                     {stop === "pack" ? "tap: open pool" : "your picks"}
                 </span>
             </DraftStripDropZone>

@@ -108,13 +108,13 @@ export default function LimitedTableRing({
                             className={cn(
                                 "flex items-center gap-3 rounded-sm px-2 py-1.5 text-sm",
                                 seat.isViewer
-                                    ? "bg-surface-raised text-parchment ring-1 ring-border-accent/40"
+                                    ? "bg-surface-elevated text-parchment border border-border-accent/40"
                                     : "text-text-muted"
                             )}
                         >
                             <span
                                 aria-hidden="true"
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-base text-xs tracking-wide uppercase ring-1 ring-border-accent/30"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-base text-xs tracking-wide uppercase border border-border-accent/30"
                             >
                                 {name.slice(0, 2)}
                             </span>

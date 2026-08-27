@@ -87,7 +87,7 @@ export default function DraftPackStatusBar({
                                 onOpenPack();
                             }}
                             style={{ minHeight: "var(--control-h)" }}
-                            className="shrink-0 font-beleren text-[12px] text-accent-strong"
+                            className="shrink-0 text-display text-[12px] text-accent-strong"
                         >
                             tap: back to pack
                         </button>

@@ -35,7 +35,7 @@ export default function EditingActionButton({
             }}
             style={{ minHeight: "var(--control-h)" }}
             className={cn(
-                "flex items-center justify-center rounded-full border px-3 font-beleren text-[13px] tracking-wide transition disabled:opacity-40",
+                "flex items-center justify-center rounded-full border px-3 text-display text-[13px] tracking-wide transition disabled:opacity-40",
                 action.primary
                     ? "border-accent bg-accent text-surface-base"
                     : "border-accent/50 bg-surface-elevated text-accent-strong",

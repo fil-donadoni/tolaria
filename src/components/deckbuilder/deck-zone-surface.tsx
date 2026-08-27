@@ -545,7 +545,7 @@ export default function DeckZoneSurface({
             <div className="flex min-w-0 flex-wrap items-baseline gap-2 px-3 pt-3 text-sm md:px-4">
                 {/* `truncate` (issue #2056): the untruncated title wrapped to
                     3 lines / 72px in an 82px pane. */}
-                <span className="truncate font-semibold font-beleren tracking-wide text-parchment">
+                <span className="truncate font-semibold text-display tracking-wide text-parchment">
                     {title} {countText}
                 </span>
                 {warning && (

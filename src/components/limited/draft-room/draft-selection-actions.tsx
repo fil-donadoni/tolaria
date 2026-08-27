@@ -69,7 +69,7 @@ export default function DraftSelectionActions({
                         className="w-7 shrink-0 card-corner"
                     />
                 )}
-                <span className="truncate font-beleren text-[13px] text-parchment">
+                <span className="truncate text-display text-[13px] text-parchment">
                     {cardName}
                 </span>
             </div>
