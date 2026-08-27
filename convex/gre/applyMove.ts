@@ -68,6 +68,9 @@ import {
     additionalCostHandLeg,
     resolveAdditionalCosts,
 } from "./additionalCost";
+import type { CardDefinition } from "../cards/types";
+import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
+import { completeSacrificeSelection } from "./paymentPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
@@ -247,6 +250,64 @@ export function applyAdditionalCostLegForSearch(
     );
     if (!picks) return;
     for (const c of picks) discardToGraveyard(state, playerId, c.id);
+}
+
+/** CR 702.33a / 601.2f (issue #2081) — pay a `cast-spell` move's paid Kickers'
+ *  PERMANENT leg on a search sandbox state, in place: sacrifice or return,
+ *  picked deterministically CHEAPEST-FIRST via `completeSacrificeSelection` —
+ *  the SAME conservative policy the live owed-payment seam uses to answer the
+ *  real `sacrificeSelection` park a Kicker's permanent leg ALWAYS raises
+ *  (ADR 0079/0091) — so a search-tree kicker cast values the same class of
+ *  payment a live game would make.
+ *
+ *  Neither the MANA leg nor the LIFE leg is paid here: `moves.ts` folds the
+ *  mana leg into the Move's `tapPlan` (`foldKickerCosts`) and the life leg
+ *  into `payLife` (`kickerLifeCost`) at enumeration time, and BOTH cast-spell
+ *  cases already deduct `move.payLife` unconditionally — the same field
+ *  Phyrexian mana already rode on, so the Kicker life leg reuses that seam
+ *  rather than adding a second one.
+ *
+ *  No HAND leg branch: `enumerateKickerVariants` (`gre/kicker.ts`) never
+ *  enumerates a hand-leg Kicker combo (fail CLOSED — no shipped Kicker
+ *  carries one), so `payments` reaching this function never names one; a
+ *  future hand-leg Kicker card must extend the enumerator's bound before this
+ *  needs to grow a branch for it.
+ *
+ *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
+ *  `applyMoveInSearch` (`search.ts`) — for the same reason
+ *  `applyRetraceCastForSearch` is: a cost charged in one tree and not the
+ *  other is a divergence between the greedy selector and ISMCTS. */
+export function applyKickerPermanentLegForSearch(
+    state: GameState,
+    playerId: string,
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): void {
+    if (!payments) return;
+    // CR 701.21 / 400.7 — the permanent leg(s): sacrifice or return, picked
+    // cheapest-first. `enumerateKickerVariants` already confirmed
+    // enough DISTINCT matching permanents exist (`canPayKickerLegs` →
+    // `canAffordCostLegsPermanents`), so `completeSacrificeSelection` should
+    // always resolve; the `if (picked)` guard is defence in depth only, never
+    // expected to trip on a Move this sandbox itself enumerated.
+    const permSel = buildCastPermanentCostChoice(
+        state,
+        playerId,
+        undefined,
+        cardDef,
+        payments,
+        cardDef.name ?? "Kicker"
+    );
+    if (!permSel) return;
+    const picked = completeSacrificeSelection(state, permSel);
+    if (!picked) return;
+    for (const id of picked) {
+        if (permSel.action === "sacrifice") {
+            removePermanentTo(state, id, "graveyard", "sacrifice");
+        } else {
+            removePermanentTo(state, id, "hand");
+        }
+    }
 }
 
 /** CR 702.81a (issue #2358) — is this `cast-spell` move a RETRACE cast, and if
@@ -857,6 +918,25 @@ export function applyMoveForSearch(
                 move.cardInstanceId,
                 move.additionalCostLegId
             );
+            // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
+            // PERMANENT leg (sacrifice/return) before the spell leaves its
+            // zone, the same ordering `applyAdditionalCostLegForSearch` above
+            // uses for the same reason: no shipped Kicker card combines this
+            // leg with a cast from anywhere but hand, so `preCastSpell` (found
+            // above, before removal) is always the right lookup.
+            if (move.kickerPayments && preCastSpell) {
+                const kickerCardDef = tryGetDefinition(
+                    (preCastSpell.card as { id?: string }).id ?? ""
+                );
+                if (kickerCardDef) {
+                    applyKickerPermanentLegForSearch(
+                        next,
+                        playerId,
+                        kickerCardDef,
+                        move.kickerPayments
+                    );
+                }
+            }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
             // and pays a discarded land on the way. Probed (and charged) before
             // the zone decision below, which knows only hand and library.
@@ -893,6 +973,16 @@ export function applyMoveForSearch(
                 ...(move.chosenModeId
                     ? { chosenModeId: move.chosenModeId }
                     : {}),
+                // CR 702.33 / 702.27a (issue #2081) — snapshot the payment
+                // record onto the stack item exactly where the real commit
+                // paths snapshot it (`PendingCast.kickerPayments` /
+                // `.buybackPaid` → `StackItem`), so a resolving Kicker/Buyback
+                // spell reads `wasKicked` / `{ kickerPaid }` / the Buyback
+                // return-to-hand redirect correctly inside the search.
+                ...(move.kickerPayments
+                    ? { kickerPayments: move.kickerPayments }
+                    : {}),
+                ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
                 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the bot
                 // search-tree `cast-spell` executor is a wholesale
                 // reimplementation of "build a StackItem from a cast", not a

@@ -324,6 +324,23 @@ export const GRAIN_TOKENS: readonly TokenSpec[] = [
     },
 ] as const;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Identity v4 — menu rows (ADR 0103 §5, issue #2731). Anchored pickers,
+//    ContextMenu rows and ActionSheet items share one row height and gap.
+// ─────────────────────────────────────────────────────────────────────────────
+export const MENU_ROW_TOKENS: readonly TokenSpec[] = [
+    {
+        name: "--menu-row-h",
+        value: "44px",
+        role: "popover/menu row MIN height — ADR 0103 §5 'Popovers and menus get 44px rows'",
+    },
+    {
+        name: "--menu-row-gap",
+        value: "4px",
+        role: "vertical gap between menu rows",
+    },
+] as const;
+
 /** The identity-v4 families (ADR 0103), in census order. */
 export const V4_TOKEN_GROUPS: readonly TokenGroup[] = [
     {
@@ -343,6 +360,12 @@ export const V4_TOKEN_GROUPS: readonly TokenGroup[] = [
         title: "Page-ground grain",
         blurb: "A fine noise material so the graphite ground reads as a surface. Applied once, on <body>, as a background layer — a fixed full-viewport overlay would have read as occluding every element to the ui-gate probe.",
         tokens: GRAIN_TOKENS,
+    },
+    {
+        id: "v4-menu-row",
+        title: "Menu rows",
+        blurb: "Anchored pickers (mode, alt cost, Phyrexian, additional cost, mana), ContextMenu rows and ActionSheet items all read one row-height/gap pair instead of each hard-coding its own padding, so a choice reads as the same size wherever it appears (ADR 0103 §5, issue #2731).",
+        tokens: MENU_ROW_TOKENS,
     },
 ] as const;
 

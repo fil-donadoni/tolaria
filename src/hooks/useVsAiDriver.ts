@@ -195,15 +195,24 @@ export function useVsAiDriver(
         api.game.getSeatDeck,
         botId ? { gameId, playerId: botId } : "skip"
     );
-    const ownDeck = useMemo(() => {
+    // Per-seat deck knowledge (issue #2788, generalising #1509's single-seat
+    // shape). Only the bot's OWN seat is ever populated here — the human
+    // opponent's seat has no entry and stays on the blind/placeholder path,
+    // exactly as `getSeatDeck`'s ownership gate (`seatBelongsToUser`,
+    // `convex/game.ts`) already enforces server-side. This is a prefactor: the
+    // map exists so a future ticket can add a second entry without reshaping
+    // this seam again.
+    const deckKnowledge = useMemo(() => {
         // `null` when the seat has no decklist row (or the caller does not own
-        // the seat) — ownDeck stays undefined and the search falls back to the
-        // placeholder library, exactly as it did before issue #1509.
+        // the seat) — deckKnowledge stays undefined and the search falls back
+        // to the placeholder library, exactly as it did before issue #1509.
         if (!botId || !botDeck?.cards) return undefined;
-        return {
-            playerId: botId,
-            cardIds: botDeck.cards.map((c) => c.cardId),
-        };
+        return [
+            {
+                playerId: botId,
+                cardIds: botDeck.cards.map((c) => c.cardId),
+            },
+        ];
     }, [botDeck, botId]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
@@ -818,7 +827,7 @@ export function useVsAiDriver(
             dispatch(
                 signature,
                 () =>
-                    consultBrain(botState, botId, budget, ownDeck).then(
+                    consultBrain(botState, botId, budget, deckKnowledge).then(
                         ({ move, trace, outcome, via, message }) => {
                             // Surface the reasoning to the Debug panel (client-only).
                             setLatestAiTrace(trace);
@@ -883,7 +892,7 @@ export function useVsAiDriver(
         // `mutations` is rebuilt each render but its callables are stable; depend
         // on the state version (tick + the state it gates) and bot id only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, tick, botState, ownDeck, settleNonce]);
+    }, [gameId, botId, tick, botState, deckKnowledge, settleNonce]);
 
     // ── The watchdog ────────────────────────────────────────────────────────
     //

@@ -9,6 +9,7 @@ import { copyMinified } from "~/lib/clipboard";
 import { Panel } from "~/components/ui/panel";
 import JsonTreeView from "~/components/ui/json-tree-view";
 import DebugButton from "./debug-button";
+import DebugCopyScenario from "./debug-copy-scenario";
 import DebugBladeScenarios from "./debug-blade-scenarios";
 import DebugDbScenarios from "./debug-db-scenarios";
 import DebugGenerateScenario from "./debug-generate-scenario";
@@ -230,6 +231,10 @@ export default function DebugPanel({
                             >
                                 {copyFeedback ? "Copied!" : "Copy State"}
                             </DebugButton>
+                            <DebugCopyScenario
+                                state={state}
+                                mySeatId={playerId}
+                            />
                             <DebugButton onClick={onToggleShowAllCards}>
                                 {showAllCards ? "Hide cards" : "Show all cards"}
                             </DebugButton>

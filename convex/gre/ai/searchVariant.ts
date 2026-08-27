@@ -34,9 +34,44 @@
 
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./evalWeights";
 
+/** PUCT priors + first-play urgency on the MAIN action space (issue #2684).
+ *
+ *  Today ordinary priority moves carry `prior: 0` (`keyedMovesFor`) and are
+ *  opened uniformly at random, one per iteration: with 75–90 legal moves at a
+ *  main phase and a 400-iteration budget every root child gets ~5 visits
+ *  before any gets a second look, so the search cannot separate close
+ *  candidates. This knob gives them a real prior (the existing 1-ply rollout
+ *  policy, `policyValue`) and folds unopened children into the SAME argmax as
+ *  opened ones, so a promising line can be revisited before the last of 90
+ *  siblings has been opened.
+ *
+ *  Bias, never deletion (map #1892 attack-order step 4): priors are floored
+ *  strictly above zero and the PUCT term for an unopened child grows as
+ *  `√(parentVisits)`, so every legal move is still opened eventually. There is
+ *  NO top-K on the action space — a beam would cut sacrifice-then-payoff and
+ *  combo-piece-first lines. */
+export type ActionPriorConfig = {
+    /** Prior source. Only `policyValue` today — the 1-ply lookahead the
+     *  rollout default policy already uses (`search.ts`), so the prior and
+     *  the rollout agree on what "good" means. */
+    source: "policyValue";
+    /** PUCT exploration weight: the bonus is `c · prior · √(parentVisits) /
+     *  (1 + childVisits)`. */
+    c: number;
+    /** First-play-urgency REDUCTION: an unopened child's exploit estimate is
+     *  the node's own mean reward minus this. It is a tunable RELUCTANCE to
+     *  widen, not a ban — the unopened child still carries the same exploration
+     *  term an opened sibling gets, so `fpu` only decides how much better than
+     *  the node's average a fresh sibling has to look. */
+    fpu: number;
+};
+
 export type SearchVariant = {
     /** Registry name — recorded in ladder JSONL headers and reports. */
     name: string;
+    /** Priors + FPU on the ordinary action space (issue #2684). Absent =
+     *  production behaviour: flat UCB1 and uniform-random expansion. */
+    actionPriors?: ActionPriorConfig;
     /** Partial override of the production `EvalWeights` vector (issue #2683)
      *  — e.g. `{ ucbC: 0.7 }` or `{ manaWeight: 16 }`. Unset fields keep their
      *  `DEFAULT_EVAL_WEIGHTS` value; `resolveEvalWeights` does the merge. */
@@ -78,6 +113,18 @@ export function getSearchVariant(): SearchVariant | null {
 export function resolveEvalWeights(variant: SearchVariant | null): EvalWeights {
     if (!variant?.evalWeights) return DEFAULT_EVAL_WEIGHTS;
     return { ...DEFAULT_EVAL_WEIGHTS, ...variant.evalWeights };
+}
+
+/** Resolve the ACTIVE action-prior config for one search (issue #2684).
+ *  `null` — live play, every test that installs no variant, and every existing
+ *  variant — means the selection rule is untouched: `search.ts` branches on
+ *  this being null and takes the historical code path verbatim. Resolved once,
+ *  beside `resolveEvalWeights`, at the top of `runSearchWithTrace`, and threaded
+ *  down explicitly; nothing deeper re-reads the module-global. */
+export function resolveActionPriors(
+    variant: SearchVariant | null
+): ActionPriorConfig | null {
+    return variant?.actionPriors ?? null;
 }
 
 /** The named candidate configs `bun run ladder --variant <name>` can run.
@@ -129,6 +176,33 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     "reward-calibrated": {
         name: "reward-calibrated",
         rewardMapping: "calibrated",
+    },
+
+    /** PUCT priors + FPU on the main action space (issue #2684, map #1892
+     *  attack-order step 4).
+     *
+     *  `c` and `fpu` are on the reward scale the tree stores (a mean reward in
+     *  [0, 1]). `c = 0.15` is NOT a first guess — it is the largest swept value
+     *  that keeps the whole blade `must` tier green. Sweeping
+     *  c ∈ {0.05, 0.1, 0.15, 0.2, 0.4, 0.8} over the entries the knob broke:
+     *  at 0.2 the bot starts chump-blocking non-lethal damage (#2147), at 0.4
+     *  it stops tapping a 0-counter Everflowing Chalice, and by 0.8 it also
+     *  casts Phyrexian Dreadnought with no out, declines to cast Exalted Angel
+     *  face down, and mis-targets Liliana's −2.
+     *
+     *  The DIRECTION of those failures is the finding, and it is why a prior on
+     *  this engine has to stay gentle: `policyValue` is a 1-ply lookahead, and
+     *  every blade entry it breaks is one authored precisely because greedy
+     *  1-ply gets it wrong. Bias the search hard toward the prior and the
+     *  search re-derives the prior.
+     *
+     *  `fpu` changed no blade verdict at any `c` in that sweep — those boards
+     *  offer 2–6 legal moves, so there is barely anything to widen INTO. It
+     *  bites on the 75–90-move main phases this ticket is actually about,
+     *  which is exactly where the ladder measures. */
+    "action-priors": {
+        name: "action-priors",
+        actionPriors: { source: "policyValue", c: 0.15, fpu: 0.15 },
     },
 
     /** WORKED EXAMPLE ONLY (issue #2683) — demonstrates that `evalWeights` can

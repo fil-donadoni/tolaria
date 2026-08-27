@@ -76,12 +76,21 @@ export default function BottomSheet({
         >
             <div
                 className={cn(
-                    "flex max-h-[70dvh] w-full flex-col rounded-t-lg border-t border-accent bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+                    // v4 (ADR 0103 §5, issue #2731): the hairline frame's top
+                    // edge, matching `ActionSheet`'s re-skin, instead of the
+                    // legacy accent border.
+                    "flex max-h-[70dvh] w-full flex-col rounded-t-lg border-t border-[var(--hairline)] bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))]",
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex shrink-0 items-center justify-between px-3 pt-2">
+                {/* The grip (ADR 0103 §5 — "the touch Action Sheet and bottom
+                    sheets get the grip"). `BottomSheet` had none; `ActionSheet`
+                    already carries the same `w-10 h-1` bar. */}
+                <div className="flex shrink-0 justify-center pt-2">
+                    <div className="w-10 h-1 rounded-full bg-[var(--hairline-strong)]" />
+                </div>
+                <div className="flex shrink-0 items-center justify-between px-3 pt-1">
                     <span className="font-beleren text-sm text-parchment">
                         {title}
                     </span>

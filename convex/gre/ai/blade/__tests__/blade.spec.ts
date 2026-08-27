@@ -28,6 +28,7 @@ import {
     runBladeScenario,
     type BladeTier,
 } from "..";
+import { LADDER_VARIANTS, type SearchVariant } from "../../searchVariant";
 
 const TIER = (process.env.BLADE_TIER ?? "must") as BladeTier;
 
@@ -36,6 +37,30 @@ if (TIER !== "must" && TIER !== "stretch") {
         `BLADE_TIER must be "must" or "stretch" (got "${process.env.BLADE_TIER}").`
     );
 }
+
+// Optional SEARCH-VARIANT leg (issue #2684):
+//   BLADE_VARIANT=<name from LADDER_VARIANTS> bun run test:blade
+// runs every entry of the tier with that variant installed. This is how a
+// ladder candidate answers "all `must` entries still green with the knob ON",
+// which is an acceptance criterion of every strength experiment and was
+// previously unanswerable without hand-editing the runner.
+//
+// An unknown name THROWS rather than falling back to "no variant" — the same
+// fail-loud rule `resolveCorpusVariant` follows (`decisionCorpus.ts`): a
+// typo'd variant that silently ran the baseline would report "the variant
+// breaks nothing", which is indistinguishable from the real answer and wrong.
+const VARIANT_NAME = process.env.BLADE_VARIANT;
+const VARIANT: SearchVariant | null = VARIANT_NAME
+    ? (LADDER_VARIANTS[VARIANT_NAME] ??
+      (() => {
+          throw new Error(
+              `BLADE_VARIANT "${VARIANT_NAME}" is not in LADDER_VARIANTS — known: ${Object.keys(
+                  LADDER_VARIANTS
+              ).join(", ")}`
+          );
+      })())
+    : null;
+const VARIANT_SUFFIX = VARIANT ? ` [variant: ${VARIANT.name}]` : "";
 
 const scenarios = bladeScenariosForTier(TIER);
 
@@ -132,7 +157,7 @@ describe(`blade suite — registry integrity`, () => {
     });
 });
 
-describe(`blade suite — ${TIER} tier`, () => {
+describe(`blade suite — ${TIER} tier${VARIANT_SUFFIX}`, () => {
     if (scenarios.length === 0) {
         it(`has no ${TIER} scenarios registered`, () => {
             expect(scenarios).toHaveLength(0);
@@ -141,7 +166,7 @@ describe(`blade suite — ${TIER} tier`, () => {
 
     for (const scenario of scenarios) {
         it(scenario.label, () => {
-            const result = runBladeScenario(scenario);
+            const result = runBladeScenario(scenario, VARIANT);
             if (TIER === "stretch") {
                 // Report-only: a stretch entry documents a position the bot is
                 // not expected to solve yet. Print the verdict, never fail.
@@ -231,8 +256,8 @@ describe("blade suite — determinism (acceptance criterion, #1427)", () => {
         (label) => {
             const probe = findBladeScenario(label);
             expect(probe, `registry entry "${label}" not found`).toBeDefined();
-            const first = runBladeScenario(probe!);
-            const second = runBladeScenario(probe!);
+            const first = runBladeScenario(probe!, VARIANT);
+            const second = runBladeScenario(probe!, VARIANT);
             expect(second.seeds.map((s) => s.move)).toEqual(
                 first.seeds.map((s) => s.move)
             );

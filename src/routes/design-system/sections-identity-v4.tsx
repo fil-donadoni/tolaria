@@ -154,6 +154,13 @@ export function IdentityV4Sections() {
                 </Specimen>
                 <TokenRows group={V4_TOKEN_GROUPS[2]} />
             </Sub>
+
+            <Sub
+                title="Menu rows"
+                note="issue #2731 — anchored pickers, ContextMenu rows and ActionSheet items share one row height/gap pair"
+            >
+                <TokenRows group={V4_TOKEN_GROUPS[3]} />
+            </Sub>
         </Section>
     );
 }

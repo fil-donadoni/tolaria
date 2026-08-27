@@ -63,16 +63,17 @@ let seatDeck:
     | { playerId: string; cards: { cardId: string; cardName: string }[] }
     | null
     | undefined = undefined;
-// Every `projectedToGameState` call the search path makes, with the `ownDeck`
-// it was handed and the bot library it produced — the seam where a real
-// decklist either becomes real card identities or is thrown away for
-// placeholders (issue #1509).
+// Every `projectedToGameState` call the search path makes, with the
+// `deckKnowledge` it was handed and the bot library it produced — the seam
+// where a real decklist either becomes real card identities or is thrown away
+// for placeholders (issue #1509, generalised per-seat by #2788).
 const adapterCalls: {
     /** 2 only for the SEARCH rehydration (`handleBrainRequest` passes
-     *  `ownDeck`); the driver's own `shouldThink` gate and `bot-view` call the
-     *  adapter with the state alone, and those calls are not this seam. */
+     *  `deckKnowledge`); the driver's own `shouldThink` gate and `bot-view`
+     *  call the adapter with the state alone, and those calls are not this
+     *  seam. */
     argCount: number;
-    ownDeck: unknown;
+    deckKnowledge: unknown;
     libraries: Record<string, string[]>;
 }[] = [];
 /** The adapter calls made by the SEARCH — see `argCount` above. */
@@ -157,9 +158,10 @@ vi.mock("convex/react", () => ({
         if (args !== "skip") queryMounts.push({ ref, args });
         if (args === "skip") return undefined;
         // issue #1509 — the driver also queries the bot's own decklist
-        // (ownDeck), which since issue #2506 is `getSeatDeck` on the split
-        // `gameDecks` row. `seatDeck` is `undefined` by default (loading /
-        // unowned seat → ownDeck stays undefined and the driver behaves exactly
+        // (deckKnowledge, generalised per-seat by #2788), which since issue
+        // #2506 is `getSeatDeck` on the split `gameDecks` row. `seatDeck` is
+        // `undefined` by default (loading / unowned seat → deckKnowledge
+        // stays undefined and the driver behaves exactly
         // as pre-#1509, the placeholder-library path every other test in this
         // file assumes). The decklist test below sets it to a real answer:
         // stubbing it away unconditionally, as this mock first did, left the
@@ -245,7 +247,7 @@ vi.mock("~/lib/ai/state-adapter", async (importOriginal) => {
             const out = actual.projectedToGameState(...args);
             adapterCalls.push({
                 argCount: args.length,
-                ownDeck: args[1],
+                deckKnowledge: args[1],
                 libraries: Object.fromEntries(
                     out.players.map((p): [string, string[]] => [
                         p.id,
@@ -355,18 +357,20 @@ describe("useVsAiDriver (issue #110)", () => {
         vi.restoreAllMocks();
     });
 
-    // ── The bot's OWN decklist reaches the search (issues #1509 / #2506) ────
+    // ── The bot's OWN decklist reaches the search (issues #1509 / #2506 /
+    //    #2788) ────────────────────────────────────────────────────────────
     //
-    // The driver reads it from `getSeatDeck` and hands it to the adapter as
-    // `ownDeck`; the adapter rebuilds the bot's library with those identities
-    // so fetch/tutor/draw subtrees search real cards. Every OTHER test in this
+    // The driver reads it from `getSeatDeck` and hands it to the adapter as a
+    // single-entry `deckKnowledge` array naming only the bot's own seat; the
+    // adapter rebuilds the bot's library with those identities so
+    // fetch/tutor/draw subtrees search real cards. Every OTHER test in this
     // file leaves `seatDeck` undefined, so without these two nothing here ever
     // proved the wiring existed — and its failure mode is silent (the bot just
     // searches blanks again).
     //
     // The window must be a WORTHWHILE one (a land in hand): a trivial pass
     // short-circuits before `consultBrain`, so the search never rehydrates and
-    // there is no `ownDeck` seam to observe at all.
+    // there is no `deckKnowledge` seam to observe at all.
     function botStateWithLibrary(count: number) {
         return botState({
             priorityPlayerId: BOT,
@@ -405,10 +409,15 @@ describe("useVsAiDriver (issue #110)", () => {
 
         const searched = searchAdapterCalls();
         expect(searched.length).toBeGreaterThan(0);
-        expect(searched[0].ownDeck).toEqual({
-            playerId: BOT,
-            cardIds: [MOUNTAIN, MOUNTAIN, BEARS],
-        });
+        // A single-entry per-seat map naming only the bot's OWN seat — the
+        // human seat has no entry and therefore stays blind, even though the
+        // shape can now carry more than one seat (issue #2788).
+        expect(searched[0].deckKnowledge).toEqual([
+            {
+                playerId: BOT,
+                cardIds: [MOUNTAIN, MOUNTAIN, BEARS],
+            },
+        ]);
         // …and the adapter actually USED it: the rebuilt library holds real
         // card identities, not placeholders.
         expect([...searched[0].libraries[BOT]].sort()).toEqual(
@@ -426,7 +435,7 @@ describe("useVsAiDriver (issue #110)", () => {
 
         const searched = searchAdapterCalls();
         expect(searched.length).toBeGreaterThan(0);
-        expect(searched[0].ownDeck).toBeUndefined();
+        expect(searched[0].deckKnowledge).toBeUndefined();
         expect(searched[0].libraries[BOT]).toEqual([
             PLACEHOLDER_CARD_ID,
             PLACEHOLDER_CARD_ID,

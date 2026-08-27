@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import type { Color, ManaCost } from "~/types/cards";
 import { colors } from "~/types/cards";
 import { Panel } from "~/components/ui/panel";
+import { clampToViewport } from "@/components/ui/anchored-picker";
 
 const VIEWPORT_PAD = 8;
 
@@ -17,21 +18,22 @@ type ManaChoicePickerProps = {
 
 // Clamp the picker's top-left so the panel never overflows the viewport. The
 // desired anchor is the mouse point; we push it back inside whichever edge it
-// crosses (pure layout, CR-agnostic).
+// crosses. Shares its positioning math with the `AnchoredPicker` primitive
+// (`ui/anchored-picker.tsx`, issue #2731) via `clampToViewport` — this picker
+// borrows only that half: its pip-shaped rows don't fit `AnchoredPickerRow`'s
+// list-row shape, so the rest of the markup (and this measure-on-mount
+// callback-ref pattern, distinct from the other four pickers'
+// measure-after-layout `ref`) stays its own.
 function clampPosition(
     anchor: { x: number; y: number },
     width: number,
     height: number
 ): { top: number; left: number } {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const left = Math.max(
-        VIEWPORT_PAD,
-        Math.min(anchor.x, vw - VIEWPORT_PAD - width)
-    );
-    const top = Math.max(
-        VIEWPORT_PAD,
-        Math.min(anchor.y, vh - VIEWPORT_PAD - height)
+    const { x: left, y: top } = clampToViewport(
+        anchor,
+        width,
+        height,
+        VIEWPORT_PAD
     );
     return { top, left };
 }
@@ -86,7 +88,10 @@ export default function ManaChoicePicker({
                 className="fixed z-modal overflow-y-auto"
                 style={style}
             >
-                <Panel density="compact" className="flex flex-col gap-1 p-4">
+                <Panel
+                    density="compact"
+                    className="flex flex-col gap-[var(--menu-row-gap)] p-4"
+                >
                     {choices.map((cost, i) => {
                         // A choice may be a single pip ({B:2}) or a multi-colour
                         // combination ({U:1,B:1}). Expand every coloured pip so the
@@ -105,7 +110,7 @@ export default function ManaChoicePicker({
                             return (
                                 <button
                                     key={i}
-                                    className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
+                                    className="flex min-h-[var(--menu-row-h)] min-w-[var(--menu-row-h)] items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
                                     onClick={() => onSelect(i)}
                                     title="Add no mana"
                                 >
@@ -119,7 +124,7 @@ export default function ManaChoicePicker({
                         return (
                             <button
                                 key={i}
-                                className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
+                                className="flex min-h-[var(--menu-row-h)] min-w-[var(--menu-row-h)] items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
                                 onClick={() => onSelect(i)}
                                 title={title}
                             >

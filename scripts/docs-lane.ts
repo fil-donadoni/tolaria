@@ -62,6 +62,7 @@ export function isDocPath(p: string): boolean {
 export const DOC_GATE_TESTS = [
     "scripts/__tests__/action-space.test.ts",
     "scripts/__tests__/adr-index.test.ts",
+    "scripts/__tests__/bot-globs.test.ts",
     "scripts/__tests__/findings.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",

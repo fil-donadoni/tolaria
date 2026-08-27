@@ -34,6 +34,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { touchesBotGlobs } from "./bot-globs";
 import { primaryCheckout } from "./primary-checkout";
 
 export const RECEIPT_VERSION = 1;
@@ -70,6 +71,19 @@ export interface ScenarioSpec {
     /** `debugSetupScenario`'s args minus `gameId`. */
     spec: Record<string, unknown>;
 }
+
+/**
+ * A declared verification decision for a diff touching the Bot subsystem
+ * (`BOT_GLOBS` in `bot-globs.ts`) — issue #2688. Exactly one of the two
+ * shapes:
+ *   - `{ labels: [...] }` — the blade entries (`convex/gre/ai/blade/`) this
+ *     PR added or changed, by their label.
+ *   - `{ none: "<reason>" }` — a declared decision NOT to add one (a
+ *     refactor, an enumerator fix already covered by a unit test, …). The
+ *     point is the declaration, not forcing an entry where none is
+ *     warranted — a `none` with a real reason is accepted same as `labels`.
+ */
+export type BladeField = { labels: string[] } | { none: string };
 
 interface ReceiptCommon {
     version: typeof RECEIPT_VERSION;
@@ -119,6 +133,20 @@ export interface WorkReceipt extends ReceiptCommon, RoundedReceipt {
     /** Required when `outcome === "pr-open"`. */
     pr?: number;
     scenario?: ScenarioSpec;
+    /**
+     * Required, AT WRITE TIME ONLY, when `targetFiles` touches the Bot globs
+     * (`BOT_GLOBS` in `bot-globs.ts`) — see {@link BladeField}. `writeReceipt`
+     * enforces this (issue #2688); `parseReceipt` itself never does, on
+     * purpose, because it is also what every EXISTING receipt on disk is read
+     * through (`readReceipts`/`readReceiptsFromDir`, which back the
+     * merge-train's `queue:train`), and hundreds of those predate this field.
+     * So: optional on parse always — a non-Bot PR carries no opinion on blade
+     * entries, and a Bot-touching receipt written before this schema existed
+     * (or hand-constructed by a test) still parses with the field absent —
+     * but `writeReceipt` refuses to author a NEW Bot-touching work receipt
+     * without it.
+     */
+    blade?: BladeField;
     /** Required when the outcome is not `pr-open`: what is still red. */
     reason?: string;
 }
@@ -324,6 +352,55 @@ function parseScenario(raw: Record<string, unknown>): ScenarioSpec | undefined {
 }
 
 /**
+ * `{ labels: string[] }` XOR `{ none: string }` — never both, never neither,
+ * when the field is present at all (`undefined` is handled by the caller).
+ */
+function parseBlade(raw: Record<string, unknown>): BladeField | undefined {
+    if (raw.blade === undefined) return undefined;
+    const obj = (() => {
+        try {
+            return asRecord(raw.blade);
+        } catch {
+            throw new ReceiptError(
+                "blade",
+                "expected a { labels } or { none } object"
+            );
+        }
+    })();
+    const hasLabels = "labels" in obj;
+    const hasNone = "none" in obj;
+    if (hasLabels === hasNone) {
+        throw new ReceiptError(
+            "blade",
+            "expected exactly one of `labels` (string[]) or `none` (string)"
+        );
+    }
+    if (hasLabels) {
+        const value = obj.labels;
+        if (!Array.isArray(value) || value.length === 0) {
+            throw new ReceiptError(
+                "blade.labels",
+                'expected a non-empty array of strings (use { none: "<reason>" } when there is nothing to name)'
+            );
+        }
+        value.forEach((entry, i) => {
+            if (typeof entry !== "string" || entry.trim() === "") {
+                throw new ReceiptError(
+                    `blade.labels[${i}]`,
+                    "expected a non-empty string"
+                );
+            }
+        });
+        return { labels: value as string[] };
+    }
+    const none = obj.none;
+    if (typeof none !== "string" || none.trim() === "") {
+        throw new ReceiptError("blade.none", "expected a non-empty string");
+    }
+    return { none };
+}
+
+/**
  * Parse and validate a receipt, throwing a {@link ReceiptError} naming the
  * offending field. This is the only entry point — nothing writes or reads a
  * receipt without going through it.
@@ -468,6 +545,19 @@ export function parseReceipt(value: unknown): Receipt {
     const scenario = parseScenario(raw);
     if (scenario) receipt.scenario = scenario;
 
+    const blade = parseBlade(raw);
+    if (blade) receipt.blade = blade;
+
+    // NOTE: the #2688 "Bot-touching work receipt must declare `blade`" rule
+    // is deliberately NOT enforced here. `parseReceipt` is also how every
+    // receipt already on disk gets read back (`readReceipts` /
+    // `readReceiptsFromDir`, which the merge-train's `queue:train` runs on),
+    // and this field postdates hundreds of those. Enforcing it at parse time
+    // would retroactively flip every pre-existing Bot-touching receipt to
+    // "unreadable" and quarantine its issue out of any batch that reads it —
+    // punishing history for a schema it could not have known about. The rule
+    // is enforced once, at the one place a receipt is ever newly authored:
+    // `writeReceipt`, below.
     return receipt;
 }
 
@@ -590,6 +680,31 @@ export function writeReceipt(
             ? { ...(value as Record<string, unknown>), ts: nowSeconds() }
             : value
     );
+
+    // Guard from issue #2688, enforced HERE — at write time, the one place a
+    // receipt is ever newly authored — and deliberately NOT inside
+    // `parseReceipt` (see that function's closing comment): a work receipt
+    // touching the Bot subsystem must declare a verification decision — a
+    // blade entry or a reasoned "none" — or the whole doctrine in
+    // `.claude/skills/bot-slice/SKILL.md` stays opt-in prose nothing
+    // enforces. `BOT_GLOBS` (`bot-globs.ts`) is the SAME list
+    // `.claude/rules/bot-development.md`'s frontmatter carries — see that
+    // file's header comment for why there is only one copy. Scoped to
+    // `implement`/`fixup` only: a `review` receipt carries no `targetFiles`
+    // of its own to check.
+    if (
+        (receipt.role === "implement" || receipt.role === "fixup") &&
+        !receipt.blade &&
+        touchesBotGlobs(receipt.targetFiles)
+    ) {
+        throw new ReceiptError(
+            "blade",
+            "targetFiles touch the Bot globs (convex/gre/{search,evaluate,moves,...}.ts, " +
+                "convex/gre/ai/**, src/lib/ai/**) — declare { labels: [...] } naming the " +
+                'blade entries, or { none: "<reason>" } when none is warranted'
+        );
+    }
+
     const root = primaryCheckout(projectRoot);
     const dir = receiptDir(root, batchId);
 
