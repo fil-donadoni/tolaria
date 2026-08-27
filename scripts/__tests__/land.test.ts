@@ -13,6 +13,7 @@ import {
     refusalReason,
     buildLockedCommand,
     rebaseStep,
+    remoteBranchDeleteStep,
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
@@ -185,14 +186,18 @@ describe("land.ts — the locked command", () => {
     });
 
     it("wraps ref cleanup so it can never gate land's exit status on a merged PR", () => {
-        // `(… || true)` around each ref-deletion step: a stale remote, an
-        // already-deleted branch, or a worktree that will not remove cannot
-        // turn a MERGED PR's landing into a reported failure — ref cleanup
-        // is cosmetic, the merge is not.
+        // The remote-branch delete has its own richer wrapper (issue #2877,
+        // see `remoteBranchDeleteStep`'s own describe block below for the
+        // DIAGNOSTIC-filtering behaviour) — it is asserted to appear here
+        // VERBATIM, byte-for-byte, so this test also proves
+        // `buildLockedCommand` doesn't reimplement or diverge from it. The
+        // worktree-remove and local branch -D steps keep the plain
+        // `(… || true)` wrapper: a stale remote, an already-removed
+        // worktree, or a branch that will not delete cannot turn a MERGED
+        // PR's landing into a reported failure — ref cleanup is cosmetic,
+        // the merge is not.
         const cmd = buildLockedCommand(base);
-        expect(cmd).toContain(
-            "(git push origin --delete 'fix/issue-2517' || true)"
-        );
+        expect(cmd).toContain(remoteBranchDeleteStep("fix/issue-2517"));
         expect(cmd).toContain(
             "(git -C '/repo' worktree remove --force '/repo-issue-2517' || true)"
         );
@@ -616,6 +621,94 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
     // existed under .git/, and HEAD read `feature` only nominally while a
     // rebase was still active) — the test caught the tree being left
     // unusable. Reverted.
+});
+
+describe("land.ts — remoteBranchDeleteStep (issue #2877: no error: noise on an already-gone branch, real git)", () => {
+    // A string match on the shell fragment cannot tell "filters the right
+    // diagnostic" from "filters nothing" — only running it against a real
+    // git remote that has already had the branch deleted (exactly what
+    // GitHub's "Automatically delete head branches" does before `land`'s own
+    // teardown runs) proves the stderr is actually gone.
+    let dir: string;
+    let origin: string;
+    let clone: string;
+
+    function run(args: string[], cwd: string) {
+        const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+        if (r.status !== 0) {
+            throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
+        }
+    }
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "tolaria-land-delete-test-"));
+        origin = join(dir, "origin.git");
+        clone = join(dir, "clone");
+
+        run(["init", "--bare", "-b", "main", origin], dir);
+        run(["clone", origin, clone], dir);
+        run(["config", "user.email", "test@example.com"], clone);
+        run(["config", "user.name", "Test"], clone);
+
+        writeFileSync(join(clone, "base.txt"), "base\n");
+        run(["add", "base.txt"], clone);
+        run(["commit", "-m", "base"], clone);
+        run(["push", "origin", "main"], clone);
+
+        run(["checkout", "-b", "feature"], clone);
+        writeFileSync(join(clone, "feature.txt"), "feature\n");
+        run(["add", "feature.txt"], clone);
+        run(["commit", "-m", "feature"], clone);
+        run(["push", "origin", "feature"], clone);
+    });
+
+    afterEach(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    // Proof-of-failure (issue #2877): swap the `sh -c` argument below for
+    // the OLD unfiltered wrapper `(git push origin --delete 'feature' ||
+    // true)` and this test goes red — `stderr` contains
+    // "error: unable to delete 'feature': remote ref does not exist" even
+    // though the branch really is already gone (confirmed by hand:
+    // `git push origin --delete` on a ref the bare remote no longer has
+    // prints exactly that plus "error: failed to push some refs to …", exit
+    // 1, on real git — reproduced before writing this fixture).
+    it("prints nothing when the remote branch is already gone (GitHub's auto-delete beat us to it)", () => {
+        // Simulate GitHub having already deleted the head branch on merge —
+        // the ref is gone from the remote, but the local clone (standing in
+        // for `land`'s worktree, mid-teardown) still has a local branch and
+        // upstream to push a delete to.
+        run(["update-ref", "-d", "refs/heads/feature"], origin);
+
+        const r = spawnSync("sh", ["-c", remoteBranchDeleteStep("feature")], {
+            cwd: clone,
+            encoding: "utf8",
+        });
+        expect(r.status).toBe(0);
+        expect(r.stderr).toBe("");
+    });
+
+    it("still surfaces a delete that fails for a real reason, not just an absent ref", () => {
+        // An unreachable remote stands in for "the delete genuinely failed"
+        // — whatever the real-world cause (permissions, a lock, …), git's
+        // own text will not read "remote ref does not exist", and that
+        // phrase is the only thing the diagnostic filter trusts.
+        run(
+            ["remote", "set-url", "origin", join(dir, "nonexistent.git")],
+            clone
+        );
+
+        const r = spawnSync("sh", ["-c", remoteBranchDeleteStep("feature")], {
+            cwd: clone,
+            encoding: "utf8",
+        });
+        // Still non-gating — a real ref-cleanup failure still can't fail a
+        // landing whose merge already succeeded.
+        expect(r.status).toBe(0);
+        expect(r.stderr.length).toBeGreaterThan(0);
+        expect(r.stderr).not.toContain("remote ref does not exist");
+    });
 });
 
 describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)", () => {
