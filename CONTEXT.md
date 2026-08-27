@@ -33,8 +33,13 @@ A counter that sits on a **Player** rather than on a **Permanent** or **Card Ins
 _Avoid_: damage, life loss (poison is its own resource and its own loss condition)
 
 **Phase**:
-A subdivision of a **Turn**. Tolaria implements 14 phases: MULLIGAN, UNTAP, UPKEEP, DRAW, PRECOMBAT*MAIN, BEGINNING_OF_COMBAT, DECLARE_ATTACKERS, DECLARE_BLOCKERS, FIRST_STRIKE_DAMAGE, COMBAT_DAMAGE, END_OF_COMBAT, POSTCOMBAT_MAIN, END_STEP, CLEANUP.
-\_Avoid*: Step (CR distinguishes phases and steps; we flatten both into "phase")
+A subdivision of a **Turn**. Tolaria implements 14 phases: `MULLIGAN`, `UNTAP`, `UPKEEP`, `DRAW`, `PRECOMBAT_MAIN`, `BEGINNING_OF_COMBAT`, `DECLARE_ATTACKERS`, `DECLARE_BLOCKERS`, `FIRST_STRIKE_DAMAGE`, `COMBAT_DAMAGE`, `END_OF_COMBAT`, `POSTCOMBAT_MAIN`, `END_STEP`, `CLEANUP`. The list describes one canonical **Turn**, not a guarantee of occurrence: a phase may be skipped, and a phase may occur **more than once** in the same Turn (see **Extra Phase**).
+_Avoid_: Step (CR distinguishes phases and steps; we flatten both into "phase"); treating the list as an order each Turn walks exactly once
+
+**Extra Phase**:
+A **Phase** an effect adds to the **Turn** already in progress, occurring directly after a named one (CR 500.8). The added phase is a full phase — every constituent step, each with its normal **Priority** windows and turn-based actions — and once created it is independent of the effect that made it. Several added after the same phase occur most-recently-created first. Tolaria grants one kind, an extra **Combat** phase; the **Turn** number does not change, so a **Turn** may contain two combats.
+_Avoid_: Extra turn (that's CR 500.7, a whole additional **Turn** — a different mechanism and a different boundary), additional combat step (it is a phase, not one step of one)
+_AKA_: Additional phase, additional combat phase
 
 **Active Player**:
 The **Player** whose **Turn** it is.
