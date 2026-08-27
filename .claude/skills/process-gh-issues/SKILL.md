@@ -327,7 +327,7 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     Do not close a parent on a partial count, and do not close one whose `total` is 0 — a zero means nobody wired the sub-issue edges, not that there is no work left.
 
 - **Post-merge health check.** A gate that passed on the rebased tree can still be followed by a red `main` — a required check that only runs on `main`, a deployment step, a second merge that raced yours. After the last merge of the batch, read the tip's check runs (the §0 `gh api … /check-runs` call). Red → run §0b triage immediately: the culprit is almost certainly a commit **this loop just merged**, which is the revert case. Do not start another batch on a red tip.
-- **A pass NEVER starts or arms the AFK driver (ADR 0109).** The old end-of-pass handoff (`sh scripts/loop-handoff.sh --from-pass`) is a dead switch — calling it is harmless but owed nowhere. Do not launch `loop:drain`, `loop:afk` or any background driver from inside a pass, whatever state `.claude/telemetry/afk.conf` is in: unattended runs begin only with an explicit human `bun run loop:afk --start` in a terminal. The pass ends at its final report.
+- **A pass NEVER starts or arms the AFK driver (ADR 0109).** `loop-handoff.sh --from-pass` is a dead no-op switch. Do not launch `loop:drain`, `loop:afk` or any background driver from inside a pass, whatever `.claude/telemetry/afk.conf` says: unattended runs begin only with an explicit human `bun run loop:afk --start` in a terminal. The pass ends at its final report.
 
 - Pass complete. With `MAX_PASSES = 1` (default), **exit here** — the driver starts a fresh process for the next batch (see § Running unattended).
 
