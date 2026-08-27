@@ -26,7 +26,6 @@ import {
 } from "~/components/deckbuilder/deckZoneColumnView";
 import { toZoneCards } from "~/components/deckbuilder/poolZoneCards";
 import type { DeckZoneSelection } from "~/components/deckbuilder/deckZoneSelection";
-import EmptyState from "~/components/ui/empty-state";
 import { cn } from "~/lib/utils";
 
 /**
@@ -190,12 +189,6 @@ export default function LimitedDraftPool({
         recordOrderingChange(DRAFT_POOL_VIEW_ZONE, ordering);
         setView((v) => ({ ...v, ordering }));
     }, []);
-
-    if (pool.length === 0) {
-        return (
-            <EmptyState message="No Pool has been generated for your seat yet." />
-        );
-    }
 
     return (
         // `min-h-0` + `overflow-hidden` on both panes is what keeps the

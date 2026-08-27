@@ -123,8 +123,18 @@ const SURFACES: SurfaceRow[] = [
         requires: ["EmptyState"],
     },
     {
+        // Issue #2860: the whole-screen "no Pool generated" placeholder this
+        // file used to render ad hoc for `pool.length === 0` is gone — an
+        // empty Pool is pick 1's normal starting state during a draft, not an
+        // error. Its empty MOMENT now lives entirely in the shared
+        // `DeckZoneSurface` child (both the Pool and Sideboard zones render
+        // their own `emptyMessage` through it), so that is the file this row
+        // must point at per this table's own "delegates to a child" rule
+        // above. `pool-deck-builder.tsx`'s row still covers the genuine
+        // error placeholder ("no Pool has been generated for your seat") —
+        // that one is unchanged.
         surface: "Draft Room — pool",
-        file: "src/components/limited/limited-draft-pool.tsx",
+        file: "src/components/deckbuilder/deck-zone-surface.tsx",
         requires: ["EmptyState"],
     },
     {

@@ -17,6 +17,11 @@ import {
     type LimitedEventRow,
 } from "@convex/limited/eventProjection";
 import LimitedDraftPool from "../limited-draft-pool";
+import { resolveDraftDragAction } from "../limitedDraftDrag";
+import {
+    zoneColumnDropId,
+    zonePaneDropId,
+} from "~/components/deckbuilder/deckZoneDrag";
 
 const setPoolArrangementEntryMock = vi.fn().mockResolvedValue(null);
 const useMutationMock = vi.fn();
@@ -254,6 +259,94 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             eventId: "event-1",
             poolIndex: 2,
             sideboard: false,
+        });
+    });
+});
+
+describe("LimitedDraftPool — mounts as a drop target from pick 1 (issue #2860)", () => {
+    // Before this fix, `pool.length === 0` short-circuited to a whole-screen
+    // `EmptyState` placeholder — inherited from the BUILD view, where an
+    // empty Pool means "this seat has no Pool" (an error). During a draft an
+    // empty Pool is pick 1's normal starting condition: neither
+    // `DeckZoneSurface` mounted, so neither registered a drop target, and a
+    // Booster dragged onto the Pool at pick 1 resolved to nothing.
+    it("with an empty Pool, both zones mount their OWN empty message instead of the whole-screen placeholder", () => {
+        const { getByText, queryByText, container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={[]}
+                arrangement={null}
+            />
+        );
+
+        expect(queryByText(/No Pool has been generated/)).toBeNull();
+
+        // The Pool's own empty message renders INSIDE the mounted
+        // `dropModel: "columns"` surface, and the Catch-All Column — the
+        // guaranteed drop target (issue #1633) — is mounted at zero cards
+        // exactly as `DeckZoneSurface`'s own empty-deck case is.
+        expect(getByText("Every card you pick lands here.")).toBeTruthy();
+        const poolColumns = [
+            ...container.querySelectorAll("[data-column]"),
+        ].map((el) => el.getAttribute("data-column"));
+        expect(poolColumns).toContain("catch-all");
+
+        // The Sideboard's own empty message renders inside its `"pane"`
+        // surface — the pane div itself (not a Column) is that model's drop
+        // target, and it mounts regardless of card count.
+        expect(
+            getByText("Move a card here to park it out of your working deck.")
+        ).toBeTruthy();
+    });
+
+    it("the Catch-All Column mounted at zero cards is a drop target the SAME resolver already commits a Booster drop onto", () => {
+        // Closes the actual gap: it is not enough that a Column renders — its
+        // rendered Column id must be the one `resolveDraftDragAction`
+        // (`../limitedDraftDrag.ts`, pure, unit-tested independently of Pool
+        // contents) turns into a `commitPick` action. Before this fix there
+        // was no id to resolve against at pick 1 because nothing mounted.
+        const { container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={[]}
+                arrangement={null}
+            />
+        );
+        const catchAllId = container
+            .querySelector('[data-column="catch-all"]')!
+            .getAttribute("data-column")!;
+        expect(catchAllId).toBe("catch-all");
+        expect(
+            resolveDraftDragAction(
+                {
+                    kind: "booster",
+                    pickId: "r0-p0-c1",
+                    cardId: "bolt",
+                    cardName: "Lightning Bolt",
+                },
+                zoneColumnDropId("maindeck", catchAllId)
+            )
+        ).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            sideboard: false,
+            columnId: catchAllId,
+        });
+        expect(
+            resolveDraftDragAction(
+                {
+                    kind: "booster",
+                    pickId: "r0-p0-c1",
+                    cardId: "bolt",
+                    cardName: "Lightning Bolt",
+                },
+                zonePaneDropId("sideboard")
+            )
+        ).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            sideboard: true,
+            columnId: null,
         });
     });
 });
