@@ -13,7 +13,7 @@
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { DEFAULT_BUDGET } from "@convex/gre";
-import type { OwnDeckList } from "./state-adapter";
+import type { DeckKnowledgeBySeat } from "./state-adapter";
 import { handleBrainRequest } from "./brain-request";
 import type {
     BrainOutcome,
@@ -103,12 +103,14 @@ function getWorker(): Worker | null {
 
 /** Ask the Brain to choose a move for `botId` from its projected `state`. The
  *  optional `budget` scales the search by the chosen difficulty (issue #114);
- *  omitted, it falls back to the default preset. */
+ *  omitted, it falls back to the default preset. `deckKnowledge` names which
+ *  seats (if any) the search may know the real deck contents of (issue #2788);
+ *  omitted, every seat is blind. */
 export function consultBrain(
     state: PublicGameState,
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET,
-    ownDeck?: OwnDeckList
+    deckKnowledge?: DeckKnowledgeBySeat
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
@@ -118,14 +120,14 @@ export function consultBrain(
         const id = nextId++;
         return Promise.resolve(
             fromResponse(
-                handleBrainRequest({ id, state, botId, budget, ownDeck }),
+                handleBrainRequest({ id, state, botId, budget, deckKnowledge }),
                 "inline"
             )
         );
     }
 
     const id = nextId++;
-    const request: BrainRequest = { id, state, botId, budget, ownDeck };
+    const request: BrainRequest = { id, state, botId, budget, deckKnowledge };
     return new Promise<BrainResult>((resolve) => {
         // A consult ALWAYS settles (issue #2284) — see
         // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no

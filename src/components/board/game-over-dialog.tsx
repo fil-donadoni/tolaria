@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
+import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
@@ -132,6 +133,33 @@ export default function GameOverDialog({
             <div className="flex flex-col items-center text-center gap-2 mt-1">
                 <TitleTreatment title={resultTitle} subtitle={resultSubtitle} />
                 <p className="text-text-muted text-sm">{reasonText}</p>
+                {/* The one ornament (ADR 0103 §5) marks the boundary between
+                    the result headline and the "moment"'s stats — the same
+                    rule + diamond the lobby hero and Match Result share, never
+                    a second variant. */}
+                <OrnamentalDivider className="w-full max-w-40" />
+                {/* Stats row (issue #2729, "the moment"): final life totals —
+                    the one number the engine actually carries on each
+                    `allPlayers` entry at this point. Reads from `allPlayers`
+                    directly (not `winner`/`loser`) so a draw — CR 104.4a,
+                    empty `winnerId`/`loserId` — shows both players' real
+                    life instead of a "? life" fallback. Damage-dealt /
+                    cards-drawn style counters in the prototype mock require
+                    plumbing the engine does not track today (a real feature,
+                    not a skin edit) — see
+                    docs/findings/2729-game-over-stats-row-scope.md. */}
+                <div className="flex gap-8">
+                    {allPlayers.map((p) => (
+                        <div key={p.id} className="flex flex-col items-center">
+                            <span className="text-display text-2xl">
+                                {p.life}
+                            </span>
+                            <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                                {p.name} life
+                            </span>
+                        </div>
+                    ))}
+                </div>
                 {scoreLine && (
                     <p className="text-text-disabled text-xs tracking-wide">
                         {scoreLine}

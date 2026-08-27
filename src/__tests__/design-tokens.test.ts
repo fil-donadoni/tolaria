@@ -247,11 +247,13 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
             "motion",
             "panel-frame",
         ]);
-        // Identity v4 (ADR 0103, issue #2722) adds three more.
+        // Identity v4 (ADR 0103, issue #2722) adds three more; issue #2731
+        // adds a fourth (menu rows).
         expect(V4_TOKEN_GROUPS.map((g) => g.id)).toEqual([
             "v4-display",
             "v4-frame",
             "v4-grain",
+            "v4-menu-row",
         ]);
         expect(allV3.length).toBeGreaterThanOrEqual(36);
     });
@@ -617,6 +619,22 @@ describe("identity v4 — page-ground grain (ADR 0103 §5)", () => {
     });
 });
 
+describe("identity v4 — menu rows (ADR 0103 §5, issue #2731)", () => {
+    it("the menu row height matches the coarse-pointer touch target", () => {
+        // ADR 0103 §5: "Popovers and menus get 44px rows" — the same 44px
+        // WCAG 2.5.8 comfort target `--control-h-coarse` already names, not a
+        // second, independently-chosen number that could drift from it.
+        expect(pxValue(rootTokens["--menu-row-h"])).toBe(44);
+        expect(pxValue(rootTokens["--menu-row-h"])).toBe(
+            pxValue(rootTokens["--control-h-coarse"])
+        );
+    });
+
+    it("the row gap is a real, non-zero span", () => {
+        expect(pxValue(rootTokens["--menu-row-gap"])).toBeGreaterThan(0);
+    });
+});
+
 describe("identity v4 — Geist is the chrome face, Beleren is card-domain only (ADR 0103 §4)", () => {
     /** The `@theme inline` block verbatim (`themeColors` only returns the
      *  hexes it matched, so a font token needs the raw text). */
@@ -691,7 +709,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
     // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
     // at which point this row and its constant are deleted with it.
-    const BELEREN_RESIDUAL_CEILING = 53;
+    const BELEREN_RESIDUAL_CEILING = 52;
 
     /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
      *  the class in its own assertions and would otherwise count itself. */

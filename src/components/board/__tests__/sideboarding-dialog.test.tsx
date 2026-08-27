@@ -142,14 +142,16 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
     });
 
     it("shows a play/draw chooser only for the previous Game's loser", () => {
+        // The chooser is a SegmentedControl (issue #2729): a `role="radio"`
+        // pair, not plain buttons.
         const { queryByRole, rerender } = renderDialog(
             <SideboardingDialog
                 match={baseMatch({ playDrawChooserId: "opp" })}
                 viewerId="me"
             />
         );
-        // Viewer is NOT the chooser → no Play button.
-        expect(queryByRole("button", { name: "Play" })).toBeNull();
+        // Viewer is NOT the chooser → no Play segment.
+        expect(queryByRole("radio", { name: "Play" })).toBeNull();
         rerender(
             <GameContext value={{ onSwitchGame } as unknown as GameCtxValue}>
                 <SideboardingDialog
@@ -158,7 +160,7 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
                 />
             </GameContext>
         );
-        expect(queryByRole("button", { name: "Play" })).not.toBeNull();
+        expect(queryByRole("radio", { name: "Play" })).not.toBeNull();
     });
 
     it("shows a waiting notice when the viewer has no seat to sideboard", () => {

@@ -1387,7 +1387,7 @@
         /* ══════════════════════════════════════════════════════════════════
          * IDENTITY v4 (ADR 0103, PRD #2721, issue #2722)
          *
-         * Three more MIRRORED families, same contract as the five v3 ones
+         * Four more MIRRORED families, same contract as the five v3 ones
          * above: every value is repeated in `src/lib/design-tokens.ts` and
          * `src/__tests__/design-tokens.test.ts` re-parses THIS block and fails
          * on drift. They live here, not in `@theme inline`, because that
@@ -1436,6 +1436,17 @@
         --grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
         --grain-size: 180px;
         --grain-blend: overlay;
+
+        /* ── 9. Menu rows (§5, issue #2731) ──
+         * "Popovers and menus get 44px rows and real spacing" (ADR 0103 §5).
+         * Anchored pickers (mode/alt-cost/phyrexian/additional-cost/mana),
+         * ContextMenu rows and ActionSheet items all read this pair instead of
+         * each hard-coding `py-2.5` / a bare `4px` margin — that duplication
+         * (four near-identical picker files) is what #2731 collapsed into the
+         * shared `AnchoredPicker` primitive. `--menu-row-h` is a MIN height
+         * (a wrapping two-line row still grows past it), never a fixed one. */
+        --menu-row-h: 44px;
+        --menu-row-gap: 4px;
 
         /* Named z-index layers (phase-3 unification). Card-internal stacking
            (0/5/10/20/30) stays bare — it is scoped inside a card and never

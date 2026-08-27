@@ -37,29 +37,56 @@
 // gives simulated draws a card to take; a genuinely-empty library (count 0)
 // still decks out, preserving CR 704.5b.
 //
-// Own library — REAL identities (issue #1509). The content of one's OWN deck is
-// public knowledge to its owner; only the ORDER is hidden (see `determinize`).
-// When the caller supplies the bot's decklist (`ownDeck`), its library is
-// rebuilt from the deck's real card identities minus the cards already visible
-// in the bot's other zones — so a simulated fetch/tutor subtree searches the
-// actual fetchable cards (`libraryTargetWorth`, the search-library candidate
-// generator, #1429) instead of worthless placeholders. `determinize` shuffles
-// those real identities every ISMCTS iteration, preserving the hidden ORDER.
-// Without a decklist (older callers, opponent libraries) the placeholder path
-// stands: opaque instances whose id resolves to no `CardDefinition`, so
-// `getLegalActions` never surfaces them as legal moves even after a simulated
-// draw puts one in hand.
+// Deck knowledge — REAL identities, PER SEAT (issue #2788, generalising
+// #1509). A seat's own deck content is public knowledge to its owner; only the
+// ORDER is hidden (see `determinize`). The caller supplies a
+// `DeckKnowledgeBySeat` — zero or more `{ playerId, cardIds }` entries, one per
+// seat the search is allowed to know about. For a seat with an entry, that
+// seat's library is rebuilt from the deck's real card identities minus the
+// cards already visible in that seat's other zones — so a simulated
+// fetch/tutor subtree searches the actual fetchable cards (`libraryTargetWorth`,
+// the search-library candidate generator, #1429) instead of worthless
+// placeholders. `determinize` shuffles those real identities every ISMCTS
+// iteration, preserving the hidden ORDER.
+//
+// A seat with NO entry — the common case for every seat but the bot's own —
+// keeps the placeholder path: opaque instances whose id resolves to no
+// `CardDefinition`, so `getLegalActions` never surfaces them as legal moves
+// even after a simulated draw puts one in hand. This blind mode is not a
+// fallback to delete later: the lower difficulty levels use it on purpose, and
+// the future belief-pool sampler (PRD #2787) will be a THIRD mode alongside
+// it, never a replacement for the placeholder machinery.
 
 import type { CardInstanceState, GameState } from "@convex/gre";
 import { PLACEHOLDER_CARD_ID } from "@convex/gre";
 import type { PublicGameState, PublicPlayer } from "@convex/gameProjections";
 import { tryGetDefinition } from "@convex/cards";
 
-/** The bot's own decklist, wired into the adapter so its library reconstructs
- *  with real card identities (issue #1509). `cardIds` are card DEFINITION ids
- *  (the maindeck as of game start); `playerId` selects which player it belongs
- *  to (only that player's library gets real identities). */
-export type OwnDeckList = { playerId: string; cardIds: string[] };
+/** One seat's known deck content, wired into the adapter so that seat's
+ *  library reconstructs with real card identities (issue #1509). `cardIds` are
+ *  card DEFINITION ids (the maindeck as of game start); `playerId` selects
+ *  which seat it belongs to. */
+export type SeatDeckKnowledge = { playerId: string; cardIds: string[] };
+
+/** Deck knowledge available to the search, addressed PER SEAT rather than as a
+ *  single seat's list (issue #2788 — a prefactor for the opponent model, PRD
+ *  #2787). Plain array of plain records — arrays/strings only — so it survives
+ *  the structured-clone `postMessage` hop unchanged. A seat absent from this
+ *  array is BLIND: it keeps today's opaque placeholders (see the header note).
+ *  Today only the bot's own seat is ever populated, so every imagined world is
+ *  byte-identical to before this type existed. */
+export type DeckKnowledgeBySeat = SeatDeckKnowledge[];
+
+/** Look up one seat's deck knowledge, if the caller supplied any for it. The
+ *  single fail-closed discriminator the whole per-seat generalisation rests
+ *  on: a seat is informed if and only if it has an entry HERE, never by an
+ *  implicit "today only one seat is ever populated" invariant. */
+function knowledgeFor(
+    deckKnowledge: DeckKnowledgeBySeat | undefined,
+    playerId: string
+): string[] | undefined {
+    return deckKnowledge?.find((k) => k.playerId === playerId)?.cardIds;
+}
 
 /** One opaque hidden-zone instance — identity intentionally absent. The ZONE is
  *  part of the instance id so a player's hand placeholder and their library
@@ -265,14 +292,14 @@ function overlayKnownLibraryCards(
 }
 
 /** Rehydrate a bot-viewpoint `PublicGameState` into a `GameState` for
- *  enumeration and ISMCTS search. When `ownDeck` is supplied, that player's
- *  library is rebuilt with real card identities (issue #1509); every other
- *  library rebuilds to its wire count with opaque placeholders. Pure; returns a
- *  shallow structural view (no deep copy needed — enumeration never mutates, and
- *  search clones first). */
+ *  enumeration and ISMCTS search. Each seat named in `deckKnowledge` has its
+ *  library rebuilt with real card identities (issue #1509, generalised to
+ *  per-seat by #2788); every other seat's library rebuilds to its wire count
+ *  with opaque placeholders. Pure; returns a shallow structural view (no deep
+ *  copy needed — enumeration never mutates, and search clones first). */
 export function projectedToGameState(
     state: PublicGameState,
-    ownDeck?: OwnDeckList
+    deckKnowledge?: DeckKnowledgeBySeat
 ): GameState {
     return {
         ...state,
@@ -294,12 +321,12 @@ export function projectedToGameState(
             // server must recognise, so the real revealed cards MUST win: opaque
             // placeholders (or fabricated deck-reconstruction ids) would yield a
             // submission of ids the server rejects forever. `librarySearch`
-            // therefore takes precedence over the ownDeck reconstruction.
+            // therefore takes precedence over the deck-knowledge reconstruction.
             //
-            // Otherwise (issue #1509): rebuild to the wire count with the bot's
-            // own decklist for real identities where we have them, opaque
-            // placeholders for every other library, so simulated draws/fetches
-            // valuate real cards instead of blanks.
+            // Otherwise (issue #1509, per-seat since #2788): rebuild to the
+            // wire count with THIS seat's known decklist for real identities
+            // where we have one, opaque placeholders otherwise, so simulated
+            // draws/fetches valuate real cards instead of blanks.
             //
             // Either way, the identities the wire ALREADY revealed to this
             // viewer (`library.known[]` — a scry-kept top card, or the CR 401.5
@@ -309,9 +336,12 @@ export function projectedToGameState(
             library:
                 p.librarySearch ??
                 overlayKnownLibraryCards(
-                    ownDeck && ownDeck.playerId === p.id
-                        ? makeRealLibrary(state, p, ownDeck.cardIds)
-                        : makeLibraryPlaceholders(p.id, p.library.count),
+                    (() => {
+                        const cardIds = knowledgeFor(deckKnowledge, p.id);
+                        return cardIds
+                            ? makeRealLibrary(state, p, cardIds)
+                            : makeLibraryPlaceholders(p.id, p.library.count);
+                    })(),
                     p
                 ),
         })),

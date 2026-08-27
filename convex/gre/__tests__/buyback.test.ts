@@ -20,6 +20,7 @@
 
 import { describe, it, expect } from "vitest";
 import { resolveBuybackChoice, finalizeTargetSelection } from "../../game";
+import { foldBuybackCost as foldBuybackCostForSearch } from "../kicker";
 import {
     buildSpellContext,
     getPlayer,
@@ -455,5 +456,66 @@ describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (is
         // unpaid buyback spell — NOT back to hand for free.
         expect(p1.graveyard.some((c) => c.id === probe.id)).toBe(true);
         expect(p1.hand.some((c) => c.id === probe.id)).toBe(false);
+    });
+});
+
+// Issue #2081 fixup (review round 1, low finding) — `convex/gre/kicker.ts`'s
+// `foldBuybackCost` is a SECOND, independent copy of `game.ts`'s private
+// same-named helper (duplicated rather than imported because `game.ts` is
+// the mutation SURFACE, not a library the search sandboxes depend on, and
+// this issue's batch forbids editing `game.ts` to add an export — see
+// `foldBuybackCost`'s own doc comment in `kicker.ts`). Two independent copies
+// of a cost rule with no guard is exactly the drift class this repo keeps
+// paying for, so this test asserts the two AGREE by driving each through its
+// own real entry point over the SAME printed cost and comparing the total
+// extra mana charged, rather than importing either implementation into the
+// other (game.ts's copy is unexported by design, and this PR may not export
+// it).
+describe("Buyback — foldBuybackCost stays in sync between the search-sandbox copy (gre/kicker.ts) and game.ts's private commit-path copy (issue #2081 fixup)", () => {
+    it("both copies fold the identical extra mana onto the printed cost", () => {
+        // Buyback Probe: {B}; Buyback {2}. Paid total = {2}{B} = 3 mana.
+        const probe = makeInstance(BUYBACK_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "probeDrift",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [probe],
+                    manaPool: { W: 0, U: 0, B: 5, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const before = getPlayer(state, "p1").manaPool.B;
+        // game.ts's REAL commit path — the same `finalizeTargetSelection`
+        // call the "cost fold + flag snapshot" describe block above drives.
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "probeDrift",
+                targetType: "any",
+                count: 0,
+                selected: [],
+                buybackPaid: true,
+            },
+            "p1"
+        );
+        const chargedByGameTs = before - getPlayer(state, "p1").manaPool.B;
+
+        // The search-sandbox's own copy, folded independently over the SAME
+        // printed cost ({B}) it would see at enumeration time.
+        const cost: Record<string, number> = { B: 1 };
+        foldBuybackCostForSearch(cost, buybackProbe, true);
+        const chargedByKickerTs = Object.values(cost).reduce(
+            (a, b) => a + b,
+            0
+        );
+
+        expect(chargedByKickerTs).toBe(chargedByGameTs);
+        expect(chargedByGameTs).toBe(3); // {2}{B} — sanity, not the drift guard itself
     });
 });

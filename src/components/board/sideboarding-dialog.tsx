@@ -5,6 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
+import SegmentedControl from "~/components/ui/segmented-control";
 import { useGameContext } from "~/hooks/useGameContext";
 import { buildPreviewBody } from "~/lib/preview-body";
 import CardPreviewBody from "~/components/cards/card-preview-body";
@@ -18,6 +19,15 @@ import {
 import { interstitialChoiceState } from "~/lib/play-draw-choice";
 import SideboardSwapList from "./sideboard-swap-list";
 import SideboardOpponentStatus from "./sideboard-opponent-status";
+
+/** Play/draw segmented-control options for the G2+ chooser (the loser of the
+ *  last Game). Module-level: a fresh array identity per render would defeat
+ *  nothing here (no memoized child below it), but there is also no reason to
+ *  reallocate it every render. */
+const PLAY_DRAW_OPTIONS = [
+    { value: "play" as const, label: "Play" },
+    { value: "draw" as const, label: "Draw" },
+];
 
 /** The opponent seat in a 2-player Match (PRD #387 / #397), or null. The
  *  projection strips the opponent's deck contents but keeps their `ready` flag,
@@ -130,7 +140,9 @@ export default function SideboardingDialog({
                 dismissable={false}
             >
                 <div className="flex flex-col gap-3 mt-1">
-                    <p className="text-success-strong text-sm text-center font-beleren tracking-wide">
+                    {/* v4 (ADR 0103 §4): Beleren is retired from chrome —
+                        this status line is dialog chrome, not a card face. */}
+                    <p className="text-success-strong text-sm text-center tracking-wide">
                         You are ready.
                     </p>
                     <p className="text-text-muted text-xs text-center">
@@ -291,23 +303,13 @@ export default function SideboardingDialog({
                         <span className="text-text-muted text-xs">
                             You lost the last game — choose:
                         </span>
-                        <div className="flex gap-2">
-                            {(["play", "draw"] as const).map((opt) => (
-                                <button
-                                    key={opt}
-                                    type="button"
-                                    disabled={submitting}
-                                    onClick={() => setPlayDraw(opt)}
-                                    className={`rounded-sm border px-3 py-1 text-xs font-beleren tracking-wide transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
-                                        playDraw === opt
-                                            ? "border-accent bg-accent-soft text-accent-strong"
-                                            : "border-border-accent/40 bg-surface-elevated text-text-muted hover:bg-surface-elevated/80"
-                                    }`}
-                                >
-                                    {opt === "play" ? "Play" : "Draw"}
-                                </button>
-                            ))}
-                        </div>
+                        <SegmentedControl
+                            options={PLAY_DRAW_OPTIONS}
+                            value={playDraw}
+                            onChange={setPlayDraw}
+                            disabled={submitting}
+                            ariaLabel="Play or draw first"
+                        />
                     </div>
                 )}
                 {opponent && <SideboardOpponentStatus opponent={opponent} />}

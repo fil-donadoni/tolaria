@@ -321,6 +321,53 @@ describe("executeMove (issue #110)", () => {
         );
     });
 
+    // CR 702.33 / 702.27a (issue #2081) — the FORWARDING seam: the Move
+    // carries the Kicker/Buyback payment the search valued and CHARGED
+    // (`enumerateKickerVariants` / `applyKickerPermanentLegForSearch`), but
+    // until this forward existed the executor dropped it on the floor —
+    // `announceCast` was never told anything was kicked, however correctly
+    // the enumerator and both search sandboxes priced it (the issue's own
+    // title). Same invisibility risk the additional-cost-leg test above
+    // documents: `toHaveBeenCalledWith` treats an omitted key and an explicit
+    // `undefined` as equal, so a dropped forward would NOT go red on any
+    // OTHER test in this file.
+    it("cast-spell → announceCast carries kickerPayments and buyback (#2081)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "burst-lightning",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            kickerPayments: { kicker: 1 },
+            confirmTargets: false,
+            targets: [{ type: "permanent", id: "bears" }],
+            tapPlan: [],
+        });
+        expect(m.announceCast).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "burst-lightning",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            kickerPayments: { kicker: 1 },
+        });
+        expect(m.announceCast.mock.calls[0][0].kickerPayments).toEqual({
+            kicker: 1,
+        });
+    });
+
+    it("cast-spell → announceCast carries buyback: true (#2081)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "corpse-dance",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            buybackPaid: true,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [],
+        });
+        expect(m.announceCast.mock.calls[0][0].buyback).toBe(true);
+    });
+
     it("activate-ability → activate, batch-select targets, then fund via tapForActivationPayment", async () => {
         const m = await run({
             kind: "activate-ability",

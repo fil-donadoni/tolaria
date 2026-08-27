@@ -58,7 +58,7 @@
         "wt:gc": "bun scripts/worktree-gc.ts",
         "docs:ship": "bun scripts/docs-lane.ts ship",
         "check:docs": "bun scripts/gate.ts light 'bun run check:docs:inner'",
-        "check:docs:inner": "bun run format:check && bun run cr:lint && vitest run --project node scripts/__tests__/action-space.test.ts scripts/__tests__/adr-index.test.ts scripts/__tests__/findings.test.ts scripts/__tests__/project-skills.test.ts scripts/__tests__/resident-context-budget.test.ts",
+        "check:docs:inner": "bun run format:check && bun run cr:lint && vitest run --project node scripts/__tests__/action-space.test.ts scripts/__tests__/adr-index.test.ts scripts/__tests__/bot-globs.test.ts scripts/__tests__/findings.test.ts scripts/__tests__/project-skills.test.ts scripts/__tests__/resident-context-budget.test.ts",
         "usage:window": "bun scripts/usage-window.ts",
         "loop:drain": "sh scripts/loop-drain.sh",
         "loop:afk": "sh scripts/loop-handoff.sh",

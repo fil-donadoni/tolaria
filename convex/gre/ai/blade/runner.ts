@@ -31,6 +31,11 @@ import {
     matchesMove,
     seatPlayerId,
 } from "./matcher";
+import {
+    getSearchVariant,
+    setSearchVariant,
+    type SearchVariant,
+} from "../searchVariant";
 import { findBladeScenario } from "./registry";
 import { applyBladeSetup } from "./setup";
 import type { BeyondBudget, BladeScenario } from "./types";
@@ -334,13 +339,36 @@ function checkExpectation(
  * name, a matcher name with no instance in the built state, empty seed list,
  * a seat that owes no action), which is an authoring bug, not a bot result.
  */
-export function runBladeScenario(scenario: BladeScenario): BladeResult {
+export function runBladeScenario(
+    scenario: BladeScenario,
+    variant: SearchVariant | null = null
+): BladeResult {
     if (scenario.budget.iterations <= 0) {
         throw new Error(
             `Blade scenario "${scenario.label}" needs a positive iterations budget.`
         );
     }
+    // Variant plumbing (issue #2684). Until now the suite ran unconditionally
+    // under production defaults, so "all `must` entries green with the variant
+    // ON" — an acceptance criterion of every ladder experiment — was
+    // unanswerable without hand-editing the runner. Installed around the WHOLE
+    // scenario (build + search + expectation check), so one entry is evaluated
+    // under one config, and the PREVIOUS variant is restored rather than
+    // cleared, so a caller that already installed one (the decision-telemetry
+    // corpus, `decisionCorpus.ts`) is not silently reset mid-run. `null` — the
+    // default, and every existing call site — touches the module state not at
+    // all, so the historical behaviour is byte-identical.
+    if (!variant) return runBladeScenarioInner(scenario);
+    const previous = getSearchVariant();
+    setSearchVariant(variant);
+    try {
+        return runBladeScenarioInner(scenario);
+    } finally {
+        setSearchVariant(previous);
+    }
+}
 
+function runBladeScenarioInner(scenario: BladeScenario): BladeResult {
     const seeds: BladeSeedResult[] = [];
     for (const seed of seedsFor(scenario)) {
         // A fresh state per seed: `searchWithTrace` never mutates the root

@@ -26,10 +26,10 @@ describe("ActionSheet", () => {
         expect(screen.getByText("{T}: Deal 1 damage")).toBeTruthy();
     });
 
-    it("gives each item a ≥48px touch target (min-h-12)", () => {
+    it("gives each item the 44px menu-row touch target (ADR 0103 §5)", () => {
         render(<ActionSheet open onClose={vi.fn()} items={makeItems()} />);
         const button = screen.getByText("Cast").closest("button")!;
-        expect(button.className).toContain("min-h-12");
+        expect(button.className).toContain("min-h-[var(--menu-row-h)]");
     });
 
     it("invokes the item's onSelect then closes on click", () => {

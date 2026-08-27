@@ -1,14 +1,16 @@
 // Integration: the vs-AI Bot rehydrates its viewpoint Projection into a search
 // world whose OWN library carries REAL card identities, wired from the bot's
-// decklist (issue #1509). Drives the real GRE → projectPublicState →
-// projectedToGameState(ownDeck) path, then a simulated Demonic Tutor resolution,
-// so a fetch/tutor lookahead searches the actual fetchable cards instead of the
-// worthless placeholders the pre-#1509 adapter produced. See
-// `../state-adapter.ts` and `convex/gre/ai/choiceCandidates.ts` (#1429).
+// decklist (issue #1509, generalised to a per-seat map by #2788). Drives the
+// real GRE → projectPublicState → projectedToGameState(deckKnowledge) path,
+// then a simulated Demonic Tutor resolution, so a fetch/tutor lookahead
+// searches the actual fetchable cards instead of the worthless placeholders
+// the pre-#1509 adapter produced. See `../state-adapter.ts` and
+// `convex/gre/ai/choiceCandidates.ts` (#1429).
 //
-// Own-deck CONTENT is public knowledge to its owner; only the ORDER is hidden
-// (CR 401.1 / the determinize module's information-set discipline). The
-// opponent's library stays hidden (placeholders) per the same rules.
+// Deck CONTENT is public knowledge to its owner; only the ORDER is hidden (CR
+// 401.1 / the determinize module's information-set discipline). A seat with no
+// entry in the map stays hidden (placeholders) per the same rules — today that
+// is every seat but the bot's own.
 import { afterAll, describe, expect, it } from "vitest";
 import { getCardByName, tryGetDefinition } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
@@ -94,10 +96,9 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
         });
 
         const projected = projectPublicState(state, 1, "bot");
-        const world = projectedToGameState(projected, {
-            playerId: "bot",
-            cardIds: deckCardIds,
-        });
+        const world = projectedToGameState(projected, [
+            { playerId: "bot", cardIds: deckCardIds },
+        ]);
 
         const botLib = world.players.find((p) => p.id === "bot")!.library;
         // Count preserved (deck-out SBA stays exact).
@@ -168,10 +169,9 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
 
         // Rehydrate through the real adapter path WITH the decklist.
         const projected = projectPublicState(state, 1, "bot");
-        const world = projectedToGameState(projected, {
-            playerId: "bot",
-            cardIds: deckCardIds,
-        });
+        const world = projectedToGameState(projected, [
+            { playerId: "bot", cardIds: deckCardIds },
+        ]);
         // Library = deck (11) minus the Tutor on the stack = 10 real cards.
         const botLib = world.players.find((p) => p.id === "bot")!.library;
         expect(botLib).toHaveLength(10);
@@ -214,19 +214,20 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
 });
 
 // The COMPOSITION the two features must observe together (#1506 × #1509). The
-// per-feature tests above cover the ownDeck reconstruction in isolation; the
-// isolated-lookahead Tutor test resolves the search INSIDE the world (a fresh
-// `search-library` choice arises mid-simulation, after the pile is already
-// real). Neither exercises the case the review flagged: a search-library choice
-// that is ALREADY LIVE at the root (`librarySearch` set on the wire) while the
-// SAME player's `ownDeck` is supplied. The ownDeck reconstruction fabricates
-// `libcard:<player>:<i>` ids the server never issued; a live search's candidate
-// moves must name the REAL revealed-pile instance ids the server can accept. So
-// `librarySearch` MUST win over the ownDeck reconstruction — the nesting in
-// `projectedToGameState`. If ownDeck were allowed to overwrite the live pile,
-// the fetch move would carry a `libcard:` id and the server would reject it
-// forever — reintroducing #1506's fabricated-id bug through the #1509 path.
-describe("live root search-library composes with ownDeck (#1506 × #1509)", () => {
+// per-feature tests above cover the deck-knowledge reconstruction in
+// isolation; the isolated-lookahead Tutor test resolves the search INSIDE the
+// world (a fresh `search-library` choice arises mid-simulation, after the pile
+// is already real). Neither exercises the case the review flagged: a
+// search-library choice that is ALREADY LIVE at the root (`librarySearch` set
+// on the wire) while the SAME player has a deck-knowledge entry. That
+// reconstruction fabricates `libcard:<player>:<i>` ids the server never
+// issued; a live search's candidate moves must name the REAL revealed-pile
+// instance ids the server can accept. So `librarySearch` MUST win over the
+// deck-knowledge reconstruction — the nesting in `projectedToGameState`. If it
+// were allowed to overwrite the live pile, the fetch move would carry a
+// `libcard:` id and the server would reject it forever — reintroducing
+// #1506's fabricated-id bug through the #1509 path.
+describe("live root search-library composes with deck knowledge (#1506 × #1509)", () => {
     afterAll(() => disposeBrain());
 
     const BOT = "u1-p2";
@@ -281,7 +282,7 @@ describe("live root search-library composes with ownDeck (#1506 × #1509)", () =
         return state;
     }
 
-    it("with ownDeck set, a searched fetch STILL names real librarySearch pile ids (not fabricated libcard: ids)", async () => {
+    it("with deck knowledge set, a searched fetch STILL names real librarySearch pile ids (not fabricated libcard: ids)", async () => {
         const names = ["Forest", "Craw Wurm", "Grizzly Bears"];
         const state = stateWithLiveBotSearch(names);
         const publicState = projectPublicState(state, 1, BOT);
@@ -292,17 +293,19 @@ describe("live root search-library composes with ownDeck (#1506 × #1509)", () =
         );
 
         // Supply the SAME player's decklist — this is the composition under
-        // test. The projected pile carries `librarySearch`; ownDeck would
-        // otherwise rebuild the library with fabricated `libcard:` ids.
-        const ownDeck = {
-            playerId: BOT,
-            cardIds: names.map((n) => getCardByName(n).id),
-        };
+        // test. The projected pile carries `librarySearch`; deck knowledge
+        // would otherwise rebuild the library with fabricated `libcard:` ids.
+        const deckKnowledge = [
+            {
+                playerId: BOT,
+                cardIds: names.map((n) => getCardByName(n).id),
+            },
+        ];
         const { move } = await consultBrain(
             publicState,
             BOT,
             { iterations: 24 },
-            ownDeck
+            deckKnowledge
         );
 
         expect(move?.kind).toBe("resolution-choice");
@@ -316,7 +319,7 @@ describe("live root search-library composes with ownDeck (#1506 × #1509)", () =
         }
     });
 
-    it("the adapter itself keeps the live librarySearch pile even when ownDeck is the same player", () => {
+    it("the adapter itself keeps the live librarySearch pile even when deck knowledge names the same player", () => {
         const names = ["Forest", "Craw Wurm", "Grizzly Bears"];
         const state = stateWithLiveBotSearch(names);
         const publicState = projectPublicState(state, 1, BOT);
@@ -324,16 +327,101 @@ describe("live root search-library composes with ownDeck (#1506 × #1509)", () =
             state.players.find((p) => p.id === BOT)!.library.map((c) => c.id)
         );
 
-        const world = projectedToGameState(publicState, {
-            playerId: BOT,
-            cardIds: names.map((n) => getCardByName(n).id),
-        });
+        const world = projectedToGameState(publicState, [
+            {
+                playerId: BOT,
+                cardIds: names.map((n) => getCardByName(n).id),
+            },
+        ]);
         const botLib = world.players.find((p) => p.id === BOT)!.library;
-        // Every instance is a real revealed-pile id — the ownDeck path did NOT
-        // overwrite the live search with fabricated ids.
+        // Every instance is a real revealed-pile id — the deck-knowledge path
+        // did NOT overwrite the live search with fabricated ids.
         for (const c of botLib) {
             expect(realIds.has(c.id)).toBe(true);
             expect(defIdOf(c)).not.toBe(PLACEHOLDER_CARD_ID);
         }
+    });
+});
+
+// ── Per-seat generalisation (issue #2788) ───────────────────────────────────
+//
+// The tests above exercise a SINGLE-entry `deckKnowledge` array, which is
+// exactly what production ever builds today (only the bot's own seat). That
+// leaves the actual GENERALISATION unproven: the discriminator that used to be
+// one equality (`ownDeck.playerId === p.id`) is now a `.find` over an array,
+// and a subtly wrong version of that lookup — e.g. always taking the first
+// entry, or ORing instead of matching per-id — would still pass every test
+// above because there is only ever one entry to find. This is the census risk
+// the issue's producer table calls out explicitly.
+describe("deck knowledge is addressed PER SEAT, not just single-seat pass-through (issue #2788)", () => {
+    const FOREST = getCardByName("Forest").id;
+    const BOLT = getCardByName("Lightning Bolt").id;
+    const MOUNTAIN = getCardByName("Mountain").id;
+    const ISLAND = getCardByName("Island").id;
+
+    it("two seats, each with their OWN entry, both rehydrate to their OWN real identities (never swapped)", () => {
+        const botDeck = [FOREST, FOREST, BOLT];
+        const humanDeck = [MOUNTAIN, MOUNTAIN, ISLAND];
+        const state = makeState({
+            players: [
+                makePlayer("bot", { library: dummyLibrary("bot", 3) }),
+                makePlayer("human", { library: dummyLibrary("human", 3) }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "bot");
+        const world = projectedToGameState(projected, [
+            { playerId: "bot", cardIds: botDeck },
+            { playerId: "human", cardIds: humanDeck },
+        ]);
+
+        const botLib = world.players.find((p) => p.id === "bot")!.library;
+        const humanLib = world.players.find((p) => p.id === "human")!.library;
+        expect(idCounts(botLib)).toEqual(
+            new Map([
+                [FOREST, 2],
+                [BOLT, 1],
+            ])
+        );
+        expect(idCounts(humanLib)).toEqual(
+            new Map([
+                [MOUNTAIN, 2],
+                [ISLAND, 1],
+            ])
+        );
+        // Neither library holds the OTHER seat's cards or a placeholder.
+        expect(botLib.every((c) => defIdOf(c) !== PLACEHOLDER_CARD_ID)).toBe(
+            true
+        );
+        expect(humanLib.every((c) => defIdOf(c) !== PLACEHOLDER_CARD_ID)).toBe(
+            true
+        );
+    });
+
+    it("a seat absent from a MULTI-entry map stays blind — the entry list does not enable everyone", () => {
+        const botDeck = [FOREST, FOREST, BOLT];
+        const state = makeState({
+            players: [
+                makePlayer("bot", { library: dummyLibrary("bot", 3) }),
+                makePlayer("human", { library: dummyLibrary("human", 3) }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "bot");
+        // Two entries in the map, but "human" is not one of them — a THIRD,
+        // unrelated seat id is. If the discriminator degraded to "the map is
+        // non-empty" instead of matching by playerId, "human" would wrongly
+        // rehydrate to real identities here.
+        const world = projectedToGameState(projected, [
+            { playerId: "bot", cardIds: botDeck },
+            { playerId: "some-other-seat-not-in-this-game", cardIds: [ISLAND] },
+        ]);
+
+        const humanLib = world.players.find((p) => p.id === "human")!.library;
+        expect(humanLib.every((c) => c.card.id === PLACEHOLDER_CARD_ID)).toBe(
+            true
+        );
+        const botLib = world.players.find((p) => p.id === "bot")!.library;
+        expect(botLib.every((c) => defIdOf(c) !== PLACEHOLDER_CARD_ID)).toBe(
+            true
+        );
     });
 });
