@@ -946,51 +946,12 @@
         background: var(--hairline-strong);
     }
 
-    /* ── Panel v3 corner brackets (ADR 0101 §2, issue #2581) ──
-       The default Panel frame: a 10px L at 1px / opacity .5, inset 4px from the
-       panel border. Replaces the 40px `CornerFiligree` ornament, which the
-       viewport audit measured overlapping dialog titles. Pure CSS (one empty
-       span per corner) — no SVG, no viewBox, and every number is a token, so
-       the clearance guard in `design-tokens.test.ts` reads the same values the
-       browser paints. */
-    .panel-bracket {
-        position: absolute;
-        width: var(--panel-bracket-size);
-        height: var(--panel-bracket-size);
-        opacity: var(--panel-bracket-opacity);
-        color: var(--color-accent);
-        pointer-events: none;
-    }
-    .panel-bracket[data-corner="tl"] {
-        top: var(--panel-bracket-inset);
-        left: var(--panel-bracket-inset);
-        border-top: var(--panel-bracket-width) solid currentColor;
-        border-left: var(--panel-bracket-width) solid currentColor;
-    }
-    .panel-bracket[data-corner="tr"] {
-        top: var(--panel-bracket-inset);
-        right: var(--panel-bracket-inset);
-        border-top: var(--panel-bracket-width) solid currentColor;
-        border-right: var(--panel-bracket-width) solid currentColor;
-    }
-    .panel-bracket[data-corner="bl"] {
-        bottom: var(--panel-bracket-inset);
-        left: var(--panel-bracket-inset);
-        border-bottom: var(--panel-bracket-width) solid currentColor;
-        border-left: var(--panel-bracket-width) solid currentColor;
-    }
-    .panel-bracket[data-corner="br"] {
-        bottom: var(--panel-bracket-inset);
-        right: var(--panel-bracket-inset);
-        border-bottom: var(--panel-bracket-width) solid currentColor;
-        border-right: var(--panel-bracket-width) solid currentColor;
-    }
-
     /* Title clearance for a title that sits in the Panel's own padding box
        rather than in `PanelHeader`'s full-bleed band (i.e. `GameDialog`). Adds
        exactly the shortfall between the panel padding at the current density
        and `--panel-header-pad-x`, so the title starts at the same inset from
-       the panel BORDER either way and the bracket can never reach it. */
+       the panel BORDER either way (ADR 0103 §5, issue #2734 — the Panel v3
+       corner bracket this used to clear is retired; the inset itself stays). */
     .panel-title-clear {
         padding-inline-start: max(
             0px,
@@ -1363,25 +1324,10 @@
         --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
         --motion-ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
 
-        /* ── 5. Panel v3 frame (ADR 0101 §2) ──
-         * 10px inset brackets at 1px / opacity .5, replacing the 40px corner
-         * filigree on every Panel that has not explicitly opted back in.
-         *
+        /* ── 5. Panel header inset (ADR 0101 §2; the v3 corner bracket frame
+         * this used to clear was retired by ADR 0103 §5, issue #2734) ──
          * `--panel-header-pad-x` is the horizontal inset, MEASURED FROM THE
-         * PANEL BORDER, at which a Panel title may start. The clearance
-         * invariant the ADR asks for —
-         *
-         *     --panel-header-pad-x  ≥  inset + size + 4px
-         *
-         * — is asserted arithmetically from these four numbers in
-         * `design-tokens.test.ts`. It cannot be a layout test: happy-dom has no
-         * layout engine, so `getBoundingClientRect()` returns zeroes and a
-         * geometric assertion would pass vacuously. */
-        --panel-bracket-inset: 4px;
-        --panel-bracket-size: 10px;
-        --panel-bracket-width: 1px;
-        --panel-bracket-opacity: 0.5;
-        --panel-title-bracket-clearance: 4px;
+         * PANEL BORDER, at which a Panel title may start. */
         --panel-header-pad-x: 20px;
 
         /* ══════════════════════════════════════════════════════════════════

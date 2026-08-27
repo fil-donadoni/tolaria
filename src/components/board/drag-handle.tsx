@@ -31,7 +31,7 @@ export default function DragHandle({
                 <circle cx="11" cy="12" r="1" fill="currentColor" />
             </svg>
             {label && (
-                <span className="font-beleren text-xs tracking-wide text-parchment/70">
+                <span className="text-display text-xs tracking-wide text-parchment/70">
                     {label}
                 </span>
             )}

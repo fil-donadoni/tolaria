@@ -79,7 +79,7 @@ describe("AppHeader — the Browse band (issue #2582)", () => {
         ).toBeNull();
     });
 
-    it("drops the ornamental divider and the filigree frame entirely", () => {
+    it("drops the ornamental divider and both corner frames entirely (ADR 0103 §5, issue #2734)", () => {
         const { container } = render(<AppHeader />);
         expect(
             container.querySelector('[data-slot="ornamental-divider"]')
@@ -87,13 +87,9 @@ describe("AppHeader — the Browse band (issue #2582)", () => {
         expect(
             container.querySelector('[data-slot="corner-filigree-frame"]')
         ).toBeNull();
-    });
-
-    it("keeps the app identity at the v3 10px bracket (issue #2581)", () => {
-        const { container } = render(<AppHeader />);
         expect(
             container.querySelector('[data-slot="corner-bracket-frame"]')
-        ).not.toBeNull();
+        ).toBeNull();
     });
 
     it("shrinks the wordmark logo and text under short-viewport", () => {

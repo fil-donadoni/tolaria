@@ -43,22 +43,6 @@ describe("Panel", () => {
         expect(classTokens(panel)).toContain("rounded-[var(--panel-radius)]");
     });
 
-    // The `ornament` prop outlived its behaviour on purpose: two call sites
-    // still pass it and this slice changes no consumer file (#2734 removes the
-    // prop and those call sites together). Accepted, and inert — a Panel that
-    // asks for the ornament must NOT get a corner ornament back.
-    it("accepts the retired ornament prop and renders nothing extra for it", () => {
-        const plain = render(<Panel>content</Panel>).container.innerHTML;
-        const { container } = render(<Panel ornament>content</Panel>);
-        expect(
-            container.querySelectorAll('[data-slot="corner-filigree"]')
-        ).toHaveLength(0);
-        expect(
-            container.querySelectorAll('[data-slot="corner-bracket"]')
-        ).toHaveLength(0);
-        expect(container.innerHTML).toBe(plain);
-    });
-
     // Both tones are the TRANSLUCENT hairline pair, never the flattened
     // `border-*` hexes: a Panel over card art or a gradient would paint a
     // visible grey line with a flattened edge.

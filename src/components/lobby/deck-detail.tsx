@@ -65,7 +65,7 @@ export default function DeckDetail({
                         label="← Back"
                         tone="ghost"
                     />
-                    <h1 className="text-xl font-bold font-beleren text-parchment">
+                    <h1 className="text-xl font-bold text-display text-parchment">
                         {deck.name}
                     </h1>
                     <div className="flex items-center gap-1 text-xl">

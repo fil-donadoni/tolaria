@@ -18,8 +18,6 @@ import {
     PALETTE_TOKENS,
     SIGNAL_TOKENS,
     CHART_CATEGORICAL_TOKENS,
-    PANEL_FRAME_TOKENS,
-    bracketTitleGapPx,
     pxValue,
 } from "@/lib/design-tokens";
 
@@ -255,7 +253,9 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
             "v4-grain",
             "v4-menu-row",
         ]);
-        expect(allV3.length).toBeGreaterThanOrEqual(36);
+        // Was 36 pre-#2734: the Panel v3 frame group shed 5 bracket-specific
+        // tokens (retired, ADR 0103 §5) and kept only --panel-header-pad-x.
+        expect(allV3.length).toBeGreaterThanOrEqual(35);
     });
 
     it.each(allV3.map((t) => [t.name, t.value] as const))(
@@ -687,7 +687,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
         }
     });
 
-    // ── The residual-site RATCHET (PR #2783 review) ──────────────────────
+    // ── The residual-site RATCHET (PR #2783 review; closed out by #2734) ───
     //
     // The CSS half of the Beleren retirement is fail-CLOSED: `@apply
     // font-beleren` is a hard BUILD error now that the utility does not exist
@@ -697,25 +697,30 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     // to a component compiles, type-checks, lints and renders — as Geist,
     // silently — because a Tailwind class is just a string.
     //
-    // That matters right now specifically. This slice deliberately leaves ~74
-    // inert `font-beleren` class names in ~56 component files, because those
-    // files belong to thirteen sibling slices of PRD #2721 (#2723, #2724,
-    // #2726, #2727, #2728, #2729-#2733) and editing them here would collide
-    // with every one of them in the merge-train for zero rendered difference.
-    // Each slice deletes its own as it re-skins. Without a ratchet, that
-    // intermediate state can silently GROW instead of shrinking, and #2734's
-    // closure sweep would be the first thing to notice — after the fact.
-    //
-    // So: the count may only ever go DOWN. #2734 ("closure: retire bracket/
-    // filigree atoms and dead v3 recipes") is the slice that drives it to 0,
-    // at which point this row and its constant are deleted with it.
-    const BELEREN_RESIDUAL_CEILING = 21;
+    // Issue #2734 (the closure slice) drove every actual USAGE site to zero —
+    // #2732/#2733 took the last of the ~74 inert class names the sibling
+    // slices of PRD #2721 left behind. What is left at the floor below is not
+    // usage: it is `__tests__/` files whose whole JOB is asserting the string
+    // is ABSENT (`.not.toContain("font-beleren")`, a permanent regression
+    // guard — excluded from the sweep below for exactly that reason) plus a
+    // handful of `<code>font-beleren</code>` mentions in design-system prose
+    // describing the retirement itself. Both are supposed to keep saying the
+    // string forever, so the ceiling stops here rather than at 0 — a real
+    // regression (a NEW styling use) still reds this test the moment it
+    // lands, which is the row's only job.
+    const BELEREN_RESIDUAL_CEILING = 3;
 
-    /** Every `.ts`/`.tsx` under `src/`, except this guard file — which names
-     *  the class in its own assertions and would otherwise count itself. */
+    /** Every `.ts`/`.tsx` under `src/`, except this guard file (which names
+     *  the class in its own assertions) and `__tests__/` directories (whose
+     *  matches are permanent negative-assertion guards, not usage). */
     function sourceFiles(dir: string, out: string[] = []): string[] {
         for (const entry of readdirSync(dir)) {
-            if (entry === "node_modules" || entry === "_generated") continue;
+            if (
+                entry === "node_modules" ||
+                entry === "_generated" ||
+                entry === "__tests__"
+            )
+                continue;
             const full = join(dir, entry);
             if (statSync(full).isDirectory()) sourceFiles(full, out);
             else if (/\.tsx?$/.test(entry)) out.push(full);
@@ -723,7 +728,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
         return out;
     }
 
-    it("the residual font-beleren sites only ever go DOWN (ratchet, #2734 drives them to 0)", () => {
+    it("the residual font-beleren sites stay at the permanent floor (doc prose only, #2734)", () => {
         const root = resolve(process.cwd(), "src");
         const self = resolve(
             process.cwd(),
@@ -761,9 +766,9 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
         // ratchets is just a very patient rubber stamp.
         expect(
             count,
-            `${BELEREN_RESIDUAL_CEILING - count} font-beleren site(s) were removed — thank you. ` +
-                `Now LOWER \`BELEREN_RESIDUAL_CEILING\` to ${count} in this file, so the ratchet ` +
-                `keeps its grip. When it reaches 0, delete this row and the constant with it (#2734).`
+            `${BELEREN_RESIDUAL_CEILING - count} permanent font-beleren reference(s) went missing — ` +
+                `either a regression guard or a design-system doc mention was deleted. If that was ` +
+                `deliberate, LOWER \`BELEREN_RESIDUAL_CEILING\` to ${count}; if not, restore it.`
         ).toBe(BELEREN_RESIDUAL_CEILING);
     });
 
@@ -777,61 +782,7 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     });
 });
 
-describe("Panel v3 bracket / title clearance (ADR 0101 §2)", () => {
-    // NOT a layout test, deliberately. happy-dom has no layout engine —
-    // `getBoundingClientRect()` returns zeroes — so a geometric "the title is
-    // ≥4px from the bracket" assertion would pass on a panel whose title sits
-    // underneath the bracket. The invariant is therefore asserted
-    // ARITHMETICALLY over the four frame tokens parsed out of the stylesheet.
-    const frame = Object.fromEntries(
-        PANEL_FRAME_TOKENS.map((t) => [t.name, rootTokens[t.name]])
-    );
-
-    it("a Panel title is never within the clearance token of a bracket", () => {
-        const clearance = pxValue(
-            rootTokens["--panel-title-bracket-clearance"]
-        );
-        const gap = bracketTitleGapPx(frame);
-        expect(
-            gap,
-            `--panel-header-pad-x (${frame["--panel-header-pad-x"]}) must exceed the bracket reach ` +
-                `(--panel-bracket-inset ${frame["--panel-bracket-inset"]} + --panel-bracket-size ` +
-                `${frame["--panel-bracket-size"]}) by at least ${clearance}px; actual gap ${gap}px`
-        ).toBeGreaterThanOrEqual(clearance);
-    });
-
-    it("the ADR's clearance floor is at least 4px", () => {
-        // The token may be raised, never lowered below the ADR's contract.
-        expect(
-            pxValue(rootTokens["--panel-title-bracket-clearance"])
-        ).toBeGreaterThanOrEqual(4);
-    });
-
-    it("the bracket is the ADR's 10px / 1px / .5 frame", () => {
-        expect(pxValue(frame["--panel-bracket-size"])).toBe(10);
-        expect(pxValue(frame["--panel-bracket-width"])).toBe(1);
-        expect(Number(frame["--panel-bracket-opacity"])).toBe(0.5);
-    });
-
-    it(".panel-bracket draws all four arms from the tokens", () => {
-        // A bracket rule that hard-codes a number would make the arithmetic
-        // above describe a frame the browser does not paint.
-        for (const corner of ["tl", "tr", "bl", "br"]) {
-            const rule = new RegExp(
-                `\\.panel-bracket\\[data-corner="${corner}"\\]\\s*\\{([\\s\\S]*?)\\}`
-            ).exec(css);
-            expect(
-                rule,
-                `.panel-bracket[data-corner="${corner}"]`
-            ).not.toBeNull();
-            expect(rule![1]).toContain("var(--panel-bracket-inset)");
-            expect(rule![1]).toContain("var(--panel-bracket-width)");
-        }
-        const base = /\.panel-bracket \{([\s\S]*?)\}/.exec(css)!;
-        expect(base[1]).toContain("var(--panel-bracket-size)");
-        expect(base[1]).toContain("var(--panel-bracket-opacity)");
-    });
-
+describe("Panel header title inset (ADR 0101 §2; brackets retired ADR 0103 §5, issue #2734)", () => {
     it(".panel-title-clear pays the shortfall between panel padding and the title inset", () => {
         // The GameDialog path: its title lives in the Panel's padding box, not
         // in PanelHeader's full-bleed band, so it must add the difference

@@ -10,13 +10,15 @@
 //   - the ornamental divider (~16-20px of pure ornament under the row);
 //   - the two-row `flex-col md:flex-row` stack (a phone got both rows);
 //   - `CornerFiligreeFrame`'s 32px corners, replaced by the v3 10px
-//     `CornerBracketFrame` (issue #2581) — the same identity at 1/3 the ink.
+//     `CornerBracketFrame` (issue #2581) — itself retired by ADR 0103 §5
+//     (issue #2734): the frame is now the `panel-physical` box's own
+//     hairline edge (`border border-border-subtle` below), no ink at the
+//     corners at all.
 //
 // The bar does NOT render on a portrait phone at all: there the destinations
 // live in `AppBottomNav`, under the thumb. `AppShell` decides that; this
 // component is only what the bar looks like.
 import { Link } from "@tanstack/react-router";
-import CornerBracketFrame from "~/components/ui/corner-bracket-frame";
 import AppNavLink from "./app-nav-link";
 import AppHeaderAdminMenu from "./app-header-admin-menu";
 import AppHeaderProfile from "./app-header-profile";
@@ -32,10 +34,9 @@ export default function AppHeader({
 }) {
     return (
         <header className="panel-physical relative flex h-14 items-center gap-4 rounded-md border border-border-subtle px-4 short-viewport:h-10 short-viewport:gap-2 short-viewport:px-2">
-            <CornerBracketFrame />
             <Link
                 to="/"
-                className="flex shrink-0 items-center gap-2 font-beleren text-lg tracking-[0.22em] text-accent-strong short-viewport:text-sm"
+                className="flex shrink-0 items-center gap-2 text-display text-lg tracking-[0.22em] text-accent-strong short-viewport:text-sm"
             >
                 {/* Light-on-dark variant of the brand mark. Decorative — the
                     wordmark next to it carries the accessible name. */}

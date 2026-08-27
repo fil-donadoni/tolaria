@@ -35,7 +35,7 @@ export default function GraveyardTabs({
                         disabled={isPending}
                         onClick={() => onSelect(gy.playerId)}
                         className={cn(
-                            "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 font-beleren text-sm tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer",
+                            "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-display text-sm tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer",
                             active
                                 ? "border-border-accent text-text"
                                 : "border-transparent text-text-muted hover:text-text"

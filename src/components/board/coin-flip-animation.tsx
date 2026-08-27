@@ -48,7 +48,7 @@ export default function CoinFlipAnimation({
                 style={{ width: 96, height: 96, perspective: 600 }}
             >
                 <motion.div
-                    className={`flex h-24 w-24 items-center justify-center rounded-full border-2 font-beleren text-lg tracking-wide ${
+                    className={`flex h-24 w-24 items-center justify-center rounded-full border-2 text-display text-lg tracking-wide ${
                         isHeads
                             ? "border-accent/70 bg-accent-soft/40 text-accent-strong"
                             : "border-border-accent/60 bg-surface-elevated/60 text-text-muted"

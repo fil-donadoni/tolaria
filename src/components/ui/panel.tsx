@@ -97,21 +97,6 @@ function Panel({
      *  board-prompt rung, the `comfortable` phone-aware dialogs) still passes
      *  it explicitly — that pin is unaffected by any of this. */
     density?: PanelDensity;
-    /** RETIRED by ADR 0103 §5 — accepted and ignored.
-     *
-     *  It used to opt a Panel back into the 40px corner filigree (lobby hero,
-     *  Game Over, Match Result). v4 has no corner ornament at all: the one
-     *  surviving ornament atom is `OrnamentalDivider`, which those waiting
-     *  states place themselves, in their own content.
-     *
-     *  The prop STAYS in the signature on purpose. Two call sites pass it
-     *  (`game-over-dialog` via `GameDialog`, and the design-system v3 census;
-     *  the third, `dashboard-play-box`, retired with its file in #2726) and
-     *  this slice's contract is that no consumer file changes — removing it
-     *  would be a compile error in each.
-     *  Issue #2734 (the closure slice) drops the prop and its call sites
-     *  together. */
-    ornament?: boolean;
     overlay?: boolean;
     className?: string;
     children?: React.ReactNode;

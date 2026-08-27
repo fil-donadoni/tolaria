@@ -91,7 +91,7 @@ export default function DeckListItem({
                 <div className="flex items-center gap-2">
                     <span
                         id={nameId}
-                        className="truncate font-beleren text-sm tracking-wide text-parchment"
+                        className="truncate text-display text-sm tracking-wide text-parchment"
                     >
                         {deck.name}
                     </span>

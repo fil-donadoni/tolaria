@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
  * `@base-ui/react` supplies behaviour (keyboard, ARIA, hidden native input)
  * only, never colour. Colour/shape come from our own tone tokens so a
  * checkbox in a game dialog never reads as a bare browser default sitting
- * outside the rest of the chrome (corner-bracket panels, accent-gold focus
- * rings, forged-plate buttons).
+ * outside the rest of the chrome (hairline Panels, ivory focus rings,
+ * forged-plate buttons — ADR 0103 §5).
  */
 function Checkbox({
     className,
