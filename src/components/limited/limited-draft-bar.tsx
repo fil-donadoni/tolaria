@@ -80,7 +80,7 @@ export default function LimitedDraftBar({
             data-slot="draft-room-bar"
             className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-raised px-2 text-xs text-text-muted"
         >
-            <span className="hidden min-w-0 truncate font-beleren tracking-[0.14em] text-accent-strong sm:inline">
+            <span className="hidden min-w-0 truncate text-display tracking-[0.14em] text-accent-strong sm:inline">
                 {title}
             </span>
 

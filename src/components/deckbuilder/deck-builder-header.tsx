@@ -89,7 +89,7 @@ export default function DeckBuilderHeader({
             <Button variant="ghost" size="sm" onClick={onBack}>
                 {backLabel}
             </Button>
-            <h1 className="text-lg short-viewport:text-sm font-semibold font-beleren tracking-wide text-parchment">
+            <h1 className="text-lg short-viewport:text-sm font-semibold text-display tracking-wide text-parchment">
                 {title}
             </h1>
             {actions}

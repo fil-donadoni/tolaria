@@ -103,7 +103,7 @@ export default function PeekPanel({
                 />
             )}
             <div className="min-w-0 flex-1">
-                <div className="truncate font-beleren text-sm text-parchment">
+                <div className="truncate text-display text-sm text-parchment">
                     {name}
                 </div>
                 {subtitle && (
