@@ -59,7 +59,9 @@ export default function SideboardSwapList({
 
     return (
         <section className="flex flex-col min-w-0 flex-1">
-            <div className="px-1 pb-1 text-sm font-beleren tracking-wide text-parchment">
+            {/* v4 (ADR 0103 §4, issue #2729): Beleren retired from chrome —
+                section label, not a card face. */}
+            <div className="px-1 pb-1 text-sm tracking-wide text-parchment">
                 {title} {cards.length}
                 {countSuffix ?? ""}
             </div>

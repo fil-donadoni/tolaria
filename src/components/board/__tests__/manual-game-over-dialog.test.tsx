@@ -115,3 +115,14 @@ describe("ManualGameOverDialog", () => {
         expect(buttonWith("Back to Lobby")).toBeTruthy();
     });
 });
+
+// The one ornament (ADR 0103 §5, issue #2729): same "moment" shape as the
+// real GameOverDialog, minus the stats row (no life data on this screen).
+describe("ManualGameOverDialog — the moment (issue #2729)", () => {
+    it("renders the ornamental divider under the result", () => {
+        const { baseElement } = renderOver("me");
+        expect(
+            baseElement.querySelector('[data-slot="ornamental-divider"]')
+        ).toBeTruthy();
+    });
+});

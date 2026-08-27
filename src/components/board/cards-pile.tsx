@@ -13,6 +13,7 @@ import {
     PILE_GRID_TILE_W,
 } from "~/lib/card-layout";
 import GameDialog from "~/components/ui/game-dialog";
+import SegmentedControl from "~/components/ui/segmented-control";
 import ArrivalGlow from "./arrival-glow";
 import CardTilt3D from "./card-tilt-3d";
 import CardBack from "../cards/card-back";
@@ -194,6 +195,65 @@ function isCardFaceDown(
  *  fan's width is derived from it so the flex container hugs the cards with no
  *  empty trailing space. */
 const FAN_OVERLAP = 0.8;
+
+/** Priority order for the plain-browse type filter (issue #2729, "segmented
+ *  filter footer"). A card carrying several of these types (an artifact
+ *  creature) lands in the FIRST bucket that matches, same first-match-wins
+ *  shape as `buildCategorySections` above — a card never shows under two
+ *  filter buttons. Purely a client-side display grouping over a pile already
+ *  on screen: it never touches choice legality, which stays
+ *  `eligibleIds`/`onCardClick` (server-driven, CR 601.2c). */
+const PILE_FILTER_TYPE_ORDER = [
+    "Creature",
+    "Land",
+    "Instant",
+    "Sorcery",
+    "Artifact",
+    "Enchantment",
+    "Planeswalker",
+] as const;
+
+const PILE_FILTER_ALL = "all";
+
+/** Plural button label per bucket — a naive `${type}s` suffix mangles
+ *  "Sorcery" → "Sorcerys" and over-pluralizes the "Other" catch-all. */
+const PILE_FILTER_LABEL: Record<string, string> = {
+    Creature: "Creatures",
+    Land: "Lands",
+    Instant: "Instants",
+    Sorcery: "Sorceries",
+    Artifact: "Artifacts",
+    Enchantment: "Enchantments",
+    Planeswalker: "Planeswalkers",
+    Other: "Other",
+};
+
+/** First matching top-level type from `PILE_FILTER_TYPE_ORDER`, else
+ *  `"Other"` (Battle, Kindred-only, and any future type not in the list). */
+function pileFilterType(card: CardInstance): string {
+    const types = card.types ?? [];
+    for (const type of PILE_FILTER_TYPE_ORDER) {
+        if (types.includes(type)) return type;
+    }
+    return "Other";
+}
+
+/** The filter buttons to render: `"All"` plus one per type actually present
+ *  among `cards`, in `PILE_FILTER_TYPE_ORDER` (then `"Other"` last) —
+ *  mirrors `CategoryHeader`'s "empty sections show no header" rule so a
+ *  mono-type pile (an all-Mountain library) never grows a useless button. */
+function pileFilterOptions(
+    cards: CardInstance[]
+): { value: string; label: string }[] {
+    const present = new Set(cards.map(pileFilterType));
+    const types = [...PILE_FILTER_TYPE_ORDER, "Other"].filter((t) =>
+        present.has(t)
+    );
+    return [
+        { value: PILE_FILTER_ALL, label: "All" },
+        ...types.map((t) => ({ value: t, label: PILE_FILTER_LABEL[t] })),
+    ];
+}
 
 /** Whether a revealed card is a legal pick under an (optional) filtered
  *  search allow-list (issue #933). No `eligibleIds` means an unfiltered
@@ -531,6 +591,7 @@ function GridLayout({
     eligibleIds,
     categories,
     captionFor,
+    activeFilterType,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -549,6 +610,15 @@ function GridLayout({
      *  an ordinary flat grid. */
     categories?: PileCategory[];
     captionFor?: (card: CardInstance) => string | null;
+    /** Segmented type filter (issue #2729) — `CardsPile` owns the filter
+     *  STATE and renders the `SegmentedControl` itself (sticky, syntactically
+     *  inside its own `<GameDialog>` — `shell-height-claims.guard.test.tsx`'s
+     *  sticky-site registry resolves ancestors from source text, so a sticky
+     *  element rendered by a SEPARATE function component, even one only ever
+     *  mounted inside GameDialog, does not read as "inside `<GameDialog>`").
+     *  This component only filters `cards` by the resolved value;
+     *  `PILE_FILTER_ALL` (or omitted) renders everything. */
+    activeFilterType?: string;
 }) {
     // One viewport read for the whole dialog (not per-card — see
     // `gridImageSizing`'s doc comment on the listener-count rationale).
@@ -567,11 +637,15 @@ function GridLayout({
     };
 
     if (!categories) {
+        const visibleCards =
+            activeFilterType && activeFilterType !== PILE_FILTER_ALL
+                ? cards.filter((c) => pileFilterType(c) === activeFilterType)
+                : cards;
         return (
             <div
                 className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
             >
-                {cards.map((cardInstance) => (
+                {visibleCards.map((cardInstance) => (
                     <GridCard
                         key={cardInstance.id}
                         cardInstance={cardInstance}
@@ -671,6 +745,47 @@ export default function CardsPile({
     const reduceMotion = useReducedMotion();
     const gameCtx = useContext(GameContext);
     const recentArrivals = gameCtx?.recentArrivals;
+
+    // Segmented type filter (issue #2729, "segmented filter footer") — PLAIN
+    // browse only: `onCardClick` set means this grid is a picker (a
+    // graveyard/exile CHOICE), where hiding a legal-but-filtered-out target
+    // behind a filter button would read as the target vanishing rather than
+    // as a view option. A categorized reveal (Atraxa/Niv-Mizzet) already
+    // groups by type via `categories`, so the two features never compose.
+    // Fan layout keeps no filter (the prototype's segmented-filter stage is
+    // the wide GRID browse only). Owned HERE, not by `GridLayout` — its
+    // sticky footer must sit syntactically inside `<GameDialog>` below for
+    // `shell-height-claims.guard.test.tsx`'s sticky-site registry to resolve
+    // it as portaled rather than pinned against `<main>`. `> 2` (not `> 1`)
+    // excludes the degenerate "All / Other" pair a mono-type pile would
+    // otherwise grow — a single real bucket makes every filter button show
+    // the identical set of cards.
+    //
+    // `!footer` (round-2 review fixup, issue #2729): a caller can supply a
+    // `footer` on a plain grid browse with no `onCardClick` —
+    // `RevealHandView`'s undismissable "Done" acknowledgement of a
+    // `forceOpen` reveal-hand prompt is exactly that shape. Both the filter
+    // row and `footer` below render `sticky bottom-0` as direct siblings of
+    // the same `GameDialog` scroller, so without this gate they stack on the
+    // same edge and the filter (`z-10`) paints over the footer — the ONLY
+    // way to dismiss a prompt the user cannot otherwise escape. The other
+    // callers with a footer (`player-graveyard`/`player-exile`/
+    // `player-library`) escape only incidentally, by always pairing `footer`
+    // with `onCardClick` (already excluded above) for the same `is*Choice`
+    // flag. The correct fix is not z-index or "sticky-er" — a caller with a
+    // footer never gets a filter, full stop.
+    const filterOptions = useMemo(
+        () =>
+            layout === "grid" && !onCardClick && !categories && !footer
+                ? pileFilterOptions(cards)
+                : [],
+        [cards, layout, onCardClick, categories, footer]
+    );
+    const showFilter = filterOptions.length > 2;
+    const [filterType, setFilterType] = useState<string>(PILE_FILTER_ALL);
+    const activeFilterType = filterOptions.some((o) => o.value === filterType)
+        ? filterType
+        : PILE_FILTER_ALL;
 
     // Fully uncontrolled (no `open`/`onOpenChange`, no menu): there is no
     // dialog anything could drive open, so an empty pile stops here — the
@@ -888,7 +1003,18 @@ export default function CardsPile({
                         eligibleIds={eligibleIds}
                         categories={categories}
                         captionFor={captionFor}
+                        activeFilterType={activeFilterType}
                     />
+                )}
+                {showFilter && (
+                    <div className="sticky bottom-0 z-10 flex justify-center border-t border-border-subtle bg-surface pt-2 pb-1">
+                        <SegmentedControl
+                            options={filterOptions}
+                            value={activeFilterType}
+                            onChange={setFilterType}
+                            ariaLabel="Filter pile by card type"
+                        />
+                    </div>
                 )}
                 {footer && (
                     <div className="sticky bottom-0 mt-2 flex justify-center border-t border-border-subtle bg-surface pt-3 pb-1">

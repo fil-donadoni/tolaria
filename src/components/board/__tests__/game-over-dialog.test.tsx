@@ -12,8 +12,8 @@ vi.mock("../sideboarding-dialog", () => ({ default: () => null }));
 import GameOverDialog from "../game-over-dialog";
 
 const PLAYERS = [
-    { id: "me", name: "Me" },
-    { id: "opp", name: "Rival" },
+    { id: "me", name: "Me", life: 14 },
+    { id: "opp", name: "Rival", life: 0 },
 ] as unknown as Player[];
 
 const GAME_OVER = {
@@ -116,5 +116,44 @@ describe("GameOverDialog — leaving an event Match", () => {
         renderOver(makeMatch("finished"));
         leaveButton()!.click();
         expect(href).toBe("/");
+    });
+});
+
+// The "moment" (ADR 0103 §26, issue #2729): TitleTreatment + the one
+// ornament + a stats row, not a bespoke frame.
+describe("GameOverDialog — the moment (issue #2729)", () => {
+    it("renders the ornamental divider between the result and the stats row", () => {
+        const { baseElement } = renderOver(null);
+        expect(
+            baseElement.querySelector('[data-slot="ornamental-divider"]')
+        ).toBeTruthy();
+    });
+
+    it("renders each player's final life total in the stats row", () => {
+        renderOver(null);
+        expect(document.body.textContent).toContain("14");
+        expect(document.body.textContent).toContain("Me life");
+        expect(document.body.textContent).toContain("0");
+        expect(document.body.textContent).toContain("Rival life");
+    });
+
+    it("shows both players' real life on a draw instead of a winner/loser fallback", () => {
+        const drawOver = {
+            winnerId: "",
+            loserId: "",
+            reason: "draw",
+            isDraw: true,
+        } as GameOver;
+        render(
+            <GameOverDialog
+                gameOver={drawOver}
+                allPlayers={PLAYERS}
+                match={null}
+                viewerId="me"
+            />
+        );
+        expect(document.body.textContent).not.toContain("? life");
+        expect(document.body.textContent).toContain("Me life");
+        expect(document.body.textContent).toContain("Rival life");
     });
 });

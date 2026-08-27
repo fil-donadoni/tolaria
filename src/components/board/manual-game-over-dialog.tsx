@@ -20,6 +20,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
+import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
 import { clearSession, storeSession } from "~/lib/session";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
@@ -96,6 +97,12 @@ export default function ManualGameOverDialog({
                 <p className="text-sm text-text-muted">
                     {`${loser?.name ?? "?"} conceded`}
                 </p>
+                {/* The one ornament (ADR 0103 §5) — same shape as
+                    `game-over-dialog.tsx`'s "moment". No stats row here: a
+                    Manual (Tabletop) game passes only `{id, name}` for its
+                    two players, not life totals — ADR 0080 keeps this screen
+                    a concede-only result with no board-state tracking. */}
+                <OrnamentalDivider className="w-full max-w-40" />
                 {scoreLine && (
                     <p className="text-xs tracking-wide text-text-disabled">
                         {scoreLine}
