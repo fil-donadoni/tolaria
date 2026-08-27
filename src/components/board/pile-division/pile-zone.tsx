@@ -31,7 +31,7 @@ export default function PileZone({
                 height: box.height,
             }}
         >
-            <span className="absolute top-1 left-2 font-beleren text-[10px] tracking-wide text-text-disabled uppercase">
+            <span className="absolute top-1 left-2 text-display text-[10px] tracking-wide text-text-disabled uppercase">
                 {label}
             </span>
         </div>

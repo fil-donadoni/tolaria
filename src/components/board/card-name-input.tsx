@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { getAllCardNames } from "@convex/cards/catalogue";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 
 /** Autocomplete name input for a `name-card` pending choice (CR 202.3 — "chooses
  *  a card name", Petra Sphinx). The chooser types a card name; the field
@@ -60,14 +61,14 @@ export default function CardNameInput({
 
     return (
         <div className="flex flex-col items-stretch gap-1.5 mt-1 w-64">
-            <input
+            <Input
                 type="text"
                 autoFocus
                 value={value}
                 disabled={disabled}
                 placeholder="Type a card name…"
                 aria-label="Card name"
-                className="px-2.5 py-1.5 rounded-sm text-xs bg-surface border border-accent/45 text-parchment placeholder:text-text-disabled focus:outline-none focus:border-accent/80 disabled:opacity-40"
+                className="h-auto px-2.5 py-1.5 text-xs"
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {

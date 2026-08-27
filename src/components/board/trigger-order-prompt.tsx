@@ -395,7 +395,7 @@ export default function TriggerOrderPrompt({
                     </div>
                 </div>
 
-                <div className="flex items-center justify-end px-2 font-beleren text-lg tracking-widest text-accent">
+                <div className="flex items-center justify-end px-2 text-display text-lg tracking-widest text-accent">
                     TOP OF STACK →
                 </div>
 
@@ -404,7 +404,7 @@ export default function TriggerOrderPrompt({
                         type="button"
                         disabled={submitting}
                         onClick={handleConfirm}
-                        className="rounded-full border border-accent bg-accent/10 px-10 py-2 font-beleren text-base tracking-wide text-accent hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-full border border-accent bg-accent/10 px-10 py-2 text-display text-base tracking-wide text-accent hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         Done
                     </button>
