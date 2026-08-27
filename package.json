@@ -35,6 +35,8 @@
         "queue:plan": "bun scripts/queue-plan.ts",
         "queue:train": "bun scripts/train-order.ts",
         "land": "bun scripts/land.ts",
+        "health:main": "bun scripts/health-main.ts",
+        "health:status": "bun scripts/health-main.ts --status",
         "review:receipt": "bun scripts/write-review-receipt.ts",
         "loop:scorecard": "bun scripts/loop-scorecard.ts",
         "loop:doctor": "bun scripts/loop-doctor.ts",
