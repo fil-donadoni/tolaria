@@ -35,6 +35,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+import { remoteBranchDeleteStep } from "./land";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // What the lane accepts, and what gates it.
@@ -200,7 +201,15 @@ function shQuote(s: string): string {
  * worktree, so it dies with `fatal: 'main' is already used by worktree at …`
  * AFTER the merge has landed — a failure reported on a PR that merged fine.
  * Both refs are deleted explicitly instead, each wrapped `(… || true)` so
- * cleanup can never turn a landed merge into a reported failure.
+ * cleanup can never turn a landed merge into a reported failure. The remote
+ * branch delete goes through `remoteBranchDeleteStep` (issue #2877) rather
+ * than a bare `(git push origin --delete … || true)`: since the repo turned
+ * on "Automatically delete head branches", GitHub already removes the head
+ * branch as part of the merge, so the ref is routinely already gone by the
+ * time this runs — the naive form still writes two spurious `error:` lines
+ * to stderr even though its exit code is swallowed. `land.ts` fixed this
+ * once; sharing the helper here keeps this lane from drifting back to the
+ * same bug.
  */
 export function buildShipMergeCommand(opts: {
     branch: string;
@@ -215,7 +224,7 @@ export function buildShipMergeCommand(opts: {
         "bun run check:docs",
         `git push --force-with-lease origin ${b}`,
         `bun ${shQuote(PR_MERGE)} ${opts.pr}`,
-        `(git push origin --delete ${b} || true)`,
+        remoteBranchDeleteStep(opts.branch),
         `(git -C ${shQuote(opts.primary)} worktree remove --force ${shQuote(opts.cwd)} || true)`,
         `(git -C ${shQuote(opts.primary)} branch -D ${b} || true)`,
     ].join(" && ");

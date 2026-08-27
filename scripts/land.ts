@@ -318,6 +318,37 @@ const VERIFY_MERGED_TIP =
  */
 const UNSET_GITHUB_TOKEN = "unset GITHUB_TOKEN";
 
+/**
+ * Delete the remote head branch, wrapped so it can never gate `land`'s exit
+ * status (ref cleanup is cosmetic, see the header comment) — but distinguish
+ * the DIAGNOSTIC by what git actually says (issue #2877). Since the repo
+ * turned on "Automatically delete head branches" (2026-08-27), GitHub already
+ * removes the head branch as part of the merge itself, before this step
+ * runs, so `git push origin --delete` on an already-gone branch is now the
+ * COMMON case, not a failure — but the raw command still writes
+ * `error: unable to delete '<branch>': remote ref does not exist` +
+ * `error: failed to push some refs to '<remote>'` to stderr even though its
+ * exit code is already swallowed, and two `error:` lines at the tail of
+ * every green land trains the reader to stop reading exactly the lines that
+ * matter when a branch genuinely gets left behind.
+ *
+ * Captures the command's own combined output and re-emits it to stderr only
+ * when it does NOT contain the one line only the already-gone case produces
+ * — a real failure (auth, network, a branch that still has an open PR
+ * pointing at it, …) says something else and must still surface. This reads
+ * git's own behaviour, not a hand-maintained failure taxonomy: any error
+ * that isn't literally "the ref was already gone" is treated as real.
+ */
+export function remoteBranchDeleteStep(branch: string): string {
+    const q = shQuote(branch);
+    return (
+        `(out=$(git push origin --delete ${q} 2>&1); code=$?; ` +
+        `if [ "$code" -ne 0 ] && ! printf '%s' "$out" | grep -q "remote ref does not exist"; then ` +
+        `printf '%s\\n' "$out" >&2; ` +
+        `fi; true)`
+    );
+}
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
     // the checks the classified diff owes (degrading to `check:pr` verbatim
@@ -380,9 +411,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // that worktree's branch with no remote to push to — teardown means
         // teardown, and `--keep` means none of it.
         if (opts.teardown) {
-            steps.push(
-                `(git push origin --delete ${shQuote(opts.branch)} || true)`
-            );
+            steps.push(remoteBranchDeleteStep(opts.branch));
             steps.push(
                 `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
             );
