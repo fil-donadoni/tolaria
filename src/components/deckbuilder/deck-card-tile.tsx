@@ -47,8 +47,9 @@ export interface DeckCardTileProps {
      *  no move to race. Absent ⇒ no `dblclick` listener at all, which is
      *  every other caller (unchanged). */
     onDoubleClick?: () => void;
-    /** Fired on a real right-click, `preventDefault`ed by the caller (issue
-     *  #2861). Presence is ALSO what disables {@link CardImage}'s own
+    /** Fired on a real right-click — the TILE calls `preventDefault` itself
+     *  before invoking this (issue #2861), so no caller has to remember to.
+     *  Presence is ALSO what disables {@link CardImage}'s own
      *  right-click preview pin (`disableRightClickPreview`) — otherwise that
      *  native `pointerdown`-driven gesture fires first and opens the zoom pin
      *  before this handler ever sees the `contextmenu` event. Absent ⇒ the
@@ -155,7 +156,21 @@ export default function DeckCardTile({
             title={title}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
-            onContextMenu={onContextMenu}
+            onContextMenu={
+                onContextMenu
+                    ? (e) => {
+                          // The tile owns `preventDefault` itself (review
+                          // finding, issue #2861 PR): every real caller wants
+                          // the native menu suppressed and none of them has
+                          // any other use for the event, so leaving it to
+                          // each caller left the native "Save image…" menu
+                          // popping up ON TOP of the Inspect Overlay this was
+                          // supposed to replace.
+                          e.preventDefault();
+                          onContextMenu(e);
+                      }
+                    : undefined
+            }
             onKeyDown={handleKeyDown}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(

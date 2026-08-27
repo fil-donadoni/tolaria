@@ -685,6 +685,31 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
         expect(() => unmount()).not.toThrow();
         expect(() => act(() => vi.advanceTimersByTime(1000))).not.toThrow();
     });
+
+    // Review finding (PR #2881): a click on a Pool tile starts the delayed
+    // open; without cancelling it, clicking a DIFFERENT surface's menu open
+    // inside that same 200ms window left the Pool's timer running, and it
+    // fired afterwards and silently replaced whatever the player had already
+    // moved on to.
+    it("clicking a Booster card while a Pool menu-open is still pending cancels the stale Pool timer — the Booster's menu is not later clobbered", () => {
+        const { getByTitle, getAllByRole } = renderTable({
+            pool: boltInPool,
+        });
+        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+
+        const boosterCards = getAllByRole("button", { name: /Draft pick/ });
+        fireEvent.click(boosterCards[0]);
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Booster 1 pick actions"
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+        expect(menu()!.getAttribute("aria-label")).toBe(
+            "Booster 1 pick actions"
+        );
+    });
 });
 
 // Issue #2667 (unchanged by issue #2861, which only retires the DESKTOP arm

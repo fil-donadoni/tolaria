@@ -15,6 +15,7 @@ import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
+import { CARD_TILE_ATTR } from "~/lib/card-tile-keyboard";
 import InspectOverlay from "~/components/editing/inspect-overlay";
 import {
     usePeekPanelLayout,
@@ -186,13 +187,19 @@ export default function LimitedDraftTable({
     const poolMenuOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(
         null
     );
-    useEffect(
-        () => () => {
-            if (poolMenuOpenTimer.current !== null)
-                clearTimeout(poolMenuOpenTimer.current);
-        },
-        []
-    );
+    // Cancels a pending pool-menu open without opening it — review finding:
+    // a click on a Pool/Sideboard tile that starts the timer, followed
+    // (within the delay window) by a click on a Booster card or a Pool
+    // right-click, used to leave the Pool timer running; it then fired ~200ms
+    // later and silently replaced whatever the player had already moved on
+    // to. Every OTHER way this screen opens a menu/overlay calls this first.
+    const cancelPendingPoolMenu = () => {
+        if (poolMenuOpenTimer.current !== null) {
+            clearTimeout(poolMenuOpenTimer.current);
+            poolMenuOpenTimer.current = null;
+        }
+    };
+    useEffect(() => cancelPendingPoolMenu, []);
     // The Pool/Sideboard half of the PHONE selection model (issue #2667) — a
     // full `DeckZoneSelection` rather than a bare card id, because
     // `DeckZonePeek` (reused unchanged from the deckbuilder) derives its
@@ -468,6 +475,7 @@ export default function LimitedDraftTable({
     // comment for why the delay the Pool/Sideboard menu needs does not apply
     // here).
     const openBoosterMenu = (pickId: string, x: number, y: number) => {
+        cancelPendingPoolMenu();
         const card = pack.find((c) => c.pickId === pickId);
         if (!card) return;
         setMenu({
@@ -486,6 +494,7 @@ export default function LimitedDraftTable({
     // the Inspect Overlay directly, no menu — what a right-click already
     // means everywhere else in the app.
     const openBoosterInspect = (pickId: string) => {
+        cancelPendingPoolMenu();
         const card = pack.find((c) => c.pickId === pickId);
         if (!card) return;
         setInspecting({
@@ -671,9 +680,7 @@ export default function LimitedDraftTable({
     // flashes open. `desktopPoolClickPos` was captured by the CAPTURE-phase
     // listener on the desktop Pool pane's own wrapper, further down.
     const openDesktopPoolMenu = (selection: DeckZoneSelection) => {
-        if (poolMenuOpenTimer.current !== null) {
-            clearTimeout(poolMenuOpenTimer.current);
-        }
+        cancelPendingPoolMenu();
         poolMenuOpenTimer.current = setTimeout(() => {
             poolMenuOpenTimer.current = null;
             const { x, y } = desktopPoolClickPos.current;
@@ -694,16 +701,14 @@ export default function LimitedDraftTable({
     // to the other zone — no Column named, so any existing Pin survives and a
     // Sideboard → Pool move lands wherever the current Grouping assigns it.
     const handleDesktopPoolDoubleClick = (selection: DeckZoneSelection) => {
-        if (poolMenuOpenTimer.current !== null) {
-            clearTimeout(poolMenuOpenTimer.current);
-            poolMenuOpenTimer.current = null;
-        }
+        cancelPendingPoolMenu();
         handlePoolZoneMove(selection.pinKey, selection.zone === "maindeck");
     };
 
     // Real right-click on a Pool/Sideboard tile, desktop regime (issue
     // #2861): opens the Inspect Overlay directly, no menu.
     const handleDesktopPoolContextMenu = (selection: DeckZoneSelection) => {
+        cancelPendingPoolMenu();
         setInspecting({
             cardId: selection.cardId,
             actions: desktopPoolInspectActionsFor(selection),
@@ -1040,7 +1045,24 @@ export default function LimitedDraftTable({
                                 // any descendant tile's own bubble-phase click
                                 // handler, so the position is fresh by the
                                 // time `openDesktopPoolMenu` reads it.
+                                //
+                                // Scoped to an actual card tile (review
+                                // finding): this wrapper also contains the
+                                // Grouping/Ordering selects and the "View"
+                                // disclosure toggle
+                                // (`deck-zone-surface.tsx`) — clicking one of
+                                // those inside the pending menu's delay
+                                // window used to overwrite the position with
+                                // THAT click's coordinates, so the menu the
+                                // timer eventually opened landed at the wrong
+                                // spot on screen.
                                 onClickCapture={(e) => {
+                                    if (
+                                        !(e.target instanceof Element) ||
+                                        !e.target.closest(`[${CARD_TILE_ATTR}]`)
+                                    ) {
+                                        return;
+                                    }
                                     desktopPoolClickPos.current = {
                                         x: e.clientX,
                                         y: e.clientY,
