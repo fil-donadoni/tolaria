@@ -331,8 +331,13 @@ export type Move =
           buybackPaid?: boolean;
           chosenX?: number;
           targets: TargetSelection[];
-          /** Variable-count targets (CR 601.2c "up to"/X) need an explicit
-           *  confirmTargets; fixed-N selections auto-finalize on the last pick. */
+          /** CR 601.2c — whether the executor owes a trailing `confirmTargets`
+           *  after its batched `selectTargets`. Computed by
+           *  `announcedTargetsNeedConfirm` from the RESOLVED count reaching its
+           *  max, NOT from the requirement being variable-count: a variable
+           *  selection filled to its max auto-finalized on the last pick and
+           *  needs none, while one answered with ZERO targets needs one and has
+           *  no `selectTargets` call to ride on (issue #2870). */
           confirmTargets: boolean;
           /** Lands to tap, in order, to cover the cost (pool mana is auto-used
            *  by the server at commit and needs no tap). */
@@ -354,6 +359,9 @@ export type Move =
           chosenModeId?: string;
           chosenX?: number;
           targets: TargetSelection[];
+          /** CR 601.2c via CR 602.2b — as on `cast-spell` above:
+           *  `announcedTargetsNeedConfirm` against the LAST target group's
+           *  resolved count, never "is the requirement variable-count". */
           confirmTargets: boolean;
           tapPlan: ManaTap[];
           /** CR 602.1 / 118 — the cards named to pay the ability's DEFERRED
@@ -1086,6 +1094,17 @@ function enumerateTargetTuples(
         player.id,
         chosenX
     );
+    // CR 601.2c / 601.2d — when the ANNOUNCEMENT opens no target selection at
+    // all, the only tuple is the empty one. `targetCount` below sees the count
+    // alone, so it misses the zero DIVIDE BUDGET case (#2905 review, item 2):
+    // Spoils of War / Meteor Shower at X = 0 carry `count: { min: 1 }`, which
+    // resolves to a 1-target tuple, while `announceCast` sets
+    // `requiresTargets = false` and opens nothing. The executor's
+    // `selectTargets` is gated on the tuple being non-empty rather than on
+    // `confirmTargets`, so it fired against no selection and threw — the same
+    // freeze this issue is about, reached through the count rather than the
+    // confirm.
+    if (announcedTargetCount(effReq, chosenX) === undefined) return [[]];
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];
 
@@ -2242,6 +2261,20 @@ function enumerateAbilityMoves(
             // flat tuple, so an ability with additional groups asked the wrong
             // requirement about the wrong count.
             const abilityGroups = [req, ...abilityExtraGroups];
+            // The ability-side twin of the cast path's identical guard
+            // (#2905 review, item 3): a VARIABLE-count group does not
+            // auto-advance inside the executor's one batched `selectTargets`, so
+            // only the LAST group may be one — anything else needs a confirm
+            // mid-batch the executor has no shape for, and its later picks would
+            // land back on the first group. This is the precondition
+            // `enumerateTargetGroupTuples` is written against; the site adopted
+            // that enumerator without it. Vacuous today (Oko, Thief of Crowns'
+            // −5 is the only ability with `additionalTargetRequirements` and
+            // both its groups are `count: 1`), so the Bot declines to enumerate
+            // rather than emitting an unexecutable move if one ever lands.
+            if (abilityGroups.slice(0, -1).some((g) => isVariableCount(g))) {
+                continue;
+            }
             const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
             for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,

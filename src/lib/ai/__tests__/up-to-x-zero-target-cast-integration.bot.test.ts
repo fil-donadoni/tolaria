@@ -68,6 +68,8 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const BOLT = getCardByName("Lightning Bolt").id;
 const ANKH = getCardByName("Ankh of Mishra").id;
 const BEARS = getCardByName("Grizzly Bears").id;
+const SPOILS_OF_WAR = getCardByName("Spoils of War").id;
+const SWAMP = getCardByName("Swamp").id;
 
 /** The BOT's seat holds `hand`, plus `landCount` untapped lands of `landId`;
  *  the HUMAN's battlefield is whatever the scenario needs. */
@@ -399,5 +401,129 @@ describe("an 'up to N' ACTIVATED ability declined at zero targets completes (CR 
         expect(after.pendingActivation).toBeUndefined();
         expect(after.stack).toHaveLength(1);
         expect(after.stack[0].targets ?? []).toEqual([]);
+    });
+
+    it("the same ability FILLED to its max sends no confirm (#2905 review, item: the cast arm's ability twin)", async () => {
+        const state = board({
+            botBattlefield: [
+                makeInstance(TEFERI, {
+                    id: "teferi",
+                    controllerId: BOT,
+                    ownerId: BOT,
+                    zone: "battlefield",
+                    counters: { loyalty: 4 },
+                }),
+            ],
+            humanBattlefield: [
+                makeInstance(BEARS, {
+                    id: "bears",
+                    controllerId: HUMAN,
+                    ownerId: HUMAN,
+                    zone: "battlefield",
+                }),
+            ],
+        });
+        // `{ min: 0, max: 1 }` with exactly one legal creature: the single pick
+        // reaches max and `selectTargets` auto-finalizes it, so a trailing
+        // confirm would throw. This is the arm break #3 of the proof-of-failure
+        // table exercises on the CAST path — the ability path deserves its own,
+        // since it reads a different `lastReq`.
+        const move = onlyMove(
+            state,
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.abilityId === "teferi-time-raveler-minus3" &&
+                m.targets.length === 1
+        );
+        if (move.kind !== "activate-ability") throw new Error("unreachable");
+        expect(move.confirmTargets).toBe(false);
+
+        const harness = makeMutationCtx(BOT, [gameStateSeed(state)]);
+        const calls: string[] = [];
+        await executeMove(move, {
+            gameId: GAME_ID,
+            botId: BOT,
+            mutations: realMutations(harness, calls),
+        });
+        expect(calls).toEqual(["activateAbility", "selectTargets"]);
+        const after = harness.state();
+        expect(after.pendingTarget).toBeUndefined();
+        expect(after.stack).toHaveLength(1);
+        expect(after.stack[0].targets?.map((t) => t.id)).toEqual(["bears"]);
+    });
+});
+
+describe("a divide-as-you-choose spell at a ZERO budget takes no targets (CR 601.2d, #2905 review item 2)", () => {
+    it("REGRESSION: Spoils of War at X = 0 enumerates the empty tuple, so no selectTargets fires against an unopened selection", async () => {
+        const state = board({
+            hand: [
+                makeInstance(SPOILS_OF_WAR, {
+                    id: "spoils",
+                    controllerId: BOT,
+                    ownerId: BOT,
+                    zone: "hand",
+                }),
+            ],
+            humanBattlefield: [
+                makeInstance(BEARS, {
+                    id: "bears",
+                    controllerId: HUMAN,
+                    ownerId: HUMAN,
+                    zone: "battlefield",
+                }),
+            ],
+            landId: SWAMP,
+            landCount: 3,
+        });
+        // "Distribute X +1/+1 counters among any number of target creatures":
+        // `count: { min: 1 }` with the budget as the real cap. Both graveyards
+        // are empty, so X = 0 — CR 601.2d leaves nothing to divide and
+        // `announceCast` opens NO selection. The count alone cannot see that,
+        // so the enumerator used to emit a 1-target tuple; the executor's
+        // `selectTargets` is gated on the tuple being non-empty rather than on
+        // `confirmTargets`, so it fired against no selection and threw.
+        // The whole enumerated table, since each row exercises a different arm
+        // of the SAME predicate against the divide budget (CR 601.2d):
+        //   X = 0 → budget 0 ⇒ no selection at all, so no targets, no confirm;
+        //   X = 1 → count capped to { min: 1, max: 1 } ⇒ the pick auto-finalizes;
+        //   X = 2 → count capped to { min: 1, max: 2 } ⇒ one pick rests.
+        // Before the fix the X = 0 row read `targets: ["bears"], confirm: true`.
+        const rows = enumerateMoves(state, BOT)
+            .filter((m) => m.kind === "cast-spell")
+            .map((m) =>
+                m.kind === "cast-spell"
+                    ? {
+                          x: m.chosenX ?? 0,
+                          targets: m.targets.map((t) => t.id),
+                          confirm: m.confirmTargets,
+                      }
+                    : null
+            );
+        expect(rows).toEqual([
+            { x: 0, targets: [], confirm: false },
+            { x: 1, targets: ["bears"], confirm: false },
+            { x: 2, targets: ["bears"], confirm: true },
+        ]);
+
+        const move = onlyMove(
+            state,
+            (m) =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "spoils" &&
+                (m.chosenX ?? 0) === 0
+        );
+        if (move.kind !== "cast-spell") throw new Error("unreachable");
+
+        const harness = makeMutationCtx(BOT, [gameStateSeed(state)]);
+        const calls: string[] = [];
+        await executeMove(move, {
+            gameId: GAME_ID,
+            botId: BOT,
+            mutations: realMutations(harness, calls),
+        });
+        expect(calls).toEqual(["announceCast", "tapForPayment"]);
+        const after = harness.state();
+        expect(after.pendingTarget).toBeUndefined();
+        expect(after.stack.map((s) => s.card.id)).toEqual([SPOILS_OF_WAR]);
     });
 });

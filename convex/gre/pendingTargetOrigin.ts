@@ -219,8 +219,17 @@ export function announcedTargetCount(
     const divideTotal = req.divideAsChosen
         ? resolveDivideTotal(req.divideAsChosen.total, chosenX)
         : undefined;
-    if (divideTotal === 0) return undefined;
+    // Resolve BEFORE the zero-budget return, not after: `requireX: true` makes
+    // an X-bearing count with no announced X a rejection, and returning early on
+    // `divideTotal === 0` would swallow it (a card pairing a divide budget with
+    // an `{ min, max: "X" }` count would silently cast as a no-target spell
+    // instead of erroring). No shipped card pairs the two — all nine
+    // `divideAsChosen` sites carry `count: { min: 1 }` — so this is the
+    // ordering and the old `announceCast` expression agreeing, not a behaviour
+    // change (#2905 review, item 1).
     let count = resolveTargetRequirementCount(req.count, chosenX, options);
+    // CR 601.2d — nothing to divide means no targets at all.
+    if (divideTotal === 0) return undefined;
     if (
         divideTotal !== undefined &&
         typeof count === "object" &&

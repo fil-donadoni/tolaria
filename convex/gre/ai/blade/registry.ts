@@ -3063,12 +3063,15 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // target cast the position OFFERS can actually be completed — the
         // legal-set shape, not a preference — so no rollout noise can reach it.
         //
-        // WHAT IT DISCRIMINATES: restoring either half of the old predicate
-        // (`isVariableCount(req) && targets.length > 0` in the enumerator, or
-        // the `&& move.targets.length > 0` term on the executor's confirm) turns
-        // this red. The mutation-level "declining all targets is a legal
-        // confirm" case already passed before the fix — the defect lived
-        // entirely in what the Bot SENT, which is why the guard belongs here.
+        // WHAT IT DISCRIMINATES: the ENUMERATOR half of the old predicate —
+        // restoring `isVariableCount(req) && targets.length > 0` turns this red.
+        // The blade runner stops at the chosen `Move` and never calls
+        // `executeMove`, so the executor's own `&& move.targets.length > 0` term
+        // is out of its reach by construction; that half is guarded by
+        // `up-to-x-zero-target-cast-integration.bot.test.ts`, which drives the
+        // real mutation sequence. (The mutation-level "declining all targets is
+        // a legal confirm" case already passed before the fix — the defect lived
+        // entirely in what the Bot SENT.)
         label: "up to X target: an 'up to X' cast with no legal target confirms zero targets (CR 601.2c)",
         spec: {
             cards: [
