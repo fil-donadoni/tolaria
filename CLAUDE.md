@@ -321,7 +321,10 @@ measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 **Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
 mutex serialises gating; `land` extends it across rebase → `check:lane` →
 push → merge, so the tree that lands is the tree that was gated, then detaches
-the post-merge health gate (ADR 0110). `deny-guard.sh` § 1 denies a
+the post-merge health gate (ADR 0110). It also fast-forwards the primary
+checkout's local `main` onto the merged tip — the API merge moves only
+`origin/main`, and the next worktree must not branch from a stale one. Never
+do that catch-up by hand. `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
 `bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
 gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
