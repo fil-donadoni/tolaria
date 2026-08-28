@@ -6,6 +6,12 @@ issue: 2890
 confidence: high
 ---
 
+> **SHIPPED 2026-08-28 in #2890.** The seam exists: `substitutionsForBreadth`
+> (`convex/gre/manaColors.ts`) generates the pairs, `getManaSubstitutions`
+> (`convex/gre/state.ts`) returns them for a named cast, and North Star +
+> Robber of the Rich both consume it. Nothing here is open work any more —
+> the file is kept only so the reasoning below is not re-derived.
+>
 > **CORRECTED 2026-08-28 — the central claim below was wrong, and the finding is
 > now ticketed as #2890.** The draft concluded "there is no almost-right
 > primitive to generalize, so this is a new seam, not a parametrization." It
