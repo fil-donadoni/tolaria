@@ -90,7 +90,13 @@ describe("face-down exile on the wire (CR 406.3)", () => {
             zone: "library",
         });
         const state = stateWith({ library: [card] });
-        exileFaceDownCard(state.players[0], "fd-exiled", "library", "p1");
+        exileFaceDownCard(
+            state.players[0],
+            "fd-exiled",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
         const projected = projectPublicState(state, 1, viewerId);
         return projected.players[0].exile[0] as CardInstance;
     }
@@ -138,6 +144,79 @@ describe("face-down exile on the wire (CR 406.3)", () => {
     });
 });
 
+// Review finding 1 — `knownTo` on an exiled card is overloaded (ADR 0026): it
+// backs BOTH the CR 406.3 cards whose oracle says "face down" AND the impulse
+// idiom, whose paper card lies FACE UP in front of its controller. Painting a
+// Ragavan/Laelia exile as a card back to its own controller would turn a
+// one-sided divergence (hidden from the opponent) into a two-sided one.
+describe("impulse exile is NOT face down to its own controller (ADR 0026)", () => {
+    function project(
+        producer: "face-down-exile" | "impulse-exile",
+        viewerId: "p1" | "p2"
+    ) {
+        const card = makeInstance(SERRA.id, {
+            id: "imp-exiled",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = stateWith({ library: [card] });
+        exileFaceDownCard(
+            state.players[0],
+            "imp-exiled",
+            "library",
+            "p1",
+            producer
+        );
+        const projected = projectPublicState(state, 1, viewerId);
+        return projected.players[0].exile[0] as CardInstance;
+    }
+
+    it("shows the knower the real card, unmarked — while the oracle-face-down sibling is marked", () => {
+        const impulse = project("impulse-exile", "p1");
+        expect(impulse.faceDownBy).toBe("impulse-exile");
+        expect(impulse.faceDown).toBeUndefined();
+        expect(isFaceDownCard(impulse)).toBe(false);
+        expect(getCardImageDefId(impulse)).toBe(SERRA.id);
+
+        // Same primitive, same knower — only the producer differs.
+        const oracleFaceDown = project("face-down-exile", "p1");
+        expect(oracleFaceDown.faceDown).toBe(true);
+        expect(getCardImageDefId(oracleFaceDown)).toBe(FACE_DOWN_CARD_ID);
+    });
+
+    it("still hides it from the OPPONENT — the ADR 0026 divergence stays one-sided", () => {
+        const slim = project("impulse-exile", "p2");
+        expect(slim.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(slim.faceDown).toBe(true);
+        expect(isFaceDownCard(slim)).toBe(true);
+        expect(JSON.stringify(slim)).not.toContain(SERRA.id);
+    });
+});
+
+// Review finding 2 — the Manual Board (ADR 0080) has its OWN face-down path
+// with its own sentinel and sets the same `faceDown` flag. It is out of scope
+// for #2904, so it must not be swept into the GRE's producer-keyed rendering:
+// before the guard, `faceDownRealCardId` returned the manual sentinel itself
+// and the preview grew a second face labelled "Actual card" naming `__faceDown`.
+describe("a foreign face-down subsystem is not adopted (Manual Board, ADR 0080)", () => {
+    const manualFaceDown = {
+        id: "manual-1",
+        card: { id: "__faceDown" },
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+        faceDown: true,
+    } as unknown as CardInstance;
+
+    it("is not treated as face down, and yields no second preview face", () => {
+        expect(isFaceDownCard(manualFaceDown)).toBe(false);
+        expect(faceDownRealCardId(manualFaceDown)).toBeUndefined();
+        expect(getCardImageDefId(manualFaceDown)).toBe("__faceDown");
+    });
+});
+
 describe("producer → face resolver (issue #2904)", () => {
     it("resolves every censused producer, and falls back for an absent one", () => {
         // The table is a total Record over `FaceDownProducer`, so this list is
@@ -147,6 +226,7 @@ describe("producer → face resolver (issue #2904)", () => {
             "morph",
             "cast-face-down",
             "face-down-exile",
+            "impulse-exile",
         ] as const) {
             expect(resolveFaceDownFace(producer)).toEqual({
                 kind: "back",

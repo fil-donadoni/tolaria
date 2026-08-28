@@ -5468,7 +5468,15 @@ export interface SpellContext {
         ownerId: string,
         cardInstanceId: string,
         from: "library" | "hand" | "graveyard",
-        knowerId: string
+        knowerId: string,
+        /** WHICH mechanic hid it (issue #2904 review). `"face-down-exile"` for
+         *  a card whose ORACLE TEXT says "face down" (Memory Jar,
+         *  Necropotence, Headliner Scarlett, hideaway) — face down to its
+         *  knower too, who may LOOK. The default `"impulse-exile"` is the
+         *  ADR 0026 idiom, which exiles FACE UP in paper (CR 406.3's default)
+         *  and is routed through this primitive only to hide it from the
+         *  opponent: its knower keeps seeing the real card. */
+        producer?: "face-down-exile" | "impulse-exile"
     ) => void;
 
     /** Reveals `targetPlayerId`'s hand to the controller via a display-only

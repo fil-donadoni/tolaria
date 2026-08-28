@@ -18594,14 +18594,19 @@ export function buildSpellContext(
             ownerId: string,
             cardInstanceId: string,
             from: "library" | "hand" | "graveyard",
-            knowerId: string
+            knowerId: string,
+            producer: Extract<
+                FaceDownProducer,
+                "face-down-exile" | "impulse-exile"
+            > = "impulse-exile"
         ): void {
             const player = getPlayer(state, ownerId);
             const moved = exileFaceDownCard(
                 player,
                 cardInstanceId,
                 from,
-                knowerId
+                knowerId,
+                producer
             );
             // issue #1558 — feeds "whenever one or more cards are put into
             // exile from your library and/or your graveyard" triggers
@@ -20318,12 +20323,16 @@ export function moveCard(
     // Stale `knownTo` never resurrects.
     if (PUBLIC_ZONES.has(to)) delete card.knownTo;
     // issue #2904 — the display producer marker travels with the face-down
-    // state, not with the card. Guarded on `faceDown`: a face-down PERMANENT
-    // moved onto a public zone is still face down (CR 708.9's reveal-on-leave
-    // runs `turnFaceUp`, which clears the marker itself), while a CR 406.3
-    // face-down exile card that loses its `knownTo` here is no longer face
-    // down at all and must not keep a marker that would pick a hidden face.
-    if (!card.faceDown && card.knownTo === undefined) delete card.faceDownBy;
+    // state, not with the card, and a card exiled face down stops being face
+    // down the moment it LEAVES exile. Keyed on the destination, not on
+    // `knownTo`: Memory Jar's delayed trigger returns its exiled cards to
+    // HAND, a path that deliberately PRESERVES `knownTo`
+    // (`moveCardWithGraveyardReplacement`'s face-down exemption), so a
+    // `knownTo`-keyed clear never fired there and the marker rode into the
+    // owner's hand projection and into every save. Guarded on `faceDown`: a
+    // face-down PERMANENT is still face down after the move (CR 708.9's
+    // reveal-on-leave runs `turnFaceUp`, which clears the marker itself).
+    if (!card.faceDown && to !== "exile") delete card.faceDownBy;
     // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance link
     // is only meaningful while the card sits in exile. `removeFromZone`
     // already clears it on the cast-from-exile path; mirror that here for
@@ -20499,7 +20508,11 @@ export function exileFaceDownCard(
     player: PlayerState,
     cardInstanceId: string,
     from: Exclude<Zone, "stack" | "battlefield">,
-    knowerId: string
+    knowerId: string,
+    producer: Extract<
+        FaceDownProducer,
+        "face-down-exile" | "impulse-exile"
+    > = "impulse-exile"
 ): CardInstanceState | null {
     const fromField = ZONE_TO_FIELD[from];
     const sourceZone = player[fromField] as CardInstanceState[];
@@ -20514,7 +20527,7 @@ export function exileFaceDownCard(
     // client can render a face-down face for BOTH viewers (the knower included
     // — CR 406.3 entitles them to LOOK, which the preview's second face is,
     // not to have the pile tile state the identity outright).
-    card.faceDownBy = "face-down-exile";
+    card.faceDownBy = producer;
     player.exile.push(card);
     return card;
 }

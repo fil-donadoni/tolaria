@@ -91,7 +91,17 @@ export const memoryJar: CardDefinition = {
                 for (const pid of ctx.allPlayerIds) {
                     const handIds = ctx.getHandIds(pid);
                     for (const id of handIds) {
-                        ctx.exileFaceDown(pid, id, "hand", pid);
+                        // Oracle: "exiles all cards from their hand FACE
+                        // DOWN" (CR 406.3) — genuinely face down, so it is
+                        // hidden from its owner's own pile tile too; they may
+                        // LOOK, which is the preview's second face (#2904).
+                        ctx.exileFaceDown(
+                            pid,
+                            id,
+                            "hand",
+                            pid,
+                            "face-down-exile"
+                        );
                     }
                     payload[`exiled:${pid}`] = handIds.join(",");
                     ctx.drawCards(pid, 7);

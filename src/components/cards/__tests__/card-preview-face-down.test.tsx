@@ -158,6 +158,47 @@ describe("Face-down card preview (CR 708.5 / CR 406.3, issue #2904)", () => {
         expect(text).not.toContain("Face down");
     });
 
+    // Review finding 3 — CR 708.2a gives a face-down SPELL the same 2/2
+    // creature characteristics as the permanent, and `turnFaceDown` has already
+    // rebuilt them on the stack item. Gating the "is this the sentinel's body"
+    // question on `zone === "battlefield"` made the caster's own morph spell
+    // preview as a characteristic-less "Card" for the whole priority round it
+    // sits on the stack.
+    it("a face-down SPELL on the stack is the CR 708.2a 2/2 creature, not a characteristic-less card", () => {
+        const spell = makeInstance(SERRA.id, {
+            id: "fd-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        turnFaceDown(spell, "morph");
+        const base = makeState();
+        const state = makeState({
+            players: [{ ...base.players[0], id: "p1" }, base.players[1]],
+            stack: [{ ...spell, castById: "p1" }],
+        } as never);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack[0] as unknown as CardInstance;
+        expect(slim.knownCardId).toBe(SERRA.id);
+
+        const { container } = render(
+            <GameContext value={ctxFor(projected.players)}>
+                <CardImage card={slim} />
+            </GameContext>
+        );
+        openPreview(container.firstElementChild as HTMLElement);
+
+        const panel = anchored();
+        const primary = faceColumn(panel!, "Face down").textContent ?? "";
+        expect(primary).toContain("Creature");
+        expect(primary).toContain("2/2");
+        expect(primary).not.toContain("Serra Angel");
+        // …and the caster still gets their CR 708.5 look, beside it.
+        expect(faceColumn(panel!, "Actual card").textContent).toContain(
+            "Serra Angel"
+        );
+    });
+
     it("a face-down EXILED card (CR 406.3) previews the same way for its knower", () => {
         const card = makeInstance(SERRA.id, {
             id: "fd-exiled",
@@ -172,7 +213,15 @@ describe("Face-down card preview (CR 708.5 / CR 406.3, issue #2904)", () => {
                 base.players[1],
             ],
         });
-        exileFaceDownCard(state.players[0], "fd-exiled", "library", "p1");
+        // The CR 406.3 shape (oracle says "face down"), not the impulse idiom
+        // that shares this primitive and stays face UP to its knower.
+        exileFaceDownCard(
+            state.players[0],
+            "fd-exiled",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].exile[0] as CardInstance;

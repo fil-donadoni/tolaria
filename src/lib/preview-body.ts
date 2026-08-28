@@ -462,14 +462,20 @@ export function buildFaceDownPreviewBody(
     cardInstance?: CardInstance,
     gameCtx?: PreviewGameCtx | null
 ): PreviewBodyContent {
-    const isPermanent =
+    // CR 708.2a gives a face-down SPELL the same 2/2 creature characteristics
+    // as the permanent, and `turnFaceDown` has already rebuilt them on the
+    // stack item — so the discriminator is "does this instance carry the
+    // sentinel's characteristics", not its zone (issue #2904 review). True on
+    // the battlefield AND the stack; false for the CR 406.3a exile leg, whose
+    // instance keeps the REAL card's types/P-T for its entitled viewer.
+    const hasSentinelBody =
         !!cardInstance &&
         cardInstance.faceDown === true &&
-        cardInstance.zone === "battlefield";
+        cardInstance.card.id === FACE_DOWN_CARD_ID;
     const base = buildPreviewBody(
         FACE_DOWN_CARD_ID,
-        isPermanent ? cardInstance : undefined,
-        isPermanent ? gameCtx : undefined
+        hasSentinelBody ? cardInstance : undefined,
+        hasSentinelBody ? gameCtx : undefined
     );
     const imageSrc =
         face.kind === "print" ? getArtImageUrl(face.imagePrintId) : face.src;
@@ -489,7 +495,7 @@ export function buildFaceDownPreviewBody(
         // effect; the sentinel's is not the hidden card's, so say nothing.
         engineView: null,
     };
-    if (isPermanent) return anonymous;
+    if (hasSentinelBody) return anonymous;
     return {
         ...anonymous,
         cardName: "Face-down card",

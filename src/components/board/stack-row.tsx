@@ -1,4 +1,5 @@
-import { tryGetDefinition } from "@convex/cards";
+import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
+import { isFaceDownCard } from "~/lib/face-down";
 import { tryGetStateDesignation } from "@convex/cards/designations";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { motion, useReducedMotion } from "motion/react";
@@ -128,7 +129,16 @@ export default function StackRow({
     // instead, which prefers the caster's own `knownCardId` (their "I may
     // look at my own face-down spell" affordance) and falls back to the
     // sentinel for everyone else — exactly the sibling of `getCardImageDefId`.
-    const identityId = displayCardId(item);
+    //
+    // Issue #2904 narrowed that: the caster's BOARD-FACE entitlement moved to
+    // the preview's second face, and this row's art (a `CardImage`) now paints
+    // the face-down face for the caster too. The row's TEXT has to follow, or
+    // it renders a card back captioned "Exalted Angel {4}{W}{W}" — a face-down
+    // spell has no name and no mana cost (CR 708.2a). `displayCardId` stays the
+    // read for every other object, face-down or not.
+    const identityId = isFaceDownCard(item)
+        ? FACE_DOWN_CARD_ID
+        : displayCardId(item);
     // CR 114 — an emblem-sourced trigger's `card.id` is an emblem KEY, absent
     // from the card registry; resolve its name/art from the emblem registry so
     // the stack tile shows the emblem card instead of a raw id / missing image.

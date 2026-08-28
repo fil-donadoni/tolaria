@@ -294,7 +294,17 @@ export function buildStateFromScenario(
                 // the card known to its controller only via the primitive
                 // (reuses knownTo; opponents see a face-down card).
                 if (entry.faceDownExile) {
-                    exileFaceDownCard(player, instance.id, "exile", player.id);
+                    // The spec knob is literally named `faceDownExile`, so it
+                    // stages the CR 406.3 shape rather than the impulse idiom
+                    // that shares the primitive (issue #2904) — a scenario
+                    // asking for a face-down exile wants to SEE one.
+                    exileFaceDownCard(
+                        player,
+                        instance.id,
+                        "exile",
+                        player.id,
+                        "face-down-exile"
+                    );
                 }
                 // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
                 // from-exile permission so a Play (land) / Cast (spell)

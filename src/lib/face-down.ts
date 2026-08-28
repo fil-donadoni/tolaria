@@ -51,6 +51,10 @@ const FACE_BY_PRODUCER: Record<FaceDownProducer, FaceDownFace> = {
     morph: GENERIC_BACK,
     "cast-face-down": GENERIC_BACK,
     "face-down-exile": GENERIC_BACK,
+    // Only ever painted for a viewer NOT entitled to look: the impulse idiom's
+    // own controller sees the real card (`isHiddenFromKnower`), because in
+    // paper it lies face up in front of them.
+    "impulse-exile": GENERIC_BACK,
 };
 
 /** The face to paint for an object hidden by `producer`. An ABSENT producer —
@@ -76,7 +80,14 @@ export function resolveFaceDownFace(
  */
 export function isFaceDownCard(card: CardLike): boolean {
     if (!isCardInstance(card)) return card.id === FACE_DOWN_CARD_ID;
-    return card.faceDown === true || card.card.id === FACE_DOWN_CARD_ID;
+    if (card.card.id === FACE_DOWN_CARD_ID) return true;
+    // `faceDown` ALONE is not enough. The Manual Board (ADR 0080) has its own
+    // face-down path with its own sentinel (`MANUAL_FACE_DOWN_CARD_ID`,
+    // `convex/manual.ts`) and sets this same flag — and it is explicitly out of
+    // scope for issue #2904. Requiring the GRE's own producer marker keeps a
+    // manual card on its existing path (and stops `faceDownRealCardId` from
+    // handing the preview a second face built from `"__faceDown"`).
+    return card.faceDown === true && card.faceDownBy !== undefined;
 }
 
 /**
@@ -101,6 +112,11 @@ export function faceDownRealCardId(card: CardLike): string | undefined {
     if (!isCardInstance(card)) return undefined;
     if (!isFaceDownCard(card)) return undefined;
     if (card.knownCardId) return card.knownCardId;
+    // The exile leg's real id is only trustworthy when the GRE stamped the
+    // producer: without that guard any face-down object from another subsystem
+    // (the Manual Board's `"__faceDown"`) would be read as its own real id and
+    // rendered as a second "Actual card" face naming a definition-less string.
+    if (card.faceDownBy === undefined) return undefined;
     return card.card.id === FACE_DOWN_CARD_ID ? undefined : card.card.id;
 }
 

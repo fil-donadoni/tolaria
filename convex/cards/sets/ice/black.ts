@@ -2395,7 +2395,9 @@ export const necropotence: CardDefinition = {
                     ctx.controller,
                     topId,
                     "library",
-                    ctx.controller
+                    ctx.controller,
+                    // Oracle says "face down" outright (issue #2904).
+                    "face-down-exile"
                 );
                 // CR 603.7a — schedule the return at the next end step. The
                 // exiled card's instance id rides in the payload; multiple

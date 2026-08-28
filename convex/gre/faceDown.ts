@@ -45,9 +45,47 @@ export type FaceDownProducer =
      *  effect granting a face-down cast joins this row rather than adding one,
      *  because none of them has printed helper art either. */
     | "cast-face-down"
-    /** CR 406.3 — exiled face down (the impulse-draw / hideaway primitive,
-     *  ADR 0026). The object is a CARD in exile, not a permanent. */
-    | "face-down-exile";
+    /** CR 406.3 — exiled FACE DOWN because the card's own oracle text says so
+     *  (Memory Jar, Necropotence, Headliner Scarlett, CR 702.75a hideaway).
+     *  The object is a CARD in exile, not a permanent, and it is face down for
+     *  its knower too — CR 406.3 lets them LOOK, which is the preview's second
+     *  face, not the pile tile. */
+    | "face-down-exile"
+    /** The IMPULSE idiom (ADR 0026) — "exile the top card of your library;
+     *  until end of turn you may play it" (Ragavan, Laelia, Inti, Robber of
+     *  the Rich, Elkin Bottle, Ice Cauldron). In paper these exile FACE UP: no
+     *  oracle text says otherwise, and CR 406.3's first sentence makes face up
+     *  the default. The engine routes them through the same `knownTo`
+     *  primitive purely to hide them from the OPPONENT, a documented ADR 0026
+     *  divergence — so the card is NOT face down to its own controller, and
+     *  {@link isHiddenFromKnower} is what keeps that divergence one-sided
+     *  instead of letting the display widen it (issue #2904 review). */
+    | "impulse-exile";
+
+/** Is this object face down to the player ENTITLED to know it — or merely
+ *  hidden from everyone else? Only the second case exists, and only in exile:
+ *  the impulse idiom's paper card lies face UP in front of its controller, so
+ *  painting them a card back would state a rule the game does not have. Every
+ *  genuine face-down mechanic is hidden from its knower too (they may LOOK —
+ *  CR 708.5 / CR 406.3 — which the preview's second face is).
+ *
+ *  A total `Record`, like the client's face table: a new producer must decide
+ *  this before it compiles. An ABSENT producer answers `false` — state
+ *  persisted before #2904 renders exactly as it did then, and a face-down
+ *  PERMANENT never reaches this question anyway (its `card.id` is the
+ *  sentinel, which the client keys on directly). */
+const HIDDEN_FROM_KNOWER: Record<FaceDownProducer, boolean> = {
+    morph: true,
+    "cast-face-down": true,
+    "face-down-exile": true,
+    "impulse-exile": false,
+};
+
+export function isHiddenFromKnower(
+    producer: FaceDownProducer | undefined
+): boolean {
+    return producer === undefined ? false : HIDDEN_FROM_KNOWER[producer];
+}
 
 /** Turns a permanent face down in place (CR 708.2). No-op if already face
  *  down. The real definition id is preserved in `faceDownOf`, and `producer`
