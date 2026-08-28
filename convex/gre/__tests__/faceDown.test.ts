@@ -5,7 +5,7 @@
 // non-controllers across the network projection while the controller keeps it.
 
 import { describe, it, expect } from "vitest";
-import { turnFaceDown } from "../faceDown";
+import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { FACE_DOWN_CARD_ID } from "../../cards";
 import {
     getEffectivePower,
@@ -149,5 +149,45 @@ describe("face-down serialize round-trip", () => {
         expect((got.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
         expect(got.power).toBe(2);
         expect(got.toughness).toBe(2);
+    });
+});
+
+describe("face-down producer census (issue #2904)", () => {
+    it("stamps the producer on the way down and clears it on the way up", () => {
+        const card = makeInstance(mahamotiDjinn.id, {
+            id: "fd-producer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(card.faceDownBy).toBeUndefined();
+
+        turnFaceDown(card, "morph");
+        expect(card.faceDownBy).toBe("morph");
+
+        turnFaceUp(card);
+        // A stale marker on a face-up permanent would pick a face-down face
+        // for it the moment any future reader forgot to check `faceDown`.
+        expect(card.faceDownBy).toBeUndefined();
+        expect(card.faceDown).toBeUndefined();
+    });
+
+    it("records the mechanic, not the card — the SAME card takes a different producer per path", () => {
+        const morphed = makeInstance(mahamotiDjinn.id, {
+            id: "fd-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const masked = makeInstance(mahamotiDjinn.id, {
+            id: "fd-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        turnFaceDown(morphed, "morph");
+        turnFaceDown(masked, "cast-face-down");
+        expect(morphed.faceDownBy).toBe("morph");
+        expect(masked.faceDownBy).toBe("cast-face-down");
+        // Both are the same rules object regardless (CR 708.2a).
+        expect((morphed.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        expect((masked.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
     });
 });

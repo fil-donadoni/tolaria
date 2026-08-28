@@ -1236,6 +1236,23 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         expect(downInExile.knownTo).toEqual(["p1"]); // face-down kept it
     });
 
+    // Issue #2904 — the DISPLAY census. Without it the exile pile has nothing
+    // to key a face-down face on and falls back to the generic one silently.
+    it("stamps the face-down-exile producer, and drops it when the card leaves for a public zone", () => {
+        const card = makeCard({ id: "top", zone: "library" });
+        const player = makePlayer({ id: "p1", library: [card] });
+
+        const exiled = exileFaceDownCard(player, "top", "library", "p1");
+        expect(exiled?.faceDownBy).toBe("face-down-exile");
+
+        // CR 406.3's look-permission ends when the card leaves exile; the
+        // marker that made it render hidden must not outlive it.
+        moveCard(player, "top", "exile", "graveyard");
+        const inGraveyard = player.graveyard.find((c) => c.id === "top")!;
+        expect(inGraveyard.knownTo).toBeUndefined();
+        expect(inGraveyard.faceDownBy).toBeUndefined();
+    });
+
     it("never sets faceDownOf — face-down exile reuses knownTo, not the morph field", () => {
         const card = makeCard({ id: "top", zone: "library" });
         const player = makePlayer({ id: "p1", library: [card] });

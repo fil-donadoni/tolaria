@@ -29,6 +29,7 @@ import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { checkStateBasedActions } from "../sba";
+import { turnFaceDown } from "../faceDown";
 
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
@@ -859,6 +860,40 @@ describe("game_state serialize round-trip", () => {
         const expanded = expandState(compactState(state));
         const got = expanded.players[0].exile.find((c) => c.id === exiled.id)!;
         expect(got.knownTo).toEqual(["p1"]);
+    });
+
+    // Issue #2904 — `faceDownBy` (WHICH mechanic hid the object) drives the
+    // rendered face-down face, so a save/load that dropped it would silently
+    // repaint every reloaded face-down card with the fallback. Both producers
+    // in one test: the CR 708.2 battlefield leg and the CR 406.3 exile leg
+    // reach the compact shape through different writers.
+    it("preserves faceDownBy on a face-down permanent and a face-down exiled card", () => {
+        const state = freshState();
+        const morph = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        turnFaceDown(morph, "morph");
+        state.players[0].battlefield.push(morph);
+        const exiled = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            knownTo: ["p1"],
+            faceDownBy: "face-down-exile",
+        });
+        state.players[0].exile.push(exiled);
+
+        const expanded = expandState(compactState(state));
+        expect(
+            expanded.players[0].battlefield.find((c) => c.id === morph.id)!
+                .faceDownBy
+        ).toBe("morph");
+        expect(
+            expanded.players[0].exile.find((c) => c.id === exiled.id)!
+                .faceDownBy
+        ).toBe("face-down-exile");
     });
 
     // Issue #791 / #1319 (CR 111 / 610.3) — the per-source exile provenance

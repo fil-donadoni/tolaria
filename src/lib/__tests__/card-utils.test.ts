@@ -45,6 +45,7 @@ import {
     type DisplayAbilities,
 } from "../card-utils";
 import { getCardImageDefId } from "../card-image-signature";
+import { faceDownRealCardId } from "../face-down";
 import type {
     CardInstance,
     PendingActivation,
@@ -1174,11 +1175,20 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
             ) as unknown as CardInstance;
     }
 
-    it("the controller's own face-down permanent resolves to its REAL id, not the sentinel", () => {
+    // Issue #2904 flipped `getCardImageDefId` for the CONTROLLER: the BOARD
+    // FACE never leaks the identity, so it resolves to the sentinel for every
+    // viewer. `displayCardId` is unchanged — it is the identification
+    // affordance (the stacking identity key, the "Attached to:" host name),
+    // and collapsing it would fan two DIFFERENT face-down permanents into one
+    // pile again (the #1735 review's finding 1, guarded next door in
+    // `battlefield-stacks.wire.test.ts`).
+    it("the controller's own face-down permanent renders the SENTINEL face; the real id survives only as the identification affordance", () => {
         const target = projectFaceDown("p1");
         expect(target.card.id).toBe(FACE_DOWN_CARD_ID); // rules id stays honest
         expect(displayCardId(target)).toBe(livonyaSilone.id);
-        expect(getCardImageDefId(target)).toBe(livonyaSilone.id);
+        expect(getCardImageDefId(target)).toBe(FACE_DOWN_CARD_ID);
+        // …and it is what the preview's SECOND face is built from (CR 708.5).
+        expect(faceDownRealCardId(target)).toBe(livonyaSilone.id);
     });
 
     it("the opponent's view of the SAME permanent stays the sentinel on both helpers", () => {
@@ -1186,6 +1196,9 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
         expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
         expect(displayCardId(target)).toBe(FACE_DOWN_CARD_ID);
         expect(getCardImageDefId(target)).toBe(FACE_DOWN_CARD_ID);
+        // issue #2904 — no second preview face for a non-entitled viewer:
+        // the real id is not merely unrendered, it is not on the wire at all.
+        expect(faceDownRealCardId(target)).toBeUndefined();
     });
 
     it("a face-up permanent is unaffected — both helpers are a no-op without knownCardId", () => {
@@ -1208,6 +1221,7 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
             ) as unknown as CardInstance;
         expect(displayCardId(target)).toBe(livonyaSilone.id);
         expect(getCardImageDefId(target)).toBe(livonyaSilone.id);
+        expect(faceDownRealCardId(target)).toBeUndefined();
     });
 });
 
