@@ -250,12 +250,16 @@ describe("LimitedDraftTable Booster gestures — desktop regime (default, issue 
         ]);
     });
 
-    it("double click has no effect — double-click-to-pick is retired on desktop", () => {
+    it("a double click on a Booster card commits the Pick (issue #2894, restoring it on desktop)", async () => {
         const { getAllByRole } = renderTable({});
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.doubleClick(cards[0]);
-        expect(submitPickMock).not.toHaveBeenCalled();
-        expect(menu()).toBeNull();
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
     });
 
     it('the menu\'s "Pick" commits the Pick', async () => {

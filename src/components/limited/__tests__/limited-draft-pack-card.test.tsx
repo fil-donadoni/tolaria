@@ -1,11 +1,14 @@
 // Booster pick gestures (ADR 0060, issue #1248; re-worked for the desktop
 // card-context-menu regime by issue #2861, partially reverted by issue
-// #2889). Load-bearing: a single click must NEVER commit a Pick — only
-// select (and, on desktop, open the menu right there). Double-click commits
-// on PHONE only — desktop retires it, since the menu already carries "Pick"
-// and drag-and-drop still works. Real right-click opens the phone's old menu
-// — desktop has NO handler at all (issue #2889): it falls through to the
-// app's ordinary `CardPreview` pin, same as everywhere else.
+// #2889, double-click restored on desktop by issue #2894). Load-bearing: a
+// single click must NEVER commit a Pick — only select (and, on desktop, open
+// the menu right there too). Double-click commits on BOTH phone and desktop
+// — the desktop menu ("Pick"/"→ Side"/"Inspect") and drag-and-drop stay
+// available alongside it. Real right-click opens the phone's old menu —
+// desktop has NO handler at all (issue #2889): it falls through to the
+// app's ordinary `CardPreview` pin, same as everywhere else. This component
+// itself only reacts to whether `onPick` is passed at all — the phone/
+// desktop split lives entirely in the caller (`limited-draft-table.tsx`).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import LimitedDraftPackCard from "../limited-draft-pack-card";
@@ -121,7 +124,23 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
         expect(onOpenMenu).toHaveBeenCalledWith("r0-p0-c0", 12, 34);
     });
 
-    it("has no double-click action at all — double-click-to-pick is retired on this regime", () => {
+    it("a double click still commits the Pick alongside the menu (issue #2894)", () => {
+        const onPick = vi.fn();
+        const { getByRole } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                onSelect={vi.fn()}
+                onPick={onPick}
+                onOpenMenu={vi.fn()}
+                pending={false}
+            />
+        );
+        fireEvent.doubleClick(getByRole("button"));
+        expect(onPick).toHaveBeenCalledWith("r0-p0-c0");
+    });
+
+    it("has no double-click action when the caller passes no onPick at all", () => {
         const { getByRole } = render(
             <LimitedDraftPackCard
                 card={card}

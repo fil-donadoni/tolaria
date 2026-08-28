@@ -8,17 +8,18 @@ type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
 /** One pickable card in the pack in front of the viewer (PRD #1107, issue
  *  #1112; gestures per ADR 0060, issue #1248 — re-worked by issue #2861 for
- *  desktop's card-context-menu regime):
+ *  desktop's card-context-menu regime, double-click restored on desktop by
+ *  issue #2894 after #2861 retired it):
  *
  *  - single click → always SELECTS (`onSelect`) — never commits a Pick by
  *    itself. The Selected Card is what a timer expiry Auto-Picks (issue
  *    #1249). Desktop additionally opens the pack menu right there
- *    (`onOpenMenu`, no delay — there is no double-click gesture left to
- *    arbitrate against on that regime, see below).
+ *    (`onOpenMenu`, no delay — it runs alongside double-click rather than
+ *    arbitrating against it, see below).
  *  - double click → commits the Pick (`onPick`) into the card's Mana-Value
- *    column by default. Phone-only since issue #2861: passing no `onPick`
- *    at all is what retires this gesture on desktop, where the menu already
- *    carries "Pick" and drag-and-drop still works.
+ *    column by default, on BOTH phone and desktop (issue #2894) — desktop's
+ *    menu ("Pick"/"→ Side"/"Inspect") and drag-and-drop stay available too,
+ *    it is just one more way to reach the same `handlePick`.
  *  - right click → phone opens the "Pick" / "Pick to sideboard" context menu
  *    (`onOpenContextMenu`). Desktop has NO handler at all (issue #2889,
  *    reverting part of #2861): a real right-click means the app's ordinary
@@ -52,8 +53,8 @@ export default function LimitedDraftPackCard({
      *  (`seat.selectedPickId`). */
     selected: boolean;
     onSelect: (pickId: string) => void;
-    /** Double-click commits the Pick. Absent ⇒ no `dblclick` listener at all
-     *  (desktop, issue #2861). */
+    /** Double-click commits the Pick, on both phone and desktop (issue
+     *  #2894, reverting the desktop part of #2861). */
     onPick?: (pickId: string) => void;
     /** Left click ALSO opens the pack menu, right there, no delay (desktop,
      *  issue #2861). Absent ⇒ a click only selects (phone, unchanged). */

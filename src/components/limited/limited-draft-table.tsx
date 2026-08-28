@@ -472,10 +472,12 @@ export default function LimitedDraftTable({
     ];
 
     // Left click on a Booster card, desktop regime (issue #2861): opens the
-    // menu right there, no delay — there is no double-click gesture left on
-    // this regime to arbitrate against (see `LimitedDraftPackCard`'s own doc
-    // comment for why the delay the Pool/Sideboard menu needs does not apply
-    // here).
+    // menu right there, no delay. Unlike the Pool/Sideboard tile below, this
+    // stays undelayed even after issue #2894 restored the Booster's
+    // double-click: the first click of a double-click still opens the menu,
+    // but `handlePick` is idempotent-safe against that (the card leaves
+    // `pack` once the pick lands, same as a menu-driven "Pick") — no
+    // arbitration needed (see `LimitedDraftPackCard`'s own doc comment).
     const openBoosterMenu = (pickId: string, x: number, y: number) => {
         cancelPendingPoolMenu();
         const card = pack.find((c) => c.pickId === pickId);
@@ -752,11 +754,7 @@ export default function LimitedDraftTable({
             pack={pack}
             selectedPickId={seat.selectedPickId ?? null}
             onSelect={handleSelect}
-            onPick={
-                phoneOrientation === null
-                    ? undefined
-                    : (pickId) => void handlePick(pickId)
-            }
+            onPick={(pickId) => void handlePick(pickId)}
             onOpenMenu={phoneOrientation === null ? openBoosterMenu : undefined}
             onOpenContextMenu={
                 phoneOrientation === null ? undefined : openBoosterContextMenu
