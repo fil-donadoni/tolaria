@@ -1904,11 +1904,12 @@ function coloredCostLeftover(
     //
     // PLACED HERE ON PURPOSE — after the pool, restricted mana and the real
     // battlefield sources, and BEFORE the `payWith` pseudo-sources below.
-    // Improvise, Delve and Convoke are all "rather than pay that mana"
-    // (CR 702.126a / 702.66a / 702.51a — printed: "you may tap an untapped
-    // creature of that color you control RATHER THAN PAY THAT MANA"), so no
-    // mana is spent for those pips and CR 609.4b, which speaks only about how
-    // a player may SPEND mana, cannot reach them. Widening a convoke creature
+    // Improvise (CR 702.126a), Delve (CR 702.66a) and Convoke (CR 702.51a) all
+    // pay a pip "rather than pay that mana" — Convoke's own printed wording is
+    // "you may tap an untapped creature of that color you control rather than
+    // pay that mana". So no mana is spent for those pips, and CR 609.4b, which
+    // speaks only about how a player may SPEND mana, cannot reach them.
+    // Widening a convoke creature
     // would offer a cast that `recordConvokeCreaturePick` (`convex/game.ts`)
     // then refuses — it matches creatures to pips with NO substitutions — a
     // dead-end affordance.
