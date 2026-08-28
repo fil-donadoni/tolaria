@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
     advancePhase,
     drainAutoPasses,
@@ -2924,5 +2925,120 @@ describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
             state.players[0].battlefield[0].cantBlockThisTurn
         ).toBeUndefined();
         expect(state.cannotCastSpellsThisTurn).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 514.2 — turn-scoped GLOBAL flags (issue #1864)
+// ---------------------------------------------------------------------------
+
+describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COMBAT (issue #1864)", () => {
+    // Every entry of `TURN_SCOPED_GLOBAL_FLAGS` (phases.ts), with a minimal
+    // armed value of the right shape. The list is asserted complete against
+    // the source in the guard test at the bottom of this block, so a flag
+    // added to the table without a case here fails CI.
+    const ARMED: Array<[string, unknown]> = [
+        ["preventionTallies", { p1: 2 }],
+        ["preventAllCombatDamageThisTurn", true],
+        ["sourcePreventionShields", [{ sourceIds: ["atk"], combatOnly: true }]],
+        [
+            "combatDamageRedirectToPermanent",
+            [{ playerId: "p2", toPermanentId: "guard" }],
+        ],
+        ["cannotCastSpellsThisTurn", [{ playerId: "p2" }]],
+        ["cannotActivateAbilitiesThisTurn", ["p2"]],
+        ["graveyardBoundRedirectThisTurn", [{ ownerId: "p1" }]],
+        [
+            "graveyardPlayPermissionThisTurn",
+            [{ playerId: "p1", zones: ["land", "spell"] }],
+        ],
+        ["graveyardPermanentCastUsedThisTurn", ["p1"]],
+        ["gazeOfPainActiveThisTurn", ["p1"]],
+        ["damageCapShields", [{ playerId: "p1", maxDamage: 1 }]],
+        ["landManaReplacedToBlueThisTurn", ["p1"]],
+        ["highTideThisTurn", ["p1"]],
+        [
+            "landManaRidersThisTurn",
+            [{ subtype: "Mountain", color: "R", mode: "additional" }],
+        ],
+        ["allCreaturesMustAttack", "p2"],
+        ["abilityResolutionCounts", { "src:ability": 1 }],
+        ["skipDrawStepThisTurn", ["p1"]],
+    ];
+
+    /** Walks the real phase machinery until `stop` or the bound is hit. With
+     *  no attackers `skipEmptyCombat` auto-advances THROUGH DECLARE_BLOCKERS /
+     *  COMBAT_DAMAGE / END_OF_COMBAT — the step is still entered and still
+     *  EXITED, which is exactly the `endCombatStep` tick (CR 511.3) that used
+     *  to wipe these flags. */
+    function walkUntil(state: GameState, stop: (s: GameState) => boolean) {
+        for (let i = 0; i < 30 && !stop(state); i++) advancePhase(state);
+        if (!stop(state))
+            throw new Error(`phase walk stalled at ${state.phase}`);
+    }
+
+    it.each(ARMED)(
+        "%s survives the END_OF_COMBAT exit into the postcombat main phase",
+        (key, value) => {
+            const state = makeGameState({ phase: "PRECOMBAT_MAIN" });
+            (state as Record<string, unknown>)[key] = structuredClone(value);
+
+            walkUntil(state, (s) => s.phase === "POSTCOMBAT_MAIN");
+
+            // `tickAllDurations` ran from `endCombatStep` on the way here.
+            // "This turn" is still this turn (CR 514.2 pins the expiry at the
+            // cleanup step), so the flag must be untouched.
+            expect((state as Record<string, unknown>)[key]).toEqual(value);
+        }
+    );
+
+    it.each(ARMED)("%s is cleared by the CLEANUP boundary", (key, value) => {
+        const state = makeGameState({ phase: "PRECOMBAT_MAIN" });
+        (state as Record<string, unknown>)[key] = structuredClone(value);
+
+        // Turn 1's cleanup step is the only boundary that may clear it.
+        walkUntil(state, (s) => s.turn === 2);
+
+        expect((state as Record<string, unknown>)[key]).toBeUndefined();
+    });
+
+    // The gate is a CLASS invariant, and writing it per flag is how eight of
+    // the seventeen drifted. This guard fails the moment someone adds a
+    // bespoke `state.<flag> = undefined;` back into `tickAllDurations`
+    // instead of listing the key in the table — the exact shape of #1864.
+    describe("structural guard", () => {
+        const source = readFileSync(
+            new URL("../phases.ts", import.meta.url),
+            "utf8"
+        );
+        const body = source.slice(
+            source.indexOf("function tickAllDurations("),
+            source.indexOf(
+                "\n}\n",
+                source.indexOf("function tickAllDurations(")
+            )
+        );
+
+        it("tickAllDurations has no bespoke global-flag clear left", () => {
+            expect(body).not.toBe("");
+            const bespoke = body
+                .split("\n")
+                .filter((l) => /^\s*state\.[A-Za-z]+ = undefined;\s*$/.test(l));
+            expect(bespoke).toEqual([]);
+        });
+
+        it("every table entry has a case above", () => {
+            const table = source.slice(
+                source.indexOf("const TURN_SCOPED_GLOBAL_FLAGS = ["),
+                source.indexOf(
+                    "] as const satisfies readonly OptionalGameStateKey[];"
+                )
+            );
+            const keys = [...table.matchAll(/^\s{4}"([A-Za-z]+)",$/gm)].map(
+                (m) => m[1]
+            );
+            expect(keys.length).toBeGreaterThan(0);
+            expect(keys).toEqual(ARMED.map(([k]) => k));
+        });
     });
 });
