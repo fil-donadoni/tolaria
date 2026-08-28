@@ -506,6 +506,7 @@ export function applyBladeSetup(
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.
                 applyExtraCombat(
                     state,
+                    step,
                     (detail) =>
                         new BladeSetupError(scenario.label, step, detail)
                 );

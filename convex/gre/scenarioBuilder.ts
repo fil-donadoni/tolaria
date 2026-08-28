@@ -1399,19 +1399,27 @@ export function specFromState(
     }
     if (
         (state.extraTurns && state.extraTurns.length > 0) ||
-        (state.extraPhases && state.extraPhases.length > 0) ||
-        state.extraCombatsThisTurn ||
         (state.autoPassPlayers && state.autoPassPlayers.length > 0) ||
         state.singleShotAutoPass ||
         (state.queuedEndTurn && state.queuedEndTurn.length > 0)
     ) {
-        // CR 500.7 / 500.8. The extra-PHASE queue and its marker counter are
-        // deliberately not lowered with the rest: a spec captures a BOARD, and
-        // a position mid-extra-combat (or owing one) is turn-structure state
-        // the spec vocabulary has no field for. A preset scenario for an
-        // extra-combat card captures the PRE-ATTACK setup instead (ADR 0111).
         dropped.push(
-            `turn-scheduling state (extra turns / extra phases / auto-pass intents) — not lowered`
+            `turn-scheduling state (extra turns / auto-pass intents) — not lowered`
+        );
+    }
+    // CR 500.8 — its OWN message, not folded into the line above: a state
+    // carrying only a Pass-Turn intent must not be reported as owing an extra
+    // phase. The queue and its marker counter are deliberately not lowered —
+    // a spec captures a BOARD, and a position mid-extra-combat (or owing one)
+    // is turn-structure state the spec vocabulary has no field for. A preset
+    // scenario for an extra-combat card captures the PRE-ATTACK setup instead
+    // (ADR 0111).
+    if (
+        (state.extraPhases && state.extraPhases.length > 0) ||
+        state.extraCombatsThisTurn
+    ) {
+        dropped.push(
+            `turn-structure state (extra phases — CR 500.8) — not lowered`
         );
     }
 

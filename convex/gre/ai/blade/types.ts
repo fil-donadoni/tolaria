@@ -224,8 +224,15 @@ export type BladeSetupStep =
      *  Throws when the walk cannot make progress: nobody owes an action, a
      *  decision offers more than one non-pass move (give the defender no
      *  blockers, or narrow the position), or the second combat is never
-     *  reached. */
-    | { kind: "extra-combat" };
+     *  reached.
+     *
+     *  `haltAfterGrant` stops immediately AFTER the grant, without walking:
+     *  the position is then "an extra combat is owed but not yet entered",
+     *  which is the window where the difference between a turn whose combat is
+     *  over and one whose is not is actually decidable — the shape the
+     *  END_OF_COMBAT self-animation carve-out is asserted on. Mirrors
+     *  `declare-attackers`' own `haltForDefenderResponse`. */
+    | { kind: "extra-combat"; haltAfterGrant?: boolean };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

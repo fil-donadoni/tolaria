@@ -890,6 +890,21 @@ describe("specFromState (issue #2148)", () => {
         expect(dropped.some((d) => d.includes("extraPhases"))).toBe(false);
     });
 
+    it("does NOT name extra phases when only a Pass-Turn intent is standing", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        state.queuedEndTurn = [state.players[0].id];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.includes("auto-pass intents"))).toBe(true);
+        expect(dropped.some((d) => d.includes("extra phases"))).toBe(false);
+    });
+
     it("reports a turn ALREADY in an extra combat as dropped", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {

@@ -4153,7 +4153,7 @@ export type GameState = {
      *  `advancePhase` (`gre/phases.ts`) the first time the DRAW step is
      *  entered for a listed player: CR 500.8, a skipped step doesn't happen
      *  AT ALL, so the whole step (turn-based draw, CR 504.2 delayed
-     *  triggers, and CR 603.6a beginning-of-step triggers like Howling
+     *  triggers, and CR 603.2 beginning-of-step triggers like Howling
      *  Mine/Sylvan Library/Island Sanctuary) is bypassed, not merely the
      *  draw — `drawStep` itself is never invoked for that player this turn.
      *  Distinct from `CardDefinition.drawStepReplacement` (Fasting): that is

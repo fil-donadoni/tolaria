@@ -1827,7 +1827,7 @@ export function applyAllCombatDamage(
 }
 
 /** Emits a PHASE_BEGIN event for the current phase, collects matching
- *  triggered abilities from all battlefield permanents (CR 603.6a), pushes
+ *  triggered abilities from all battlefield permanents (CR 603.2), pushes
  *  them on the stack, and restarts priority at the active player (CR 117.3c).
  *  No-op when the scan yields no triggers. Intervening-if conditions are
  *  the card's responsibility inside `matches()` (CR 603.4). */
@@ -3484,7 +3484,7 @@ export function advancePhase(state: GameState): Phase[] {
     // CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a step an effect
     // says is "skipped" doesn't happen AT ALL — not merely "no draw". That
     // means no turn-based draw, no CR 504.2 "at the beginning of the draw
-    // step" delayed triggers, and no CR 603.6a beginning-of-step triggers
+    // step" delayed triggers, and no CR 603.2 beginning-of-step triggers
     // (Howling Mine, Sylvan Library, Island Sanctuary all fire on the same
     // PHASE_BEGIN event `firePhaseBeginTriggers` scans for). Both live inside
     // `performPhaseEntry`'s DRAW case / the `firePhaseBeginTriggers` call
@@ -3504,7 +3504,7 @@ export function advancePhase(state: GameState): Phase[] {
     } else {
         performPhaseEntry(state);
 
-        // CR 603.6a: fire "at the beginning of ~" triggers after the step's
+        // CR 603.2: fire "at the beginning of ~" triggers after the step's
         // turn-based actions. Skipped on auto-phases (UNTAP/CLEANUP) which don't
         // grant priority — triggers scoped to those steps are out of scope for
         // now and would need to be held until the next priority window.
@@ -3628,7 +3628,16 @@ export function advancePhase(state: GameState): Phase[] {
  * (which clears autoPassPlayers).
  */
 export function drainAutoPasses(state: GameState): void {
-    const maxIterations = 50; // safety bound
+    // Safety bound. Sized against ONE turn's phase walk with room to spare:
+    // CR 500.8 (issue #2886) makes that walk longer, since each extra combat
+    // adds roughly ten passes (five priority steps x two seats), and the
+    // `extraPhases` queue is unbounded — a script can queue more than one
+    // grant. At 50 the headroom covers a turn with three extra combats under
+    // full auto-pass; a queue deeper than that would hit the cap, which
+    // `return`s with priority parked rather than erroring, so raise this
+    // bound (or bound the queue) before shipping a card that can stack grants
+    // arbitrarily.
+    const maxIterations = 50;
     for (let i = 0; i < maxIterations; i++) {
         // Consume a queued "Pass Turn" intent: a player who pressed Enter
         // without priority is promoted into a rest-of-turn auto-pass the

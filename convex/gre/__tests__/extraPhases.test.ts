@@ -14,6 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import { advancePhase } from "../phases";
+import { resolveTopOfStack } from "../state";
 import type { GameState, ExtraPhase } from "../state";
 import type { Phase } from "../types";
 import {
@@ -112,12 +113,13 @@ describe("extra phases (CR 500.8)", () => {
             expect(state.extraCombatsThisTurn).toBe(2);
         });
 
-        it("fires 'at the beginning of combat' triggers again (CR 603.6a)", () => {
+        it("fires 'at the beginning of combat' triggers again (CR 603.2)", () => {
             // Battering Ram (ATQ): "At the beginning of combat on your turn,
-            // this creature gains banding until end of combat." Its trigger is
-            // the observable proof that `performPhaseEntry` /
-            // `firePhaseBeginTriggers` run for the added phase rather than
-            // being skipped as already-done this turn.
+            // this creature gains banding until end of combat." Walked from the
+            // PRECOMBAT MAIN phase, so the turn's FIRST combat really happens
+            // first: the claim is that the added phase's entry is not skipped
+            // as already-done this turn, which a fixture seeded straight at
+            // END_OF_COMBAT could never distinguish.
             const ram = makeInstance(batteringRam.id, {
                 id: "ram",
                 controllerId: "p1",
@@ -127,14 +129,78 @@ describe("extra phases (CR 500.8)", () => {
                     makePlayer("p1", { battlefield: [ram] }),
                     makePlayer("p2"),
                 ],
-                phase: "END_OF_COMBAT",
+                phase: "PRECOMBAT_MAIN",
                 activePlayerId: "p1",
-                extraPhases: [{ kind: "combat" }],
             });
-            expect(state.stack).toHaveLength(0);
+
+            // Stack depth observed at each BEGINNING_OF_COMBAT entry, with the
+            // stack drained through the REAL resolver in between so the second
+            // reading cannot be the first trigger still sitting there.
+            const triggersAtCombatEntry: number[] = [];
+            let granted = false;
+            for (let i = 0; i < 40; i++) {
+                advancePhase(state);
+                if (state.phase === "BEGINNING_OF_COMBAT") {
+                    triggersAtCombatEntry.push(state.stack.length);
+                }
+                while (state.stack.length > 0) resolveTopOfStack(state);
+                // One extra combat, queued during the first combat exactly
+                // where the real consumer's trigger fires (CR 500.8 — Fear of
+                // Missing Out triggers on attack). NOT at END_OF_COMBAT: with
+                // no attackers declared the empty-combat skip never RESTS
+                // there, it recurses through it inside a single `advancePhase`
+                // call — which is also why this walk doubles as the proof that
+                // an EMPTY extra combat is entered and left cleanly rather
+                // than stranding the turn.
+                if (state.phase === "DECLARE_ATTACKERS" && !granted) {
+                    state.extraPhases = [{ kind: "combat" }];
+                    granted = true;
+                }
+                if (state.phase === "POSTCOMBAT_MAIN") break;
+            }
+
+            expect(triggersAtCombatEntry).toEqual([1, 1]);
+            expect(state.extraCombatsThisTurn).toBe(1);
+        });
+    });
+
+    describe("what crosses between the two combats", () => {
+        it("a TURN-scoped prevention effect still applies in the extra combat", () => {
+            // The reason #1864 (the 8-flag `tickAllDurations` class fix) had to
+            // land before this primitive could be verified at all (ADR 0111
+            // decision 5): the eight "this turn" flags used to clear on every
+            // END_OF_COMBAT exit, so a Fog resolved in combat #1 silently
+            // stopped applying in combat #2 — the extra combat dealt full
+            // damage. With the class fixed they clear at CLEANUP, and this is
+            // the assertion that keeps them there under an extra combat.
+            const state = makeState({
+                phase: "END_OF_COMBAT",
+                extraPhases: [{ kind: "combat" }],
+                preventAllCombatDamageThisTurn: true,
+            });
             advancePhase(state);
             expect(state.phase).toBe("BEGINNING_OF_COMBAT");
-            expect(state.stack).toHaveLength(1);
+            expect(state.preventAllCombatDamageThisTurn).toBe(true);
+        });
+
+        it("combat state is torn down at the exit and rebuilt, never carried across", () => {
+            const state = makeState({
+                phase: "END_OF_COMBAT",
+                extraPhases: [{ kind: "combat" }],
+                combat: {
+                    attackerIds: ["stale-attacker"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: true,
+                },
+            });
+            advancePhase(state);
+            expect(state.phase).toBe("BEGINNING_OF_COMBAT");
+            // `endCombatStep` runs at the exit BEFORE the queue is consulted,
+            // so the second combat never sees combat #1's attackers (CR 511.3).
+            expect(state.combat?.attackerIds ?? []).not.toContain(
+                "stale-attacker"
+            );
         });
     });
 

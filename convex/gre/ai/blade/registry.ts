@@ -22,7 +22,7 @@ import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
 import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
-import { seatPlayerId } from "./matcher";
+import { instanceIdsForName, seatPlayerId } from "./matcher";
 import { getCardByName } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 
@@ -219,6 +219,68 @@ function selfSacrificeStaysEnumerable(
     const found = enumeratedSacrificeVictims(state, seat, cardName);
     if (!found) return false;
     return found.victims.some((v) => v.includes(found.sourceId));
+}
+
+/** "A creature that already attacked this turn may attack AGAIN in the extra
+ *  combat, provided it is untapped (CR 508.1a)." Asserted as a LEGALITY
+ *  property — the named creature appears among the attackers the enumerator
+ *  offers — never as a preference about whether the bot should send it, which
+ *  would be a strength claim and seed-sensitive.
+ *
+ *  It also stops the CR 500.8 progress entry below from being satisfied by an
+ *  EMPTY declaration: with `hasAttackedThisTurn` set and the creature untapped
+ *  by vigilance, a regression that made a second attack illegal would leave the
+ *  bot returning a legal-but-empty `declare-attackers` and the phase assertions
+ *  alone would still pass. */
+function mayAttackAgain(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const pid = seatPlayerId(state, seat);
+    const ids = instanceIdsForName(state, cardName);
+    const instance = state.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => ids.has(c.id));
+    if (!instance || instance.isTapped) return false;
+    if (instance.hasAttackedThisTurn !== true) return false;
+    return enumerateMoves(state, pid, { pruneDominatedNoOps: true }).some(
+        (m) =>
+            m.kind === "declare-attackers" &&
+            m.attackerIds.some((a) => ids.has(a))
+    );
+}
+
+/** The exact MIRROR of {@link activationStaysAvailable} — the activation is
+ *  enumerated (so the assertion is not vacuously satisfied by an illegal or
+ *  unaffordable ability) AND carries the rollout-policy penalty. Written for
+ *  the CR 500.8 pair below, whose two halves differ only in whether an extra
+ *  combat is owed: without the mirror, "the carve-out fires" could be asserted
+ *  while nothing had ever suppressed the move in the first place. */
+function activationIsDiscouraged(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const pid = state.players[seat === "me" ? 0 : 1].id;
+    const defId = getCardByName(cardName).id;
+    const activations = enumerateMoves(state, pid, {
+        pruneDominatedNoOps: true,
+    }).filter(
+        (m) =>
+            m.kind === "activate-ability" &&
+            state.players.some((p) =>
+                p.battlefield.some(
+                    (c) =>
+                        c.id === m.cardInstanceId &&
+                        (c.card as { id?: string }).id === defId
+                )
+            )
+    );
+    return (
+        activations.length > 0 &&
+        activations.every((m) => isDiscouragedRolloutMove(state, pid, m))
+    );
 }
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
@@ -1723,6 +1785,65 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #1890 NEGATIVE CONTROL for the entry above — the SAME activation one step earlier, where the body it buys can still attack. Both suppressing rules are scoped away from this window (the guardrail's sorcery-speed branch needs a MAIN phase with an empty stack; the pointless-animation branch needs the mover's combat to be already over), and this entry is what fails if either ever widens. Position-asserted for the same measured reason as the Mother control: `applyMoveInSearch` never puts an activated ability's effect on the stack, so the search cannot see the 2/2 the animation would produce and a chosen-move assertion here would be riding rollout noise. NOT DISCRIMINATING by construction.",
     },
     {
+        // CR 500.8 (issue #2886) — the DISCRIMINATING HALF of the pair below,
+        // and the guard that the carve-out did not simply switch the rule off:
+        // at the END_OF_COMBAT exit with NOTHING queued, the mover's combat
+        // really is over and the issue-#1890 suppression must still fire.
+        label: "activation timing: still declines to animate Mishra's Factory at end of combat with no extra combat owed",
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "END_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                activationIsDiscouraged(state, "me", "Mishra's Factory"),
+            describe:
+                "the animation is enumerated at END_OF_COMBAT but carries the rollout-policy penalty, because no extra combat is owed",
+        },
+        note: "CR 500.8 pair, negative half (issue #2886). Position-asserted for the same measured reason as its siblings above — `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion here would ride rollout noise.",
+    },
+    {
+        // CR 500.8 (issue #2886) — the POSITIVE half. `isPointlessSelfAnimation`
+        // (search.ts) reads END_OF_COMBAT as "their combat is over"; with an
+        // extra combat OWED that premise is false, so the body this animation
+        // buys does get an attack after all and the suppression must lift.
+        // ADR 0111 / #2884 asserted no monotonic phase assumption existed
+        // anywhere in the bot; this is the one that did, and this entry is what
+        // goes red if it comes back.
+        label: "extra combat: animates Mishra's Factory at end of combat when an extra combat is owed (CR 500.8)",
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "END_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "extra-combat", haltAfterGrant: true }],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                state.extraPhases?.length === 1 &&
+                activationStaysAvailable(state, "me", "Mishra's Factory"),
+            describe:
+                "an extra combat is owed and the animation carries NO rollout-policy penalty, because the body it buys still gets an attack",
+        },
+        note: "CR 500.8 pair, positive half (issue #2886). Differs from the negative half above in exactly one thing: `state.extraPhases` is non-empty, granted through the real primitive by the `extra-combat` setup step. NOT a strength claim — no structural extra-combat credit is added anywhere (ADR 0111 decision 6): an extra combat is INSIDE the rollout horizon, so its value is measured, not credited.",
+    },
+    {
         label: "activation cost: names the discard for Survival of the Fittest",
         spec: {
             cards: [
@@ -2830,10 +2951,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             predicate: (move, state) =>
                 state.phase === "DECLARE_ATTACKERS" &&
                 (state.extraCombatsThisTurn ?? 0) === 1 &&
+                mayAttackAgain(state, "me", "Ardent Soldier") &&
                 move !== null &&
                 move.kind === "declare-attackers",
             describe:
-                "the position is the SECOND combat's declare-attackers step (extraCombatsThisTurn === 1) and the bot returns a declare-attackers move there rather than stalling",
+                "the position is the SECOND combat's declare-attackers step (extraCombatsThisTurn === 1), the creature that already attacked may legally attack again because vigilance left it untapped (CR 508.1a), and the bot returns a declare-attackers move there rather than stalling",
         },
         note: "CR 500.8 extra-phase queue (issue #2886, ADR 0111). Guards PROGRESS in a re-entered combat phase; deliberately no structural extra-combat credit — an extra combat is INSIDE the rollout horizon (ADR 0111 decision 6).",
     },

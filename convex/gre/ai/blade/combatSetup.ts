@@ -56,6 +56,9 @@ type DeclareAttackersStep = Extract<
     { kind: "declare-attackers" }
 >;
 
+/** The extra-combat step, narrowed. */
+type ExtraCombatStep = Extract<BladeSetupStep, { kind: "extra-combat" }>;
+
 /** Creatures the ACTIVE player may legally send (CR 508.1a). Name-filtered when
  *  the step lists `cards`, exactly like every other blade matcher — an entry
  *  never writes an instance id. */
@@ -183,12 +186,18 @@ const MAX_EXTRA_COMBAT_STEPS = 40;
  * until the turn RE-ENTERS `DECLARE_ATTACKERS` inside it. Mutates `state` in
  * place.
  *
- * The grant is the REAL primitive — `queueExtraCombat` is the entire body of
- * `SpellContext.grantExtraCombat`, shared rather than re-typed, so this step
- * cannot drift from what a card's `extraCombat` Op does. The walk is the
- * engine's own `applyMoveInSearch`, so the queue is consumed by the real
- * `advancePhase` seam and every trigger / turn-based action of the second
- * combat happens for real.
+ * The grant shares the engine's own queue writer — `queueExtraCombat` is today
+ * the entire body of `SpellContext.grantExtraCombat`, which the `extraCombat`
+ * Op's executor calls — rather than re-typing the push here. It is a SHARED
+ * WRITER, not the Op's full path: the step does not go through
+ * `OP_EXECUTORS.extraCombat` or build a `SpellContext`, so anything
+ * `grantExtraCombat` grows beyond delegating to `queueExtraCombat` would have
+ * to be mirrored here deliberately. Keep that primitive a one-liner, or route
+ * this step through the Op.
+ *
+ * The WALK is the engine's own `applyMoveInSearch`, so the queue is consumed by
+ * the real `advancePhase` seam and every trigger / turn-based action of the
+ * second combat happens for real.
  *
  * The walk's move policy is deliberately narrow and DECLINING: take a `pass`
  * when one is offered; otherwise DECLINE the position's optional declaration
@@ -201,10 +210,15 @@ const MAX_EXTRA_COMBAT_STEPS = 40;
  */
 export function applyExtraCombat(
     state: GameState,
+    step: ExtraCombatStep,
     fail: (detail: string) => Error
 ): void {
     const combatsBefore = state.extraCombatsThisTurn ?? 0;
     queueExtraCombat(state);
+    // `haltAfterGrant` — stop at "an extra combat is OWED but not yet
+    // entered". Nothing to walk and nothing to assert about the walk; the
+    // position is the grant itself.
+    if (step.haltAfterGrant) return;
 
     // `state.phase` is widened through a helper for the same reason
     // `applyDeclareAttackers` does it: TypeScript cannot see that
