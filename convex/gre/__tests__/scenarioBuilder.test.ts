@@ -863,6 +863,50 @@ describe("specFromState (issue #2148)", () => {
         expect(dropped.some((d) => d.includes("mana pool"))).toBe(true);
     });
 
+    // CR 500.8 (issue #2886) — an owed extra combat is turn-structure state a
+    // spec has no field for (ADR 0111: a preset scenario captures the
+    // PRE-ATTACK setup). It must be REPORTED, not silently lost, and it must
+    // not surface as unnamed residue either — both new keys are in
+    // `GAME_STATE_ALLOWLIST`, so `reportGameStateResidue` stays quiet about
+    // them and this bespoke message is the only mention.
+    // Each field on its OWN case, never both at once: they share one `dropped`
+    // message, so a state carrying both is satisfied by either clause and the
+    // assertion could not tell which one fired (this was checked — with both
+    // set, deleting the `extraPhases` clause left the test green).
+    it("reports an OWED extra combat phase as dropped rather than silently losing it", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        state.extraPhases = [{ kind: "combat" }];
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.includes("extra phases"))).toBe(true);
+        // Neither key may ALSO surface as unnamed residue: both are in
+        // `GAME_STATE_ALLOWLIST`, so this bespoke message is the only mention.
+        expect(dropped.some((d) => d.includes("extraPhases"))).toBe(false);
+    });
+
+    it("reports a turn ALREADY in an extra combat as dropped", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        state.extraCombatsThisTurn = 1;
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(dropped.some((d) => d.includes("extra phases"))).toBe(true);
+        expect(dropped.some((d) => d.includes("extraCombatsThisTurn"))).toBe(
+            false
+        );
+    });
+
     it("reports declared combat as dropped rather than silently losing it", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {

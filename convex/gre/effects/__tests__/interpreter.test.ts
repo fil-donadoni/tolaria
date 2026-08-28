@@ -2424,8 +2424,11 @@ describe("Effect Script Op: extraCombat (CR 500.8, issue #2886)", () => {
         ]);
     });
 
+    // A discriminating PAIR, not a lone negative: asserting only that a false
+    // branch queues nothing is satisfied by an executor that does nothing at
+    // all, which is exactly the regression the pair's other half catches.
     it("composes with the `if` construct — the false branch queues nothing", () => {
-        const id = registerScript("test-op-extra-combat-if", [
+        const id = registerScript("test-op-extra-combat-if-false", [
             {
                 op: "if",
                 predicate: { left: 0, op: "gt", right: 1 },
@@ -2436,6 +2439,20 @@ describe("Effect Script Op: extraCombat (CR 500.8, issue #2886)", () => {
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         expect(state.extraPhases).toBeUndefined();
+    });
+
+    it("composes with the `if` construct — the true branch queues one", () => {
+        const id = registerScript("test-op-extra-combat-if-true", [
+            {
+                op: "if",
+                predicate: { left: 2, op: "gt", right: 1 },
+                then: [{ op: "extraCombat" }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraPhases).toEqual([{ kind: "combat" }]);
     });
 
     it("survives projection (wire format) — extraPhases is spread verbatim onto PublicGameState", () => {
