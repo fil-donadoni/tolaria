@@ -30,20 +30,24 @@ returns `undefined` for a zero max, so `announcedTargetsNeedConfirm` declares
 and the activation strands at an owed `"target"` input of announced origin.
 That is the #2870 freeze shape, reached through a different door.
 
-**Why it may not deserve its own issue.** Probably unreachable today. An
-activated ability only learns a `chosenX` when X is in its own cost
-(`convex/game.ts:14254`, `targetHasXInCost`), and `resolveTargetCount` is called
-with `requireX: true`, so an `{ min: 0, max: "X" }` requirement on an ability
-WITHOUT X in its cost throws rather than resolving to zero. That leaves a
-literal `count: 0` or `{ min: 0, max: 0 }` written by hand, which no shipped
-card does — the three shipped min-0 ability requirements (Teferi, Time
-Raveler's −3, Sorin, Lord of Innistrad's −6, Minsc & Boo's +1) are all
-`{ min: 0, max: 1 }`. So this is a fail-open divergence with no current
-consumer: arguably a line on the cast/ability announce-parity work rather than
-a ticket. It becomes live the moment an ability ships with an X-derived target
-count, and the cheap close is to route the ability path through
-`announcedTargetCount` too — which is a real refactor of a 200-line branch
-whose cost validations sit INSIDE the gate, not the one-liner it looks like.
+**Why it may not deserve its own issue.** Unreachable today, and it ERRORS
+rather than stranding when it is reached. A catalogue scan (#2905 review) for
+abilities where `announcedTargetCount(req, undefined) === undefined` returns
+exactly two: **Candelabra of Tawnos** (`candelabra-untap`) and **Runed Arch**
+(`runed-arch-unblockable`), both `count: "X"` with `{X}` in the ability's own
+mana cost. Both throw at `convex/game.ts:14235` ("This ability requires a chosen
+X value") BEFORE the `pendingTarget` assignment, because the ability enumerator
+never populates `move.chosenX` — the field exists on the Move
+(`convex/gre/moves.ts:355`) and the executor forwards it, but no site sets it,
+so the Bot cannot activate an X-costed targeted ability at all. That is the
+adjacent gap worth a ticket, if any: **the enumerator's missing `chosenX` axis
+for activated abilities**, of which this divergence is a downstream symptom.
+
+So: a fail-open divergence with no current consumer, sitting behind a
+fail-CLOSED throw. Arguably a line on the cast/ability announce-parity work
+rather than a ticket. The cheap-looking close — route the ability path through
+`announcedTargetCount` too — is a real refactor of a 200-line branch whose cost
+validations sit INSIDE the gate, not the one-liner it appears to be.
 
 **Not introduced by #2870.** Before that change the enumerator's predicate was
 `isVariableCount(req) && targets.length > 0`, which for a zero-max requirement
