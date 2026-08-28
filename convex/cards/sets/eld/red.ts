@@ -23,18 +23,13 @@ import type { CardDefinition, SpellContext } from "../../types";
 //     on a timer (no such primitive exists); the permission persists while
 //     the card remains in exile instead of being turn-gated.
 //
-// DIVERGENCE (tracked-by: #1872) — "you may spend mana as though it were mana
-// of any color" is not implemented: the exiled card is castable only for its
-// normal, unfixed mana cost, so an off-colour exile can be uncastable when the
-// Oracle text says it should not be. There is no cast-time mana-fixing seam in
-// the engine to reach for — the only mana-substitution shape is the fixed
-// `{from,to}` pair a battlefield static effect carries (`ManaSubstitution`,
-// gre/state.ts) — and building one is a shared-primitive job spanning
-// `castRawManaCost`, the exile-cast permission record and every reader of it
-// (server, bot valuation, client affordability). Written up with the full
-// call-site evidence in `docs/findings/1872-cast-time-mana-color-fixing.md`.
-// The golden path (exile the defending player's top card, then cast it) is
-// faithful.
+// CR 609.4b (issue #2890) — "and you may spend mana as though it were mana of
+// any color to cast that spell" rides the exile-cast permission as
+// `grantCastFromExile`'s `manaSubstitution: "any-color"` opt, so the fixing
+// applies to THIS exiled card's cast and to nothing else the caster does.
+// "Any COLOR", not "any type": CR 105.1's five colours, colorless never a
+// substitution target — a `{C}` pip on the stolen card stays payable only with
+// colorless mana (CR 107.4c).
 export const robberOfTheRich: CardDefinition = {
     id: "0ecbe097-ba51-42e5-957c-382eb66c08f0",
     name: "Robber of the Rich",
@@ -84,7 +79,17 @@ export const robberOfTheRich: CardDefinition = {
                 // card" (not "play"): `includesLand` is deliberately omitted
                 // (defaults false) — an exiled LAND under this grant is
                 // simply unusable, never a legal land drop.
-                ctx.grantCastFromExile(cardId, ctx.controller, defenderId);
+                // CR 609.4b — the second half of the same sentence: the
+                // stolen card may be paid for with mana of any colour.
+                ctx.grantCastFromExile(
+                    cardId,
+                    ctx.controller,
+                    defenderId,
+                    "while-exiled",
+                    {
+                        manaSubstitution: "any-color",
+                    }
+                );
             },
         },
     ],

@@ -103,9 +103,6 @@ export const koboldsOfKherKeep: CardDefinition = {
 //   • Sentinel — "change base toughness to 1 + target's power, indefinitely"
 //     needs an indefinite base-P/T set; only phase-scoped setBasePT exists
 //     (same gap flagged for Wood Elemental).
-//   • North Star — "spend mana as though any type for one spell" needs a
-//     one-shot any→any mana substitution; only static single-pair from→to
-//     mana-substitution exists.
 //   • Ring of Immortals — "counter a spell that targets a permanent you
 //     control" needs a target-of-the-spell predicate not exposed to
 //     TargetRequirement.
@@ -195,6 +192,45 @@ export const relicBarrier: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
             // artifact target (CR 701.26a).
             effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
+        },
+    ],
+};
+
+// North Star — "{4}, {T}: For one spell this turn, you may spend mana as though
+// it were mana of any type to pay that spell's mana cost." (CR 609.4b / 118.14,
+// issue #2890.) "Any TYPE" is the broader of the two printed wordings: CR
+// 118.14 spells it out as "as though it were colorless mana or mana of any
+// color", and CR 106.1b lists six types against CR 105.1's five colours — so a
+// `{C}` pip (CR 107.4c) IS payable with coloured mana under this grant, which
+// the narrower "any color" wording never allows. Per CR 609.4b the spell's cost
+// is unchanged; only how it may be paid is.
+//
+// The parenthetical "(Additional costs are still paid normally.)" is reminder
+// text (CR 207.2), not a rule: the grant is scoped to the spell's MANA cost and
+// never reaches a kicker/sacrifice/life leg, because it lives entirely in the
+// mana-payment layer.
+export const northStar: CardDefinition = {
+    id: "daac2a6b-27c8-4567-9e0c-7b262628d331",
+    rarity: "rare",
+    name: "North Star",
+    oracleText:
+        "{4}, {T}: For one spell this turn, you may spend mana as though it were mana of any type to pay that spell's mana cost. (Additional costs are still paid normally.)",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "north-star-any-type-mana",
+            oracleText:
+                "{4}, {T}: For one spell this turn, you may spend mana as though it were mana of any type to pay that spell's mana cost.",
+            cost: { mana: { X: 4 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantSpellManaSubstitution",
+                    player: "controller",
+                    breadth: "any-type",
+                },
+            ],
         },
     ],
 };

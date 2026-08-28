@@ -2608,6 +2608,10 @@ export function finalizeCleanup(state: GameState): void {
                 // CR 305.9 (issue #1689) — the land-inclusive marker rides
                 // the same turn-scoped window; expires together.
                 delete card.castableFromExileIncludesLand;
+                // CR 609.4b (issue #2890) — the "spend mana as though any
+                // color/type" marker rides the SAME permission window; consumed
+                // together, so a stale one can never outlive its grant.
+                delete card.castFromExileManaSubstitution;
             }
         }
     }
@@ -2744,6 +2748,12 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // activate non-mana abilities this turn" lock, same boundary as the cast
     // lock above.
     "cannotActivateAbilitiesThisTurn",
+    // CR 609.4b / 118.14 / 514.2 (issue #2890) — North Star's ONE-SHOT "for
+    // one spell this turn, you may spend mana as though it were mana of any
+    // type" grant. An UNSPENT grant is a "this turn" permission and must
+    // survive END_OF_COMBAT: the player may still be holding it for a spell
+    // they mean to cast in the postcombat main phase.
+    "spellManaSubstitutionGrants",
     // CR 614 / 514.2 (issue #1145) — Yawgmoth's Will's graveyard-bound
     // redirect is a "this turn" replacement.
     "graveyardBoundRedirectThisTurn",

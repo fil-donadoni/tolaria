@@ -18,7 +18,12 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    CardDefinition,
+    Color,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     normalizeManaCost,
@@ -27,7 +32,9 @@ import {
     canPayLifeCost,
     canPayDiscardAtRandom,
     applyCostModifiers,
+    getCastManaSubstitutions,
     getCostModifiers,
+    getManaSubstitutions,
     resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
@@ -532,7 +539,21 @@ function planOptionRank(source: PlanSource, color: Color): number {
 export function planManaPayment(
     state: GameState,
     player: PlayerState,
-    cost: Record<string, number>
+    cost: Record<string, number>,
+    /** CR 609.4b (issue #2890) — the CAST this plan pays for, when there is
+     *  one. Routed through the shared `getCastManaSubstitutions` so a
+     *  cast-scoped "spend mana as though it were mana of any color/type"
+     *  permission (Robber of the Rich's stolen card, North Star's one-shot
+     *  grant) widens what each source can pay, under exactly the same scoping
+     *  the real payment applies — including North Star's "that spell's MANA
+     *  cost" limit, which `cost` (kicker folded, or an alternative cost) is
+     *  compared against. Omitted for an activated ability's cost and for
+     *  morph, which the permission never reaches. */
+    cast?: {
+        cardInstanceId: string;
+        cardDef: CardDefinition | null | undefined;
+        chosenX?: number;
+    }
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -683,10 +704,35 @@ export function planManaPayment(
     }
     if (sources.length < totalRequired) return null;
 
-    const remaining = sources.map((s) => ({
-        cardInstanceId: s.cardInstanceId,
-        options: new Map(s.options),
-    }));
+    // CR 609.4b (issue #2890) — a live mana substitution widens what a source
+    // may PAY, not what it produces: a source that taps for `from` can now
+    // satisfy a `to` pip, realised by the very same tap. Applied to the working
+    // copy only, ONE hop (two substitution rules never chain), and only where
+    // the source cannot already make the colour — its own production is always
+    // the cheaper realisation. This keeps the Bot's payment planner in step
+    // with the castability gate it shares a board model with; without it the
+    // gate would offer a cast this planner could not fund and the move would be
+    // silently dropped, so the Bot could never use the permission at all.
+    const substitutions = cast
+        ? getCastManaSubstitutions(
+              state,
+              player,
+              cast.cardInstanceId,
+              cast.cardDef,
+              cost,
+              cast.chosenX
+          )
+        : getManaSubstitutions(state, player.id);
+    const remaining = sources.map((s) => {
+        const options = new Map(s.options);
+        for (const sub of substitutions) {
+            const via = s.options.get(sub.from as Color);
+            if (via && !options.has(sub.to as Color)) {
+                options.set(sub.to as Color, via);
+            }
+        }
+        return { cardInstanceId: s.cardInstanceId, options };
+    });
     const taps: ManaTap[] = [];
 
     /** Fund `count` GENERIC mana strictly from PLAIN sources — never another
@@ -1590,7 +1636,11 @@ function enumerateCastMoves(
                     )
                 );
             }
-            const tapPlan = planManaPayment(state, player, normCost);
+            const tapPlan = planManaPayment(state, player, normCost, {
+                cardInstanceId: card.id,
+                cardDef: def,
+                chosenX: x,
+            });
             if (tapPlan === null) continue;
             for (const targets of enumerateTargetGroupTuples(
                 state,
@@ -1649,7 +1699,10 @@ function enumerateCastMoves(
         // branch folds; a bestow cost is a mana cost like any other.
         const bestowModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(bestowCost, bestowModifiers);
-        const bestowTapPlan = planManaPayment(state, player, bestowCost);
+        const bestowTapPlan = planManaPayment(state, player, bestowCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
         if (bestowTapPlan !== null) {
             for (const targets of enumerateTargetGroupTuples(
                 state,
@@ -1751,7 +1804,10 @@ function enumerateCastMoves(
         // branch folds.
         const dashModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(dashCost, dashModifiers);
-        const dashTapPlan = planManaPayment(state, player, dashCost);
+        const dashTapPlan = planManaPayment(state, player, dashCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
         if (dashTapPlan !== null) {
             moves.push({
                 kind: "cast-spell",

@@ -43,7 +43,11 @@ import type {
     StackItem,
 } from "./state";
 import type { Zone } from "./types";
-import type { CardType, ManaCost } from "../cards/types";
+import type {
+    CardType,
+    ManaCost,
+    ManaSubstitutionBreadth,
+} from "../cards/types";
 
 type CompactCard = Record<string, unknown>;
 // [instanceId, cardId] for the common case; a third element carries persistent
@@ -178,6 +182,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "cantBeBlockedThisTurn",
     "cantBeRegeneratedThisTurn",
     "cantBlockThisTurn",
+    "castFromExileManaSubstitution",
     "castFromExileWithoutPayingManaCost",
     "castFromGraveyardExilesOnResolve",
     "castFromGraveyardWithoutPayingManaCost",
@@ -548,6 +553,13 @@ function compactCard(
     // (Headliner Scarlett et al.) stays playable.
     if (card.castableFromExileIncludesLand) {
         out.castableFromExileIncludesLand = true;
+    }
+    // CR 609.4b (issue #2890) — the "spend mana as though it were mana of any
+    // color/type" marker rides `castableFromExileBy`'s permission window and
+    // must survive a save/load the same way, or a reloaded Robber exile becomes
+    // uncastable for an off-colour caster.
+    if (card.castFromExileManaSubstitution) {
+        out.castFromExileManaSubstitution = card.castFromExileManaSubstitution;
     }
     // CR 111 (issue #791) — the per-source exile provenance link (Currency
     // Converter's "exiled with this artifact") must survive a save/load so the
@@ -966,6 +978,10 @@ function expandCard(
     }
     if (compact.castableFromExileIncludesLand) {
         result.castableFromExileIncludesLand = true;
+    }
+    if (compact.castFromExileManaSubstitution) {
+        result.castFromExileManaSubstitution =
+            compact.castFromExileManaSubstitution as ManaSubstitutionBreadth;
     }
     if (compact.exiledBySourceId) {
         result.exiledBySourceId = compact.exiledBySourceId as string;
@@ -1762,6 +1778,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "islandSanctuaryProtection",
     "playerProtectionFromEverything",
     "castTimingFlashGrants",
+    "spellManaSubstitutionGrants",
     "allCreaturesMustAttack",
     "abilityResolutionCounts",
     "destroyReplacementShields",

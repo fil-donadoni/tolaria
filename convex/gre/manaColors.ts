@@ -8,10 +8,57 @@
 // import time). Moving the constants to this dependency-free leaf severs the
 // cycle; `gre/constants.ts` re-exports both so every existing
 // `from "../gre/constants"` import site is unaffected.
-import type { Color } from "../cards/types";
+import type { Color, ManaSubstitutionBreadth } from "../cards/types";
 
 /** All six mana colors in canonical order. */
 export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+
+// ─── "Spend mana as though it were mana of any …" (CR 609.4b) ────────────────
+//
+// CR 609.4b — "If an effect allows a player to spend mana 'as though it were
+// mana of any [type or color],' this affects only how the player may pay a
+// cost. It doesn't change that cost, and it doesn't change what mana was
+// actually spent to pay that cost." So the permission is expressed as ordinary
+// `{from,to}` substitution PAIRS over the existing six-wide mana vocabulary —
+// never as a payment-layer wildcard, and never as a cost rewrite. Every
+// affordability / payment / auto-tap path already honours those pairs.
+
+/** The mana types that may be a substitution TARGET under `breadth`: all six
+ *  under "any-type" (CR 106.1b — six types, colorless included), the five
+ *  colours under "any-color" (CR 105.1). */
+function substitutionTargets(
+    breadth: ManaSubstitutionBreadth
+): readonly Color[] {
+    return breadth === "any-type"
+        ? MANA_COLORS
+        : MANA_COLORS.filter((c) => c !== "C");
+}
+
+/** Every `{from,to}` pair a "you may spend mana as though it were mana of any
+ *  <breadth>" permission authorises (CR 609.4b). `from` is any of the six mana
+ *  types a pool can hold — the permission speaks of the mana being SPENT, and
+ *  colorless mana spent as though it were red is exactly what it allows; `to`
+ *  is what that mana may be spent AS, and is where the two breadths diverge
+ *  (`substitutionTargets`).
+ *
+ *  Identity pairs are omitted: paying a requirement with its own colour needs
+ *  no permission, so `{from: "R", to: "R"}` would be inert noise in every
+ *  consumer.
+ *
+ *  This is the ONLY enumeration of these pairs — a consumer wanting the
+ *  permission asks for its breadth, never for a hand-built pair list. */
+export function substitutionsForBreadth(
+    breadth: ManaSubstitutionBreadth
+): { from: Color; to: Color }[] {
+    const out: { from: Color; to: Color }[] = [];
+    for (const from of MANA_COLORS) {
+        for (const to of substitutionTargets(breadth)) {
+            if (from === to) continue;
+            out.push({ from, to });
+        }
+    }
+    return out;
+}
 
 /** Intrinsic mana abilities for basic land subtypes (CR 305.6). */
 export const LAND_SUBTYPE_MANA: Record<string, Color> = {

@@ -542,6 +542,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.castTimingFlashGrants (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantSpellManaSubstitution":
+            // CR 609.4b / 118.14 (issue #2890, North Star) — a per-player
+            // one-shot "spend mana as though any type/color" grant; the
+            // deterministic outcome is the player id landing in
+            // state.spellManaSubstitutionGrants (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "restrictActivation":
             // CR 602.1 / 605.1a (issue #1124) — a turn-scoped ability-activation
             // lock on a player; the deterministic outcome is the player id
@@ -1680,6 +1687,33 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: granted && !wasGranted,
                     detail: `granted=${granted} (was ${wasGranted})`,
+                };
+            },
+        };
+    },
+    // `grantSpellManaSubstitution` (CR 609.4b / 118.14, issue #2890, North
+    // Star) — a deterministic same-resolution state change: a grant of the
+    // named breadth lands under the named player's key in
+    // state.spellManaSubstitutionGrants.
+    grantSpellManaSubstitution(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "grantSpellManaSubstitution" }
+        >;
+        const pid = assertionPlayerId(op.player);
+        const before = pre.spellManaSubstitutionGrants?.[pid]?.length ?? 0;
+        return {
+            label: `grantSpellManaSubstitution grants player ${pid} one ${op.breadth} spell this turn`,
+            check: (post) => {
+                const after =
+                    post.spellManaSubstitutionGrants?.[pid]?.length ?? 0;
+                const holds =
+                    post.spellManaSubstitutionGrants?.[pid]?.includes(
+                        op.breadth
+                    ) ?? false;
+                return {
+                    ok: after === before + 1 && holds,
+                    detail: `grants=${after} (was ${before}), holds ${op.breadth}=${holds}`,
                 };
             },
         };

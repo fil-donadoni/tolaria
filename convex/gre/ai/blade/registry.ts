@@ -2959,6 +2959,52 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "CR 500.8 extra-phase queue (issue #2886, ADR 0111). Guards PROGRESS in a re-entered combat phase; deliberately no structural extra-combat credit — an extra combat is INSIDE the rollout horizon (ADR 0111 decision 6).",
     },
+    {
+        // CR 609.4b (issue #2890) — "You may spend white mana as though it were
+        // red mana" (Sunglasses of Urza). The bot's only untapped source is a
+        // Plains, it holds Lightning Bolt, and the opponent is at 3.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): the substitution makes the
+        // Bolt payable and the Bolt is EXACT lethal, so there is one move that
+        // wins on the spot and nothing else the position can do. No judgement,
+        // one ply, no rollout noise to hide behind.
+        //
+        // WHAT IT DISCRIMINATES: mana substitution was honoured by the PAYMENT
+        // layer (`isManaCostCovered`) but by neither the castability census
+        // (`coloredCostLeftover`, rules.ts) nor the Bot's payment planner
+        // (`planManaPayment`, moves.ts) — so the Bolt was never ENUMERATED and
+        // the bot passed with lethal in hand, for as long as Sunglasses has
+        // shipped. Reverting either widening turns this entry red. It is the
+        // Bot-side twin of the North Star / Robber of the Rich cast-scoped
+        // grants #2890 adds, which ride the exact same seam.
+        label: "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)",
+        spec: {
+            cards: [
+                {
+                    name: "Sunglasses of Urza",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Lightning Bolt", target: "opp" },
+            ],
+        },
+        note: "CR 609.4b: without substitution-aware enumeration the Bolt is not a legal move at all.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

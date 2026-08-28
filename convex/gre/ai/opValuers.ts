@@ -95,6 +95,7 @@ const REGENERATE_VALUE = 60; // a one-shot destroy-proof shield
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
+const GRANT_SPELL_MANA_SUBSTITUTION_VALUE = 8; // one spell's colours fixed
 const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
 const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
 const LOSE_ALL_ABILITIES_VALUE = 60; // an ability strip (CR 613.1f) — a neutralize that also takes evasion/engines, so above a bare P/T set
@@ -1074,6 +1075,18 @@ const grantCastTiming: Valuer<"grantCastTiming"> = () => ({
     tags: ["tempo"],
 });
 
+const grantSpellManaSubstitution: Valuer<
+    "grantSpellManaSubstitution"
+> = () => ({
+    // CR 609.4b — "for one spell this turn you may spend mana as though it were
+    // mana of any type" (North Star). Buys COLOUR FLEXIBILITY for one cast, not
+    // extra mana and not board impact: per CR 609.4b the cost is unchanged, so
+    // the gain is exactly the off-colour spell it unlocks. Valued alongside the
+    // other one-shot casting permissions rather than as ramp.
+    points: GRANT_SPELL_MANA_SUBSTITUTION_VALUE,
+    tags: ["tempo"],
+});
+
 const restrictCombat: Valuer<"restrictCombat"> = (op) => {
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
@@ -1310,6 +1323,7 @@ export const OP_VALUERS: {
     restrictActivation,
     restrictCasting,
     grantCastTiming,
+    grantSpellManaSubstitution,
     restrictCombat,
     setIslandSanctuaryProtection,
     setProtectionFromEverything,
@@ -1465,6 +1479,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     randomExileToHand: "beneficial",
     grantGraveyardPlay: "beneficial",
     grantCastTiming: "beneficial",
+    grantSpellManaSubstitution: "beneficial",
     castDuringResolution: "beneficial",
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",

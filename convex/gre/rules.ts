@@ -91,6 +91,7 @@ import type { ManaCost } from "../cards/types";
 import {
     applyCostModifiers,
     getCostModifiers,
+    getManaSubstitutions,
     landPlayLockActive,
     normalizeManaCost,
     restrictedUnitAllowsSpell,
@@ -1746,6 +1747,14 @@ function coloredCostLeftover(
          *  only for a hypothetical future caller with no `GameState` on
          *  hand. */
         state?: GameState;
+        /** CR 601.2f / 609.4b (issue #2890) — true only when `cost` IS the
+         *  card's own printed mana cost (plus CR 601.2f modifiers). Gates the
+         *  ONE-SHOT "spend mana as though it were mana of any type to pay that
+         *  spell's MANA COST" grant (North Star), which never reaches an
+         *  additional or alternative cost. Defaults to false — a caller that
+         *  does not know declines the permission, which is always legal, rather
+         *  than offering a cast the payment layer will refuse. */
+        printedManaCostOnly?: boolean;
     } = {}
 ): number | null {
     const includePayWith = opts.payWith ?? true;
@@ -1879,6 +1888,63 @@ function coloredCostLeftover(
                 )) {
                     sources.push(unit);
                 }
+            }
+        }
+    }
+
+    // CR 609.4b (issue #2890) — "you may spend mana as though it were mana of
+    // any color/type". A live substitution widens what each source can PAY,
+    // not what it produces, so fold the pairs into every real source's colour
+    // set: a source that can make `from` can now satisfy a `to` pip. This is
+    // what keeps the castability gate in step with the payment layer
+    // (`isManaCostCovered`, which has honoured substitutions since Sunglasses
+    // of Urza) — without it `getLegalActions` hides "cast" on a card the
+    // server would happily have paid for, and the client greys out an
+    // affordance that is legal.
+    //
+    // PLACED HERE ON PURPOSE — after the pool, restricted mana and the real
+    // battlefield sources, and BEFORE the `payWith` pseudo-sources below.
+    // Improvise (CR 702.126a), Delve (CR 702.66a) and Convoke (CR 702.51a) all
+    // pay a pip "rather than pay that mana" — Convoke's own printed wording is
+    // "you may tap an untapped creature of that color you control rather than
+    // pay that mana". So no mana is spent for those pips, and CR 609.4b, which
+    // speaks only about how a player may SPEND mana, cannot reach them.
+    // Widening a convoke creature
+    // would offer a cast that `recordConvokeCreaturePick` (`convex/game.ts`)
+    // then refuses — it matches creatures to pips with NO substitutions — a
+    // dead-end affordance.
+    //
+    // `card.id` is passed so a CAST-SCOPED grant is seen: the per-card exile
+    // permission (Robber of the Rich) applies to exactly this card, and the
+    // one-shot player grant (North Star) applies to any spell. Both are
+    // withheld from every non-cast payment by `getManaSubstitutions` itself.
+    // `beyondPrintedManaCost` is set for every branch paying something other
+    // than the card's own printed mana cost — a flashback/escape/madness/
+    // alternative cost, which CR 601.2f pays INSTEAD of the mana cost, so
+    // North Star's "that spell's mana cost" never covers it.
+    if (opts.state) {
+        const substitutions = getManaSubstitutions(
+            opts.state,
+            player.id,
+            card.id,
+            { printedManaCostOnly: opts.printedManaCostOnly ?? false }
+        );
+        if (substitutions.length > 0) {
+            for (let i = 0; i < sources.length; i++) {
+                const unit = sources[i];
+                if (unit.size === 0) continue;
+                // One HOP only, and into a FRESH set: a substitution grants
+                // permission to spend the mana as another colour, it does not
+                // compose with a second rule (two Sunglasses-style statics
+                // must not chain Forest → {B} → {R}), and `sources` may hold
+                // sets other code owns.
+                const widened = new Set(unit);
+                for (const sub of substitutions) {
+                    if (unit.has(sub.from as Color)) {
+                        widened.add(sub.to as Color);
+                    }
+                }
+                sources[i] = widened;
             }
         }
     }
@@ -2203,7 +2269,16 @@ function canPotentiallyPayCost(
     // their own `coloredCostLeftover` probe the same way, forwarding their own
     // `state` (issue #1757 closed the last board-blind holdouts among them;
     // each documented at its own definition).
-    const leftover = coloredCostLeftover(player, card, cost, { state });
+    // CR 601.2f / 609.4b — the plain printed-cost branch is the only one whose
+    // `cost` IS the card's own mana cost: `costOverride` means an alternative
+    // cost (flashback / escape / madness / graveyard permission), and
+    // `extraMana` is the conditional-flash SURCHARGE, an additional cost. Both
+    // are separate components of the total cost, so North Star's one-shot grant
+    // must not reach them.
+    const leftover = coloredCostLeftover(player, card, cost, {
+        state,
+        printedManaCostOnly: costOverride === undefined && !opts.extraMana,
+    });
     // Remaining sources after the colored portion must cover the generic
     // ({cost.X}) portion.
     return leftover !== null && leftover >= (cost.X ?? 0);

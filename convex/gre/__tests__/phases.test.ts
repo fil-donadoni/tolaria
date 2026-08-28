@@ -2948,6 +2948,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         ],
         ["cannotCastSpellsThisTurn", [{ playerId: "p2" }]],
         ["cannotActivateAbilitiesThisTurn", ["p2"]],
+        ["spellManaSubstitutionGrants", { p1: ["any-type"] }],
         ["graveyardBoundRedirectThisTurn", [{ ownerId: "p1" }]],
         [
             "graveyardPlayPermissionThisTurn",
