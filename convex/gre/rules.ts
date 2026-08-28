@@ -91,6 +91,7 @@ import type { ManaCost } from "../cards/types";
 import {
     applyCostModifiers,
     getCostModifiers,
+    getManaSubstitutions,
     landPlayLockActive,
     normalizeManaCost,
     restrictedUnitAllowsSpell,
@@ -1946,6 +1947,51 @@ function coloredCostLeftover(
     if (includePayWith && spellHasConvoke(card)) {
         for (const creature of convokeEligibleCreatures(player)) {
             sources.push(creatureConvokeColors(creature));
+        }
+    }
+
+    // CR 609.4b (issue #2890) — "you may spend mana as though it were mana of
+    // any color/type". A live substitution widens what each source can PAY,
+    // not what it produces, so fold the pairs into every real source's colour
+    // set right before the greedy: a source that can make `from` can now
+    // satisfy a `to` pip. This is what keeps the castability gate in step with
+    // the payment layer (`isManaCostCovered`, which has honoured substitutions
+    // since Sunglasses of Urza) — without it `getLegalActions` hides "cast" on
+    // a card the server would happily have paid for, and the client greys out
+    // an affordance that is legal.
+    //
+    // GENERIC-only pseudo-sources (Improvise / Delve, the empty sets above)
+    // are deliberately skipped: they produce no mana at all, so there is
+    // nothing for a substitution to re-colour, and widening them would let a
+    // delve exile pay a coloured pip (CR 702.66a says it never can).
+    //
+    // `card.id` is passed so a CAST-SCOPED grant is seen: the per-card exile
+    // permission (Robber of the Rich) applies to exactly this card, and the
+    // one-shot player grant (North Star) applies to any spell. Both are
+    // withheld from every non-cast payment by `getManaSubstitutions` itself.
+    if (opts.state) {
+        const substitutions = getManaSubstitutions(
+            opts.state,
+            player.id,
+            card.id
+        );
+        if (substitutions.length > 0) {
+            for (let i = 0; i < sources.length; i++) {
+                const unit = sources[i];
+                if (unit.size === 0) continue;
+                // One HOP only, and into a FRESH set: a substitution grants
+                // permission to spend the mana as another colour, it does not
+                // compose with a second rule (two Sunglasses-style statics
+                // must not chain Forest → {B} → {R}), and `sources` may hold
+                // sets other code owns.
+                const widened = new Set(unit);
+                for (const sub of substitutions) {
+                    if (unit.has(sub.from as Color)) {
+                        widened.add(sub.to as Color);
+                    }
+                }
+                sources[i] = widened;
+            }
         }
     }
 
