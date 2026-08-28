@@ -20,9 +20,14 @@ type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
  *    at all is what retires this gesture on desktop, where the menu already
  *    carries "Pick" and drag-and-drop still works.
  *  - right click → phone opens the "Pick" / "Pick to sideboard" context menu
- *    (`onOpenContextMenu`, unchanged); desktop opens the Inspect Overlay
- *    directly instead (`onInspect`, issue #2861) — the two are mutually
- *    exclusive, the caller passes exactly one.
+ *    (`onOpenContextMenu`). Desktop has NO handler at all (issue #2889,
+ *    reverting part of #2861): a real right-click means the app's ordinary
+ *    anchored card preview everywhere else, and the Draft Room does not get
+ *    to be a special case — this component neither intercepts the event nor
+ *    calls `preventDefault`, so `CardImage`'s own `CardPreview` (its
+ *    pointerdown-driven pin, unmodified here) is what the player sees. The
+ *    Inspect Overlay stays reachable only through the desktop menu's own
+ *    "Inspect" item — an explicit choice, never a right-click surprise.
  *  - drag → also commits the Pick, to whichever Pool column or the
  *    Sideboard it's dropped on (handled by the shared `DragDropProvider` in
  *    `limited-draft-table.tsx`; this component only registers the
@@ -40,7 +45,6 @@ export default function LimitedDraftPackCard({
     onPick,
     onOpenMenu,
     onOpenContextMenu,
-    onInspect,
     pending,
 }: {
     card: DraftPackCard;
@@ -54,14 +58,10 @@ export default function LimitedDraftPackCard({
     /** Left click ALSO opens the pack menu, right there, no delay (desktop,
      *  issue #2861). Absent ⇒ a click only selects (phone, unchanged). */
     onOpenMenu?: (pickId: string, x: number, y: number) => void;
-    /** Real right-click opens the phone's "Pick" / "Pick to sideboard" menu
-     *  (unchanged). Mutually exclusive with `onInspect` — the caller passes
-     *  exactly one. */
+    /** Real right-click opens the phone's "Pick" / "Pick to sideboard" menu.
+     *  Absent on desktop (issue #2889) — there, a right-click falls through
+     *  to the ordinary `CardPreview` pin, same as everywhere else. */
     onOpenContextMenu?: (pickId: string, x: number, y: number) => void;
-    /** Real right-click opens the Inspect Overlay directly instead (desktop,
-     *  issue #2861) — what a right-click already means everywhere else in
-     *  the app. Mutually exclusive with `onOpenContextMenu`. */
-    onInspect?: (pickId: string) => void;
     pending: boolean;
 }) {
     const data: BoosterDragData = {
@@ -98,12 +98,15 @@ export default function LimitedDraftPackCard({
                       }
                     : undefined
             }
-            onContextMenu={(e) => {
-                e.preventDefault();
-                if (pending) return;
-                if (onInspect) onInspect(card.pickId);
-                else onOpenContextMenu?.(card.pickId, e.clientX, e.clientY);
-            }}
+            onContextMenu={
+                onOpenContextMenu
+                    ? (e) => {
+                          e.preventDefault();
+                          if (pending) return;
+                          onOpenContextMenu(card.pickId, e.clientX, e.clientY);
+                      }
+                    : undefined
+            }
             className={cn(
                 // No `outline-none` (issue #2593). This tile is the Draft
                 // Room's tab stop — `useDraftKeyboardPicks` (#2587) steps the

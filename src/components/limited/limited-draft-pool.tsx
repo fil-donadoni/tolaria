@@ -93,7 +93,6 @@ export default function LimitedDraftPool({
     selection = null,
     onCardSelect,
     onCardDoubleClick,
-    onCardContextMenu,
     onPin,
 }: {
     eventId: Id<"limitedEvents">;
@@ -125,11 +124,6 @@ export default function LimitedDraftPool({
      *  Sideboard and vice versa. Absent (the phone path) ⇒ no double-click
      *  binding, unchanged. */
     onCardDoubleClick?: (selection: DeckZoneSelection) => void;
-    /** A tile's real right-click (issue #2861: the Draft Room's desktop
-     *  regime opens the Inspect Overlay directly instead of the card-preview
-     *  pin). Threaded to both zones. Absent (the phone path) ⇒ the preview
-     *  pin keeps owning right-click, unchanged. */
-    onCardContextMenu?: (selection: DeckZoneSelection) => void;
     /** Records a Card Pin from the Peek Panel's "Move to…" sheet — threaded
      *  to the Pool's OWN `DeckZoneSurface` only (`dropModel: "columns"`); the
      *  Sideboard has no Columns to pin into, matching the deckbuilder's own
@@ -232,7 +226,6 @@ export default function LimitedDraftPool({
                     onCardClick={(card) => setSideboard(card, true)}
                     onCardSelect={onCardSelect}
                     onCardDoubleClick={onCardDoubleClick}
-                    onCardContextMenu={onCardContextMenu}
                     selectedTileKey={
                         selection?.zone === "maindeck"
                             ? selection.tileKey
@@ -267,7 +260,6 @@ export default function LimitedDraftPool({
                     onCardClick={(card) => setSideboard(card, false)}
                     onCardSelect={onCardSelect}
                     onCardDoubleClick={onCardDoubleClick}
-                    onCardContextMenu={onCardContextMenu}
                     selectedTileKey={
                         selection?.zone === "sideboard"
                             ? selection.tileKey

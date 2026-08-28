@@ -323,12 +323,16 @@ describe("LimitedDraftTable Booster gestures — desktop regime (default, issue 
         expect(document.querySelector("[data-inspect-panel]")).toBeNull();
     });
 
-    it("a right click opens the Inspect Overlay directly, with no menu at all", () => {
+    // Issue #2889 reverts the desktop right-click-opens-Inspect-Overlay
+    // behavior issue #2861 added: a real right-click means the app's
+    // ordinary anchored card preview everywhere else, and the Draft Room
+    // does not get to be a special case.
+    it("a right click opens neither the menu nor the Inspect Overlay", () => {
         const { getAllByRole } = renderTable({});
         const cards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.contextMenu(cards[0]);
         expect(menu()).toBeNull();
-        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
     });
 
     it("the seat's selectedPickId (through the real projection) renders that exact card highlighted", () => {
@@ -521,7 +525,8 @@ describe("LimitedDraftTable phone strip CTA row (PRD #2405 D16, issue #2583/#258
 
 // Issue #2861: the desktop Pool/Sideboard menu — a click opens it on a short
 // delay (the double-click window), a double click cancels that and moves the
-// card instead, a real right-click opens the Inspect Overlay directly.
+// card instead. Issue #2889 reverts the "a real right-click opens the
+// Inspect Overlay directly" part — right-click is untouched on this regime.
 describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
     const boltInPool = [
         { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
@@ -626,11 +631,14 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
         ).toEqual(["→ Side"]);
     });
 
-    it("a real right click opens the Inspect Overlay directly, with no menu", () => {
+    // Issue #2889: a real right-click on a Pool/Sideboard tile is untouched
+    // by this surface — it falls through to the ordinary `CardPreview` pin,
+    // same as everywhere else in the app.
+    it("a real right click opens neither the menu nor the Inspect Overlay", () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
         fireEvent.contextMenu(getByTitle(/^Remove Lightning Bolt/));
         expect(menu()).toBeNull();
-        expect(document.querySelector("[data-inspect-panel]")).toBeTruthy();
+        expect(document.querySelector("[data-inspect-panel]")).toBeNull();
     });
 
     // The load-bearing regression this AC calls out by name: a browser fires
