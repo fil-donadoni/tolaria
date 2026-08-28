@@ -156,11 +156,13 @@ export default function LimitedDraftTable({
     // from, so a label or behavior can never diverge between the doors.
     const [menu, setMenu] = useState<LimitedDraftMenuState | null>(null);
     // The Inspect Overlay (PRD #2405, issue #2583; generalised by issue
-    // #2861 to open from ANY of the three surfaces — a Booster/Pool/Sideboard
-    // menu's "Inspect" item, a desktop right-click, or the phone strip's own
-    // CTA row) — carries its OWN action row rather than deriving one
-    // reactively from whatever is currently selected, because a desktop
-    // right-click can inspect a DIFFERENT card than the Selected one.
+    // #2861 to open from any of the three surfaces' own menu's "Inspect"
+    // item, or the phone strip's own CTA row — a desktop real right-click
+    // is untouched by this screen since issue #2889, falling through to the
+    // ordinary `CardPreview` pin instead) — carries its OWN action row
+    // rather than deriving one reactively from whatever is currently
+    // selected, because the menu's "Inspect" can target a DIFFERENT card
+    // than the Selected one.
     const [inspecting, setInspecting] = useState<{
         cardId: string;
         actions: readonly EditingSurfaceAction[];
