@@ -736,8 +736,11 @@ export function planBatch(
                 continue;
             }
 
-            // Lane homogeneity (issue #2743). A batch is all-skin, all-engine
-            // or all-full — the reason lives on `BatchPlan.lane` above. This
+            // Lane homogeneity (issue #2743). A batch is all-skin, all-engine,
+            // all-docs or all-full — the reason lives on `BatchPlan.lane`
+            // above. Nothing here enumerates the lanes: it is a plain equality
+            // against the batch's first admitted lane, so a lane added to
+            // `check-lane.ts` becomes another homogeneity class for free. This
             // is what makes a `area:ui-ux`-labelled issue whose declared
             // files actually reach `convex/**` harmless rather than
             // corrupting: it computes `full` on its own real target files (see

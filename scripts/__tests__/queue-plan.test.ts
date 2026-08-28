@@ -823,18 +823,74 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
     });
 
     it("lets `full`-lane issues keep batching together exactly as before #2743 (no new constraint among themselves)", () => {
-        // Neither file is under src/**, convex/** or scripts/**, so both are
-        // individually `full` by the fail-closed default — and were already
-        // batchable together under plain disjointness before this issue.
+        // Neither file matches ANY lane rule, so both are individually `full`
+        // by the fail-closed default — and were already batchable together
+        // under plain disjointness before this issue. (`.agents/**` is the
+        // fixture rather than `docs/**`: prose under `docs/` classifies `docs`
+        // since the docs lane landed, which would make this assert the wrong
+        // lane while still passing for the wrong reason.)
         const issues = [issue(100, {}), issue(200, {})];
         const details = {
-            100: { body: body({ targetFiles: ["docs/a.md"] }) },
-            200: { body: body({ targetFiles: ["docs/b.md"] }) },
+            100: { body: body({ targetFiles: [".agents/a.md"] }) },
+            200: { body: body({ targetFiles: [".agents/b.md"] }) },
         };
         const plan = planBatch(issues, CONFIG, makePort(details));
 
         expect(numbers(plan)).toEqual([100, 200]);
         expect(plan.lane).toBe("full");
+    });
+
+    /**
+     * The mix guard lives INSIDE one issue's own lane computation, not in the
+     * homogeneity check: `lane` is `laneFor(targetFiles.map(classifyPath))`
+     * per issue, so an issue whose OWN target files span prose and code is
+     * the only shape that reaches it. A batch of one prose issue and one code
+     * issue is already handled by homogeneity and proves nothing about the
+     * guard — the first version of this test did exactly that and stayed
+     * green when the guard was deleted.
+     */
+    it("an issue whose own target files mix prose and code is `full`, never `engine`", () => {
+        const plan = planBatch(
+            [issue(100, {})],
+            CONFIG,
+            makePort({
+                100: {
+                    body: body({
+                        targetFiles: [
+                            "docs/adr/0111.md",
+                            "convex/gre/phases.ts",
+                        ],
+                    }),
+                },
+            })
+        );
+        expect(plan.batch[0].lane).toBe("full");
+    });
+
+    it("treats `docs` as its own homogeneity class, and defers a cross-lane candidate", () => {
+        const proseOnly = planBatch(
+            [issue(100, {}), issue(200, {})],
+            CONFIG,
+            makePort({
+                100: { body: body({ targetFiles: ["docs/adr/0111.md"] }) },
+                200: { body: body({ targetFiles: ["CONTEXT.md"] }) },
+            })
+        );
+        expect(numbers(proseOnly)).toEqual([100, 200]);
+        expect(proseOnly.lane).toBe("docs");
+
+        // A prose issue cannot join an engine batch: its own lane is `docs`,
+        // so the homogeneity check defers it like any cross-lane candidate.
+        const mixed = planBatch(
+            [issue(100, {}), issue(200, {})],
+            CONFIG,
+            makePort({
+                100: { body: body({ targetFiles: ["convex/gre/phases.ts"] }) },
+                200: { body: body({ targetFiles: ["docs/adr/0111.md"] }) },
+            })
+        );
+        expect(numbers(mixed)).toEqual([100]);
+        expect(mixed.lane).toBe("engine");
     });
 
     it("leaves `lane` undefined on an empty batch", () => {
