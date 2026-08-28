@@ -81,6 +81,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
         // The cost under test comes from the CARD, not from this test.
         const manaCost = normalizeManaCost(pentadPrism.manaCost!);
         const payment = payCastManaCost(
+            state,
             player,
             manaCost,
             pentadPrism,
@@ -158,6 +159,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
         // costs just the same.
         const state = prismInHandWithPool({ U: 1, R: 1 });
         const payment = payCastManaCost(
+            state,
             state.players[0],
             { U: 1, R: 1 },
             pentadPrism,
@@ -183,6 +185,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
     it("a card that did NOT ask for it carries no record (the snapshot is opt-in)", () => {
         const state = prismInHandWithPool({ W: 1, U: 1 });
         const payment = payCastManaCost(
+            state,
             state.players[0],
             normalizeManaCost(pentadPrism.manaCost!),
             { ...pentadPrism, noteManaSpent: undefined },

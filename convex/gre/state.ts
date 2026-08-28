@@ -5,6 +5,7 @@ import {
     type CardSupertype,
     type CardType,
     type Color,
+    type ManaSubstitutionBreadth,
     type ControlChangeCondition,
     type CounterDestination,
     type CostReductionAmount,
@@ -163,6 +164,7 @@ import {
     assignHybridPips,
     hybridCostKey,
     normalizedHybridPips,
+    substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
     applyLandTypeReplacement,
     composeMaterializedSubtypes,
@@ -1204,6 +1206,16 @@ export type CardInstanceState = {
      *  `castableFromExileBy` wherever that field is cleared. Persisted so
      *  the flag survives a DB round-trip. */
     castableFromExileIncludesLand?: boolean;
+    /** CR 609.4b (issue #2890) — rides alongside {@link castableFromExileBy}:
+     *  the granting Oracle text ALSO says "you may spend mana as though it were
+     *  mana of any color/type to cast that spell" (Robber of the Rich). While
+     *  set, `getManaSubstitutions` adds every pair of that breadth — but ONLY
+     *  for a payment that names THIS card as the cast in progress, so the
+     *  permission can never leak onto another spell or an activated ability.
+     *  Per CR 609.4b the spell's COST is untouched; only how it may be paid
+     *  changes. Cleared alongside `castableFromExileBy` wherever that field is
+     *  cleared. Persisted so the permission survives a DB round-trip. */
+    castFromExileManaSubstitution?: ManaSubstitutionBreadth;
     /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
      *  608.2g). When set, the play permission is an "until end of turn" impulse
      *  window (Headliner Scarlett, Expressive Iteration — "play that card this
@@ -4259,6 +4271,23 @@ export type GameState = {
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
      *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
+    /** CR 609.4b / 118.14 (issue #2890) — per-player ONE-SHOT "for one spell
+     *  this turn, you may spend mana as though it were mana of any type/color"
+     *  grants (North Star). Keyed by player id; a LIST because each activation
+     *  buys one spell, so two activations must buy two (a single slot would
+     *  clobber the first).
+     *
+     *  Read by `getManaSubstitutions` only for a payment that names a cast in
+     *  progress — the Oracle says "to pay that SPELL's mana cost", so an
+     *  activated ability's cost never sees it. Consumed by `payCastManaCost`
+     *  (`convex/game.ts`) when the grant actually did work: the spell that
+     *  spends it is the first one whose cost the pool could not cover WITHOUT
+     *  the substitution, which is exactly the designation a player would make
+     *  and leaves the grant intact after an on-colour cast. Cleared at CLEANUP
+     *  (CR 514.2), the same "this turn" boundary as
+     *  `cannotCastSpellsThisTurn` — NOT `advanceTurn` (that is the different
+     *  "until your next turn" boundary `castTimingFlashGrants` uses). */
+    spellManaSubstitutionGrants?: Record<string, ManaSubstitutionBreadth[]>;
     /** Player whose creatures must all attack THIS TURN if able (CR 508.1d,
      *  Siren's Call: "Creatures the active player controls attack this turn if
      *  able"). Turn-scoped, not combat-scoped — 508.1d is explicit that "if a
@@ -15597,6 +15626,16 @@ export function buildSpellContext(
                  *  castable (CR 116.2a — a land can't be cast either), the
                  *  exact bug class issue #1689 closes. */
                 includesLand?: boolean;
+                /** CR 609.4b (issue #2890) — the granting Oracle text also
+                 *  says "you may spend mana as though it were mana of any
+                 *  color/type to cast that spell" (Robber of the Rich:
+                 *  `"any-color"`). Stamps {@link
+                 *  CardInstanceState.castFromExileManaSubstitution} alongside
+                 *  `castableFromExileBy`, so the fixing applies to THIS card's
+                 *  cast and nothing else. Omitted (the default) is the plain
+                 *  permission (Ice Cauldron, Ragavan) — the exiled card is
+                 *  paid for in its own colours. */
+                manaSubstitution?: ManaSubstitutionBreadth;
             }
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
@@ -15647,6 +15686,14 @@ export function buildSpellContext(
                 card.castableFromExileIncludesLand = true;
             } else {
                 delete card.castableFromExileIncludesLand;
+            }
+            // CR 609.4b (issue #2890) — the "spend mana as though it were mana
+            // of any color/type" half of the grant, if the Oracle text carries
+            // one. Rides the SAME permission window; cleared with it.
+            if (opts?.manaSubstitution) {
+                card.castFromExileManaSubstitution = opts.manaSubstitution;
+            } else {
+                delete card.castFromExileManaSubstitution;
             }
         },
         grantCastFromGraveyard(
@@ -16879,6 +16926,20 @@ export function buildSpellContext(
             const list = state.castTimingFlashGrants ?? [];
             list.push(cardTypes ? { playerId, cardTypes } : { playerId });
             state.castTimingFlashGrants = list;
+        },
+
+        grantSpellManaSubstitution(
+            playerId: string,
+            breadth: ManaSubstitutionBreadth
+        ): void {
+            // CR 609.4b / 118.14 — "For one spell this turn, you may spend mana
+            // as though it were mana of any type to pay that spell's mana cost"
+            // (North Star). One entry per grant, so two activations buy two
+            // spells; the payment seam pops one when it was actually needed.
+            // Cleared at CLEANUP (CR 514.2).
+            const grants = state.spellManaSubstitutionGrants ?? {};
+            grants[playerId] = [...(grants[playerId] ?? []), breadth];
+            state.spellManaSubstitutionGrants = grants;
         },
 
         addDamageCapShield(playerId: string, maxDamage: number): void {
@@ -20466,6 +20527,9 @@ export function removeFromZone(
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
     // permission window as `castableFromExileBy`; consumed together.
     delete card.castableFromExileIncludesLand;
+    // CR 609.4b (issue #2890) — the "spend mana as though any color/type"
+    // marker rides the SAME permission window; consumed together.
+    delete card.castFromExileManaSubstitution;
     // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
@@ -21835,13 +21899,37 @@ export function getStaticAdditionalSacrifices(
     return out;
 }
 
-/** Scan the battlefield for `mana-substitution` static effects whose source
- *  is controlled by `playerId` and return the active "spend `from` as though
- *  `to`" rules (CR 609.4b). Derived fresh per payment so the substitution
- *  vanishes the moment the source leaves play (Sunglasses of Urza). */
+/** Every active "spend `from` as though it were `to`" rule for `playerId`
+ *  (CR 609.4b). Derived fresh per payment so a rule vanishes the moment its
+ *  source stops applying (Sunglasses of Urza leaving play).
+ *
+ *  Two sources, and the SECOND one is why this function takes a card id:
+ *
+ *   1. **Battlefield statics** — `mana-substitution` static effects on
+ *      permanents `playerId` controls. Continuous, apply to every cost.
+ *   2. **Cast-scoped grants** (issue #2890) — "you may spend mana as though it
+ *      were mana of any color/type to cast that spell". These apply to ONE
+ *      spell, so they are returned only when `castCardInstanceId` names the
+ *      cast whose cost is being paid: the per-card exile grant
+ *      (`CardInstanceState.castFromExileManaSubstitution`, Robber of the Rich)
+ *      when that id IS the granted card, and the player's one-shot grants
+ *      (`GameState.spellManaSubstitutionGrants`, North Star) for any spell.
+ *
+ *  `castCardInstanceId` is therefore MANDATORY at every spell-cast payment /
+ *  affordability / auto-tap site, and must stay OMITTED everywhere else — an
+ *  activated ability's cost, a morph or companion special action, a may-pay
+ *  cost. Omitting it fails CLOSED (the grant simply is not seen, exactly as
+ *  before #2890 shipped), never open; passing it where the Oracle text does not
+ *  reach would leak the fixing onto a cost that never earned it. */
 export function getManaSubstitutions(
     state: GameState,
-    playerId: string
+    playerId: string,
+    castCardInstanceId?: string,
+    /** `excludeOneShotGrants` computes the COUNTERFACTUAL set — everything
+     *  except this player's one-shot "for one spell this turn" grants. Used by
+     *  `settleSpellManaSubstitutionGrant` alone, to decide whether a grant was
+     *  what made the cost payable; never by a payment path. */
+    opts?: { excludeOneShotGrants?: boolean }
 ): ManaSubstitution[] {
     const out: ManaSubstitution[] = [];
     for (const player of state.players) {
@@ -21856,7 +21944,103 @@ export function getManaSubstitutions(
             }
         }
     }
+    if (castCardInstanceId === undefined) return out;
+    // CR 609.4b — the per-card exile grant (Robber of the Rich). Scan every
+    // player's exile: the card stays in ITS OWNER's zone (CR 400.7) while a
+    // DIFFERENT player holds the cast permission, so the grant is keyed on
+    // `castableFromExileBy`, never on which zone the card sits in.
+    for (const player of state.players) {
+        const granted = player.exile.find(
+            (c) =>
+                c.id === castCardInstanceId &&
+                c.castableFromExileBy === playerId &&
+                c.castFromExileManaSubstitution !== undefined
+        );
+        if (granted?.castFromExileManaSubstitution) {
+            out.push(
+                ...substitutionsForBreadth(
+                    granted.castFromExileManaSubstitution
+                )
+            );
+        }
+    }
+    // CR 609.4b / 118.14 — the player's own one-shot "for one spell this turn"
+    // grants (North Star). Any spell qualifies, so the id only had to prove a
+    // SPELL is what is being paid for. Consumption happens at the payment seam.
+    if (opts?.excludeOneShotGrants) return out;
+    for (const breadth of state.spellManaSubstitutionGrants?.[playerId] ?? []) {
+        out.push(...substitutionsForBreadth(breadth));
+    }
     return out;
+}
+
+/** CR 609.4b / 118.14 — decide whether this cast SPENDS one of the caster's
+ *  one-shot "for one spell this turn, you may spend mana as though it were mana
+ *  of any type/color" grants (North Star), and pop one if so. Called from the
+ *  single cast-payment seam (`payCastManaCost`, `convex/game.ts`) BEFORE the
+ *  pool is drained.
+ *
+ *  The Oracle lets the player designate which spell the grant applies to. With
+ *  no announce-time designation in the protocol, the engine designates the
+ *  first spell whose cost the caster's spendable pool could NOT cover without
+ *  the grant — which is the spell a player would have named anyway, and leaves
+ *  the grant intact when an on-colour spell is cast in between. Static
+ *  substitutions (Sunglasses of Urza) and the per-card exile grant (Robber of
+ *  the Rich) stay in the counterfactual, so a cast that another permission
+ *  already made payable never burns this one.
+ *
+ *  No-op when the caster holds no grant. */
+export function settleSpellManaSubstitutionGrant(
+    state: GameState,
+    player: PlayerState,
+    cost: Record<string, number>,
+    cardDef: CardDefinition | null | undefined,
+    cardInstanceId: string
+): void {
+    if (!hasSpellManaSubstitutionGrant(state, player.id)) return;
+    const withoutGrant = getManaSubstitutions(
+        state,
+        player.id,
+        cardInstanceId,
+        { excludeOneShotGrants: true }
+    );
+    const pool = spendablePoolForSpell(
+        player,
+        cardDef?.types ?? [],
+        cardInstanceId,
+        cardDef?.supertypes ?? []
+    );
+    if (isManaCostCovered(pool, cost, withoutGrant)) return;
+    consumeSpellManaSubstitutionGrant(state, player.id);
+}
+
+/** Whether `playerId` holds at least one unspent one-shot "spend mana as though
+ *  it were mana of any type/color for one spell this turn" grant (CR 609.4b /
+ *  118.14, North Star). */
+export function hasSpellManaSubstitutionGrant(
+    state: GameState,
+    playerId: string
+): boolean {
+    return (state.spellManaSubstitutionGrants?.[playerId]?.length ?? 0) > 0;
+}
+
+/** Spend one of `playerId`'s one-shot "for one spell this turn" mana-
+ *  substitution grants (CR 609.4b / 118.14). No-op when none is held. Called
+ *  from the single cast-payment seam once the payment is settled, and ONLY when
+ *  the grant is what made the cost payable — an on-colour cast leaves it
+ *  intact. */
+export function consumeSpellManaSubstitutionGrant(
+    state: GameState,
+    playerId: string
+): void {
+    const grants = state.spellManaSubstitutionGrants;
+    const held = grants?.[playerId];
+    if (!grants || !held || held.length === 0) return;
+    held.shift();
+    if (held.length === 0) delete grants[playerId];
+    if (Object.keys(grants).length === 0) {
+        state.spellManaSubstitutionGrants = undefined;
+    }
 }
 
 /** Apply accumulated cost modifiers to a base normalized cost (mutates),

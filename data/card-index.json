@@ -30568,5 +30568,13 @@
         "firstSet": "ice",
         "firstPrintId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "North Star",
+        "scryfallId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
+        "oracleId": "9109437a-da80-463f-a92a-77d693d05d91",
+        "firstSet": "leg",
+        "firstPrintId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
+        "firstPrintSet": "leg"
     }
 ]

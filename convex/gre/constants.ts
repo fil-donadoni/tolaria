@@ -41,6 +41,7 @@ import {
     parseHybridCostKey,
     normalizedHybridPips,
     assignHybridPips,
+    substitutionsForBreadth,
 } from "./manaColors";
 
 /** Sentinel card id for opaque library placeholders the vs-AI Bot's search
@@ -167,6 +168,12 @@ export {
     normalizedHybridPips,
     assignHybridPips,
 };
+
+/** Every `{from,to}` mana-substitution pair a "you may spend mana as though it
+ *  were mana of any color/type" permission authorises (CR 609.4b). Canonical
+ *  definition lives in the same dependency-free leaf; re-exported here so call
+ *  sites keep importing mana helpers from one module. */
+export { substitutionsForBreadth };
 
 /** Default number of lands a player may play per turn (CR 305.2). Cards
  *  granting additional drops (Exploration, Azusa) would mutate the per-turn

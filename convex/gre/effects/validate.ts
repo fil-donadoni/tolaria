@@ -2944,6 +2944,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             cardTypes: (v: unknown) => isStringArray(v, TOKEN_CARD_TYPES),
         },
     },
+    // CR 609.4b / 118.14 (issue #2890, North Star) — grant a one-shot
+    // "for one spell this turn, you may spend mana as though it were mana of
+    // any type/color" permission. `player` names the grantee; `breadth` is
+    // REQUIRED (there is no defensible default — the two wordings differ on
+    // whether a `{C}` pip is payable with coloured mana, CR 107.4c).
+    grantSpellManaSubstitution: {
+        required: {
+            player: isPlayerRef,
+            breadth: (v: unknown) => v === "any-color" || v === "any-type",
+        },
+    },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // graveyard play/cast permission (Yawgmoth's Will). `player` names the
     // grantee; `zones` (optional, defaults to both) narrows to "land" and/or
