@@ -1507,6 +1507,8 @@ describe("schema drift guard", () => {
         };
         state.gameOver = { winnerId: "p1", loserId: "p2", reason: "life" };
         state.extraTurns = ["p1"];
+        state.extraPhases = [{ kind: "combat" }];
+        state.extraCombatsThisTurn = 1;
         state.preventionEffects = [
             {
                 sourceInstanceId: "s1",
@@ -1901,6 +1903,25 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.extraTurns = ["p1", "p2"];
         expect(roundTrip(state).extraTurns).toEqual(["p1", "p2"]);
+    });
+
+    // CR 500.8 (issue #2886) — the extra-PHASE queue and the marker counter it
+    // feeds. Non-empty on purpose: the drift guard only proves the KEY is
+    // listed, and a key listed but dropped by the writer round-trips a state
+    // whose queue silently emptied mid-turn.
+    it("extraPhases", () => {
+        const state = freshState();
+        state.extraPhases = [{ kind: "combat" }, { kind: "combat" }];
+        expect(roundTrip(state).extraPhases).toEqual([
+            { kind: "combat" },
+            { kind: "combat" },
+        ]);
+    });
+
+    it("extraCombatsThisTurn", () => {
+        const state = freshState();
+        state.extraCombatsThisTurn = 2;
+        expect(roundTrip(state).extraCombatsThisTurn).toBe(2);
     });
 
     it("preventionEffects", () => {

@@ -2776,6 +2776,67 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Twin of the entry above; only the decklist differs (issue #2789).",
     },
+    {
+        // CR 500.8 (issue #2886). The bot is handed the SECOND combat phase of
+        // a turn — a position that did not exist before the extra-phase queue
+        // shipped, reached by the `extra-combat` setup step through the real
+        // primitive and the real `advancePhase` seam.
+        //
+        // What it asserts is PROGRESS, not attack quality: the bot returns a
+        // real `declare-attackers` decision in the re-entered step instead of
+        // no move at all. Attacking-or-not with a lone creature into an empty
+        // board is deliberately a `stretch`-tier judgement elsewhere in this
+        // file and would make a seed-sensitive `must`; freezing in a phase the
+        // engine can now re-enter is not a judgement at all.
+        //
+        // A VIGILANT attacker, not a vanilla body, for a second reason:
+        // vigilance (CR 702.20) leaves Ardent Soldier UNTAPPED after combat #1,
+        // so it is still a legal attacker in combat #2 (CR 508.1a) even though
+        // `hasAttackedThisTurn` is set — the "attacked already, may attack
+        // again if untapped" clause, exercised through the engine rather than
+        // asserted about it. The defender's Grizzly Bears is what OPENS the
+        // block window the `declare-attackers` step walks to (a board with no
+        // legal block never reaches it); the `extra-combat` step then declines
+        // the block (CR 509.1) on its way to the second combat.
+        label: "extra combat: does not stall in the second combat phase (CR 500.8)",
+        spec: {
+            cards: [
+                {
+                    name: "Ardent Soldier",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Ardent Soldier"] },
+            { kind: "extra-combat" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                state.phase === "DECLARE_ATTACKERS" &&
+                (state.extraCombatsThisTurn ?? 0) === 1 &&
+                move !== null &&
+                move.kind === "declare-attackers",
+            describe:
+                "the position is the SECOND combat's declare-attackers step (extraCombatsThisTurn === 1) and the bot returns a declare-attackers move there rather than stalling",
+        },
+        note: "CR 500.8 extra-phase queue (issue #2886, ADR 0111). Guards PROGRESS in a re-entered combat phase; deliberately no structural extra-combat credit — an extra combat is INSIDE the rollout horizon (ADR 0111 decision 6).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

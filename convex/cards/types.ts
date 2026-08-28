@@ -3984,6 +3984,14 @@ export interface SpellContext {
      *  scheduled is the next one taken. Consumed by advanceTurn(). Used by
      *  Time Walk and similar effects. */
     takeExtraTurn: (playerId: string) => void;
+    /** Queues one ADDITIONAL combat phase for the turn in progress (CR 500.8
+     *  — "Some effects can add phases to a turn"). LIFO with any other queued
+     *  extra phase, consumed at the `END_OF_COMBAT` exit in `advancePhase`,
+     *  which re-enters at `BEGINNING_OF_COMBAT` so CR 506.1's five steps run
+     *  again in full. Takes no player: an extra PHASE belongs to the turn (and
+     *  so to its active player), never to a chosen one — unlike an extra
+     *  TURN, which names its recipient. */
+    grantExtraCombat: () => void;
     /** Marks `playerId` as having lost the game (CR 104). Sets
      *  `state.gameOver` directly, bypassing the CR 614 lose-game replacement
      *  loop — used by Lich's LTB-trigger which fires as a triggered ability
@@ -11329,6 +11337,24 @@ export type EffectOp =
      *  targets a player), the resolving controller, or a relative player.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "extraTurn"; player: EffectPlayerRef }
+    /** CR 500.8 (issue #2886) — add one ADDITIONAL combat phase to the turn in
+     *  progress ("After this phase, there is an additional combat phase").
+     *  Fronts `SpellContext.grantExtraCombat`, which pushes onto the LIFO
+     *  `state.extraPhases` queue `advancePhase` (phases.ts) pops at the
+     *  `END_OF_COMBAT` exit, re-entering at `BEGINNING_OF_COMBAT` so CR 506.1's
+     *  five steps — and every "at the beginning of combat" trigger — run again.
+     *
+     *  Unlike `extraTurn`, this is NOT a thin skin over an already-shipped
+     *  primitive: the queue, the consumption seam and the primitive land with
+     *  the Op (ADR 0111).
+     *
+     *  NO FIELDS, deliberately. An extra phase belongs to the TURN, so there is
+     *  no player to name; and the entry is UNANCHORED — it records its kind,
+     *  not the phase it was created after (ADR 0111 decision 2), so there is no
+     *  `after` to pass either. What it deliberately does NOT do: add a main
+     *  phase (one kind ships), anchor to a phase other than the combat exit, or
+     *  skip a phase. */
+    | { op: "extraCombat" }
     /** CR 614.10 (issue #1957, Waterspout Elemental) — `player` skips their
      *  next turn. A thin declarative skin over `SpellContext.setSkipNextTurn`,
      *  one execution path (ADR 0045): the same primitive Time Vault's

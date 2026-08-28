@@ -370,6 +370,7 @@ export default function Board({
                 phase,
                 turn,
                 engineTurn,
+                extraCombatsThisTurn: state.extraCombatsThisTurn,
                 stackCount: stackItems.length,
                 stackItems,
                 pendingCast,

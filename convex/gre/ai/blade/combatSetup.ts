@@ -1,6 +1,6 @@
 /**
- * Blade-scenario suite — the `declare-attackers` engine-real setup step
- * (issue #1489, ADR 0070 §4).
+ * Blade-scenario suite — the engine-real COMBAT setup steps
+ * (`declare-attackers`, issue #1489; `extra-combat`, issue #2886. ADR 0070 §4).
  *
  * A `ScenarioSpec` can describe a board but not a COMBAT: `buildStateFromScenario`
  * seeds `state.combat` with an EMPTY, unconfirmed attacker list at
@@ -25,7 +25,12 @@
  * arrive at `DECLARE_BLOCKERS`. There is no fallback that builds the position
  * "as if".
  *
- * Lives in its own module rather than inside `setup.ts` so the step's logic is
+ * `extra-combat` (CR 500.8) extends the same discipline one phase further: it
+ * grants through the REAL primitive and lets the engine's own `advancePhase`
+ * seam consume the queue, because a second combat phase is likewise a position
+ * no `ScenarioSpec` can describe.
+ *
+ * Lives in its own module rather than inside `setup.ts` so the steps' logic is
  * reviewable (and testable) on its own; `setup.ts` keeps only the dispatch.
  */
 
@@ -34,9 +39,10 @@ import {
     validateAttackerEligibility,
     validateDeclaredAttackers,
 } from "../../combat";
+import { enumerateMoves } from "../../moves";
 import { applyMoveInSearch, decidingPlayer } from "../../search";
 import type { CardInstanceState, GameState } from "../../state";
-import { getOpponentId } from "../../state";
+import { getOpponentId, queueExtraCombat } from "../../state";
 import type { BladeSetupStep } from "./types";
 
 /** Upper bound on the priority passes used to walk from the declaration to the
@@ -164,4 +170,85 @@ export function applyDeclareAttackers(
             `the position did not reach an open DECLARE_BLOCKERS window (ended at "${state.phase}").`
         );
     }
+}
+
+/** Upper bound on the decisions used to walk from "an extra combat is owed" to
+ *  the second combat's declare-attackers step. The real number is a handful of
+ *  priority passes plus one block declaration per damage step; the cap only
+ *  stops a malformed position from looping. */
+const MAX_EXTRA_COMBAT_STEPS = 40;
+
+/**
+ * Queue one additional combat phase (CR 500.8) and walk the position forward
+ * until the turn RE-ENTERS `DECLARE_ATTACKERS` inside it. Mutates `state` in
+ * place.
+ *
+ * The grant is the REAL primitive — `queueExtraCombat` is the entire body of
+ * `SpellContext.grantExtraCombat`, shared rather than re-typed, so this step
+ * cannot drift from what a card's `extraCombat` Op does. The walk is the
+ * engine's own `applyMoveInSearch`, so the queue is consumed by the real
+ * `advancePhase` seam and every trigger / turn-based action of the second
+ * combat happens for real.
+ *
+ * The walk's move policy is deliberately narrow and DECLINING: take a `pass`
+ * when one is offered; otherwise DECLINE the position's optional declaration
+ * (block nothing — CR 509.1 makes blocking optional, so the empty assignment
+ * is always legal and always unique); otherwise take the position's ONE forced
+ * move, and throw on anything still ambiguous rather than pick. A blade entry
+ * must never depend on which of several plausible moves the harness happened
+ * to choose, and "the defender declined to block" is a position property the
+ * entry's own comment can state.
+ */
+export function applyExtraCombat(
+    state: GameState,
+    fail: (detail: string) => Error
+): void {
+    const combatsBefore = state.extraCombatsThisTurn ?? 0;
+    queueExtraCombat(state);
+
+    // `state.phase` is widened through a helper for the same reason
+    // `applyDeclareAttackers` does it: TypeScript cannot see that
+    // `applyMoveInSearch` mutates it.
+    const phaseOf = (s: GameState): string => s.phase;
+    const inExtraCombat = (): boolean =>
+        (state.extraCombatsThisTurn ?? 0) > combatsBefore;
+
+    for (let i = 0; i < MAX_EXTRA_COMBAT_STEPS; i++) {
+        if (inExtraCombat() && phaseOf(state) === "DECLARE_ATTACKERS") return;
+        const owed = decidingPlayer(state);
+        if (owed === null) {
+            throw fail(
+                `nobody owes an action at phase "${state.phase}" — the position never reaches the extra combat's declare-attackers step.`
+            );
+        }
+        const moves = enumerateMoves(state, owed, {
+            pruneDominatedNoOps: true,
+        });
+        const pass = moves.find((m) => m.kind === "pass");
+        if (pass) {
+            applyMoveInSearch(state, owed, pass);
+            continue;
+        }
+        // CR 509.1 — blocking is optional, so "block nothing" is always legal
+        // and always exactly one move. Declining keeps the walk deterministic
+        // without needing the defender to be creature-less (a board with no
+        // legal block never opens the block window at all).
+        const declineBlocks = moves.find(
+            (m) => m.kind === "declare-blockers" && m.assignments.length === 0
+        );
+        if (declineBlocks) {
+            applyMoveInSearch(state, owed, declineBlocks);
+            continue;
+        }
+        if (moves.length !== 1) {
+            throw fail(
+                `the walk to the extra combat reached a decision at phase "${state.phase}" offering ${moves.length} non-pass moves — it must be forced (give the defender no blockers, or narrow the position).`
+            );
+        }
+        applyMoveInSearch(state, owed, moves[0]);
+    }
+
+    throw fail(
+        `the position did not reach the extra combat's declare-attackers step within ${MAX_EXTRA_COMBAT_STEPS} decisions (ended at "${state.phase}", extra combats entered: ${(state.extraCombatsThisTurn ?? 0) - combatsBefore}).`
+    );
 }

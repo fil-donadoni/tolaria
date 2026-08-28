@@ -1698,6 +1698,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "mulligan",
     "gameOver",
     "extraTurns",
+    "extraPhases",
+    "extraCombatsThisTurn",
     "preventionEffects",
     "targetPreventionShields",
     "preventionTallies",

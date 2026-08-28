@@ -46,7 +46,7 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
-import { applyDeclareAttackers } from "./combatSetup";
+import { applyDeclareAttackers, applyExtraCombat } from "./combatSetup";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
@@ -498,6 +498,14 @@ export function applyBladeSetup(
                 applyDeclareAttackers(
                     state,
                     step,
+                    (detail) =>
+                        new BladeSetupError(scenario.label, step, detail)
+                );
+                break;
+            case "extra-combat":
+                // Logic in `combatSetup.ts`; this file keeps only the dispatch.
+                applyExtraCombat(
+                    state,
                     (detail) =>
                         new BladeSetupError(scenario.label, step, detail)
                 );

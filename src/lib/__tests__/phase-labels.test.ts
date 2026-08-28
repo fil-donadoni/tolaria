@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    COMBAT_PHASES,
     PHASE_GROUPS,
     phaseCompact,
     phaseGroupLabel,
@@ -136,5 +137,21 @@ describe("phase-labels (#331)", () => {
         ] as const) {
             expect(ids).toContain(id);
         }
+    });
+
+    // CR 500.8 (issue #2886) — `COMBAT_PHASES` is DERIVED from the Combat
+    // group's own steps, so it cannot drift from the rail; the derivation
+    // reads the group by its display label and would silently produce an
+    // EMPTY set if that label were ever renamed, which is what this pins.
+    it("COMBAT_PHASES is exactly the combat group's steps, and non-empty", () => {
+        const combatGroup = PHASE_GROUPS.find((g) => g.label === "Combat");
+        expect(combatGroup).toBeDefined();
+        expect(COMBAT_PHASES.size).toBe(combatGroup!.steps.length);
+        expect(COMBAT_PHASES.size).toBeGreaterThan(0);
+        for (const step of combatGroup!.steps) {
+            expect(COMBAT_PHASES.has(step.id)).toBe(true);
+        }
+        expect(COMBAT_PHASES.has("POSTCOMBAT_MAIN")).toBe(false);
+        expect(COMBAT_PHASES.has("PRECOMBAT_MAIN")).toBe(false);
     });
 });

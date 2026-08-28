@@ -122,6 +122,22 @@ export const PHASE_GROUPS: PhaseGroup[] = [
     },
 ];
 
+/** The COMBAT steps, as `Phase` ids (CR 506.1 — beginning of combat, declare
+ *  attackers, declare blockers, combat damage, end of combat; plus this
+ *  engine's separate first-strike damage step, CR 510.4). Derived from
+ *  {@link PHASE_GROUPS}' own Combat group so the set can never drift from the
+ *  rail a player is looking at; `phase-labels.test.ts` pins the derivation.
+ *
+ *  Read by {@link ControllerPhaseList} to decide whether the CR 500.8
+ *  `· Combat N` marker applies to the CURRENT position — the marker states
+ *  which combat is being played, so it belongs in a combat phase and nowhere
+ *  else. */
+export const COMBAT_PHASES: ReadonlySet<Phase> = new Set(
+    (PHASE_GROUPS.find((g) => g.label === "Combat")?.steps ?? []).map(
+        (s) => s.id
+    )
+);
+
 const STEP_BY_ID: Record<string, PhaseStep> = Object.fromEntries(
     PHASE_GROUPS.flatMap((g) => g.steps).map((s) => [s.id, s])
 );

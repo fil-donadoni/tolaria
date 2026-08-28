@@ -206,7 +206,26 @@ export type BladeSetupStep =
           kind: "declare-attackers";
           cards?: string[];
           haltForDefenderResponse?: boolean;
-      };
+      }
+    /** Queue one ADDITIONAL combat phase (CR 500.8) and walk the position
+     *  forward until the turn RE-ENTERS `DECLARE_ATTACKERS` in it — the
+     *  second combat, which no `ScenarioSpec` can describe: `extraPhases` is
+     *  deliberately not lowered into the spec vocabulary (ADR 0111), and a
+     *  hand-seeded second combat would be exactly the "state the engine could
+     *  never produce" ADR 0070 §4 forbids.
+     *
+     *  The grant goes through the REAL primitive (`queueExtraCombat`, the
+     *  whole body of `SpellContext.grantExtraCombat`) and the walk through
+     *  `applyMoveInSearch`, so the extra combat is entered by the engine's own
+     *  `advancePhase` seam. Run it while the position is still inside combat,
+     *  before the `END_OF_COMBAT` exit that consumes the queue — typically
+     *  right after a `declare-attackers` step.
+     *
+     *  Throws when the walk cannot make progress: nobody owes an action, a
+     *  decision offers more than one non-pass move (give the defender no
+     *  blockers, or narrow the position), or the second combat is never
+     *  reached. */
+    | { kind: "extra-combat" };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

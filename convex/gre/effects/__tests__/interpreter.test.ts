@@ -2385,6 +2385,71 @@ describe("Effect Script Op: extraTurn (CR 500.7, issue #686)", () => {
     });
 });
 
+// New Op (issue #2886, CR 500.8) → full per-Op regime. UNLIKE `extraTurn`
+// above, this Op is NOT a skin over an already-shipped primitive: the
+// `state.extraPhases` queue, the `advancePhase` consumption seam and
+// `SpellContext.grantExtraCombat` all land with it (ADR 0111). The turn-
+// structure mechanics themselves (LIFO pop at the END_OF_COMBAT exit,
+// re-entry at BEGINNING_OF_COMBAT, the turn-boundary discard) are covered by
+// `gre/__tests__/extraPhases.test.ts`; this suite covers the Op — that
+// resolving it really queues an entry, that it composes with the frozen
+// structural constructs, and that the queue survives the wire projection.
+//
+// The generated smoke sweep does NOT cover this Op (`analyseOp` skips it, like
+// `extraTurn`: it mutates a turn-structure queue, not a same-step outcome), so
+// this hand-written suite is the only per-Op proof there is.
+describe("Effect Script Op: extraCombat (CR 500.8, issue #2886)", () => {
+    it("queues one additional combat phase on resolution", () => {
+        const id = registerScript("test-op-extra-combat", [
+            { op: "extraCombat" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        expect(state.extraPhases).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.extraPhases).toEqual([{ kind: "combat" }]);
+    });
+
+    it("queues one entry PER occurrence — two Ops in one script stack up", () => {
+        const id = registerScript("test-op-extra-combat-twice", [
+            { op: "extraCombat" },
+            { op: "extraCombat" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraPhases).toEqual([
+            { kind: "combat" },
+            { kind: "combat" },
+        ]);
+    });
+
+    it("composes with the `if` construct — the false branch queues nothing", () => {
+        const id = registerScript("test-op-extra-combat-if", [
+            {
+                op: "if",
+                predicate: { left: 0, op: "gt", right: 1 },
+                then: [{ op: "extraCombat" }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraPhases).toBeUndefined();
+    });
+
+    it("survives projection (wire format) — extraPhases is spread verbatim onto PublicGameState", () => {
+        const id = registerScript("test-op-extra-combat-wire", [
+            { op: "extraCombat" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.extraPhases).toEqual([{ kind: "combat" }]);
+    });
+});
+
 // New Op (issue #1957, Waterspout Elemental) → full per-Op regime:
 // interpreter coverage of the construct combinations it participates in
 // (announced player slot, controller, accumulation across two resolutions),

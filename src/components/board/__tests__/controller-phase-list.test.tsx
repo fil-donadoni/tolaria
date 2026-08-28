@@ -16,6 +16,8 @@ import {
     type Side,
 } from "~/lib/skip-phase-prefs";
 import { PHASE_GROUPS } from "~/lib/phase-labels";
+import { makeState } from "@convex/cards/__tests__/setup";
+import { projectPublicState } from "@convex/gameProjections";
 import type { Phase } from "@convex/gre/types";
 
 // The real stop dot renders a Base UI Tooltip, irrelevant to the toggle
@@ -210,6 +212,57 @@ describe("ControllerPhaseRow — compact decoder scoped to the portrait sheet (#
         renderWith(<ControllerPhasePanel onClose={() => {}} />);
         const dialog = screen.getByRole("dialog", { name: "Turn phases" });
         expect(within(dialog).queryByText("(1ST DMG)")).toBeNull();
+    });
+});
+
+/** CR 500.8 (issue #2886) — the extra-combat header marker.
+ *
+ *  The marker's value is read THROUGH the real wire reducer
+ *  (`projectPublicState`) rather than written into the context by hand: the
+ *  whole failure mode this guards is a projection that drops
+ *  `extraCombatsThisTurn`, which a hand-built view can never see (a green
+ *  test on a field the client never receives). `board.tsx` forwards exactly
+ *  the projected field onto the context, which is what these render. */
+function renderAtProjectedCombat(
+    phase: Phase,
+    extraCombatsThisTurn: number | undefined
+) {
+    const state = makeState({ phase, extraCombatsThisTurn });
+    const projected = projectPublicState(state, 1, "p1");
+    return renderWith(<ControllerPhaseList onClose={() => {}} />, {
+        phase: projected.phase,
+        turn: 6,
+        extraCombatsThisTurn: projected.extraCombatsThisTurn,
+    });
+}
+
+describe("ControllerPhaseList — extra combat marker (CR 500.8, issue #2886)", () => {
+    it("names which combat is being played once the turn has an extra one", () => {
+        renderAtProjectedCombat("DECLARE_ATTACKERS", 1);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        expect(
+            within(dialog).getByText("Turn 6 — Phases · Combat 2")
+        ).toBeTruthy();
+    });
+
+    it("counts up with the queue — a second extra combat reads Combat 3", () => {
+        renderAtProjectedCombat("DECLARE_ATTACKERS", 2);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        expect(
+            within(dialog).getByText("Turn 6 — Phases · Combat 3")
+        ).toBeTruthy();
+    });
+
+    it("is absent on an ordinary turn's single combat", () => {
+        renderAtProjectedCombat("DECLARE_ATTACKERS", undefined);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        expect(within(dialog).getByText("Turn 6 — Phases")).toBeTruthy();
+    });
+
+    it("is absent outside a combat phase — it states the CURRENT position", () => {
+        renderAtProjectedCombat("POSTCOMBAT_MAIN", 1);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        expect(within(dialog).getByText("Turn 6 — Phases")).toBeTruthy();
     });
 });
 

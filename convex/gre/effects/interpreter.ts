@@ -2023,6 +2023,13 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.takeExtraTurn(playerId);
     },
+    // CR 500.8 (issue #2886) — add one additional combat phase to the turn in
+    // progress (Fear of Missing Out: "After this phase, there is an additional
+    // combat phase"). No fields and nothing to skip on: an extra phase belongs
+    // to the TURN, so there is no player ref that could fail to resolve.
+    extraCombat(ctx) {
+        ctx.grantExtraCombat();
+    },
     // CR 614.10 / 614.10a (issue #1957) — `player` skips their next turn
     // (Waterspout Elemental). Skipped when the player cannot be resolved
     // (CR 608.2b). `ctx.setSkipNextTurn` INCREMENTS the pending count, so two
