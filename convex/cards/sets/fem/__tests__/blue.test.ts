@@ -47,9 +47,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { untapStep } from "../../../../gre/phases";
+import { advancePhase, untapStep } from "../../../../gre/phases";
 import { grizzlyBears } from "../../lea";
 import { getLegalActions } from "../../../../gre/rules";
+import { applyLandManaReplacement } from "../../../../gre/constants";
 import {
     makeInstance,
     makePlayer,
@@ -471,6 +472,47 @@ describe("High Tide — extra {U} per Island tapped this turn (CR 614)", () => {
         // It went to the graveyard (instant resolved).
         expect(state.players[0].graveyard.some((c) => c.id === item.id)).toBe(
             true
+        );
+    });
+
+    // Named regression for issue #1864 — the clearest LIVE repro of the
+    // eight-flag class bug: `tickAllDurations` runs from `endCombatStep`
+    // (CR 511.3) on EVERY turn, including one with no attackers, because
+    // `skipEmptyCombat` auto-advances THROUGH the step and still exits it.
+    // The rider was therefore gone by the postcombat main phase, one phase
+    // after the High Tide that armed it, with no extra combat involved.
+    it("still adds the extra {U} in the POSTCOMBAT main phase (CR 514.2, issue #1864)", () => {
+        const island = makeInstance(getCardByName("Island").id, {
+            id: "isl",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1", { battlefield: [island] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, highTide.id, "p1");
+        resolveTopOfStack(state);
+        expect(applyLandManaReplacement(state, "p1", island, { U: 1 })).toEqual(
+            { U: 2 }
+        );
+
+        // Walk the real phase machinery across the combat phase. No attackers,
+        // so END_OF_COMBAT is entered and exited without a priority window.
+        for (let i = 0; i < 10 && state.phase !== "POSTCOMBAT_MAIN"; i++) {
+            advancePhase(state);
+        }
+        expect(state.phase).toBe("POSTCOMBAT_MAIN");
+
+        // "Until end of turn" is still in force (CR 514.2 pins the expiry at
+        // the cleanup step), so tapping the Island now still yields {U}{U}.
+        expect(state.highTideThisTurn).toEqual(["p1"]);
+        expect(applyLandManaReplacement(state, "p1", island, { U: 1 })).toEqual(
+            { U: 2 }
         );
     });
 
