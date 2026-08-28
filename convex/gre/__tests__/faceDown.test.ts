@@ -32,7 +32,7 @@ describe("face-down characteristics (CR 708.2)", () => {
         });
         expect(STATIC_EFFECT_CTX.getColors(card)).toContain("U");
 
-        turnFaceDown(card);
+        turnFaceDown(card, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [card] }),
@@ -65,8 +65,8 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
             controllerId: "p2",
             ownerId: "p2",
         });
-        turnFaceDown(mine);
-        turnFaceDown(theirs);
+        turnFaceDown(mine, "morph");
+        turnFaceDown(theirs, "morph");
         return makeState({
             players: [
                 makePlayer("p1", { battlefield: [mine] }),
@@ -134,7 +134,7 @@ describe("face-down serialize round-trip", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(card);
+        turnFaceDown(card, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [card] }),

@@ -56,6 +56,7 @@ import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
+import type { FaceDownProducer } from "./faceDown";
 import {
     revertTransform,
     stampBackFaceForEntry,
@@ -1017,6 +1018,15 @@ export type CardInstanceState = {
      *  from non-controllers by `projectPublicState`; the controller's view
      *  restores `card.id` to this value. Restored on turn-up. */
     faceDownOf?: string;
+    /** WHICH mechanic put this object face down (issue #2904) — see
+     *  {@link FaceDownProducer}. Public information: an opponent watching a
+     *  morph cast knows it was a morph, and the face-down FACE the client
+     *  renders is keyed on this alone, never on the hidden card. Stamped by
+     *  `turnFaceDown` (permanents and stack items) and by `exileFaceDownCard`
+     *  (CR 406.3 face-down exile), cleared by `turnFaceUp`. Absent on state
+     *  written before #2904 — the display resolver then falls back to the
+     *  generic card back. */
+    faceDownBy?: FaceDownProducer;
     /** True while this permanent is showing its BACK face (CR 712, ADR 0067,
      *  issue #1210) — has been transformed an odd number of times. Distinct
      *  from `faceDown`/`faceDownOf` (CR 707.4 morph: a HIDDEN identity that
@@ -18917,7 +18927,7 @@ export function buildSpellContext(
             // cast face down. `turnFaceDown` is run on a throwaway shallow
             // copy so the real card is untouched when the gate refuses.
             const faceDownProbe: CardInstanceState = { ...inHand };
-            turnFaceDown(faceDownProbe);
+            turnFaceDown(faceDownProbe, "cast-face-down");
             if (
                 castProhibitionReason(item.castById, faceDownProbe, state) !==
                 undefined
@@ -18925,7 +18935,7 @@ export function buildSpellContext(
                 return; // forbidden — not cast (CR 601.3a / 117.3 "if able")
             }
             const card = removeFromZone(player, cardInstanceId, "hand");
-            turnFaceDown(card);
+            turnFaceDown(card, "cast-face-down");
             const stackItem: StackItem = {
                 ...card,
                 zone: "stack",
@@ -20307,6 +20317,13 @@ export function moveCard(
     // later return to a hidden zone is hidden again unless freshly re-granted.
     // Stale `knownTo` never resurrects.
     if (PUBLIC_ZONES.has(to)) delete card.knownTo;
+    // issue #2904 — the display producer marker travels with the face-down
+    // state, not with the card. Guarded on `faceDown`: a face-down PERMANENT
+    // moved onto a public zone is still face down (CR 708.9's reveal-on-leave
+    // runs `turnFaceUp`, which clears the marker itself), while a CR 406.3
+    // face-down exile card that loses its `knownTo` here is no longer face
+    // down at all and must not keep a marker that would pick a hidden face.
+    if (!card.faceDown && card.knownTo === undefined) delete card.faceDownBy;
     // CR 111 / 400.7 (issue #791/#1319) — the per-source exile provenance link
     // is only meaningful while the card sits in exile. `removeFromZone`
     // already clears it on the cast-from-exile path; mirror that here for
@@ -20493,6 +20510,11 @@ export function exileFaceDownCard(
     card.zone = "exile";
     // The whole point of a face-down exile: knowledge is granted, not stripped.
     card.knownTo = [knowerId];
+    // issue #2904 — the DISPLAY census: which mechanic hid this card, so the
+    // client can render a face-down face for BOTH viewers (the knower included
+    // — CR 406.3 entitles them to LOOK, which the preview's second face is,
+    // not to have the pile tile state the identity outright).
+    card.faceDownBy = "face-down-exile";
     player.exile.push(card);
     return card;
 }
@@ -20517,6 +20539,11 @@ export function removeFromZone(
     // to hand, or a bounce) it is hidden again unless freshly re-granted. Stale
     // `knownTo` never resurrects.
     delete card.knownTo;
+    // issue #2904 — same reasoning as `moveCard`'s public-zone clear: the
+    // CR 406.3 face-down-exile marker dies with the knowledge it accompanied.
+    // A card leaving hand to be CAST face down gets its marker back from
+    // `turnFaceDown` at the commit site, after this runs.
+    if (!card.faceDown) delete card.faceDownBy;
     // CR 601.3e — Ice Cauldron's cast-from-exile permission is consumed once the
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;

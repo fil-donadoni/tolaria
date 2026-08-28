@@ -44,7 +44,7 @@ function projectFaceDownAngel(lands: number, viewerId: string): CardInstance {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent);
+    turnFaceDown(permanent, "morph");
     const state = makeState({
         players: [
             makePlayer("p1", {

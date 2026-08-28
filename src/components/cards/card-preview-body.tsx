@@ -17,9 +17,17 @@ export type CardPreviewBodyProps = PreviewBodyContent & {
     size: "sm" | "md";
     onImageLoaded?: () => void;
     imageLoaded?: boolean;
-    /** Printed original identity of a copy permanent (from `copiedFrom`). When
-     *  present the preview renders two labeled faces (Current + Original). */
+    /** The SECOND face's content, when this object has one. Two producers, one
+     *  composition (issue #2904): the printed identity of a copy permanent
+     *  (`copiedFrom`, CR 707.2), or the real card behind a face-down object for
+     *  a viewer entitled to look at it (CR 708.5 / CR 406.3). Null → one face. */
     originalBody?: PreviewBodyContent | null;
+    /** Labels over the two faces. Default to the copy treatment's
+     *  Current / Original; a face-down object passes its own pair, because
+     *  "Current" would claim the anonymous face is this card's live identity
+     *  when it is the whole card the viewer is being shown instead of it. */
+    primaryFaceLabel?: string;
+    secondaryFaceLabel?: string;
     /** Render a `Copy` badge on the single face (spell copy on the stack). */
     showCopyBadge?: boolean;
     /** Forwarded to `CardPreviewFace` — the desktop lateral zoom
@@ -38,6 +46,8 @@ export default function CardPreviewBody({
     originalBody,
     showCopyBadge,
     compactEngineView,
+    primaryFaceLabel = "Current",
+    secondaryFaceLabel = "Original",
     ...content
 }: CardPreviewBodyProps) {
     // Seeded from the user's saved Settings default (issue #2595,
@@ -63,7 +73,7 @@ export default function CardPreviewBody({
         return (
             <div className="flex w-full items-stretch">
                 <div className="flex flex-1 min-w-0 flex-col border-r border-border-subtle">
-                    <div className={LABEL_CLASS}>Current</div>
+                    <div className={LABEL_CLASS}>{primaryFaceLabel}</div>
                     <CardPreviewFace
                         {...content}
                         size={size}
@@ -73,7 +83,7 @@ export default function CardPreviewBody({
                     />
                 </div>
                 <div className="flex flex-1 min-w-0 flex-col">
-                    <div className={LABEL_CLASS}>Original</div>
+                    <div className={LABEL_CLASS}>{secondaryFaceLabel}</div>
                     <CardPreviewFace
                         {...originalBody}
                         size={size}

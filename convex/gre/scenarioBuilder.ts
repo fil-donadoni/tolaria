@@ -324,7 +324,14 @@ export function buildStateFromScenario(
                         entry.damageMarked;
                 }
                 if (entry.faceDown) {
-                    turnFaceDown(instance as CardInstanceState);
+                    // issue #2904 — the scenario spec says "face down", not
+                    // WHICH mechanic did it. `morph` (CR 702.37) is the only
+                    // shipped keyword that makes a face-down permanent, so a
+                    // staged one stands in for a morph; the producer is
+                    // display-only (it picks the rendered face) and changes no
+                    // rules read, so a mismatch with the staged card's own
+                    // printed text costs nothing.
+                    turnFaceDown(instance as CardInstanceState, "morph");
                 }
                 // Canonicalize the loyalty counter key and seed a
                 // planeswalker's printed starting loyalty (CR 306.5b) — this

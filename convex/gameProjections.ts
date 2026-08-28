@@ -623,8 +623,18 @@ function projectExileCard(
     // No knowledge stamped → ordinary face-up exile, public to all.
     if (!card.knownTo || card.knownTo.length === 0)
         return decorate(slimCard(card));
-    // Face-down exile: a viewer who is allowed to look sees the real card.
-    if (card.knownTo.includes(viewerId)) return decorate(slimCard(card));
+    // Face-down exile: a viewer who is allowed to look sees the real card —
+    // and, since issue #2904, is TOLD it is face down. CR 406.3 entitles them
+    // to LOOK at the card, which the preview's second face is; it does not
+    // make the pile tile state the identity outright, and until this marker
+    // existed the client had no projected field to branch on at all (it would
+    // have had to infer face-down-ness from the ABSENCE of the sentinel id —
+    // exactly the caller's-guess shape the fix removes). `faceDown` is the
+    // same marker the battlefield leg already carries; the exile instance
+    // never sets it in raw state (CR 406.3 hides a CARD, it does not make a
+    // 2/2 permanent), so it is added here, on the wire, for both viewers.
+    if (card.knownTo.includes(viewerId))
+        return decorate({ ...slimCard(card), faceDown: true });
     // Everyone else sees a face-down card with the identity hidden — but still
     // pinned to its permanent (the association is public; the identity is not).
     // issue #2092 — characteristics live on the INSTANCE, not the definition
@@ -644,6 +654,11 @@ function projectExileCard(
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
     delete (slimmed as { power?: number }).power;
     delete (slimmed as { toughness?: number }).toughness;
+    // issue #2904 — the same explicit marker the entitled leg gets, so ONE
+    // client predicate covers both viewers. `faceDownBy` (which mechanic hid
+    // it) rides through `slimCard` for both: it names the MECHANIC, never the
+    // card, so it leaks nothing an opponent watching the exile did not see.
+    slimmed.faceDown = true;
     return opts?.exiledByPermanentId !== undefined
         ? { ...slimmed, exiledByPermanentId: opts.exiledByPermanentId }
         : slimmed;

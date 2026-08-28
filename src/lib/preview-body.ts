@@ -1,4 +1,4 @@
-import { tryGetDefinition } from "@convex/cards";
+import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
@@ -23,6 +23,7 @@ import {
     hasMilestoneWord,
     type Milestone,
 } from "~/lib/graveyard-milestones";
+import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Player } from "~/types/game";
 import type {
     CardDefinition,
@@ -428,6 +429,85 @@ export function buildPreviewBody(
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
         engineView: def ? computeEngineViewBadge(def) : null,
+    };
+}
+
+/**
+ * The PRIMARY preview face of a face-down object (issue #2904) — the object as
+ * it honestly is, never the real card with its text crossed out.
+ *
+ * Before this, the current face was built from the identification id merged
+ * with the face-down instance, which produced a chimera: the real card's name,
+ * art and mana pips, over the real card's printed abilities rendered
+ * STRUCK-THROUGH — because the instance carries the CR 708.2a vanilla
+ * characteristics, so the ability differ marked every printed ability as lost.
+ * A face-down permanent has no name, no mana cost and no text at all; text
+ * that is merely crossed out states a different rules object.
+ *
+ * Two shapes, because the rules give them different characteristics:
+ *  - a face-down PERMANENT (CR 708.2a): a 2/2 Creature, and the live instance
+ *    is genuinely that object — so its counters, layer effects and granted
+ *    abilities (CR 611/613) ride along on top.
+ *  - a face-down EXILED CARD (CR 406.3a, "A card exiled face down has no
+ *    characteristics"): no type line beyond "Card", no P/T, no instance at
+ *    all — its stored `types`/`power`/… are the REAL card's, kept in state for
+ *    the entitled viewer, and folding them in here would state the identity.
+ *
+ * `face` is the producer-keyed art (`~/lib/face-down.ts`). `printedImageSrc`
+ * is deliberately null: the Live text / Printed card toggle would otherwise
+ * offer the real printed scan, which is the whole leak.
+ */
+export function buildFaceDownPreviewBody(
+    face: FaceDownFace,
+    cardInstance?: CardInstance,
+    gameCtx?: PreviewGameCtx | null
+): PreviewBodyContent {
+    const isPermanent =
+        !!cardInstance &&
+        cardInstance.faceDown === true &&
+        cardInstance.zone === "battlefield";
+    const base = buildPreviewBody(
+        FACE_DOWN_CARD_ID,
+        isPermanent ? cardInstance : undefined,
+        isPermanent ? gameCtx : undefined
+    );
+    const imageSrc =
+        face.kind === "print" ? getArtImageUrl(face.imagePrintId) : face.src;
+    const imageFallbackSrc =
+        face.kind === "print"
+            ? getArtCropImageUrl(face.imagePrintId)
+            : face.src;
+    const anonymous: PreviewBodyContent = {
+        ...base,
+        imageSrc,
+        imageFallbackSrc,
+        printedImageSrc: null,
+        manaCost: null,
+        oracleParagraphs: null,
+        milestones: null,
+        // The Engine View badge is a claim about how the engine reads a card's
+        // effect; the sentinel's is not the hidden card's, so say nothing.
+        engineView: null,
+    };
+    if (isPermanent) return anonymous;
+    return {
+        ...anonymous,
+        cardName: "Face-down card",
+        displayName: "Face-down card",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        typeLine: "Card",
+        bodyAbilities: { keywords: [], activated: [], triggered: [] },
+        hasBody: false,
+        hasPT: false,
+        effPower: undefined,
+        effToughness: undefined,
+        basePower: undefined,
+        baseToughness: undefined,
+        ptModified: false,
+        counterDisplays: [],
+        ownerName: null,
     };
 }
 

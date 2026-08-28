@@ -3883,7 +3883,7 @@ export function tryAutoCommitPendingCast(
     // the {3} is almost never already floating. Turned down BEFORE the push and
     // before `emitSpellCastEvent` below, so no viewer and no cast trigger ever
     // observes the face-up card on the stack.
-    if (state.pendingCast.morphed) turnFaceDown(stackItem);
+    if (state.pendingCast.morphed) turnFaceDown(stackItem, "morph");
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -8756,7 +8756,7 @@ export const announceCast = mutation({
             // with no name — which is what the spell IS at that moment — and so
             // the projection can never observe a face-up morph spell on the
             // stack even for one intermediate state.
-            if (isMorphCost) turnFaceDown(stackItem);
+            if (isMorphCost) turnFaceDown(stackItem, "morph");
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);

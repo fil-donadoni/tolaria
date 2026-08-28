@@ -909,7 +909,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary);
+        turnFaceDown(legendary, "morph");
         const karakasInstance = makeInstance(karakas.id, {
             id: "karakas-1",
             controllerId: "p2",
@@ -1040,7 +1040,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary);
+        turnFaceDown(legendary, "morph");
         turnFaceUp(legendary);
         const req: TargetRequirement = {
             type: "Creature",
@@ -1096,7 +1096,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(norrittCard);
+        turnFaceDown(norrittCard, "morph");
         const state = makeState({
             players: [
                 makeServerPlayer("p1", { battlefield: [norrittCard] }),
@@ -1159,7 +1159,7 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary);
+        turnFaceDown(legendary, "morph");
         const state = makeState({
             players: [
                 makeServerPlayer("p1", { battlefield: [legendary] }),

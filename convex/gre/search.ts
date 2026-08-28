@@ -994,7 +994,7 @@ export function applyMoveInSearch(
                     move.alternativeCostId
                 )
             ) {
-                turnFaceDown(stackItem);
+                turnFaceDown(stackItem, "morph");
             }
             state.stack.push(stackItem);
             // CR 117: the caster gets priority but auto-passes it (no Ctrl), so

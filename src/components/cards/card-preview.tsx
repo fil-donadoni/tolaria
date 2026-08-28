@@ -4,7 +4,17 @@ import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import { useRightPressPreview } from "~/hooks/useRightPressPreview";
 import type { CardInstance } from "~/types/game";
-import { buildPreviewBody, type PreviewBodyContent } from "~/lib/preview-body";
+import {
+    buildFaceDownPreviewBody,
+    buildPreviewBody,
+    type PreviewBodyContent,
+} from "~/lib/preview-body";
+import {
+    faceDownProducer,
+    faceDownRealCardId,
+    isFaceDownCard,
+    resolveFaceDownFace,
+} from "~/lib/face-down";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
@@ -360,19 +370,52 @@ export default function CardPreview({
         longPress.dismiss();
     }, [longPress]);
 
+    // A FACE-DOWN object (CR 708.2 permanent/spell, CR 406.3 exiled card)
+    // takes the copy treatment, generalized (issue #2904): the face-down
+    // object itself is the primary face and the real card — if this viewer is
+    // entitled to look at it — is the second one beside it. `faceDownRealCardId`
+    // returns undefined for every non-entitled viewer, because the wire never
+    // carried them the real id, so the second face simply does not exist for
+    // them and no branch here has to remember to hide it.
+    const faceDownFace = cardInstance
+        ? isFaceDownCard(cardInstance)
+            ? resolveFaceDownFace(faceDownProducer(cardInstance))
+            : null
+        : null;
+    const faceDownRealId = cardInstance
+        ? faceDownRealCardId(cardInstance)
+        : undefined;
+
     // Current (presented) face — identical to the pre-refactor behavior:
     // effective P/T, counters, color override, owner, granted abilities. A
     // `bodyOverride` (emblem, issue #1221) short-circuits the registry-driven
     // build since the object has no CardDefinition.
     const currentBody =
         bodyOverride ??
-        buildPreviewBody(cardId, cardInstance, gameCtx, cardName);
-    // Original (printed) face — only for a copy permanent (CR 707.2). Built
-    // from the preserved printed id with NO instance/context, so it is the
-    // pure printed identity (name, art, type line, oracle, printed P/T).
-    const originalBody = cardInstance?.copiedFrom
-        ? buildPreviewBody(cardInstance.copiedFrom)
+        (faceDownFace
+            ? buildFaceDownPreviewBody(faceDownFace, cardInstance, gameCtx)
+            : buildPreviewBody(cardId, cardInstance, gameCtx, cardName));
+    // Second face — the pure PRINTED identity, built from a definition id with
+    // NO instance and no game context, so every live override falls back to the
+    // printed card. Two producers, one composition:
+    //  - a copy permanent (CR 707.2): the copied card's printed identity;
+    //  - a face-down object the viewer may look at (CR 708.5 / CR 406.3): the
+    //    real card underneath.
+    // A face-down COPY is not a contradiction the UI has to resolve: the
+    // face-down face wins, because while the permanent is face down its
+    // copiable values are the CR 708.2a vanilla ones and the copied identity
+    // is exactly as hidden as the printed one.
+    const secondaryDefId = faceDownFace
+        ? faceDownRealId
+        : cardInstance?.copiedFrom;
+    const originalBody = secondaryDefId
+        ? buildPreviewBody(secondaryDefId)
         : null;
+    // CR 708.5 / CR 406.3 — "Current"/"Original" is the COPY treatment's
+    // wording and would misdescribe these two: the primary face is not this
+    // permanent's current identity, it is the absence of one.
+    const primaryFaceLabel = faceDownFace ? "Face down" : undefined;
+    const secondaryFaceLabel = faceDownFace ? "Actual card" : undefined;
     const imageSrc = currentBody.imageSrc;
     // Two faces double the surface width; keep the mobile overlay clamped by
     // its max-w so it never exceeds the viewport.
@@ -437,6 +480,8 @@ export default function CardPreview({
                             <CardPreviewBody
                                 {...currentBody}
                                 originalBody={originalBody}
+                                primaryFaceLabel={primaryFaceLabel}
+                                secondaryFaceLabel={secondaryFaceLabel}
                                 showCopyBadge={showCopyBadge}
                                 size="md"
                             />
@@ -450,6 +495,8 @@ export default function CardPreview({
                 <CardPreviewDock
                     {...currentBody}
                     originalBody={originalBody}
+                    primaryFaceLabel={primaryFaceLabel}
+                    secondaryFaceLabel={secondaryFaceLabel}
                     showCopyBadge={showCopyBadge}
                     size="md"
                     imageLoaded={imageSrc ? imgLoaded : true}
@@ -468,6 +515,8 @@ export default function CardPreview({
                 <CardPreviewAnchored
                     {...currentBody}
                     originalBody={originalBody}
+                    primaryFaceLabel={primaryFaceLabel}
+                    secondaryFaceLabel={secondaryFaceLabel}
                     showCopyBadge={showCopyBadge}
                     size="sm"
                     imageLoaded={imageSrc ? imgLoaded : true}

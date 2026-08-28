@@ -5,6 +5,7 @@ import type { TargetSelection } from "@convex/cards/types";
 
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
+import type { FaceDownProducer } from "@convex/gre/faceDown";
 import type {
     PublicGrantedAbility,
     SlimCompanionSlot,
@@ -442,11 +443,23 @@ export interface CardInstance {
      *  client mirror of `controlledSinceTurnStart` so the sacrifice picker
      *  highlights exactly the permanents the server will accept. */
     enteredOnTurn?: number;
-    /** CR 708.2 / ADR 0013 — this permanent (or stack item) is FACE DOWN: a
-     *  2/2 colourless nameless vanilla creature whatever the real card is. Its
-     *  `card.id` is the `FACE_DOWN_CARD_ID` sentinel, which is what makes
-     *  `CardImage` render a card back. Mirrors `CardInstanceState.faceDown`. */
+    /** CR 708.2 / ADR 0013 — this object is FACE DOWN. On the battlefield and
+     *  the stack that means a 2/2 colourless nameless vanilla creature whatever
+     *  the real card is, with `card.id` swapped to the `FACE_DOWN_CARD_ID`
+     *  sentinel (mirrors `CardInstanceState.faceDown`). In EXILE (CR 406.3) it
+     *  is projection-only, added by `projectExileCard` for BOTH viewers (issue
+     *  #2904): the entitled viewer's exile card keeps its REAL `card.id` —
+     *  they may cast it, so the client needs the real cost — and this flag is
+     *  what tells the renderer to show a face-down face anyway.
+     *
+     *  This flag, NOT the sentinel id, is the client's face-down predicate
+     *  (`isFaceDownCard`, `~/lib/face-down.ts`). */
     faceDown?: boolean;
+    /** CR 708.2 / CR 406.3 (issue #2904) — WHICH mechanic put this object face
+     *  down (`FaceDownProducer`, `convex/gre/faceDown.ts`). Public information
+     *  and the ONLY input to the rendered face-down face, so the face never
+     *  depends on the hidden card. Absent → the generic card back. */
+    faceDownBy?: FaceDownProducer;
     /** CR 708.2 — the REAL definition id behind a face-down object. Present
      *  ONLY in the controller's / caster's own projection: `projectBattlefieldCard`
      *  and `projectStackItem` (`convex/gameProjections.ts`) keep it (pre-existing

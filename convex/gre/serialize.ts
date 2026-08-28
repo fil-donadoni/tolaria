@@ -43,6 +43,7 @@ import type {
     StackItem,
 } from "./state";
 import type { Zone } from "./types";
+import type { FaceDownProducer } from "./faceDown";
 import type {
     CardType,
     ManaCost,
@@ -218,6 +219,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "exileOnLeave",
     "exiledBySourceId",
     "faceDown",
+    "faceDownBy",
     "faceDownOf",
     "grantedActivatedAbilities",
     "grantedColors",
@@ -517,6 +519,7 @@ function compactCard(
     if (card.chosenSubtypes?.length) out.chosenSubtypes = card.chosenSubtypes;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
+    if (card.faceDownBy) out.faceDownBy = card.faceDownBy;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
     // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
     // face's own definition id, so a later flip back can restore it. Public
@@ -953,6 +956,9 @@ function expandCard(
     }
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
+    if (compact.faceDownBy) {
+        result.faceDownBy = compact.faceDownBy as FaceDownProducer;
+    }
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
     if (compact.transformed) result.transformed = true;
     if (compact.transformedFrom) {

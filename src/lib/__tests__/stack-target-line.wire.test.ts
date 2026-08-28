@@ -33,7 +33,7 @@ function stateWithBoltOnFaceDownDjinn() {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(djinn);
+    turnFaceDown(djinn, "morph");
     const state = makeState({
         players: [makePlayer("p1", { battlefield: [djinn] }), makePlayer("p2")],
     });
