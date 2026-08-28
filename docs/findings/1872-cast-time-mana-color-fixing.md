@@ -17,8 +17,8 @@ confidence: high
 > consumer.** `isManaCostCovered` (`state.ts:21838`), `payManaCost` →
 > `payColoredRequirements` → `payHybridPips` → `assignHybridPips`
 > (`state.ts:20773-20833`) and `solveAutoTap` / `solveAutoTapPartial` (e.g.
-> `game.ts:1248`) **all already take and honour `substitutions:
-ManaSubstitution[]`**. The draft's observation that `payColoredRequirements`
+> `game.ts:1248`) **all already take and honour a `substitutions` argument of
+> exactly this type.** The draft's observation that `payColoredRequirements`
 > has "no wildcard branch" is true but not the obstacle it looked like: a
 > wildcard is unnecessary, because "as though any colour/type" is simply a SET
 > of concrete `{from, to}` pairs.
