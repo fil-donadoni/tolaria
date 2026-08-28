@@ -181,4 +181,33 @@ describe("attacksTrigger (CR 508.1m / 109.2)", () => {
             attackerIds: ["self", "other"],
         });
     });
+
+    it("passes an announced target requirement through (CR 603.3d)", () => {
+        const ability = attacksTrigger({
+            id: "t",
+            oracleText: "o",
+            scope: "self",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [],
+        });
+        expect(ability.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        // Omitted stays omitted — an untargeted attack trigger must not grow
+        // an empty requirement the announcement path would then honour.
+        expect(build("self").targetRequirement).toBeUndefined();
+    });
+
+    it("passes the per-turn trigger cap through (CR 603.2)", () => {
+        const ability = attacksTrigger({
+            id: "t",
+            oracleText: "o",
+            scope: "self",
+            maxTriggersPerTurn: 1,
+            effects: [],
+        });
+        expect(ability.maxTriggersPerTurn).toBe(1);
+        expect(build("self").maxTriggersPerTurn).toBeUndefined();
+    });
 });

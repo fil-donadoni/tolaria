@@ -34,6 +34,7 @@ import type {
     GameEvent,
     PermanentView,
     SpellContext,
+    TargetRequirement,
     TriggeredAbility,
     TriggerStateView,
 } from "../../types";
@@ -84,6 +85,18 @@ export interface AttacksTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** CR 603.3d — targets this attack trigger announces as it is PUT ON THE
+     *  STACK ("whenever this creature attacks, untap target creature"). Passed
+     *  through verbatim to the built ability, where
+     *  `raiseTriggerTargetSelection` (`gre/rules.ts`) drives the choice; the
+     *  script reads the announced slot as `{ target: 0 }`. */
+    targetRequirement?: TargetRequirement;
+    /** CR 603.2 per-turn TRIGGER cap — "for the first time each turn" /
+     *  "triggers only once each turn". Passed through verbatim; the tally is
+     *  kept per source object on `CardInstanceState.triggersThisTurn` and reset
+     *  at the turn boundary, so a cap of 1 is NOT spent again by a SECOND
+     *  combat phase in the same turn (CR 500.8). */
+    maxTriggersPerTurn?: number;
     /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
      *  interpreter with the source's controller and `$source` bound. The
      *  declaration payload is NOT reachable from the script, so an effect that
@@ -135,6 +148,12 @@ export function attacksTrigger(args: AttacksTriggerArgs): TriggeredAbility {
         id: args.id,
         oracleText: args.oracleText,
         event: "ATTACKERS_DECLARED",
+        ...(args.targetRequirement
+            ? { targetRequirement: args.targetRequirement }
+            : {}),
+        ...(args.maxTriggersPerTurn !== undefined
+            ? { maxTriggersPerTurn: args.maxTriggersPerTurn }
+            : {}),
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "ATTACKERS_DECLARED") return false;
             if (matched(event, self).length === 0) return false;
