@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
     advancePhase,
     drainAutoPasses,
+    finalizeCleanup,
     isSorceryTiming,
     applyAllCombatDamage,
     effectiveMaxHandSize,
@@ -2996,8 +2997,20 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         const state = makeGameState({ phase: "PRECOMBAT_MAIN" });
         (state as Record<string, unknown>)[key] = structuredClone(value);
 
-        // Turn 1's cleanup step is the only boundary that may clear it.
-        walkUntil(state, (s) => s.turn === 2);
+        // Walk to the LAST priority phase of the turn: every earlier boundary
+        // tick (END_OF_COMBAT here; UNTAP/UPKEEP are behind us) has run and
+        // must have left the flag alone.
+        walkUntil(state, (s) => s.phase === "END_STEP");
+        expect((state as Record<string, unknown>)[key]).toEqual(value);
+
+        // Then the CLEANUP boundary alone, via the real `finalizeCleanup`.
+        // Attributing the clear to CLEANUP needs the boundary in ISOLATION: a
+        // walk to `turn === 2` lands on turn 2's UPKEEP, past two further
+        // `tickAllDurations` ticks, and so would stay green if someone
+        // re-added an UNTAP/UPKEEP-side clear — the very distinction #1864 is
+        // about.
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
 
         expect((state as Record<string, unknown>)[key]).toBeUndefined();
     });
@@ -3021,10 +3034,15 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
 
         it("tickAllDurations has no bespoke global-flag clear left", () => {
             expect(body).not.toBe("");
-            const bespoke = body
-                .split("\n")
-                .filter((l) => /^\s*state\.[A-Za-z]+ = undefined;\s*$/.test(l));
-            expect(bespoke).toEqual([]);
+            // Comments stripped and whitespace collapsed FIRST, so the check
+            // is not fooled by a trailing comment, by an `if (...) state.x =
+            // undefined;` one-liner, or by the two-line form prettier
+            // produces for a long key. The table's own write is
+            // `(state as Record<...>)[flag] = undefined`, which this pattern
+            // deliberately does not match.
+            const flat = body.replace(/\/\/[^\n]*/g, " ").replace(/\s+/g, " ");
+            const bespoke = flat.match(/state\.[A-Za-z]+ = undefined/g);
+            expect(bespoke).toBeNull();
         });
 
         it("every table entry has a case above", () => {

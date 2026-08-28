@@ -2684,10 +2684,13 @@ export function finalizeCleanup(state: GameState): void {
     state.cleanupBookkeepingTurn = state.turn;
 }
 
-/** The `GameState` keys that may hold `undefined` — i.e. the optional fields.
- *  Used to constrain {@link TURN_SCOPED_GLOBAL_FLAGS} so a key that is NOT
- *  optional cannot be listed there (clearing it would be a type error rather
- *  than a runtime hole), and to justify the one cast in the clearing loop. */
+/** The `GameState` keys whose value type admits `undefined` — every optional
+ *  field, plus any required field explicitly declared `T | undefined`.
+ *  Constrains {@link TURN_SCOPED_GLOBAL_FLAGS} so a key that CANNOT hold
+ *  `undefined` is a compile error there rather than a runtime hole, and
+ *  justifies the one cast in the clearing loop. The guarantee it buys is
+ *  precisely "writing `undefined` to this key is type-legal" — not "this key
+ *  is optional". */
 type OptionalGameStateKey = {
     [K in keyof GameState]-?: undefined extends GameState[K] ? K : never;
 }[keyof GameState];
@@ -2699,9 +2702,10 @@ type OptionalGameStateKey = {
  *
  *  This is a table rather than N hand-written `if`s because the gate is a
  *  CLASS invariant, not a per-flag choice, and writing it per flag is exactly
- *  how it drifted (issue #1864). `tickAllDurations` also runs from
- *  `endCombatStep` (CR 511.3) — once per combat phase, on EVERY turn, because
- *  `skipEmptyCombat` auto-advances THROUGH the step, which still exits it. A
+ *  how it drifted (issue #1864). `tickAllDurations` runs at FOUR boundaries
+ *  (UNTAP, UPKEEP, CLEANUP and — the one that bites — `endCombatStep`, CR
+ *  511.3: once per combat phase, on EVERY turn, because `skipEmptyCombat`
+ *  auto-advances THROUGH the step, which still exits it). A
  *  flag cleared unconditionally there is gone before the postcombat main phase
  *  of the same turn, and gone before a second combat phase (CR 500.8). Eight
  *  of the entries below were written that way; four were live bugs whose
@@ -2730,8 +2734,10 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 614.6 / 514.2 — Kjeldoran Royal Guard redirects unblocked combat
     // damage "this turn", which spans every combat phase of that turn.
     "combatDamageRedirectToPermanent",
-    // CR 601.3a / 514.2 (issue #1057) — Xantid Swarm's per-player "can't cast
-    // spells this turn" lock. The defending player still can't cast during the
+    // CR 601.3 / 514.2 (issue #1057) — Xantid Swarm's per-player "can't cast
+    // spells this turn" lock ("no rule or effect prohibits that player from
+    // casting it" — 601.3a is the clause that LIFTS a prohibition, not the one
+    // that imposes it). The defending player still can't cast during the
     // postcombat main phase.
     "cannotCastSpellsThisTurn",
     // CR 602.1 / 605.1a / 514.2 (issue #1124) — Abeyance's per-player "can't
@@ -2744,9 +2750,12 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 601 / 514.2 (issue #1149) — Yawgmoth's Will's "you may play lands and
     // cast spells from your graveyard this turn" permission.
     "graveyardPlayPermissionThisTurn",
-    // CR 702.139 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
+    // CR 601.3 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
     // once-per-turn usage tally for the STATIC graveyard-permanent-cast
-    // permission ("once during each of your turns").
+    // permission ("once during each of your turns"). 601.3 is the anchor
+    // because the flag records how much of a CASTING PERMISSION has been
+    // used; Lurrus's graveyard clause is a printed static ability, NOT its
+    // companion ability, so CR 702.139 (Companion) does not apply.
     "graveyardPermanentCastUsedThisTurn",
     // CR 603.7a / 514.2 — Gaze of Pain's floating "until end of turn" rider,
     // which fires on `ATTACKER_UNBLOCKED`: it must survive END_OF_COMBAT to
@@ -2770,8 +2779,9 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // requirement applies "during each declare attackers step in that turn",
     // so this must survive END_OF_COMBAT.
     "allCreaturesMustAttack",
-    // CR 122 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
-    // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub).
+    // CR 608.2 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
+    // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub),
+    // incremented once per RESOLUTION (608.2) of a triggered ability (603.3).
     "abilityResolutionCounts",
     // CR 504.1 / 514.2 (issue #1097, Elfhame Sanctuary) — a one-shot draw-step
     // skip is normally consumed by `drawStep` earlier the same turn; the
@@ -2779,10 +2789,22 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // draw step never runs and the flag must not survive into a later turn.
     "skipDrawStepThisTurn",
 ] as const satisfies readonly OptionalGameStateKey[];
+
 /** Advances all parametric durations on the current game state by one
- *  phase-boundary tick. Called from END_OF_COMBAT (CR 511.3) and CLEANUP
- *  (CR 514.2); `tickDuration` itself filters by phase+playerId so entries
- *  scoped to a different boundary are left untouched. */
+ *  phase-boundary tick.
+ *
+ *  **FOUR call sites, not two** — under-counting them is what produced the
+ *  #1864 flag class. `performPhaseEntry`'s UNTAP and UPKEEP cases (CR 502.1 /
+ *  500.2, once per turn), `finalizeCleanup` (CR 514.2), and `endCombatStep`
+ *  (CR 511.3) — the last running on EVERY turn's END_OF_COMBAT exit, with or
+ *  without attackers, because `skipEmptyCombat` auto-advances THROUGH the step
+ *  and still exits it. Anything cleared here unconditionally is therefore gone
+ *  before the postcombat main phase of the same turn.
+ *
+ *  `tickDuration` filters parametric durations by phase+playerId, so entries
+ *  scoped to a different boundary are left untouched. The turn-scoped GLOBAL
+ *  flags carry no such parameter and are gated as a class — see
+ *  {@link TURN_SCOPED_GLOBAL_FLAGS}. */
 function tickAllDurations(state: GameState): void {
     const view: DurationTickView = {
         phase: state.phase,

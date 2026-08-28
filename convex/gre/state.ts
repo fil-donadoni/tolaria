@@ -1922,7 +1922,7 @@ export type StackItem = CardInstanceState & {
     sourceLki?: CardInstanceState;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
-    /** CR 122 / 603.3 (issue #1189) — set the FIRST time this triggered
+    /** CR 608.2 / 603.3 (issue #1189) — set the FIRST time this triggered
      *  ability's resolution has tallied `GameState.abilityResolutionCounts`
      *  (`recordAbilityResolution`, `resolveTopOfStackInner`). A dedicated
      *  per-item guard rather than reusing `resolutionStep`: `resolutionStep`
@@ -4074,7 +4074,7 @@ export type GameState = {
      *  pre-application funnel every damage sink calls — so a new damage path
      *  cannot silently miss it. Cleared at CLEANUP (CR 514.2). */
     sourcePreventionShields?: SourceDamagePreventionShield[];
-    /** CR 601.3a / 514.2 — players under a turn-scoped "can't cast spells this
+    /** CR 601.3 / 514.2 — players under a turn-scoped "can't cast spells this
      *  turn" restriction (Xantid Swarm's attack trigger locks the defending
      *  player; Abeyance narrows it to instant/sorcery only via `cardTypes`).
      *  Enforced by the shared cast gate `castProhibitionReason` (read by both
@@ -4133,8 +4133,10 @@ export type GameState = {
         zones: Array<"land" | "spell">;
         maxManaValue?: number;
     }[];
-    /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — per-player
+    /** CR 601.3 (issue #1392, Lurrus of the Dream-Den) — per-player
      *  once-per-turn usage tracking for the STATIC, battlefield-derived
+     *  CASTING PERMISSION. Not CR 702.139 (Companion): the graveyard clause is
+     *  a separate printed static ability, not part of the keyword.
      *  graveyard-permanent-cast permission (`CardDefinition
      *  .castsPermanentsFromGraveyard`). Contains the ids of players who have
      *  already used such a permission this turn — checked by
@@ -4206,11 +4208,16 @@ export type GameState = {
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
      *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
-    /** Player whose creatures must all attack this combat if able (CR 508.1d,
-     *  Siren's Call). Checked in `getRequiredAttackerIds` alongside the
-     *  per-creature `mustAttackThisTurn`. Cleared at CLEANUP. */
+    /** Player whose creatures must all attack THIS TURN if able (CR 508.1d,
+     *  Siren's Call: "Creatures the active player controls attack this turn if
+     *  able"). Turn-scoped, not combat-scoped — 508.1d is explicit that "if a
+     *  requirement that says a creature attacks if able during a certain turn
+     *  refers to a turn with multiple combat phases, the creature attacks if
+     *  able during each declare attackers step in that turn". Checked in
+     *  `getRequiredAttackerIds` alongside the per-creature
+     *  `mustAttackThisTurn`. Cleared at CLEANUP (issue #1864). */
     allCreaturesMustAttack?: string;
-    /** CR 122 / 603.3 (issue #1189) — per-source, per-turn tally of how many
+    /** CR 608.2 / 603.3 (issue #1189) — per-source, per-turn tally of how many
      *  times a triggered ability has RESOLVED this turn, keyed by
      *  `${triggerSourceId}:${triggeredAbilityId}` (a triggered ability firing
      *  off a DIFFERENT source, or a DIFFERENT ability on the SAME source, each
@@ -4882,7 +4889,7 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
     return result;
 }
 
-/** CR 122 / 603.3 (issue #1189) — records that a triggered ability just
+/** CR 608.2 / 603.3 (issue #1189) — records that a triggered ability just
  *  resolved, incrementing its per-source per-turn tally BEFORE its effect
  *  runs (called from `resolveTopOfStackInner`), so "the Nth time this
  *  ability has resolved this turn" (Omnath, Locus of Creation; Scythecat
@@ -5856,7 +5863,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return top;
                 }
             }
-            // CR 122 / 603.3 (issue #1189) — tally this resolution BEFORE the
+            // CR 608.2 / 603.3 (issue #1189) — tally this resolution BEFORE the
             // effect runs, exactly once per resolution (guarded by the
             // dedicated `abilityResolutionRecorded` flag, NOT `resolutionStep`
             // — a plain imperative `resolve()` ability that suspends via a
@@ -15721,7 +15728,7 @@ export function buildSpellContext(
         hasCityBlessing(playerId: string): boolean {
             return hasCityBlessing(state, playerId);
         },
-        // CR 122 / 603.3 (issue #1189) — how many times the CURRENTLY
+        // CR 608.2 / 603.3 (issue #1189) — how many times the CURRENTLY
         // RESOLVING triggered ability has resolved this turn, counting this
         // resolution. Keyed by (triggerSourceId, triggeredAbilityId); 0 when
         // the resolving item isn't a triggered ability (no key to read) or
