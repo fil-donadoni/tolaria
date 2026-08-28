@@ -785,6 +785,10 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "attachedTo",
     "attackedDuringLastTurn",
     "faceDown",
+    // Rebuild BEHAVIOUR: `buildStateFromScenario` restamps it by calling
+    // `turnFaceDown` for a `faceDown` entry (issue #2904), so it is never
+    // spec-keyed data and never dropped.
+    "faceDownBy",
     "faceDownOf",
     "copiedFrom",
     "castableFromExileBy",

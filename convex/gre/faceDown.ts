@@ -30,10 +30,12 @@ import type { CardInstanceState } from "./state";
  *
  * One row per mechanic, never a branch: `FACE_BY_PRODUCER`
  * (`src/lib/face-down.ts`) is a total `Record` over this union, so adding a
- * producer here fails the type-check until it also declares its face. Manifest
- * (CR 701.34), manifest dread and megamorph (CR 702.37b) are registry rows
- * with status `planned` and ship nothing — they earn their member when their
- * mechanic ships, not before.
+ * producer here fails the type-check until it also declares its face. Three
+ * further mechanics are registry rows with status `planned` and ship nothing,
+ * each earning its member when its own mechanic ships, not before:
+ *   - CR 701.40 manifest
+ *   - CR 701.62 manifest dread
+ *   - megamorph, the second half of CR 702.37 morph (its subrule 702.37b)
  */
 export type FaceDownProducer =
     /** CR 702.37a/c — the morph alternative cost: cast as a face-down 2/2. */
