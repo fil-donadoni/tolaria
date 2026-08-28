@@ -37,7 +37,7 @@ describe("useDivideTargets — permanent label for the controller's own face-dow
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(faceDown);
+        turnFaceDown(faceDown, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [faceDown] }),

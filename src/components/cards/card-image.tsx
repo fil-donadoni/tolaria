@@ -7,12 +7,17 @@ import {
     resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
-import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import {
     cardImageSignature,
     getCardImageDefId,
 } from "~/lib/card-image-signature";
+import {
+    faceDownProducer,
+    isFaceDownCard,
+    resolveFaceDownFace,
+} from "~/lib/face-down";
 import CardPreview from "./card-preview";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
@@ -115,12 +120,22 @@ function CardImageImpl({
     // memo-retained component that switches identity re-tries WebP for the new
     // card instead of inheriting the previous card's failure.
     const [jpgFallbackFor, setJpgFallbackFor] = useState<string | null>(null);
-    // A face-down permanent (CR 708.2, ADR 0013) reaches non-controller viewers
-    // as the sentinel id `face-down:2-2-vanilla` (gameProjections hides the real
-    // identity). There is no Scryfall art for the sentinel — render the card
-    // back instead of fetching a 404 URL, and skip CardPreview so hover never
-    // leaks a hidden identity. (After the hook so hook order stays stable.)
-    if (defId === FACE_DOWN_CARD_ID) return <CardBack />;
+    // A face-down object (CR 708.2 permanent/spell, CR 406.3 exiled card)
+    // renders a FACE-DOWN FACE for every viewer, its controller included —
+    // `getCardImageDefId` has already collapsed `defId` to the sentinel, which
+    // has no Scryfall art of its own (issue #2904). WHICH face is a property of
+    // the mechanic that hid it, resolved through the one producer-keyed table
+    // (`~/lib/face-down.ts`); today every censused producer resolves to the
+    // generic card back.
+    //
+    // This is NOT an early return any more: it used to `return <CardBack />`
+    // before the `CardPreview` wrapper below, which left a face-down card the
+    // only card on the board with no hover/hold/pin preview at all. The
+    // affordance is now always present — for a non-entitled viewer it opens on
+    // a single anonymous face, which leaks nothing.
+    const faceDownFace = isFaceDownCard(card)
+        ? resolveFaceDownFace(faceDownProducer(card))
+        : null;
     const def = tryGetDefinition(defId);
     const name = def?.name ?? defId;
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
@@ -131,11 +146,20 @@ function CardImageImpl({
     // presents the copied card's definition, so a definition-keyed lookup would
     // render the creature's own printing — wrong for an Eternalize / Embalm
     // token, which has its own printed token card (a black Zombie frame).
-    const imageId = cardInstance?.imagePrintId ?? resolveCardImageId(defId);
+    //
+    // A face-down face overrides BOTH: the instance's `imagePrintId` is the
+    // hidden card's own printing pin (a token copy's black Zombie frame), which
+    // is exactly the identity that must not paint here.
+    const imageId = faceDownFace
+        ? faceDownFace.kind === "print"
+            ? faceDownFace.imagePrintId
+            : null
+        : (cardInstance?.imagePrintId ?? resolveCardImageId(defId));
     // A transformed permanent's `defId` is swapped to its registered
     // back-face definition (CR 712, `gre/transform.ts`); resolve which
-    // Scryfall CDN face segment that definition renders (issue #1595).
-    const face = resolveCardImageFace(defId);
+    // Scryfall CDN face segment that definition renders (issue #1595). A
+    // face-down face is never a transform back face.
+    const face = faceDownFace ? "front" : resolveCardImageFace(defId);
     return (
         <CardPreview
             cardId={defId}
@@ -148,7 +172,9 @@ function CardImageImpl({
                 className="relative w-full h-full card-corner overflow-hidden"
                 style={promoteLayer ? STABLE_LAYER : CONTAINED_LAYER}
             >
-                {imageId ? (
+                {faceDownFace?.kind === "back" ? (
+                    <CardBack />
+                ) : imageId ? (
                     <img
                         {...(jpgFallbackFor === imageId
                             ? { src: getImageFallbackUrl(imageId, face) }

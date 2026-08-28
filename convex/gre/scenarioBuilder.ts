@@ -294,7 +294,17 @@ export function buildStateFromScenario(
                 // the card known to its controller only via the primitive
                 // (reuses knownTo; opponents see a face-down card).
                 if (entry.faceDownExile) {
-                    exileFaceDownCard(player, instance.id, "exile", player.id);
+                    // The spec knob is literally named `faceDownExile`, so it
+                    // stages the CR 406.3 shape rather than the impulse idiom
+                    // that shares the primitive (issue #2904) — a scenario
+                    // asking for a face-down exile wants to SEE one.
+                    exileFaceDownCard(
+                        player,
+                        instance.id,
+                        "exile",
+                        player.id,
+                        "face-down-exile"
+                    );
                 }
                 // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
                 // from-exile permission so a Play (land) / Cast (spell)
@@ -324,7 +334,14 @@ export function buildStateFromScenario(
                         entry.damageMarked;
                 }
                 if (entry.faceDown) {
-                    turnFaceDown(instance as CardInstanceState);
+                    // issue #2904 — the scenario spec says "face down", not
+                    // WHICH mechanic did it. `morph` (CR 702.37) is the only
+                    // shipped keyword that makes a face-down permanent, so a
+                    // staged one stands in for a morph; the producer is
+                    // display-only (it picks the rendered face) and changes no
+                    // rules read, so a mismatch with the staged card's own
+                    // printed text costs nothing.
+                    turnFaceDown(instance as CardInstanceState, "morph");
                 }
                 // Canonicalize the loyalty counter key and seed a
                 // planeswalker's printed starting loyalty (CR 306.5b) — this
@@ -778,6 +795,10 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "attachedTo",
     "attackedDuringLastTurn",
     "faceDown",
+    // Rebuild BEHAVIOUR: `buildStateFromScenario` restamps it by calling
+    // `turnFaceDown` for a `faceDown` entry (issue #2904), so it is never
+    // spec-keyed data and never dropped.
+    "faceDownBy",
     "faceDownOf",
     "copiedFrom",
     "castableFromExileBy",

@@ -1,3 +1,9 @@
+import { FACE_DOWN_CARD_ID } from "@convex/cards";
+import {
+    faceDownProducer,
+    faceDownRealCardId,
+    isFaceDownCard,
+} from "~/lib/face-down";
 import type { CardInstance } from "~/types/game";
 
 /** A live `CardInstance` or a bare `{ id }` placeholder (hand-back, library
@@ -8,15 +14,23 @@ function isCardInstance(card: CardLike): card is CardInstance {
     return "controllerId" in card;
 }
 
-/** Definition id, regardless of which shape `card` is. Prefers `knownCardId`
- *  (issue #1735) when present: the controller's/caster's own face-down
- *  permanent or stack item carries the real id there ONLY for identification
- *  (art/name) — `card.card.id` itself stays the face-down sentinel for every
- *  viewer, including the controller, so rules reads never see through it.
+/** Definition id whose ART the BOARD FACE renders, regardless of which shape
+ *  `card` is.
+ *
+ *  A FACE-DOWN object resolves to the CR 708.2a sentinel for EVERY viewer, its
+ *  controller included (issue #2904). It used to prefer `knownCardId`, which
+ *  painted the controller's own morph with the real card's Scryfall art —
+ *  visually identical to a face-up copy of the same creature, so its own
+ *  controller could not tell the two apart on their own board. CR 708.5
+ *  entitles that viewer to LOOK at the card, which is what the preview's
+ *  second face is for (`faceDownRealCardId`); it does not make the board face
+ *  state the identity.
+ *
  *  Display-only; never repoint a rules computation at this function. */
 export function getCardImageDefId(card: CardLike): string {
     if (!isCardInstance(card)) return card.id;
-    return card.knownCardId ?? card.card.id;
+    if (isFaceDownCard(card)) return FACE_DOWN_CARD_ID;
+    return card.card.id;
 }
 
 /**
@@ -38,6 +52,17 @@ export function cardImageSignature(card: CardLike): string {
     if (!isCardInstance(card)) return defId;
 
     const parts: string[] = [defId];
+
+    // Face-down identity (issue #2904). `defId` above collapses EVERY
+    // face-down object to the one sentinel, so without these two segments a
+    // memoized CardImage handed a different face-down permanent — or the same
+    // one after its producer changed — would compare equal and never
+    // re-render, and the preview's second face would keep showing the previous
+    // card. Both are display-only reads; neither reaches a rules computation.
+    const realId = faceDownRealCardId(card);
+    if (realId) parts.push(`fd:${realId}`);
+    const producer = faceDownProducer(card);
+    if (producer) parts.push(`fdby:${producer}`);
 
     // Keyword grants/losses (landwalk and every other keyword): the resolved
     // `staticAbilities` array already reflects both, so it covers the diff

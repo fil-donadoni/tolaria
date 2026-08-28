@@ -8,6 +8,7 @@ import type {
 } from "@convex/gre/state";
 import type { CardInstance } from "~/types/game";
 import { getCardImageDefId } from "~/lib/card-image-signature";
+import { faceDownRealCardId } from "~/lib/face-down";
 import { groupBattlefield, type PermanentGroup } from "../battlefield-stacks";
 
 // ---------------------------------------------------------------------------
@@ -213,11 +214,20 @@ describe("groupBattlefield survives the wire projection", () => {
             { key: "fd-2", isStack: false, members: ["fd-2"] },
         ]);
 
-        // And each member's OWN art still resolves to its own real card —
-        // the exact regression the reviewer's probe caught (post-fix,
-        // pre-this-test: one stack, one art id, for both members).
-        const artIds = slimBf.map((c) => getCardImageDefId(c));
-        expect(artIds).toEqual(["mahamoti-djinn", "shivan-dragon"]);
+        // Since issue #2904 the BOARD ART of both is the face-down face — the
+        // identity must not paint, controller or not — so the art id no longer
+        // distinguishes them. The identification affordance still does, and it
+        // is what the preview's second face reads, so the regression the
+        // reviewer's probe caught (one stack, ONE identity, for two different
+        // cards) stays guarded at the level it actually lives on.
+        expect(slimBf.map((c) => getCardImageDefId(c))).toEqual([
+            FACE_DOWN_CARD_ID,
+            FACE_DOWN_CARD_ID,
+        ]);
+        expect(slimBf.map((c) => faceDownRealCardId(c))).toEqual([
+            "mahamoti-djinn",
+            "shivan-dragon",
+        ]);
     });
 
     // Issue #1735 review round 2, finding 2 — regression proof for the

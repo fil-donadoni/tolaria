@@ -71,7 +71,12 @@ export const headlinerScarlett: CardDefinition = {
                     scopedPlayerId,
                     cardId,
                     "library",
-                    scopedPlayerId
+                    scopedPlayerId,
+                    // Oracle: "exile the top card of your library FACE DOWN.
+                    // You may look at and play that card this turn" — the
+                    // look-permission is what the preview's second face is,
+                    // not a face-up pile tile (issue #2904).
+                    "face-down-exile"
                 );
                 // CR 305.9 (issue #1689) — oracle says "you may look at and
                 // PLAY that card this turn", land-inclusive.

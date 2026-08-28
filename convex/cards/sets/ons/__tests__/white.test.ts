@@ -74,7 +74,7 @@ describe("Exalted Angel — whenever it deals damage, gain that much life (CR 12
         // The whole point of the face-down cast: a morph creature is a 2/2
         // vanilla with no abilities, so its own printed trigger cannot fire.
         const { state, angel } = angelBoard();
-        turnFaceDown(angel);
+        turnFaceDown(angel, "morph");
         const triggers = collectTriggers(state, [
             {
                 type: "DAMAGE_DEALT",

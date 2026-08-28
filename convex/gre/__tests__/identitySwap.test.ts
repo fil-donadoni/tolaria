@@ -176,11 +176,11 @@ const SWAP_SITES: {
             revertCopy(card);
         },
     },
-    { name: "turnFaceDown", run: (card) => turnFaceDown(card) },
+    { name: "turnFaceDown", run: (card) => turnFaceDown(card, "morph") },
     {
         name: "turnFaceUp",
         run: (card) => {
-            turnFaceDown(card);
+            turnFaceDown(card, "morph");
             turnFaceUp(card);
         },
     },
@@ -257,7 +257,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             "vigilance"
         );
 
-        turnFaceDown(card);
+        turnFaceDown(card, "morph");
         // CR 708.2 — face down it is a 2/2 vanilla, but the layer-6 grant is
         // not a copiable value and applies over layer 1.
         expect(card.power).toBe(2);
@@ -274,12 +274,12 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
 
     it("turnFaceUp never aliases the shared printed CardDefinition array", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-alias" });
-        turnFaceDown(card);
+        turnFaceDown(card, "morph");
         turnFaceUp(card);
         card.staticAbilities.push("mutated");
         // A second permanent of the same printing must be unaffected.
         const other = makeInstance(SWAP_FRONT_ID, { id: "swap-alias-2" });
-        turnFaceDown(other);
+        turnFaceDown(other, "morph");
         turnFaceUp(other);
         expect(other.staticAbilities).toEqual(["flying"]);
     });

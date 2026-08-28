@@ -1236,6 +1236,46 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         expect(downInExile.knownTo).toEqual(["p1"]); // face-down kept it
     });
 
+    // Issue #2904 — the DISPLAY census. Without it the exile pile has nothing
+    // to key a face-down face on and falls back to the generic one silently.
+    it("stamps the face-down-exile producer, and drops it when the card leaves for a public zone", () => {
+        const card = makeCard({ id: "top", zone: "library" });
+        const player = makePlayer({ id: "p1", library: [card] });
+
+        const exiled = exileFaceDownCard(
+            player,
+            "top",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
+        expect(exiled?.faceDownBy).toBe("face-down-exile");
+
+        // CR 406.3's look-permission ends when the card leaves exile; the
+        // marker that made it render hidden must not outlive it.
+        moveCard(player, "top", "exile", "graveyard");
+        const inGraveyard = player.graveyard.find((c) => c.id === "top")!;
+        expect(inGraveyard.knownTo).toBeUndefined();
+        expect(inGraveyard.faceDownBy).toBeUndefined();
+    });
+
+    // Review finding 5 — the exile->HAND path is the one that mattered and the
+    // one a `knownTo`-keyed clear could never reach: Memory Jar's delayed
+    // trigger returns its face-down exiled cards to hand, and that path
+    // deliberately PRESERVES `knownTo`. The marker rode into the owner's hand
+    // projection and into every save.
+    it("drops the marker on the exile -> HAND return, which preserves knownTo", () => {
+        const card = makeCard({ id: "jarred", zone: "hand" });
+        const player = makePlayer({ id: "p1", hand: [card] });
+
+        exileFaceDownCard(player, "jarred", "hand", "p1", "face-down-exile");
+        expect(player.exile[0].faceDownBy).toBe("face-down-exile");
+
+        moveCard(player, "jarred", "exile", "hand");
+        const returned = player.hand.find((c) => c.id === "jarred")!;
+        expect(returned.faceDownBy).toBeUndefined();
+    });
+
     it("never sets faceDownOf — face-down exile reuses knownTo, not the morph field", () => {
         const card = makeCard({ id: "top", zone: "library" });
         const player = makePlayer({ id: "p1", library: [card] });

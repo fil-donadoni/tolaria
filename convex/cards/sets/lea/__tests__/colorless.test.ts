@@ -4407,7 +4407,7 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
             ownerId: controllerId,
             zone: "battlefield",
         });
-        turnFaceDown(inst);
+        turnFaceDown(inst, "cast-face-down");
         return inst;
     }
 

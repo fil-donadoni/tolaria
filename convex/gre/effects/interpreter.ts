@@ -3564,7 +3564,15 @@ export const OP_EXECUTORS: {
             // exactly the per-viewer gate `projectExileCard` re-derives on the
             // wire: the controller's projection carries the real identity, every
             // other viewer's carries the face-down sentinel.
-            ctx.exileFaceDown(playerId, chosen, "library", playerId);
+            // CR 702.75a hideaway exiles the card FACE DOWN outright, so it
+            // is face down to its controller too — they may LOOK (issue #2904).
+            ctx.exileFaceDown(
+                playerId,
+                chosen,
+                "library",
+                playerId,
+                "face-down-exile"
+            );
             // CR 607 / 702.75a — link the exiled card to THIS permanent so the
             // later "play the exiled card" ability can only ever reach the card
             // this ability exiled.

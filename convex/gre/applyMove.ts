@@ -1051,7 +1051,7 @@ export function applyMoveForSearch(
                     move.alternativeCostId
                 )
             ) {
-                turnFaceDown(stackItem);
+                turnFaceDown(stackItem, "morph");
             }
             // CR 702.109a (issue #1964) — a DASH variant of this move must
             // stamp `dashed: true` on the resulting stack item (which rides

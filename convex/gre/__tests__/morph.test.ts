@@ -80,7 +80,7 @@ function faceDownBoard(lands = 4): {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent);
+    turnFaceDown(permanent, "morph");
     const state = makeState({
         players: [
             makePlayer("p1", { battlefield: [permanent, ...plains(lands)] }),
@@ -225,7 +225,7 @@ describe("morph — the turn-face-up special action (CR 702.37e / 116.2b)", () =
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(bears);
+        turnFaceDown(bears, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bears, ...plains(6)] }),
@@ -386,7 +386,7 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(item);
+        turnFaceDown(item, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -469,7 +469,7 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(morphed);
+        turnFaceDown(morphed, "morph");
         const vc = makeInstance(VILE_CONSUMPTION, {
             id: "vc",
             controllerId: "p1",
@@ -583,7 +583,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel);
+        turnFaceDown(angel, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -651,7 +651,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel);
+        turnFaceDown(angel, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -716,7 +716,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel);
+        turnFaceDown(angel, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -758,7 +758,7 @@ describe("morph — serialization (issue #2705)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(item);
+        turnFaceDown(item, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });

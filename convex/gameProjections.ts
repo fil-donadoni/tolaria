@@ -22,6 +22,7 @@ import {
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
+import { isHiddenFromKnower } from "./gre/faceDown";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -623,8 +624,29 @@ function projectExileCard(
     // No knowledge stamped → ordinary face-up exile, public to all.
     if (!card.knownTo || card.knownTo.length === 0)
         return decorate(slimCard(card));
-    // Face-down exile: a viewer who is allowed to look sees the real card.
-    if (card.knownTo.includes(viewerId)) return decorate(slimCard(card));
+    // A viewer allowed to look sees the real card. Since issue #2904 they are
+    // also TOLD it is face down — but ONLY when it genuinely is face down TO
+    // THEM. `knownTo` on an exiled card is overloaded (ADR 0026): it backs both
+    // the CR 406.3 cards whose oracle says "face down" AND the impulse idiom,
+    // whose paper card lies FACE UP in front of its controller and is routed
+    // through the same primitive purely to hide it from the opponent. Painting
+    // a Ragavan/Laelia exile as a card back to its own controller would widen
+    // that one-sided divergence into a two-sided one, so the marker is gated on
+    // the producer (`isHiddenFromKnower`) rather than on `knownTo` alone.
+    //
+    // `faceDown` is the same marker the battlefield leg carries; the exile
+    // instance never sets it in raw state (CR 406.3 hides a CARD, it does not
+    // make a 2/2 permanent), so it is added here, on the wire. It is what lets
+    // the client branch on a projected field instead of inferring face-down-ness
+    // from the ABSENCE of a sentinel id.
+    if (card.knownTo.includes(viewerId)) {
+        const slimmedKnown = slimCard(card);
+        return decorate(
+            isHiddenFromKnower(card.faceDownBy)
+                ? { ...slimmedKnown, faceDown: true }
+                : slimmedKnown
+        );
+    }
     // Everyone else sees a face-down card with the identity hidden — but still
     // pinned to its permanent (the association is public; the identity is not).
     // issue #2092 — characteristics live on the INSTANCE, not the definition
@@ -644,6 +666,11 @@ function projectExileCard(
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
     delete (slimmed as { power?: number }).power;
     delete (slimmed as { toughness?: number }).toughness;
+    // issue #2904 — the same explicit marker the entitled leg gets, so ONE
+    // client predicate covers both viewers. `faceDownBy` (which mechanic hid
+    // it) rides through `slimCard` for both: it names the MECHANIC, never the
+    // card, so it leaks nothing an opponent watching the exile did not see.
+    slimmed.faceDown = true;
     return opts?.exiledByPermanentId !== undefined
         ? { ...slimmed, exiledByPermanentId: opts.exiledByPermanentId }
         : slimmed;

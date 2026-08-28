@@ -75,7 +75,7 @@ function faceDownBoard(lands: number): GameState {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent);
+    turnFaceDown(permanent, "morph");
     return makeState({
         players: [
             makePlayer("p1", { battlefield: [permanent, ...plains(lands)] }),
