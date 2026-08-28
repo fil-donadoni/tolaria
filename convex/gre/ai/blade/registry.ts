@@ -2959,34 +2959,33 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "CR 500.8 extra-phase queue (issue #2886, ADR 0111). Guards PROGRESS in a re-entered combat phase; deliberately no structural extra-combat credit — an extra combat is INSIDE the rollout horizon (ADR 0111 decision 6).",
     },
-||||||| parent of 6129b898 (feat: castability gate + bot planner honour mana substitutions; blade entry (#2890))
     {
-        // CR 609.4b (issue #2890) — "you may spend mana as though it were mana
-        // of any type". The bot controls North Star, five untapped Forests and
-        // holds Lightning Bolt; the opponent is at 3.
+        // CR 609.4b (issue #2890) — "You may spend white mana as though it were
+        // red mana" (Sunglasses of Urza). The bot's only untapped source is a
+        // Plains, it holds Lightning Bolt, and the opponent is at 3.
         //
-        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): the board produces GREEN mana
-        // only, so the Bolt is uncastable as printed and the position has
-        // exactly one line that does anything at all — {4}, {T} the North Star,
-        // then spend a Forest's {G} as though it were {R} for exact lethal.
-        // Passing donates the game. There is no judgement call.
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): the substitution makes the
+        // Bolt payable and the Bolt is EXACT lethal, so there is one move that
+        // wins on the spot and nothing else the position can do. No judgement,
+        // one ply, no rollout noise to hide behind.
         //
-        // WHAT IT DISCRIMINATES: before this issue, `getManaSubstitutions` had
-        // no per-cast channel and neither the castability census
+        // WHAT IT DISCRIMINATES: mana substitution was honoured by the PAYMENT
+        // layer (`isManaCostCovered`) but by neither the castability census
         // (`coloredCostLeftover`, rules.ts) nor the Bot's payment planner
-        // (`planManaPayment`, moves.ts) knew about substitutions at all — so
-        // the Bolt was never ENUMERATED behind the grant and the activation
-        // bought nothing the search could see. Reverting either half leaves the
-        // activation valueless and this entry red.
-        label: "north star: spends green mana as red for exact lethal (CR 609.4b)",
+        // (`planManaPayment`, moves.ts) — so the Bolt was never ENUMERATED and
+        // the bot passed with lethal in hand, for as long as Sunglasses has
+        // shipped. Reverting either widening turns this entry red. It is the
+        // Bot-side twin of the North Star / Robber of the Rich cast-scoped
+        // grants #2890 adds, which ride the exact same seam.
+        label: "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)",
         spec: {
             cards: [
-                { name: "North Star", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
+                {
+                    name: "Sunglasses of Urza",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
                 { name: "Lightning Bolt", owner: "me", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",
@@ -3000,9 +2999,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "activate-ability", card: "North Star" }],
+            moves: [
+                { kind: "cast-spell", card: "Lightning Bolt", target: "opp" },
+            ],
         },
-        note: "CR 609.4b cast-time mana fixing: without it the Bolt is not even enumerated.",
+        note: "CR 609.4b: without substitution-aware enumeration the Bolt is not a legal move at all.",
     },
 ];
 
