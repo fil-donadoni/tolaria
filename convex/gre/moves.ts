@@ -70,6 +70,7 @@ import {
 // `pendingTarget` is the bot's own half-built announcement (hands off) or a
 // selection the engine raised at it (must answer).
 import {
+    announcedTargetCount,
     pendingTargetCountMaxReached,
     pendingTargetOrigin,
     raisedPendingTargetOwedBy,
@@ -330,8 +331,13 @@ export type Move =
           buybackPaid?: boolean;
           chosenX?: number;
           targets: TargetSelection[];
-          /** Variable-count targets (CR 601.2c "up to"/X) need an explicit
-           *  confirmTargets; fixed-N selections auto-finalize on the last pick. */
+          /** CR 601.2c — whether the executor owes a trailing `confirmTargets`
+           *  after its batched `selectTargets`. Computed by
+           *  `announcedTargetsNeedConfirm` from the RESOLVED count reaching its
+           *  max, NOT from the requirement being variable-count: a variable
+           *  selection filled to its max auto-finalized on the last pick and
+           *  needs none, while one answered with ZERO targets needs one and has
+           *  no `selectTargets` call to ride on (issue #2870). */
           confirmTargets: boolean;
           /** Lands to tap, in order, to cover the cost (pool mana is auto-used
            *  by the server at commit and needs no tap). */
@@ -353,6 +359,9 @@ export type Move =
           chosenModeId?: string;
           chosenX?: number;
           targets: TargetSelection[];
+          /** CR 601.2c via CR 602.2b — as on `cast-spell` above:
+           *  `announcedTargetsNeedConfirm` against the LAST target group's
+           *  resolved count, never "is the requirement variable-count". */
           confirmTargets: boolean;
           tapPlan: ManaTap[];
           /** CR 602.1 / 118 — the cards named to pay the ability's DEFERRED
@@ -985,11 +994,52 @@ function powerSet<T>(items: T[]): T[][] {
 // Cast / target / X / mode expansion
 // ---------------------------------------------------------------------------
 
-/** Variable-count requirements (X or {min,max}) finalize via confirmTargets;
- *  a plain numeric count auto-finalizes on the last selectTarget. */
+/** Variable-count requirements (X or {min,max}) do NOT auto-advance inside the
+ *  executor's batched `selectTargets` — they rest for their own confirm — which
+ *  is why only the LAST target group of an announcement may be one. Structural
+ *  gate only; whether a confirm is actually owed is
+ *  `announcedTargetsNeedConfirm` below, which reads the RESOLVED count. */
 function isVariableCount(req: TargetRequirement | undefined): boolean {
     if (!req) return false;
     return req.count === "X" || typeof req.count === "object";
+}
+
+/** CR 601.2c — does the executor's batched `selectTargets` leave the
+ *  announcement's LAST target group RESTING, so the Move owes a trailing
+ *  `confirmTargets`?
+ *
+ *  Answered from the RESOLVED count the announcing mutation will open the
+ *  selection with (`announcedTargetCount`, the shared authority) against the
+ *  number of targets this Move picked for that group — never from "the
+ *  requirement is variable-count AND the tuple is non-empty", which was wrong
+ *  at both ends of an "up to N" range (issue #2870):
+ *
+ *    - **0 chosen** — the only possible answer when the board offers no legal
+ *      target and `min` is 0 (Pest Infestation for X ≥ 1 with no artifacts or
+ *      enchantments in play). `selectTargets` rejects an empty array, so the
+ *      submission is confirm-ONLY; declaring `confirmTargets: false` sent no
+ *      mutation at all, left the `PendingTarget` live, and the next
+ *      `tapForPayment` threw against an expected input of `"target"`.
+ *    - **max chosen** — the last pick already auto-finalized the selection
+ *      (`applyOneTargetSelection` → `advanceTargetGroupOrFinalize`), so a
+ *      confirm afterwards throws "No target selection in progress".
+ *
+ *  Both stranded the announcement at an owed `"target"` input of ANNOUNCED
+ *  origin, which the owed-target gate is fail-closed against by design, so the
+ *  Bot answered `no-move` and the liveness ladder span cast → cancel → re-cast.
+ *
+ *  Assumes the executor submits no per-target divide `amount` (it does not), so
+ *  CR 601.2d's budget-spent auto-finalize cannot fire mid-batch; only the count
+ *  cap `announcedTargetCount` already applies is in play. */
+function announcedTargetsNeedConfirm(
+    lastReq: TargetRequirement | undefined,
+    lastGroupSize: number,
+    chosenX: number | undefined
+): boolean {
+    const count = announcedTargetCount(lastReq, chosenX);
+    // No selection is opened at all — nothing to confirm.
+    if (count === undefined) return false;
+    return !pendingTargetCountMaxReached(count, lastGroupSize);
 }
 
 // Exported for a direct unit test (issue #2365) — proof that the bot's
@@ -1044,6 +1094,17 @@ function enumerateTargetTuples(
         player.id,
         chosenX
     );
+    // CR 601.2c / 601.2d — when the ANNOUNCEMENT opens no target selection at
+    // all, the only tuple is the empty one. `targetCount` below sees the count
+    // alone, so it misses the zero DIVIDE BUDGET case (#2905 review, item 2):
+    // Spoils of War / Meteor Shower at X = 0 carry `count: { min: 1 }`, which
+    // resolves to a 1-target tuple, while `announceCast` sets
+    // `requiresTargets = false` and opens nothing. The executor's
+    // `selectTargets` is gated on the tuple being non-empty rather than on
+    // `confirmTargets`, so it fired against no selection and threw — the same
+    // freeze this issue is about, reached through the count rather than the
+    // confirm.
+    if (announcedTargetCount(effReq, chosenX) === undefined) return [[]];
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];
 
@@ -1094,15 +1155,24 @@ function enumerateTargetTuples(
  *  Groups are enumerated independently against the SAME pre-cast board the
  *  server validates each group against in `announceCast`, and the cartesian
  *  product is capped at `MAX_COMBINATIONS`. An empty group list, or one whose
- *  requirements are all absent/zero-count, yields the single empty tuple. */
+ *  requirements are all absent/zero-count, yields the single empty tuple.
+ *
+ *  Each tuple carries `lastGroupSize` — how many of its targets belong to the
+ *  LAST group (issue #2870). The flat list alone cannot answer that, and the
+ *  last group is the only one whose fill level decides whether the
+ *  announcement rests for a `confirmTargets` (`announcedTargetsNeedConfirm`);
+ *  deriving it from `targets.length` treats a multi-group cast's fixed prefix
+ *  as if it filled the variable group. */
 function enumerateTargetGroupTuples(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     groups: (TargetRequirement | undefined)[],
     chosenX: number | undefined
-): TargetSelection[][] {
-    let acc: TargetSelection[][] = [[]];
+): { targets: TargetSelection[]; lastGroupSize: number }[] {
+    let acc: { targets: TargetSelection[]; lastGroupSize: number }[] = [
+        { targets: [], lastGroupSize: 0 },
+    ];
     for (const req of groups) {
         const groupTuples = enumerateTargetTuples(
             state,
@@ -1115,10 +1185,14 @@ function enumerateTargetGroupTuples(
         // announcement illegal (`announceCast` throws "Not enough legal
         // targets"), so the cast is not a move at all.
         if (groupTuples.length === 0) return [];
-        const next: TargetSelection[][] = [];
+        const next: { targets: TargetSelection[]; lastGroupSize: number }[] =
+            [];
         for (const prefix of acc) {
             for (const tuple of groupTuples) {
-                next.push([...prefix, ...tuple]);
+                next.push({
+                    targets: [...prefix.targets, ...tuple],
+                    lastGroupSize: tuple.length,
+                });
                 if (next.length >= MAX_COMBINATIONS) break;
             }
             if (next.length >= MAX_COMBINATIONS) break;
@@ -1642,7 +1716,7 @@ function enumerateCastMoves(
                 chosenX: x,
             });
             if (tapPlan === null) continue;
-            for (const targets of enumerateTargetGroupTuples(
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,
                 player,
                 card,
@@ -1660,8 +1734,11 @@ function enumerateCastMoves(
                     targets,
                     // Only the LAST group can be variable (guarded above), so
                     // it alone decides whether the cast needs a confirm.
-                    confirmTargets:
-                        isVariableCount(lastReq) && targets.length > 0,
+                    confirmTargets: announcedTargetsNeedConfirm(
+                        lastReq,
+                        lastGroupSize,
+                        x
+                    ),
                     tapPlan,
                     ...(payLife > 0 ? { payLife } : {}),
                 });
@@ -1704,7 +1781,7 @@ function enumerateCastMoves(
             cardDef: def,
         });
         if (bestowTapPlan !== null) {
-            for (const targets of enumerateTargetGroupTuples(
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,
                 player,
                 card,
@@ -1716,9 +1793,17 @@ function enumerateCastMoves(
                     cardInstanceId: card.id,
                     alternativeCostId: def.bestow.id,
                     targets,
-                    // CR 601.2c — a fixed-count single group auto-finalizes on
-                    // the last pick, so no trailing confirm.
-                    confirmTargets: false,
+                    // CR 601.2c — the gained "enchant creature" is a
+                    // fixed-count single group, so it auto-finalizes on the
+                    // last pick and owes no trailing confirm. Read through the
+                    // shared predicate rather than hardcoded, so a future
+                    // bestow-shaped requirement cannot silently keep the wrong
+                    // literal.
+                    confirmTargets: announcedTargetsNeedConfirm(
+                        BESTOW_TARGET_REQUIREMENT,
+                        lastGroupSize,
+                        undefined
+                    ),
                     tapPlan: bestowTapPlan,
                 });
                 if (moves.length >= MAX_COMBINATIONS) return moves;
@@ -2166,23 +2251,38 @@ function enumerateAbilityMoves(
         if (pickVariants.length === 0) continue;
 
         for (const { modeId, req } of abilityModeVariants) {
-            const tuples =
-                abilityExtraGroups.length > 0
-                    ? enumerateTargetGroupTuples(
-                          state,
-                          player,
-                          perm,
-                          [req, ...abilityExtraGroups],
-                          undefined
-                      )
-                    : enumerateTargetTuples(
-                          state,
-                          player,
-                          perm,
-                          req,
-                          undefined
-                      );
-            for (const targets of tuples) {
+            // CR 601.2c via CR 602.2b — one enumerator for both shapes (issue
+            // #2870). The single-group case is `[req]`, which
+            // `enumerateTargetGroupTuples` handles identically to the old
+            // `enumerateTargetTuples` call while ALSO reporting how much of the
+            // tuple belongs to the last group — the only group whose fill level
+            // decides whether a trailing `confirmTargets` is owed. The
+            // one-branch version read `req` (the FIRST group) against the WHOLE
+            // flat tuple, so an ability with additional groups asked the wrong
+            // requirement about the wrong count.
+            const abilityGroups = [req, ...abilityExtraGroups];
+            // The ability-side twin of the cast path's identical guard
+            // (#2905 review, item 3): a VARIABLE-count group does not
+            // auto-advance inside the executor's one batched `selectTargets`, so
+            // only the LAST group may be one — anything else needs a confirm
+            // mid-batch the executor has no shape for, and its later picks would
+            // land back on the first group. This is the precondition
+            // `enumerateTargetGroupTuples` is written against; the site adopted
+            // that enumerator without it. Vacuous today (Oko, Thief of Crowns'
+            // −5 is the only ability with `additionalTargetRequirements` and
+            // both its groups are `count: 1`), so the Bot declines to enumerate
+            // rather than emitting an unexecutable move if one ever lands.
+            if (abilityGroups.slice(0, -1).some((g) => isVariableCount(g))) {
+                continue;
+            }
+            const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+                state,
+                player,
+                perm,
+                abilityGroups,
+                undefined
+            )) {
                 for (const costPicks of pickVariants) {
                     moves.push({
                         kind: "activate-ability",
@@ -2190,8 +2290,11 @@ function enumerateAbilityMoves(
                         abilityId: ability.id,
                         ...(modeId ? { chosenModeId: modeId } : {}),
                         targets,
-                        confirmTargets:
-                            isVariableCount(req) && targets.length > 0,
+                        confirmTargets: announcedTargetsNeedConfirm(
+                            lastAbilityReq,
+                            lastGroupSize,
+                            undefined
+                        ),
                         tapPlan,
                         ...(costPicks ? { costPicks } : {}),
                     });

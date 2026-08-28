@@ -32,7 +32,11 @@
 // different game than the server plays" bug.
 
 import type { GameState, PendingTarget, PendingTargetFilterKey } from "./state";
-import { PENDING_TARGET_FILTER_KEYS, emitBecameTargetEvents } from "./state";
+import {
+    PENDING_TARGET_FILTER_KEYS,
+    emitBecameTargetEvents,
+    resolveTargetRequirementCount,
+} from "./state";
 import type { TargetRequirement, TargetSelection } from "../cards/types";
 import { drainAutoPasses } from "./phases";
 import { raiseTriggerTargetSelection } from "./rules";
@@ -156,6 +160,85 @@ export function pendingTargetCountMaxReached(
     if (typeof count === "number") return selected >= count;
     if (count.max === undefined) return false;
     return selected >= count.max;
+}
+
+/** Resolves a divide-as-you-choose total spec against the chosen / derived X
+ *  (CR 601.2d / 120.4). `"X"` → X, `"X+1"` → X+1 (Meteor Shower), a number →
+ *  the fixed total (Fiery Justice). A missing X is treated as 0. Never
+ *  negative. Moved here from `game.ts` (issue #2870) because
+ *  `announcedTargetCount` below — the count authority BOTH the announcing
+ *  mutation and the Bot's Move enumerator read — needs it to apply CR 601.2d's
+ *  cap, and a second copy in the enumerator is exactly the drift this module
+ *  exists to prevent. */
+export function resolveDivideTotal(
+    spec: number | "X" | "X+1",
+    chosenX: number | undefined
+): number {
+    if (typeof spec === "number") return Math.max(0, spec);
+    const x = chosenX ?? 0;
+    return Math.max(0, spec === "X+1" ? x + 1 : x);
+}
+
+/** CR 601.2c / 601.2d — the live `PendingTarget.count` an ANNOUNCEMENT opens
+ *  with for ONE target requirement at an announced X, or `undefined` when the
+ *  requirement takes no targets at all so no selection is opened:
+ *
+ *    - a fixed count of 0 (`resolveTargetRequirementCount` collapsing `"X"`
+ *      with X = 0 — Sky Diamond-style "destroy X target ..." at X = 0);
+ *    - an "up to X" range whose resolved `max` is 0 (Pest Infestation at
+ *      X = 0) — CR 601.2c's "as many as you choose, from zero to X" with
+ *      nothing to choose from;
+ *    - a divide-as-you-choose budget of 0 (Meteor Shower / Fire Covenant at
+ *      X = 0) — CR 601.2d, there are no points to divide.
+ *
+ *  This is the SINGLE AUTHORITY for that derivation, read by both sides of the
+ *  announcement (issue #2870):
+ *
+ *    - `announceCast` (`game.ts`) builds the `PendingTarget` from it, and skips
+ *      target selection entirely when it is `undefined`;
+ *    - the Bot's Move enumerator (`gre/moves.ts`) reads it to predict whether
+ *      its executor's batched `selectTargets` leaves the selection RESTING for
+ *      a trailing `confirmTargets`, or whether the last pick already
+ *      auto-finalized it (`pendingTargetCountMaxReached` above).
+ *
+ *  Before the extraction the enumerator approximated the answer as
+ *  "the requirement is variable-count AND the tuple is non-empty", which is
+ *  wrong at BOTH ends of an "up to N" range: a declined selection (0 chosen —
+ *  the only possible answer when the board offers no legal target) sent no
+ *  mutation at all and stranded the announcement, and a selection filled to
+ *  its max sent a confirm the server rejects because the pick already
+ *  finalized it. Both shapes froze the Bot in a cast → cancel → re-cast loop. */
+export function announcedTargetCount(
+    req: TargetRequirement | undefined,
+    chosenX: number | undefined,
+    options: { requireX?: boolean } = {}
+): number | { min: number; max?: number } | undefined {
+    if (!req) return undefined;
+    // CR 601.2d / 120.4 — the divide budget caps the target count (each target
+    // must receive at least 1 point), and a zero budget means no targets.
+    const divideTotal = req.divideAsChosen
+        ? resolveDivideTotal(req.divideAsChosen.total, chosenX)
+        : undefined;
+    // Resolve BEFORE the zero-budget return, not after: `requireX: true` makes
+    // an X-bearing count with no announced X a rejection, and returning early on
+    // `divideTotal === 0` would swallow it (a card pairing a divide budget with
+    // an `{ min, max: "X" }` count would silently cast as a no-target spell
+    // instead of erroring). No shipped card pairs the two — all nine
+    // `divideAsChosen` sites carry `count: { min: 1 }` — so this is the
+    // ordering and the old `announceCast` expression agreeing, not a behaviour
+    // change (#2905 review, item 1).
+    let count = resolveTargetRequirementCount(req.count, chosenX, options);
+    // CR 601.2d — nothing to divide means no targets at all.
+    if (divideTotal === 0) return undefined;
+    if (
+        divideTotal !== undefined &&
+        typeof count === "object" &&
+        count.max === undefined
+    ) {
+        count = { min: count.min, max: divideTotal };
+    }
+    if (typeof count === "number") return count > 0 ? count : undefined;
+    return count.max === 0 ? undefined : count;
 }
 
 /** Finalizes the divide-as-you-choose split at commit (CR 601.2d / 120.4).
