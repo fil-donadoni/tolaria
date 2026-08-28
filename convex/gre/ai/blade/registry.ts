@@ -39,6 +39,51 @@ function pruningKeepsACast(
     );
 }
 
+/** "An 'up to X' cast with NO legal target on the board is EXECUTABLE" — the
+ *  liveness guard for issue #2870 (CR 601.2c).
+ *
+ *  A `{ min: 0, max: X }` requirement on a board offering nothing to target has
+ *  exactly one possible answer: zero targets. `selectTargets` rejects an empty
+ *  array, so that answer is a confirm-ONLY submission — a cast declaring
+ *  `confirmTargets: false` alongside an empty tuple sends NO mutation for its
+ *  live `PendingTarget`, the following `tapForPayment` throws against an
+ *  expected input of `"target"`, and the announcement strands at an owed target
+ *  of ANNOUNCED origin, which the owed-target gate is fail-closed against by
+ *  design. The Bot then answers `no-move`, the liveness ladder cancels the
+ *  announcement, and the search — whose `applyMove` puts the spell straight on
+ *  the stack and never opens a `PendingTarget` — re-picks the identical cast
+ *  forever (~10s per cycle in the reported game).
+ *
+ *  Asserted as a POSITION guard on the LEGAL SET (the `pruningKeepsACast`
+ *  shape) rather than as a positive move match, because whether casting a
+ *  token-maker this turn is the best play is a matter of opinion while whether
+ *  the offered cast can be COMPLETED is not — plus the CHOSEN move, when it is
+ *  one of them, must be executable too. */
+function upToXZeroTargetCastIsExecutable(
+    move: Move | null,
+    state: Parameters<typeof enumerateMoves>[0]
+): boolean {
+    const pid = state.players[0].id;
+    const declined = enumerateMoves(state, pid).filter(
+        (m) =>
+            m.kind === "cast-spell" &&
+            (m.chosenX ?? 0) >= 1 &&
+            m.targets.length === 0
+    );
+    // The position must OFFER the declined-target cast at all — an entry that
+    // stopped enumerating it would otherwise pass vacuously.
+    if (declined.length === 0) return false;
+    if (!declined.every((m) => m.kind === "cast-spell" && m.confirmTargets)) {
+        return false;
+    }
+    return !(
+        move?.kind === "cast-spell" &&
+        (move.chosenX ?? 0) >= 1 &&
+        move.targets.length === 0 &&
+        !move.confirmTargets
+    );
+}
+
 /** "The issue-#1890 reactive-timing discipline is a PREFERENCE, not a filter" —
  *  the weaker, POSITION-level negative control for the activation-timing
  *  entries below: in a window where the activation belongs, it is still
@@ -3004,6 +3049,52 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             ],
         },
         note: "CR 609.4b: without substitution-aware enumeration the Bolt is not a legal move at all.",
+    },
+    {
+        // WHY THIS POSITION: the reported freeze (issue #2870, game
+        // `jh7c2symenzqjz5tyjmx90eby98d8n7k` at seq 124) is exactly this board —
+        // Pest Infestation, "Destroy up to X target artifacts and/or
+        // enchantments", cast for X ≥ 1 with NO artifact and NO enchantment
+        // anywhere in play. CR 601.2c's "up to" has no lower bound, so the
+        // announcement is legal and its ONLY possible answer is zero targets.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): nothing here asks the bot to
+        // judge whether the cast is good. The assertion is that every declined-
+        // target cast the position OFFERS can actually be completed — the
+        // legal-set shape, not a preference — so no rollout noise can reach it.
+        //
+        // WHAT IT DISCRIMINATES: restoring either half of the old predicate
+        // (`isVariableCount(req) && targets.length > 0` in the enumerator, or
+        // the `&& move.targets.length > 0` term on the executor's confirm) turns
+        // this red. The mutation-level "declining all targets is a legal
+        // confirm" case already passed before the fix — the defect lived
+        // entirely in what the Bot SENT, which is why the guard belongs here.
+        label: "up to X target: an 'up to X' cast with no legal target confirms zero targets (CR 601.2c)",
+        spec: {
+            cards: [
+                { name: "Pest Infestation", owner: "me", zone: "hand" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: upToXZeroTargetCastIsExecutable,
+            describe:
+                "every offered 'up to X' cast with zero targets carries confirmTargets (a confirm-only submission), so the announcement can complete",
+        },
+        note: "Issue #2870. The Bot froze in a cast → submit-error → cancel-target → re-cast loop because a variable-count selection answered with ZERO targets sent no mutation at all: `selectTargets` rejects an empty array and `confirmTargets` was suppressed by a non-empty-tuple guard. The same predicate is wrong at the other end of the range too — a selection filled to its max auto-finalized on the last pick, so a confirm afterwards throws — which is why the flag is now derived from the RESOLVED count reaching its max (`announcedTargetCount`, shared with `announceCast`).",
     },
 ];
 
