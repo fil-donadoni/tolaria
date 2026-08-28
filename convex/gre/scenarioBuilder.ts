@@ -1086,6 +1086,8 @@ const GAME_STATE_ALLOWLIST = new Set<string>([
     "emblems",
     "gameOver",
     "extraTurns",
+    "extraPhases",
+    "extraCombatsThisTurn",
     "autoPassPlayers",
     "singleShotAutoPass",
     "queuedEndTurn",
@@ -1403,6 +1405,21 @@ export function specFromState(
     ) {
         dropped.push(
             `turn-scheduling state (extra turns / auto-pass intents) — not lowered`
+        );
+    }
+    // CR 500.8 — its OWN message, not folded into the line above: a state
+    // carrying only a Pass-Turn intent must not be reported as owing an extra
+    // phase. The queue and its marker counter are deliberately not lowered —
+    // a spec captures a BOARD, and a position mid-extra-combat (or owing one)
+    // is turn-structure state the spec vocabulary has no field for. A preset
+    // scenario for an extra-combat card captures the PRE-ATTACK setup instead
+    // (ADR 0111).
+    if (
+        (state.extraPhases && state.extraPhases.length > 0) ||
+        state.extraCombatsThisTurn
+    ) {
+        dropped.push(
+            `turn-structure state (extra phases — CR 500.8) — not lowered`
         );
     }
 

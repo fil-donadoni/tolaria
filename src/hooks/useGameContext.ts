@@ -39,6 +39,17 @@ type GameContext = {
      *  (`hasControlledSinceTurnStart`, an `enteredThisTurn` derivation) may be
      *  handed. Distinct from {@link turn} on purpose — see that field. */
     engineTurn: number;
+    /** CR 500.8 — how many ADDITIONAL combat phases the turn in progress has
+     *  already entered (`GameState.extraCombatsThisTurn`). Absent/0 during the
+     *  turn's one normal combat, 1 while in the first extra combat.
+     *
+     *  Read by {@link ControllerPhaseList}'s header for its `· Combat N`
+     *  marker, which is the ONLY thing that distinguishes the two combats to a
+     *  player: the turn counter is unchanged, the rail visibly walks backwards
+     *  with no explanation, the compact phase tab renders a byte-identical
+     *  caption under its documented 7-character budget, and there is no
+     *  player-visible event log (ADR 0080/0111). */
+    extraCombatsThisTurn?: number;
     stackCount: number;
     /** The stack itself (CR 405), projected. Needed wherever a pending
      *  target's SOURCE is an on-stack object rather than a hand card or a

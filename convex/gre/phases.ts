@@ -1827,7 +1827,7 @@ export function applyAllCombatDamage(
 }
 
 /** Emits a PHASE_BEGIN event for the current phase, collects matching
- *  triggered abilities from all battlefield permanents (CR 603.6a), pushes
+ *  triggered abilities from all battlefield permanents (CR 603.2), pushes
  *  them on the stack, and restarts priority at the active player (CR 117.3c).
  *  No-op when the scan yields no triggers. Intervening-if conditions are
  *  the card's responsibility inside `matches()` (CR 603.4). */
@@ -3211,6 +3211,15 @@ function advanceTurn(state: GameState): void {
     newActive.turnsTaken = (newActive.turnsTaken ?? 0) + 1;
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
+    // CR 500.8 — an extra phase is added to the turn it was created in, so an
+    // entry unconsumed when that turn ends is dead: discard the whole queue at
+    // the boundary rather than let it be popped inside the NEXT player's turn.
+    // Unreachable with today's only consumer (a trigger cannot resolve after
+    // its own combat — a non-empty stack blocks phase advance), but the leak
+    // class is the one `ai/blade/runner.ts` documents for `extraTurns`. The
+    // per-turn marker counter goes with it (ADR 0111).
+    state.extraPhases = undefined;
+    state.extraCombatsThisTurn = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
     for (const p of state.players) p.landsPlayedThisTurn = 0;
     // CR 601.2i (issue #1343): reset each player's per-turn spell-cast tally
@@ -3422,7 +3431,39 @@ export function advancePhase(state: GameState): Phase[] {
         state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
     if (repeatCleanupStep) state.pendingExtraCleanupStep = undefined;
 
-    const next = repeatCleanupStep ? "CLEANUP" : nextPhase(state.phase);
+    // CR 500.8 — "Some effects can add phases to a turn. They do this by
+    // adding the phases directly after the specified phase. If multiple extra
+    // phases are created after the same phase, the most recently created phase
+    // will occur first." An owed extra combat is consumed at the END_OF_COMBAT
+    // exit, which (combat being six sibling `Phase` values with END_OF_COMBAT
+    // last in PHASE_ORDER and no enclosing "COMBAT" value — see the comment at
+    // the top of this function) is the combat PHASE's exit: exactly where
+    // CR 500.8 puts the added phase.
+    //
+    // LIFO: popped from the END of the queue, matching the rule's
+    // most-recently-created-first clause and `extraTurns`' own shape.
+    //
+    // Re-entry is at BEGINNING_OF_COMBAT, NOT DECLARE_ATTACKERS: CR 506.1
+    // makes a combat phase five steps, so the added phase runs all five — and
+    // "at the beginning of combat" triggers fire again for free through the
+    // `firePhaseBeginTriggers` call below. `PHASE_ORDER` is untouched; this
+    // queue is the only mutable turn-structure state (ADR 0111).
+    const extraCombatOwed =
+        state.phase === "END_OF_COMBAT" && !!state.extraPhases?.length;
+    if (extraCombatOwed && state.extraPhases) {
+        state.extraPhases = state.extraPhases.slice(0, -1);
+        if (state.extraPhases.length === 0) state.extraPhases = undefined;
+        // Player-visible marker only (`· Combat 2` on the phase rail header):
+        // the queue is popped HERE, so without this counter nothing on the
+        // state would distinguish the second combat from the first.
+        state.extraCombatsThisTurn = (state.extraCombatsThisTurn ?? 0) + 1;
+    }
+
+    const next = extraCombatOwed
+        ? "BEGINNING_OF_COMBAT"
+        : repeatCleanupStep
+          ? "CLEANUP"
+          : nextPhase(state.phase);
 
     if (next === null) {
         // End of turn → advance to next turn
@@ -3443,7 +3484,7 @@ export function advancePhase(state: GameState): Phase[] {
     // CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a step an effect
     // says is "skipped" doesn't happen AT ALL — not merely "no draw". That
     // means no turn-based draw, no CR 504.2 "at the beginning of the draw
-    // step" delayed triggers, and no CR 603.6a beginning-of-step triggers
+    // step" delayed triggers, and no CR 603.2 beginning-of-step triggers
     // (Howling Mine, Sylvan Library, Island Sanctuary all fire on the same
     // PHASE_BEGIN event `firePhaseBeginTriggers` scans for). Both live inside
     // `performPhaseEntry`'s DRAW case / the `firePhaseBeginTriggers` call
@@ -3463,7 +3504,7 @@ export function advancePhase(state: GameState): Phase[] {
     } else {
         performPhaseEntry(state);
 
-        // CR 603.6a: fire "at the beginning of ~" triggers after the step's
+        // CR 603.2: fire "at the beginning of ~" triggers after the step's
         // turn-based actions. Skipped on auto-phases (UNTAP/CLEANUP) which don't
         // grant priority — triggers scoped to those steps are out of scope for
         // now and would need to be held until the next priority window.
@@ -3587,7 +3628,16 @@ export function advancePhase(state: GameState): Phase[] {
  * (which clears autoPassPlayers).
  */
 export function drainAutoPasses(state: GameState): void {
-    const maxIterations = 50; // safety bound
+    // Safety bound. Sized against ONE turn's phase walk with room to spare:
+    // CR 500.8 (issue #2886) makes that walk longer, since each extra combat
+    // adds roughly ten passes (five priority steps x two seats), and the
+    // `extraPhases` queue is unbounded — a script can queue more than one
+    // grant. At 50 the headroom covers a turn with three extra combats under
+    // full auto-pass; a queue deeper than that would hit the cap, which
+    // `return`s with priority parked rather than erroring, so raise this
+    // bound (or bound the queue) before shipping a card that can stack grants
+    // arbitrarily.
+    const maxIterations = 50;
     for (let i = 0; i < maxIterations; i++) {
         // Consume a queued "Pass Turn" intent: a player who pressed Enter
         // without priority is promoted into a rest-of-turn auto-pass the

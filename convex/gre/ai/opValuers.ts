@@ -114,6 +114,11 @@ const EXILE_RETURN_TRANSFORMED_VALUE = 45;
 const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature card
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
+// CR 500.8 — an additional COMBAT phase, not an additional turn. Pinned to the
+// combat share of `EXTRA_TURN_VALUE`'s own published decomposition ("draw (150)
+// + untap/main tempo (50) + combat (150)", `search.ts`), so the two prices stay
+// consistent by construction instead of by coincidence.
+const EXTRA_COMBAT_VALUE = 150;
 const SKIP_TURN_VALUE = 300; // CR 614.10 — forfeiting an entire turn, the mirror of EXTRA_TURN_VALUE
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
@@ -799,6 +804,25 @@ const extraTurn: Valuer<"extraTurn"> = () => ({
     tags: ["tempo"],
 });
 
+// CR 500.8 (issue #2886) — an additional combat phase: another attack step with
+// the same board, so tempo, priced at the combat share of an extra turn.
+//
+// NOT the extra-turn STRUCTURAL CREDIT, and must never become it (ADR 0111
+// decision 6). That credit lives in `selectRootMove` (`search.ts`) and exists
+// only because an extra TURN falls OUTSIDE the rollout horizon — ADR 0015 ends
+// each rollout at the start of the bot's next turn, so the granted turn is
+// never played out and its value would otherwise be invisible. An extra COMBAT
+// is INSIDE the horizon (`playoutRollout` breaks only on
+// `turnChanged && activePlayerId === botId`), so it is simulated and its value
+// reaches the edge's mean reward by ordinary measurement; adding a reward
+// credit for it would double-count. This table is the orthogonal thing: a
+// caster-relative PRIOR over candidate cards/choices (`candidateValue.ts`,
+// `choicePriors.ts`), never a term added to a rollout's reward.
+const extraCombat: Valuer<"extraCombat"> = () => ({
+    points: EXTRA_COMBAT_VALUE,
+    tags: ["tempo"],
+});
+
 // CR 614.10 (issue #1957) — the mirror of `extraTurn`: forfeiting a whole
 // turn is worth -SKIP_TURN_VALUE to whoever skips it, +SKIP_TURN_VALUE to the
 // CASTER when it is the opponent who skips. Harmful-by-default (mirrors
@@ -1263,6 +1287,7 @@ export const OP_VALUERS: {
     divideIntoPiles,
     emblem,
     extraTurn,
+    extraCombat,
     skipNextTurn,
     gainControl,
     addPlayerCounter,
@@ -1425,6 +1450,12 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     createToken: "beneficial",
     createTokenCopy: "beneficial",
     extraTurn: "beneficial",
+    // CR 500.8 — names no recipient at all (an extra PHASE belongs to the turn,
+    // so the beneficiary is always its active player, i.e. the resolving side).
+    // Listed rather than left to the `?? "neutral"` fallback so the sign is a
+    // recorded decision: there is no slot for a redirect reader to bite on, and
+    // a silent absence would read as "sign genuinely context-dependent".
+    extraCombat: "beneficial",
     regenerate: "beneficial",
     preventDamage: "beneficial",
     grantAbility: "beneficial",

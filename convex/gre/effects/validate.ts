@@ -2909,6 +2909,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
     extraTurn: { required: { player: isPlayerRef } },
+    // CR 500.8 (issue #2886) — add one additional combat phase to the turn in
+    // progress (Fear of Missing Out). NO fields: the phase belongs to the turn
+    // (no player to name) and the queue entry is unanchored (no `after` —
+    // ADR 0111 decision 2), so any field at all is a rejection.
+    extraCombat: { required: {} },
     // CR 614.10 (issue #1957) — `player` skips their next turn (Waterspout
     // Elemental).
     skipNextTurn: { required: { player: isPlayerRef } },

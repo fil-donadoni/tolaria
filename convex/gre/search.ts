@@ -1444,7 +1444,8 @@ export function isDiscouragedRolloutMove(
  *  An `animatesSelf` ability buys a creature BODY and nothing else, so it is
  *  worth something only while that body can still attack or block. Once the
  *  mover is the ACTIVE player and the turn has reached `END_OF_COMBAT` or later,
- *  there is no attack left this turn (their combat is over) and an active player
+ *  there is no attack left this turn (their combat is over — UNLESS CR 500.8
+ *  says otherwise, see the `extraPhases` carve-out below) and an active player
  *  never blocks on their own turn; the animation only exposes a land to removal
  *  and combat damage. This is the observed "Mishra's Factory animated after its
  *  own combat" misplay, and the reason it wins on noise is that the saturating
@@ -1471,6 +1472,17 @@ function isPointlessSelfAnimation(
         state.phase !== "POSTCOMBAT_MAIN" &&
         state.phase !== "END_STEP"
     ) {
+        return false;
+    }
+    // CR 500.8 (issue #2886) — "their combat is over" is FALSE at the
+    // END_OF_COMBAT exit while an extra combat is still owed: `advancePhase`
+    // pops `state.extraPhases` at exactly that exit and re-enters
+    // BEGINNING_OF_COMBAT, so the body this activation buys does get an attack
+    // after all. POSTCOMBAT_MAIN / END_STEP keep the original reading — the
+    // queue is ONLY ever consumed at the END_OF_COMBAT exit, so an entry still
+    // sitting there once the turn is past it is dead (`advanceTurn` discards
+    // it) and the animation is as pointless as it ever was.
+    if (state.phase === "END_OF_COMBAT" && state.extraPhases?.length) {
         return false;
     }
     const source = findPermanentOnBattlefield(state, move.cardInstanceId);

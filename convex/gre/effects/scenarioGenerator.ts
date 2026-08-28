@@ -508,6 +508,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (tmp/__tests__/blue.test.ts).
             req.skip ??= `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`;
             return;
+        case "extraCombat":
+            // CR 500.8 (issue #2886) — queueing an extra combat phase mutates
+            // `state.extraPhases`, drained by the PHASE-advance machinery (not
+            // the stack-resolution scenario harness) at a LATER END_OF_COMBAT
+            // exit — not a same-step observable outcome this generator can
+            // size a deterministic assertion against. Same explicit skip
+            // `extraTurn` takes; covered instead by the Op's own hand-written
+            // interpreter + wire-format tests and the extra-phase seam tests
+            // (`gre/__tests__/extraPhases.test.ts`).
+            req.skip ??= `Op "extraCombat" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests`;
+            return;
         case "skipNextTurn":
             // CR 614.10 (issue #1957) — skipping a turn mutates the target
             // player's pending-skip COUNT, drained by the turn-advance
@@ -2576,6 +2587,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // hand-written card test (tmp/__tests__/blue.test.ts) are the
     // behavioural guarantor.
     extraTurn() {
+        return null;
+    },
+    // `extraCombat` (CR 500.8, issue #2886) — never reached: `analyseOp` skips
+    // every script with this Op (it mutates the turn-structure `extraPhases`
+    // queue, not a same-step board/life delta the canned generator's
+    // immediate-post-resolution assertions can size). Kept for the 1:1
+    // coverage guard; the Op's own interpreter test plus the extra-phase seam
+    // tests (`gre/__tests__/extraPhases.test.ts`) are the behavioural
+    // guarantor.
+    extraCombat() {
         return null;
     },
     // `skipNextTurn` (CR 614.10, issue #1957) — never reached: `analyseOp`

@@ -1,7 +1,7 @@
 import { useGameContext } from "~/hooks/useGameContext";
 import { useSkipPhasePreferences } from "~/hooks/useSkipPhasePreferences";
 import { isSkippablePhase } from "~/lib/skip-phase-prefs";
-import { PHASE_GROUPS } from "~/lib/phase-labels";
+import { COMBAT_PHASES, PHASE_GROUPS } from "~/lib/phase-labels";
 import ControllerPhaseRow from "./controller-phase-row";
 
 /** Full turn-structure list revealed by the pod's CTA (#331). Sized to its
@@ -20,11 +20,28 @@ export default function ControllerPhaseList({
      *  the sole caller that turns it on (#1860 review round 3, finding 2). */
     showCompactDecoder?: boolean;
 }) {
-    const { phase, turn } = useGameContext();
+    const { phase, turn, extraCombatsThisTurn } = useGameContext();
     const { prefs, toggle } = useSkipPhasePreferences();
 
     const order = PHASE_GROUPS.flatMap((g) => g.steps).map((s) => s.id);
     const currentIdx = order.indexOf(phase);
+
+    // CR 500.8 (issue #2886) — which combat phase of this turn is being played.
+    // Without it the second combat is indistinguishable from the first: the
+    // turn counter is unchanged, the rail below visibly walks BACKWARDS with no
+    // explanation (its `isPast` cursor resets into the combat range), the
+    // compact phase tab renders a byte-identical caption under its documented
+    // 7-character budget, and there is no player-visible event log (ADR 0080).
+    // A player holding a Phase Stop on Declare Attackers is otherwise handed
+    // priority in an attack step they thought was finished.
+    //
+    // Shown only INSIDE a combat phase: the marker states which combat is being
+    // played, so it would be stale the moment the turn moves past it.
+    const extraCombats = extraCombatsThisTurn ?? 0;
+    const combatMarker =
+        extraCombats > 0 && COMBAT_PHASES.has(phase)
+            ? ` · Combat ${extraCombats + 1}`
+            : "";
 
     return (
         <div
@@ -35,7 +52,7 @@ export default function ControllerPhaseList({
         >
             <div className="flex items-center justify-between border-b border-[var(--hairline)] px-3 py-2">
                 <span className="text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-text-muted">
-                    Turn {turn} — Phases
+                    Turn {turn} — Phases{combatMarker}
                 </span>
                 <button
                     type="button"

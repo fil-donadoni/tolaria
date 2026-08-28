@@ -3576,6 +3576,33 @@ export interface AttackManaTaxPayment {
     tappedLandIds: string[];
 }
 
+/** One queued ADDITIONAL phase (CR 500.8 — "Some effects can add phases to a
+ *  turn. They do this by adding the phases directly after the specified phase.
+ *  If multiple extra phases are created after the same phase, the most
+ *  recently created phase will occur first.").
+ *
+ *  UNANCHORED by design (ADR 0111 decision 2): an entry records its KIND, not
+ *  the phase it was created after. Consumption is hardcoded to the
+ *  `END_OF_COMBAT` exit in `advancePhase`, which is correct for every
+ *  extra-combat effect that exists — they all resolve during combat. The
+ *  CR-shaped `{ kind, after: Phase }` was deliberately deferred: combat here
+ *  is six sibling `Phase` values with no enclosing `"COMBAT"` value, so
+ *  anchoring would need a step -> enclosing-phase-exit map (the CR 505.1a-
+ *  adjacent classification #2494 scoped out). An OBJECT rather than a bare
+ *  string precisely so adding `after` later is a field addition, not a
+ *  reshape. */
+export type ExtraPhase = { kind: "combat" };
+
+/** Queue one ADDITIONAL combat phase on `state` (CR 500.8) — the whole body of
+ *  the `SpellContext.grantExtraCombat` primitive, exported so anything that
+ *  needs the real thing (the blade harness's `extra-combat` setup step) pushes
+ *  through THIS function rather than a hand-written literal that could drift
+ *  from it. Pushed at the END: `advancePhase` pops from the end, so the most
+ *  recently created extra phase occurs first. */
+export function queueExtraCombat(state: GameState): void {
+    state.extraPhases = [...(state.extraPhases ?? []), { kind: "combat" }];
+}
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
@@ -3776,6 +3803,30 @@ export type GameState = {
      *  LIFO: pushed at the end, popped from the end — the last extra turn
      *  created is the next one taken. Consumed by advanceTurn(). */
     extraTurns?: string[];
+    /** Queue of ADDITIONAL phases owed by the turn in progress (CR 500.8).
+     *  LIFO: pushed at the end, popped from the end — the most recently
+     *  created extra phase occurs first. Ships one kind, `"combat"`, consumed
+     *  at the `END_OF_COMBAT` exit inside `advancePhase()` (re-entry is at
+     *  `BEGINNING_OF_COMBAT`, so CR 506.1's five steps run again in full and
+     *  "at the beginning of combat" triggers fire again). Discarded wholesale
+     *  by `advanceTurn()` — an entry that outlives its turn would otherwise
+     *  leak a spurious combat into the OPPONENT's turn. `PHASE_ORDER` is not
+     *  rewritten and no per-turn phase list is materialised; this queue is the
+     *  only mutable turn-structure state (ADR 0111). */
+    extraPhases?: ExtraPhase[];
+    /** How many EXTRA combat phases (CR 500.8) the turn in progress has
+     *  already entered — 0/absent during the turn's one normal combat, 1 while
+     *  in the first additional combat, and so on. Incremented at the
+     *  consumption seam in `advancePhase()`, cleared by `advanceTurn()`.
+     *
+     *  Exists for the player-visible marker alone: the queue is popped at
+     *  consumption, so by the time the second combat is being played there is
+     *  nothing left on `extraPhases` to distinguish it from the first, and
+     *  every other cue is identical (the turn counter is unchanged, the phase
+     *  rail walks backwards with no explanation, the compact phase tab renders
+     *  a byte-identical caption, and there is no player-visible event log).
+     *  `ControllerPhaseList` reads it for its `· Combat N` header marker. */
+    extraCombatsThisTurn?: number;
     /** Active one-shot damage prevention effects (CR 615.1). Each effect is
      *  consumed the first time a matching (source, player) damage event
      *  occurs. Cleared at CLEANUP for "end-of-turn" effects (CR 514.2). */
@@ -4102,7 +4153,7 @@ export type GameState = {
      *  `advancePhase` (`gre/phases.ts`) the first time the DRAW step is
      *  entered for a listed player: CR 500.8, a skipped step doesn't happen
      *  AT ALL, so the whole step (turn-based draw, CR 504.2 delayed
-     *  triggers, and CR 603.6a beginning-of-step triggers like Howling
+     *  triggers, and CR 603.2 beginning-of-step triggers like Howling
      *  Mine/Sylvan Library/Island Sanctuary) is bypassed, not merely the
      *  draw — `drawStep` itself is never invoked for that player this turn.
      *  Distinct from `CardDefinition.drawStepReplacement` (Fasting): that is
@@ -15985,6 +16036,15 @@ export function buildSpellContext(
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
             state.extraTurns = [...(state.extraTurns ?? []), playerId];
+        },
+        // CR 500.8: queue one ADDITIONAL combat phase for the turn in
+        // progress. Pushed at the END of the queue, popped from the end by
+        // `advancePhase`'s END_OF_COMBAT seam, so the most recently created
+        // extra phase occurs first. Takes no player: an extra phase belongs to
+        // the TURN (and so to its active player), never to a chosen player —
+        // unlike an extra turn, which names its recipient.
+        grantExtraCombat(): void {
+            queueExtraCombat(state);
         },
         // CR 104.3 — direct loss assignment used by Lich's LTB-trigger. The
         // call bypasses the CR 614 lose-game replacement loop: this is a

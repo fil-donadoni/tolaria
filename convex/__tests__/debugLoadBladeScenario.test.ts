@@ -171,20 +171,36 @@ function arbitraryCurrentGameBaseState(): GameState {
  * that list silently, and the round-2 `positionSnapshot` this replaces
  * didn't even check them, so the leak passed CI.
  *
- * ID values are replaced by exact string match, not substring — safe here
- * because `state.players[].id` values (`p1`/`p2` or `user_…-p1`/`user_…-p2`)
- * never collide with any other string this state carries (card ids, card
- * names, etc.).
+ * Ids are replaced by exact string match, not substring — safe here because
+ * `state.players[].id` values (`p1`/`p2` or `user_…-p1`/`user_…-p2`) never
+ * collide with any other string this state carries (card ids, card names,
+ * etc.) — and in both positions an id can occupy: as a VALUE, and as an
+ * object KEY.
+ *
+ * The key half was added with issue #2886, whose blade entry is the first
+ * whose `setup` deals combat damage to a player and so the first to populate
+ * an id-KEYED record (`damageDealtToPlayerThisTurn`). Without it the two
+ * equivalent states differed only by the seat ids in that record's keys, and
+ * the "leak-proof against every `GameState` field" promise above was false
+ * for every id-keyed record on the state (`lifeGainedThisTurn` is another) —
+ * they simply had not been reached by a scenario yet.
  */
 function canonicalizeIdentity(state: GameState): GameState {
     const idMap = new Map(state.players.map((p, i) => [p.id, `seat-${i}`]));
-    const canonical = JSON.parse(
-        JSON.stringify(state, (_key, value) =>
-            typeof value === "string" && idMap.has(value)
-                ? idMap.get(value)
-                : value
-        )
-    ) as GameState;
+    const rename = (value: unknown): unknown => {
+        if (Array.isArray(value)) return value.map(rename);
+        if (value !== null && typeof value === "object") {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(value)) {
+                out[idMap.get(k) ?? k] = rename(v);
+            }
+            return out;
+        }
+        return typeof value === "string" ? (idMap.get(value) ?? value) : value;
+    };
+    // The JSON round-trip first, so `undefined`-valued keys drop out exactly
+    // as they did before this walk existed.
+    const canonical = rename(JSON.parse(JSON.stringify(state))) as GameState;
     for (const p of canonical.players) {
         p.name = "";
         p.bgColor = "";
