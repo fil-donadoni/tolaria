@@ -29,7 +29,6 @@ export default function LimitedDraftPack({
     onPick,
     onOpenMenu,
     onOpenContextMenu,
-    onInspect,
     pending,
     zoom,
     columns,
@@ -44,11 +43,9 @@ export default function LimitedDraftPack({
      *  phone. */
     onOpenMenu?: (pickId: string, x: number, y: number) => void;
     /** Phone: real right-click opens the old "Pick" / "Pick to sideboard"
-     *  menu, unchanged. Absent on desktop. */
+     *  menu, unchanged. Absent on desktop (issue #2889) — there, right-click
+     *  falls through to the ordinary `CardPreview` pin. */
     onOpenContextMenu?: (pickId: string, x: number, y: number) => void;
-    /** Desktop: real right-click opens the Inspect Overlay directly (issue
-     *  #2861). Absent on phone. */
-    onInspect?: (pickId: string) => void;
     pending: boolean;
     /** Zoom multiplier from the caller's `useCardZoom` (default 1 if the
      *  caller doesn't wire a slider). */
@@ -105,7 +102,6 @@ export default function LimitedDraftPack({
                         onPick={onPick}
                         onOpenMenu={onOpenMenu}
                         onOpenContextMenu={onOpenContextMenu}
-                        onInspect={onInspect}
                         pending={pending}
                     />
                 </li>

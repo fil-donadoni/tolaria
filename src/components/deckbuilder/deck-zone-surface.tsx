@@ -151,12 +151,6 @@ export interface DeckZoneSurfaceProps {
      *  click-moves-immediately one. Absent ⇒ no `dblclick` listener at all
      *  on any tile of this Zone, which is every other caller (unchanged). */
     onCardDoubleClick?: (selection: DeckZoneSelection) => void;
-    /** A tile's real right-click (issue #2861, Draft Room desktop
-     *  Pool/Sideboard only — opens the Inspect Overlay directly). Presence
-     *  also disables that tile's own right-click preview pin — see
-     *  `DeckCardTile`'s `onContextMenu` doc comment. Absent ⇒ the preview pin
-     *  keeps owning right-click, unchanged everywhere else. */
-    onCardContextMenu?: (selection: DeckZoneSelection) => void;
     /** The selected tile's key (`DeckZoneSelection.tileKey`) — draws the
      *  selection ring on exactly the copy that was tapped. */
     selectedTileKey?: string | null;
@@ -206,7 +200,6 @@ export default function DeckZoneSurface({
     featuredCardId,
     onCardSelect,
     onCardDoubleClick,
-    onCardContextMenu,
     selectedTileKey,
     onAddColumn,
     onRenameColumn,
@@ -449,9 +442,6 @@ export default function DeckZoneSurface({
                                     onDoubleClick: onCardDoubleClick
                                         ? () => onCardDoubleClick(selection)
                                         : undefined,
-                                    onContextMenu: onCardContextMenu
-                                        ? () => onCardContextMenu(selection)
-                                        : undefined,
                                     isFeatured:
                                         !!featuredCardId &&
                                         card.cardId === featuredCardId,
@@ -470,7 +460,6 @@ export default function DeckZoneSurface({
             onCardClick,
             onCardSelect,
             onCardDoubleClick,
-            onCardContextMenu,
             selectedTileKey,
             featuredCardId,
             onPin,

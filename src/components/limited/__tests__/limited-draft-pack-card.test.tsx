@@ -1,10 +1,11 @@
 // Booster pick gestures (ADR 0060, issue #1248; re-worked for the desktop
-// card-context-menu regime by issue #2861). Load-bearing: a single click
-// must NEVER commit a Pick — only select (and, on desktop, open the menu
-// right there). Double-click commits on PHONE only — desktop retires it,
-// since the menu already carries "Pick" and drag-and-drop still works. Real
-// right-click opens the phone's old menu OR (desktop) the Inspect Overlay
-// directly — the caller picks by which callback it supplies.
+// card-context-menu regime by issue #2861, partially reverted by issue
+// #2889). Load-bearing: a single click must NEVER commit a Pick — only
+// select (and, on desktop, open the menu right there). Double-click commits
+// on PHONE only — desktop retires it, since the menu already carries "Pick"
+// and drag-and-drop still works. Real right-click opens the phone's old menu
+// — desktop has NO handler at all (issue #2889): it falls through to the
+// app's ordinary `CardPreview` pin, same as everywhere else.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import LimitedDraftPackCard from "../limited-draft-pack-card";
@@ -102,7 +103,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
     });
 });
 
-describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu/onInspect, issue #2861)", () => {
+describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2861)", () => {
     it("a single click SELECTS the card AND opens the pack menu right there, no delay", () => {
         const onSelect = vi.fn();
         const onOpenMenu = vi.fn();
@@ -136,8 +137,12 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu/onInspect
         expect(() => fireEvent.doubleClick(getByRole("button"))).not.toThrow();
     });
 
-    it("a real right click opens the Inspect Overlay directly instead of any menu", () => {
-        const onInspect = vi.fn();
+    // Issue #2889: reverts the desktop right-click-opens-Inspect-Overlay
+    // behavior issue #2861 added — a real right-click here is untouched by
+    // this component (no `onContextMenu` prop exists to intercept it at
+    // all), so it falls through to `CardImage`'s own `CardPreview` pin,
+    // same as everywhere else in the app.
+    it("a real right click is left entirely alone — no menu, no overlay, no selection", () => {
         const onOpenMenu = vi.fn();
         const onSelect = vi.fn();
         const { getByRole } = render(
@@ -146,37 +151,31 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu/onInspect
                 selected={false}
                 onSelect={onSelect}
                 onOpenMenu={onOpenMenu}
-                onInspect={onInspect}
                 pending={false}
             />
         );
-        fireEvent.contextMenu(getByRole("button"));
-        expect(onInspect).toHaveBeenCalledWith("r0-p0-c0");
+        expect(() => fireEvent.contextMenu(getByRole("button"))).not.toThrow();
         expect(onOpenMenu).not.toHaveBeenCalled();
         expect(onSelect).not.toHaveBeenCalled();
     });
 
-    it("while pending, a click/double-click/right-click all no-op", () => {
+    it("while pending, a click/double-click all no-op", () => {
         const onSelect = vi.fn();
         const onOpenMenu = vi.fn();
-        const onInspect = vi.fn();
         const { getByRole } = render(
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
                 onSelect={onSelect}
                 onOpenMenu={onOpenMenu}
-                onInspect={onInspect}
                 pending
             />
         );
         const el = getByRole("button");
         fireEvent.click(el);
         fireEvent.doubleClick(el);
-        fireEvent.contextMenu(el);
         expect(onSelect).not.toHaveBeenCalled();
         expect(onOpenMenu).not.toHaveBeenCalled();
-        expect(onInspect).not.toHaveBeenCalled();
     });
 });
 

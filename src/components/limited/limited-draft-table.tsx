@@ -490,19 +490,6 @@ export default function LimitedDraftTable({
         });
     };
 
-    // Real right-click on a Booster card, desktop regime (issue #2861): opens
-    // the Inspect Overlay directly, no menu — what a right-click already
-    // means everywhere else in the app.
-    const openBoosterInspect = (pickId: string) => {
-        cancelPendingPoolMenu();
-        const card = pack.find((c) => c.pickId === pickId);
-        if (!card) return;
-        setInspecting({
-            cardId: card.cardId,
-            actions: boosterInspectActionsFor(card),
-        });
-    };
-
     // Real right-click on a Booster card, PHONE regime (unchanged, ADR 0060):
     // the original "Pick" / "Pick to sideboard" menu.
     const openBoosterContextMenu = (pickId: string, x: number, y: number) => {
@@ -705,16 +692,6 @@ export default function LimitedDraftTable({
         handlePoolZoneMove(selection.pinKey, selection.zone === "maindeck");
     };
 
-    // Real right-click on a Pool/Sideboard tile, desktop regime (issue
-    // #2861): opens the Inspect Overlay directly, no menu.
-    const handleDesktopPoolContextMenu = (selection: DeckZoneSelection) => {
-        cancelPendingPoolMenu();
-        setInspecting({
-            cardId: selection.cardId,
-            actions: desktopPoolInspectActionsFor(selection),
-        });
-    };
-
     // The Pool's `DeckZonePeek` panel is `fixed`, so the surface underneath
     // reserves the room it occupies — on the axis the RESOLVED layout
     // actually eats. At four of the five UI-gate viewports that is WIDTH (the
@@ -782,9 +759,6 @@ export default function LimitedDraftTable({
             onOpenContextMenu={
                 phoneOrientation === null ? undefined : openBoosterContextMenu
             }
-            onInspect={
-                phoneOrientation === null ? openBoosterInspect : undefined
-            }
             pending={pending}
             zoom={phoneOrientation === null ? boosterZoom.value : undefined}
             columns={
@@ -804,7 +778,10 @@ export default function LimitedDraftTable({
 
     // The DESKTOP Pool/Sideboard (issue #2861): no `selection`/Peek rail —
     // `onCardSelect` opens the delayed menu, `onCardDoubleClick` moves the
-    // card, `onCardContextMenu` opens Inspect directly. `onPin` is still
+    // card. No `onCardContextMenu` (issue #2889 reverts that part of #2861):
+    // a real right-click falls through to the ordinary `CardPreview` pin,
+    // same as everywhere else — the Inspect Overlay stays reachable only
+    // through the menu's own "Inspect" item. `onPin` is still
     // required even though nothing here calls it directly (the desktop
     // menu's own "Move to…" reaches `handlePoolPin` through the ActionSheet
     // mounted below instead) — its PRESENCE is what makes
@@ -821,7 +798,6 @@ export default function LimitedDraftTable({
                 arrangement={seat.poolArrangement}
                 onCardSelect={openDesktopPoolMenu}
                 onCardDoubleClick={handleDesktopPoolDoubleClick}
-                onCardContextMenu={handleDesktopPoolContextMenu}
                 onPin={handlePoolPin}
             />
         </>

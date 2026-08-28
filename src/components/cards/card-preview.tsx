@@ -44,15 +44,6 @@ type CardPreviewProps = {
      *  Only the TOUCH gesture is suppressed: the desktop right-click pin and
      *  the board-only hover dock are mouse paths and keep working. */
     holdPreview?: boolean;
-    /** Suppress the desktop right-click pin entirely — no anchored preview
-     *  opens and the native `contextmenu` is left unhandled (issue #2861).
-     *  The Draft Room's desktop Pool/Sideboard tiles set this: there, a real
-     *  right-click means "open the Inspect Overlay" instead of the preview
-     *  pin, which a caller can only own by having this component get out of
-     *  the way of the native event first. Defaults to `false` — every other
-     *  usage (board, piles, lobby, every other editing-surface tile) is
-     *  unchanged. */
-    disableRightClickPreview?: boolean;
     children: React.ReactNode;
 };
 
@@ -63,7 +54,6 @@ export default function CardPreview({
     showCopyBadge,
     bodyOverride,
     holdPreview = true,
-    disableRightClickPreview = false,
     children,
 }: CardPreviewProps) {
     // Desktop preview (phase 2): HOVER-INTENT is the discoverable trigger —
@@ -194,7 +184,6 @@ export default function CardPreview({
     // (a synthesized, untrusted `contextmenu` — see ui/context-menu.tsx), so
     // the two gestures no longer collide.
     useEffect(() => {
-        if (disableRightClickPreview) return;
         const container = containerRef.current;
         if (!container) return;
         const cardEl =
@@ -216,7 +205,7 @@ export default function CardPreview({
             cardEl.removeEventListener("pointerdown", onPointerDown);
             cardEl.removeEventListener("contextmenu", onContextMenu);
         };
-    }, [onRightPress, disableRightClickPreview]);
+    }, [onRightPress]);
 
     // Bind the mobile long-press gesture on the same resolved host as the
     // right-press/hover gestures above, instead of as React `onTouch*` props

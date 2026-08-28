@@ -474,13 +474,19 @@ describe("the single-mount primitives survive the layout fork (issue #2588)", ()
                 void manager.actions.stop();
             });
 
-            // Issue #2861: the DESKTOP regime (`"stacked"`) reaches Inspect
-            // via a real right-click on the Booster card directly, no CTA row
-            // to find — the phone regimes keep their strip's own row.
+            // The DESKTOP regime (`"stacked"`) reaches Inspect via the
+            // card's own LEFT-CLICK menu (issue #2861) — a real right-click
+            // is untouched on that regime since issue #2889, so it is no
+            // longer a way to reach the overlay. The phone regimes keep
+            // their strip's own CTA row.
             if (layout === "stacked") {
-                fireEvent.contextMenu(
+                fireEvent.click(
                     document.querySelector('[aria-label^="Draft pick:"]')!
                 );
+                const menuInspect = [
+                    ...document.querySelectorAll("[role=menuitem]"),
+                ].find((el) => el.textContent === "Inspect")!;
+                fireEvent.click(menuInspect);
             } else {
                 const inspect = actionEls().find(
                     (el) => el.dataset.editingAction === "Inspect"

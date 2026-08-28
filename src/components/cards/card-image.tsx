@@ -87,12 +87,6 @@ type CardImageProps = {
      * #2583). Defaults to `true` — every board/pile/lobby usage is unchanged.
      */
     holdPreview?: boolean;
-    /** Forwarded to {@link CardPreview}: suppresses the desktop right-click
-     *  pin entirely, so a caller's own `contextmenu` handler owns the real
-     *  right-click gesture (issue #2861's Draft Room desktop Pool/Sideboard
-     *  tiles, which open the Inspect Overlay on right-click instead).
-     *  Defaults to `false` — unchanged everywhere else. */
-    disableRightClickPreview?: boolean;
 };
 
 function isCardInstance(
@@ -113,7 +107,6 @@ function CardImageImpl({
     includeThumb = true,
     promoteLayer = true,
     holdPreview = true,
-    disableRightClickPreview = false,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
@@ -150,7 +143,6 @@ function CardImageImpl({
             cardInstance={cardInstance}
             showCopyBadge={showCopyBadge}
             holdPreview={holdPreview}
-            disableRightClickPreview={disableRightClickPreview}
         >
             <div
                 className="relative w-full h-full card-corner overflow-hidden"
@@ -218,7 +210,6 @@ const CardImage = memo(
         prev.includeThumb === next.includeThumb &&
         prev.promoteLayer === next.promoteLayer &&
         prev.holdPreview === next.holdPreview &&
-        prev.disableRightClickPreview === next.disableRightClickPreview &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;
