@@ -59,6 +59,7 @@ import type {
     TargetRequirement,
 } from "@convex/cards/types";
 import {
+    getCardByName,
     getDefinition,
     withTemporaryDefinition,
     FACE_DOWN_CARD_ID,
@@ -123,7 +124,12 @@ import {
 } from "@convex/cards/sets/leg";
 import { miracleWorker } from "@convex/cards/sets/drk";
 import { holyStrength } from "@convex/cards/sets/lea/white";
-import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
+import {
+    pendingTargetFiltersFromRequirement,
+    raiseTriggerTargetSelection,
+} from "@convex/gre/rules";
+import { collectTriggers } from "@convex/gre/triggers";
+import { fearOfMissingOut } from "@convex/cards/sets/dsk/red";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     makeInstance,
@@ -6470,5 +6476,96 @@ describe("Norritt — force-attack ability's no-legal-target gate honours contro
             "p1"
         );
         expect(menu(blindView)).toContain(FORCE_ATTACK);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Fear of Missing Out — the attack trigger's announced target, client leg
+// (issue #2885, CR 603.3d / 508.1m)
+// ---------------------------------------------------------------------------
+
+// The UI leg of the full-path walk GRE → game.ts → client. The GRE and wire
+// legs live in `convex/cards/sets/dsk/__tests__/red.test.ts`; what only this
+// project can prove is that the `PendingTarget` the trigger announcement
+// raises survives `projectPublicState` carrying a `targetType` the board's
+// clickability predicate (`matchesTargetRequirement`, read by
+// `useBattlefieldInteraction` / `useBattlefieldVisualState`) understands. A
+// dropped or reshaped `targetType` here is the classic silent failure: the
+// server waits for a target the player can never click.
+describe("Fear of Missing Out — attack-trigger target announcement reaches the client (issue #2885)", () => {
+    const BEARS = getCardByName("Balduvian Bears").id;
+    const MOUNTAIN = getCardByName("Mountain").id;
+    const BOLT = getCardByName("Lightning Bolt").id;
+    const WRATH = getCardByName("Wrath of God").id;
+
+    it("projects a PendingTarget whose targetType marks creatures — and only creatures — clickable", () => {
+        const fomo = makeInstance(fearOfMissingOut.id, {
+            id: "fomo",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: true,
+        });
+        const victim = makeInstance(BEARS, {
+            id: "victim",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const land = makeInstance(MOUNTAIN, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Four distinct card types in the graveyard — delirium on.
+        const graveyard = [MOUNTAIN, BEARS, BOLT, WRATH].map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `gy${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            players: [
+                makeServerPlayer("p1", {
+                    battlefield: [fomo, victim, land],
+                    graveyard,
+                }),
+                makeServerPlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["fomo"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+
+        const triggers = collectTriggers(state, [
+            {
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: "p1",
+                attackerIds: ["fomo"],
+            },
+        ]);
+        expect(triggers).toHaveLength(1);
+        state.stack.push(...triggers);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const pending = projected.pendingTarget as unknown as PendingTarget;
+        expect(pending).toBeDefined();
+        expect(pending.targetType).toBe("Creature");
+
+        const board = projected.players[0].battlefield as unknown as Parameters<
+            typeof matchesTargetRequirement
+        >[0][];
+        const clickable = board
+            .filter((c) => matchesTargetRequirement(c, pending.targetType))
+            .map((c) => c.id)
+            .sort();
+        expect(clickable).toEqual(["fomo", "victim"]);
     });
 });
