@@ -21925,11 +21925,28 @@ export function getManaSubstitutions(
     state: GameState,
     playerId: string,
     castCardInstanceId?: string,
-    /** `excludeOneShotGrants` computes the COUNTERFACTUAL set — everything
-     *  except this player's one-shot "for one spell this turn" grants. Used by
-     *  `settleSpellManaSubstitutionGrant` alone, to decide whether a grant was
-     *  what made the cost payable; never by a payment path. */
-    opts?: { excludeOneShotGrants?: boolean }
+    opts?: {
+        /** CR 601.2f / 609.4b — set ONLY when the cost being paid is the card's
+         *  own printed mana cost (plus CR 601.2f modifiers) and nothing else.
+         *  A ONE-SHOT grant worded "to pay that spell's MANA COST" (North Star)
+         *  is returned only then: an additional cost (Kicker, Buyback, a flash
+         *  surcharge) and an alternative cost (Flashback, Escape, Madness,
+         *  Bestow, Dash) are both separate components of the total cost per
+         *  CR 601.2f, and North Star's own reminder text says "(Additional
+         *  costs are still paid normally.)" — so fixing their coloured pips
+         *  would be illegal.
+         *
+         *  DEFAULTS TO FALSE, i.e. WITHHELD: a payment site that forgets the
+         *  flag simply declines a permission the player was free to decline
+         *  (always legal), where the opposite default would pay an additional
+         *  cost with the wrong colour. */
+        printedManaCostOnly?: boolean;
+        /** `excludeOneShotGrants` computes the COUNTERFACTUAL set — everything
+         *  except this player's one-shot "for one spell this turn" grants. Used
+         *  by `settleSpellManaSubstitutionGrant` alone, to decide whether a
+         *  grant was what made the cost payable; never by a payment path. */
+        excludeOneShotGrants?: boolean;
+    }
 ): ManaSubstitution[] {
     const out: ManaSubstitution[] = [];
     for (const player of state.players) {
@@ -21945,6 +21962,22 @@ export function getManaSubstitutions(
         }
     }
     if (castCardInstanceId === undefined) return out;
+    // Hot-loop short-circuit: `coloredCostLeftover` calls this once per hand
+    // card per candidate {X}, and `planManaPayment` once per enumerated cast
+    // move, so on the overwhelmingly common board carrying neither kind of
+    // cast-scoped grant it must cost nothing beyond two field reads.
+    if (
+        state.spellManaSubstitutionGrants === undefined &&
+        !state.players.some((p) =>
+            p.exile.some((c) => c.castFromExileManaSubstitution !== undefined)
+        )
+    ) {
+        return out;
+    }
+    // CR 609.4b — the per-card exile grant is worded "you may spend mana as
+    // though it were mana of any color TO CAST THAT SPELL" (Robber of the
+    // Rich), which covers the whole cast: the total cost (CR 601.2f), not only
+    // its mana-cost component. So it needs no `printedManaCostOnly` gate.
     // CR 609.4b — the per-card exile grant (Robber of the Rich). Scan every
     // player's exile: the card stays in ITS OWNER's zone (CR 400.7) while a
     // DIFFERENT player holds the cast permission, so the grant is keyed on
@@ -21967,11 +22000,91 @@ export function getManaSubstitutions(
     // CR 609.4b / 118.14 — the player's own one-shot "for one spell this turn"
     // grants (North Star). Any spell qualifies, so the id only had to prove a
     // SPELL is what is being paid for. Consumption happens at the payment seam.
-    if (opts?.excludeOneShotGrants) return out;
+    if (opts?.excludeOneShotGrants || !opts?.printedManaCostOnly) return out;
     for (const breadth of state.spellManaSubstitutionGrants?.[playerId] ?? []) {
         out.push(...substitutionsForBreadth(breadth));
     }
     return out;
+}
+
+/** CR 601.2f / 609.4b — is the cost this cast is paying EXACTLY the card's own
+ *  printed mana cost (after the CR 601.2f increases/reductions), with nothing
+ *  else folded in?
+ *
+ *  CR 601.2f, printed: "The total cost is the mana cost or alternative cost (as
+ *  determined in rule 601.2b), plus all additional costs and cost increases,
+ *  and minus all cost reductions." A permission worded "you may spend mana as
+ *  though it were mana of any type to pay that spell's MANA COST" (North Star,
+ *  whose own reminder text adds "(Additional costs are still paid normally.)")
+ *  therefore reaches only the first of those components — never a Kicker or
+ *  Buyback leg, never a flash surcharge, and never an alternative cost, which
+ *  is paid INSTEAD of the mana cost rather than as part of it.
+ *
+ *  This engine pays the total cost as ONE bucket, so the permission cannot be
+ *  restricted to a slice of it: the honest answer is to compare what is being
+ *  paid against the printed cost and withhold the permission outright when they
+ *  differ. Declining a "you may" permission is always legal (CR 609.4b grants
+ *  an option, never an obligation), so the narrow case is a lost option rather
+ *  than an illegal payment — but it IS narrower than the Oracle: North Star
+ *  will not fix the base pip of a KICKED spell either. Restricting the
+ *  substitution to the mana-cost component needs the payment, coverage,
+ *  auto-tap, castability and Bot-planner layers to carry two cost buckets
+ *  instead of one; that is its own slice (see the PR for #2890).
+ *
+ *  `chosenX` (CR 107.3) must be the value this cast announced, or an {X} spell
+ *  reads as "beyond" purely because the comparison normalized X to 0. */
+export function isPrintedManaCostOnly(
+    state: GameState,
+    player: PlayerState,
+    cardDef: CardDefinition | null | undefined,
+    paidCost: Record<string, number>,
+    cardInstanceId: string,
+    chosenX?: number
+): boolean {
+    if (!cardDef?.manaCost) return false;
+    const card = findOwnedCastSource(player, cardInstanceId)?.card;
+    if (!card) return false;
+    const printed = normalizeManaCost(cardDef.manaCost, { chosenX });
+    applyCostModifiers(printed, getCostModifiers(state, card, "spell"));
+    const keys = new Set([...Object.keys(printed), ...Object.keys(paidCost)]);
+    for (const key of keys) {
+        if ((printed[key] ?? 0) !== (paidCost[key] ?? 0)) return false;
+    }
+    return true;
+}
+
+/** CR 609.4b — every mana substitution available to `player` for THIS cast.
+ *
+ *  The one call every spell-payment, affordability and auto-tap site makes, so
+ *  the two scopes are decided in ONE place instead of at each site: the
+ *  per-card exile grant ("…to cast that spell" — the whole total cost) rides on
+ *  `cardInstanceId`, and the one-shot player grant ("…to pay that spell's mana
+ *  cost") is admitted only when `paidCost` IS that printed mana cost
+ *  (`isPrintedManaCostOnly`). Pass the cost this cast will actually pay —
+ *  kicker/buyback/flash-surcharge folded, or the alternative cost that replaced
+ *  the printed one — and the scoping follows for free.
+ *
+ *  Never used for an activated ability, a morph/companion special action or a
+ *  may-pay cost: those call `getManaSubstitutions` with no card id at all, and
+ *  correctly see only the battlefield statics. */
+export function getCastManaSubstitutions(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    cardDef: CardDefinition | null | undefined,
+    paidCost: Record<string, number>,
+    chosenX?: number
+): ManaSubstitution[] {
+    return getManaSubstitutions(state, player.id, cardInstanceId, {
+        printedManaCostOnly: isPrintedManaCostOnly(
+            state,
+            player,
+            cardDef,
+            paidCost,
+            cardInstanceId,
+            chosenX
+        ),
+    });
 }
 
 /** CR 609.4b / 118.14 — decide whether this cast SPENDS one of the caster's
@@ -21995,7 +22108,8 @@ export function settleSpellManaSubstitutionGrant(
     player: PlayerState,
     cost: Record<string, number>,
     cardDef: CardDefinition | null | undefined,
-    cardInstanceId: string
+    cardInstanceId: string,
+    chosenX?: number
 ): void {
     if (!hasSpellManaSubstitutionGrant(state, player.id)) return;
     const withoutGrant = getManaSubstitutions(
@@ -22004,6 +22118,22 @@ export function settleSpellManaSubstitutionGrant(
         cardInstanceId,
         { excludeOneShotGrants: true }
     );
+    // The counterfactual only means something if the payment could actually
+    // SEE the grant: a cost carrying an additional or alternative component
+    // never did (CR 601.2f), so nothing was spent on it. Same predicate the
+    // payment used, so "seen" and "spent" can never disagree.
+    if (
+        !isPrintedManaCostOnly(
+            state,
+            player,
+            cardDef,
+            cost,
+            cardInstanceId,
+            chosenX
+        )
+    ) {
+        return;
+    }
     const pool = spendablePoolForSpell(
         player,
         cardDef?.types ?? [],

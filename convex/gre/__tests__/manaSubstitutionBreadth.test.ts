@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 import { substitutionsForBreadth } from "../manaColors";
 import {
     consumeSpellManaSubstitutionGrant,
+    getCastManaSubstitutions,
     getManaSubstitutions,
     hasSpellManaSubstitutionGrant,
     isManaCostCovered,
@@ -33,6 +34,7 @@ import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { makeInstance, makeState } from "../../cards/__tests__/setup";
 import { getCardByName } from "../../cards";
+import { lightningBolt } from "../../cards/sets/lea";
 import { getInstanceManaCost } from "../../cards/registry";
 import { manaGateBattlefields } from "../constants";
 import { northStar } from "../../cards/sets/leg";
@@ -187,18 +189,40 @@ describe("grantSpellManaSubstitution Op — the one-shot grant (CR 609.4b / 118.
         ]);
     });
 
-    it("getManaSubstitutions surfaces it for a SPELL and withholds it otherwise", () => {
+    it("is offered for a spell's own mana cost, and withheld everywhere else", () => {
         const state = stateWithNorthStar();
+        const bolt = makeInstance(getCardByName("Lightning Bolt").id, {
+            id: "bolt-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        state.players[0].hand.push(bolt);
         resolveNorthStarAbility(state);
+
         // No cast named — an activated ability's cost, a morph, a may-pay. The
         // Oracle says "that SPELL's mana cost", so nothing is granted.
         expect(getManaSubstitutions(state, "p1")).toEqual([]);
-        // A cast in progress — the full any-type pair set.
-        expect(getManaSubstitutions(state, "p1", "some-spell")).toHaveLength(
-            30
-        );
+        // Casting Lightning Bolt for its printed {R} — the full any-type set.
+        expect(
+            getCastManaSubstitutions(
+                state,
+                state.players[0],
+                "bolt-1",
+                getCardByName("Lightning Bolt"),
+                { R: 1 }
+            )
+        ).toHaveLength(30);
         // Never the opponent's.
-        expect(getManaSubstitutions(state, "p2", "some-spell")).toEqual([]);
+        expect(
+            getCastManaSubstitutions(
+                state,
+                state.players[1],
+                "bolt-1",
+                getCardByName("Lightning Bolt"),
+                { R: 1 }
+            )
+        ).toEqual([]);
     });
 
     it("consumption pops one grant and clears the record when empty", () => {
@@ -216,12 +240,24 @@ describe("grantSpellManaSubstitution Op — the one-shot grant (CR 609.4b / 118.
 });
 
 describe("settleSpellManaSubstitutionGrant — spent only when it did the work", () => {
-    const lightningBolt = getCardByName("Lightning Bolt");
+    /** North Star armed, Lightning Bolt in hand, the caller-supplied pool. */
+    function armedWithBoltInHand(pool: Record<string, number>): GameState {
+        const state = stateWithNorthStar();
+        state.players[0].hand.push(
+            makeInstance(lightningBolt.id, {
+                id: "bolt-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        resolveNorthStarAbility(state);
+        state.players[0].manaPool = pool;
+        return state;
+    }
 
     it("keeps the grant when the cost was already payable in its own colours", () => {
-        const state = stateWithNorthStar();
-        resolveNorthStarAbility(state);
-        state.players[0].manaPool = { R: 1 };
+        const state = armedWithBoltInHand({ R: 1 });
         settleSpellManaSubstitutionGrant(
             state,
             state.players[0],
@@ -233,9 +269,7 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
     });
 
     it("spends the grant when the pool could not have covered the cost without it", () => {
-        const state = stateWithNorthStar();
-        resolveNorthStarAbility(state);
-        state.players[0].manaPool = { G: 1 };
+        const state = armedWithBoltInHand({ G: 1 });
         settleSpellManaSubstitutionGrant(
             state,
             state.players[0],
@@ -245,18 +279,41 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
         );
         expect(hasSpellManaSubstitutionGrant(state, "p1")).toBe(false);
     });
+
+    it("keeps the grant when the cost carries an ADDITIONAL component (CR 601.2f)", () => {
+        // Same unpayable pool, but the cost is no longer the spell's own mana
+        // cost — the permission was never offered, so it cannot be spent.
+        const state = armedWithBoltInHand({ G: 1 });
+        settleSpellManaSubstitutionGrant(
+            state,
+            state.players[0],
+            { R: 1, X: 2 },
+            lightningBolt,
+            "bolt-1"
+        );
+        expect(hasSpellManaSubstitutionGrant(state, "p1")).toBe(true);
+    });
 });
 
 describe("auto-tap reaches the grant through getManaSubstitutions (CR 605.1a)", () => {
     it("plans an off-colour Forest for a {R} cost only while the grant is live", () => {
         const state = stateWithNorthStar();
-        const forest = makeInstance(getCardByName("Forest").id, {
-            id: "forest-1",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "battlefield",
-        });
-        state.players[0].battlefield.push(forest);
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Forest").id, {
+                id: "forest-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        state.players[0].hand.push(
+            makeInstance(lightningBolt.id, {
+                id: "bolt-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
         // Real source builder, not a hand-built list — the plan has to come
         // out of the same enumeration the cast path uses.
         const sources = buildAutoTapSources(
@@ -264,25 +321,22 @@ describe("auto-tap reaches the grant through getManaSubstitutions (CR 605.1a)", 
             manaGateBattlefields(state)
         );
 
+        const subs = () =>
+            getCastManaSubstitutions(
+                state,
+                state.players[0],
+                "bolt-1",
+                lightningBolt,
+                { R: 1 }
+            );
+
         // No grant: the solver has no way to turn {G} into {R}.
-        expect(
-            solveAutoTap(
-                {},
-                { R: 1 },
-                getManaSubstitutions(state, "p1", "spell-1"),
-                sources
-            )
-        ).toBeNull();
+        expect(solveAutoTap({}, { R: 1 }, subs(), sources)).toBeNull();
 
         resolveNorthStarAbility(state);
-        expect(
-            solveAutoTap(
-                {},
-                { R: 1 },
-                getManaSubstitutions(state, "p1", "spell-1"),
-                sources
-            )
-        ).toEqual([{ cardId: "forest-1" }]);
+        expect(solveAutoTap({}, { R: 1 }, subs(), sources)).toEqual([
+            { cardId: "forest-1" },
+        ]);
     });
 });
 

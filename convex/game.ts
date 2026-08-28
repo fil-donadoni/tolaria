@@ -57,6 +57,7 @@ import {
     resolveTopOfStack,
     normalizeManaCost,
     isManaCostCovered,
+    getCastManaSubstitutions,
     getManaSubstitutions,
     settleSpellManaSubstitutionGrant,
     getCostModifiers,
@@ -3491,7 +3492,10 @@ export function payCastManaCost(
     cardDef: CardDefinition | null | undefined,
     substitutions: ManaSubstitution[],
     cardInstanceId: string,
-    genericSpendOrder?: readonly string[]
+    genericSpendOrder?: readonly string[],
+    /** CR 107.3 — the {X} this cast announced, so the settle step below prices
+     *  the printed cost the same way the caller did. */
+    chosenX?: number
 ): CastManaPayment {
     if (Object.keys(manaCost).length === 0) return { usedRiderMana: false };
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
@@ -3506,7 +3510,8 @@ export function payCastManaCost(
         player,
         manaCost,
         cardDef,
-        cardInstanceId
+        cardInstanceId,
+        chosenX
     );
     // CR 106.4 / 202.3 / 702.44b — snapshot the pool before payment so the
     // per-colour delta (`manaSpentDelta`, CR 106.10) becomes `notedManaSpent`
@@ -3587,7 +3592,14 @@ export function tryAutoCommitPendingCast(
                 castSupertypes
             ),
             state.pendingCast.manaCost,
-            getManaSubstitutions(state, player.id, castInstanceId)
+            getCastManaSubstitutions(
+                state,
+                player,
+                castInstanceId,
+                castDef,
+                state.pendingCast.manaCost,
+                state.pendingCast.chosenX
+            )
         )
     ) {
         return null;
@@ -3635,7 +3647,14 @@ export function tryAutoCommitPendingCast(
                 castSupertypes
             ),
             state.pendingCast.manaCost,
-            getManaSubstitutions(state, player.id, castInstanceId)
+            getCastManaSubstitutions(
+                state,
+                player,
+                castInstanceId,
+                castDef,
+                state.pendingCast.manaCost,
+                state.pendingCast.chosenX
+            )
         );
         if (ambiguity) {
             state.pendingCast.manaSpendChoice = ambiguity;
@@ -3656,7 +3675,14 @@ export function tryAutoCommitPendingCast(
         player,
         state.pendingCast.manaCost,
         castDef,
-        getManaSubstitutions(state, player.id, castInstanceId),
+        getCastManaSubstitutions(
+            state,
+            player,
+            castInstanceId,
+            castDef,
+            state.pendingCast.manaCost,
+            state.pendingCast.chosenX
+        ),
         castInstanceId,
         genericSpendOrder
     );
@@ -7318,7 +7344,14 @@ export function finalizeTargetSelection(
                 cardSupertypes
             ),
             manaCost,
-            getManaSubstitutions(state, player.id, cardInstanceId)
+            getCastManaSubstitutions(
+                state,
+                player,
+                cardInstanceId,
+                cardDef,
+                manaCost,
+                chosenX
+            )
         )
     ) {
         // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn).
@@ -7332,7 +7365,14 @@ export function finalizeTargetSelection(
                 player,
                 manaCost,
                 cardDef,
-                getManaSubstitutions(state, player.id, cardInstanceId),
+                getCastManaSubstitutions(
+                    state,
+                    player,
+                    cardInstanceId,
+                    cardDef,
+                    manaCost,
+                    chosenX
+                ),
                 cardInstanceId
             );
             immediateUsedRiderMana = payment.usedRiderMana;
@@ -8575,7 +8615,13 @@ export const announceCast = mutation({
                         cardSupertypes
                     ),
                     altManaCost,
-                    getManaSubstitutions(state, player.id, args.cardInstanceId)
+                    getCastManaSubstitutions(
+                        state,
+                        player,
+                        args.cardInstanceId,
+                        cardDef,
+                        altManaCost
+                    )
                 );
             if (parkPerm || parkHand || parkExile || !altManaCovered) {
                 // Park with the alt cost's mana leg (zeroed for every existing
@@ -8653,7 +8699,13 @@ export const announceCast = mutation({
                     player,
                     altManaCost,
                     cardDef,
-                    getManaSubstitutions(state, player.id, args.cardInstanceId),
+                    getCastManaSubstitutions(
+                        state,
+                        player,
+                        args.cardInstanceId,
+                        cardDef,
+                        altManaCost
+                    ),
                     args.cardInstanceId
                 );
                 altUsedRiderMana = payment.usedRiderMana;
@@ -9104,7 +9156,13 @@ export const announceCast = mutation({
                     cardSupertypes
                 ),
                 manaCost,
-                getManaSubstitutions(state, player.id, args.cardInstanceId)
+                getCastManaSubstitutions(
+                    state,
+                    player,
+                    args.cardInstanceId,
+                    cardDef,
+                    manaCost
+                )
             )
         ) {
             // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
@@ -9121,7 +9179,13 @@ export const announceCast = mutation({
                     player,
                     manaCost,
                     cardDef,
-                    getManaSubstitutions(state, player.id, args.cardInstanceId),
+                    getCastManaSubstitutions(
+                        state,
+                        player,
+                        args.cardInstanceId,
+                        cardDef,
+                        manaCost
+                    ),
                     args.cardInstanceId
                 );
                 normalUsedRiderMana = payment.usedRiderMana;
@@ -10059,13 +10123,26 @@ export const autoTapForPayment = mutation({
             (tryGetDefinition((castCard.card as { id?: string }).id ?? "")
                 ?.cantSpendManaToCast ??
                 false);
-        const substitutions = getManaSubstitutions(
-            state,
-            player.id,
+        // CR 609.4b (issue #2890) — the tap plan must see the same
+        // substitutions the commit will pay with, or auto-tap strands a cast
+        // the payment layer would have settled. Routed through the shared
+        // cast-scope wrapper when a cast is parked; otherwise (a bare
+        // auto-tap at priority) only the battlefield statics apply.
+        const substitutions =
             state.pendingCast?.playerId === args.playerId
-                ? state.pendingCast.cardInstanceId
-                : undefined
-        );
+                ? getCastManaSubstitutions(
+                      state,
+                      player,
+                      state.pendingCast.cardInstanceId,
+                      castCard
+                          ? tryGetDefinition(
+                                (castCard.card as { id?: string }).id ?? ""
+                            )
+                          : undefined,
+                      state.pendingCast.manaCost,
+                      state.pendingCast.chosenX
+                  )
+                : getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(
             player.battlefield,
             manaGateBattlefields(state)

@@ -103,7 +103,10 @@ import { hasRetrace, RETRACE_COST_LEGS } from "./retrace";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
 import { tryGetDefinition, getInstanceManaCost } from "../cards";
-import { getManaSubstitutions } from "./state";
+import {
+    consumeSpellManaSubstitutionGrant,
+    getManaSubstitutions,
+} from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
@@ -900,6 +903,16 @@ export function applyMoveForSearch(
                 );
             }
             applyTapPlan(next, playerId, move.tapPlan);
+            // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this
+            // turn, you may spend mana as though it were mana of any type"
+            // grant (North Star) is spent by a cast in the SEARCH world too.
+            // Popped unconditionally rather than through the real path's
+            // "was it needed" counterfactual: this leaf pays with the coarse
+            // mana model documented in this file's header (a tap plan, not a
+            // coin-exact pool drain), so the counterfactual has nothing honest
+            // to read. Not popping it let one activation fund several off-colour
+            // casts down a line and over-valued North Star.
+            consumeSpellManaSubstitutionGrant(next, playerId);
             // CR 107.4f — pay the Phyrexian pips this move chose to cover with
             // life (2 each); the mana-paid pips are already in `tapPlan`.
             if (move.payLife && move.payLife > 0) {

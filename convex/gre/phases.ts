@@ -2608,6 +2608,10 @@ export function finalizeCleanup(state: GameState): void {
                 // CR 305.9 (issue #1689) — the land-inclusive marker rides
                 // the same turn-scoped window; expires together.
                 delete card.castableFromExileIncludesLand;
+                // CR 609.4b (issue #2890) — the "spend mana as though any
+                // color/type" marker rides the SAME permission window; consumed
+                // together, so a stale one can never outlive its grant.
+                delete card.castFromExileManaSubstitution;
             }
         }
     }

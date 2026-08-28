@@ -18,7 +18,12 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    CardDefinition,
+    Color,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
     normalizeManaCost,
@@ -27,6 +32,7 @@ import {
     canPayLifeCost,
     canPayDiscardAtRandom,
     applyCostModifiers,
+    getCastManaSubstitutions,
     getCostModifiers,
     getManaSubstitutions,
     resolveTargetRequirementCount,
@@ -534,14 +540,20 @@ export function planManaPayment(
     state: GameState,
     player: PlayerState,
     cost: Record<string, number>,
-    /** CR 609.4b (issue #2890) — the card whose CAST this plan pays for, when
-     *  there is one. Forwarded to `getManaSubstitutions` so a cast-scoped
-     *  "spend mana as though it were mana of any color/type" permission (Robber
-     *  of the Rich's stolen card, North Star's one-shot grant) widens what each
-     *  source can pay, exactly as it does for the castability gate
-     *  (`coloredCostLeftover`, rules.ts). Omitted for an activated ability's
-     *  cost and for morph, which the permission never reaches. */
-    castCardInstanceId?: string
+    /** CR 609.4b (issue #2890) — the CAST this plan pays for, when there is
+     *  one. Routed through the shared `getCastManaSubstitutions` so a
+     *  cast-scoped "spend mana as though it were mana of any color/type"
+     *  permission (Robber of the Rich's stolen card, North Star's one-shot
+     *  grant) widens what each source can pay, under exactly the same scoping
+     *  the real payment applies — including North Star's "that spell's MANA
+     *  cost" limit, which `cost` (kicker folded, or an alternative cost) is
+     *  compared against. Omitted for an activated ability's cost and for
+     *  morph, which the permission never reaches. */
+    cast?: {
+        cardInstanceId: string;
+        cardDef: CardDefinition | null | undefined;
+        chosenX?: number;
+    }
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -701,11 +713,16 @@ export function planManaPayment(
     // with the castability gate it shares a board model with; without it the
     // gate would offer a cast this planner could not fund and the move would be
     // silently dropped, so the Bot could never use the permission at all.
-    const substitutions = getManaSubstitutions(
-        state,
-        player.id,
-        castCardInstanceId
-    );
+    const substitutions = cast
+        ? getCastManaSubstitutions(
+              state,
+              player,
+              cast.cardInstanceId,
+              cast.cardDef,
+              cost,
+              cast.chosenX
+          )
+        : getManaSubstitutions(state, player.id);
     const remaining = sources.map((s) => {
         const options = new Map(s.options);
         for (const sub of substitutions) {
@@ -1619,7 +1636,11 @@ function enumerateCastMoves(
                     )
                 );
             }
-            const tapPlan = planManaPayment(state, player, normCost, card.id);
+            const tapPlan = planManaPayment(state, player, normCost, {
+                cardInstanceId: card.id,
+                cardDef: def,
+                chosenX: x,
+            });
             if (tapPlan === null) continue;
             for (const targets of enumerateTargetGroupTuples(
                 state,
@@ -1678,12 +1699,10 @@ function enumerateCastMoves(
         // branch folds; a bestow cost is a mana cost like any other.
         const bestowModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(bestowCost, bestowModifiers);
-        const bestowTapPlan = planManaPayment(
-            state,
-            player,
-            bestowCost,
-            card.id
-        );
+        const bestowTapPlan = planManaPayment(state, player, bestowCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
         if (bestowTapPlan !== null) {
             for (const targets of enumerateTargetGroupTuples(
                 state,
@@ -1785,7 +1804,10 @@ function enumerateCastMoves(
         // branch folds.
         const dashModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(dashCost, dashModifiers);
-        const dashTapPlan = planManaPayment(state, player, dashCost, card.id);
+        const dashTapPlan = planManaPayment(state, player, dashCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
         if (dashTapPlan !== null) {
             moves.push({
                 kind: "cast-spell",

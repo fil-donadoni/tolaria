@@ -271,6 +271,10 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the same
     // permission window; drop it too now that the grant is consumed.
     delete card.castableFromExileIncludesLand;
+    // CR 609.4b (issue #2890) — the "spend mana as though any
+    // color/type" marker rides the SAME permission window; consumed
+    // together, so a stale one can never outlive its grant.
+    delete card.castFromExileManaSubstitution;
 }
 
 /** CR 305 / 305.1-analog — play a LAND from the GRAVEYARD under an
