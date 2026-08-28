@@ -271,9 +271,11 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
 - **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
   classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
-  `full`, runs exactly the checks that lane's plan names, and prints a
-  per-check receipt. On anything it cannot affirmatively place — a mixed
-  diff, `package.json`, a lockfile, `.claude/**`, an unrecognised path —
+  `docs` (only markdown under `docs/**` or a root `.md`, delegating to
+  `check:docs` verbatim) / `full`, runs exactly the checks that lane's plan
+  names, and prints a per-check receipt. On anything it cannot affirmatively
+  place — a mixed diff (**prose mixes with nothing**), `package.json`, a
+  lockfile, `.claude/**`, an unrecognised path —
   it degrades to `check:pr` **verbatim**, unchanged, so the fallback can never
   rot. **No lane ever scopes a project's tests to the diff** — the `skin`
   lane's `node[src,scripts]` carries a path argument (`src/ scripts/`), but

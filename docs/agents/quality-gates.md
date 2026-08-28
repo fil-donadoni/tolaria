@@ -201,7 +201,7 @@ candidate issue's `lane` from its own declared/inferred `targetFiles`, with
 the identical `classifyPath`/`laneFor` predicate `check:lane` runs against a
 real diff — never from the issue's `area:*` label, which is a hypothesis a
 human wrote before the code existed. A batch is admitted lane-homogeneous
-(all `skin`, all `engine`, or all `full`); a candidate whose real lane
+(all `skin`, all `engine`, all `docs`, or all `full`); a candidate whose real lane
 disagrees with the batch's is deferred as a lane mismatch, the same way an
 overlapping target file is deferred today. `/process-gh-issues` runs exactly
 one `check:ui` for a `skin` batch, on the integrated tree, before any of its

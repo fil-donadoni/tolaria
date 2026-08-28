@@ -101,9 +101,39 @@ describe("check-lane — path classification (issue #2740)", () => {
 
     it("FAILS CLOSED: a path matching no rule is full, never skin", () => {
         expect(classifyPath("some/brand/new/top-level/thing.ts")).toBe("full");
-        expect(classifyPath("CLAUDE.md")).toBe("full");
-        expect(classifyPath("docs/adr/0104-gate-lanes.md")).toBe("full");
         expect(classifyPath(".agents/whatever.md")).toBe("full");
+    });
+
+    it("classifies prose as docs — markdown under docs/** and root .md", () => {
+        expect(classifyPath("docs/adr/0104-gate-lanes.md")).toBe("docs");
+        expect(classifyPath("docs/findings/1872-mana.md")).toBe("docs");
+        expect(classifyPath("docs/agents/quality-gates.md")).toBe("docs");
+        expect(classifyPath("CLAUDE.md")).toBe("docs");
+        expect(classifyPath("CONTEXT.md")).toBe("docs");
+        expect(classifyPath("README.md")).toBe("docs");
+    });
+
+    /**
+     * The docs lane is anchored to `.md` for the same reason `SKIN_PATTERNS`
+     * is anchored to a directory (#2740 round-1 review): `docs/` also holds
+     * images and stylesheets, and an extension must never be what promotes a
+     * path out of `full`. The mirror-image hazard is the new one — a
+     * DIRECTORY must not promote a non-prose file into the prose lane.
+     */
+    it("a docs/ path that is NOT markdown stays full", () => {
+        expect(classifyPath("docs/img/a.png")).toBe("full");
+        expect(classifyPath("docs/guides/style.css")).toBe("full");
+        expect(classifyPath("docs/scripts/gen.ts")).toBe("full");
+    });
+
+    it("markdown outside docs/** and the repo root is NOT docs", () => {
+        // `.claude/**` is FULL_PATTERNS, matched before the docs list, and
+        // `.agents/**` matches nothing — neither can reach the prose lane.
+        expect(classifyPath(".claude/rules/gre-development.md")).toBe("full");
+        expect(classifyPath(".agents/skills/x/SKILL.md")).toBe("full");
+        // Nested markdown that belongs to code, not to prose.
+        expect(classifyPath("convex/gre/README.md")).toBe("engine");
+        expect(classifyPath("src/components/README.md")).toBe("skin");
     });
 });
 
@@ -127,6 +157,53 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         // against a new src test file being selected by neither vitest
         // project — the skin lane is precisely the lane that adds them.
         expect(ids(plan.run)).toContain("node[src,scripts]");
+    });
+
+    it("prose-only ⇒ docs, delegating to check:docs verbatim", () => {
+        const plan = classifyLane([
+            "docs/adr/0111-extra-phases.md",
+            "docs/adr/README.md",
+            "CONTEXT.md",
+        ]);
+        expect(plan.lane).toBe("docs");
+        expect(ids(plan.run)).toEqual(["check:docs"]);
+    });
+
+    /**
+     * The regression this lane was built to kill: `bun run land` on a
+     * one-file `docs/findings/**` branch classified `full` and paid the whole
+     * `check:pr` suite — 466s measured on PR #2891.
+     */
+    it("a single docs/findings file ⇒ docs, not full", () => {
+        const plan = classifyLane([
+            "docs/findings/1872-cast-time-mana-color-fixing.md",
+        ]);
+        expect(plan.lane).toBe("docs");
+    });
+
+    /**
+     * Prose mixes with nothing. `laneFor`'s pre-existing
+     * `!classes.includes("skin") ⇒ engine` clause would otherwise hand a
+     * docs+convex diff the engine lane by omission — a widening arrived at
+     * without an argument. Every mix keeps paying the full gate exactly as it
+     * did before this lane existed.
+     */
+    it("prose mixed with code ⇒ full, never a narrowed lane", () => {
+        expect(classifyLane(["CONTEXT.md", "convex/gre/phases.ts"]).lane).toBe(
+            "full"
+        );
+        expect(
+            classifyLane(["docs/adr/0111.md", "src/components/board/Card.tsx"])
+                .lane
+        ).toBe("full");
+        expect(
+            classifyLane(["docs/adr/0111.md", "scripts/check-lane.ts"]).lane
+        ).toBe("full");
+        // …and the rationale says WHY, rather than reusing the src-vs-engine
+        // mixed-diff wording that would be a false statement here.
+        expect(
+            classifyLane(["CONTEXT.md", "convex/gre/phases.ts"]).rationale
+        ).toContain("mixing prose with code");
     });
 
     it("convex-only ⇒ engine", () => {
@@ -214,7 +291,18 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
 describe("check-lane — the plan object drives both lists (issue #2740)", () => {
     const skin = classifyLane(["src/components/board/Card.tsx"]);
     const engine = classifyLane(["convex/gre/engine.ts"]);
+    const docs = classifyLane(["docs/adr/0111-extra-phases.md"]);
     const full = classifyLane(["package.json"]);
+
+    it("docs delegates to check:docs and names what prose cannot break", () => {
+        expect(ids(docs.run)).toEqual(["check:docs"]);
+        expect(ids(docs.skip)).toEqual([
+            "tsc[all]",
+            "lint(diff)",
+            "dom",
+            "node[all]",
+        ]);
+    });
 
     it("skin runs the app-side checks and skips what a src diff cannot break", () => {
         expect(ids(skin.run)).toEqual([
@@ -406,6 +494,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     const plans: LanePlan[] = [
         classifyLane(["src/app.tsx"]),
         classifyLane(["convex/gre/engine.ts"]),
+        classifyLane(["docs/adr/0111-extra-phases.md"]),
         classifyLane(["package.json"]),
     ];
 

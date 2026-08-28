@@ -31,7 +31,8 @@
  * FAIL-CLOSED IS THE LOAD-BEARING PROPERTY. `classifyPath` returns `full`
  * for anything it does not affirmatively recognise, and `laneFor` returns
  * `full` as its terminal statement with every narrower lane guarded by an
- * affirmative predicate (`every(... === "skin")`, `!includes("skin")`).
+ * affirmative predicate (`every(... === "skin")`, `every(... === "docs")`,
+ * `!includes("skin")`).
  * Reordering those clauses cannot turn an unknown path into `skin`. The
  * explicit `FULL_PATTERNS` rules below are therefore documentation of the
  * dominant cases AND a guard that beats any future widening of the skin
@@ -59,7 +60,7 @@ import { resolve } from "node:path";
 // Path classification
 // ─────────────────────────────────────────────────────────────────────────
 
-export type Lane = "skin" | "engine" | "full";
+export type Lane = "skin" | "engine" | "docs" | "full";
 
 /** What a single changed path admits. `full` is the fail-closed default. */
 export type PathClass = Lane;
@@ -109,12 +110,38 @@ const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
 const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
 
 /**
+ * Prose-only paths: markdown under `docs/**` and the root-level markdown that
+ * is resident agent context (`CLAUDE.md`, `CONTEXT.md`, `README.md`).
+ *
+ * ANCHORED TO `.md` ON PURPOSE, for the same reason `SKIN_PATTERNS` is
+ * anchored to a directory: `docs/` also holds images and stylesheets, and an
+ * extension must never be what promotes a path out of `full`. `docs/img/a.png`
+ * and `docs/guides/style.css` stay `full`. `.claude/**` and `.agents/**` stay
+ * `full` too — `.claude/` is matched by `FULL_PATTERNS` FIRST, and `.agents/`
+ * matches nothing, so neither can reach this list.
+ *
+ * WHY A LANE AND NOT A FALLBACK. `check:docs` is already the ratified
+ * definition of what a prose diff owes — the whole `wt:docs` / `docs:ship`
+ * flow is built on it, and it runs `format:check`, `cr:lint` and the six node
+ * test files that are precisely the guards which READ prose
+ * (`adr-index`, `findings`, `project-skills`, `resident-context-budget`,
+ * `action-space`, `bot-globs`). Before this lane existed, `docs/**` matched no
+ * rule and fell to `full` by the fail-closed default, so `bun run land` on a
+ * one-file docs branch paid the entire `check:pr` suite: 466s measured on
+ * PR #2891, against seconds for `check:docs`. That gap was a standing invitation
+ * to reach for `docs:ship` from muscle memory and pay the full gate whenever
+ * anyone forgot — a rule prose cannot enforce, so it belongs here.
+ */
+const DOCS_PATTERNS: RegExp[] = [/^docs\/.*\.md$/, /^[^/]+\.md$/];
+
+/**
  * Classify ONE changed path. Fail-closed: anything not affirmatively
  * recognised is `full`, so a new top-level directory nobody thought about
  * degrades to the full gate rather than to a narrowed one.
  */
 export function classifyPath(path: string): PathClass {
     if (FULL_PATTERNS.some((re) => re.test(path))) return "full";
+    if (DOCS_PATTERNS.some((re) => re.test(path))) return "docs";
     if (SKIN_PATTERNS.some((re) => re.test(path))) return "skin";
     if (ENGINE_PATTERNS.some((re) => re.test(path))) return "engine";
     return "full";
@@ -133,6 +160,13 @@ export function laneFor(classes: PathClass[]): Lane {
     // shape that would make a narrowed gate look green for free.
     if (classes.length === 0) return "full";
     if (classes.includes("full")) return "full";
+    if (classes.every((c) => c === "docs")) return "docs";
+    // Prose MIXES WITH NOTHING. Without this line the `!includes("skin")`
+    // clause below would hand a docs+convex diff the `engine` lane — a
+    // widening nobody asked for, arrived at by omission rather than by
+    // argument. A mixed diff keeps paying the full gate exactly as it did
+    // before the docs lane existed; only the pure case is narrowed.
+    if (classes.includes("docs")) return "full";
     if (classes.every((c) => c === "skin")) return "skin";
     if (!classes.includes("skin")) return "engine";
     return "full";
@@ -210,6 +244,38 @@ export function classifyLane(
             // (#2738 § Explicitly unchanged).
             run: [{ id: "check:pr", command: "bun run check:pr" }],
             skip: [],
+        };
+    }
+
+    if (lane === "docs") {
+        return {
+            lane,
+            rationale: docsRationale(files),
+            files,
+            // Verbatim delegation, for the same reason the `full` lane
+            // delegates to `check:pr`: `check:docs` is what the docs lane
+            // already owes (`docs:ship` runs exactly this), so naming it
+            // whole means this lane cannot drift from it — if `check:docs`
+            // grows a check, this grows with it.
+            run: [{ id: "check:docs", command: "bun run check:docs" }],
+            skip: [
+                {
+                    id: "tsc[all]",
+                    reason: "no .ts/.tsx in the diff — markdown cannot break a type-check",
+                },
+                {
+                    id: "lint(diff)",
+                    reason: "eslint has no parser for .md; prettier covers it inside check:docs",
+                },
+                {
+                    id: "dom",
+                    reason: "no changed path under src/** — no component, style or asset changed",
+                },
+                {
+                    id: "node[all]",
+                    reason: "check:docs runs the node files that READ prose (adr-index, findings, project-skills, resident-context-budget); the rest cannot see a markdown edit",
+                },
+            ],
         };
     }
 
@@ -316,6 +382,10 @@ function engineRationale(files: string[]): string {
     return `${files.length} file${files.length === 1 ? "" : "s"}, all under convex/** or scripts/**`;
 }
 
+function docsRationale(files: string[]): string {
+    return `${files.length} file${files.length === 1 ? "" : "s"}, all prose — markdown under docs/** or a root-level .md`;
+}
+
 function fullRationale(files: string[]): string {
     if (files.length === 0) {
         return "empty diff — nothing to classify, so the full gate stands (a wrong base ref looks exactly like this)";
@@ -323,6 +393,12 @@ function fullRationale(files: string[]): string {
     const unrecognised = files.filter((p) => classifyPath(p) === "full");
     if (unrecognised.length > 0) {
         return `${files.length} file${files.length === 1 ? "" : "s"}, ${unrecognised.length} outside every lane rule (first: ${unrecognised[0]})`;
+    }
+    // A docs path in a diff that is not ALL docs is a mix by definition
+    // (`laneFor` returns `docs` only for the pure case), so say so rather
+    // than mis-describing it as the src-vs-engine mix below.
+    if (files.some((p) => classifyPath(p) === "docs")) {
+        return `${files.length} files mixing prose with code — prose is only narrowed when the diff is nothing but prose`;
     }
     return `${files.length} files spanning src/** and convex|scripts/** — the mixed case never gets a narrowed gate`;
 }
