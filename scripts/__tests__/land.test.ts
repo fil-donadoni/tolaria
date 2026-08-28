@@ -14,6 +14,7 @@ import {
     buildLockedCommand,
     rebaseStep,
     remoteBranchDeleteStep,
+    primaryMainFastForwardStep,
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
@@ -259,6 +260,41 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2517/);
         expect(cmd).toContain("green-sha");
         expect(cmd).not.toContain("worktree remove");
+    });
+
+    it("fast-forwards the primary checkout's local main onto the merged tip, past the green-sha write", () => {
+        // The API merge moves `origin/main` only; without this step the
+        // checkout every session branches from sits one commit behind after a
+        // green land, and the next `git worktree add` starts from a stale tip.
+        const cmd = buildLockedCommand(base);
+        expect(cmd).toContain(primaryMainFastForwardStep("/repo"));
+        expect(cmd.indexOf("merge --ff-only")).toBeGreaterThan(
+            cmd.indexOf("git rev-parse origin/main >")
+        );
+    });
+
+    it("guards the fast-forward on the primary checkout actually being on main", () => {
+        // Unguarded, `merge --ff-only origin/main` would fast-forward whatever
+        // OTHER branch is checked out there — silently moving a user's
+        // work-in-progress branch. The guard is the whole safety of the step.
+        const step = primaryMainFastForwardStep("/repo");
+        expect(step).toContain(
+            `[ "$(git -C '/repo' symbolic-ref --quiet --short HEAD)" = "main" ]`
+        );
+        expect(step).toContain("git -C '/repo' merge --ff-only -q origin/main");
+        // Non-gating: a dirty tree in the primary checkout must not turn a
+        // MERGED PR into a reported failure.
+        expect(step.endsWith("; true)")).toBe(true);
+    });
+
+    it("--keep still fast-forwards local main (teardown is about the WORKTREE)", () => {
+        const cmd = buildLockedCommand({ ...base, teardown: false });
+        expect(cmd).toContain("merge --ff-only");
+    });
+
+    it("--no-merge never touches local main — nothing landed to catch up with", () => {
+        const cmd = buildLockedCommand({ ...base, merge: false });
+        expect(cmd).not.toContain("merge --ff-only");
     });
 
     it("--keep leaves the REMOTE branch alone too, not just the worktree (#2536)", () => {

@@ -3,7 +3,8 @@
  * `bun run land <PR#>` — land a PR inside ONE `gate.ts heavy`
  * invocation: fetch → rebase origin/main → check:lane →
  * push --force-with-lease → `pr-merge.ts` (settle-aware squash merge) →
- * write green-sha → tear down the worktree.
+ * write green-sha → fast-forward the primary checkout's local `main` →
+ * tear down the worktree.
  *
  * WHY ONE LOCK (issue #2517). The merge-train (process-gh-issues §4 step 4,
  * Lane B) used to rebase, gate, then merge as three separate steps. Nothing
@@ -349,6 +350,39 @@ export function remoteBranchDeleteStep(branch: string): string {
     );
 }
 
+/**
+ * Fast-forward the PRIMARY checkout's local `main` onto the merged tip.
+ *
+ * `pr-merge.ts` lands the squash through the GitHub API, so nothing local
+ * moves: the locked shell re-fetches `origin/main` (shared across every
+ * linked worktree, same object store), but the primary checkout's own `main`
+ * BRANCH ref stays where it was. The observable symptom is that after a green
+ * `land` the checkout every session starts from reports `[behind 1]`, and the
+ * next session's `git worktree add` branches off a tip that is already stale —
+ * which is how a rebase conflict gets manufactured out of nothing.
+ *
+ * Guarded on the primary checkout actually having `main` CHECKED OUT, and
+ * `--ff-only` on top of that. Without the guard a `git merge --ff-only
+ * origin/main` would fast-forward whatever OTHER branch happens to be checked
+ * out there — silently moving a user's work-in-progress branch onto main's
+ * tip, which is exactly the class of surprise ref cleanup must never cause.
+ *
+ * Non-gating like the rest of the post-merge housekeeping (`; true`): the PR
+ * is already merged, and a dirty tree or a detached HEAD in the primary
+ * checkout must not turn a landed PR into a reported failure. It says so on
+ * stderr instead, because a stale local `main` the user does not know about is
+ * worse than one they were told to pull.
+ */
+export function primaryMainFastForwardStep(primaryCheckout: string): string {
+    const p = shQuote(primaryCheckout);
+    return (
+        `(if [ "$(git -C ${p} symbolic-ref --quiet --short HEAD)" = "main" ]; then ` +
+        `git -C ${p} merge --ff-only -q origin/main || ` +
+        `echo "land: could not fast-forward local main in ${primaryCheckout} to the merged tip — pull it by hand" >&2; ` +
+        `else echo "land: ${primaryCheckout} is not on main — local main left as it was" >&2; fi; true)`
+    );
+}
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
     // the checks the classified diff owes (degrading to `check:pr` verbatim
@@ -402,6 +436,10 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         steps.push(
             `((cd ${shQuote(opts.primaryCheckout)} && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun ${shQuote(HEALTH_MAIN)} >> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
         );
+        // Local `main` catches up with the tip the API merge just created —
+        // unconditional of `--keep`, which is about the WORKTREE, not about
+        // leaving the checkout every session branches from one commit stale.
+        steps.push(primaryMainFastForwardStep(opts.primaryCheckout));
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.

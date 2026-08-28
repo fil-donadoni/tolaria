@@ -92,10 +92,17 @@ wrong-mental-model defect, see §1's escalation note.
   scenario for any new card/gameplay feature (ADR 0044), UI receipt only if
   the diff can reach the DOM (`bun run check:ui`).
 - `bun run land <PR#>` — it rebases, runs the lane gate under the machine
-  mutex, merges, tears down the worktree and branch, and detaches
+  mutex, merges, fast-forwards the primary checkout's local `main` onto the
+  merged tip, tears down the worktree and both branch refs, and detaches
   `health:main` (the full gate on the merged tip — ADR 0110). If `land`
   warns that a health RED marker exists, read `bun run health:status` first:
   fixing main comes before landing new work.
+- **Never do that catch-up by hand.** The merge lands through the API, so
+  only `origin/main` moves; `land` owns pulling the local branch up and
+  deleting the local branch, because a rule that CAN be a script is not
+  prose. If `land` printed `could not fast-forward local main` (a dirty
+  primary checkout, or one not on `main`), that line is the whole handover —
+  say so in §6 rather than fixing the user's checkout for them.
 - Issue not auto-closed by the merge → close it with a one-line comment.
   On abort: remove `in-progress`, remove the worktree.
 
