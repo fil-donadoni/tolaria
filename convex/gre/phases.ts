@@ -2684,10 +2684,127 @@ export function finalizeCleanup(state: GameState): void {
     state.cleanupBookkeepingTurn = state.turn;
 }
 
+/** The `GameState` keys whose value type admits `undefined` — every optional
+ *  field, plus any required field explicitly declared `T | undefined`.
+ *  Constrains {@link TURN_SCOPED_GLOBAL_FLAGS} so a key that CANNOT hold
+ *  `undefined` is a compile error there rather than a runtime hole, and
+ *  justifies the one cast in the clearing loop. The guarantee it buys is
+ *  precisely "writing `undefined` to this key is type-legal" — not "this key
+ *  is optional". */
+type OptionalGameStateKey = {
+    [K in keyof GameState]-?: undefined extends GameState[K] ? K : never;
+}[keyof GameState];
+
+/** CR 514.2 — every turn-scoped GLOBAL flag on `GameState`: a "this turn" /
+ *  "until end of turn" effect modelled as a bare field instead of as a
+ *  parametric {@link Duration}. All of them are cleared at the CLEANUP
+ *  boundary and ONLY there.
+ *
+ *  This is a table rather than N hand-written `if`s because the gate is a
+ *  CLASS invariant, not a per-flag choice, and writing it per flag is exactly
+ *  how it drifted (issue #1864). `tickAllDurations` runs at FOUR boundaries
+ *  (UNTAP, UPKEEP, CLEANUP and — the one that bites — `endCombatStep`, CR
+ *  511.3: once per combat phase, on EVERY turn, because `skipEmptyCombat`
+ *  auto-advances THROUGH the step, which still exits it). A
+ *  flag cleared unconditionally there is gone before the postcombat main phase
+ *  of the same turn, and gone before a second combat phase (CR 500.8). Eight
+ *  of the entries below were written that way; four were live bugs whose
+ *  riders vanished between the precombat and postcombat main phases, and every
+ *  one of the eight already had a `state.ts` doc comment claiming "cleared at
+ *  CLEANUP".
+ *
+ *  An effect that genuinely ends at END_OF_COMBAT does not belong here — and
+ *  does not get a bespoke clear either: give it a `Duration` of
+ *  `{ phase: "end-of-combat" }` and let `tickDuration` pick the boundary (CR
+ *  511.2 / 500.5a). The #1864 audit of this function found no combat-scoped
+ *  bare flag, which is why there is no second table to balance this one. */
+const TURN_SCOPED_GLOBAL_FLAGS = [
+    // CR 615 / 514.2 — Sacred Boon's prevention readback tally accumulates
+    // through the combat-damage step and is read by the card's own
+    // next-end-step delayed trigger at END_STEP, i.e. AFTER END_OF_COMBAT.
+    "preventionTallies",
+    // CR 615 / 514.2 — Fog / Tangle's blanket "prevent all combat damage that
+    // would be dealt this turn". Read by `applyAllCombatDamage`, so it must
+    // still apply in a second combat phase the same turn (CR 500.8).
+    "preventAllCombatDamageThisTurn",
+    // CR 615 / 510.1c / 514.2 — SOURCE-scoped prevention shields (Farrel's
+    // Mantle, Falling Timber, Guard Dogs, Radiant Kavu, Rith's Charm). An
+    // unconsumed shield is a "this turn" effect.
+    "sourcePreventionShields",
+    // CR 614.6 / 514.2 — Kjeldoran Royal Guard redirects unblocked combat
+    // damage "this turn", which spans every combat phase of that turn.
+    "combatDamageRedirectToPermanent",
+    // CR 601.3 / 514.2 (issue #1057) — Xantid Swarm's per-player "can't cast
+    // spells this turn" lock ("no rule or effect prohibits that player from
+    // casting it" — 601.3a is the clause that LIFTS a prohibition, not the one
+    // that imposes it). The defending player still can't cast during the
+    // postcombat main phase.
+    "cannotCastSpellsThisTurn",
+    // CR 602.1 / 605.1a / 514.2 (issue #1124) — Abeyance's per-player "can't
+    // activate non-mana abilities this turn" lock, same boundary as the cast
+    // lock above.
+    "cannotActivateAbilitiesThisTurn",
+    // CR 614 / 514.2 (issue #1145) — Yawgmoth's Will's graveyard-bound
+    // redirect is a "this turn" replacement.
+    "graveyardBoundRedirectThisTurn",
+    // CR 601 / 514.2 (issue #1149) — Yawgmoth's Will's "you may play lands and
+    // cast spells from your graveyard this turn" permission.
+    "graveyardPlayPermissionThisTurn",
+    // CR 601.3 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
+    // once-per-turn usage tally for the STATIC graveyard-permanent-cast
+    // permission ("once during each of your turns"). 601.3 is the anchor
+    // because the flag records how much of a CASTING PERMISSION has been
+    // used; Lurrus's graveyard clause is a printed static ability, NOT its
+    // companion ability, so CR 702.139 (Companion) does not apply.
+    "graveyardPermanentCastUsedThisTurn",
+    // CR 603.7a / 514.2 — Gaze of Pain's floating "until end of turn" rider,
+    // which fires on `ATTACKER_UNBLOCKED`: it must survive END_OF_COMBAT to
+    // still be armed for a second combat phase.
+    "gazeOfPainActiveThisTurn",
+    // CR 615 / 514.2 — Forcefield's one-shot damage cap is a "this turn"
+    // prevention shield; unconsumed, it survives to the next combat phase.
+    "damageCapShields",
+    // CR 614 / 514.2 — Deep Water's "until end of turn" land-mana replacement.
+    // Read by the mana funnel, so it must still apply when lands are tapped in
+    // the POSTCOMBAT main phase.
+    "landManaReplacedToBlueThisTurn",
+    // CR 614 / 514.2 — High Tide's "until end of turn" extra-{U} rider, same
+    // postcombat-main-phase exposure as Deep Water above.
+    "highTideThisTurn",
+    // CR 614 / 514.2 — Chaos Moon's parametrized "until end of turn" land-mana
+    // riders (re-armed by the next upkeep trigger).
+    "landManaRidersThisTurn",
+    // CR 508.1d / 514.2 — Siren's Call's "creatures the active player controls
+    // attack this turn if able". 508.1d is explicit that a turn-scoped attack
+    // requirement applies "during each declare attackers step in that turn",
+    // so this must survive END_OF_COMBAT.
+    "allCreaturesMustAttack",
+    // CR 608.2 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
+    // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub),
+    // incremented once per RESOLUTION (608.2) of a triggered ability (603.3).
+    "abilityResolutionCounts",
+    // CR 504.1 / 514.2 (issue #1097, Elfhame Sanctuary) — a one-shot draw-step
+    // skip is normally consumed by `drawStep` earlier the same turn; the
+    // CLEANUP clear is the safety net for the CR 103.8a turn-1 case, where the
+    // draw step never runs and the flag must not survive into a later turn.
+    "skipDrawStepThisTurn",
+] as const satisfies readonly OptionalGameStateKey[];
+
 /** Advances all parametric durations on the current game state by one
- *  phase-boundary tick. Called from END_OF_COMBAT (CR 511.3) and CLEANUP
- *  (CR 514.2); `tickDuration` itself filters by phase+playerId so entries
- *  scoped to a different boundary are left untouched. */
+ *  phase-boundary tick.
+ *
+ *  **FOUR call sites, not two** — under-counting them is what produced the
+ *  #1864 flag class. `performPhaseEntry`'s UNTAP and UPKEEP cases (CR 502.1 /
+ *  500.2, once per turn), `finalizeCleanup` (CR 514.2), and `endCombatStep`
+ *  (CR 511.3) — the last running on EVERY turn's END_OF_COMBAT exit, with or
+ *  without attackers, because `skipEmptyCombat` auto-advances THROUGH the step
+ *  and still exits it. Anything cleared here unconditionally is therefore gone
+ *  before the postcombat main phase of the same turn.
+ *
+ *  `tickDuration` filters parametric durations by phase+playerId, so entries
+ *  scoped to a different boundary are left untouched. The turn-scoped GLOBAL
+ *  flags carry no such parameter and are gated as a class — see
+ *  {@link TURN_SCOPED_GLOBAL_FLAGS}. */
 function tickAllDurations(state: GameState): void {
     const view: DurationTickView = {
         phase: state.phase,
@@ -2880,17 +2997,6 @@ function tickAllDurations(state: GameState): void {
         state.targetPreventionShields = kept.length > 0 ? kept : undefined;
     }
 
-    // Prevention readback tallies (Sacred Boon). The tally accumulates through
-    // the combat-damage step and is read + cleared by the card's next-end-step
-    // delayed trigger at END_STEP. It must therefore SURVIVE every earlier
-    // phase boundary this function also runs at (END_OF_COMBAT via
-    // `endCombatStep`, UNTAP, UPKEEP) — purging it there would wipe the tally
-    // before END_STEP ever reads it. Only discard at CLEANUP (CR 514.2), so any
-    // leftover (no follow-up ever fired) can't leak into a later turn.
-    if (view.phase === "CLEANUP" && state.preventionTallies) {
-        state.preventionTallies = undefined;
-    }
-
     // Per-player source-matched prevention shields (Dark Sphere, Scarecrow).
     // Unconsumed remainder wears off at the same boundary (CR 514.2).
     if (state.playerDamagePrevention?.length) {
@@ -3042,113 +3148,20 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Fog-style blanket combat-damage prevention (CR 615). Only meaningful
-    // at CLEANUP — the flag is set at resolution time and lasts until end of
-    // turn. Cleared unconditionally so it doesn't persist across turns.
-    // KNOWN GAP (issue #1864, found reviewing Tangle in PR #1858, pre-existing
-    // for Fog too): `tickAllDurations` also runs from `endCombatStep` (CR
-    // 511.3), which fires at the end of EVERY combat phase — so this
-    // unconditional clear wipes the flag after the FIRST combat phase, not
-    // surviving into a second/extra combat phase the same turn, even though
-    // "this turn" should cover it. Should mirror `cannotCastSpellsThisTurn`
-    // just below (gated on `view.phase === "CLEANUP"`) instead of clearing
-    // on every tick. tracked-by: #1864
-    if (state.preventAllCombatDamageThisTurn) {
-        state.preventAllCombatDamageThisTurn = undefined;
-    }
-    // CR 615 / 510.1c / 514.2 — SOURCE-scoped prevention shields (Farrel's
-    // Mantle's "assigns no combat damage", Falling Timber / Guard Dogs /
-    // Radiant Kavu's combat-only shields, Rith's Charm's all-damage shield)
-    // are "this turn" effects, so an UNCONSUMED shield expires at CLEANUP —
-    // gated on `view.phase === "CLEANUP"` like `cannotCastSpellsThisTurn`
-    // below, NOT cleared on every tick. `tickAllDurations` also runs from
-    // `endCombatStep` (CR 511.3, once per combat phase); an unconditional
-    // clear there would drop the shield before a second combat phase the same
-    // turn, which is the shape of the still-open Fog bug on
-    // `preventAllCombatDamageThisTurn` just above (issue #1864 — deliberately
-    // left alone here, this list simply does not repeat it).
-    if (view.phase === "CLEANUP" && state.sourcePreventionShields) {
-        state.sourcePreventionShields = undefined;
-    }
-    // CR 614.6 / 514.2 — Kjeldoran Royal Guard's turn-scoped combat-damage
-    // redirect expires at end of turn.
-    if (state.combatDamageRedirectToPermanent) {
-        state.combatDamageRedirectToPermanent = undefined;
-    }
-    // CR 601.3a / 514.2 (issue #1057) — a turn-scoped per-player "can't cast
-    // spells this turn" lock (Xantid Swarm) expires at end of turn. Unlike the
-    // combat-damage flags above, this MUST survive END_OF_COMBAT (this function
-    // also ticks there, CR 511.3): the defending player still can't cast during
-    // the postcombat main phase. Cleared only at the CLEANUP boundary.
-    if (view.phase === "CLEANUP" && state.cannotCastSpellsThisTurn) {
-        state.cannotCastSpellsThisTurn = undefined;
-    }
-    // CR 602.1 / 605.1a / 514.2 (issue #1124) — a turn-scoped per-player "can't
-    // activate abilities that aren't mana abilities" lock (Abeyance) expires at
-    // end of turn, same CLEANUP-only boundary as the cast lock above.
-    if (view.phase === "CLEANUP" && state.cannotActivateAbilitiesThisTurn) {
-        state.cannotActivateAbilitiesThisTurn = undefined;
-    }
-    // CR 614 / 514.2 (issue #1145) — Yawgmoth's Will's turn-scoped
-    // graveyard-bound redirect expires at end of turn, same CLEANUP-only
-    // boundary as the cast/activation locks above.
-    if (view.phase === "CLEANUP" && state.graveyardBoundRedirectThisTurn) {
-        state.graveyardBoundRedirectThisTurn = undefined;
-    }
-    // CR 305.1-analog / 601 / 514.2 (issue #1149) — Yawgmoth's Will's
-    // turn-scoped "may play lands / cast spells from your graveyard"
-    // permission expires at end of turn, same CLEANUP-only boundary as the
-    // cast/activation locks above.
-    if (view.phase === "CLEANUP" && state.graveyardPlayPermissionThisTurn) {
-        state.graveyardPlayPermissionThisTurn = undefined;
-    }
-    // CR 702.139 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
-    // once-per-turn usage tracking for the STATIC graveyard-permanent-cast
-    // permission expires at end of turn, same CLEANUP-only boundary as the
-    // BROAD permission above (correct for "once during each of YOUR turns":
-    // see the doc comment on `GameState.graveyardPermanentCastUsedThisTurn`).
-    if (view.phase === "CLEANUP" && state.graveyardPermanentCastUsedThisTurn) {
-        state.graveyardPermanentCastUsedThisTurn = undefined;
-    }
-    // ICE Gaze of Pain — the "until end of turn" floating rider expires.
-    if (state.gazeOfPainActiveThisTurn) {
-        state.gazeOfPainActiveThisTurn = undefined;
-    }
-    if (state.damageCapShields) {
-        state.damageCapShields = undefined;
-    }
-    // CR 514.2 — Deep Water's "until end of turn" land-mana replacement expires.
-    if (state.landManaReplacedToBlueThisTurn) {
-        state.landManaReplacedToBlueThisTurn = undefined;
-    }
-    // CR 514.2 — FEM High Tide's "until end of turn" extra-{U} rider expires.
-    if (state.highTideThisTurn) {
-        state.highTideThisTurn = undefined;
-    }
-    // CR 514.2 — Chaos Moon's parametrized "until end of turn" land-mana riders
-    // expire (re-armed by the next upkeep trigger).
-    if (state.landManaRidersThisTurn) {
-        state.landManaRidersThisTurn = undefined;
-    }
-    if (state.allCreaturesMustAttack) {
-        state.allCreaturesMustAttack = undefined;
-    }
-    // CR 122 / 603.3 / 514.2 (issue #1189) — the per-source per-turn
-    // ability-resolution tally (Omnath, Locus of Creation; Scythecat Cub) is
-    // scoped to "this turn"; cleared unconditionally at CLEANUP, same
-    // CLEANUP-only boundary as the cast/activation locks above (this
-    // function also ticks at END_OF_COMBAT, where the tally must survive).
-    if (view.phase === "CLEANUP" && state.abilityResolutionCounts) {
-        state.abilityResolutionCounts = undefined;
-    }
-    // CR 504.1 / 514.2 (issue #1097 — Elfhame Sanctuary) — a one-shot
-    // per-player draw-step-skip flag is normally consumed by `drawStep`
-    // itself, earlier the SAME turn; this is a safety net for the turn-1
-    // edge case (CR 103.8a skips only the DRAW step, not UPKEEP, so a flag
-    // armed there on turn 1 is never reached by `drawStep` and must not
-    // survive to a later turn).
-    if (view.phase === "CLEANUP" && state.skipDrawStepThisTurn) {
-        state.skipDrawStepThisTurn = undefined;
+    // CR 514.2 — the turn-scoped GLOBAL flags. One gated loop, not one `if`
+    // per flag: see TURN_SCOPED_GLOBAL_FLAGS above for why the boundary is a
+    // class invariant and for each entry's own boundary evidence. The gate
+    // re-runs on an additional cleanup step (CR 514.3a) exactly as the
+    // per-flag clears did, so a flag armed in that step's priority window
+    // (an instant — Fog, High Tide) still cannot leak into the next turn.
+    if (view.phase === "CLEANUP") {
+        for (const flag of TURN_SCOPED_GLOBAL_FLAGS) {
+            if (state[flag] === undefined) continue;
+            // Safe by construction: `OptionalGameStateKey` admits only keys
+            // whose value type already includes `undefined`.
+            (state as Record<OptionalGameStateKey, undefined>)[flag] =
+                undefined;
+        }
     }
 }
 
