@@ -271,11 +271,11 @@ export type DurationTickView = {
      *  turn early. When set, `tickDuration` is a no-op.
      *
      *  Scoped to durations only. The turn-scoped GLOBAL flags that
-     *  `tickAllDurations` clears alongside them (`highTideThisTurn`,
-     *  `preventAllCombatDamageThisTurn`, the cast/activation locks) are plain
-     *  clear-to-`undefined` statements outside `tickDuration` and DO re-run on
-     *  the repeat step, so an instant cast in the CR 514.3a priority window
-     *  cannot arm one and leak it into the next turn.
+     *  `tickAllDurations` clears alongside them (`TURN_SCOPED_GLOBAL_FLAGS`
+     *  in `phases.ts`) are cleared outside `tickDuration`, gated on the
+     *  CLEANUP boundary alone, and so DO re-run on the repeat step: an instant
+     *  cast in the CR 514.3a priority window cannot arm one and leak it into
+     *  the next turn.
      *
      *  Residual, pre-existing and unchanged by this flag: a DURATION created
      *  during that same window misses this turn's tick and ends one turn late.

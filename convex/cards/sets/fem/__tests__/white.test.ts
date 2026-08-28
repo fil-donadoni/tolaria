@@ -393,8 +393,8 @@ describe("assigns no combat damage this turn (CR 510.1c)", () => {
         // `tickAllDurations` also runs from `endCombatStep` (CR 511.3, once
         // per combat phase). A "this turn" shield MUST survive that so it
         // still applies in a SECOND combat phase the same turn — the shape of
-        // the still-open Fog bug on `preventAllCombatDamageThisTurn` (#1864),
-        // which this list deliberately does not repeat.
+        // the eight-flag class bug fixed in #1864, which moved every
+        // turn-scoped global flag behind one CLEANUP-gated clear.
         advancePhase(state);
         expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
         state.phase = "CLEANUP";
