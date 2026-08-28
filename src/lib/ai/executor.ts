@@ -470,7 +470,14 @@ export async function executeMove(
                     targets: targetInputs,
                 });
             }
-            if (move.confirmTargets && move.targets.length > 0) {
+            // CR 601.2c — `move.confirmTargets` ALONE decides this, exactly as
+            // in the standalone `submit-target` branch above (issue #2870). The
+            // extra `move.targets.length > 0` term used to suppress the confirm
+            // for a DECLINED "up to N" selection — the only possible answer
+            // when the board offers no legal target — so no mutation at all was
+            // sent, the `PendingTarget` stayed live, and the `tapForPayment`
+            // below threw against an expected input of `"target"`.
+            if (move.confirmTargets) {
                 await mutations.confirmTargets(base);
             }
             if (move.tapPlan.length > 0) {
@@ -522,7 +529,12 @@ export async function executeMove(
                     targets: targetInputs,
                 });
             }
-            if (move.confirmTargets && move.targets.length > 0) {
+            // CR 601.2c / 602.2b — same as the cast branch above (issue
+            // #2870): the flag alone, never the tuple's length. A variable-count
+            // ability requirement answered with zero targets is a confirm-ONLY
+            // submission, and suppressing it strands the activation at an owed
+            // `"target"` input the Bot has no move for.
+            if (move.confirmTargets) {
                 await mutations.confirmTargets(base);
             }
             // CR 602.1 / 118 — the DEFERRED cost legs. The server parks a

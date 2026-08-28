@@ -247,9 +247,11 @@ import {
 // finalization and its divide split live in one module shared with the bot's
 // in-search applier, so the two can never drift.
 import {
+    announcedTargetCount,
     applyRaisedTargetFinalization,
     finalizeDivideAmounts,
     pendingTargetCountMaxReached,
+    resolveDivideTotal,
 } from "./gre/pendingTargetOrigin";
 import {
     PHYREXIAN_LIFE_PER_PIP,
@@ -7814,17 +7816,10 @@ function countOpponentGraveyardCards(
     return count;
 }
 
-/** Resolves a divide-as-you-choose total spec against the chosen / derived X
- *  (CR 601.2d / 120.4). `"X"` → X, `"X+1"` → X+1 (Meteor Shower), a number → the
- *  fixed total (Fiery Justice). A missing X is treated as 0. Never negative. */
-function resolveDivideTotal(
-    spec: number | "X" | "X+1",
-    chosenX: number | undefined
-): number {
-    if (typeof spec === "number") return Math.max(0, spec);
-    const x = chosenX ?? 0;
-    return Math.max(0, spec === "X+1" ? x + 1 : x);
-}
+// `resolveDivideTotal` moved to `./gre/pendingTargetOrigin` (issue #2870) so
+// the shared `announcedTargetCount` authority — read by BOTH this mutation and
+// the Bot's Move enumerator — can apply CR 601.2d's budget cap without a second
+// copy of the resolver. Imported above; same behavior.
 
 /** Step 1 of casting: announce the spell, enter payment phase (CR 601.2a). */
 export const announceCast = mutation({
@@ -8298,35 +8293,27 @@ export const announceCast = mutation({
                   chosenX
               )
             : undefined;
-        let resolvedCount = activeTargetRequirement
-            ? resolveTargetCount(activeTargetRequirement.count, chosenX)
-            : undefined;
-        // A divide spell can target at most `total` permanents (one point each,
-        // CR 601.2d). Cap the open-ended `{ min }` count so the UI can't offer
-        // more targets than there are points to assign.
-        if (
-            divideTotal !== undefined &&
-            typeof resolvedCount === "object" &&
-            resolvedCount.max === undefined
-        ) {
-            resolvedCount = { min: resolvedCount.min, max: divideTotal };
-        }
-        const requiresTargets =
-            activeTargetRequirement !== undefined &&
-            (typeof resolvedCount !== "number" || resolvedCount > 0) &&
-            // A divide-as-you-choose spell with a zero total (Fire Covenant /
-            // Meteor Shower with X = 0) takes no targets — CR 601.2d, there is
-            // nothing to divide. Fall through to the no-target cast path.
-            divideTotal !== 0 &&
-            // CR 601.2c — an "up to X" range (`{ min: 0, max }`, Pest
-            // Infestation / Force of Vigor) with a resolved max of 0 (X = 0,
-            // or a fixed zero-width range) takes no targets, same as the
-            // plain-number `resolvedCount > 0` check above. Without this, an
-            // object-shaped `resolvedCount` always satisfied the first
-            // clause regardless of its value, so X = 0 still routed into a
-            // `{ min: 0, max: 0 }` target-selection banner the caster had to
-            // Confirm past for no reason.
-            (typeof resolvedCount !== "object" || resolvedCount.max !== 0);
+        // CR 601.2c / 601.2d — the count the selection opens with, `undefined`
+        // when the requirement takes no targets at all: a fixed count of 0
+        // (X = 0 on "destroy X target ..."), an "up to X" range whose resolved
+        // max is 0 (Pest Infestation / Force of Vigor at X = 0 — without this
+        // an object-shaped count always read as "needs targets" regardless of
+        // its value, so X = 0 routed into a `{ min: 0, max: 0 }` banner the
+        // caster had to Confirm past for no reason), or a zero divide budget
+        // (Fire Covenant / Meteor Shower at X = 0). The divide cap (each target
+        // needs ≥ 1 point, so an open-ended `{ min }` can never offer more
+        // targets than there are points) is applied inside the shared
+        // authority — read by the Bot's Move enumerator too, so its
+        // `confirmTargets` prediction cannot drift from what this mutation
+        // actually opens (issue #2870).
+        const resolvedCount = announcedTargetCount(
+            activeTargetRequirement,
+            chosenX,
+            // The cast path is the consumer that must REJECT an X-bearing count
+            // with no announced X — see `resolveTargetCount`'s doc comment.
+            { requireX: true }
+        );
+        const requiresTargets = resolvedCount !== undefined;
 
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
