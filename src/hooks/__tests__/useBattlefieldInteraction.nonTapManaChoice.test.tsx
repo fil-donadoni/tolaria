@@ -206,7 +206,7 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
 
     it("handleActivateAbility opens the mana-choice picker instead of firing activateManaAbility directly", () => {
         const me = player("me", [vivi(2)]);
-        const { handle, container } = renderInteraction(me);
+        const { handle } = renderInteraction(me);
 
         act(() => {
             handle.current!.handleActivateAbility(
@@ -218,13 +218,15 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
 
         expect(activateManaAbility).not.toHaveBeenCalled();
         expect(tapUntap).not.toHaveBeenCalled();
-        // The picker rendered: 3 options for power 2 (RR, UR, UU).
-        expect(container.querySelectorAll("button")).toHaveLength(3);
+        // The picker's popover portals into `document.body` (`AnchoredPicker`,
+        // issue #2920), outside the render's own `container` — query the
+        // document instead. 3 options for power 2 (RR, UR, UU).
+        expect(document.querySelectorAll("button")).toHaveLength(3);
     });
 
     it("picking an option dispatches activateManaAbility with the chosen manaChoiceIndex — never tapUntap", () => {
         const me = player("me", [vivi(2)]);
-        const { handle, container } = renderInteraction(me);
+        const { handle } = renderInteraction(me);
 
         act(() => {
             handle.current!.handleActivateAbility(
@@ -235,11 +237,11 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
         });
 
         // getManaChoices(power=2) → [{R:2}, {U:1,R:1}, {U:2}] (index order).
-        // Pick the all-{U} option (index 2, "Add {U}{U}").
-        const buttons = Array.from(container.querySelectorAll("button"));
-        const allU = buttons.find((b) =>
-            b.getAttribute("title")?.includes("{U}{U}")
-        )!;
+        // Pick the all-blue option (index 2, visible label "Blue x2" — issue
+        // #2920 replaced the old title-attribute-only "{U}{U}" tooltip with a
+        // real visible label).
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const allU = buttons.find((b) => b.textContent?.includes("Blue x2"))!;
         expect(allU).toBeDefined();
         fireEvent.click(allU);
 
@@ -256,7 +258,7 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
 
     it("at power 0, the picker renders a single explicit '0 mana' option (not a silently empty picker)", () => {
         const me = player("me", [vivi(0)]);
-        const { handle, container } = renderInteraction(me);
+        const { handle } = renderInteraction(me);
 
         act(() => {
             handle.current!.handleActivateAbility(
@@ -266,9 +268,9 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
             );
         });
 
-        const buttons = Array.from(container.querySelectorAll("button"));
+        const buttons = Array.from(document.querySelectorAll("button"));
         expect(buttons).toHaveLength(1);
-        expect(buttons[0].textContent).toBe("0");
+        expect(buttons[0].textContent).toContain("No mana");
 
         fireEvent.click(buttons[0]);
         expect(activateManaAbility).toHaveBeenCalledWith({

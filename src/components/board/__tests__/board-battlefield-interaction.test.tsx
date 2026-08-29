@@ -322,9 +322,11 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
                 '[data-arrow-anchor-permanent="birds1"]'
             )!
         );
+        // Issue #2920 replaced the picker's title-attribute-only tooltip with
+        // a real visible label ("Red") — find the row by that text instead.
         const spatialPick = within(spatial.container.ownerDocument.body)
             .getAllByRole("button")
-            .find((b) => b.getAttribute("title")?.includes("{R}"))!;
+            .find((b) => b.textContent?.includes("Red"))!;
         fireEvent.click(spatialPick);
         const spatialArgs = tapUntap.mock.calls[0][0];
 

@@ -366,11 +366,11 @@ describe("board combat declaration parity with the classic board (#281)", () => 
         expect(toggleAttacker.mock.calls[0][0]).toMatchObject({
             cardInstanceId: "birds1",
         });
-        // No mana picker was opened (no picker buttons in the DOM).
-        const pickerButtons = Array.from(
-            document.querySelectorAll("button")
-        ).filter((b) => b.getAttribute("title")?.includes("{"));
-        expect(pickerButtons.length).toBe(0);
+        // No mana picker was opened — `AnchoredPicker` (issue #2920) tags
+        // every popover's DOM with this slot, mana-choice included.
+        expect(
+            document.querySelector('[data-slot="dialog-content"]')
+        ).toBeNull();
     });
 });
 

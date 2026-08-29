@@ -170,10 +170,12 @@ export function PanelsDialogsSections() {
                             selectable-card
                         </Where>
                     </Specimen>
-                    <Specimen label="D · bespoke overlay" tone="now">
+                    <Specimen label="D · AnchoredPicker overlay" tone="now">
                         <div className="rounded-lg bg-black/90 p-3 ring-1 ring-white/20">
                             <p className="text-xs text-white">
-                                bg-black/90 ring-white/20 — mana-choice-picker
+                                Panel (density=compact) — shared shell, issue
+                                #2920 folded mana-choice's last bespoke recipe
+                                into it
                             </p>
                         </div>
                         <Where>
