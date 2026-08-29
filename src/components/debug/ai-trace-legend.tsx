@@ -7,9 +7,14 @@
 // without leaving the panel. Toggled from the trace header; collapsed by
 // default so it costs no space once learned.
 
+import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "~/lib/ai/eval-term-labels";
+
 /** Every glyph the trace can render, paired with its human-readable meaning.
  *  Grouped: per-candidate search stats, then the position eval terms shared by
- *  the `self` / `opp` blocks. */
+ *  the `self` / `opp` blocks. The eval-term group is DERIVED from
+ *  `EVAL_TERM_LABELS` — the same table the trace line renders from — so a new
+ *  `EvalTerms` key can never be spelled out in one place and missing in the
+ *  other (issue #2686 shipped a term that appeared in neither). */
 const LEGEND: { group: string; items: [string, string][] }[] = [
     {
         group: "Search",
@@ -28,14 +33,10 @@ const LEGEND: { group: string; items: [string, string][] }[] = [
     },
     {
         group: "Eval terms (self / opp)",
-        items: [
-            ["L", "Life"],
-            ["H", "Hand (cards in hand)"],
-            ["C", "Creatures"],
-            ["Pm", "Permanents (non-creature)"],
-            ["M", "Mana (available)"],
-            ["Fx", "Flexibility (options / reach)"],
-        ],
+        items: EVAL_TERM_ORDER.map((k): [string, string] => [
+            EVAL_TERM_LABELS[k].short,
+            EVAL_TERM_LABELS[k].name,
+        ]),
     },
 ];
 
