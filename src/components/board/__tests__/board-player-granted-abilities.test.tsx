@@ -74,6 +74,12 @@ expect(api.game.activatePlayerAbility).toBe(ACTIVATE_REF);
 
 const CHANNEL = getCardByName("Channel").id;
 
+/** The engine's own grant id for the Channel grant built by
+ *  {@link projectChannelSeat} — read off `GameState` BEFORE projection, so the
+ *  click assertion below compares the mutation payload against the engine's
+ *  value rather than against the DOM attribute the button was rendered with. */
+let engineGrantId = "";
+
 /** Resolves Channel for p1, then hands back the player as `viewerId` sees them
  *  through the real public projection. `life` is applied AFTER the resolve so
  *  the unaffordable case doesn't depend on Channel touching life (it doesn't). */
@@ -85,6 +91,7 @@ function projectChannelSeat(
     const state = makeState();
     pushSpell(state, CHANNEL, "p1");
     resolveTopOfStack(state);
+    engineGrantId = state.players[0].grantedAbilities![0].id;
     if (life !== undefined) state.players[0].life = life;
     const projected = projectPublicState(state, 1, viewerId);
     const index = seat === "p1" ? 0 : 1;
@@ -163,13 +170,39 @@ describe("player-level granted abilities on the board (issue #2691, CR 605.3a)",
         expect(button.disabled).toBe(false);
         fireEvent.click(button);
         expect(mutationSpies.activate).toHaveBeenCalledTimes(1);
+        // Compared against the id the ENGINE minted, not against the DOM
+        // attribute the button was rendered with — the latter would pass even
+        // if the component invented an id and rendered it into both places.
+        expect(engineGrantId).toMatch(/^grant-\d+$/);
         expect(mutationSpies.activate).toHaveBeenCalledWith({
             gameId: "game-id",
             playerId: "p1",
-            grantedAbilityInstanceId: button.dataset.grantedAbility,
+            grantedAbilityInstanceId: engineGrantId,
         });
-        // The id is the engine's own grant id, not something the view invented.
-        expect(button.dataset.grantedAbility).toMatch(/^grant-\d+$/);
+    });
+
+    it("is DISABLED while a resolution choice is queued — the mutation rejects on any pending choice", () => {
+        // `activatePlayerAbility` calls `assertNoPendingChoices(state)` with no
+        // `allowManaForMayPay` option (unlike tapUntap / tapForPayment), so a
+        // queued choice makes it throw even in a may-pay window where the
+        // projected priority sits with the chooser.
+        const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "may-pay",
+                    playerId: "p1",
+                    kind: "may-pay",
+                    prompt: "Pay {1}?",
+                },
+            ] as never,
+        });
+        const button = grantButton(container);
+        expect(button).not.toBeNull();
+        expect(button!.disabled).toBe(true);
+        fireEvent.click(button!);
+        expect(mutationSpies.activate).not.toHaveBeenCalled();
     });
 
     it("is DISABLED — not hidden — when the viewer neither holds priority nor is paying a cost", () => {
@@ -217,29 +250,71 @@ describe("player-level granted abilities on the board (issue #2691, CR 605.3a)",
         expect(grantButton(container)).toBeNull();
     });
 
-    // The stale `absolute left-full` box the deleted `PlayerSideRow` gave this
-    // component anchored it OUTSIDE the seat chrome's right edge — at phone
-    // portrait (390x844) that is off-screen. happy-dom has no layout and cannot
-    // measure that, so pin the class contract it rests on instead: the controls
-    // live in normal flow inside the seat wrapper, inheriting its
-    // `play-area-center-x -translate-x-1/2` centering.
-    it("sits in the seat's normal flow, never in a left-full absolute box", () => {
+    // Two layout invariants happy-dom CAN see, both load-bearing:
+    //
+    //  (a) the stale `absolute left-full` box the deleted `PlayerSideRow` gave
+    //      this component anchored it OUTSIDE the seat chrome's right edge —
+    //      off-screen at phone portrait (390x844);
+    //  (b) the seat wrapper's IN-FLOW height must stay the nameplate's, because
+    //      `PORTRAIT_NAMEPLATE_BAND_H` reserves exactly that box plus a 2px
+    //      rounding margin. An in-flow control above the bottom-pinned
+    //      nameplate grows the wrapper straight past that reservation into the
+    //      battlefield's back row — the #1814 bug class. Hence the `h-0`
+    //      ancestor with an `absolute` stack inside it.
+    it("floats above the plate from a ZERO-HEIGHT box, never in the seat's in-flow height", () => {
         const { container } = renderSeat(projectChannelSeat("p1", "p1"));
         const controls = container.querySelector<HTMLElement>(
             '[data-testid="player-granted-abilities"]'
         )!;
         expect(controls.className).not.toContain("left-full");
-        expect(controls.className).not.toContain("absolute");
+        const stack = controls.parentElement!;
+        expect(stack.className).toContain("absolute");
+        expect(stack.className).toContain("bottom-0");
+        // Taps fall through the stack's empty area to the card underneath; only
+        // the button's own rectangle is interactive.
+        expect(stack.className).toContain("pointer-events-none");
+        expect(grantButton(container)!.className).toContain(
+            "pointer-events-auto"
+        );
+        const zeroHeightBox = stack.parentElement!;
+        expect(zeroHeightBox.className).toContain("h-0");
+        // …and that box is a child of the seat wrapper, ahead of the nameplate,
+        // so the controls render above the plate and the plate keeps the
+        // wrapper's whole in-flow height to itself.
         const wrapper = container.firstElementChild as HTMLElement;
-        expect(controls.parentElement).toBe(wrapper);
+        expect(zeroHeightBox.parentElement).toBe(wrapper);
         expect(wrapper.className).toContain("play-area-center-x");
-        // Above the nameplate in flow: the viewer's wrapper pins its BOTTOM
-        // edge, so the controls grow upward off the plate rather than over it.
         const plate = container.querySelector(
             '[data-arrow-anchor-player="p1"]'
         );
         expect(
-            controls.compareDocumentPosition(plate!) &
+            zeroHeightBox.compareDocumentPosition(plate!) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("the mana pool rides ABOVE the controls, off its own anchor — never on top of them", () => {
+        // Activating the grant puts mana in the pool, so the two are live at
+        // the same time by construction. The pool anchors `bottom-full` of its
+        // own zero-height box, which sits above the controls in the stack; with
+        // no grant that box is flush at the wrapper's top edge, so the pool
+        // lands exactly where it did before issue #2691.
+        const withMana = projectChannelSeat("p1", "p1");
+        withMana.manaPool = { ...withMana.manaPool, C: 1 };
+        const { container } = renderSeat(withMana);
+        const pool = container.querySelector<HTMLElement>(
+            '[data-testid="mana-pool"]'
+        )!;
+        const controls = container.querySelector<HTMLElement>(
+            '[data-testid="player-granted-abilities"]'
+        )!;
+        expect(pool.className).toContain("bottom-full");
+        const poolAnchor = pool.parentElement!;
+        expect(poolAnchor.className).toContain("relative");
+        expect(poolAnchor.parentElement).toBe(controls.parentElement);
+        // Earlier in the column = higher on screen (the column is bottom-pinned).
+        expect(
+            poolAnchor.compareDocumentPosition(controls) &
                 Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy();
     });
