@@ -23,6 +23,7 @@ function fakeMutations() {
         tapForPayment: vi.fn().mockResolvedValue(null),
         activateManaAbility: vi.fn().mockResolvedValue(null),
         activateAbility: vi.fn().mockResolvedValue(null),
+        activatePlayerAbility: vi.fn().mockResolvedValue(null),
         tapForActivationPayment: vi.fn().mockResolvedValue(null),
         selectSacrifice: vi.fn().mockResolvedValue(null),
         selectActivationCost: vi.fn().mockResolvedValue(null),
@@ -433,6 +434,25 @@ describe("executeMove (issue #110)", () => {
             manaChoiceIndex: undefined,
             tapOtherIds: ["art"],
         });
+        expect(m.tapForActivationPayment).not.toHaveBeenCalled();
+    });
+
+    // CR 113.1b (issue #2903) — a player-level granted ability (Channel's "Pay
+    // 1 life: Add {C}."). ONE mutation: `activatePlayerAbility` with the grant
+    // instance id. No card id (the grant hangs off the player) and no announce /
+    // tap round-trip — the life cost is paid server-side.
+    it("activate-granted-ability → activatePlayerAbility with the grant instance id", async () => {
+        const m = await run({
+            kind: "activate-granted-ability",
+            grantedAbilityInstanceId: "grant-1",
+            abilityId: "channel-mana",
+            sourceCardId: "channel",
+        });
+        expect(m.activatePlayerAbility).toHaveBeenCalledWith({
+            ...GP,
+            grantedAbilityInstanceId: "grant-1",
+        });
+        expect(m.activateAbility).not.toHaveBeenCalled();
         expect(m.tapForActivationPayment).not.toHaveBeenCalled();
     });
 

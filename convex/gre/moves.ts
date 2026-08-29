@@ -374,6 +374,32 @@ export type Move =
           costPicks?: ActivationCostPicks;
       }
     | {
+          /** Activate an ability granted to the PLAYER by an effect (CR 113.1b,
+           *  issue #2903) — Channel's "Pay 1 life: Add {C}." until end of turn.
+           *  A player-level grant has no source permanent, so unlike
+           *  `activate-ability` this move carries no `cardInstanceId`; it names
+           *  the grant instance and the template by id, and the executor hands
+           *  `activatePlayerAbility` (`convex/game.ts`) the instance id.
+           *
+           *  The template is a REFERENCE (`sourceCardId` + `abilityId`) resolved
+           *  through the card-definition lookup at activation time — both the
+           *  enumerator and the search applier do that lookup, since there is no
+           *  instance to read the ability off. A mana ability (Channel's) is a
+           *  legal move here in a way it is not for `enumerateAbilityMoves`:
+           *  those are funded on demand by `planManaPayment` off a PERMANENT,
+           *  while a player grant hangs off the player and cannot be reached by
+           *  the tap planner, so it must be its own standalone move. */
+          kind: "activate-granted-ability";
+          /** The `GrantedAbilityInstance.id` (`grant-N`), the handle the
+           *  `activatePlayerAbility` mutation names. */
+          grantedAbilityInstanceId: string;
+          /** The ability's id on the template's source card definition. */
+          abilityId: string;
+          /** The card definition id whose `activatedAbilities[]` holds the
+           *  template. */
+          sourceCardId: string;
+      }
+    | {
           /** Answer an ENGINE-RAISED pending target selection (issue #2283) —
            *  a targeted trigger's targets (CR 603.3d), a retarget (CR 115.7)
            *  or a spell copy’s retarget (CR 707.10c). Unlike the target
@@ -2518,6 +2544,77 @@ function findCard(state: GameState, id: string): CardInstanceState | undefined {
     return undefined;
 }
 
+/** CR 113.1b / 605.1a (issue #2903) — enumerate the activated abilities
+ *  granted to a PLAYER by effects (Channel's "Pay 1 life: Add {C}."), which
+ *  hang off `PlayerState.grantedAbilities` rather than any permanent and are
+ *  therefore invisible to `enumerateAbilityMoves`'s battlefield/graveyard scan.
+ *
+ *  Each grant is a REFERENCE (`sourceCardId` + `abilityId`) resolved through
+ *  the card-definition lookup — the same lookup `activatePlayerAbility`
+ *  (`convex/game.ts`) does at activation time, since there is no instance to
+ *  read the template off. A MANA ability is enumerated here as a standalone
+ *  move (unlike a permanent's, which `planManaPayment` funds on demand): the
+ *  tap planner reads only permanents and the pool, so a player-level grant has
+ *  no other way to reach the search.
+ *
+ *  Timing: the enumerator only ever runs in the player's own priority window
+ *  (`enumerateMoves` gates on `priorityPlayerId`), so CR 605.1a's priority
+ *  requirement is already satisfied by construction; the "while paying a cost"
+ *  window (CR 605.3b) is not a search decision node. Affordability mirrors the
+ *  mutation's gates: a life cost is payable only with `life >= cost` (CR
+ *  119.4), a tap/sacrifice cost is rejected (no source permanent), and a
+ *  phase restriction (CR 602.5) is honoured. Conditional (`canActivate`) and
+ *  targeted (`getTargetRequirement` / `targetRequirement`) templates are
+ *  skipped, matching `enumerateAbilityMoves`' documented limitation — the
+ *  server would reject them and the search cannot answer a target anyway. */
+function enumerateGrantedAbilityMoves(
+    state: GameState,
+    player: PlayerState
+): Move[] {
+    const grants = player.grantedAbilities ?? [];
+    if (grants.length === 0) return [];
+    const moves: Move[] = [];
+    for (const grant of grants) {
+        const template = tryGetDefinition(
+            grant.sourceCardId
+        )?.activatedAbilities?.find((a) => a.id === grant.abilityId);
+        if (!template) continue;
+        // Conditional abilities need a runtime predicate the search does not
+        // replicate; targeted abilities would need a target selection the move
+        // shape does not carry (mirrors `enumerateAbilityMoves`).
+        if (template.canActivate || template.getTargetRequirement) continue;
+        if (template.targetRequirement) continue;
+        // Player-scoped grants have no source permanent, so tap/sacrifice
+        // costs are not meaningful — the mutation rejects them, and offering
+        // one would be a move the server then refuses (CR 113.1b).
+        if (template.cost.tap || template.cost.sacrifice) continue;
+        // CR 602.5 — phase-restricted templates are equally illegal when
+        // activated via a player-scoped grant (mirrors the mutation).
+        if (
+            template.activationPhaseRestriction &&
+            template.activationPhaseRestriction.length > 0 &&
+            !template.activationPhaseRestriction.includes(state.phase)
+        ) {
+            continue;
+        }
+        // CR 119.4 — a life cost is unpayable below that much life; the server
+        // throws "Not enough life" on the same comparison.
+        if (
+            template.cost.life !== undefined &&
+            !canPayLifeCost(player, template.cost.life)
+        ) {
+            continue;
+        }
+        moves.push({
+            kind: "activate-granted-ability",
+            grantedAbilityInstanceId: grant.id,
+            abilityId: grant.abilityId,
+            sourceCardId: grant.sourceCardId,
+        });
+    }
+    return moves;
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -2786,6 +2883,13 @@ export function enumerateMoves(
             );
         }
     }
+    // CR 113.1b (issue #2903) — PLAYER-level granted activated abilities
+    // (Channel's "Pay 1 life: Add {C}."). Enumerated off `PlayerState
+    // .grantedAbilities`, a storage location no permanent-scanning loop above
+    // reaches; the grant is legal only for its holder, so only the acting
+    // player's own grants are scanned (mirroring the graveyard loop's
+    // "your own graveyard" scoping).
+    moves.push(...enumerateGrantedAbilityMoves(state, player));
     // Dominance pruning (issue #1887). `pass` is `moves[0]` and is never a
     // probe candidate, so the floor can never be emptied — the filter can only
     // ever remove strictly-dominated alternatives.
