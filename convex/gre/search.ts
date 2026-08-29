@@ -3416,24 +3416,30 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *      outcome band (`contenders`) collapses to that single edge and every
  *      outcome-gated tie-break has nothing to override.
  *
- *  Both hold ⇒ `selectRootMove` returns this edge (the extra-turn structural
- *  credit is the one full-pool tie-break not gated on outcome-equality; it is
- *  computed from the ROOT STATE, not visit counts, and is therefore out of
- *  scope for this visit/reward-only rule — see `selectRootMove`). Reads the
- *  root children directly; never touches the RNG, so it is deterministic and
- *  cannot perturb the search it short-circuits.
+ *  Both hold ⇒ `selectRootMove` returns this edge, PROVIDED the one full-pool
+ *  tie-break that is NOT gated on outcome-equality — the extra-turn structural
+ *  credit (`selectRootMove`, issue #244) — has nothing to fire on. That credit
+ *  is computed from the ROOT STATE (a castable extra-turn spell), not from
+ *  visit counts, so this visit/reward-only predicate cannot see it: the caller
+ *  (`runSearchWithTrace`) disables the early stop entirely when the root holds
+ *  a castable extra-turn spell (see `extraTurnGrantAtRoot`). Reads the root
+ *  children directly; never touches the RNG, so it is deterministic and cannot
+ *  perturb the search it short-circuits.
  *
  *  `remaining` is `maxIter - i`; a budget with no `iterations` bound yields
  *  `remaining = Infinity`, so the visit-lead condition can never hold and the
- *  rule never fires (time is then the only ceiling, as before). Exported as a
- *  test seam (like `selectRootMove` / `computeActionPriors`) so the two
- *  conjuncts are assertable against a hand-built root, without running a full
- *  search to reach a specific determinization. */
+ *  rule never fires (time is then the only ceiling, as before). `remaining`
+ *  being 0 (the final iteration, nothing left to search) also returns false,
+ *  so `"settled"` strictly means an EARLY stop. Exported as a test seam (like
+ *  `selectRootMove` / `computeActionPriors`) so the two conjuncts are
+ *  assertable against a hand-built root, without running a full search to
+ *  reach a specific determinization. */
 export function rootDecisionSettled(
     root: Node,
     remaining: number,
     weights: EvalWeights
 ): boolean {
+    if (remaining <= 0) return false;
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length < 2) return false;
     const mean = (e: Edge) => e.totalReward / e.visits;
@@ -3543,6 +3549,22 @@ function runSearchWithTrace(
         )
     );
 
+    // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
+    // structural credit in `selectRootMove` is the ONE full-pool tie-break not
+    // gated on outcome-equality, so a settled NON-grant pick could still be
+    // overridden by an under-visited extra-turn cast — and that override reads
+    // the ROOT STATE, not the visit/reward counts `rootDecisionSettled` sees.
+    // Disable the early-stop rule when the root holds a castable extra-turn
+    // spell. The probe is cheap and cast-only: `botExtraTurnGrantDelta` returns
+    // 0 for every non-`cast-spell` move without probing, and extra-turn spells
+    // are rare. Runs on a clone (never the search's RNG stream), so it cannot
+    // perturb determinism.
+    const extraTurnGrantAtRoot = moves.some(
+        (m) =>
+            m.kind === "cast-spell" &&
+            botExtraTurnGrantDelta(state, m, playerId) > 0
+    );
+
     let i = 0;
     // `i` IS the real per-decision iteration count (issue #2682) — until this
     // slice it was computed and immediately discarded: passed to `buildTrace`
@@ -3570,7 +3592,14 @@ function runSearchWithTrace(
         // settled — the most-visited child can no longer be overtaken and its
         // mean-reward lead is decisive. Deterministic (reads only visit/reward
         // counts), so a fixed-seed iteration budget still replays bit-identically.
-        if (i >= minIter && rootDecisionSettled(root, maxIter - i, weights)) {
+        // Never fires when the root holds a castable extra-turn spell (see
+        // `extraTurnGrantAtRoot`), whose non-outcome-gated credit could still
+        // override a settled pick.
+        if (
+            !extraTurnGrantAtRoot &&
+            i >= minIter &&
+            rootDecisionSettled(root, maxIter - i, weights)
+        ) {
             stoppedBy = "settled";
             break;
         }

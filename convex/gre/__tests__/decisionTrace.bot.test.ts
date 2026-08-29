@@ -21,6 +21,8 @@ const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target
 const MOUNTAIN = getCardByName("Mountain").id;
 const GIANT = getCardByName("Hill Giant").id; // 3/3
+const TIME_WALK = getCardByName("Time Walk").id; // {1}{U}: take an extra turn
+const ISLAND = getCardByName("Island").id;
 
 function creature(
     cardId: string,
@@ -293,7 +295,7 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
                 blockersConfirmed: false,
             },
         });
-        const { trace } = searchWithTrace(
+        const { trace, move } = searchWithTrace(
             state,
             "p2",
             { iterations: 200, minIterations: 10 },
@@ -302,6 +304,11 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         expect(trace!.stoppedBy).toBe("settled");
         expect(trace!.iterationsCompleted).toBeGreaterThanOrEqual(10);
         expect(trace!.iterationsCompleted).toBeLessThan(200);
+        // The settled pick is the CORRECT one — bolting the attacker — not
+        // merely some settled move.
+        expect(move?.kind).toBe("cast-spell");
+        if (move?.kind !== "cast-spell") throw new Error("kind");
+        expect(move.targets[0]?.id).toBe("ogre");
     });
 
     it("runs to the iteration budget on a tied decision (the early-stop rule never fires)", () => {
@@ -324,6 +331,47 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         // Two identical lands are outcome-equal: the most-visited root child's
         // mean-reward lead over the runner-up never clears OUTCOME_EPS, so the
         // settle rule must not fire and the search completes its full budget.
+        const { trace } = searchWithTrace(
+            state,
+            "p1",
+            { iterations: 200, minIterations: 10 },
+            SEED
+        );
+        expect(trace!.stoppedBy).toBe("iterations");
+        expect(trace!.iterationsCompleted).toBe(200);
+    });
+
+    it("never settles when a castable extra-turn spell is present (issue #2685)", () => {
+        // The extra-turn structural credit (issue #244) is the ONE full-pool
+        // tie-break not gated on outcome-equality, so it could override a
+        // settled non-grant pick. The early-stop rule is therefore disabled
+        // whenever the root holds a castable extra-turn spell: Time Walk is
+        // washed out (low mean reward, under-visited), so without the guard the
+        // visit/reward-only rule would read a settled `pass` and skip the cast.
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    name: "Bot",
+                    hand: [inHand(TIME_WALK, "p1", "walk1")],
+                    battlefield: [
+                        makeInstance(ISLAND, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "i1",
+                        }),
+                        makeInstance(ISLAND, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "i2",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { name: "You" }),
+            ],
+        });
         const { trace } = searchWithTrace(
             state,
             "p1",
