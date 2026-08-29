@@ -135,7 +135,9 @@ export default function AiDecisionTrace() {
                             title={
                                 trace.stoppedBy === "time"
                                     ? "Stopped by the wall-clock bound before the iteration budget completed"
-                                    : "Ran the full iteration budget"
+                                    : trace.stoppedBy === "settled"
+                                      ? "Stopped early — the root pick was settled, so further iterations could not change it"
+                                      : "Ran the full iteration budget"
                             }
                         >
                             {trace.iterationsCompleted}/

@@ -17,6 +17,7 @@ import {
     reactivePrior,
     keyedMovesFor,
     computeActionPriors,
+    rootDecisionSettled,
     type DecisionTrace,
     type Edge,
     type Node,
@@ -391,6 +392,74 @@ describe("search — respects the budget bound (issue #112)", () => {
         );
         expect(move).not.toBeNull();
         expect(isLegal(state, "p1", move)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Early-stop rule (issue #2685). `rootDecisionSettled` is the search loop's
+// stop-short predicate: a root pick is settled when the most-visited child can
+// no longer be overtaken (visit lead > iterations remaining) AND its mean
+// reward leads the runner-up by more than `OUTCOME_EPS`. Direct synthetic-edge
+// tests so the two conjuncts are asserted without rollout variance.
+// ---------------------------------------------------------------------------
+describe("rootDecisionSettled — early-stop rule (issue #2685)", () => {
+    const PASS: Move = { kind: "pass" };
+    const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
+
+    /** A synthetic root whose edges carry the given visit count and mean
+     *  reward (totalReward = mean × visits, so `mean(e)` reconstructs it). */
+    function rootOf(
+        edges: { move: Move; visits: number; meanReward: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                key: `${e.move.kind}:${i}`,
+                mover: "p1",
+                node: { children: new Map() },
+                visits: e.visits,
+                totalReward: e.meanReward * e.visits,
+                totalMargin: 0,
+                avail: e.visits,
+            });
+        });
+        return { children };
+    }
+
+    it("SETTLES: most-visited lead uncatchable AND mean-reward lead decisive", () => {
+        // 100 vs 30 visits (lead 70 > 10 remaining) and mean 0.90 vs 0.50
+        // (lead 0.40 > OUTCOME_EPS 0.05) — the pick cannot change.
+        const root = rootOf([
+            { move: PASS, visits: 100, meanReward: 0.9 },
+            { move: LAND, visits: 30, meanReward: 0.5 },
+        ]);
+        expect(rootDecisionSettled(root, 10, DEFAULT_EVAL_WEIGHTS)).toBe(true);
+    });
+
+    it("DOES NOT SETTLE: visit lead uncatchable but mean rewards outcome-equal", () => {
+        // 100 vs 30 visits (lead uncatchable) but means 0.90 vs 0.88 are within
+        // OUTCOME_EPS — a genuine tie, the search must keep going.
+        const root = rootOf([
+            { move: PASS, visits: 100, meanReward: 0.9 },
+            { move: LAND, visits: 30, meanReward: 0.88 },
+        ]);
+        expect(rootDecisionSettled(root, 10, DEFAULT_EVAL_WEIGHTS)).toBe(false);
+    });
+
+    it("DOES NOT SETTLE: mean lead decisive but the visit lead is still catchable", () => {
+        // Means 0.90 vs 0.50 are decisive, but 100 vs 95 visits is a lead of 5,
+        // not more than the 10 iterations remaining — the runner-up can catch up.
+        const root = rootOf([
+            { move: PASS, visits: 100, meanReward: 0.9 },
+            { move: LAND, visits: 95, meanReward: 0.5 },
+        ]);
+        expect(rootDecisionSettled(root, 10, DEFAULT_EVAL_WEIGHTS)).toBe(false);
+    });
+
+    it("DOES NOT SETTLE with fewer than two visited children", () => {
+        const root = rootOf([{ move: PASS, visits: 100, meanReward: 0.9 }]);
+        expect(rootDecisionSettled(root, 10, DEFAULT_EVAL_WEIGHTS)).toBe(false);
     });
 });
 
