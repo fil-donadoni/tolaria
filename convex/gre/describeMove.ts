@@ -151,6 +151,14 @@ export function describeMove(move: Move, state: GameState): string {
             const mode = move.chosenModeId ? ` [${move.chosenModeId}]` : "";
             return `activate ${name}${x}${mode}${withTargets(state, move.targets)}`;
         }
+        case "activate-granted-ability": {
+            // CR 113.1b (issue #2903) — a player-level granted ability (Channel).
+            const def = tryGetDefinition(move.sourceCardId);
+            const label = def
+                ? `${def.name}'s ${move.abilityId}`
+                : `${move.sourceCardId}:${move.abilityId}`;
+            return `activate granted ability (${label})`;
+        }
         case "declare-attackers":
             return move.attackerIds.length === 0
                 ? "no attacks"

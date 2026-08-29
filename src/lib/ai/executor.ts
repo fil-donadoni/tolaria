@@ -131,6 +131,13 @@ export type MoveMutations = {
             chosenModeId?: string;
         }
     ) => Promise<unknown>;
+    /** CR 113.1b (issue #2903) — activates a PLAYER-level granted ability
+     *  (Channel's "Pay 1 life: Add {C}."). No card id (the grant hangs off the
+     *  player, not a permanent); the mutation resolves the template from the
+     *  grant instance id. */
+    activatePlayerAbility: (
+        a: GP & { grantedAbilityInstanceId: string }
+    ) => Promise<unknown>;
     tapForActivationPayment: (
         a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
     ) => Promise<unknown>;
@@ -595,6 +602,18 @@ export async function executeMove(
                 },
                 (tap) => mutations.activateManaAbility({ ...base, ...tap })
             );
+            return;
+        }
+
+        case "activate-granted-ability": {
+            // CR 113.1b (issue #2903) — a player-level granted ability (Channel).
+            // ONE mutation, no card id and no payment round-trip: the life cost
+            // is paid server-side by `activatePlayerAbility`, which resolves the
+            // template from the grant instance id.
+            await mutations.activatePlayerAbility({
+                ...base,
+                grantedAbilityInstanceId: move.grantedAbilityInstanceId,
+            });
             return;
         }
 

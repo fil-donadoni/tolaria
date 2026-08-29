@@ -154,6 +154,30 @@ function applyResolveTop(
     resolveTopOfStack(state);
 }
 
+/** Pass priority as `seat` through the search's own pass machinery (issue
+ *  #2903) — `applyMoveInSearch`'s `pass` case, i.e. `passInSearch`, the exact
+ *  function the search replays a pass with. This is what lets a `cast`-then-
+ *  pass sequence reach the active player's post-resolution window: the cast
+ *  parks priority on the opponent, and their pass drives the pass cycle to 2,
+ *  resolves the stack, and hands priority back to the active player (CR
+ *  117.3b). */
+function applyPass(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "pass" }>
+): void {
+    const seat = step.seat ?? "me";
+    const passerId = seatPlayerId(state, seat);
+    if (!state.players.some((p) => p.id === passerId)) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no "${seat}" seat in the state.`
+        );
+    }
+    applyMoveInSearch(state, passerId, { kind: "pass" });
+}
+
 /**
  * Activate a named permanent's activated ability through the REAL activation
  * path (issue #1491, ADR 0070 §4).
@@ -486,6 +510,9 @@ export function applyBladeSetup(
                 break;
             case "resolve-top":
                 applyResolveTop(state, scenario.label, step);
+                break;
+            case "pass":
+                applyPass(state, scenario.label, step);
                 break;
             case "activate":
                 applyActivate(state, scenario.label, step);

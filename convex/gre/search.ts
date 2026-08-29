@@ -1153,6 +1153,82 @@ export function applyMoveInSearch(
             return;
         }
 
+        case "activate-granted-ability": {
+            // CR 113.1b / 605.3a (issue #2903) — activate a PLAYER-level granted
+            // ability (Channel's "Pay 1 life: Add {C}."), mirroring the
+            // `activatePlayerAbility` mutation's payment+effect path so the tree
+            // charges the cost AND credits the mana the same way live play does.
+            // The template is a reference resolved through the card-definition
+            // lookup — there is no instance to read it off.
+            const grant = player.grantedAbilities?.find(
+                (g) => g.id === move.grantedAbilityInstanceId
+            );
+            const template = grant
+                ? tryGetDefinition(
+                      grant.sourceCardId
+                  )?.activatedAbilities?.find((a) => a.id === move.abilityId)
+                : undefined;
+            if (!template || !grant) return;
+            // Fail-closed: a player grant's MANA cost is paid from the pool and
+            // no shipped player grant carries one (the enumerator skips such
+            // templates), so a hand-built move with one must not be credited
+            // free mana here.
+            if (template.cost.mana) return;
+            // CR 119.4 — pay the life cost (the one leg the move's affordability
+            // gate at enumeration time already vouched for; fail-closed backstop
+            // for hand-built moves, mirroring `applyActivationCostsForSearch`).
+            if (template.cost.life !== undefined) {
+                player.life -= template.cost.life;
+            }
+            if (!template.useStack) {
+                // CR 605.3b — a mana ability never uses the stack: resolve its
+                // effect immediately (add the mana) and keep priority with the
+                // actor, so the bot can chain activations or cast off the fresh
+                // pool. Mirrors the mutation's minimal `addMana`-only context.
+                template.effect?.({
+                    addMana: (amount) => {
+                        for (const [color, count] of Object.entries(amount)) {
+                            if (
+                                color !== "X" &&
+                                typeof count === "number" &&
+                                count > 0
+                            ) {
+                                player.manaPool[color] =
+                                    (player.manaPool[color] ?? 0) + count;
+                            }
+                        }
+                    },
+                });
+                state.passCount = 0;
+                checkStateBasedActions(state);
+                return;
+            }
+            // Stack path (a future granted non-mana ability; Channel is the only
+            // grant today and is a mana ability) — mirror the mutation's
+            // synthesized stack item. The enumerator already skips targeted /
+            // conditional / tap / sacrifice templates, so this is a plain push.
+            const stackItem: StackItem = {
+                id: `granted-${grant.id}`,
+                card: { id: grant.sourceCardId },
+                controllerId: playerId,
+                ownerId: playerId,
+                zone: "stack",
+                types: tryGetDefinition(grant.sourceCardId)?.types ?? [],
+                subtypes: tryGetDefinition(grant.sourceCardId)?.subtypes ?? [],
+                staticAbilities: [],
+                isTapped: false,
+                castById: playerId,
+                abilityId: move.abilityId,
+            };
+            state.stack.push(stackItem);
+            state.passCount = 0;
+            state.priorityPlayerId = getOpponentId(state, playerId);
+            state.singleShotAutoPass = playerId;
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
         case "declare-attackers": {
             const combat = (state.combat = {
                 attackerIds: [...move.attackerIds],

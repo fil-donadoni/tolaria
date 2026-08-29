@@ -2150,6 +2150,50 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:'. Issue #2469 fixed `enumerateAbilityMoves` to read the granted ability off `getEffectiveActivatedAbilities` — the move IS now enumerated (confirmed: `grantedAbilityEnumeration.bot.test.ts`), but this entry is NOT promoted to `must`: at `iterations: 400`, 3 of 5 seeds (727774 aka 0xb1ade, 2, 3) still choose `pass` over the activation. The gap is now valuation/search depth, not enumeration — the combo payoff (an infinite hasty-copy loop) isn't scored highly enough at this horizon without `comboAnnotations.ts` support, which is explicitly out of scope for #2469. See finding docs/findings/2469-twin-blade-still-stretch.md.",
     },
+    {
+        label: "channel: activates a player-level grant to fund a lethal Fireball (#2903)",
+        spec: {
+            cards: [
+                { name: "Channel", owner: "me", zone: "hand" },
+                { name: "Fireball", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            life: { me: 2, opp: 1 },
+            libraryCount: 20,
+        },
+        // Channel is a sorcery; casting + resolving it through the real move
+        // pipeline grants "me" the CR 113.1b player-level mana ability (the two
+        // Forests pay {G}{G}, leaving the Mountain untapped for Fireball's {R}).
+        // The cast parks priority on "opp"; their `pass` drives the pass cycle
+        // to 2, resolves Channel, and hands priority back to the active player
+        // (CR 117.3b) — the window where "me" decides whether to spend life.
+        // "me" is at 2 life against an opponent at 1 with a 2/2 attacker:
+        // spending 1 life through the grant is the ONLY way to cast Fireball for
+        // lethal (Fireball {X}{R} is X=0 off the lone Mountain), and passing
+        // hands the opponent a lethal 2-damage swing. One activation, then the
+        // lethal cast — the grant is the whole game.
+        setup: [
+            { kind: "cast", card: "Channel", by: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-granted-ability" }],
+        },
+        note: "Issue #2903 — a PLAYER-level granted ability (Channel's 'Pay 1 life: Add {C}.' until end of turn, CR 113.1b) is invisible to the enumerator's battlefield/graveyard/opponent scan, which reads only card instances. The bot holds the grant, a Mountain and a Fireball at 2 life against an opponent at 1 with a 2/2 attacker: the only way to cast Fireball for lethal is to spend 1 life through the grant (Fireball {X}{R} is X=0 off the lone Mountain), and passing hands the opponent a lethal swing. The chosen root move must be the grant activation — the enumeration and the search's life/mana application both prove themselves on this entry.",
+    },
     // -----------------------------------------------------------------------
     // Protection-colour choice (issue #2306) — the Bot's colour pick for
     // "protection from the colour of your choice" (`protectionColorModes`,

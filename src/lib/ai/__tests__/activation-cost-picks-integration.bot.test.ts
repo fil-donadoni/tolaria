@@ -119,6 +119,7 @@ function engineMutations(state: GameState): MoveMutations {
         },
         activateManaAbility: reject,
         tapForActivationPayment: reject,
+        activatePlayerAbility: reject,
         selectSacrifice: async ({ playerId, cardInstanceId }) => {
             selectSacrificeOnState(state, { playerId, cardInstanceId });
         },

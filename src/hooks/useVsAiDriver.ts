@@ -251,6 +251,8 @@ export function useVsAiDriver(
         // `tapForActivationPayment` whenever a plan entry carries `abilityId`.
         activateManaAbility: useMutation(api.game.activateManaAbility),
         activateAbility: useMutation(api.game.activateAbility),
+        // CR 113.1b (issue #2903) — a player-level granted ability (Channel).
+        activatePlayerAbility: useMutation(api.game.activatePlayerAbility),
         tapForActivationPayment: useMutation(api.game.tapForActivationPayment),
         selectSacrifice: useMutation(api.game.selectSacrifice),
         // CR 602.1 / 118 — the deferred activation-cost pickers. Unlike the
