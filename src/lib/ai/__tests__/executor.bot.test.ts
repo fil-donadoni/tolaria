@@ -26,6 +26,7 @@ function fakeMutations() {
         activatePlayerAbility: vi.fn().mockResolvedValue(null),
         tapForActivationPayment: vi.fn().mockResolvedValue(null),
         selectSacrifice: vi.fn().mockResolvedValue(null),
+        selectAdditionalCost: vi.fn().mockResolvedValue(null),
         selectActivationCost: vi.fn().mockResolvedValue(null),
         selectActivationExileCost: vi.fn().mockResolvedValue(null),
         selectActivationDiscardCost: vi.fn().mockResolvedValue(null),
@@ -492,5 +493,57 @@ describe("executeMove (issue #110)", () => {
             attackerId: "a1",
         });
         expect(m.confirmBlockers).toHaveBeenCalledWith(GP);
+    });
+
+    // issue #2135 — the cast-side mandatory payment parks (a filtered sacrifice
+    // and the exile additional cost) travel on the `cast-spell` Move
+    // (`castCostPicks`) and are submitted through the human mutations, one pick
+    // per call, exactly like the activation side's `costPicks`.
+    it("cast-spell → submits the carried sacrifice + exile picks before the tap plan (issue #2135)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "meta",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [{ cardInstanceId: "mtn", manaChoiceIndex: undefined }],
+            castCostPicks: {
+                sacrificeIds: ["bear"],
+                additionalCostCardId: "thrull",
+            },
+        });
+        expect(m.selectSacrifice).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "bear",
+        });
+        expect(m.selectAdditionalCost).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "thrull",
+        });
+        // Picks are submitted BEFORE the tap plan (the announce parks first,
+        // the park clears, then the mana is tapped — mirrors the activation
+        // case's "after targeting, before tap" ordering).
+        const pickOrder = Math.min(
+            m.selectSacrifice.mock.invocationCallOrder[0],
+            m.selectAdditionalCost.mock.invocationCallOrder[0]
+        );
+        expect(pickOrder).toBeLessThan(
+            m.tapForPayment.mock.invocationCallOrder[0]
+        );
+    });
+
+    it("cast-spell without a park → no sacrifice/exile submission (ordinary casts unchanged)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "bolt",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [],
+            tapPlan: [],
+        });
+        expect(m.selectSacrifice).not.toHaveBeenCalled();
+        expect(m.selectAdditionalCost).not.toHaveBeenCalled();
     });
 });
