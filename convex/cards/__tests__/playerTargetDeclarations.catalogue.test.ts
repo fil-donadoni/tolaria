@@ -112,7 +112,7 @@ type Site = { cardId: string; label: string; site: string; oracle: string };
  *  card-level `oracleText` is the concatenation of its abilities' lines, which
  *  would double-count every ability below), plus every ability row. */
 function playerTargetSites(card: CardDefinition): Site[] {
-    const c = card as CardDefinition & Record<string, any>;
+    const c = card as CardDefinition & Record<string, unknown>;
     const out: Site[] = [];
     const label = `${c.name} (${c.id})`;
     const isSpell =
@@ -152,7 +152,7 @@ function siteCarrier(
     card: CardDefinition,
     site: Site
 ): Record<string, unknown> | undefined {
-    const c = card as CardDefinition & Record<string, any>;
+    const c = card as CardDefinition & Record<string, unknown>;
     if (site.site === "spell") return c as Record<string, unknown>;
     const [key, id] = site.site.split(":");
     return ((c[key] ?? []) as Record<string, unknown>[]).find(
