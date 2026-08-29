@@ -132,8 +132,19 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
                 the deleted `PlayerSideRow` used to give them. The mana pool
                 floats off the wrapper's own `bottom-full`, so it rides above
                 the controls automatically. Renders nothing for the opponent's
-                seat, or when the viewer holds no grant. */}
-            <PlayerGrantedAbilities player={player} />
+                seat, or when the viewer holds no grant.
+
+                Mounted CONDITIONALLY on the seat actually holding a grant: the
+                component subscribes to `activatePlayerAbility`, and every seat
+                renders on every board frame, so an unconditional mount would
+                make a Convex client a hard requirement of the seat chrome for
+                the overwhelmingly common empty case (it is what broke
+                `player-interaction-injection.test.tsx`, which renders this
+                component with no provider). The component re-checks the same
+                condition — this is the cheap outer gate, not the authority. */}
+            {player.grantedAbilities?.length ? (
+                <PlayerGrantedAbilities player={player} />
+            ) : null}
             <PlayerNameplate
                 player={player}
                 interaction={interaction}
