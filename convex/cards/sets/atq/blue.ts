@@ -92,6 +92,21 @@ export const reconstruction: CardDefinition = {
 // reads "from a single graveyard"; `controller: "any"` lets the caster recur
 // from any player's bin).
 //
+// DIVERGENCE (tracked-by: #2912) — the oracle's "target PLAYER's graveyard" is
+// a second target in its own right, and it is NOT declared here, so a player
+// with protection from
+// everything (CR 702.16b)
+// or with shroud (CR 702.18) is not screened out (issue #2801). Declaring it
+// as an independent `additionalTargetRequirements` group is NOT the fix: the
+// two groups would be chosen independently, so the caster could announce one
+// player and then pick cards out of the OTHER player's graveyard — an
+// announcement CR 601.2c makes illegal, which the engine would accept and then
+// resolve as a no-op. What this needs is a CROSS-SLOT filter ("the candidate
+// card is in target N's graveyard"); the only relational filter that exists
+// today is `sameController`, which is permanent-only. Until then the owner
+// stays DERIVED from the announced cards, which keeps the two picks consistent
+// by construction.
+//
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since
 // moveCard pushes and drawCard reads index 0), then let the player order just

@@ -14,12 +14,16 @@ import {
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 
 /** Puts Ravenous Rats' ETB trigger on the stack (mirroring
- *  `oublietteTriggerOnStack`, `arn/__tests__/black.test.ts`) and resolves it.
- *  `player: "opponent"` inside the script binds relative to the source's
- *  controller — no real target selection is needed for a 2-player "target
- *  opponent" (`p02/black.ts`'s own comment documents this). */
+ *  `oublietteTriggerOnStack`, `arn/__tests__/black.test.ts`), runs the REAL
+ *  CR 603.3d announcement sweep over it, and resolves it. `targets` is left
+ *  UNSET on purpose: "target opponent" is a real target (issue #2801), so the
+ *  ENGINE must be the one that picks it — a fixture that sets `targets`
+ *  itself never asks whether the choice was legal, which is exactly how the
+ *  protection bug hid. Legality itself is covered in
+ *  `gre/__tests__/playerTargetProtection.test.ts`. */
 function resolveEtbTrigger(state: GameState, source: CardInstanceState): void {
     const trig: StackItem = {
         ...source,
@@ -36,6 +40,10 @@ function resolveEtbTrigger(state: GameState, source: CardInstanceState): void {
         targets: undefined,
     };
     state.stack.push(trig);
+    // CR 603.3d — sole mandatory target, one legal candidate: auto-selected,
+    // no prompt.
+    expect(raiseTriggerTargetSelection(state)).toBe(false);
+    expect(state.stack[0].targets).toEqual([{ type: "player", id: "p2" }]);
     resolveTopOfStack(state);
 }
 

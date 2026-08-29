@@ -18,6 +18,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -166,9 +167,12 @@ describe("Goblin Patrol — Echo {R} (CR 702.30)", () => {
 
 const CADETS_ABILITY = "goblin-cadets-donate";
 
-/** Push the donate trigger onto the stack with a BLOCKERS_CONFIRMED event and
- *  resolve it (the pair details are irrelevant to the effect — it acts on
- *  $source; `matches` already gated the pair at collection). */
+/** Push the donate trigger onto the stack with a BLOCKERS_CONFIRMED event,
+ *  run the REAL CR 603.3d announcement sweep over it (which locks "target
+ *  opponent" — issue #2801; `targets` is left UNSET so the engine, not this
+ *  fixture, decides legality), and resolve it. The pair details are
+ *  irrelevant to the effect — it acts on $source; `matches` already gated the
+ *  pair at collection. */
 function fireDonate(
     state: GameState,
     source: CardInstanceState,
@@ -181,8 +185,10 @@ function fireDonate(
         triggeredAbilityId: CADETS_ABILITY,
         triggerSourceId: source.id,
         triggerEvent: event,
-        targets: [],
+        targets: undefined,
     });
+    expect(raiseTriggerTargetSelection(state)).toBe(false);
+    expect(state.stack[0].targets).toEqual([{ type: "player", id: "p2" }]);
     resolveTopOfStack(state);
 }
 

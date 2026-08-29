@@ -125,6 +125,7 @@ import {
     resolveActivated,
     submitChoice,
     resolveTrigger,
+    resolveAnnouncedTrigger,
     vanilla,
     PHASE_EVENT,
     library,
@@ -986,7 +987,7 @@ describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a /
             ],
             activePlayerId: "p1",
         });
-        resolveTrigger(
+        resolveAnnouncedTrigger(
             state,
             lord,
             "chaos-lord-parity-control",
@@ -1011,7 +1012,7 @@ describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a /
             ],
             activePlayerId: "p1",
         });
-        resolveTrigger(
+        resolveAnnouncedTrigger(
             state,
             lord,
             "chaos-lord-parity-control",

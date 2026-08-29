@@ -279,23 +279,26 @@ export const figureOfFable: CardDefinition = {
 
 // The canonical Thoughtseize/Duress template (`reveal` + `choice
 // (choose-hand-card)` with `zoneOwnerId`, lrw/black.ts), identical to Grief's
-// (mh2/black.ts). "Target opponent" is deterministic in this engine's
-// 2-player-only scope — no target selection needed, `player: "opponent"`
-// resolves it directly (Grief/Archon of Cruelty precedent).
+// (mh2/black.ts). "Target opponent" is a REAL target announced as the trigger
+// goes on the stack (CR 603.3d) — the body reads the announced slot
+// (`{ target: 0 }`), never a relative `EffectPlayerRef`, because only a
+// declared `targetRequirement` reaches the single player-target legality gate —
+// protection from everything (CR 702.16b)
+// and shroud (CR 702.18), each applied to a player via CR 115.4 (issue #2801).
 const opponentRevealsAndDiscardsNonland: EffectOp[] = [
-    { op: "reveal", player: "opponent", zone: "hand" },
+    { op: "reveal", player: { target: 0 }, zone: "hand" },
     {
         op: "choice",
         kind: "choose-hand-card",
         player: "controller",
-        zoneOwnerId: "opponent",
+        zoneOwnerId: { target: 0 },
         zone: "hand",
         filter: { excludeType: "Land" },
         count: 1,
         prompt: "Choose a nonland card from your opponent's hand.",
         bind: "$picked",
     },
-    { op: "discard", player: "opponent", cards: { ref: "$picked" } },
+    { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
 ];
 
 // Deceit — {4}{U/B}{U/B} Creature — Elemental Incarnation, 5/5 (ECL 212,
@@ -358,6 +361,11 @@ export const deceit: CardDefinition = {
                 "When this creature enters, if {B}{B} was spent to cast it, target opponent reveals their hand. You choose a nonland card from it. That player discards that card.",
             scope: "self",
             condition: manaSpentOnCastAtLeast("B", 2),
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: opponentRevealsAndDiscardsNonland,
         }),
         evokeTrigger("Deceit"),

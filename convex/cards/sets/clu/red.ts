@@ -10,12 +10,15 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // this turn. At the beginning of your upkeep, exile the top card of your
 // library face down. You may look at and play that card this turn."
 //
-// SIMPLIFICATION (out of scope) (flagged, CR 115 "target player"):
-// `TriggeredAbility` carries no `targetRequirement`/player-choice zone-pick kind (no
-// `ZonePickKind` targets a player), and this engine is 2-player/solo only
-// (CLAUDE.md — no 3+ player multiplayer), so "target player" always
-// resolves to the opponent — the only choice that is ever strategically
-// live. The golden path (an opponent's creatures can't block) is faithful.
+// TARGET (CR 603.3d, issue #2801): "creatures target player controls" is a
+// REAL target, announced through the ability's own `targetRequirement` as the
+// trigger goes on the stack. It has NO `controller` restriction — the oracle
+// says "target player", so either seat is legal and the controller genuinely
+// chooses. The earlier shortcut scanned `ctx.allPlayerIds` for the opponent;
+// that decided WHO without ever asking WHETHER they may be targeted, so it
+// bypassed the single player-target legality gate, ignoring both
+// protection from everything (CR 702.16b)
+// and shroud (CR 702.18) — each applied to a player via CR 115.4.
 //
 // PROTOCOL (recurring impulse-draw — no Op skin, precedent: Elkin Bottle /
 // Ice Cauldron, ice/colorless.ts): the upkeep trigger composes
@@ -44,12 +47,18 @@ export const headlinerScarlett: CardDefinition = {
             oracleText:
                 "When Headliner Scarlett enters, creatures target player controls can't block this turn.",
             scope: "self",
+            targetRequirement: { type: "player", count: 1 },
+            // protocol trigger: "creatures target player controls can't block"
+            // is a board-wide per-creature grant read off a LIVE battlefield
+            // scan of the announced target's permanents — no Op expresses
+            // "apply a can't-block grant to every creature a chosen player
+            // controls", and `setCantBlockThisTurn` is a per-permanent
+            // primitive with no forEach-over-a-player's-battlefield selector.
             resolve: (ctx: SpellContext) => {
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (!opponentId) return;
-                for (const id of ctx.getBattlefieldIds(opponentId, {
+                // CR 608.2b — the announced target may be gone by resolution.
+                const target = ctx.targets[0];
+                if (target?.type !== "player") return;
+                for (const id of ctx.getBattlefieldIds(target.id, {
                     types: "Creature",
                 })) {
                     ctx.setCantBlockThisTurn({ type: "permanent", id });

@@ -5,7 +5,9 @@
 // convex/cards/__tests__/setup.ts.
 import { balduvianBears } from "../../ice";
 import { plains, island, swamp, mountain, forest } from "../../lea";
+import { expect } from "vitest";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { collectTriggers } from "../../../../gre/triggers";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import {
@@ -69,6 +71,33 @@ export function resolveTrigger(
         triggerEvent,
         targets,
     });
+    resolveTopOfStack(state);
+}
+
+/** Push a TARGETED triggered ability onto the stack and run the REAL CR 603.3d
+ *  announcement sweep over it before resolving — `targets` is deliberately left
+ *  UNSET so the ENGINE picks (and legality-checks) the target rather than the
+ *  fixture. Returns after resolution. Use this, not `resolveTrigger`, whenever
+ *  the ability declares a `targetRequirement`: a fixture that assigns `targets`
+ *  itself never asks whether the choice was legal, which is how the player
+ *  protection bug hid (issue #2801). Asserts the sweep did NOT suspend — i.e.
+ *  the sole mandatory target auto-selected. */
+export function resolveAnnouncedTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"]
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets: undefined,
+    });
+    expect(raiseTriggerTargetSelection(state)).toBe(false);
     resolveTopOfStack(state);
 }
 
