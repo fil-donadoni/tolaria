@@ -32,21 +32,48 @@ const PLAYER_TARGET_RE = /target (opponent|player)/i;
 
 /** Sites whose Oracle text genuinely names a player target but whose
  *  declaration the engine cannot see from the ability row alone, or which are
- *  correct for a reason the text scan can't express. One line of reason each;
- *  meant to stay near-empty (`docs/agents/gre-guards.md` idiom). */
+ *  BLOCKED on a named engine gap with a real open issue. One line of reason
+ *  each; meant to empty out, never a standing hatch
+ *  (`docs/agents/gre-guards.md` idiom, mirroring `KEYWORD_ALLOWLIST`). */
 const ALLOWLIST: ReadonlyArray<{
     cardId: string;
     site: string;
+    /** Real open issue for a BLOCKED row; omitted for a row that is correct
+     *  today at a site the row-level scan cannot see (`nestedReflexive`). */
+    issue?: number;
+    /** Set when the target IS declared, just on a nested `reflexiveTrigger`
+     *  Op — the second test below proves it is really there. */
+    nestedReflexive?: boolean;
     reason: string;
 }> = [
     {
         cardId: "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
         site: "triggeredAbilities:generous-plunderer-upkeep-treasure",
+        nestedReflexive: true,
         reason:
             "The player target belongs to the REFLEXIVE trigger this ability's " +
             "script raises ('When you do, target opponent …', CR 603.3c/603.3d), " +
             "which carries its own targetRequirement on the `reflexiveTrigger` Op — " +
             "see the nested-declaration check below, which asserts it is really there.",
+    },
+    {
+        cardId: "8965ce61-0522-4f77-a82d-89441d1ba867",
+        site: "spell",
+        issue: 2910,
+        reason:
+            "Fiery Justice. BLOCKED: the divide-as-you-choose budget is scoped " +
+            "to the whole flat target list, not to the group that declared it, " +
+            "so a second target group folds the opponent into the 5-damage split.",
+    },
+    {
+        cardId: "4be2aa3b-207b-4d21-abfb-6788520c7676",
+        site: "spell",
+        issue: 2912,
+        reason:
+            "Drafna's Restoration. BLOCKED: no cross-slot \"candidate is in " +
+            "target N's zone\" filter exists, so two independent groups would " +
+            "let the caster announce one player and raid the other's graveyard " +
+            "(illegal per CR 601.2c).",
     },
 ];
 
@@ -55,12 +82,31 @@ function requirementTypes(req: TargetRequirement | undefined): string[] {
     return Array.isArray(req.type) ? [...(req.type as string[])] : [req.type];
 }
 
-/** A requirement group that can select a PLAYER: an explicit `"player"`, or
- *  `"any"` (CR 115.4 — "any target" includes each player). */
+/** How many of these groups DECLARE a player target: the type must name
+ *  `"player"` explicitly.
+ *
+ *  `"any"` deliberately does NOT count, even though "any target" does include
+ *  each player (CR 115.4). A card can carry an "any target" DAMAGE group AND a
+ *  separate "target opponent" clause, and the `"any"` group is not the one that
+ *  clause names. Fiery Justice is exactly that shape — "5 damage divided as you
+ *  choose among any number of targets. Target opponent gains 5 life." — and
+ *  counting its damage group as the player declaration is what let it slip past
+ *  an earlier draft of this guard while the lifegain clause stayed ungated.
+ *  Verified against the whole catalogue: no shipped site names a player target
+ *  and satisfies it with an `"any"`-only group. */
+function playerGroupCount(reqs: (TargetRequirement | undefined)[]): number {
+    return reqs.filter((r) => requirementTypes(r).includes("player")).length;
+}
+
+/** How many distinct "target opponent" / "target player" clauses an Oracle
+ *  line names. Each is its own target (CR 601.2c), so each needs its own
+ *  group — one declaration does not cover two clauses. */
+function playerTargetClauseCount(oracle: string): number {
+    return (oracle.match(/target (opponent|player)/gi) ?? []).length;
+}
+
 function declaresPlayer(reqs: (TargetRequirement | undefined)[]): boolean {
-    return reqs.some((r) =>
-        requirementTypes(r).some((t) => t === "player" || t === "any")
-    );
+    return playerGroupCount(reqs) > 0;
 }
 
 /** Every `targetRequirement`-bearing group reachable from one ability or
@@ -170,12 +216,17 @@ describe("player-target declaration catalogue guard (CR 601.2c / 603.3d, issue #
                 );
                 if (allowed) continue;
                 const carrier = siteCarrier(card, site);
-                if (declaresPlayer(requirementsOf(carrier))) continue;
-                // A dynamic requirement is computed per-activation and cannot
-                // be read statically — it is a declaration all the same.
-                if (carrier?.getTargetRequirement) continue;
+                const declared = playerGroupCount(requirementsOf(carrier));
+                const needed = playerTargetClauseCount(site.oracle);
+                if (declared >= needed) continue;
+                // NO blanket skip for a dynamic `getTargetRequirement`: it
+                // cannot be read statically, so admitting it would be an
+                // unproven hatch — exactly what the reasoned ALLOWLIST above
+                // exists to replace. No shipped site pairs one with a
+                // player-target Oracle line today; the first that does earns a
+                // row and a reason, not a silent pass.
                 offenders.push(
-                    `${site.label} [${site.site}] — "${site.oracle.replace(/\n/g, " | ")}"`
+                    `${site.label} [${site.site}] — names ${needed} player target(s), declares ${declared} — "${site.oracle.replace(/\n/g, " | ")}"`
                 );
             }
         }
@@ -186,7 +237,7 @@ describe("player-target declaration catalogue guard (CR 601.2c / 603.3d, issue #
         // The allowlist is not a blanket skip: each entry must still prove the
         // target IS declared, just at a site the row-level scan cannot see.
         const unproven: string[] = [];
-        for (const entry of ALLOWLIST) {
+        for (const entry of ALLOWLIST.filter((e) => e.nestedReflexive)) {
             const card = getAllCards().find((c) => c.id === entry.cardId);
             expect(
                 card,
@@ -209,12 +260,17 @@ describe("player-target declaration catalogue guard (CR 601.2c / 603.3d, issue #
         expect(unproven).toEqual([]);
     });
 
-    it("every allowlist entry carries a reason", () => {
+    it("every allowlist entry carries a reason, and exactly one of a proof or a ticket", () => {
         for (const entry of ALLOWLIST) {
+            const label = `${entry.cardId} ${entry.site}`;
+            expect(entry.reason.length, label).toBeGreaterThan(20);
+            // A row is EITHER "correct, just not visible here" (proved by the
+            // nested check above) OR "blocked, tracked" — never neither, which
+            // is how an allowlist rots into a standing hatch.
             expect(
-                entry.reason.length,
-                `${entry.cardId} ${entry.site}`
-            ).toBeGreaterThan(20);
+                Boolean(entry.nestedReflexive) !== (entry.issue !== undefined),
+                label
+            ).toBe(true);
         }
     });
 });

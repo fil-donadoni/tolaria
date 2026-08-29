@@ -605,9 +605,13 @@ export const chaosLord: CardDefinition = {
             scope: "your",
             // CR 603.3d (issue #2801) — "target opponent" is a REAL target,
             // announced as the trigger goes on the stack. The parity test is
-            // an INTERVENING-IF-shaped clause checked at RESOLUTION ("gains
-            // control … if the number of permanents is even"), so it stays in
-            // the body; the target does not. Scanning `allPlayerIds` for the
+            // NOT an intervening-"if": CR 603.4 scopes that rule to an "if"
+            // that IMMEDIATELY FOLLOWS the trigger condition, and this one
+            // follows the effect ("gains control … if the number of permanents
+            // is even"), so it is an ordinary resolution-time condition,
+            // checked once, as the ability resolves — never at trigger time.
+            // It stays in the body; the target does not. Scanning
+            // `allPlayerIds` for the
             // opponent decided WHO without asking WHETHER they may be
             // targeted, bypassing the single player-target legality gate
             // (protection from everything / shroud, CR 702.16b / 702.18 via

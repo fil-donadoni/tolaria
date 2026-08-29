@@ -252,10 +252,7 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
                 makePlayer("p2"),
             ],
         });
-        // CR 601.2c — slot 0 is the announced PLAYER whose graveyard is
-        // raided (issue #2801), then the artifact cards.
         pushSpell(state, drafnasRestoration.id, "p1", [
-            { type: "player", id: "p1" },
             { type: "graveyard-card", id: "g1", playerId: "p1" },
             { type: "graveyard-card", id: "g2", playerId: "p1" },
         ]);
@@ -305,36 +302,15 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
                 makePlayer("p2", { graveyard: [oppArt, oppSpell] }),
             ],
         });
-        // The artifact-card group is the SECOND target group (slot 0 is the
-        // player, issue #2801).
         const ids = getLegalTargets(
             state,
-            drafnasRestoration.additionalTargetRequirements![0],
+            drafnasRestoration.targetRequirement!,
             NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toContain("g1");
         expect(ids).toContain("oppArt");
         expect(ids).not.toContain("oppSpell");
-
-        // The PLAYER group offers both seats ("target player", no controller
-        // restriction) — and drops one that has protection from everything
-        // (CR 702.16b via CR 115.4), the single legality gate the old
-        // owner-derived-from-the-cards shape never reached.
-        const playerIds = getLegalTargets(
-            state,
-            drafnasRestoration.targetRequirement!,
-            NO_TARGETING_SOURCE,
-            "p1"
-        ).map((t) => t.id);
-        expect(playerIds.sort()).toEqual(["p1", "p2"]);
-        const protectedIds = getLegalTargets(
-            { ...state, playerProtectionFromEverything: ["p2"] },
-            drafnasRestoration.targetRequirement!,
-            NO_TARGETING_SOURCE,
-            "p1"
-        ).map((t) => t.id);
-        expect(protectedIds).toEqual(["p1"]);
     });
 
     // CR 400.3 (issue #1721) — the graveyard is a PUBLIC zone; both players
@@ -369,10 +345,7 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
                 makePlayer("p2"),
             ],
         });
-        // CR 601.2c — slot 0 is the announced PLAYER whose graveyard is
-        // raided (issue #2801), then the artifact cards.
         pushSpell(state, drafnasRestoration.id, "p1", [
-            { type: "player", id: "p1" },
             { type: "graveyard-card", id: "g1", playerId: "p1" },
             { type: "graveyard-card", id: "g2", playerId: "p1" },
         ]);
