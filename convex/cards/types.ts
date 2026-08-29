@@ -3591,7 +3591,9 @@ export interface SpellContext {
              *  battlefield. */
             includeAttachments?: boolean;
             /** CR 610.3a / 610.3b — refuse the exile outright when `sourceId`
-             *  has ALREADY left the battlefield. An "until <event>" exile is a
+             *  has ALREADY left play (neither on the battlefield nor on the
+             *  stack — a resolving spell is its own source and has not
+             *  "left the battlefield"). An "until <event>" exile is a
              *  one-shot effect whose return half is a second one-shot created
              *  when that event occurs; if the event happened first, "the object
              *  doesn't move" at all. Set by the "until THIS leaves the

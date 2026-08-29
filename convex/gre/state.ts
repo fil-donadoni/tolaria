@@ -10230,10 +10230,15 @@ export function exileWithAttachments(
     const found = findOnBattlefield(state, targetId);
     if (!found) return null;
     // CR 610.3b — the specified event (this source leaving the battlefield)
-    // has already happened, so the initial one-shot effect does nothing.
+    // has already happened, so the initial one-shot effect does nothing. The
+    // source must be GONE, not merely off the battlefield: a resolving SPELL
+    // is its own source and is still on the stack, and it has not "left the
+    // battlefield" in CR 610.3's sense — only a source that is neither in play
+    // nor on the stack has actually departed.
     if (
         opts.requireSourceOnBattlefield &&
-        !findOnBattlefield(state, opts.sourceId)
+        !findOnBattlefield(state, opts.sourceId) &&
+        !state.stack.some((item) => item.id === opts.sourceId)
     ) {
         return null;
     }
