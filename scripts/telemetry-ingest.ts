@@ -22,7 +22,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { Database } from "bun:sqlite";
+import { Database as Sqlite } from "bun:sqlite";
 import {
     openDb,
     classifyKind,
@@ -33,17 +33,33 @@ import {
     issueFromDescription,
     normalizeModel,
 } from "./lib/telemetry-db.ts";
+import {
+    OPENCODE_DB_PATH,
+    projectIdFor,
+    listSessions,
+    listMessages,
+} from "./lib/opencode-telemetry.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const EVENTS = join(PROJECT_DIR, ".claude/telemetry/tool-events.jsonl");
+const OPENCODE_EVENTS = join(
+    PROJECT_DIR,
+    ".opencode/telemetry/tool-events.jsonl"
+);
+const OPENCODE_FACTS = join(PROJECT_DIR, ".opencode/telemetry/facts.jsonl");
 const PROJECTS_ROOT = join(homedir(), ".claude/projects");
 const PROJECT_SLUG = PROJECT_DIR.replace(/\//g, "-");
+
+/** Which harness wrote a source — the single fact that tags a row as its own. */
+const HARNESS_CLAUDE = "claude-code";
+const HARNESS_OPENCODE = "opencode";
 
 /** A pre event waiting for its post — may straddle two ingest runs. */
 interface PendingPre {
     ts: number;
     session: string;
+    harness: string;
     tool: string | null;
     skill: string | null;
     desc: string | null;
@@ -58,7 +74,7 @@ interface PendingPre {
  * concurrently-appending writer never leaves us with half a JSON object.
  */
 async function readDelta(
-    db: Database,
+    db: Sqlite,
     path: string
 ): Promise<{ lines: string[]; commit: () => void } | null> {
     let size: number;
@@ -97,8 +113,12 @@ async function readDelta(
     };
 }
 
-async function ingestSpans(db: Database): Promise<number> {
-    const delta = await readDelta(db, EVENTS);
+export async function ingestSpans(
+    db: Sqlite,
+    eventsPath: string,
+    harness: string
+): Promise<number> {
+    const delta = await readDelta(db, eventsPath);
     if (!delta) return 0;
 
     // Pending pre-events survive between runs: a Bash call can straddle the
@@ -118,8 +138,8 @@ async function ingestSpans(db: Database): Promise<number> {
 
     const insert = db.prepare(
         `INSERT OR REPLACE INTO spans
-         (id, session, ts, day, hour, dur_s, tool, kind, role, agent_type, model_req, skill, cmd, cmd_bucket, bg)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, session, harness, ts, day, hour, dur_s, tool, kind, role, agent_type, model_req, skill, cmd, cmd_bucket, bg)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     let n = 0;
@@ -138,6 +158,7 @@ async function ingestSpans(db: Database): Promise<number> {
                 pending.set(id, {
                     ts: e.ts as number,
                     session: (e.session as string) ?? "",
+                    harness,
                     tool: (e.tool as string) ?? null,
                     skill: (e.skill as string) ?? null,
                     desc: (e.agent_desc as string) ?? null,
@@ -157,6 +178,7 @@ async function ingestSpans(db: Database): Promise<number> {
             insert.run(
                 id,
                 pre.session,
+                pre.harness,
                 pre.ts,
                 day,
                 hour,
@@ -213,7 +235,7 @@ interface TranscriptLine {
  * as an upsert so the delta pass and the one-time backfill compose.
  */
 function applySessionEvent(
-    db: Database,
+    db: Sqlite,
     session: string,
     e: TranscriptLine
 ): boolean {
@@ -300,19 +322,20 @@ function sessionOfPath(path: string): string {
 }
 
 async function ingestTranscript(
-    db: Database,
+    db: Sqlite,
     path: string,
     surface: "main" | "subagent",
-    meta: SubagentMeta | null
+    meta: SubagentMeta | null,
+    harness: string
 ): Promise<number> {
     const delta = await readDelta(db, path);
     if (!delta) return 0;
 
     const insert = db.prepare(
         `INSERT OR REPLACE INTO llm
-         (uuid, session, agent_id, ts, day, hour, model, effort, surface, agent_type, role, tool_use_id,
+         (uuid, session, harness, agent_id, ts, day, hour, model, effort, surface, agent_type, role, tool_use_id,
           in_tok, out_tok, cache_read, cache_write, cost)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const agentId =
         surface === "subagent"
@@ -350,6 +373,7 @@ async function ingestTranscript(
             insert.run(
                 e.uuid ?? `${path}:${n}`,
                 e.sessionId ?? e.session_id ?? "",
+                harness,
                 agentId,
                 ts,
                 day,
@@ -374,7 +398,7 @@ async function ingestTranscript(
     return n;
 }
 
-async function ingestTranscripts(db: Database): Promise<number> {
+async function ingestTranscripts(db: Sqlite): Promise<number> {
     const root = join(PROJECTS_ROOT, PROJECT_SLUG);
     if (!existsSync(root)) return 0;
 
@@ -383,7 +407,7 @@ async function ingestTranscripts(db: Database): Promise<number> {
         const full = join(root, entry);
 
         if (entry.endsWith(".jsonl")) {
-            n += await ingestTranscript(db, full, "main", null);
+            n += await ingestTranscript(db, full, "main", null, HARNESS_CLAUDE);
             continue;
         }
 
@@ -411,7 +435,13 @@ async function ingestTranscripts(db: Database): Promise<number> {
                     ]
                 );
             }
-            n += await ingestTranscript(db, join(subs, f), "subagent", meta);
+            n += await ingestTranscript(
+                db,
+                join(subs, f),
+                "subagent",
+                meta,
+                HARNESS_CLAUDE
+            );
         }
     }
     return n;
@@ -422,7 +452,7 @@ async function ingestTranscripts(db: Database): Promise<number> {
  * session narrative lines — the byte cursor is past them, so the delta pass
  * alone would only cover sessions created after this feature shipped.
  */
-function backfillSessions(db: Database): void {
+function backfillSessions(db: Sqlite): void {
     const done = db
         .query<
             { v: string },
@@ -464,7 +494,7 @@ function backfillSessions(db: Database): void {
  * else the parent's (an investigate spawned inside an implement works that
  * implement's issue). PR-only descriptions stay unattributed.
  */
-function attributeIssues(db: Database): number {
+function attributeIssues(db: Sqlite): number {
     const metas = db
         .query<
             {
@@ -506,7 +536,7 @@ function attributeIssues(db: Database): number {
  * Missing issues are fetched once; open ones are refreshed after 6h (labels
  * and state change); closed ones are final. Offline ⇒ silently skipped.
  */
-function refreshIssueMeta(db: Database): number {
+function refreshIssueMeta(db: Sqlite): number {
     const now = Math.floor(Date.now() / 1000);
     const wanted = db
         .query<{ issue: number }, [number]>(
@@ -608,15 +638,16 @@ if (reset && existsSync(DB_PATH)) {
  * over the `llm` table) and it must be redone anyway: a run's last message can
  * arrive in a later ingest, which changes its duration and totals.
  */
-function rebuildAgentRuns(db: Database): number {
+function rebuildAgentRuns(db: Sqlite): number {
     db.run("DELETE FROM agent_runs");
     db.run(`
         INSERT INTO agent_runs
-        (agent_id, session, started, day, hour, dur_s, msgs, model, agent_type,
+        (agent_id, session, harness, started, day, hour, dur_s, msgs, model, agent_type,
          role, tool_use_id, in_tok, out_tok, cache_read, cache_write, cost)
         SELECT
             l.agent_id,
             max(l.session),
+            max(l.harness),
             min(l.ts),
             '',
             0,
@@ -653,28 +684,234 @@ function rebuildAgentRuns(db: Database): number {
     return rows.length;
 }
 
-const db = openDb(DB_PATH);
-const t0 = Date.now();
-const spans = await ingestSpans(db);
-const msgs = await ingestTranscripts(db);
-backfillSessions(db);
-const runs = rebuildAgentRuns(db);
-const attributed = attributeIssues(db);
-const fetched = refreshIssueMeta(db);
-db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
-    String(Date.now()),
-]);
+/**
+ * Mirror opencode's session store into the SQLite mirror, tagged
+ * harness='opencode'. Incremental via an `opencode_last_ms` watermark on
+ * message.time_created; sessions are few, so they are re-listed each run.
+ * Reads opencode.db read-only and degrades to a no-op when it is absent or the
+ * project has no directory row.
+ */
+export function ingestOpencode(
+    db: Sqlite,
+    directory: string,
+    opencodeDbPath: string
+): {
+    sessions: number;
+    llm: number;
+    runs: number;
+} {
+    if (!existsSync(opencodeDbPath)) return { sessions: 0, llm: 0, runs: 0 };
+    let oc: Sqlite;
+    try {
+        oc = new Sqlite(opencodeDbPath, { readonly: true });
+    } catch {
+        return { sessions: 0, llm: 0, runs: 0 };
+    }
 
-const totals = db
-    .query<
-        { spans: number; llm: number },
-        []
-    >("SELECT (SELECT count(*) FROM spans) AS spans, (SELECT count(*) FROM llm) AS llm")
-    .get()!;
+    const projectId = projectIdFor(oc, directory);
+    if (!projectId) {
+        oc.close();
+        return { sessions: 0, llm: 0, runs: 0 };
+    }
 
-console.log(
-    `ingested +${spans} spans, +${msgs} messages in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
-        `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
-        `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
-);
-db.close();
+    const sessions = listSessions(oc, projectId);
+    if (sessions.length === 0) {
+        oc.close();
+        return { sessions: 0, llm: 0, runs: 0 };
+    }
+
+    const lastMs = Number(
+        db
+            .query<
+                { v: string },
+                []
+            >("SELECT v FROM meta WHERE k = 'opencode_last_ms'")
+            .get()?.v ?? 0
+    );
+
+    const insertLlm = db.prepare(
+        `INSERT OR REPLACE INTO llm
+         (uuid, session, harness, agent_id, ts, day, hour, model, effort, surface, agent_type, role, tool_use_id,
+          in_tok, out_tok, cache_read, cache_write, cost)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const insertSession = db.prepare(
+        `INSERT INTO sessions (session, harness, title) VALUES (?, ?, ?)
+         ON CONFLICT(session) DO UPDATE SET title = excluded.title, harness = excluded.harness`
+    );
+
+    let nLlm = 0;
+    let nSessions = 0;
+    let maxMs = lastMs;
+
+    db.transaction(() => {
+        for (const s of sessions) {
+            const surface: "main" | "subagent" = s.parentId
+                ? "subagent"
+                : "main";
+            const mainSessionId = s.parentId ?? s.id;
+            const agentType = surface === "subagent" ? s.agent : null;
+
+            if (surface === "main") {
+                insertSession.run(s.id, HARNESS_OPENCODE, s.title);
+                nSessions++;
+            }
+
+            const msgs = listMessages(oc, s.id, lastMs, {
+                mainSessionId,
+                surface,
+                agentType,
+                fallbackModelId: s.modelId,
+            });
+            for (const m of msgs) {
+                const model = normalizeModel(m.modelId ?? "");
+                if (!model) continue;
+                const ts = Math.floor(m.tsMs / 1000);
+                if (!ts) continue;
+                const { day, hour } = dayHour(ts);
+                insertLlm.run(
+                    `oc:${s.id}:${m.id}`,
+                    m.mainSessionId,
+                    HARNESS_OPENCODE,
+                    surface === "subagent" ? s.id : null,
+                    ts,
+                    day,
+                    hour,
+                    model,
+                    null,
+                    m.surface,
+                    m.agentType,
+                    surface === "subagent"
+                        ? classifyRole("Agent", s.title)
+                        : "orchestrator",
+                    null,
+                    m.inTok,
+                    m.outTok,
+                    m.cacheRead,
+                    m.cacheWrite,
+                    costOf(model, m.inTok, m.outTok, m.cacheRead, m.cacheWrite)
+                );
+                nLlm++;
+                if (m.tsMs > maxMs) maxMs = m.tsMs;
+            }
+        }
+    })();
+
+    db.run(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('opencode_last_ms', ?)",
+        [String(maxMs)]
+    );
+
+    // Spawn metadata for subagent runs — description is the auto-generated
+    // title ("Review PR #1048 (@general subagent)"), which carries the role and
+    // the issue/PR refs that attributeIssues() and the dashboard read.
+    const parentOf = new Map(sessions.map((s) => [s.id, s.parentId]));
+    const depthOf = (id: string): number => {
+        let depth = 0;
+        let cur: string | null = parentOf.get(id) ?? null;
+        while (cur && depth < 8) {
+            depth++;
+            cur = parentOf.get(cur) ?? null;
+        }
+        return depth;
+    };
+    let runs = 0;
+    for (const s of sessions) {
+        if (!s.parentId) continue;
+        db.run(
+            `INSERT OR REPLACE INTO agent_meta
+             (agent_id, description, parent_agent_id, spawn_depth)
+             VALUES (?, ?, ?, ?)`,
+            [s.id, s.title, s.parentId, depthOf(s.id)]
+        );
+        runs++;
+    }
+
+    oc.close();
+    return { sessions: nSessions, llm: nLlm, runs };
+}
+
+/**
+ * PR facts written by the opencode telemetry plugin
+ * (`.opencode/telemetry/facts.jsonl`): one `pr-link` line per PR the session
+ * created or landed. Upserts into `sessions.prs` so the harness comparison has
+ * the same outcome signal Claude Code records via its `pr-link` transcript
+ * events.
+ */
+export async function ingestOpencodeFacts(
+    db: Sqlite,
+    factsPath: string
+): Promise<number> {
+    const delta = await readDelta(db, factsPath);
+    if (!delta) return 0;
+    let n = 0;
+    db.transaction(() => {
+        for (const line of delta.lines) {
+            let e: Record<string, unknown>;
+            try {
+                e = JSON.parse(line);
+            } catch {
+                continue;
+            }
+            if (e.event !== "pr-link") continue;
+            const session = e.session as string | undefined;
+            const pr = Number(e.pr);
+            if (!session || !Number.isInteger(pr)) continue;
+            const row = db
+                .query<
+                    { prs: string | null },
+                    [string]
+                >("SELECT prs FROM sessions WHERE session = ?")
+                .get(session);
+            const prs: number[] = row?.prs ? JSON.parse(row.prs) : [];
+            if (!prs.includes(pr)) prs.push(pr);
+            db.run(
+                `INSERT INTO sessions (session, harness, prs) VALUES (?, ?, ?)
+                 ON CONFLICT(session) DO UPDATE SET prs = excluded.prs`,
+                [session, HARNESS_OPENCODE, JSON.stringify(prs)]
+            );
+            n++;
+        }
+        delta.commit();
+    })();
+    return n;
+}
+
+async function main(): Promise<void> {
+    const db = openDb(DB_PATH);
+    const t0 = Date.now();
+    const spans = await ingestSpans(db, EVENTS, HARNESS_CLAUDE);
+    const opencodeSpans = await ingestSpans(
+        db,
+        OPENCODE_EVENTS,
+        HARNESS_OPENCODE
+    );
+    const msgs = await ingestTranscripts(db);
+    backfillSessions(db);
+    const oc = ingestOpencode(db, PROJECT_DIR, OPENCODE_DB_PATH);
+    const ocFacts = await ingestOpencodeFacts(db, OPENCODE_FACTS);
+    const runs = rebuildAgentRuns(db);
+    const attributed = attributeIssues(db);
+    const fetched = refreshIssueMeta(db);
+    db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
+        String(Date.now()),
+    ]);
+
+    const totals = db
+        .query<
+            { spans: number; llm: number },
+            []
+        >("SELECT (SELECT count(*) FROM spans) AS spans, (SELECT count(*) FROM llm) AS llm")
+        .get()!;
+
+    console.log(
+        `ingested +${spans} claude spans, +${opencodeSpans} opencode spans, +${msgs} claude messages ` +
+            `(+${oc.llm} opencode messages, ${oc.sessions} sessions, ${oc.runs} runs, ${ocFacts} pr facts) ` +
+            `in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
+            `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
+            `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
+    );
+    db.close();
+}
+
+if (import.meta.main) await main();
