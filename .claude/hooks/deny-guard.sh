@@ -219,9 +219,18 @@ esac
 # in `\` or `|` and would otherwise be glued onto a real command.
 # `lib/strip-heredoc-bodies.awk` documents exactly which introducer shapes it
 # recognises and why the detection is deliberately narrow.
+# `${0%/*}` rather than `dirname` twice: this runs on every Bash, Edit and
+# Write call, and two `dirname` processes cost more than the parameter
+# expansion that replaces them. The `*/*` guard keeps it correct for a `$0`
+# with no slash, where `${0%/*}` would return the name itself.
+case "$0" in
+*/*) _hookdir=${0%/*} ;;
+*) _hookdir=. ;;
+esac
+
 _cmd_joined=$(printf '%s' "$cmd" |
-    LC_ALL=C awk -f "$(dirname -- "$0")/lib/strip-heredoc-bodies.awk" |
-    LC_ALL=C awk -f "$(dirname -- "$0")/lib/join-continued-lines.awk")
+    LC_ALL=C awk -f "$_hookdir/lib/strip-heredoc-bodies.awk" |
+    LC_ALL=C awk -f "$_hookdir/lib/join-continued-lines.awk")
 
 segments=$(printf '%s' "$_cmd_joined" | sed -e 's/&&/\
 /g' -e 's/||/\
@@ -600,17 +609,25 @@ fi
 # "Main checkout" is git's own distinction, not a path convention: a linked
 # worktree's git-dir differs from its common-dir, the main one's does not.
 # ─────────────────────────────────────────────────────────────────────────────
-if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-    git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null || true)
-    common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
-    if [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ]; then
-        if seg_has '(^|[;&|[:space:]])git[[:space:]]+checkout[[:space:]]+--([[:space:]]|$)' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+restore([[:space:]]|$)' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+stash([[:space:]]+(push|save))?([[:space:]]*$|[[:space:]]+-)' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+reset[[:space:]]+--hard' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+clean[[:space:]]+-[a-z]*f' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a|--all)' ||
-            seg_has '(^|[;&|[:space:]])git[[:space:]]+add[[:space:]]+(-A|--all|\.)([[:space:]]|$)'; then
+# ORDER IS A COST DECISION, NOT A LOGIC ONE. Both halves of this test are pure
+# predicates — a text match over the segments, and two read-only `git rev-parse`
+# calls — so `A && B` and `B && A` cannot disagree. They cost wildly different
+# amounts: the pattern is one `grep` (~4ms), the address is two `git` processes
+# (~35ms), and the overwhelming majority of commands are not discarding
+# operations at all. Asking the cheap question first means the two `git` calls
+# are paid only by the handful of commands that could actually be denied here,
+# instead of by every Bash, Edit and Write call in every session.
+#
+# The seven patterns are ONE alternation rather than seven `seg_has` calls for
+# the same reason. `seg_has` with a single pattern is "some segment matches it",
+# so seven of them chained with `||` is exactly "some segment matches any of the
+# seven" — factoring the shared `git[[:space:]]+` prefix out of the alternation
+# is an identity in ERE, and it turns seven `grep` processes into one.
+if seg_has '(^|[;&|[:space:]])git[[:space:]]+(checkout[[:space:]]+--([[:space:]]|$)|restore([[:space:]]|$)|stash([[:space:]]+(push|save))?([[:space:]]*$|[[:space:]]+-)|reset[[:space:]]+--hard|clean[[:space:]]+-[a-z]*f|commit[[:space:]]+(-[a-zA-Z]*a|--all)|add[[:space:]]+(-A|--all|\.)([[:space:]]|$))'; then
+    if [ -n "$cwd" ] && [ -d "$cwd" ]; then
+        git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null || true)
+        common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+        if [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ]; then
             deny "BLOCKED: discarding git operation in the shared main checkout ($cwd).
 Other sessions are editing this tree right now — modified files here are normal,
 not a mess to clean up, and discarding them is unrecoverable. Do the work in
