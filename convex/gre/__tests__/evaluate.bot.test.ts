@@ -1195,11 +1195,11 @@ describe("manaDevelopment term (issue #2686)", () => {
             materialMargin(eightLands, "p1") - materialMargin(sevenLands, "p1");
 
         // The term's whole contribution is the on-curve/flooded spread: an
-        // on-curve land carries `manaDevWeight` on top of the flat 17; a flooded
-        // one does not. Zeroing `manaDevWeight` collapses this to zero.
-        expect(onCurveLand - floodedLand).toBe(
-            DEFAULT_EVAL_WEIGHTS.manaDevWeight
-        );
+        // on-curve land carries `manaDevWeight` (12) on top of the flat 17; a
+        // flooded one does not. Zeroing `manaDevWeight` collapses on-curve to
+        // flooded (17 == 17), so this strict inequality is the load-bearing half.
+        expect(onCurveLand).toBeGreaterThan(floodedLand);
+        expect(onCurveLand - floodedLand).toBe(12);
         // Early-game land > 2 life (2 × lifeWeight = 16).
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
