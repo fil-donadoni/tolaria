@@ -261,6 +261,7 @@ import {
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import {
     attackTargetExcessSink,
+    combatDamageAssignmentCompleteness,
     damageAssignmentLethalViolation,
 } from "./gre/damageAssignment";
 import {
@@ -13092,6 +13093,31 @@ export const confirmDamage = mutation({
         const distinctAssigners = new Set(Object.values(assignerIds));
         if (!distinctAssigners.has(args.playerId)) {
             throw new Error("You have no combat damage to assign");
+        }
+
+        // CR 510.1a/e — reject an incomplete assignment rather than silently
+        // applying the shortfall (#2906). Every source THIS player assigns
+        // must total its effective power, counted only against currently-
+        // legal targets (a stale entry aimed at a target that left combat
+        // since the assignment was entered doesn't count, and a source whose
+        // legal targets have all left combat owes zero — see
+        // `combatDamageAssignmentCompleteness`). Checked before any state is
+        // touched, so a rejection leaves the confirmation set and the map
+        // untouched.
+        for (const [sourceId, assignerId] of Object.entries(assignerIds)) {
+            if (assignerId !== args.playerId) continue;
+            const { complete, assigned, required } =
+                combatDamageAssignmentCompleteness(
+                    state,
+                    sourceId,
+                    state.combat.damageAssignments?.[sourceId] ?? {}
+                );
+            if (!complete) {
+                throw new Error(
+                    `${sourceId}'s combat damage assignment is incomplete: ` +
+                        `${assigned} of ${required} assigned`
+                );
+            }
         }
 
         const confirmedBy = new Set(
