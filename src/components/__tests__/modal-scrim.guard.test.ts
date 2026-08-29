@@ -125,15 +125,12 @@ describe("modal scrim carries the heavy blur (#1891)", () => {
             "components/cards/card-preview.tsx",
             "components/ui/dialog.tsx",
             "components/ui/action-sheet.tsx",
-            // Anchored choice popovers (review finding): their full-screen
-            // click-catcher had NO scrim at all — the board bled through the
-            // open picker exactly like the bare-`bg-scrim` overlays did.
-            "components/board/mana-choice-picker.tsx",
             // Mode / alt-cost / Phyrexian / additional-cost cast-time pickers
-            // (issue #2731) all delegate their popover shell to the shared
-            // `AnchoredPicker` primitive, so the scrim now lives ONCE there
-            // instead of once per picker file — the four no longer contain
-            // the literal string themselves.
+            // (issue #2731), joined by the mana-choice picker (issue #2920),
+            // all delegate their popover shell to the shared `AnchoredPicker`
+            // primitive, so the scrim now lives ONCE there instead of once
+            // per picker file — none of the five contain the literal string
+            // themselves any more.
             "components/ui/anchored-picker.tsx",
             // The bespoke controller phase sheet (ADR 0103 §5, issue #2731) —
             // it used to paint its own flat `bg-black/50` with no blur.

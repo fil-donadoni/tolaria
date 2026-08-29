@@ -2150,6 +2150,50 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Twin combo execution. Twin attached to Exarch via attachedTo. Bot should activate '{T}:'. Issue #2469 fixed `enumerateAbilityMoves` to read the granted ability off `getEffectiveActivatedAbilities` — the move IS now enumerated (confirmed: `grantedAbilityEnumeration.bot.test.ts`), but this entry is NOT promoted to `must`: at `iterations: 400`, 3 of 5 seeds (727774 aka 0xb1ade, 2, 3) still choose `pass` over the activation. The gap is now valuation/search depth, not enumeration — the combo payoff (an infinite hasty-copy loop) isn't scored highly enough at this horizon without `comboAnnotations.ts` support, which is explicitly out of scope for #2469. See finding docs/findings/2469-twin-blade-still-stretch.md.",
     },
+    {
+        label: "channel: activates a player-level grant to fund a lethal Fireball (#2903)",
+        spec: {
+            cards: [
+                { name: "Channel", owner: "me", zone: "hand" },
+                { name: "Fireball", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            life: { me: 2, opp: 1 },
+            libraryCount: 20,
+        },
+        // Channel is a sorcery; casting + resolving it through the real move
+        // pipeline grants "me" the CR 113.1b player-level mana ability (the two
+        // Forests pay {G}{G}, leaving the Mountain untapped for Fireball's {R}).
+        // The cast parks priority on "opp"; their `pass` drives the pass cycle
+        // to 2, resolves Channel, and hands priority back to the active player
+        // (CR 117.3b) — the window where "me" decides whether to spend life.
+        // "me" is at 2 life against an opponent at 1 with a 2/2 attacker:
+        // spending 1 life through the grant is the ONLY way to cast Fireball for
+        // lethal (Fireball {X}{R} is X=0 off the lone Mountain), and passing
+        // hands the opponent a lethal 2-damage swing. One activation, then the
+        // lethal cast — the grant is the whole game.
+        setup: [
+            { kind: "cast", card: "Channel", by: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-granted-ability" }],
+        },
+        note: "Issue #2903 — a PLAYER-level granted ability (Channel's 'Pay 1 life: Add {C}.' until end of turn, CR 113.1b) is invisible to the enumerator's battlefield/graveyard/opponent scan, which reads only card instances. The bot holds the grant, a Mountain and a Fireball at 2 life against an opponent at 1 with a 2/2 attacker: the only way to cast Fireball for lethal is to spend 1 life through the grant (Fireball {X}{R} is X=0 off the lone Mountain), and passing hands the opponent a lethal swing. The chosen root move must be the grant activation — the enumeration and the search's life/mana application both prove themselves on this entry.",
+    },
     // -----------------------------------------------------------------------
     // Protection-colour choice (issue #2306) — the Bot's colour pick for
     // "protection from the colour of your choice" (`protectionColorModes`,
@@ -3098,6 +3142,108 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 "every offered 'up to X' cast with zero targets carries confirmTargets (a confirm-only submission), so the announcement can complete",
         },
         note: "Issue #2870. The Bot froze in a cast → submit-error → cancel-target → re-cast loop because a variable-count selection answered with ZERO targets sent no mutation at all: `selectTargets` rejects an empty array and `confirmTargets` was suppressed by a non-empty-tuple guard. The same predicate is wrong at the other end of the range too — a selection filled to its max auto-finalized on the last pick, so a confirm afterwards throws — which is why the flag is now derived from the RESOLVED count reaching its max (`announcedTargetCount`, shared with `announceCast`).",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2686) — the positive-control
+        // half, `stretch` (see WHY STRETCH below).
+        //
+        // PAIRED WITH: "discriminating pair: does NOT sacrifice a land to
+        // Zuran Orb for 2 life". Neither half is meaningful alone: a bot that
+        // never activates Zuran Orb passes the other, and a bot that always
+        // activates it passes this one. Only the pair distinguishes a bot that
+        // prices the land — and only the OTHER half bears the `manaDevelopment`
+        // term this ticket ships.
+        //
+        // THE POSITION. The bot controls Titania (5/3), Zuran Orb, and five
+        // basic lands, holds a 6-MV Craw Wurm it cannot yet cast, and faces an
+        // opponent's 2/2. Sacrificing a land to Zuran Orb nets 2 life AND — via
+        // Titania's own PERMANENT_LEFT trigger (CR 603.10) — a 5/3 Elemental
+        // token worth far more than the land.
+        //
+        // WHY STRETCH (the ticket's own "diagnose the 2/5" finding). The token
+        // payoff IS simulated — `applyActivationCostsForSearch` sacrifices the
+        // land through `removePermanentTo`, which queues PERMANENT_LEFT, and
+        // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
+        // ply later (measured: material margin 427.5 → 654.5 on resolution). The
+        // 2/5 is a ROLLOUT-HORIZON artifact, not a trigger bug: Zuran Orb's
+        // activation is free and repeatable, so the greedy `selectRolloutMove`
+        // chain-activates it until all five lands are gone, and the "pass"
+        // subtree reaches the identical 5-token board a turn later — "activate
+        // now" and "activate later" converge at the turn-boundary horizon and
+        // the root pick falls to seed noise (measured 10/12 seeds). That is the
+        // "search cannot price timing" ceiling #2687 tracks, not a term this
+        // ticket can add. So the entry stays `stretch` — a report-only signal,
+        // promoted to `must` when #2687 lands — rather than a false-red
+        // `must` guarding an assertion the search cannot price.
+        label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
+        spec: {
+            cards: [
+                {
+                    name: "Titania, Protector of Argoth",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                // The hand card that puts the bot's 5 lands ON CURVE: a 6-MV
+                // card it cannot cast yet, so each of its 5 lands still has
+                // development value (`handNeed 6 > lands 5`).
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "stretch",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: 'Half 1 of the discriminating pair (positive control), `stretch` — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger), but "activate now" vs "activate later" wash out at the rollout horizon (the greedy rollout chain-activates the free sac outlet), so the root pick is seed noise (10/12) — the #2687 "search cannot price timing" ceiling, not a term this ticket can add. The term-bearing half is the partner; this one rides the token, not `manaDevWeight`.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2686).
+        // PAIRED WITH: "discriminating pair: activates Zuran Orb when Titania
+        // pays the land off". Same board minus Titania: sacrificing a land now
+        // nets only 2 life for a land the `manaDevelopment` term prices at 29
+        // on curve (the hand's 6-MV Craw Wurm still wants that sixth land), a
+        // decisive -13 — the blunder the flat eval (17 vs 16) used to leave
+        // inside the rollout-noise band, which is how the bot gave a land away
+        // for 2 life on 1/5 seeds.
+        label: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
+        spec: {
+            cards: [
+                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)". Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.',
     },
 ];
 

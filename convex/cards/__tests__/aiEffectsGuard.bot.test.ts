@@ -1274,12 +1274,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "1d50bf06-97ab-4874-a484-9289f41dc98e",
-        name: "Dwarven Armorer",
-        abilityId: "dwarven-armorer-counter",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
         cardId: "a6d492b7-b0b3-420e-8d00-6dacb11de77e",
         name: "Earthbind",
         abilityId: "earthbind-etb",
@@ -2411,12 +2405,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "fec3275e-4491-43a8-9f23-d7b48177c103",
         name: "Psychic Allergy",
         abilityId: "psychic-allergy-own-upkeep",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
-        name: "Psychic Frog",
-        abilityId: "psychic-frog-discard-pump",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

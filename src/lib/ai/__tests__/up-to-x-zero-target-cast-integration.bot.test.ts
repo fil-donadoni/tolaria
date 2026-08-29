@@ -134,6 +134,7 @@ function realMutations(harness: MutationStub, calls: string[]): MoveMutations {
         "turnPermanentFaceUp",
         "selectTarget",
         "activateManaAbility",
+        "activatePlayerAbility",
         "tapForActivationPayment",
         "selectSacrifice",
         "selectActivationCost",

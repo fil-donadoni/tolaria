@@ -232,7 +232,15 @@ export type BladeSetupStep =
      *  over and one whose is not is actually decidable — the shape the
      *  END_OF_COMBAT self-animation carve-out is asserted on. Mirrors
      *  `declare-attackers`' own `haltForDefenderResponse`. */
-    | { kind: "extra-combat"; haltAfterGrant?: boolean };
+    | { kind: "extra-combat"; haltAfterGrant?: boolean }
+    /** Pass priority as `seat` through the search's own pass machinery
+     *  (`applyMoveInSearch` `pass` — the same `passInSearch` the search replays
+     *  a pass with). Reaches positions `ScenarioSpec` cannot: after a `cast`,
+     *  priority parks on the opponent; a `pass` by them advances the pass cycle
+     *  to 2, resolves the stack, and hands priority back to the active player
+     *  (CR 117.3b) — the post-resolution window a sorcery-grant board (Channel,
+     *  issue #2903) needs to hand the active player their grant-based decision. */
+    | { kind: "pass"; seat?: BladeSeat };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

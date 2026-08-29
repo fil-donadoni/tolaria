@@ -1092,6 +1092,51 @@ export function applyMoveForSearch(
             checkStateBasedActions(next);
             return next;
 
+        case "activate-granted-ability": {
+            // CR 113.1b / 605.3a (issue #2903) — a PLAYER-level granted ability
+            // (Channel's "Pay 1 life: Add {C}."). Pay the life and, for a mana
+            // ability, credit the pool, mirroring `activatePlayerAbility`
+            // (`convex/game.ts`). The greedy 1-ply selector has no live caller
+            // (`greedySelectMove`), but this keeps the two search sandboxes
+            // consistent — see the file header's note on the revived-selector
+            // obligation.
+            const grant = player.grantedAbilities?.find(
+                (g) => g.id === move.grantedAbilityInstanceId
+            );
+            const template = grant
+                ? tryGetDefinition(
+                      grant.sourceCardId
+                  )?.activatedAbilities?.find((a) => a.id === move.abilityId)
+                : undefined;
+            if (!template) return next;
+            // Fail-closed: a player grant's MANA cost is paid from the pool and
+            // no shipped player grant carries one (the enumerator skips such
+            // templates), so a hand-built move with one must not be credited
+            // free mana here.
+            if (template.cost.mana) return next;
+            if (template.cost.life !== undefined) {
+                player.life -= template.cost.life;
+            }
+            if (!template.useStack) {
+                template.effect?.({
+                    addMana: (amount) => {
+                        for (const [color, count] of Object.entries(amount)) {
+                            if (
+                                color !== "X" &&
+                                typeof count === "number" &&
+                                count > 0
+                            ) {
+                                player.manaPool[color] =
+                                    (player.manaPool[color] ?? 0) + count;
+                            }
+                        }
+                    },
+                });
+            }
+            checkStateBasedActions(next);
+            return next;
+        }
+
         case "declare-attackers": {
             if (move.attackerIds.length === 0) return next;
             // CR 508.1a (issue #1220) — carry per-attacker planeswalker attack

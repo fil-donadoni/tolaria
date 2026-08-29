@@ -16,6 +16,7 @@ import {
     type StackItem,
     resolveTopOfStack,
     applySourceStaticEffects,
+    discardToGraveyard,
 } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -25,7 +26,6 @@ import {
 } from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import type { GameEvent, TargetSelection } from "../../../types";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -86,15 +86,28 @@ function choosePhlageTarget(state: GameState, target: TargetSelection) {
     );
 }
 
-function answer(state: GameState, ids: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
+/** Pays a `discardFilter` activation cost directly (mirrors Iron-Shield Elf,
+ *  `ecl/__tests__/black.test.ts`) before pushing the stack item — the
+ *  discard-filter cost-payment machinery itself is exercised generically by
+ *  `gre/__tests__/discard-filter-cost-activation.test.ts`; this only proves
+ *  the CARD's own resolve/effects run correctly once the cost is paid. */
+function activateDiscardFilterAbility(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    discardedCardId: string
+): void {
+    expect(
+        discardToGraveyard(state, source.controllerId, discardedCardId)
+    ).toBe(true);
+    state.stack.push({
+        ...structuredClone(source),
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets: [],
+    } as StackItem);
+    resolveTopOfStack(state);
 }
 
 const frogOnBattlefield = () =>
@@ -120,8 +133,12 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, frog, "psychic-frog-discard-pump");
-        answer(state, ["h1"]);
+        activateDiscardFilterAbility(
+            state,
+            frog,
+            "psychic-frog-discard-pump",
+            "h1"
+        );
 
         const p1 = state.players[0];
         expect(p1.hand).toHaveLength(0);
@@ -145,8 +162,12 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, frog, "psychic-frog-discard-pump");
-        answer(state, ["h1"]);
+        activateDiscardFilterAbility(
+            state,
+            frog,
+            "psychic-frog-discard-pump",
+            "h1"
+        );
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
