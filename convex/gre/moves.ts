@@ -2571,8 +2571,8 @@ function enumerateGrantedAbilityMoves(
     state: GameState,
     player: PlayerState
 ): Move[] {
-    const grants = player.grantedAbilities ?? [];
-    if (grants.length === 0) return [];
+    const grants = player.grantedAbilities;
+    if (!grants || grants.length === 0) return [];
     const moves: Move[] = [];
     for (const grant of grants) {
         const template = tryGetDefinition(
