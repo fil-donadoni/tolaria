@@ -20,6 +20,7 @@ import {
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const BOLT = getCardByName("Lightning Bolt").id; // R: 3 dmg any target
 const MOUNTAIN = getCardByName("Mountain").id;
+const GIANT = getCardByName("Hill Giant").id; // 3/3
 
 function creature(
     cardId: string,
@@ -247,5 +248,89 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         );
         expect(trace!.iterationsRequested).toBe(1_000_000);
         expect(trace!.elapsedMs).toBeGreaterThanOrEqual(5);
+    });
+
+    // Issue #2685 — the early-stop rule. A dominant root pick (lethal Bolt to
+    // the face) stops at `minIterations + k` with `stoppedBy: "settled"`; a
+    // genuinely tied decision (two identical lands) never clears the mean-reward
+    // lead condition and runs to the full iteration budget.
+    it('reports stoppedBy "settled" and stops before the budget on a dominant pick', () => {
+        // Survive-lethal: opponent p1 attacks with a 3/3 and bot p2 sits at 3
+        // life with a Bolt + an untapped Mountain. The ONLY survival is to Bolt
+        // the attacker; passing (or bolting p1's face) is death — a large,
+        // decisive mean-reward gap, so the root pick settles before the budget.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    life: 6,
+                    battlefield: [
+                        creature(GIANT, "p1", "ogre", {
+                            isAttacking: true,
+                            isTapped: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    name: "Bot",
+                    life: 3,
+                    hand: [inHand(BOLT, "p2", "bolt1")],
+                    battlefield: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "m1",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["ogre"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const { trace } = searchWithTrace(
+            state,
+            "p2",
+            { iterations: 200, minIterations: 10 },
+            SEED
+        );
+        expect(trace!.stoppedBy).toBe("settled");
+        expect(trace!.iterationsCompleted).toBeGreaterThanOrEqual(10);
+        expect(trace!.iterationsCompleted).toBeLessThan(200);
+    });
+
+    it("runs to the iteration budget on a tied decision (the early-stop rule never fires)", () => {
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    name: "Bot",
+                    hand: [
+                        inHand(MOUNTAIN, "p1", "m1"),
+                        inHand(MOUNTAIN, "p1", "m2"),
+                    ],
+                    battlefield: [],
+                }),
+                makePlayer("p2", { name: "You" }),
+            ],
+        });
+        // Two identical lands are outcome-equal: the most-visited root child's
+        // mean-reward lead over the runner-up never clears OUTCOME_EPS, so the
+        // settle rule must not fire and the search completes its full budget.
+        const { trace } = searchWithTrace(
+            state,
+            "p1",
+            { iterations: 200, minIterations: 10 },
+            SEED
+        );
+        expect(trace!.stoppedBy).toBe("iterations");
+        expect(trace!.iterationsCompleted).toBe(200);
     });
 });

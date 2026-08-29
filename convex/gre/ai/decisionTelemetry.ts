@@ -34,13 +34,17 @@ export type RootDecisionMechanism =
     | "colour-mode-evidence";
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
- *  iterations`) was reached, or the wall-clock bound (`SearchBudget.timeMs`)
+ *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)
  *  fired first (issue #2682: before this, `runSearchWithTrace` computed the
  *  real per-decision iteration count and threw it away — nobody could tell
  *  whether a `medium`-preset decision in the browser Worker actually
- *  completed its 400-iteration budget or got cut short by the wall clock).
+ *  completed its 400-iteration budget or got cut short by the wall clock), or
+ *  the EARLY-STOP rule declared the root pick settled before either bound
+ *  fired (`"settled"`, issue #2685 — the most-visited root child could no
+ *  longer be overtaken and its mean-reward lead was decisive, so further
+ *  iterations could not change the move).
  *  Shared by `DecisionTrace` (`search.ts`) and `RootDecisionRecord` below. */
-export type SearchStopReason = "iterations" | "time";
+export type SearchStopReason = "iterations" | "time" | "settled";
 
 /** Real iteration/time stats for one completed search loop (issue #2682).
  *  `iterationsRequested` is the budget's target count (`SearchBudget.

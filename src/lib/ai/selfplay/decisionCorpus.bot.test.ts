@@ -86,7 +86,7 @@ function expectWellFormed(r: RootDecisionRecord): void {
     expect(r.iterationsCompleted!).toBeLessThanOrEqual(r.iterationsRequested!);
     expect(Number.isFinite(r.elapsedMs!)).toBe(true);
     expect(r.elapsedMs!).toBeGreaterThanOrEqual(0);
-    expect(["iterations", "time"]).toContain(r.stoppedBy!);
+    expect(["iterations", "time", "settled"]).toContain(r.stoppedBy!);
 }
 
 const SMOKE_CONFIG: SelfPlayCorpusConfig = {

@@ -35,8 +35,10 @@ describe("difficulty presets — one knob (issue #114)", () => {
         const times = DIFFICULTIES.map(
             (d) => DIFFICULTY_BUDGETS[d].timeMs ?? 0
         );
-        // Monotonic: each step up searches more (and no other behavioural field
-        // exists on a budget — `SearchBudget` is iterations/timeMs only).
+        // Monotonic: each step up searches more (and no other effort field is
+        // set on a preset — `SearchBudget.minIterations` (issue #2685) is left
+        // unset here so every preset inherits the same default early-stop
+        // behaviour).
         for (let i = 1; i < iters.length; i++) {
             expect(iters[i]).toBeGreaterThan(iters[i - 1]);
             expect(times[i]).toBeGreaterThan(times[i - 1]);
