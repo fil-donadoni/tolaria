@@ -9,15 +9,16 @@
  *
  * - `phases.ts` seed builders (`buildAutoDamageAssignments`,
  *   `buildDefaultDamageAssignments`) — the pre-filled default;
- * - `game.ts` `setDamageAssignment` — the manual-assignment validator.
+ * - `game.ts` `setDamageAssignment` — the manual-assignment validator;
+ * - `game.ts` `confirmDamage` — the completeness gate (#2906).
  *
  * Keeping both on the same helper is what makes the pre-fill un-rejectable by
  * the validator: a default the mutation would refuse is the shape this file
  * exists to prevent.
  */
 import type { CardInstanceState, GameState } from "./state";
-import { getPlayer } from "./state";
-import { getEffectiveToughness } from "./layers";
+import { getPlayer, getOpponentId } from "./state";
+import { getEffectiveToughness, getEffectivePower } from "./layers";
 import { getEffectiveBlockGraph } from "./banding";
 import { isPlaneswalker } from "./constants";
 import {
@@ -175,4 +176,95 @@ export function damageAssignmentLethalViolation(
     return blockerId === undefined
         ? undefined
         : { blockerId, threshold: thresholds[blockerId] };
+}
+
+/** The LIVE target set `sourceId` may currently assign combat damage to: an
+ *  attacker's still-on-the-battlefield blockers (CR 510.1c — a dead blocker
+ *  lingers in `combat.blockerAssignments`, which never gets pruned, but no
+ *  longer absorbs damage; same `findPermanent` filter `applyAllCombatDamage`
+ *  itself applies as `liveBlockers`), or a banding blocker's live band
+ *  members. Recomputed fresh against the CURRENT board, not the board at the
+ *  moment the assignment was entered — a blocker that died since then drops
+ *  out here even though the stored assignment map may still name it. */
+function liveDamageTargetsForSource(
+    state: GameState,
+    sourceId: string
+): { legalTargets: Set<string>; excessSinkId: string | undefined } {
+    const graph = getEffectiveBlockGraph(state);
+    const isAttacker = (state.combat?.attackerIds ?? []).includes(sourceId);
+    const rawTargets = isAttacker
+        ? (graph.blockersByAttacker[sourceId] ?? [])
+        : (graph.attackersByBlocker[sourceId] ?? []);
+    const legalTargets = new Set(
+        rawTargets.filter((id) => findPermanent(state, id) !== undefined)
+    );
+    const source = findPermanent(state, sourceId);
+    const hasTrample = source?.staticAbilities.includes("trample") ?? false;
+    const excessSinkId =
+        isAttacker && hasTrample
+            ? attackTargetExcessSink(
+                  state,
+                  sourceId,
+                  getOpponentId(state, state.activePlayerId)
+              )
+            : undefined;
+    return { legalTargets, excessSinkId };
+}
+
+/** Is `sourceId`'s recorded combat-damage assignment COMPLETE (CR 510.1a/e)?
+ *
+ * `bun run cr 510.1a`: "Each attacking creature and each blocking creature
+ * assigns combat damage equal to its power. Creatures that would assign 0 or
+ * less damage this way don't assign combat damage at all." — EQUAL, not "at
+ * least": both an under- and an over-assignment (e.g. a stale map that still
+ * totals a since-shrunk source's higher base amount) are illegal.
+ *
+ * `bun run cr 510.1e`: an illegal total assignment "returns to the moment
+ * before that player began to assign combat damage" (CR 733) — the mutation
+ * throws and leaves state untouched, which is that rewind's effect without
+ * needing rewind machinery of its own (no state was written yet to undo).
+ *
+ * The total counts only entries whose target is CURRENTLY legal
+ * (`liveDamageTargetsForSource`, recomputed against the live board, not the
+ * board when the number was entered) — a stale entry aimed at a blocker that
+ * died since must neither count toward the total nor, downstream in
+ * `applyAllCombatDamage`, be dealt (that function already no-ops a permanent
+ * target it can't find; this predicate is what keeps the total in sync with
+ * that same silent drop instead of demanding damage the map can't deliver).
+ *
+ * CR 510.1b/c/d — a source whose live target set has emptied entirely (every
+ * blocker/band member gone) requires ZERO: it deals no combat damage through
+ * this map at all (a trampler with every blocker dead tramples its full
+ * power through via the SEPARATE unblocked-through path in
+ * `applyAllCombatDamage`, never through this per-target map), so demanding a
+ * total here would reject a source with nothing left to reject.
+ *
+ * One exported pure function over `GameState` + the assignment map so
+ * `confirmDamage` (and, ultimately, the client's Confirm-Damage predicate)
+ * read the same answer instead of a private re-derivation (#2906). */
+export function combatDamageAssignmentCompleteness(
+    state: GameState,
+    sourceId: string,
+    assignments: Record<string, number>
+): { complete: boolean; assigned: number; required: number } {
+    const source = findPermanent(state, sourceId);
+    if (!source) return { complete: true, assigned: 0, required: 0 };
+    const { legalTargets, excessSinkId } = liveDamageTargetsForSource(
+        state,
+        sourceId
+    );
+    if (legalTargets.size === 0) {
+        return { complete: true, assigned: 0, required: 0 };
+    }
+    let assigned = 0;
+    for (const [targetId, amount] of Object.entries(assignments)) {
+        if (legalTargets.has(targetId) || targetId === excessSinkId) {
+            assigned += amount;
+        }
+    }
+    // CR 613.4 — the post-layer value, never the stored base `power` field
+    // (a shrunk source whose stale map still totals the higher base amount
+    // must be rejected, not allowed to overdeal).
+    const required = Math.max(0, getEffectivePower(state, source));
+    return { complete: assigned === required, assigned, required };
 }
