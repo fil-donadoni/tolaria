@@ -38,6 +38,7 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
+import type { AdditionalCostLeg } from "@convex/cards/types";
 import { payableAdditionalCostLegsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 
@@ -52,9 +53,7 @@ const FILLER = "Grizzly Bears";
  *  i.e. the filter asks for a creature and nothing more (Bone Shards). Any
  *  narrower filter is reported as an unsatisfiable shape, so a card the filler
  *  cannot pay for surfaces loudly instead of passing on a subset. */
-function isPlainCreatureSacrifice(leg: {
-    sacrificeFilter?: Record<string, unknown>;
-}): boolean {
+function isPlainCreatureSacrifice(leg: AdditionalCostLeg): boolean {
     const f = leg.sacrificeFilter;
     if (!f) return false;
     const keys = Object.keys(f);
