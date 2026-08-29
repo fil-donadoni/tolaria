@@ -43,6 +43,9 @@ import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
+    discardToGraveyard,
+    type CardInstanceState,
+    type StackItem,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -447,11 +450,34 @@ describe("Dwarven Lieutenant — pump a Dwarf (CR 611.2)", () => {
     });
 });
 
-describe("Dwarven Armorer — discard for a counter (CR 122.1)", () => {
+describe("Dwarven Armorer — discard for a counter (CR 122.1 / 602.1 / 118.3)", () => {
+    /** Pays the `discardFilter` activation cost directly (mirrors Iron-Shield
+     *  Elf, `ecl/__tests__/black.test.ts`) before pushing the stack item —
+     *  the discard-filter cost-payment machinery itself (illegal to activate
+     *  below the required count) is exercised generically by
+     *  `gre/__tests__/discard-filter-cost-activation.test.ts` and the
+     *  catalogue-wide `activation-affordability.catalogue.test.ts`; this only
+     *  proves the CARD's own effects run correctly once the cost is paid. */
+    function activateArmorer(
+        state: ReturnType<typeof makeState>,
+        source: CardInstanceState,
+        discardedCardId: string,
+        targets: StackItem["targets"]
+    ): void {
+        expect(
+            discardToGraveyard(state, source.controllerId, discardedCardId)
+        ).toBe(true);
+        state.stack.push({
+            ...structuredClone(source),
+            zone: "stack",
+            castById: source.controllerId,
+            abilityId: "dwarven-armorer-counter",
+            targets,
+        } as StackItem);
+        resolveTopOfStack(state);
+    }
+
     it("puts a chosen counter on the target after discarding", () => {
-        expect(dwarvenArmorer.activatedAbilities![0].resolveSteps).toHaveLength(
-            2
-        );
         const armorer = makeInstance(dwarvenArmorer.id, {
             id: "armorer",
             controllerId: "p1",
@@ -477,21 +503,21 @@ describe("Dwarven Armorer — discard for a counter (CR 122.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        // Resolve drives resolveSteps; suspensions (discard pick, counter
-        // choice) are answered by auto-resolution where no real branch exists.
-        resolveActivated(state, armorer, "dwarven-armorer-counter", [
+        activateArmorer(state, armorer, "discardme", [
             { type: "permanent", id: "buffme" },
         ]);
-        // Answer the discard pick (step 0) and the counter-kind option (step 1).
+        // Answer the +0/+1-or-+1/+0 mode pick (no discard branch left to
+        // answer — the discard was already paid as the activation cost).
         answerPendingChoices(state);
-        // A +0/+1 or +1/+0 counter landed on the target, and the chosen card
-        // was discarded.
+        // A +0/+1 or +1/+0 counter landed on the target, and the discarded
+        // card actually left the hand for the graveyard.
         const buffed = state.players[0].battlefield.find(
             (c) => c.id === "buffme"
         )!;
         const counters = buffed.counters ?? {};
         const total = (counters["+0/+1"] ?? 0) + (counters["+1/+0"] ?? 0);
         expect(total).toBe(1);
+        expect(state.players[0].hand).toHaveLength(0);
         expect(
             state.players[0].graveyard.some((c) => c.id === "discardme")
         ).toBe(true);

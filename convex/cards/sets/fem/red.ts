@@ -662,51 +662,56 @@ export const dwarvenArmorer: CardDefinition = {
             id: "dwarven-armorer-counter",
             oracleText:
                 "{R}, {T}, Discard a card: Put a +0/+1 counter or a +1/+0 counter on target creature.",
-            cost: { mana: { R: 1 }, tap: true },
+            // "Discard a card" is the cost's non-mana/tap leg (CR 602.1 /
+            // 118.3), modelled by `cost.discardFilter` (a match-all filter —
+            // the same "discard a card" idiom Iron-Shield Elf, `ecl/black.ts`,
+            // uses) rather than a resolve-time pick. PREVIOUSLY the discard
+            // was performed as `resolveSteps` step 0 with an empty-hand
+            // no-op, but step 1 (the counter choice/placement) ran
+            // UNCONDITIONALLY regardless of whether step 0 actually discarded
+            // anything — an empty-hand activation still granted a free
+            // counter, on top of never being gated unaffordable in the
+            // server/bot/frontend affordability checks (none of which see a
+            // resolve-time-only discard). Modelling it as `cost.discardFilter`
+            // fixes both: activation is illegal without a card to discard, and
+            // the counter can never land for free.
+            cost: {
+                mana: { R: 1 },
+                tap: true,
+                discardFilter: { filter: {}, count: 1 },
+            },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045, re-assessed #795): the shape IS
-            // expressible today — `choice(kind:"discard-hand")` + `discard`
-            // for the discard leg (the faithlessLooting/dka pattern), then an
-            // `optionChoice` with two modes (one `counters` Op each) for the
-            // "+0/+1 OR +1/+0" pick — but this card's own per-card test
-            // (`fem/__tests__/red.test.ts`, "Dwarven Armorer — discard for a
-            // counter") asserts
-            // `activatedAbilities![0].resolveSteps).toHaveLength(2)` directly.
-            // Migrating to `effects[]` would break that pinned assertion,
-            // which the migration playbook forbids editing (the pre-existing
-            // test is the untouchable equivalence oracle). Stays resolveSteps().
-            resolveSteps: [
-                // Step 0 — pay the discard portion of the cost (a chosen card).
-                (ctx: SpellContext) => {
-                    const handIds = ctx.getHandIds(ctx.controller);
-                    if (handIds.length === 0) return;
-                    const picked = ctx.requestChoice({
-                        playerId: ctx.controller,
-                        choiceId: "dwarven-armorer-discard",
-                        kind: "choose-hand-card",
-                        zone: "hand",
-                        count: 1,
-                        prompt: "Discard a card (Dwarven Armorer).",
-                    });
-                    if (!picked || picked.length === 0) return;
-                    ctx.discardCard(ctx.controller, picked[0]);
-                },
-                // Step 1 — choose which counter to add, then add it.
-                (ctx: SpellContext) => {
-                    const target = ctx.targets[0];
-                    if (target?.type !== "permanent") return;
-                    const which = ctx.requestOptionChoice({
-                        playerId: ctx.controller,
-                        choiceId: "dwarven-armorer-counter-kind",
-                        options: [
-                            { id: "+0/+1", label: "+0/+1 counter" },
-                            { id: "+1/+0", label: "+1/+0 counter" },
-                        ],
-                        prompt: "Choose a counter to put on the creature.",
-                    });
-                    if (which === undefined) return; // suspended for choice
-                    ctx.addCounter(target, which, 1);
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Choose a counter to put on the creature.",
+                    modes: [
+                        {
+                            label: "+0/+1 counter",
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+0/+1",
+                                    target: { target: 0 },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                        {
+                            label: "+1/+0 counter",
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+0",
+                                    target: { target: 0 },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
                 },
             ],
         },
