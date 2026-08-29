@@ -21,6 +21,7 @@ import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 import LimitedDraftRoomRoute from "./routes/limited-draft-room.route";
 import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 import DesignSystemRoute from "./routes/design-system.route";
+import PrototypeManaChoiceDialogRoute from "./routes/admin/prototype-mana-choice-dialog.route";
 import SettingsRoute from "./routes/settings.route";
 import DraftLabRoute from "./routes/draft-lab.route";
 import AdminLayoutRoute from "./routes/admin/admin-layout.route";
@@ -297,6 +298,14 @@ const adminDesignSystemRoute = createRoute({
     component: DesignSystemRoute,
 });
 
+// PROTOTYPE spike (issue #2920, /prototype skill) — three redesigns of
+// `mana-choice-picker.tsx`, judged in the browser, then deleted from main.
+const adminPrototypeManaChoiceDialogRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "prototype-mana-choice-dialog",
+    component: PrototypeManaChoiceDialogRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -321,6 +330,7 @@ const routeTree = rootRoute.addChildren([
         adminBugReportsRoute,
         adminDraftLabRoute,
         adminDesignSystemRoute,
+        adminPrototypeManaChoiceDialogRoute,
     ]),
 ]);
 
