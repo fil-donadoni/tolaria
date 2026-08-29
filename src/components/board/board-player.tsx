@@ -11,6 +11,7 @@ import {
 } from "~/lib/landscape-board-bands";
 import PlayerNameplate from "./player-nameplate";
 import PlayerManaPool from "./player-mana-pool";
+import PlayerGrantedAbilities from "./player-granted-abilities";
 
 type BoardPlayerProps = {
     player: Player;
@@ -123,6 +124,16 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
             )}`}
         >
             <PlayerManaPool player={player} />
+            {/* Player-level granted abilities (issue #2691). In NORMAL flow,
+                before the nameplate: the wrapper pins its bottom edge for the
+                viewer's seat, so the controls grow upward off the nameplate
+                instead of overlapping it, and they inherit the wrapper's
+                horizontal centering rather than the `absolute left-full` box
+                the deleted `PlayerSideRow` used to give them. The mana pool
+                floats off the wrapper's own `bottom-full`, so it rides above
+                the controls automatically. Renders nothing for the opponent's
+                seat, or when the viewer holds no grant. */}
+            <PlayerGrantedAbilities player={player} />
             <PlayerNameplate
                 player={player}
                 interaction={interaction}
