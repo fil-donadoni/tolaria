@@ -12,8 +12,10 @@ import { evokeTrigger } from "../../abilities/evoke";
 // `targetRequirement` — the field ADR 0002 once omitted and issue #1193
 // restored. The old `"opponent"` `EffectPlayerRef` shortcut identified WHO the
 // opponent is without ever asking WHETHER they may be targeted, so it bypassed
-// the single player-target legality gate and ignored protection from
-// everything and shroud (CR 702.16b / 702.18 via CR 115.4, issue #2801). Two
+// the single player-target legality gate, ignoring both
+// protection from everything (CR 702.16b)
+// and shroud (CR 702.18) — each applied to a player via CR 115.4 (issue
+// #2801). Two
 // `TriggeredAbility` entries (enters / attacks) share the identical effect
 // list: `choice(sacrifice-permanents)` + `sacrifice` for the
 // creature-or-planeswalker pick, `choice(discard-hand)` + `discard` for the

@@ -282,8 +282,9 @@ export const figureOfFable: CardDefinition = {
 // (mh2/black.ts). "Target opponent" is a REAL target announced as the trigger
 // goes on the stack (CR 603.3d) — the body reads the announced slot
 // (`{ target: 0 }`), never a relative `EffectPlayerRef`, because only a
-// declared `targetRequirement` reaches the single player-target legality gate
-// (CR 702.16b / 702.18 via CR 115.4, issue #2801).
+// declared `targetRequirement` reaches the single player-target legality gate —
+// protection from everything (CR 702.16b)
+// and shroud (CR 702.18), each applied to a player via CR 115.4 (issue #2801).
 const opponentRevealsAndDiscardsNonland: EffectOp[] = [
     { op: "reveal", player: { target: 0 }, zone: "hand" },
     {

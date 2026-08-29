@@ -16,8 +16,9 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // says "target player", so either seat is legal and the controller genuinely
 // chooses. The earlier shortcut scanned `ctx.allPlayerIds` for the opponent;
 // that decided WHO without ever asking WHETHER they may be targeted, so it
-// bypassed the single player-target legality gate and ignored protection from
-// everything and shroud (CR 702.16b / 702.18 via CR 115.4).
+// bypassed the single player-target legality gate, ignoring both
+// protection from everything (CR 702.16b)
+// and shroud (CR 702.18) — each applied to a player via CR 115.4.
 //
 // PROTOCOL (recurring impulse-draw — no Op skin, precedent: Elkin Bottle /
 // Ice Cauldron, ice/colorless.ts): the upkeep trigger composes

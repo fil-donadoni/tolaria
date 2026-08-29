@@ -95,8 +95,9 @@ export const reconstruction: CardDefinition = {
 // step, so their prompt ORDER is a UX choice, and player-first is the one that
 // scopes the card picks. It is also what makes "target player" a REAL target:
 // only a declared `targetRequirement` reaches the single player-target
-// legality gate, so a player with protection from everything or shroud is not
-// a legal choice (CR 702.16b / 702.18 via CR 115.4, issue #2801). No
+// legality gate, so a player with protection from everything (CR 702.16b)
+// or with shroud (CR 702.18) — each applied to a player via CR 115.4 — is not
+// a legal choice (issue #2801). No
 // `controller` restriction — the oracle says "target player", so either seat
 // is legal.
 //
