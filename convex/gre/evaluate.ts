@@ -221,6 +221,11 @@ export type EvalTerms = {
     creatures: number;
     permanents: number;
     mana: number;
+    /** Mana development (issue #2686): the value of the player's mana base
+     *  relative to what the hand still wants to cast. See
+     *  `manaDevelopmentTerm` for the calibration and the on-curve vs flooded
+     *  contrast it draws. */
+    manaDevelopment: number;
     /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
      *  holdable instants in hand the player can afford to cast this turn, PLUS
      *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
@@ -525,6 +530,45 @@ function flexibilityTerm(
     return castable * weights.flexWeight;
 }
 
+/** The mana-development term (issue #2686) — the value of a player's mana base
+ *  relative to what their hand still wants to cast.
+ *
+ *  CALIBRATION (the numbers the ticket asks to document). A land's flat worth
+ *  today is `permanentWeight (5) + manaWeight (12) = 17`, while a 2-life gain
+ *  is `2 × lifeWeight (8) = 16` — a 1-point gap, inside the rollout-noise band,
+ *  so "sacrifice a land for 2 life" (Zuran Orb) ties with passing and is decided
+ *  by noise. The term prices the DEVELOPMENT a land buys: a land on curve —
+ *  the player has fewer lands than the total mana value their hand still wants
+ *  to spend casting — is worth `manaDevWeight` (12, symmetric with `manaWeight`)
+ *  ON TOP of the flat 17, i.e. 29, decisively above 16. A land whose mana the
+ *  hand no longer needs (the base is flooded) earns no development bonus and
+ *  returns to 17 — the mana it produces has nothing to cast, so it is worth
+ *  less than the cards that would use it.
+ *
+ *  This is a SNAPSHOT of the position (the owner's framing on this ticket): it
+ *  reads only the land count and the hand's mana values (castability), never a
+ *  forecast ("a land is worth a lot because flooding loses games later" — that
+ *  belongs to the search, not a weight). Lands in hand contribute zero demand
+ *  (CR 305.2 — a land is played, not cast, so its mana value is 0), which is
+ *  correct: they are not cards this term should urge you to ramp toward.
+ *
+ *  Zero card names, pure, and state-only by construction. */
+function manaDevelopmentTerm(
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    // Total mana value the hand still wants to spend casting. Lands count as
+    // 0 (they are played, not cast), so they add no demand.
+    let handNeed = 0;
+    for (const c of player.hand) {
+        handNeed += manaValue(getInstanceManaCost(c));
+    }
+    const lands = player.battlefield.filter((c) => isLand(c)).length;
+    // Each land up to the hand's need is "earning its keep" developing mana;
+    // beyond that the base is flooded and a further land unlocks nothing.
+    return weights.manaDevWeight * Math.min(lands, handNeed);
+}
+
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 function playerTerms(
@@ -541,6 +585,7 @@ function playerTerms(
         creatures: 0,
         permanents: 0,
         mana: 0,
+        manaDevelopment: 0,
         flexibility: 0,
     };
 
@@ -581,6 +626,10 @@ function playerTerms(
     }
     const availableMana = availableManaFor(player);
     terms.mana = availableMana * weights.manaWeight;
+    // The mana-development term prices the base against the hand's castability
+    // (issue #2686) — additive to `mana`, never a replacement for it, and zero
+    // on any board whose land count already covers the hand's mana needs.
+    terms.manaDevelopment = manaDevelopmentTerm(player, weights);
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).
@@ -590,7 +639,13 @@ function playerTerms(
 
 function sumTerms(t: EvalTerms): number {
     return (
-        t.life + t.hand + t.creatures + t.permanents + t.mana + t.flexibility
+        t.life +
+        t.hand +
+        t.creatures +
+        t.permanents +
+        t.mana +
+        t.manaDevelopment +
+        t.flexibility
     );
 }
 
@@ -1313,6 +1368,7 @@ export function evaluateBreakdown(
         creatures: 0,
         permanents: 0,
         mana: 0,
+        manaDevelopment: 0,
         flexibility: 0,
     };
     if (!me || !opp) {

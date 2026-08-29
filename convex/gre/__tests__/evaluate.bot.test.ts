@@ -24,6 +24,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
@@ -1133,5 +1134,77 @@ describe("evaluateAutoTapPosition — source-quality bonus (issue #794)", () => 
         expect(evaluateAutoTapPosition(tapped, "p1")).toBe(
             evaluate(tapped, "p1")
         );
+    });
+});
+
+describe("manaDevelopment term (issue #2686)", () => {
+    // A basic land instance and a hand card instance, both controlled by `p1`.
+    const land = (id: string) =>
+        makeInstance(MOUNTAIN, { controllerId: "p1", ownerId: "p1", id });
+    const held = (id: string) =>
+        makeInstance(GIANT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            zone: "hand",
+        });
+
+    it("prices an early-game land above 2 life, and a flooded land below a relevant card", () => {
+        // On-curve: 2 lands, one 4-MV Hill Giant in hand (handNeed 4 > lands 2).
+        const twoLands = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land("a"), land("b")],
+                    hand: [held("h1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const threeLands = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land("a"), land("b"), land("c")],
+                    hand: [held("h1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Flooded: 7 lands, empty hand (handNeed 0).
+        const sevenLands = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: ["a", "b", "c", "d", "e", "f", "g"].map(land),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const eightLands = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: ["a", "b", "c", "d", "e", "f", "g", "h"].map(
+                        land
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        const onCurveLand =
+            materialMargin(threeLands, "p1") - materialMargin(twoLands, "p1");
+        const floodedLand =
+            materialMargin(eightLands, "p1") - materialMargin(sevenLands, "p1");
+
+        // The term's whole contribution is the on-curve/flooded spread: an
+        // on-curve land carries `manaDevWeight` on top of the flat 17; a flooded
+        // one does not. Zeroing `manaDevWeight` collapses this to zero.
+        expect(onCurveLand - floodedLand).toBe(
+            DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        );
+        // Early-game land > 2 life (2 × lifeWeight = 16).
+        expect(onCurveLand).toBeGreaterThan(
+            2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
+        );
+        // Flooded land < a relevant card (the held Hill Giant's latent worth).
+        expect(floodedLand).toBeLessThan(cardValue(sevenLands, held("h1")));
     });
 });

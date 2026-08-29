@@ -36,6 +36,16 @@ export type EvalWeights = {
     permanentWeight: number;
     /** Per untapped mana source, the available-mana proxy (`W_MANA`). */
     manaWeight: number;
+    /** Per on-curve land, the mana-development term (`W_MANA_DEV`, issue
+     *  #2686): a land contributes this ON TOP of `permanentWeight` +
+     *  `manaWeight` while the player's land count is still below the total
+     *  mana value of the cards in hand (the mana the hand still wants to
+     *  spend casting). A land whose mana the hand no longer needs (flooded)
+     *  contributes zero. Sized symmetric with `manaWeight` so an on-curve
+     *  land reads `5 + 12 + 12 = 29`, decisively above the 16 a 2-life gain
+     *  is worth — see the calibration note in `evaluate.ts`'s
+     *  `manaDevelopmentTerm`. */
+    manaDevWeight: number;
     /** Bonus per castable held instant / live flexible activation, the
      *  reactive-flexibility term (`W_FLEX`). */
     flexWeight: number;
@@ -107,6 +117,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     lifeWeight: 8,
     permanentWeight: 5,
     manaWeight: 12,
+    manaDevWeight: 12,
     flexWeight: 6,
     flexCardCap: 3,
     sourceBreadthWeight: 4,
