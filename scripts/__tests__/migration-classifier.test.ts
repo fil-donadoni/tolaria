@@ -1750,9 +1750,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // resolve()→effects[], removing one closure. Net: total 473->474, FREE
         // 318->319, AFK-ready 309->310; X-only and Op-blocked unchanged.
         // Partition: 319+15+140=474.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
+        //
+        // Psychic Frog's discard-pump (mh3/multicolor.ts) and Dwarven
+        // Armorer's counter ability (fem/red.ts) both migrate
+        // resolve()/resolveSteps→effects[] (the discard-as-cost affordability
+        // fix — CR 602.1/118.3, the discard belongs in `cost.discardFilter`,
+        // not inside resolution), removing two closures. Net: total 474->472,
+        // FREE 319->317, AFK-ready 310->308; X-only and Op-blocked unchanged.
+        // Partition: 317+15+140=472.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
