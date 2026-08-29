@@ -120,7 +120,8 @@ function makeBuffer() {
         isPending: false,
         lastError: null,
         dismissError: vi.fn(),
-    } as PendingChoiceBuffer;
+        reportError: vi.fn(),
+    } satisfies PendingChoiceBuffer;
 }
 
 function renderSeat(player: Player, ctx: Partial<NonNullable<Ctx>> = {}) {
