@@ -409,8 +409,6 @@ When a card needs a capability that genuinely isn't built, flag it explicitly
 
 ## Out of Scope
 
-- **Full card catalog** — controlled growing set, not ~80k cards
-- **3+ player multiplayer** — 2-player and solo only
 - **Ante & subgames** (ADR 0010)
 
 ## Agent skills
