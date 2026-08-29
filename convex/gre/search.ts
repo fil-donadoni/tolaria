@@ -3444,11 +3444,9 @@ export function rootDecisionSettled(
     if (pool.length < 2) return false;
     const mean = (e: Edge) => e.totalReward / e.visits;
 
-    let top: Edge | null = null;
+    // The most-visited root child (exists: pool.length >= 2 above).
+    const top = pool.reduce((m, e) => (e.visits > m.visits ? e : m));
     let runnerUpMean = -Infinity;
-    for (const e of pool) {
-        if (top === null || e.visits > top.visits) top = e;
-    }
     for (const e of pool) {
         if (e === top) continue;
         if (top.visits - e.visits <= remaining) return false;
