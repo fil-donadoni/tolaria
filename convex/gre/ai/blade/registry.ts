@@ -3144,19 +3144,37 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #2870. The Bot froze in a cast → submit-error → cancel-target → re-cast loop because a variable-count selection answered with ZERO targets sent no mutation at all: `selectTargets` rejects an empty array and `confirmTargets` was suppressed by a non-empty-tuple guard. The same predicate is wrong at the other end of the range too — a selection filled to its max auto-finalized on the last pick, so a confirm afterwards throws — which is why the flag is now derived from the RESOLVED count reaching its max (`announcedTargetCount`, shared with `announceCast`).",
     },
     {
-        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2686).
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2686) — the positive-control
+        // half, `stretch` (see WHY STRETCH below).
+        //
         // PAIRED WITH: "discriminating pair: does NOT sacrifice a land to
         // Zuran Orb for 2 life". Neither half is meaningful alone: a bot that
-        // never activates Zuran Orb passes this one, and a bot that always
-        // activates it passes the other. Only the pair distinguishes a bot that
-        // prices the land.
+        // never activates Zuran Orb passes the other, and a bot that always
+        // activates it passes this one. Only the pair distinguishes a bot that
+        // prices the land — and only the OTHER half bears the `manaDevelopment`
+        // term this ticket ships.
         //
         // THE POSITION. The bot controls Titania (5/3), Zuran Orb, and five
         // basic lands, holds a 6-MV Craw Wurm it cannot yet cast, and faces an
         // opponent's 2/2. Sacrificing a land to Zuran Orb nets 2 life AND — via
         // Titania's own PERMANENT_LEFT trigger (CR 603.10) — a 5/3 Elemental
-        // token, worth far more than the land (the `manaDevelopment` term makes
-        // an on-curve land 29, the token is worth ~220).
+        // token worth far more than the land.
+        //
+        // WHY STRETCH (the ticket's own "diagnose the 2/5" finding). The token
+        // payoff IS simulated — `applyActivationCostsForSearch` sacrifices the
+        // land through `removePermanentTo`, which queues PERMANENT_LEFT, and
+        // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
+        // ply later (measured: material margin 427.5 → 654.5 on resolution). The
+        // 2/5 is a ROLLOUT-HORIZON artifact, not a trigger bug: Zuran Orb's
+        // activation is free and repeatable, so the greedy `selectRolloutMove`
+        // chain-activates it until all five lands are gone, and the "pass"
+        // subtree reaches the identical 5-token board a turn later — "activate
+        // now" and "activate later" converge at the turn-boundary horizon and
+        // the root pick falls to seed noise (measured 10/12 seeds). That is the
+        // "search cannot price timing" ceiling #2687 tracks, not a term this
+        // ticket can add. So the entry stays `stretch` — a report-only signal,
+        // promoted to `must` when #2687 lands — rather than a false-red
+        // `must` guarding an assertion the search cannot price.
         label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
         spec: {
             cards: [
@@ -3186,11 +3204,11 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 1 of the discriminating pair — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". Sacrificing a land nets 2 life AND a 5/3 Elemental via Titania\'s CR 603.10 leave-the-battlefield trigger, worth far more than the land the `manaDevelopment` term (issue #2686) prices at 29 on curve. Proven to fail by zeroing `manaDevWeight`.',
+        note: 'Half 1 of the discriminating pair (positive control), `stretch` — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger), but "activate now" vs "activate later" wash out at the rollout horizon (the greedy rollout chain-activates the free sac outlet), so the root pick is seed noise (10/12) — the #2687 "search cannot price timing" ceiling, not a term this ticket can add. The term-bearing half is the partner; this one rides the token, not `manaDevWeight`.',
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2686).

@@ -548,24 +548,28 @@ function flexibilityTerm(
  *  This is a SNAPSHOT of the position (the owner's framing on this ticket): it
  *  reads only the land count and the hand's mana values (castability), never a
  *  forecast ("a land is worth a lot because flooding loses games later" — that
- *  belongs to the search, not a weight). Lands in hand contribute zero demand
- *  (CR 305.2 — a land is played, not cast, so its mana value is 0), which is
- *  correct: they are not cards this term should urge you to ramp toward.
+ *  belongs to the search, not a weight). Lands in hand contribute zero demand:
+ *  a land is played, never cast (CR 305.1 — a land "is never a spell"), and a
+ *  card with no mana cost has mana value 0 (CR 202.3a), so a held land is not
+ *  something this term should urge the player to ramp toward.
  *
  *  Zero card names, pure, and state-only by construction. */
 function manaDevelopmentTerm(
     player: PlayerState,
     weights: EvalWeights
 ): number {
-    // Total mana value the hand still wants to spend casting. Lands count as
-    // 0 (they are played, not cast), so they add no demand.
+    // Total mana value the hand still wants to spend casting. Lands count as 0
+    // (played, not cast — CR 305.1; no mana cost → MV 0 — CR 202.3a).
     let handNeed = 0;
     for (const c of player.hand) {
         handNeed += manaValue(getInstanceManaCost(c));
     }
+    // Every land counts — tapped or untapped — because development is about the
+    // BASE the hand can draw on, not the current-turn tap state (which the
+    // `mana` term already prices). Each land up to the hand's need is "earning
+    // its keep"; beyond that the base is flooded and a further land unlocks
+    // nothing.
     const lands = player.battlefield.filter((c) => isLand(c)).length;
-    // Each land up to the hand's need is "earning its keep" developing mana;
-    // beyond that the base is flooded and a further land unlocks nothing.
     return weights.manaDevWeight * Math.min(lands, handNeed);
 }
 
