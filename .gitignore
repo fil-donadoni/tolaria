@@ -50,6 +50,7 @@ data/full-catalogue.json.gz
 # is regenerable with `bun run oracle:corpus`.
 data/oracle-corpus.json.gz
 .claude/telemetry/
+.opencode/telemetry/
 # Subagent receipts (issue #2182) — batch-scoped run artifacts, not source. The
 # durable record of a batch is the merged PRs; these are the telemetry the
 # merge-train (#2185) and the scorecard (#2187) read while the run is alive.
