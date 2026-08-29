@@ -1364,7 +1364,7 @@
         --hairline-w: 1px;
         --hairline: rgb(232 226 210 / 0.12);
         --hairline-strong: rgb(232 226 210 / 0.3);
-        --card-radius: 4.8% / 3.45%;
+        --card-radius: 8%;
         /* The panel/dialog corner (§5: "4–6px radius"). NOT a card corner and
          * deliberately not `--radius`-derived: `rounded-md` is 8px, which on a
          * hairline frame reads soft, and the card surfaces have their own
