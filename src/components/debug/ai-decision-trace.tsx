@@ -11,15 +11,7 @@ import { useState } from "react";
 import type { CandidateTrace, EvalTerms } from "@convex/gre";
 import { useLatestAiTrace } from "~/hooks/useLatestAiTrace";
 import AiTraceLegend from "./ai-trace-legend";
-
-const TERM_LABELS: [keyof EvalTerms, string, string][] = [
-    ["life", "L", "Life"],
-    ["hand", "H", "Hand"],
-    ["creatures", "C", "Creatures"],
-    ["permanents", "Pm", "Permanents (non-creature)"],
-    ["mana", "M", "Mana"],
-    ["flexibility", "Fx", "Flexibility"],
-];
+import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "~/lib/ai/eval-term-labels";
 
 /** Round to at most 3 decimals, dropping float noise (252.39999999999998 → 252.4). */
 function r3(n: number): number {
@@ -27,8 +19,8 @@ function r3(n: number): number {
 }
 
 function termLine(terms: EvalTerms): string {
-    return TERM_LABELS.filter(([k]) => terms[k] !== 0)
-        .map(([k, label]) => `${label}${r3(terms[k])}`)
+    return EVAL_TERM_ORDER.filter((k) => terms[k] !== 0)
+        .map((k) => `${EVAL_TERM_LABELS[k].short}${r3(terms[k])}`)
         .join(" ");
 }
 
@@ -36,8 +28,8 @@ function termLine(terms: EvalTerms): string {
  *  "Life 128 · Creatures 473 · Mana 12" — the hover companion to the terse
  *  `termLine`, so each letter is recognisable without opening the legend. */
 function termTitle(side: string, terms: EvalTerms): string {
-    const parts = TERM_LABELS.filter(([k]) => terms[k] !== 0).map(
-        ([k, , name]) => `${name} ${r3(terms[k])}`
+    const parts = EVAL_TERM_ORDER.filter((k) => terms[k] !== 0).map(
+        (k) => `${EVAL_TERM_LABELS[k].name} ${r3(terms[k])}`
     );
     return parts.length ? `${side}: ${parts.join(" · ")}` : `${side}: —`;
 }

@@ -443,6 +443,10 @@ You are in the Bot — read `/bot-slice` first; full seam map + doctrine.
 - Ladder is for STRENGTH claims only — declare rung + pairing dynamics;
   never to explain WHY a decision happened.
 - Tests are `*.bot.test.ts` (`bot-suite-boundary.test.ts` enforces it).
+- A new `EvalTerms` key needs its row in `src/lib/ai/eval-term-labels.ts`
+  — the ONE table the DecisionTrace line and its legend render from
+  (`Record<keyof EvalTerms, …>`, so `tsc` reds on a missing row). #2686
+  shipped `manaDevelopment` and it was invisible in both.
 - Determinism required — fixed `iterations`, never wall-clock (`timeMs`).
 
 ## Browser Verification Rules
