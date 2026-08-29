@@ -1,41 +1,42 @@
-import { useCallback, useState } from "react";
 import type { Color, ManaCost } from "~/types/cards";
 import { colors } from "~/types/cards";
-import { Panel } from "~/components/ui/panel";
-import { clampToViewport } from "@/components/ui/anchored-picker";
-
-const VIEWPORT_PAD = 8;
+import { getColorOverrideDisplay } from "~/lib/color-override";
+import AnchoredPicker, {
+    AnchoredPickerRow,
+} from "@/components/ui/anchored-picker";
 
 type ManaChoicePickerProps = {
     choices: ManaCost[];
     /** Anchor point (mouse coords). Omitted when the picker is opened without a
-     *  pointer event (e.g. from the ability menu) — it then centres on screen
-     *  instead of pinning to the top-left corner. */
+     *  pointer event (e.g. from the ability menu) — `AnchoredPicker` then
+     *  centres it on screen instead of pinning to the top-left corner. */
     position?: { x: number; y: number };
     onSelect: (index: number) => void;
     onCancel: () => void;
 };
 
-// Clamp the picker's top-left so the panel never overflows the viewport. The
-// desired anchor is the mouse point; we push it back inside whichever edge it
-// crosses. Shares its positioning math with the `AnchoredPicker` primitive
-// (`ui/anchored-picker.tsx`, issue #2731) via `clampToViewport` — this picker
-// borrows only that half: its pip-shaped rows don't fit `AnchoredPickerRow`'s
-// list-row shape, so the rest of the markup (and this measure-on-mount
-// callback-ref pattern, distinct from the other four pickers'
-// measure-after-layout `ref`) stays its own.
-function clampPosition(
-    anchor: { x: number; y: number },
-    width: number,
-    height: number
-): { top: number; left: number } {
-    const { x: left, y: top } = clampToViewport(
-        anchor,
-        width,
-        height,
-        VIEWPORT_PAD
-    );
-    return { top, left };
+// A choice may be a single pip ({B:2}) or a multi-colour combination
+// ({U:1,B:1}). Expand every coloured pip so the row shows the full mana it
+// produces, not just the first.
+function expandPips(cost: ManaCost): Color[] {
+    return colors.flatMap((c) => Array.from({ length: cost[c] ?? 0 }, () => c));
+}
+
+// Visible label for a set of pips — "White", "Blue + Black", collapsing a
+// repeated colour ("White x2") so a fixed {W}{W} option reads as one clause
+// instead of a stutter. Issue #2920: this used to be the ONLY string the
+// picker produced, and it lived solely in a `title` attribute — duplicated as
+// both the button's accessible name and its hover tooltip, with no visible
+// text at all. `getColorOverrideDisplay` is the same colour-name primitive
+// `preview-body.ts` already uses for the card-preview panel.
+function optionLabel(pips: Color[]): string {
+    if (!pips.length) return "No mana";
+    const names = pips.map((c) => getColorOverrideDisplay([c])?.name ?? c);
+    const counted = new Map<string, number>();
+    for (const n of names) counted.set(n, (counted.get(n) ?? 0) + 1);
+    return [...counted.entries()]
+        .map(([n, count]) => (count > 1 ? `${n} x${count}` : n))
+        .join(" + ");
 }
 
 export default function ManaChoicePicker({
@@ -44,103 +45,43 @@ export default function ManaChoicePicker({
     onSelect,
     onCancel,
 }: ManaChoicePickerProps) {
-    const [placement, setPlacement] = useState<{
-        top: number;
-        left: number;
-    } | null>(null);
-
-    // Callback ref measures synchronously when the panel mounts, so the first
-    // paint already sits inside the viewport. Only applies when anchored to a
-    // pointer position — the centred variant fits by construction.
-    const measureRef = useCallback(
-        (node: HTMLDivElement | null) => {
-            if (!node || !position) return;
-            const rect = node.getBoundingClientRect();
-            setPlacement(clampPosition(position, rect.width, rect.height));
-        },
-        [position]
-    );
-
-    const style = position
-        ? {
-              left: placement?.left ?? position.x,
-              top: placement?.top ?? position.y,
-              maxHeight: `calc(100dvh - ${VIEWPORT_PAD * 2}px)`,
-              opacity: placement ? 1 : 0,
-          }
-        : {
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              maxHeight: `calc(100dvh - ${VIEWPORT_PAD * 2}px)`,
-          };
-
     return (
-        <>
-            <div
-                className="fixed inset-0 z-hud modal-scrim"
-                onClick={onCancel}
-            />
-            {/* Positioning/ref/style stay on a plain wrapper — Panel forwards
-                none of them; the frame lives inside it. */}
-            <div
-                ref={measureRef}
-                className="fixed z-modal overflow-y-auto"
-                style={style}
-            >
-                <Panel
-                    density="compact"
-                    className="flex flex-col gap-[var(--menu-row-gap)] p-4"
-                >
-                    {choices.map((cost, i) => {
-                        // A choice may be a single pip ({B:2}) or a multi-colour
-                        // combination ({U:1,B:1}). Expand every coloured pip so the
-                        // button shows the full mana it produces, not just the first.
-                        const pips: Color[] = colors.flatMap((c) =>
-                            Array.from({ length: cost[c] ?? 0 }, () => c)
-                        );
-                        // A board-conditional non-tap chooser (Vivi Ornitier at 0
-                        // power, issue #1179) can legally produce a ZERO-mana
-                        // option (CR 605.1a — still a legal, if useless,
-                        // activation). Render it as an explicit "0" entry rather
-                        // than silently dropping the button — every existing
-                        // tap-based choice list has a minimum of 1 mana, so this
-                        // branch never fires for them.
-                        if (!pips.length) {
-                            return (
-                                <button
-                                    key={i}
-                                    className="flex min-h-[var(--menu-row-h)] min-w-[var(--menu-row-h)] items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
-                                    onClick={() => onSelect(i)}
-                                    title="Add no mana"
-                                >
-                                    <span className="flex size-6 shrink-0 items-center justify-center text-xs font-semibold text-text/80">
-                                        0
-                                    </span>
-                                </button>
-                            );
-                        }
-                        const title = `Add ${pips.map((c) => `{${c}}`).join("")}`;
-                        return (
-                            <button
-                                key={i}
-                                className="flex min-h-[var(--menu-row-h)] min-w-[var(--menu-row-h)] items-center justify-center gap-0.5 rounded-full bg-white/5 px-2 py-1 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15"
-                                onClick={() => onSelect(i)}
-                                title={title}
-                            >
-                                {pips.map((c, p) => (
+        <AnchoredPicker
+            position={position}
+            rowCount={choices.length}
+            onCancel={onCancel}
+        >
+            {choices.map((cost, i) => {
+                const pips = expandPips(cost);
+                const label = optionLabel(pips);
+                return (
+                    <AnchoredPickerRow
+                        key={i}
+                        onSelect={() => onSelect(i)}
+                        className="flex-row items-center gap-2"
+                    >
+                        <span className="flex shrink-0 items-center gap-0.5">
+                            {pips.length ? (
+                                pips.map((c, p) => (
                                     <img
                                         key={p}
                                         src={`/img/symbols/${c}.svg`}
                                         alt={c}
                                         className="size-6 shrink-0"
                                     />
-                                ))}
-                            </button>
-                        );
-                    })}
-                </Panel>
-            </div>
-        </>
+                                ))
+                            ) : (
+                                <span className="flex size-6 items-center justify-center text-xs font-semibold text-text/80">
+                                    0
+                                </span>
+                            )}
+                        </span>
+                        <span className="text-display text-sm text-text">
+                            {label}
+                        </span>
+                    </AnchoredPickerRow>
+                );
+            })}
+        </AnchoredPicker>
     );
 }

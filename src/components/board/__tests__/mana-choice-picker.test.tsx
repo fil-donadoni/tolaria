@@ -36,8 +36,11 @@ describe("ManaChoicePicker (multi-colour combos, CR 106.1)", () => {
         const errorSpy = vi
             .spyOn(console, "error")
             .mockImplementation(() => {});
-        const { container } = renderPicker();
-        expect(container.querySelectorAll("button")).toHaveLength(
+        // The picker's popover portals into `document.body` (`AnchoredPicker`,
+        // issue #2920), so its buttons live outside the render's own
+        // `container` — query the document instead.
+        renderPicker();
+        expect(document.querySelectorAll("button")).toHaveLength(
             RELIC_CHOICES.length
         );
         expect(errorSpy).not.toHaveBeenCalled();

@@ -108,6 +108,22 @@ describe("AnchoredPicker", () => {
         expect(onSelect).toHaveBeenCalledTimes(1);
     });
 
+    it("centres on screen when opened without a position (issue #2920 — no pointer event, e.g. an ability menu)", () => {
+        render(
+            <AnchoredPicker rowCount={1} onCancel={vi.fn()}>
+                <AnchoredPickerRow onSelect={() => {}}>
+                    Only row
+                </AnchoredPickerRow>
+            </AnchoredPicker>
+        );
+        const wrapper = document.querySelector(
+            '[data-slot="dialog-content"]'
+        ) as HTMLElement;
+        expect(wrapper.style.left).toBe("50%");
+        expect(wrapper.style.top).toBe("50%");
+        expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
+    });
+
     it("renders nothing (no header block) when neither title nor subtitle is given", () => {
         const { baseElement } = render(
             <AnchoredPicker

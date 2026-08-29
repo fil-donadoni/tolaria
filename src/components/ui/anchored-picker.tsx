@@ -14,11 +14,9 @@ const VIEWPORT_MARGIN = 8;
  *  otherwise grow the popup past the bottom edge with no way to reach the
  *  lower rows. Pure layout, CR-agnostic.
  *
- *  Shared by every anchored popover in the board: the `AnchoredPicker`
- *  primitive below AND `ManaChoicePicker` (`board/mana-choice-picker.tsx`),
- *  which borrows only this positioning half — its pip-shaped rows don't fit
- *  `AnchoredPickerRow`'s list-row shape, so it keeps its own markup and its
- *  own centred-when-no-pointer variant. */
+ *  Shared by every anchored popover in the board, `ManaChoicePicker`
+ *  (`board/mana-choice-picker.tsx`) included since issue #2920 folded its
+ *  bespoke shell into this one. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function clampToViewport(
     anchor: AnchorPoint,
@@ -114,7 +112,10 @@ export function AnchoredPickerRow({
 }
 
 export type AnchoredPickerProps = {
-    position: AnchorPoint;
+    /** Anchor point (mouse coords). Omitted when the picker is opened without
+     *  a pointer event (e.g. from an ability menu) — it then centres on
+     *  screen instead of pinning to a clamped top-left corner. */
+    position?: AnchorPoint;
     /** Re-clamp when this changes — pass the row/choice count. */
     rowCount: number;
     onCancel: () => void;
@@ -156,7 +157,20 @@ export default function AnchoredPicker({
     className,
 }: AnchoredPickerProps) {
     useEscapeToCancel(onCancel);
-    const { ref, style } = useClampedPortalPosition(position, rowCount);
+    // Hook runs unconditionally (Rules of Hooks); its clamped output is only
+    // used below when a real `position` was given — the centred variant
+    // fits the viewport by construction and needs no clamp.
+    const { ref, style } = useClampedPortalPosition(
+        position ?? { x: 0, y: 0 },
+        rowCount
+    );
+    const wrapperStyle = position
+        ? { left: style.x, top: style.y }
+        : {
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+          };
 
     return createPortal(
         <>
@@ -172,7 +186,7 @@ export default function AnchoredPicker({
                 ref={ref}
                 data-slot="dialog-content"
                 className="fixed z-modal"
-                style={{ left: style.x, top: style.y }}
+                style={wrapperStyle}
             >
                 <Panel
                     density="compact"
