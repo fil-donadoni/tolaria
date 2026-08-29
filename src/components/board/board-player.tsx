@@ -11,6 +11,7 @@ import {
 } from "~/lib/landscape-board-bands";
 import PlayerNameplate from "./player-nameplate";
 import PlayerManaPool from "./player-mana-pool";
+import PlayerGrantedAbilities from "./player-granted-abilities";
 
 type BoardPlayerProps = {
     player: Player;
@@ -107,8 +108,9 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
     // HERE rather than inside the presentational `PlayerNameplate`, which is
     // also rendered by the provider-free classic chrome (`player-life.tsx`):
     // this component already reads the game context for everything else.
-    const { combat, activePlayerId } = useGameContext();
+    const { combat, activePlayerId, playerId } = useGameContext();
     const underAttack = isUnderAttack(combat, player.id, activePlayerId);
+    const isViewer = player.id === playerId;
     // Relative wrapper so the floating mana-pool indicator anchors to the
     // nameplate (its absolute `bottom-full` / `top-full` need a positioned
     // ancestor), mirroring how the classic `player-side-row` pairs the pool with
@@ -122,7 +124,58 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
                 landscapeCompact
             )}`}
         >
-            <PlayerManaPool player={player} />
+            {isViewer ? (
+                // Above-plate chrome for the VIEWER's seat: the mana pool plus
+                // the player-level granted-ability controls (issue #2691).
+                //
+                // The outer box is `h-0` and the stack `absolute`, so the seat
+                // wrapper's own IN-FLOW height stays exactly the nameplate's —
+                // which is what `PORTRAIT_NAMEPLATE_BAND_H` reserves a band for
+                // (`portrait-board-bands.ts`: the compact box's exact math plus
+                // a 2px rounding margin, no slack). An in-flow sibling above the
+                // nameplate would grow the bottom-pinned wrapper straight past
+                // that reservation into `PORTRAIT_VIEWER_BF_BOTTOM_VAR`'s
+                // territory — dead center on the back row — reopening the #1814
+                // bug class, and its own history records that widening the
+                // reservation is the WORSE fix (it shrank cards under the 44px
+                // touch floor). So this chrome floats, exactly as the mana pool
+                // already did on its own.
+                //
+                // The stack also fixes WHERE the pool goes relative to the
+                // controls: the pool anchors off its own zero-height `relative`
+                // box's `bottom-full`, so it rides ABOVE the controls instead of
+                // landing on top of them. With no grant the stack is empty and
+                // that box sits flush at the wrapper's top edge, so the pool
+                // lands exactly where it did before this change.
+                //
+                // `pointer-events-none` on the stack, `pointer-events-auto` on
+                // the buttons themselves (see `player-granted-abilities.tsx`):
+                // chrome floating over the battlefield must never swallow a tap
+                // meant for the card underneath — the same mitigation the pool
+                // carries.
+                <div className="relative h-0">
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1">
+                        <div className="relative w-full">
+                            <PlayerManaPool player={player} />
+                        </div>
+                        {/* Mounted only when the seat actually holds a grant:
+                            the component subscribes to
+                            `activatePlayerAbility`, and every seat renders on
+                            every board frame, so an unconditional mount would
+                            make a Convex client a hard requirement of the seat
+                            chrome for the overwhelmingly common empty case (it
+                            is what broke `player-interaction-injection.test.tsx`,
+                            which renders this tree with no provider). The
+                            component re-checks the same condition — this is the
+                            cheap outer gate, not the authority. */}
+                        {player.grantedAbilities?.length ? (
+                            <PlayerGrantedAbilities player={player} />
+                        ) : null}
+                    </div>
+                </div>
+            ) : (
+                <PlayerManaPool player={player} />
+            )}
             <PlayerNameplate
                 player={player}
                 interaction={interaction}
