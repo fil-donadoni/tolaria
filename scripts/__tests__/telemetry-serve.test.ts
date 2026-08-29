@@ -1,8 +1,8 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createServer } from "node:net";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
 
 /**
  * `telemetry-serve.ts` (#2623) — the request handler extracted from the
@@ -30,30 +30,13 @@ import { join } from "node:path";
  * on the promise that these files hold no such state to leak between them.
  */
 
-/**
- * `telemetry-serve.ts`'s `DB_PATH` resolves from `CLAUDE_PROJECT_DIR ??
- * cwd()` AT IMPORT TIME (#2623 review round 1, finding 1) — if that ever
- * points at a checkout with a real `.claude/telemetry/telemetry.db` (the
- * primary checkout has one, 228MB at review time), the module's own
- * `existsSync(DB_PATH)` check comes back true and reaches
- * `require("bun:sqlite")`, which does not exist under this Node runtime.
- * Confirmed: `CLAUDE_PROJECT_DIR=<primary checkout> bunx vitest run
- * --project node scripts/__tests__/telemetry-serve.test.ts` reds all 4
- * tests without this pin. Setting `CLAUDE_PROJECT_DIR` to a fresh, empty
- * temp directory BEFORE the module's first import (module top-level code
- * runs once, at that first `import()`, so this MUST happen before any `it`
- * body runs — hence top-level here, not inside a `beforeAll`) removes the
- * dependency on the machine's ambient state entirely: this suite's result
- * no longer depends on whether a telemetry store happens to exist.
- */
-const testProjectDir = mkdtempSync(join(tmpdir(), "telemetry-serve-test-"));
-const prevProjectDir = process.env.CLAUDE_PROJECT_DIR;
-process.env.CLAUDE_PROJECT_DIR = testProjectDir;
+// See pin-empty-project-dir.ts — must run before this file's first
+// `import("../telemetry-serve")` (module top-level code runs once, at that
+// first import), hence top-level here, not inside a `beforeAll`.
+const restoreProjectDir = pinEmptyProjectDir("telemetry-serve-test");
 
 afterAll(() => {
-    if (prevProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
-    else process.env.CLAUDE_PROJECT_DIR = prevProjectDir;
-    rmSync(testProjectDir, { recursive: true, force: true });
+    restoreProjectDir();
 });
 
 /** Node's `net`, not `Bun.serve` — portable across whichever runtime this
