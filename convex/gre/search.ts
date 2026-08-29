@@ -1168,7 +1168,7 @@ export function applyMoveInSearch(
                       grant.sourceCardId
                   )?.activatedAbilities?.find((a) => a.id === move.abilityId)
                 : undefined;
-            if (!template) return;
+            if (!template || !grant) return;
             // CR 119.4 — pay the life cost (the one leg the move's affordability
             // gate at enumeration time already vouched for; fail-closed backstop
             // for hand-built moves, mirroring `applyActivationCostsForSearch`).
