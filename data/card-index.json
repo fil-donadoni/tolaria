@@ -3252,6 +3252,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Bone Shards",
+        "scryfallId": "1ee98955-4c47-4d45-9377-608dfa755337",
+        "oracleId": "6e760cfe-45b9-4a3f-b2e2-4ca6ec2bd13a",
+        "firstSet": "mh2",
+        "firstPrintId": "1ee98955-4c47-4d45-9377-608dfa755337",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Bonebreaker Giant",
         "scryfallId": "cc17e5c1-a6b4-401b-95eb-1c01cd1da570",
         "oracleId": "69166587-3db4-4eb0-b153-b75021be9a36",
@@ -14876,6 +14884,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Leyline Binding",
+        "scryfallId": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
+        "oracleId": "b49642f6-20bd-468d-9dac-e578f9ac3091",
+        "firstSet": "dmu",
+        "firstPrintId": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
+        "firstPrintSet": "dmu"
+    },
+    {
         "name": "Lhurgoyf",
         "scryfallId": "fee6d385-d44b-4f1a-beb1-13aeebde063e",
         "oracleId": "0fe76004-b2f4-4b11-abce-75fd76f68b4d",
@@ -17744,6 +17760,14 @@
         "firstSet": "ice",
         "firstPrintId": "35abefe6-c39b-4fe5-b2e3-d213f0c4f447",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "North Star",
+        "scryfallId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
+        "oracleId": "9109437a-da80-463f-a92a-77d693d05d91",
+        "firstSet": "leg",
+        "firstPrintId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Northern Paladin",
@@ -26236,6 +26260,14 @@
         "source": "compiled"
     },
     {
+        "name": "Territorial Kavu",
+        "scryfallId": "2605df98-0b02-4aab-bc36-01e93c693743",
+        "oracleId": "5f0be4ce-898e-4849-ab8f-a85fb05c3017",
+        "firstSet": "mh2",
+        "firstPrintId": "2605df98-0b02-4aab-bc36-01e93c693743",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Territorial Roc",
         "scryfallId": "0c83aa5e-b607-4c4f-a5f6-db61c93a1152",
         "oracleId": "adb5883d-44cc-455e-94dc-20e1c1f97d68",
@@ -30568,13 +30600,5 @@
         "firstSet": "ice",
         "firstPrintId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "firstPrintSet": "ice"
-    },
-    {
-        "name": "North Star",
-        "scryfallId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
-        "oracleId": "9109437a-da80-463f-a92a-77d693d05d91",
-        "firstSet": "leg",
-        "firstPrintId": "daac2a6b-27c8-4567-9e0c-7b262628d331",
-        "firstPrintSet": "leg"
     }
 ]

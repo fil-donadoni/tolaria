@@ -5,8 +5,10 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../types";
+import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { INSECT_TOKEN } from "../../sharedTokens";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 
 // Master of Death — {1}{U}{B} Creature — Zombie Wizard, 3/1. "When this
 // creature enters, surveil 2.\nAt the beginning of your upkeep, if this card
@@ -282,5 +284,127 @@ export const gristTheHungerTide: CardDefinition = {
                 },
             ],
         },
+    ],
+};
+
+// Territorial Kavu — {R}{G} Creature — Kavu, printed */*. "Domain —
+// Territorial Kavu's power and toughness are each equal to the number of basic
+// land types among lands you control.\nWhenever this creature attacks, choose
+// one —\n• Discard a card. If you do, draw a card.\n• Exile up to one target
+// card from a graveyard."
+//
+// P/T (CR 604.3 characteristic-defining ability, CR 305.6 basic land types):
+// the Nightmare convention (`lea/black.ts`) — a printed 0/0 base plus a
+// self-scoped `pt-cda` whose `compute` IS the whole stat line, through the
+// shared `countDomain` helper every other Domain site reads. A CDA functions
+// in all zones (CR 604.3), and the layer pipeline is what the public-state
+// projection re-asserts the P/T from, so the client reads the same number the
+// engine does. At Domain 0 the creature is a 0/0 and dies to SBA — that is the
+// card, not a gap.
+//
+// The attack trigger is MODAL (CR 603.3c / 700.2b): its controller announces
+// exactly one mode as the ability is PUT ON THE STACK, before targets, and "if
+// one of the modes would be illegal (due to an inability to choose legal
+// targets, for example), that mode can't be chosen". Both modes here are
+// always choosable — the discard mode targets nothing, and "up to one target"
+// is legal with zero targets — so the announcement is a real two-way prompt
+// every combat. `attacksTrigger` grew a `modes` passthrough for this card, the
+// same {@link AbilityMode} list `enteredTrigger` already forwards for a modal
+// ETB (Deceiver Exarch, `nph/blue.ts`): a modal trigger differs only in WHICH
+// event puts it on the stack.
+export const territorialKavu: CardDefinition = {
+    id: "2605df98-0b02-4aab-bc36-01e93c693743",
+    rarity: "rare",
+    name: "Territorial Kavu",
+    oracleText:
+        "Domain — Territorial Kavu's power and toughness are each equal to the number of basic land types among lands you control.\nWhenever this creature attacks, choose one —\n• Discard a card. If you do, draw a card.\n• Exile up to one target card from a graveyard.",
+    manaCost: { R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                const domain = countDomain(state, source.controllerId);
+                return { power: domain, toughness: domain };
+            },
+        },
+    ],
+    triggeredAbilities: [
+        attacksTrigger({
+            id: "territorial-kavu-attacks",
+            oracleText:
+                "Whenever this creature attacks, choose one —\n• Discard a card. If you do, draw a card.\n• Exile up to one target card from a graveyard.",
+            scope: "self",
+            modes: [
+                {
+                    id: "loot",
+                    label: "Discard a card. If you do, draw a card",
+                    oracleText: "Discard a card. If you do, draw a card.",
+                    // "If you do" needs no `if` construct: an empty hand leaves
+                    // the `choice` with no candidates, so `$disc` is never
+                    // captured, the `discard` Op is skipped (CR 608.2b — the
+                    // effect does as much as it can) and the `forEach` over the
+                    // binding iterates nothing. The draw therefore happens
+                    // exactly when a card was actually discarded, which IS the
+                    // clause (the Fable of the Mirror-Breaker shape,
+                    // `neo/red.ts`). The draw runs AFTER the discard in written
+                    // order, so the discarded card cannot be drawn back.
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: "controller",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card",
+                            bind: "$disc",
+                        },
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$disc" },
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$disc" },
+                            effects: [
+                                { op: "draw", player: "controller", count: 1 },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "exile-from-graveyard",
+                    label: "Exile up to one target card from a graveyard",
+                    oracleText: "Exile up to one target card from a graveyard.",
+                    // "up to one target": `{ min: 0, max: 1 }` lets the
+                    // controller announce zero targets without the mode
+                    // becoming illegal (the Wrenn and Six +1 shape,
+                    // `mh1/multicolor.ts`). `type: "card"` + `zone: "graveyard"`
+                    // with no `controller` is "a graveyard" — either player's
+                    // (the field defaults to "any").
+                    targetRequirement: {
+                        type: "card",
+                        count: { min: 0, max: 1 },
+                        zone: "graveyard",
+                    },
+                    // A graveyard card is not a permanent, so the exile is a
+                    // `moveZone` to exile — the shape that Op's own docstring
+                    // names for exactly this clause — not the battlefield-only
+                    // `exile` Op.
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
+        }),
     ],
 };

@@ -164,21 +164,51 @@ export const grief: CardDefinition = {
     ],
 };
 
-// TODO(issue #1303 residue audit — "as an additional cost, sacrifice a
-// creature or discard a card" is a CASTER-CHOSEN alternative additional cost;
-// `CardDefinition.additionalCosts` only models ONE fixed leg at a time
-// (sacrificeFilter XOR exileFilter XOR payXLife XOR payLife XOR
-// xFromOpponentGraveyard) — there's no "pick cost A or cost B" shape.
-// Re-confirmed still absent on re-audit (originally stubbed under the
-// now-closed #676; same root gap as Bitter Triumph, lci/black.ts). Stop-
-// and-issue per gre-development.md; tracked-by: #1353.
-// export const boneShards: CardDefinition = {
-//     id: "1ee98955-4c47-4d45-9377-608dfa755337",
-//     name: "Bone Shards",
-//     rarity: "common",
-//     manaCost: { B: 1 },
-//     types: ["Sorcery"],
-// };
+/** Bone Shards — {B} Sorcery. "As an additional cost to cast this spell,
+ *  sacrifice a creature or discard a card. Destroy target creature or
+ *  planeswalker."
+ *
+ *  CR 601.2b — the "sacrifice a creature OR discard a card" clause is a
+ *  CASTER-CHOSEN disjunction of ADDITIONAL costs: "the player announces their
+ *  intentions to pay any or all of those costs". Both legs are paid ALONGSIDE
+ *  the mana cost (CR 601.2f), never instead of it, and the caster names which
+ *  one at ANNOUNCEMENT — before targets and before anything is paid. That is
+ *  `additionalCosts.oneOf`, the shape Bitter Triumph (`lci/black.ts`) shipped:
+ *  the engine flattens the named leg onto the spec (`resolveAdditionalCosts`,
+ *  `convex/gre/additionalCost.ts`) and the ordinary cost machinery pays it —
+ *  the sacrifice through the cast's permanent picker (CR 701.16), the discard
+ *  through its hand-cost picker (CR 701.9).
+ *
+ *  With no creature on the battlefield AND an empty hand NEITHER leg is
+ *  payable, so the spell is not castable at all (CR 601.2f — the total cost
+ *  includes every additional cost, and an unpayable one stops the cast). The
+ *  cast card itself is never eligible for the discard leg (it is on the stack
+ *  by then); it is not a creature, so it is never a sacrifice candidate
+ *  either. */
+export const boneShards: CardDefinition = {
+    id: "1ee98955-4c47-4d45-9377-608dfa755337",
+    name: "Bone Shards",
+    rarity: "common",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature or discard a card.\nDestroy target creature or planeswalker.",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    additionalCosts: {
+        oneOf: [
+            {
+                id: "sacrifice-creature",
+                label: "Sacrifice a creature",
+                sacrificeFilter: { types: "Creature" },
+            },
+            { id: "discard", label: "Discard a card", discard: { count: 1 } },
+        ],
+    },
+    targetRequirement: {
+        type: ["Creature", "Planeswalker"],
+        count: 1,
+    },
+    effects: [{ op: "destroy", target: { target: 0 } }],
+};
 
 // TODO(issue #676 stub — Overload, CR 702.96, is `planned` in
 // mechanicsRegistry.ts: no alternative-cost "change target to each"
