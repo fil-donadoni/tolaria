@@ -284,19 +284,15 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
 - **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
   classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
-  `docs` (only markdown under `docs/**` or a root `.md`, delegating to
-  `check:docs` verbatim) / `full`, runs exactly the checks that lane's plan
-  names, and prints a per-check receipt. On anything it cannot affirmatively
-  place — a mixed diff (**prose mixes with nothing**), `package.json`, a
-  lockfile, `.claude/**`, an unrecognised path —
-  it degrades to `check:pr` **verbatim**, unchanged, so the fallback can never
-  rot. **No lane ever scopes a project's tests to the diff** — the `skin`
-  lane's `node[src,scripts]` carries a path argument (`src/ scripts/`), but
-  it is a fixed, declared subset of the lane, not one computed from the
-  changed files; every other admitted project runs whole, exactly as
-  `check:pr` runs it. The diff decides whether a project runs at all, never
-  a diff-derived slice of it (ADR 0104, which also records why this does not
-  revert #2431/#2655).
+  `docs` (markdown under `docs/**`, a root `.md`, or a nested
+  `CLAUDE.md`/`AGENTS.md`, delegating to `check:docs` verbatim) / `full`, runs
+  exactly the checks that lane's plan names, and prints a per-check receipt. On
+  anything it cannot affirmatively place — a mixed diff (**prose mixes with
+  nothing**), `package.json`, a lockfile, `.claude/**`, an unrecognised path —
+  it degrades to `check:pr` **verbatim**, so the fallback can never rot.
+  **No lane ever scopes a project's tests to the diff**: the diff decides
+  whether a project runs at all, never a diff-derived slice of it (ADR 0104,
+  derivation in `docs/agents/quality-gates.md`).
 - **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
   broke every card-shipping PR at the merge-train.
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run
