@@ -135,6 +135,45 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("convex/gre/README.md")).toBe("engine");
         expect(classifyPath("src/components/README.md")).toBe("skin");
     });
+
+    /**
+     * A nested `CLAUDE.md` is agent memory: the full text of a path-specific
+     * rule, loaded by the harness only when a session reads a file under that
+     * directory. `src/CLAUDE.md` is the sharp case — `SKIN_PATTERNS` matches
+     * `^src/`, so without an explicit rule a markdown-only diff would classify
+     * as `skin` and `bun run land` would demand a byte-exact `check:ui`
+     * receipt for a file that cannot reach the DOM.
+     */
+    it("a nested CLAUDE.md is prose at any depth", () => {
+        expect(classifyPath("src/CLAUDE.md")).toBe("docs");
+        expect(classifyPath("convex/CLAUDE.md")).toBe("docs");
+        expect(classifyPath("convex/gre/ai/CLAUDE.md")).toBe("docs");
+    });
+
+    it("the CLAUDE.md rule is the basename, not the directory", () => {
+        // Anything else nested under the same directories keeps its own lane —
+        // the pattern must not become a hole that promotes code or assets.
+        expect(classifyPath("src/CLAUDE.tsx")).toBe("skin");
+        expect(classifyPath("src/claude.md")).toBe("skin");
+        expect(classifyPath("src/CLAUDE.md.ts")).toBe("skin");
+        expect(classifyPath("convex/gre/NOTES.md")).toBe("engine");
+        // `.claude/**` is FULL_PATTERNS, matched first — still full.
+        expect(classifyPath(".claude/CLAUDE.md")).toBe("full");
+    });
+
+    /**
+     * Prose mixes with nothing (`laneFor`), so moving a rule's body into a
+     * nested `CLAUDE.md` cannot narrow the gate for a real code change that
+     * happens to touch it in the same commit.
+     */
+    it("a nested CLAUDE.md alongside code still pays the full gate", () => {
+        expect(
+            classifyLane(["src/CLAUDE.md", "src/lib/card-utils.ts"]).lane
+        ).toBe("full");
+        expect(
+            classifyLane(["convex/CLAUDE.md", "convex/gre/sba.ts"]).lane
+        ).toBe("full");
+    });
 });
 
 describe("check-lane — lane selection, named cases (issue #2740)", () => {
