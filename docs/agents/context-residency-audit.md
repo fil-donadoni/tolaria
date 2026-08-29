@@ -189,13 +189,13 @@ The file grew again after the decomposition (45,559 → 49,921 chars on
 Ordered by measured mass × multiplier. Confidence is about the _saving_, not
 about the measurement — the char counts are exact.
 
-| #   | Lever                                                                                    |                  Mass freed | Multiplier                                      | Confidence                  |
-| --- | ---------------------------------------------------------------------------------------- | --------------------------: | ----------------------------------------------- | --------------------------- |
-| 1   | **Compact the ADR index** — one-line rows, abstracts back into the ADR bodies            | ~160 k chars / ~10–15 k tok | per read, every agent told to "read this first" | **high**                    |
-| 2   | **Episodic-prose lens on CLAUDE.md** — `### Quality gates` → `.claude/rules/` or `docs/` |       ~7 k chars / ~2 k tok | resident × every request × every agent          | **high**                    |
-| 3   | **A resident-mass budget with a gate test** — the project's own doctrine, unapplied here |           prevents regrowth | —                                               | **high**                    |
-| 4   | **Make the glob-scoped rules actually scope** (or accept and shrink them)                |             up to 5,076 tok | resident × every agent                          | medium — depends on harness |
-| 5   | **Re-decompose `process-gh-issues/SKILL.md`** against real read-rates                    |                 ≤ 7.3 k tok | per loop session                                | low — needs telemetry       |
+| #   | Lever                                                                                    |                  Mass freed | Multiplier                                      | Confidence                      |
+| --- | ---------------------------------------------------------------------------------------- | --------------------------: | ----------------------------------------------- | ------------------------------- |
+| 1   | **Compact the ADR index** — one-line rows, abstracts back into the ADR bodies            | ~160 k chars / ~10–15 k tok | per read, every agent told to "read this first" | **high**                        |
+| 2   | **Episodic-prose lens on CLAUDE.md** — `### Quality gates` → `.claude/rules/` or `docs/` |       ~7 k chars / ~2 k tok | resident × every request × every agent          | **high**                        |
+| 3   | **A resident-mass budget with a gate test** — the project's own doctrine, unapplied here |           prevents regrowth | —                                               | **high**                        |
+| 4   | **Make the glob-scoped rules actually scope** (or accept and shrink them)                |             up to 5,076 tok | resident × every agent                          | **applied 2026-08-29** — proven |
+| 5   | **Re-decompose `process-gh-issues/SKILL.md`** against real read-rates                    |                 ≤ 7.3 k tok | per loop session                                | low — needs telemetry           |
 
 ### Applied 2026-08-11 (levers 1–3)
 
@@ -240,6 +240,93 @@ a naive shortening pass deletes the highest-value words first. The headroom
 left is in `.claude/rules/gre-development.md` (16,535 bytes, the largest single
 resident file), which was deliberately not touched — it is normative,
 CI-guard-referenced, and the same judgement applies.
+
+### Applied 2026-08-29 (lever 4)
+
+Lever 4 was the one this document left open — "make the glob-scoped rules
+actually scope (or accept and shrink them)", up to 5,076 tokens, confidence
+**medium, depends on harness**. The harness question is now answered by
+measurement rather than assumption.
+
+**The mechanism, proven.** A `CLAUDE.md` in a subdirectory is loaded **on
+demand** — it enters context the first time the session reads a file under that
+directory, and never if it does not. Probed directly: a sentinel token placed
+in `convex/gre/CLAUDE.md` was absent from context until `convex/gre/kicker.ts`
+was read, at which point it appeared. A second probe moved the file up to
+`convex/CLAUDE.md` and read `convex/gre/sba.ts`: it loaded too, so ONE file per
+top-level domain covers its whole subtree and `convex/gre/**` plus
+`convex/cards/**` need only `convex/CLAUDE.md`. A third probe placed the same
+file outside any project tree: nothing loaded, so the lookup is project-scoped.
+
+Frontmatter `globs:` remains decorative for loading — the finding above stands,
+now with the positive half attached: **nesting is what scopes; frontmatter is
+not.**
+
+**What moved.** The bodies of the three path-specific rules, leaving a resident
+index in place at the SAME path — `.claude/rules/*.md` is cited 197 times
+across ~150 files (163 of them at `gre-development.md`), so moving or renaming
+those files would have rotted every citation. Each index keeps every `##`
+heading and every `§` anchor the codebase cites, carrying the invariant in one
+to three lines; the derivations, tables and worked examples went down into the
+nested file.
+
+| File                                   | Before |  After | Δ                    |
+| -------------------------------------- | -----: | -----: | -------------------- |
+| `.claude/rules/gre-development.md`     | 16,667 |  5,043 | −70%                 |
+| `.claude/rules/chrome-debug.md`        |  2,817 |  1,541 | −45%                 |
+| `.claude/rules/frontend-components.md` |  1,440 |    979 | −32%                 |
+| `.claude/rules/bot-development.md`     |    878 |    878 | untouched            |
+| `CLAUDE.md`                            | 25,093 | 24,644 | −449                 |
+| **Resident total**                     | 46,895 | 33,085 | **−13,810 (−29.5%)** |
+
+`bot-development.md` was left whole deliberately: at 878 bytes a split saves
+nothing, and its frontmatter `globs:` is not decorative — `bot-globs.test.ts`
+asserts it byte-identical to `BOT_GLOBS` in `scripts/lib/bot-globs.ts`, which
+the bot receipt validator reads.
+
+The new tier costs 21,225 bytes (`convex/CLAUDE.md` 16,793, `src/CLAUDE.md`
+4,432), so the SUM across both tiers grew by ~7,400 — the price of restating
+invariants in the index. That is the right trade: the sum is never loaded at
+once, and the half that shrank is the half multiplied by every request of every
+agent.
+
+**CLAUDE.md was not compacted further**, for the reason the 2026-08-11 pass
+gave: after the episodic extraction the remainder is norms, and a naive
+shortening pass deletes the highest-value words first. The only cut was the
+CR-citation narrative in § Rules Implementation Process — the id counts (44 of
+850; 1,795; 793 sites), the twelve-transcript-versions history and the three
+worked keyword examples — moved to `docs/agents/gre-guards.md` § CR citation
+linting, leaving the four operative norms. The § Path-specific rules block was
+rewritten and grew, because it now documents a mechanism that did not exist.
+
+**Two guards, not one.** `resident-context-budget.test.ts` now measures BOTH
+tiers, with the on-demand corpus discovered from `git ls-files "*/CLAUDE.md"`
+rather than listed, so a nested file added anywhere is budgeted the day it
+lands. Budgeting only tier 1 would have made the nested files the place prose
+goes to escape the guard — the same failure one directory further down.
+Ceilings: 35,500 resident (~7% headroom on 33,085), 23,000 on demand.
+
+`check-lane.ts` gained a third `DOCS_PATTERNS` entry for a nested `CLAUDE.md`
+at any depth. Without it `src/CLAUDE.md` matches `SKIN_PATTERNS` (`^src/`), so
+a markdown-only diff would classify as `skin` and `bun run land` would demand a
+byte-exact `check:ui` receipt for a file that cannot reach the DOM — a
+regression this pass would otherwise have introduced.
+
+**Proof-of-failure, seven mutations**, each applied, verified present, measured
+red and reverted: dropping the nested-`CLAUDE.md` docs pattern; widening it to
+any nested `.md`; deleting the "prose mixes with nothing" clause in `laneFor`;
+pointing the on-demand corpus at a glob matching nothing; widening it to
+swallow the root `CLAUDE.md`; and appending 3,000 / 2,500 bytes to trip each
+ceiling. All green after revert.
+
+**Residual uncertainty, stated.** The probes ran against a linked worktree,
+which the session entered mid-conversation. What is NOT verified is whether a
+nested `CLAUDE.md` is also loaded eagerly at session start in the primary
+checkout, where the root scaffold is loaded before the first turn. The
+asymmetry is favourable — if it turns out eager, the resident total is
+unchanged from before this pass rather than worse, because the same bytes are
+merely relocated — but a session started after this lands should confirm with
+`/context` before the saving is claimed as realised.
 
 ### Why #3 is the one that matters most
 
@@ -375,7 +462,9 @@ worth keeping.
   window, not the full history. It establishes that regrowth happens, not its
   long-run rate.
 - **The unconditional rule-loading observation is single-session.** It is what
-  this harness did; it is not proven across Claude Code versions.
+  this harness did; it is not proven across Claude Code versions. The POSITIVE
+  half — that a nested `CLAUDE.md` loads on demand — was probed directly in the
+  lever 4 pass and is no longer an assumption; see its own residual caveat.
 - **"Resident in every subagent" is inherited from the prior passes**, not
   re-verified here.
 - **No claim is made about realised savings from #2180's programme.** That is

@@ -219,11 +219,24 @@ user-level directory). A rule that CAN be enforced mechanically belongs in a
 script the gate runs (`scripts/queue-plan.ts`, `scripts/gate.ts`, hooks) —
 prose is the fallback for judgment, not the home of invariants.
 
-### Path-specific rules (auto-loaded)
+### Path-specific rules — index resident, full text on demand
 
-- `convex/gre/**`, `convex/cards/**` → CR compliance, testing, patterns
-- `src/components/**` → one-component-per-file, type sourcing, UI testing
-- `convex/gre/ai/**`, `src/lib/ai/**` → Bot verification doctrine — blade first
+Two tiers, because a rule nobody can afford to load is a rule nobody follows.
+`.claude/rules/*.md` is **resident in every session and every subagent** and
+holds only the invariants; the derivations, tables and worked examples live in
+a nested `CLAUDE.md` the harness loads **the first time a session reads a file
+under that directory** — measured, not assumed (`docs/agents/context-residency-audit.md`
+§ Lever 4 applied). Frontmatter `globs:` do NOT gate loading; nesting does.
+
+| Touching    | Resident index                                                                                    | Full text, on demand |
+| ----------- | ------------------------------------------------------------------------------------------------- | -------------------- |
+| `convex/**` | `.claude/rules/gre-development.md`                                                                | `convex/CLAUDE.md`   |
+| `src/**`    | `.claude/rules/frontend-components.md` + `chrome-debug.md`                                        | `src/CLAUDE.md`      |
+| the Bot     | `.claude/rules/bot-development.md` (whole — its `globs:` is parsed by `scripts/lib/bot-globs.ts`) | `/bot-slice`         |
+
+A norm belongs in the index only if acting without it is a mistake **before**
+any file is opened. Everything else goes in the nested file, where it arrives
+exactly when it is needed and costs nothing when it is not.
 
 ### Development cycle
 
@@ -359,42 +372,25 @@ vs defer together.
 **The CR is vendored, and it is the only source** (ADR 0098):
 `data/cr/comprehensive-rules.txt` + `data/cr/VERSION.json`, sliced by
 `bun run cr 605.1a` / `bun run cr grep "<keyword>"` — offline, exact, no
-fetch. Third-party mirrors (yawgatog, ancestral.vision — the latter frozen at
-2022-10-07) are removed, and an ad-hoc `curl` of a remembered
-`MagicCompRules YYYYMMDD.txt` URL is the habit this replaced: twelve distinct
-versions, back to 2022, appear in past session transcripts. **Never cite a rule
-number you have not printed** — 44 of the 850 distinct ids cited in this repo
-resolved to nothing, and nearly all of them never existed in any revision; all
-44 were corrected in #2429 and **`bun run cr:lint` now runs in `check:guards`**,
-so a new one cannot land **on a line of its own or in a slash-list** (the
-scanner resolves every bare `NNN.Nx` token on any line mentioning `CR ` — two of
-the 44 ids, 10 sites, hid in exactly that shape and survived the first
-correction pass). Three things still get past it: a citation **wrapped across
-two comment lines** — so keep one on a single line; an id on a line mentioning
-`CR ` **nowhere** (1,795 today, 597 of them in `mechanicsRegistry.ts` alone — a
-deliberate boundary, since reaching them reds the gate on 16 ids that are mostly
-not citations at all — including the happy-dom benchmark seconds quoted a few
-sections above); and a **resolvable but wrong** id, since the scan only asks
-whether an id exists.
+fetch. Third-party mirrors are removed; an ad-hoc `curl` of a remembered
+rules URL is the habit this replaced.
 
-**Resolvable-but-wrong is now covered for keywords.** `cr:lint` also runs a
-SECOND scan (`scripts/cr-keyword-citations.ts`): for every `CR 701.N`/`702.N`
-citation it reads the section TITLE out of the vendored document and reds when
-the line names a different keyword — "701.19 search" is Regenerate, "701.16
-sacrifice" is Investigate, "702.13 landwalk" is Intimidate. Wizards inserts
-keyword actions alphabetically, so the 701 block renumbers every few revisions
-and citations rot silently; keying the check on titles rather than numbers means
-the NEXT renumbering reds the gate instead of going unnoticed. 793 sites stood
-wrong when it was added (plus ~200 more, bare ids on keyword-less lines, found
-by hand in the same pass). It sees only lines that name a keyword: keep the
-citation and its keyword word on ONE line. Outside 701/702 the old caveat
-stands — a citation "corrected" to a plausible-but-wrong number passes, which is
-why the correction has to come from `bun run cr <id>` printing text that matches
-the claim. Wizards
-republishes roughly per set at
-<https://magic.wizards.com/en/rules>; `bun run cr:check` says whether a newer
-document exists, `bun run cr:sync` takes it. `cr:check` is deliberately outside
-`check:all` — the gate is offline by contract.
+**Never cite a rule number you have not printed.** `bun run cr:lint` runs in
+`check:guards` and reds on an id that resolves to nothing, plus a second scan
+that reds when a `CR 701.N`/`702.N` line names a different keyword than the
+section title (Wizards renumbers the 701 block alphabetically every few
+revisions, so keyword citations rot silently).
+
+**Keep the citation, its `CR ` prefix and its keyword word on ONE line** —
+that single habit covers every blind spot the scanner has. What it cannot
+catch at all is a **resolvable but wrong** id outside 701/702: the scan only
+asks whether an id exists, so the correction must come from `bun run cr <id>`
+printing text that matches the claim.
+
+`bun run cr:check` says whether a newer document exists, `bun run cr:sync`
+takes it; `cr:check` is deliberately outside `check:all` — the gate is offline
+by contract. Derivation and the correction-pass numbers:
+`docs/agents/gre-guards.md` § CR citation linting.
 
 ## Implemented engine capabilities
 

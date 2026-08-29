@@ -131,8 +131,23 @@ const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
  * PR #2891, against seconds for `check:docs`. That gap was a standing invitation
  * to reach for `docs:ship` from muscle memory and pay the full gate whenever
  * anyone forgot — a rule prose cannot enforce, so it belongs here.
+ *
+ * A NESTED `CLAUDE.md` IS PROSE WHEREVER IT SITS. The path-specific rules are
+ * two-tier: a resident index in `.claude/rules/` and the full text in a
+ * `CLAUDE.md` under the directory it governs, which the harness loads only
+ * when a session reads a file there. Those files live at `convex/CLAUDE.md`
+ * and `src/CLAUDE.md`, so without the third pattern `src/CLAUDE.md` matches
+ * `SKIN_PATTERNS` (`^src/`) and a markdown-only diff classifies as `skin` —
+ * which makes `bun run land` demand a byte-exact `check:ui` receipt for a
+ * file that cannot reach the DOM. Anchored to the exact basename, at any
+ * depth: this admits agent memory and nothing else, so it cannot promote a
+ * stylesheet or an asset out of `full`.
  */
-const DOCS_PATTERNS: RegExp[] = [/^docs\/.*\.md$/, /^[^/]+\.md$/];
+const DOCS_PATTERNS: RegExp[] = [
+    /^docs\/.*\.md$/,
+    /^[^/]+\.md$/,
+    /^(?:[^/]+\/)+CLAUDE\.md$/,
+];
 
 /**
  * Classify ONE changed path. Fail-closed: anything not affirmatively

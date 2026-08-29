@@ -68,3 +68,46 @@ definition" row that only proved the definition equalled itself; Guard A
 (above) replaced it with a strictly stronger catalogue-wide check. The
 identity-only guard now fails CI on any new such block; its allowlist is
 empty and is meant to stay empty.
+
+## CR citation linting (`bun run cr:lint`, #2429)
+
+Derivation for the norm CLAUDE.md states in four lines. Moved here from
+CLAUDE.md by the Lever 4 pass (`context-residency-audit.md`): it is the
+reasoning behind the rule, not the rule, and it was being re-read on every
+request of every agent.
+
+**Why the guard exists.** 44 of the 850 distinct CR ids cited in this repo
+resolved to nothing, and nearly all of them never existed in any revision.
+All 44 were corrected in #2429, and `cr:lint` joined `check:guards` so a new
+one cannot land. Before ADR 0098 vendored the document, the sourcing habit was
+an ad-hoc `curl` of a remembered `MagicCompRules YYYYMMDD.txt` URL — twelve
+distinct versions, back to 2022, appear in past session transcripts — plus two
+third-party mirrors (yawgatog; ancestral.vision, frozen at 2022-10-07).
+
+**What the first scan sees.** It resolves every bare `NNN.Nx` token on any
+line that mentions `CR `, which is why a bare id in a slash-list is covered:
+two of the 44 ids, at 10 sites, hid in exactly that shape and survived the
+first correction pass.
+
+**Its three blind spots**, all of which the one-line habit avoids:
+
+1. A citation **wrapped across two comment lines** — the prefix is split from
+   its id.
+2. An id on a line mentioning `CR ` **nowhere**: 1,795 today, 597 of them in
+   `mechanicsRegistry.ts` alone. Deliberate boundary — reaching them reds the
+   gate on 16 ids that are mostly not citations at all.
+3. A **resolvable but wrong** id, since the scan only asks whether an id
+   exists.
+
+**The second scan (`scripts/cr-keyword-citations.ts`)** closes blind spot 3
+for keywords. For every `CR 701.N`/`702.N` citation it reads the section TITLE
+out of the vendored document and reds when the line names a different keyword
+— "701.19 search" is Regenerate, "701.16 sacrifice" is Investigate, "702.13
+landwalk" is Intimidate. Wizards inserts keyword actions alphabetically, so
+the 701 block renumbers every few revisions; keying the check on titles rather
+than numbers means the NEXT renumbering reds the gate instead of going
+unnoticed. **793 sites stood wrong when it was added**, plus ~200 more (bare
+ids on keyword-less lines) found by hand in the same pass. It sees only lines
+that name a keyword.
+
+Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.
