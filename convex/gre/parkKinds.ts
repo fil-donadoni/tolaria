@@ -1,5 +1,5 @@
-// The per-kind K table for payment-park variant enumeration (ADR 0091 decision
-// 4, issue #2135).
+// The per-kind K table for the CAST-side payment parks (ADR 0091 decision 4,
+// issue #2135).
 //
 // A payment park (see `owedPayment.ts`) is a mandatory cost-payment decision
 // suspended inside the announcement window: which permanent to sacrifice, which
@@ -8,24 +8,30 @@
 // decision 4: a park lives inside the announcement window, where the opponent
 // never acts, so a ply there buys tree depth for no information).
 //
-// K is HOW MANY variants the enumerator emits per park kind. It is per KIND,
-// not per card, and it is small and deliberate:
+// K is HOW MANY variants the enumerator emits per park kind, per KIND (not per
+// card). This table owns the CAST side only — the six `cast:*` parks — because
+// that is what this issue ships (`gre/castCostPicks.ts`). Every one is K=1: the
+// pick is fungible, so the deterministic cheapest-first victim is carried on the
+// move and never multiplied into a variant axis. K=1 everywhere was considered
+// and rejected in general (ADR 0091, alternatives — the variant machinery would
+// be written and never traversed), but the ONE kind whose pick is a real
+// decision is the ACTIVATION discard (Survival of the Fittest, designed K=3),
+// which this table deliberately does not own — see the delimitation below.
 //
-// | park kind                                   | K | why |
-// | ------------------------------------------- | - | --- |
-// | `activation:discardFilterChoice`            | 3 | the pick IS the card — Survival of the Fittest is a tutor only if it chooses what to pitch |
-// | `cast:sacrificeSelection` / `activation:sacrificeSelection` | 1 | lowest-mana-value victim is right nearly always |
-// | `activation:tapOtherChoice`                 | 1 | crew — a covering set, identity barely matters |
-// | `cast:exileFromGraveyardChoice` / `activation:exileFromGraveyardChoice` | 1 | Night Soil-shaped, fungible |
-// | `cast:additionalCost`                       | 1 | the EXILE additional cost (Soul Exchange) — fungible victim |
-// | `cast:convokeCreatureChoice` / `cast:alternativeCostHandChoice` / `cast:manaSpendChoice` / `activation:manaSpendChoice` | 1 | fungible / deterministic |
+// Bounds this table does NOT own, and why:
 //
-// K=1 everywhere was considered and rejected (ADR 0091, alternatives): the whole
-// variant machinery would be written and never traversed with more than one
-// branch — a dead path discovered broken exactly when #2081 raised K. The ONE
-// kind whose pick is a real decision — Survival's discard — earns its K=3.
-//
-// Three bounds this table does NOT own, and why:
+//  - **The ACTIVATION-side victim enumeration (`gre/activationCostPicks.ts`,
+//    issue #2297).** `MAX_VICTIM_VARIANTS` (4) caps both the discard and the
+//    single-victim sacrifice legs of an activated ability, chosen before this
+//    table existed and pinned by #2297's own tests (Goblin Chirurgeon /
+//    Fallen Angel victim choice). ADR 0091's DESIGNED K for those legs is 3
+//    (discard — the pick IS the card) and 1 (sacrifice — lowest-mana-value
+//    victim); the shared 4 is a superset of the discard design and a superset
+//    of the sacrifice design, and reconciling either leg down to its designed
+//    K is #2297's change, not this issue's. This table records the CAST side
+//    and explicitly delimits the activation side rather than restating its
+//    bound — a second parallel table is a review finding, not an
+//    implementation (issue #2135 triage).
 //
 //  - **`MAX_KICKER_COMBINATIONS` / `MULTIKICKER_REPEAT_SAMPLES` (`gre/kicker.ts`,
 //    issue #2081).** A Kicker is an OPTIONAL additional cost, not a mandatory
@@ -36,15 +42,6 @@
 //    kicker-shaped concern; the two tables are different axes of the SAME
 //    `announceVariants` cross-product (`moves.ts`), and this comment is the
 //    delimit between them.
-//
-//  - **`MAX_VICTIM_VARIANTS` (`gre/activationCostPicks.ts`, issue #2297).** The
-//    ACTIVATION-side victim enumeration predates this table and uses one shared
-//    cap (4) for both the discard and the single-victim sacrifice leg. The K
-//    table records the DESIGNED bound per kind (discard 3, sacrifice 1); the
-//    implementation's shared 4 is a deliberate superset kept for #2297's
-//    Goblin-Chirurgeon behaviour, and the activation enumerator is documented
-//    as the implementation of the `activation:*` rows here rather than a
-//    second table.
 //
 //  - **The CASTER-CHOSEN `oneOf` additional-cost disjunction is not a park at
 //    all.** `additionalCostLegId` (CR 601.2b — Bitter Triumph's "discard a card
@@ -59,21 +56,20 @@
 
 import type { ParkKind } from "./owedPayment";
 
-/** K per park kind — how many variants the enumerator emits. `1` = the
- *  deterministic pick only (no variant multiplication). The `activation:` rows
- *  are realised by `gre/activationCostPicks.ts` (bounded by
- *  `MAX_VICTIM_VARIANTS`, a documented superset); the `cast:` rows by
- *  `gre/castCostPicks.ts` (all K=1, the deterministic plan). */
-export const PARK_VARIANT_K: Record<ParkKind, number> = {
+/** The CAST-side park kinds — the six parks a cast announcement can raise. */
+export type CastParkKind = Extract<ParkKind, `cast:${string}`>;
+
+/** K per CAST-side park kind — how many variants the enumerator emits. `1` =
+ *  the deterministic pick only (no variant multiplication). `gre/castCostPicks.ts`
+ *  is the implementation: `planCastCostPicks` returns the single deterministic
+ *  plan, never a list, which is what "K=1" means structurally. A
+ *  `Record<CastParkKind, number>` is a compile-time guard: a new `cast:*` park
+ *  cannot compile until it is assigned a K here. */
+export const PARK_VARIANT_K: Record<CastParkKind, number> = {
     "cast:sacrificeSelection": 1,
     "cast:additionalCost": 1,
     "cast:convokeCreatureChoice": 1,
     "cast:exileFromGraveyardChoice": 1,
     "cast:alternativeCostHandChoice": 1,
     "cast:manaSpendChoice": 1,
-    "activation:sacrificeSelection": 1,
-    "activation:exileFromGraveyardChoice": 1,
-    "activation:tapOtherChoice": 1,
-    "activation:discardFilterChoice": 3,
-    "activation:manaSpendChoice": 1,
 };

@@ -42,7 +42,6 @@ import {
 import { cheapestFirst, completeSacrificeSelection } from "./paymentPicks";
 import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
-import { liveSupertypesOf } from "./snow";
 import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
@@ -191,7 +190,11 @@ export function planCastCostPicks(
 
     if (exileFilter) {
         // CR 701.13 / 105.2 — the layered view, so a `colors` filter reads the
-        // effective colour (mirrors `buildAdditionalCostPicker` in game.ts).
+        // effective colour. Same matcher options the server's own
+        // `buildAdditionalCostPicker` and the live fallback
+        // (`paymentPicks.ts`'s `cast:additionalCost`) use — `selfControllerId`
+        // only, NO `supertypesOf` — so the search names exactly the victim they
+        // accept and the two can never diverge.
         const candidates = cheapestFirst(
             player.battlefield.filter((c) =>
                 matchesPermanentFilter(
@@ -199,7 +202,6 @@ export function planCastCostPicks(
                     exileFilter,
                     {
                         selfControllerId: player.id,
-                        supertypesOf: liveSupertypesOf,
                     }
                 )
             )

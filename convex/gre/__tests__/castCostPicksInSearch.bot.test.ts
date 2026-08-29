@@ -22,6 +22,7 @@ import { enumerateMoves, type Move } from "../moves";
 import { applyMoveInSearch } from "../search";
 import { applyMoveForSearch } from "../applyMove";
 import { cloneGameState } from "../clone";
+import { PARK_VARIANT_K } from "../parkKinds";
 import {
     makeInstance,
     makePlayer,
@@ -70,6 +71,15 @@ function castOf(state: GameState, cardInstanceId: string) {
 }
 
 describe("cast-side payment parks travel on the move (issue #2135)", () => {
+    it("the K table records K=1 for every cast-side park (the single authority)", () => {
+        // `PARK_VARIANT_K` is the documented K table (`gre/parkKinds.ts`); this
+        // asserts the cast side really is all-K=1, so a future cast park that
+        // earns a variant axis cannot ship with a table that forgot it.
+        const castKinds = Object.values(PARK_VARIANT_K);
+        expect(castKinds.length).toBe(6);
+        expect(castKinds.every((k) => k === 1)).toBe(true);
+    });
+
     it("Metamorphosis — the cast carries the cheapest sacrifice victim and both sandboxes charge it (CR 601.2f / 701.21)", () => {
         const state = makeState({
             players: [
