@@ -2544,7 +2544,7 @@ function findCard(state: GameState, id: string): CardInstanceState | undefined {
     return undefined;
 }
 
-/** CR 113.1b / 605.1a (issue #2903) — enumerate the activated abilities
+/** CR 113.1b / 605.3a (issue #2903) — enumerate the activated abilities
  *  granted to a PLAYER by effects (Channel's "Pay 1 life: Add {C}."), which
  *  hang off `PlayerState.grantedAbilities` rather than any permanent and are
  *  therefore invisible to `enumerateAbilityMoves`'s battlefield/graveyard scan.
@@ -2558,9 +2558,9 @@ function findCard(state: GameState, id: string): CardInstanceState | undefined {
  *  no other way to reach the search.
  *
  *  Timing: the enumerator only ever runs in the player's own priority window
- *  (`enumerateMoves` gates on `priorityPlayerId`), so CR 605.1a's priority
+ *  (`enumerateMoves` gates on `priorityPlayerId`), so CR 605.3a's priority
  *  requirement is already satisfied by construction; the "while paying a cost"
- *  window (CR 605.3b) is not a search decision node. Affordability mirrors the
+ *  window (CR 605.3a) is not a search decision node. Affordability mirrors the
  *  mutation's gates: a life cost is payable only with `life >= cost` (CR
  *  119.4), a tap/sacrifice cost is rejected (no source permanent), and a
  *  phase restriction (CR 602.5) is honoured. Conditional (`canActivate`) and
@@ -2588,6 +2588,11 @@ function enumerateGrantedAbilityMoves(
         // costs are not meaningful — the mutation rejects them, and offering
         // one would be a move the server then refuses (CR 113.1b).
         if (template.cost.tap || template.cost.sacrifice) continue;
+        // A player grant's MANA cost is paid from the pool (the mutation's
+        // `isManaCostCovered` path); the bot's move shape carries no pool
+        // payment for it and no shipped player grant has one, so fail CLOSED
+        // until one does (mirrors the tap/sacrifice and conditional skips).
+        if (template.cost.mana) continue;
         // CR 602.5 — phase-restricted templates are equally illegal when
         // activated via a player-scoped grant (mirrors the mutation).
         if (

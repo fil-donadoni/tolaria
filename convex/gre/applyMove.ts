@@ -1093,7 +1093,7 @@ export function applyMoveForSearch(
             return next;
 
         case "activate-granted-ability": {
-            // CR 113.1b / 605.1a (issue #2903) — a PLAYER-level granted ability
+            // CR 113.1b / 605.3a (issue #2903) — a PLAYER-level granted ability
             // (Channel's "Pay 1 life: Add {C}."). Pay the life and, for a mana
             // ability, credit the pool, mirroring `activatePlayerAbility`
             // (`convex/game.ts`). The greedy 1-ply selector has no live caller
@@ -1109,6 +1109,11 @@ export function applyMoveForSearch(
                   )?.activatedAbilities?.find((a) => a.id === move.abilityId)
                 : undefined;
             if (!template) return next;
+            // Fail-closed: a player grant's MANA cost is paid from the pool and
+            // no shipped player grant carries one (the enumerator skips such
+            // templates), so a hand-built move with one must not be credited
+            // free mana here.
+            if (template.cost.mana) return next;
             if (template.cost.life !== undefined) {
                 player.life -= template.cost.life;
             }

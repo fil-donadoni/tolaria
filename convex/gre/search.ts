@@ -1154,7 +1154,7 @@ export function applyMoveInSearch(
         }
 
         case "activate-granted-ability": {
-            // CR 113.1b / 605.1a (issue #2903) — activate a PLAYER-level granted
+            // CR 113.1b / 605.3a (issue #2903) — activate a PLAYER-level granted
             // ability (Channel's "Pay 1 life: Add {C}."), mirroring the
             // `activatePlayerAbility` mutation's payment+effect path so the tree
             // charges the cost AND credits the mana the same way live play does.
@@ -1169,6 +1169,11 @@ export function applyMoveInSearch(
                   )?.activatedAbilities?.find((a) => a.id === move.abilityId)
                 : undefined;
             if (!template || !grant) return;
+            // Fail-closed: a player grant's MANA cost is paid from the pool and
+            // no shipped player grant carries one (the enumerator skips such
+            // templates), so a hand-built move with one must not be credited
+            // free mana here.
+            if (template.cost.mana) return;
             // CR 119.4 — pay the life cost (the one leg the move's affordability
             // gate at enumeration time already vouched for; fail-closed backstop
             // for hand-built moves, mirroring `applyActivationCostsForSearch`).
@@ -1176,7 +1181,7 @@ export function applyMoveInSearch(
                 player.life -= template.cost.life;
             }
             if (!template.useStack) {
-                // CR 605.3c — a mana ability never uses the stack: resolve its
+                // CR 605.3b — a mana ability never uses the stack: resolve its
                 // effect immediately (add the mana) and keep priority with the
                 // actor, so the bot can chain activations or cast off the fresh
                 // pool. Mirrors the mutation's minimal `addMana`-only context.
