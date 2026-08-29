@@ -150,6 +150,19 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("convex/gre/ai/CLAUDE.md")).toBe("docs");
     });
 
+    /**
+     * `AGENTS.md` is the generated mirror of the same prose for Codex and
+     * opencode (`scripts/build-agents-md.ts`). It sits at the same paths and
+     * carries the same hazard: `src/AGENTS.md` matches `^src/`, so without the
+     * rule a regenerated-docs diff would enter the `skin` lane and owe a
+     * `check:ui` receipt.
+     */
+    it("a nested AGENTS.md is prose at any depth", () => {
+        expect(classifyPath("src/AGENTS.md")).toBe("docs");
+        expect(classifyPath("convex/AGENTS.md")).toBe("docs");
+        expect(classifyPath("AGENTS.md")).toBe("docs");
+    });
+
     it("the CLAUDE.md rule is the basename, not the directory", () => {
         // Anything else nested under the same directories keeps its own lane —
         // the pattern must not become a hole that promotes code or assets.

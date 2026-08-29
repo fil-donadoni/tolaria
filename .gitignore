@@ -54,3 +54,6 @@ data/oracle-corpus.json.gz
 # durable record of a batch is the merged PRs; these are the telemetry the
 # merge-train (#2185) and the scorecard (#2187) read while the run is alive.
 .claude/receipts/
+
+# opencode local permissions — machine-specific, and it leaks absolute paths
+.opencode/settings.local.json
