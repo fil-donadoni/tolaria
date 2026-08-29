@@ -11,13 +11,13 @@
 // K is HOW MANY variants the enumerator emits per park kind. It is per KIND,
 // not per card, and it is small and deliberate:
 //
-// | park kind                                   | K                  | why |
-// | ------------------------------------------- | ------------------ | --- |
-// | `activation:discardFilterChoice`            | 3                  | the pick IS the card — Survival of the Fittest is a tutor only if it chooses what to pitch |
+// | park kind                                   | K | why |
+// | ------------------------------------------- | - | --- |
+// | `activation:discardFilterChoice`            | 3 | the pick IS the card — Survival of the Fittest is a tutor only if it chooses what to pitch |
 // | `cast:sacrificeSelection` / `activation:sacrificeSelection` | 1 | lowest-mana-value victim is right nearly always |
-// | `activation:tapOtherChoice`                 | 1                  | crew — a covering set, identity barely matters |
+// | `activation:tapOtherChoice`                 | 1 | crew — a covering set, identity barely matters |
 // | `cast:exileFromGraveyardChoice` / `activation:exileFromGraveyardChoice` | 1 | Night Soil-shaped, fungible |
-// | `cast:additionalCost`                       | all payable legs   | the caster-chosen `oneOf` disjunction — see below |
+// | `cast:additionalCost`                       | 1 | the EXILE additional cost (Soul Exchange) — fungible victim |
 // | `cast:convokeCreatureChoice` / `cast:alternativeCostHandChoice` / `cast:manaSpendChoice` / `activation:manaSpendChoice` | 1 | fungible / deterministic |
 //
 // K=1 everywhere was considered and rejected (ADR 0091, alternatives): the whole
@@ -46,17 +46,16 @@
 //    as the implementation of the `activation:*` rows here rather than a
 //    second table.
 //
-//  - **`cast:additionalCost` = "all payable legs".** This row is NOT a numeric
-//    K and is not a park at all in the census sense: it is the CASTER-CHOSEN
-//    `oneOf` additional-cost disjunction (`additionalCostLegId`, CR 601.2b —
-//    "discard a card or pay 3 life"), already enumerated at full breadth by
-//    `moves.ts`'s `legVariants` via `payableAdditionalCostLegs` (`gre/
-//    additionalCost.ts`) and charged by `applyAdditionalCostLegForSearch`.
-//    The cast's EXILE additional cost (`additionalCosts.exileFilter`, Soul
-//    Exchange) IS the `cast:additionalCost` park, and it is K=1 in
-//    `castCostPicks.ts`. The row appears as "all payable legs" to record that
-//    the shipped breadth must not regress to 1 (issue #2135 triage, premise
-//    correction 2).
+//  - **The CASTER-CHOSEN `oneOf` additional-cost disjunction is not a park at
+//    all.** `additionalCostLegId` (CR 601.2b — Bitter Triumph's "discard a card
+//    or pay 3 life") is classified `non-park` in the census (`owedPayment.ts`):
+//    it is locked in at announcement, before the payment window opens. It is
+//    already enumerated at FULL breadth by `moves.ts`'s `legVariants` via
+//    `payableAdditionalCostLegs` (`gre/additionalCost.ts`) and charged by
+//    `applyAdditionalCostLegForSearch` — a separate axis of the cross-product,
+//    and this table does not regress it (issue #2135 triage, premise correction
+//    2). It is distinct from the `cast:additionalCost` PARK (the EXILE
+//    additional cost, Soul Exchange), which IS in this table at K=1.
 
 import type { ParkKind } from "./owedPayment";
 
@@ -78,9 +77,3 @@ export const PARK_VARIANT_K: Record<ParkKind, number> = {
     "activation:discardFilterChoice": 3,
     "activation:manaSpendChoice": 1,
 };
-
-/** The designed discard K (Survival of the Fittest — the pick IS the card).
- *  Exported so the activation-side enumerator reads the SAME number this table
- *  documents rather than a second constant. */
-export const DISCARD_FILTER_VARIANT_K =
-    PARK_VARIANT_K["activation:discardFilterChoice"];
