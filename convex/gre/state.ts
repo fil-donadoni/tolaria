@@ -10211,10 +10211,32 @@ export function exileWithAttachments(
          *  graveyard by the orphan-aura SBA (CR 704.5n) and its Equipment
          *  detaches and stays on the battlefield — neither is held or returned. */
         includeAttachments?: boolean;
+        /** CR 610.3a / 610.3b — an "until <event>" exile is a one-shot effect
+         *  whose RETURN half is a second one-shot created when that event
+         *  occurs. When the specified event has ALREADY occurred before the
+         *  initial effect would occur, "the object doesn't move" AT ALL: an
+         *  O-Ring destroyed in response to its own ETB trigger exiles nothing,
+         *  rather than exiling a card no return trigger can ever restore.
+         *
+         *  Set by the "until THIS leaves the battlefield" family alone (the
+         *  `exileWithAttachments` Op — Banishing Light, Leyline Binding,
+         *  Oblivion Ring, Tawnos's Coffin), whose expiry event IS the source's
+         *  departure. Palace Jailer (`exileUntilMonarchChanges`) leaves it
+         *  false on purpose: its specified event is a monarch change, so the
+         *  exile survives the Jailer's own death (CR 720). */
+        requireSourceOnBattlefield?: boolean;
     }
 ): string | null {
     const found = findOnBattlefield(state, targetId);
     if (!found) return null;
+    // CR 610.3b — the specified event (this source leaving the battlefield)
+    // has already happened, so the initial one-shot effect does nothing.
+    if (
+        opts.requireSourceOnBattlefield &&
+        !findOnBattlefield(state, opts.sourceId)
+    ) {
+        return null;
+    }
     const host = found.card;
     const hostOwnerId = host.ownerId;
     // CR 122 — note the counters that were on the creature.

@@ -3590,6 +3590,17 @@ export interface SpellContext {
              *  (CR 704.5n) and its Equipment detaches and stays on the
              *  battlefield. */
             includeAttachments?: boolean;
+            /** CR 610.3a / 610.3b — refuse the exile outright when `sourceId`
+             *  has ALREADY left the battlefield. An "until <event>" exile is a
+             *  one-shot effect whose return half is a second one-shot created
+             *  when that event occurs; if the event happened first, "the object
+             *  doesn't move" at all. Set by the "until THIS leaves the
+             *  battlefield" family (the `exileWithAttachments` Op — Banishing
+             *  Light, Leyline Binding, Oblivion Ring, Tawnos's Coffin), whose
+             *  expiry event IS the source's departure. Palace Jailer leaves it
+             *  false on purpose: its event is a monarch change, so its exile
+             *  survives the Jailer's own death (CR 720). */
+            requireSourceOnBattlefield?: boolean;
         }
     ) => string | null;
     /** CR 603.7a / ADR 0028 — return every exile-and-return bundle held by

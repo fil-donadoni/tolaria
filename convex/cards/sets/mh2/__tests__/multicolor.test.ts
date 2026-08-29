@@ -8,7 +8,13 @@
 // here gated by a 1-life cost (CR 117.3a).
 
 import { describe, it, expect } from "vitest";
-import { masterOfDeath } from "..";
+import { masterOfDeath, territorialKavu } from "..";
+import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import type { StackItem } from "../../../../gre/state";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -457,5 +463,212 @@ describe("Grist, the Hunger Tide — −5 (CR 118.2 life loss scaled to graveyar
         state.players[1].life = 20;
         activate(state, state.players[0].battlefield[0], MINUS5);
         expect(state.players[1].life).toBe(20);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Territorial Kavu — a Domain-defined P/T (CR 604.3 characteristic-defining
+// ability, CR 305.6 basic land types) plus the catalogue's first MODAL ATTACK
+// trigger (CR 603.3c / 700.2b). The generic modal-trigger rules are covered in
+// `gre/__tests__/modalTriggers.test.ts` and the `attacksTrigger` factory's own
+// `modes` passthrough in its unit test; what this block proves is the card:
+// that the CDA survives the public-state projection (a `staticEffects[]` card
+// owes a wire-format assertion — the projection strips fat fields, so a
+// GRE-only P/T test passes while the client renders the printed 0/0), and that
+// both announced modes actually fire.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Territorial Kavu (CR 604.3 Domain CDA; CR 603.3c modal attack trigger)", () => {
+    const BASICS = [plains, island, swamp, mountain, forest];
+
+    /** p1 controls the Kavu plus one land of each of the first `domain` basic
+     *  types — i.e. exactly Domain `domain` (CR 305.6). */
+    function kavuBoard(domain: number): GameState {
+        const kavu = makeInstance(territorialKavu.id, {
+            id: "kavu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands = BASICS.slice(0, domain).map((def, i) =>
+            makeInstance(def.id, {
+                id: `dom-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu, ...lands] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+    }
+
+    it.each([0, 1, 2, 3, 4, 5])(
+        "Domain %i → the Kavu is that big, and stays that big after the public-state projection",
+        (domain) => {
+            const state = kavuBoard(domain);
+            const kavu = state.players[0].battlefield[0];
+            expect(getEffectivePower(state, kavu)).toBe(domain);
+            expect(getEffectiveToughness(state, kavu)).toBe(domain);
+
+            // Wire format (mandatory for `staticEffects[]`): the same numbers
+            // must be re-derivable from the SLIM instance the client receives.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "kavu"
+            )!;
+            expect(getEffectivePower(projected, slim)).toBe(domain);
+            expect(getEffectiveToughness(projected, slim)).toBe(domain);
+        }
+    );
+
+    it("counts basic land TYPES, not lands — three Forests are a 1/1, not a 3/3 (CR 305.6)", () => {
+        const state = kavuBoard(0);
+        for (let i = 0; i < 3; i++) {
+            state.players[0].battlefield.push(
+                makeInstance(forest.id, {
+                    id: `forest-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const kavu = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, kavu)).toBe(1);
+        expect(getEffectiveToughness(state, kavu)).toBe(1);
+    });
+
+    /** Puts the attack trigger on the stack un-announced and runs the CR 603.3c
+     *  announcement sweep — what the engine does for a real declaration. */
+    function announceAttack(state: GameState) {
+        const kavu = state.players[0].battlefield.find((c) => c.id === "kavu")!;
+        const trig: StackItem = {
+            ...kavu,
+            id: "kavu-trig",
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "territorial-kavu-attacks",
+            triggerSourceId: kavu.id,
+            triggerEvent: {
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: "p1",
+                attackerIds: ["kavu"],
+            } as StackItem["triggerEvent"],
+            targets: undefined,
+        };
+        state.stack.push(trig);
+        const suspended = raiseTriggerTargetSelection(state);
+        return { trig, suspended };
+    }
+
+    /** Submits the head choice through the SAME entry point the
+     *  `submitResolutionChoice` mutation uses. */
+    function submitHeadChoice(state: GameState, pick: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [pick],
+        });
+    }
+
+    it("offers exactly two modes, announced BEFORE targets (CR 700.2b)", () => {
+        const state = kavuBoard(2);
+        const { suspended } = announceAttack(state);
+        // Both modes are always choosable — the loot mode targets nothing and
+        // "up to one target" is legal at zero targets — so the controller owes
+        // a real decision every combat.
+        expect(suspended).toBe(true);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("trigger-mode");
+        expect(head.options!.map((o) => o.id)).toEqual([
+            "loot",
+            "exile-from-graveyard",
+        ]);
+    });
+
+    it("loot mode discards then draws — the draw follows the discard, never precedes it", () => {
+        const state = kavuBoard(2);
+        const p1 = state.players[0];
+        p1.hand = [
+            makeInstance(grizzlyBears.id, {
+                id: "pitch",
+                zone: "hand",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        p1.library = [
+            makeInstance(grizzlyBears.id, {
+                id: "drawn",
+                zone: "library",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        announceAttack(state);
+        submitHeadChoice(state, "loot");
+        // The mode's own `choice` Op then asks WHICH card to pitch.
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the discard pick
+        submitHeadChoice(state, "pitch");
+
+        expect(p1.graveyard.map((c) => c.id)).toContain("pitch");
+        expect(p1.hand.map((c) => c.id)).toEqual(["drawn"]);
+    });
+
+    it('loot mode on an EMPTY hand discards nothing and therefore draws nothing ("if you do")', () => {
+        const state = kavuBoard(2);
+        const p1 = state.players[0];
+        p1.hand = [];
+        p1.library = [
+            makeInstance(grizzlyBears.id, {
+                id: "undrawn",
+                zone: "library",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        announceAttack(state);
+        submitHeadChoice(state, "loot");
+        expect(resolveTopOfStack(state)).not.toBeNull(); // no pick owed
+        expect(p1.hand).toHaveLength(0);
+        expect(p1.library.map((c) => c.id)).toEqual(["undrawn"]);
+    });
+
+    it("exile mode exiles the announced graveyard card (CR 400.7)", () => {
+        const state = kavuBoard(2);
+        state.players[1].graveyard = [
+            makeInstance(grizzlyBears.id, {
+                id: "gy-bear",
+                zone: "graveyard",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+        ];
+        const { trig } = announceAttack(state);
+        submitHeadChoice(state, "exile-from-graveyard");
+        // The chosen mode's own requirement is what constrains targets
+        // (CR 700.2c) — one legal graveyard card, so no further prompt.
+        raiseTriggerTargetSelection(state);
+        if (state.pendingTarget) {
+            state.pendingTarget.selected = [
+                { type: "graveyard-card", id: "gy-bear", playerId: "p2" },
+            ];
+            finalizeTargetSelection(
+                state,
+                state.pendingTarget,
+                state.pendingTarget.playerId
+            );
+        }
+        expect(trig.targets).toEqual([
+            { type: "graveyard-card", id: "gy-bear", playerId: "p2" },
+        ]);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["gy-bear"]);
     });
 });
