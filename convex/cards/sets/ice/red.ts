@@ -603,6 +603,21 @@ export const chaosLord: CardDefinition = {
                 "At the beginning of your upkeep, target opponent gains control of this creature if the number of permanents is even.",
             phase: "UPKEEP",
             scope: "your",
+            // CR 603.3d (issue #2801) — "target opponent" is a REAL target,
+            // announced as the trigger goes on the stack. The parity test is
+            // an INTERVENING-IF-shaped clause checked at RESOLUTION ("gains
+            // control … if the number of permanents is even"), so it stays in
+            // the body; the target does not. Scanning `allPlayerIds` for the
+            // opponent decided WHO without asking WHETHER they may be
+            // targeted, bypassing the single player-target legality gate
+            // (protection from everything / shroud, CR 702.16b / 702.18 via
+            // CR 115.4). With no legal opponent the trigger is removed from
+            // the stack and the Lord is never donated.
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             // NOT DSL-migratable (ADR 0045): the control hand-off is gated on a
             // RUNTIME parity read — "if the number of [all] permanents is even"
             // (a count of every permanent on the battlefield, CR 700). The
@@ -617,13 +632,12 @@ export const chaosLord: CardDefinition = {
                     total += ctx.getBattlefieldIds(pid).length;
                 }
                 if (total % 2 !== 0) return;
-                const opponent = ctx.allPlayerIds.find(
-                    (pid) => pid !== ctx.controller
-                );
-                if (!opponent) return;
+                // CR 608.2b — the announced target may be gone by resolution.
+                const target = ctx.targets[0];
+                if (target?.type !== "player") return;
                 ctx.gainControl(
                     { type: "permanent", id: ctx.sourceInstanceId },
-                    opponent
+                    target.id
                 );
             },
         }),

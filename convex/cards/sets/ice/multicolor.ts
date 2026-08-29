@@ -552,11 +552,23 @@ export const essenceVortex: CardDefinition = {
 // (CR 601.2d / 120.4 divide as you choose.) The "5 damage divided" group is the
 // card's `targetRequirement` (any target, divide total 5). The "target opponent
 // gains 5 life" is a SECOND target group the single-`targetRequirement` engine
-// can't model independently; in a 2-player game "an opponent" is unambiguous
-// (the one opponent), so the lifegain auto-resolves to that opponent at
-// resolution — a zero-branch choice (Arena-UX auto-resolve), expressed as a
-// `gainLife` Op with `player: "opponent"`. DSL-first (ADR 0045): the divided
-// damage is the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4).
+// can't model independently. "Target opponent" is a REAL, SECOND target group
+// (CR 601.2c): the damage targets are slot 0..N-1, the opponent is its own
+// `additionalTargetRequirements` entry. It used to ride a relative
+// `player: "opponent"` `EffectPlayerRef` on the grounds that a 2-player game
+// has exactly one opponent — sound for IDENTITY, wrong for LEGALITY: only a
+// declared `targetRequirement` reaches the single player-target legality gate,
+// so protection from everything and shroud were ignored (CR 702.16b / 702.18
+// via CR 115.4, issue #2801). DSL-first (ADR 0045): the divided damage is the
+// `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4).
+//
+// SLOT ORDER: the damage group has a VARIABLE count (`{ min: 1 }`), so the
+// opponent's flat index is not statically knowable — `{ target: N }` cannot
+// address it. `gainLife` therefore reads the relative
+// `{ opponentOf: "controller" }` ref, which resolves to the SAME seat the
+// announcement gated: the target group's `controller: "opponent"` filter is
+// what makes the choice legal, and in this engine's 2-player scope
+// (CLAUDE.md § Out of Scope) there is exactly one seat that satisfies it.
 export const fieryJustice: CardDefinition = {
     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
     name: "Fiery Justice",
@@ -570,9 +582,12 @@ export const fieryJustice: CardDefinition = {
         count: { min: 1 },
         divideAsChosen: { total: 5 },
     },
+    additionalTargetRequirements: [
+        { type: "player", count: 1, controller: "opponent" },
+    ],
     effects: [
         { op: "dealDamageDividedAsChosen", total: 5 },
-        { op: "gainLife", player: "opponent", amount: 5 },
+        { op: "gainLife", player: { opponentOf: "controller" }, amount: 5 },
     ],
 };
 // Fire Covenant — {1}{B}{R} Instant. "As an additional cost to cast this spell,

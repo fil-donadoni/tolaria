@@ -87,10 +87,18 @@ export const reconstruction: CardDefinition = {
 // Drafna's Restoration — {U} Sorcery. "Put any number of target artifact cards
 // from target player's graveyard on top of their library in any order."
 // (CR 601.2c variable target count, CR 400.7 zone change, CR 401 library
-// order.) Targets one-or-more artifact graveyard cards (the engine's graveyard
-// target branch already scopes to one player per card, and Antiquities' oracle
-// reads "from a single graveyard"; `controller: "any"` lets the caster recur
-// from any player's bin).
+// order.) TWO target groups: the PLAYER whose graveyard is raided, and
+// one-or-more artifact cards in it.
+//
+// The PLAYER is announced FIRST (slot 0) even though the oracle names the
+// cards first. CR 601.2c chooses all of a spell's targets as one announcement
+// step, so their prompt ORDER is a UX choice, and player-first is the one that
+// scopes the card picks. It is also what makes "target player" a REAL target:
+// only a declared `targetRequirement` reaches the single player-target
+// legality gate, so a player with protection from everything or shroud is not
+// a legal choice (CR 702.16b / 702.18 via CR 115.4, issue #2801). No
+// `controller` restriction — the oracle says "target player", so either seat
+// is legal.
 //
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since
@@ -106,12 +114,15 @@ export const drafnasRestoration: CardDefinition = {
         "Put any number of target artifact cards from target player's graveyard on top of their library in any order.",
     manaCost: { U: 1 },
     types: ["Sorcery"],
-    targetRequirement: {
-        type: "Artifact",
-        count: { min: 1 },
-        zone: "graveyard",
-        controller: "any",
-    },
+    targetRequirement: { type: "player", count: 1 },
+    additionalTargetRequirements: [
+        {
+            type: "Artifact",
+            count: { min: 1 },
+            zone: "graveyard",
+            controller: "any",
+        },
+    ],
     // NOT DSL-migratable (ADR 0045): "on top in any order" is a
     // reorder-FROM-choice — the player's `reorder-library` pick order must
     // feed back into a subsequent `reorderLibraryTop` call, which the Effect
@@ -128,14 +139,21 @@ export const drafnasRestoration: CardDefinition = {
     // protocol — worth an issue if/when that construct ships.
     resolveSteps: [
         (ctx: SpellContext) => {
+            // Slot 0 is the announced player (CR 601.2c); the remaining slots
+            // are the artifact cards. CR 608.2b — a slot that is no longer
+            // legal at resolution is simply skipped.
+            const playerTarget = ctx.targets[0];
+            if (playerTarget?.type !== "player") return;
+            const ownerId = playerTarget.id;
             const targets = ctx.targets.filter(
                 (t) => t.type === "graveyard-card" && t.playerId
             );
             if (targets.length === 0) return;
-            // All targeted cards come from a single graveyard (one owner).
-            const ownerId = targets[0].playerId!;
             const movedIds: string[] = [];
             for (const t of targets) {
+                // "from TARGET PLAYER's graveyard" — a card announced from
+                // any other bin is not what this spell targets, so it moves
+                // nothing (CR 608.2b).
                 if (t.playerId !== ownerId) continue;
                 ctx.moveCardById(ownerId, t.id, "graveyard", "library");
                 movedIds.push(t.id);

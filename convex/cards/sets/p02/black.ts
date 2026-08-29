@@ -4,10 +4,13 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 // Ravenous Rats — {1}{B} 1/1. "When this creature enters, target opponent
-// discards a card." (CR 603.6a ETB, CR 701.9 discard.) "Target opponent" in
-// a 2-player game is a relative `EffectPlayerRef`, so no `choice-as-target`
-// substitute is needed at all — `player: "opponent"` addresses it directly
-// (the discarding player also chooses which card, CR 701.9a default).
+// discards a card." (CR 603.6a ETB, CR 701.9 discard.) "Target opponent" is a
+// REAL target announced as the trigger goes on the stack (CR 603.3d), not a
+// relative `EffectPlayerRef`: only a declared `targetRequirement` reaches the
+// single player-target legality gate, so `player: "opponent"` silently ignored
+// protection from everything and shroud (CR 702.16b / 702.18 via CR 115.4,
+// issue #2801). The body reads the announced slot (`{ target: 0 }`); the
+// discarding player still chooses which card (CR 701.9a default).
 //
 // Home set = earliest paper printing (ADR 0041) = Portal Second Age; it was first
 // implemented against the INV reprint, which filed it under the
@@ -31,11 +34,16 @@ export const ravenousRats: CardDefinition = {
             oracleText:
                 "When this creature enters, target opponent discards a card.",
             scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: [
                 {
                     op: "choice",
                     kind: "discard-hand",
-                    player: "opponent",
+                    player: { target: 0 },
                     zone: "hand",
                     count: 1,
                     prompt: "Discard a card.",
@@ -43,7 +51,7 @@ export const ravenousRats: CardDefinition = {
                 },
                 {
                     op: "discard",
-                    player: "opponent",
+                    player: { target: 0 },
                     cards: { ref: "$picked" },
                 },
             ],

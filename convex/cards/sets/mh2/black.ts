@@ -7,11 +7,13 @@ import { evokeTrigger } from "../../abilities/evoke";
 // FREE: edict/discard/hand-disruption, issue #682). "Flying. Whenever this
 // creature enters or attacks, target opponent sacrifices a creature or
 // planeswalker of their choice, discards a card, and loses 3 life. You draw
-// a card and gain 3 life." `TriggeredAbility` carries no `targetRequirement`
-// (only `CardDefinition`/`ActivatedAbility` do, ADR 0002 precedent), so
-// "target opponent" resolves directly through the `"opponent"`
-// `EffectPlayerRef` (CR 102.2) — deterministic in this engine's 2-player-only
-// scope (no real choice needed to identify who "the opponent" is). Two
+// a card and gain 3 life." "Target opponent" is a REAL target, announced as
+// the trigger goes on the stack (CR 603.3d) through `TriggeredAbility`'s own
+// `targetRequirement` — the field ADR 0002 once omitted and issue #1193
+// restored. The old `"opponent"` `EffectPlayerRef` shortcut identified WHO the
+// opponent is without ever asking WHETHER they may be targeted, so it bypassed
+// the single player-target legality gate and ignored protection from
+// everything and shroud (CR 702.16b / 702.18 via CR 115.4, issue #2801). Two
 // `TriggeredAbility` entries (enters / attacks) share the identical effect
 // list: `choice(sacrifice-permanents)` + `sacrifice` for the
 // creature-or-planeswalker pick, `choice(discard-hand)` + `discard` for the
@@ -21,7 +23,7 @@ const archonOfCrueltyTriggerEffects: EffectOp[] = [
     {
         op: "choice",
         kind: "sacrifice-permanents",
-        player: "opponent",
+        player: { target: 0 },
         zone: "battlefield",
         filter: { type: ["Creature", "Planeswalker"] },
         count: 1,
@@ -32,14 +34,14 @@ const archonOfCrueltyTriggerEffects: EffectOp[] = [
     {
         op: "choice",
         kind: "discard-hand",
-        player: "opponent",
+        player: { target: 0 },
         zone: "hand",
         count: 1,
         prompt: "Discard a card.",
         bind: "$disc",
     },
-    { op: "discard", player: "opponent", cards: { ref: "$disc" } },
-    { op: "loseLife", player: "opponent", amount: 3 },
+    { op: "discard", player: { target: 0 }, cards: { ref: "$disc" } },
+    { op: "loseLife", player: { target: 0 }, amount: 3 },
     { op: "draw", player: "controller", count: 1 },
     { op: "gainLife", player: "controller", amount: 3 },
 ];
@@ -65,6 +67,11 @@ export const archonOfCruelty: CardDefinition = {
             matches: (event, self) =>
                 event.type === "PERMANENT_ENTERED" &&
                 event.instanceId === self.id,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: archonOfCrueltyTriggerEffects,
         },
         {
@@ -75,6 +82,11 @@ export const archonOfCruelty: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: archonOfCrueltyTriggerEffects,
         },
     ],
@@ -86,28 +98,31 @@ export const archonOfCruelty: CardDefinition = {
 // nonland card from it. That player discards that card. Evoke—Exile a black
 // card from your hand." CR 702.74 Evoke: the alt cast is a pure HAND leg
 // (`evoke`, reusing `AlternativeCost`'s `handCost` shape), the sacrifice-on-
-// ETB half is `evokeTrigger`. "Target opponent" is deterministic in this
-// engine's 2-player-only scope — no target selection needed (Archon of
-// Cruelty above is the precedent: `player: "opponent"` directly). The ETB
+// ETB half is `evokeTrigger`. "Target opponent" is a REAL target announced as
+// the trigger goes on the stack (CR 603.3d), NOT a relative
+// `EffectPlayerRef`: only a declared `targetRequirement` reaches the single
+// player-target legality gate, so the old `player: "opponent"` shortcut
+// silently ignored protection from everything and shroud (CR 702.16b /
+// 702.18 via CR 115.4, issue #2801). The ETB
 // effect is the canonical Thoughtseize/Duress template (`reveal` + `choice
 // (choose-hand-card)` with `zoneOwnerId` — lrw/black.ts): reveal the
 // opponent's hand, the CONTROLLER picks a nonland card from it, that card is
 // discarded. DSL-first (ADR 0045) — every Op here is already exercised by
 // Thoughtseize, so no hand-written GRE/wire test is required (per-Op regime).
 const griefTriggerEffects: EffectOp[] = [
-    { op: "reveal", player: "opponent", zone: "hand" },
+    { op: "reveal", player: { target: 0 }, zone: "hand" },
     {
         op: "choice",
         kind: "choose-hand-card",
         player: "controller",
-        zoneOwnerId: "opponent",
+        zoneOwnerId: { target: 0 },
         zone: "hand",
         filter: { excludeType: "Land" },
         count: 1,
         prompt: "Choose a nonland card from your opponent's hand.",
         bind: "$picked",
     },
-    { op: "discard", player: "opponent", cards: { ref: "$picked" } },
+    { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
 ];
 
 export const grief: CardDefinition = {
@@ -136,6 +151,11 @@ export const grief: CardDefinition = {
             oracleText:
                 "When this creature enters, target opponent reveals their hand. You choose a nonland card from it. That player discards that card.",
             scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: griefTriggerEffects,
         }),
         evokeTrigger("Grief"),

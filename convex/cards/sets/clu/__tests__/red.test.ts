@@ -8,7 +8,12 @@ import { forest, mountain } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPlayLandFromExile } from "../../../../gre/playLand";
-import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
+import {
+    getLegalActions,
+    assertLegalAction,
+    raiseTriggerTargetSelection,
+} from "../../../../gre/rules";
+import { applyRaisedTargetFinalization } from "../../../../gre/pendingTargetOrigin";
 import { finalizeCleanup } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -30,7 +35,13 @@ function pushTrigger(
     state: GameState,
     scarlett: ReturnType<typeof makeInstance>,
     triggeredAbilityId: string,
-    triggerEvent: StackItem["triggerEvent"]
+    triggerEvent: StackItem["triggerEvent"],
+    /** The player to announce for a TARGETED trigger (CR 603.3d). The ETB is
+     *  "creatures TARGET PLAYER controls can't block" (issue #2801) — with two
+     *  legal candidates the engine raises a real `kind: "trigger"`
+     *  PendingTarget, which this helper answers through the SAME finalization
+     *  the mutation uses. Omit for the untargeted upkeep trigger. */
+    announceTargetPlayerId?: string
 ) {
     state.stack.push({
         ...scarlett,
@@ -39,8 +50,19 @@ function pushTrigger(
         triggeredAbilityId,
         triggerSourceId: scarlett.id,
         triggerEvent,
-        targets: [],
+        targets: undefined,
     });
+    const suspended = raiseTriggerTargetSelection(state);
+    if (announceTargetPlayerId !== undefined) {
+        expect(suspended).toBe(true);
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        expect(pt.playerId).toBe("p1");
+        pt.selected = [{ type: "player", id: announceTargetPlayerId }];
+        applyRaisedTargetFinalization(state, pt);
+    } else {
+        expect(suspended).toBe(false);
+    }
     resolveTopOfStack(state);
 }
 
@@ -71,7 +93,8 @@ describe("Headliner Scarlett (CR 603.6a ETB block-lock + CR 603.6a upkeep impuls
             state,
             scarlett,
             "headliner-scarlett-etb",
-            etbEvent("scarlett")
+            etbEvent("scarlett"),
+            "p2"
         );
         expect(blocker1.cantBlockThisTurn).toBe(true);
         expect(blocker2.cantBlockThisTurn).toBe(true);

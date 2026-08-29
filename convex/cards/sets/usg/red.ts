@@ -46,12 +46,17 @@ export const goblinPatrol: CardDefinition = {
 //     side of a confirmed pair — the blocker (it "blocks") or the attacker (it
 //     "becomes blocked"). Same pair-matching convention as combatPairKill /
 //     Cockatrice / Thicket Basilisk (event.attackerId | event.blockerId).
+//   - Target (CR 603.3d): "target opponent" is announced as the trigger goes
+//     on the stack, through the ability's own `targetRequirement`. It used to
+//     ride the relative `controller: "opponent"` selector on the grounds that a
+//     2-player game has exactly one opponent — sound for IDENTITY, wrong for
+//     LEGALITY: only a declared requirement reaches the single player-target
+//     gate, so protection from everything and shroud were ignored (CR 702.16b /
+//     702.18 via CR 115.4, issue #2801). With no legal target the trigger is
+//     removed from the stack and the donation never happens.
 //   - Effect (CR 613.1b, layer-2 control change): the shipped `gainControl` Op
-//     donates the source to the opponent INDEFINITELY (no `duration` — the
-//     Ghazbán Ogre / Wishclaw Talisman shape that never reverts). Modelled with
-//     `controller: "opponent"`: in this strictly 2-player/solo engine "target
-//     opponent" has exactly one legal target, so the non-targeted selector is
-//     behaviourally identical (TriggeredAbility carries no targetRequirement).
+//     donates the source to the announced target INDEFINITELY (no `duration` —
+//     the Ghazbán Ogre / Wishclaw Talisman shape that never reverts).
 //   - The reminder text is CR 506.4c: the control change removes the creature
 //     from combat, handled generically in `applyControlChange`.
 export const goblinCadets: CardDefinition = {
@@ -74,11 +79,16 @@ export const goblinCadets: CardDefinition = {
             matches: (event, self) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 (event.attackerId === self.id || event.blockerId === self.id),
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
             effects: [
                 {
                     op: "gainControl",
                     target: { ref: "$source" },
-                    controller: "opponent",
+                    controller: { target: 0 },
                 },
             ],
         },
