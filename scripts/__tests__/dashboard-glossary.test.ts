@@ -1,10 +1,8 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { Window } from "happy-dom";
 import { CLAIM_STAGES, LOOP_VERDICT_STATES } from "../lib/loop-status";
 import { CLAIM_VERDICT_STATES } from "../loop-doctor";
+import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
 // @ts-expect-error — browser ES modules with no type declarations; the
 // dashboard is deliberately plain JS with no build step (#2625). `glossary.js`
 // is pure data + one lookup, so the `node` vitest project imports and CALLS it
@@ -50,18 +48,9 @@ import { timelineHtml } from "../dashboard/now-timeline.js";
  * the string "Escape" appears in `tooltip.js` would be satisfied by a comment.
  */
 
-/**
- * `telemetry-serve.ts` resolves `DB_PATH` from `CLAUDE_PROJECT_DIR ?? cwd()`
- * AT IMPORT TIME and reaches for `bun:sqlite` when a store exists there — the
- * primary checkout has one, and this suite runs under Node. Pinning the var to
- * an empty temp dir before the module's first import removes the dependency on
- * the machine's ambient state entirely. Same reasoning, same shape as
- * `telemetry-serve.test.ts`; top-level rather than in a `beforeAll` because
- * module top-level code runs once, at the first `import()`.
- */
-const testProjectDir = mkdtempSync(join(tmpdir(), "dashboard-glossary-test-"));
-const prevProjectDir = process.env.CLAUDE_PROJECT_DIR;
-process.env.CLAUDE_PROJECT_DIR = testProjectDir;
+// See pin-empty-project-dir.ts — top-level, not a `beforeAll`, because
+// module top-level code runs once, at this file's first import.
+const restoreProjectDir = pinEmptyProjectDir("dashboard-glossary-test");
 
 /**
  * The `node` vitest project runs with `isolate: false`, so anything installed
@@ -81,9 +70,7 @@ const g = globalThis as any;
 afterAll(() => {
     resetTooltipEngine();
     for (const key of INSTALLED_GLOBALS) delete g[key];
-    if (prevProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
-    else process.env.CLAUDE_PROJECT_DIR = prevProjectDir;
-    rmSync(testProjectDir, { recursive: true, force: true });
+    restoreProjectDir();
 });
 
 /** A fresh page per test: the engine latches its listeners and its `#tip`

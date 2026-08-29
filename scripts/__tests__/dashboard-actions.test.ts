@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, afterAll } from "vitest";
 import { Window } from "happy-dom";
 // @ts-expect-error — a browser ES module with no type declarations; plain JS
 // on purpose (no build step on the dashboard, #2625). Neither module touches
@@ -11,6 +11,16 @@ import {
     actionDialogOpen,
     resetActions,
 } from "../dashboard/actions.js";
+import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
+
+// One test below does `await import("../telemetry-serve")` — see
+// pin-empty-project-dir.ts. Top-level, not a `beforeAll`: module top-level
+// code runs once, at that file's first import, which can happen inside any
+// `it` body, so the pin must already be in place before the FIRST test runs.
+const restoreProjectDir = pinEmptyProjectDir("dashboard-actions-test");
+afterAll(() => {
+    restoreProjectDir();
+});
 
 /**
  * Action buttons and their confirmation dialog (#2636) — the verdict band's

@@ -14,7 +14,15 @@
  *   llm   — one row per assistant message (the only place token usage lives)
  */
 
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
+import { createRequire } from "node:module";
+
+// `bun:sqlite` is a Bun-only builtin with no Node equivalent. A type-only
+// import keeps this module (and its pure pricing/classification helpers)
+// importable under the Node vitest project; the runtime value is loaded lazily
+// inside `openDb`, the only place that actually constructs a database — the
+// same pattern `telemetry-serve.ts` uses.
+const require = createRequire(import.meta.url);
 
 export const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -24,6 +32,7 @@ PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS spans (
     id          TEXT PRIMARY KEY,
     session     TEXT NOT NULL,
+    harness     TEXT NOT NULL DEFAULT 'claude-code',
     ts          INTEGER NOT NULL,      -- epoch seconds (pre event)
     day         TEXT NOT NULL,         -- YYYY-MM-DD, local
     hour        INTEGER NOT NULL,      -- 0-23, local
@@ -47,6 +56,7 @@ CREATE INDEX IF NOT EXISTS spans_session ON spans(session);
 CREATE TABLE IF NOT EXISTS llm (
     uuid        TEXT PRIMARY KEY,
     session     TEXT NOT NULL,
+    harness     TEXT NOT NULL DEFAULT 'claude-code',
     agent_id    TEXT,                  -- null for main-thread messages
     ts          INTEGER NOT NULL,
     day         TEXT NOT NULL,
@@ -80,6 +90,7 @@ CREATE INDEX IF NOT EXISTS llm_agent ON llm(agent_id);
 CREATE TABLE IF NOT EXISTS agent_runs (
     agent_id    TEXT PRIMARY KEY,
     session     TEXT,
+    harness     TEXT NOT NULL DEFAULT 'claude-code',
     started     INTEGER NOT NULL,
     day         TEXT NOT NULL,
     hour        INTEGER NOT NULL,
@@ -115,6 +126,7 @@ CREATE TABLE IF NOT EXISTS agent_meta (
 -- query time, not stored.
 CREATE TABLE IF NOT EXISTS sessions (
     session TEXT PRIMARY KEY,
+    harness TEXT NOT NULL DEFAULT 'claude-code',
     title   TEXT,                      -- user-visible session title ("Emrakul")
     cmd     TEXT,                      -- first slash-command prompt seen
     prs     TEXT                       -- JSON array of distinct PR numbers
@@ -142,10 +154,27 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 `;
 
 /**
- * USD per million tokens, base input / output. Cache reads bill at ~0.1x input,
- * cache writes at 1.25x (5-minute TTL, the default).
+ * USD per million tokens, base input / output, plus optional per-model cache
+ * multipliers. Claude models fall back to the global defaults (cache reads at
+ * ~0.1x input, cache writes at 1.25x — the 5-minute TTL default); DeepSeek
+ * overrides them because its context-caching bills differently (cache miss =
+ * full input price, cache hit ~3% of input).
+ *
+ * DeepSeek prices are the OFF-PEAK rates from the official pricing page
+ * (https://api-docs.deepseek.com/quick_start/pricing), off-peak being the
+ * majority of the clock: peak (01:00-04:00 / 06:00-10:00 UTC, Mon-Fri) is 2x.
+ * $/1M tokens.
  */
-const PRICES: Record<string, { in: number; out: number }> = {
+type ModelPrice = {
+    in: number;
+    out: number;
+    /** cache-read multiplier vs input; default CACHE_READ_MULT */
+    cacheReadMult?: number;
+    /** cache-write multiplier vs input; default CACHE_WRITE_MULT */
+    cacheWriteMult?: number;
+};
+
+const PRICES: Record<string, ModelPrice> = {
     "claude-fable-5": { in: 10, out: 50 },
     "claude-mythos-5": { in: 10, out: 50 },
     "claude-opus-5": { in: 5, out: 25 },
@@ -157,6 +186,25 @@ const PRICES: Record<string, { in: number; out: number }> = {
     "claude-sonnet-4-6": { in: 3, out: 15 },
     "claude-sonnet-4-5": { in: 3, out: 15 },
     "claude-haiku-4-5": { in: 1, out: 5 },
+    // DeepSeek (off-peak): input = cache-miss rate, output = full rate.
+    "deepseek-v4-pro": {
+        in: 0.66,
+        out: 1.98,
+        cacheReadMult: 0.022 / 0.66,
+        cacheWriteMult: 1,
+    },
+    "deepseek-v4-flash": {
+        in: 0.22,
+        out: 0.66,
+        cacheReadMult: 0.007 / 0.22,
+        cacheWriteMult: 1,
+    },
+    "deepseek-v4-flash-vision-exp": {
+        in: 0.22,
+        out: 0.66,
+        cacheReadMult: 0.007 / 0.22,
+        cacheWriteMult: 1,
+    },
 };
 
 const CACHE_READ_MULT = 0.1;
@@ -188,11 +236,13 @@ export function costOf(
     const p = PRICES[normalizeModel(model)];
     if (!p) return 0;
     const M = 1_000_000;
+    const readMult = p.cacheReadMult ?? CACHE_READ_MULT;
+    const writeMult = p.cacheWriteMult ?? CACHE_WRITE_MULT;
     return (
         (inTok * p.in +
             outTok * p.out +
-            cacheRead * p.in * CACHE_READ_MULT +
-            cacheWrite * p.in * CACHE_WRITE_MULT) /
+            cacheRead * p.in * readMult +
+            cacheWrite * p.in * writeMult) /
         M
     );
 }
@@ -284,13 +334,19 @@ export function bucketCmd(cmd: string | null): string | null {
 }
 
 export function openDb(path: string): Database {
-    const db = new Database(path, { create: true });
+    const { Database: SqliteDb } =
+        require("bun:sqlite") as typeof import("bun:sqlite");
+    const db = new SqliteDb(path, { create: true });
     db.exec(SCHEMA);
     // CREATE TABLE IF NOT EXISTS never widens an existing table — bring an
     // older DB up to the current agent_runs shape (idempotent, cheap).
     for (const ddl of [
         "ALTER TABLE agent_runs ADD COLUMN parent_agent_id TEXT",
         "ALTER TABLE agent_runs ADD COLUMN issue INTEGER",
+        "ALTER TABLE spans ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
+        "ALTER TABLE llm ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
+        "ALTER TABLE agent_runs ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
+        "ALTER TABLE sessions ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
     ]) {
         try {
             db.exec(ddl);

@@ -1,4 +1,14 @@
 {
     "$schema": "https://opencode.ai/config.json",
-    "instructions": ["convex/CLAUDE.md", "src/CLAUDE.md"]
+    "instructions": ["convex/CLAUDE.md", "src/CLAUDE.md"],
+    "agent": {
+        "reviewer": {
+            "description": "Review a PR or issue diff against the repo's standards and the originating spec, then report findings. Read-only: fixes happen in the parent session. This is the /next-issue reviewer; its model is pinned to the pro tier — re-tier here by editing 'model'.",
+            "mode": "subagent",
+            "model": "deepseek/deepseek-v4-pro",
+            "permission": {
+                "edit": "deny"
+            }
+        }
+    }
 }
