@@ -92,8 +92,9 @@ export const reconstruction: CardDefinition = {
 // reads "from a single graveyard"; `controller: "any"` lets the caster recur
 // from any player's bin).
 //
-// DIVERGENCE — the oracle's "target PLAYER's graveyard" is a second target in
-// its own right, and it is NOT declared here, so a player with protection from
+// DIVERGENCE (tracked-by: #2912) — the oracle's "target PLAYER's graveyard" is
+// a second target in its own right, and it is NOT declared here, so a player
+// with protection from
 // everything (CR 702.16b)
 // or with shroud (CR 702.18) is not screened out (issue #2801). Declaring it
 // as an independent `additionalTargetRequirements` group is NOT the fix: the
@@ -104,7 +105,7 @@ export const reconstruction: CardDefinition = {
 // card is in target N's graveyard"); the only relational filter that exists
 // today is `sameController`, which is permanent-only. Until then the owner
 // stays DERIVED from the announced cards, which keeps the two picks consistent
-// by construction. tracked-by: #2912
+// by construction.
 //
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since

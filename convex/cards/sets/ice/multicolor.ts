@@ -558,7 +558,8 @@ export const essenceVortex: CardDefinition = {
 // `gainLife` Op with `player: "opponent"`. DSL-first (ADR 0045): the divided
 // damage is the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4).
 //
-// DIVERGENCE — "target opponent" is NOT a declared target here, so a player
+// DIVERGENCE (tracked-by: #2910) — "target opponent" is NOT a declared target
+// here, so a player
 // with protection from everything (CR 702.16b)
 // or with shroud (CR 702.18) is not screened out, unlike every other
 // player-target card (issue #2801). Declaring it as a second target group is
@@ -571,7 +572,6 @@ export const essenceVortex: CardDefinition = {
 // split and mis-assigns the 5 damage. Fixing that means scoping the divide
 // budget to its own group across three shared sites used by every divide card
 // (Fury, Arc Lightning), which is a bigger change than this card.
-// tracked-by: #2910
 export const fieryJustice: CardDefinition = {
     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
     name: "Fiery Justice",
