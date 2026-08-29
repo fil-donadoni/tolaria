@@ -9,6 +9,7 @@ import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEditableTarget } from "~/lib/editable-target";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
+import { effectivePower } from "~/lib/effective-stats";
 import {
     computeHasPriority,
     isAssigningDamage as isAssigningDamageFn,
@@ -84,6 +85,7 @@ export function useControllerActions(): ControllerState {
         combat,
         pendingExtraCleanupStep,
         allPlayers,
+        emblems,
     } = useGameContext();
 
     const cancelCast = useMutation(api.game.cancelCast);
@@ -239,7 +241,11 @@ export function useControllerActions(): ControllerState {
 
     // Every multi-target source THIS player is responsible for (CR 702.22j-k
     // can split authority between attacker and defender) must have its full
-    // power assigned before the player can confirm.
+    // power assigned before the player can confirm. Budget is the source's
+    // EFFECTIVE power (CR 613.4c, CR 510.1a) — the same value the server's
+    // `setDamageAssignment` validator and the `DamageAssignmentPanel` modal
+    // already use; reading the raw `power` field here deadlocked the button
+    // for any buffed multi-blocked attacker (#2873).
     const allDamageAssigned = useMemo(() => {
         if (!isAssigningDamage || !combat) return false;
         const assigners = combat.damageAssignerIds ?? {};
@@ -249,14 +255,17 @@ export function useControllerActions(): ControllerState {
                 .flatMap((p) => p.battlefield)
                 .find((c) => c.id === sourceId);
             if (!source) continue;
-            const power = Math.max(0, source.power ?? 0);
+            const power = Math.max(
+                0,
+                effectivePower(allPlayers, source, emblems)
+            );
             const total = Object.values(
                 combat.damageAssignments?.[sourceId] ?? {}
             ).reduce((s, n) => s + n, 0);
             if (total !== power) return false;
         }
         return true;
-    }, [isAssigningDamage, combat, allPlayers, playerId]);
+    }, [isAssigningDamage, combat, allPlayers, emblems, playerId]);
 
     const handlePass = useCallback(async () => {
         if (isBusy || !hasPriority || isAutoPass) return;
