@@ -102,20 +102,18 @@ describe("Survival of the Fittest — the search chooses the discard (issue #213
         );
         expect(activations).toHaveLength(2);
 
-        // Pitching the Bears (keeping the Craw Wurm) is the strictly-better
-        // line: the tutor finds the best creature regardless, so the pitch that
-        // loses less material is the correct one.
+        // The enumeration is cheapest-first, so `pitchBears` is `activations[0]`
+        // and `pitchWurm` is `activations[1]`. The reward is assigned the OPPOSITE
+        // way on purpose: the better-rewarded variant sits SECOND, so a
+        // `selectRootMove` that returned `moves[0]` (or the first edge) would
+        // fail — this pins "chosen by reward", not "chosen by order".
         const [pitchBears, pitchWurm] = activations;
         const root = rootOf([
-            { move: pitchBears, meanReward: 0.71, meanMargin: 300 },
-            { move: pitchWurm, meanReward: 0.6, meanMargin: 200 },
+            { move: pitchBears, meanReward: 0.6, meanMargin: 200 },
+            { move: pitchWurm, meanReward: 0.71, meanMargin: 300 },
         ]);
 
         const chosen = selectRootMove(root, [pitchBears, pitchWurm]);
-        expect(chosen.kind).toBe("activate-ability");
-        expect(
-            (chosen as Extract<Move, { kind: "activate-ability" }>).costPicks
-                ?.discardIds
-        ).toEqual(["bear"]);
+        expect(chosen).toBe(pitchWurm);
     });
 });

@@ -121,10 +121,12 @@ describe("cast-side payment parks travel on the move (issue #2135)", () => {
                 .sort()
         ).toEqual(["wurm"]);
     });
-
     it("K=1 — the sacrifice victim is NOT a variant axis (one cast per mode, no per-victim multiplication)", () => {
-        // Metamorphosis has 5 colour modes but ONE deterministic victim. The
-        // cast enumerator must emit exactly the mode count, not mode × victims.
+        // Metamorphosis has 5 colour modes but TWO legal victims. The cast
+        // enumerator must emit exactly the mode count (5), not mode × victims
+        // (10): the node-count impact of carrying the pick is ZERO additional
+        // variants against the post-#2081 baseline (which already multiplies
+        // by leg/kicker/buyback/mode axes).
         const state = makeState({
             players: [
                 makePlayer(OPP),
@@ -142,7 +144,7 @@ describe("cast-side payment parks travel on the move (issue #2135)", () => {
         const casts = enumerateMoves(state, BOT).filter(
             (m) => m.kind === "cast-spell" && m.cardInstanceId === "meta"
         );
-        expect(casts.length).toBeGreaterThan(0);
+        expect(casts.length).toBe(5);
         // Every cast names the SAME deterministic victim — no variant ever
         // carries `["wurm"]`.
         for (const m of casts) {
