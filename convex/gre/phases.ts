@@ -1124,27 +1124,42 @@ export function buildDefaultDamageAssignments(
                 }
                 if (remaining > 0) assignment[excessSink] = remaining;
             } else {
-                // Default without trample: all damage to first blocker
-                for (let i = 0; i < blockers.length; i++) {
-                    assignment[blockers[i]] =
+                // Default without trample: all damage to the first LIVE
+                // blocker. A dead blocker lingers in `blockerAssignments`
+                // (removal doesn't prune it) but can no longer receive
+                // combat damage (CR 510.1c) — seeding onto it would leave
+                // every live blocker at 0 and make this very default
+                // un-confirmable against `combatDamageAssignmentCompleteness`,
+                // which counts only live targets (issue #2906).
+                const liveBlockers = blockers.filter(
+                    (id) => findCreature(state, id) !== undefined
+                );
+                liveBlockers.forEach((id, i) => {
+                    assignment[id] =
                         i === 0 ? getCardPower(state, attacker) : 0;
-                }
+                });
             }
             result[attackerId] = assignment;
         }
     }
 
     // Blocker sources with 2+ targets exist only under banding (CR 702.22h): a
-    // blocker blocking a band. Seed all of its power onto the first band member
-    // — the assigning player (the attacker, CR 702.22k) redivides in the modal.
+    // blocker blocking a band. Seed all of its power onto the first LIVE band
+    // member — the assigning player (the attacker, CR 702.22k) redivides in
+    // the modal. Live-filtered for the same reason as the no-trample attacker
+    // branch above: a dead band member can't receive the seeded power
+    // (issue #2906).
     const { attackersByBlocker } = getEffectiveBlockGraph(state);
     for (const [blockerId, attackerIds] of Object.entries(attackersByBlocker)) {
         if (attackerIds.length < 2) continue;
         const blocker = findCreature(state, blockerId);
         if (!blocker || !dealsDamageIn(blocker, kind)) continue;
         const power = getCardPower(state, blocker);
+        const liveAttackerIds = attackerIds.filter(
+            (id) => findCreature(state, id) !== undefined
+        );
         const assignment: Record<string, number> = {};
-        attackerIds.forEach((id, i) => {
+        liveAttackerIds.forEach((id, i) => {
             assignment[id] = i === 0 ? power : 0;
         });
         result[blockerId] = assignment;
@@ -1683,8 +1698,22 @@ export function applyAllCombatDamage(
             }
         } else {
             const assignments = damageAssignments[attackerId] ?? {};
+            // CR 702.19b — only a CURRENTLY trampling source may send damage
+            // to the excess sink (the defending player or the attacked
+            // planeswalker). `setDamageAssignment` refuses this entry for a
+            // non-trampler at assignment time, but the source can lose
+            // trample afterward (e.g. a static effect resolving before
+            // confirm); a stale sink entry from before that must not be
+            // dealt (issue #2906), matching the same target no longer
+            // counting toward `combatDamageAssignmentCompleteness`'s total.
+            const excessSink = attackTargetExcessSink(
+                state,
+                attackerId,
+                defenderId
+            );
             for (const [targetId, damage] of Object.entries(assignments)) {
                 if (damage <= 0) continue;
+                if (targetId === excessSink && !hasTrample) continue;
                 applyOneCombatDamage(
                     attacker,
                     targetId === defenderId

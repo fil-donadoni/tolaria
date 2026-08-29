@@ -13114,8 +13114,8 @@ export const confirmDamage = mutation({
                 );
             if (!complete) {
                 throw new Error(
-                    `${sourceId}'s combat damage assignment is incomplete: ` +
-                        `${assigned} of ${required} assigned`
+                    `${sourceId}'s combat damage assignment must total exactly ` +
+                        `${required} (currently ${assigned})`
                 );
             }
         }

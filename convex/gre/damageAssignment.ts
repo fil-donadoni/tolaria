@@ -9,7 +9,8 @@
  *
  * - `phases.ts` seed builders (`buildAutoDamageAssignments`,
  *   `buildDefaultDamageAssignments`) — the pre-filled default;
- * - `game.ts` `setDamageAssignment` — the manual-assignment validator.
+ * - `game.ts` `setDamageAssignment` — the manual-assignment validator;
+ * - `game.ts` `confirmDamage` — the completeness gate (#2906).
  *
  * Keeping both on the same helper is what makes the pre-fill un-rejectable by
  * the validator: a default the mutation would refuse is the shape this file
@@ -212,12 +213,16 @@ function liveDamageTargetsForSource(
 
 /** Is `sourceId`'s recorded combat-damage assignment COMPLETE (CR 510.1a/e)?
  *
- * `bun run cr 510.1a`: "each attacking and blocking creature ... assigns its
- * combat damage ... An attacking or blocking creature's combat damage
- * assignment is illegal if it does not comply with the rules for damage
- * assignment order and combat damage assignment ... or if it does not assign
- * a total amount of damage that's greater than or equal to the creature's
- * power."
+ * `bun run cr 510.1a`: "Each attacking creature and each blocking creature
+ * assigns combat damage equal to its power. Creatures that would assign 0 or
+ * less damage this way don't assign combat damage at all." — EQUAL, not "at
+ * least": both an under- and an over-assignment (e.g. a stale map that still
+ * totals a since-shrunk source's higher base amount) are illegal.
+ *
+ * `bun run cr 510.1e`: an illegal total assignment "returns to the moment
+ * before that player began to assign combat damage" (CR 733) — the mutation
+ * throws and leaves state untouched, which is that rewind's effect without
+ * needing rewind machinery of its own (no state was written yet to undo).
  *
  * The total counts only entries whose target is CURRENTLY legal
  * (`liveDamageTargetsForSource`, recomputed against the live board, not the
@@ -257,7 +262,7 @@ export function combatDamageAssignmentCompleteness(
             assigned += amount;
         }
     }
-    // CR 613.4c — the post-layer value, never the stored base `power` field
+    // CR 613.4 — the post-layer value, never the stored base `power` field
     // (a shrunk source whose stale map still totals the higher base amount
     // must be rejected, not allowed to overdeal).
     const required = Math.max(0, getEffectivePower(state, source));

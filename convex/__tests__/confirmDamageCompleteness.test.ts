@@ -1,17 +1,18 @@
-// `confirmDamage` must reject an INCOMPLETE combat-damage assignment instead
-// of silently applying the shortfall (issue #2906).
+// `confirmDamage` must reject an assignment that doesn't total EXACTLY the
+// source's power instead of silently applying it (issue #2906).
 //
 // `bun run cr 510.1a`:
-//   "each attacking and blocking creature ... assigns its combat damage,
-//    divided as its controller chooses among the creatures blocking or
-//    blocked by it ... An attacking or blocking creature's combat damage
-//    assignment is illegal if ... it does not assign a total amount of
-//    damage that's greater than or equal to the creature's power."
+//   "Each attacking creature and each blocking creature assigns combat
+//    damage equal to its power. Creatures that would assign 0 or less damage
+//    this way don't assign combat damage at all."
+//   — EQUAL, not "at least": an over-assignment (a stale map that still
+//   totals a since-shrunk source's higher base amount) is illegal too.
 //
 // `bun run cr 510.1e`:
-//   "Second, all combat damage that's been assigned is dealt simultaneously."
-//   (Read together with 510.1a: the assignment is checked for compliance
-//    before it's dealt — an illegal one is refused, not applied partially.)
+//   an illegal total assignment "returns to the moment before that player
+//   began to assign combat damage" (CR 733). The mutation throwing before any
+//   state is touched is that rewind's effect without needing rewind
+//   machinery — no state was written yet to undo.
 //
 // Before this fix, `setDamageAssignment` only rejected a total ABOVE the
 // source's power; `confirmDamage` re-validated nothing at all, so a proposal
@@ -23,6 +24,7 @@
 
 import { describe, it, expect } from "vitest";
 import { confirmDamage } from "../game";
+import { buildDefaultDamageAssignments } from "../gre/phases";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { twoHeadedGiantOfForiys } from "../cards/sets/lea/red";
 import { grizzlyBears } from "../cards/sets/lea/green";
@@ -136,7 +138,7 @@ describe("confirmDamage rejects an incomplete assignment (CR 510.1a/e, issue #29
         ]);
 
         await expect(confirm(h.ctx)).rejects.toThrow(
-            /atk's combat damage assignment is incomplete: 4 of 5 assigned/
+            /atk's combat damage assignment must total exactly 5 \(currently 4\)/
         );
         // No partial write: nothing was confirmed, nothing was dealt.
         const state = h.state();
@@ -207,7 +209,7 @@ describe("confirmDamage rejects an incomplete assignment (CR 510.1a/e, issue #29
         ]);
 
         await expect(confirm(h.ctx)).rejects.toThrow(
-            /atk's combat damage assignment is incomplete: 5 of 4 assigned/
+            /atk's combat damage assignment must total exactly 4 \(currently 5\)/
         );
     });
 
@@ -239,7 +241,98 @@ describe("confirmDamage rejects an incomplete assignment (CR 510.1a/e, issue #29
 
         const h = makeMutationCtx("p1", [gameStateSeed(state)]);
         await expect(confirm(h.ctx)).rejects.toThrow(
-            /atk's combat damage assignment is incomplete: 2 of 5 assigned/
+            /atk's combat damage assignment must total exactly 5 \(currently 2\)/
         );
+    });
+});
+
+describe("confirmDamage accepts the engine's own seeded default even after a declared blocker died (review finding, PR #2915)", () => {
+    it("seeds full power onto the surviving LIVE blocker, not the dead one first in declaration order, and confirms", async () => {
+        // b1 was declared as a blocker (still listed in `blockerAssignments`
+        // — CR: removal doesn't prune it) but died before the COMBAT_DAMAGE
+        // step began: it is NOT on the battlefield when the step's own
+        // `buildDefaultDamageAssignments` seeds the map. Before this fix that
+        // seed put the attacker's full power onto the FIRST declared blocker
+        // regardless of liveness — onto dead b1 here — leaving the live b2 at
+        // 0 and making the engine's own default fail
+        // `combatDamageAssignmentCompleteness` (a hard vs-AI freeze: the bot
+        // only ever confirms the seeded default and never re-derives it).
+        const atk = permanent(twoHeadedGiantOfForiys.id, "atk", "p1", {
+            isAttacking: true,
+            power: 4,
+            toughness: 4,
+            staticAbilities: [],
+        });
+        const b2 = permanent(grizzlyBears.id, "b2", "p2", {
+            isBlocking: true,
+            toughness: 10,
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [atk], life: 20 }),
+                makePlayer("p2", { battlefield: [b2], life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { b1: ["atk"], b2: ["atk"] },
+                blockedAttackerIds: ["atk"],
+                blockersConfirmed: true,
+                damageConfirmed: false,
+                damageAssignerIds: { atk: "p1" },
+                damageAssignmentConfirmedBy: [],
+            },
+        });
+        // The exact seed the COMBAT_DAMAGE step-entry code runs.
+        state.combat!.damageAssignments = buildDefaultDamageAssignments(
+            state,
+            "regular"
+        );
+        expect(state.combat!.damageAssignments!.atk).toEqual({ b2: 4 });
+
+        const h = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await confirm(h.ctx);
+        const after = h.state();
+        expect(after.combat!.damageConfirmed).toBe(true);
+        expect(
+            after.players[1].battlefield.find((c) => c.id === "b2")!
+                .damageMarked
+        ).toBe(4);
+    });
+});
+
+describe("applyAllCombatDamage never deals a stale excess-sink entry from a source that no longer tramples (review finding, PR #2915)", () => {
+    it("excludes the sink from BOTH the completeness total and the actual damage dealt", async () => {
+        // 4-power attacker with NO trample, split 2/2 between its two live
+        // blockers (totalling its full power) plus a leftover "p2: 2" entry
+        // from a moment when it still had trample. `setDamageAssignment`
+        // would refuse a NEW sink entry from a non-trampler, but this one is
+        // stale — entered while trample was present, then trample left. It
+        // must count toward neither the completeness total nor the damage
+        // actually dealt.
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(
+                fivePowerVsTwoBears(
+                    { b1: 2, b2: 2, p2: 2 },
+                    { power: 4, toughness: 4 }
+                )
+            ),
+        ]);
+
+        await confirm(h.ctx);
+        const state = h.state();
+        expect(state.combat!.damageConfirmed).toBe(true);
+        expect(state.players[1].life).toBe(20);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "b1")!
+                .damageMarked
+        ).toBe(2);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "b2")!
+                .damageMarked
+        ).toBe(2);
     });
 });
