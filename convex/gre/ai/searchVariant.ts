@@ -215,4 +215,15 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         name: "eval-weights-demo",
         evalWeights: { manaWeight: 16 },
     },
+
+    /** A/B knob for the mana-development term (issue #2686): the candidate
+     *  seat runs with `manaDevWeight` zeroed — the pre-#2686 behaviour — so a
+     *  ladder run A/Bs the SHIPPED term against its absence. The issue's
+     *  ladder verdict is "no regression" (the term is a preference change, not
+     *  a strength claim): candidate ≈ 50% against the production default is
+     *  the pass. Remove alongside the term if it is ever killed. */
+    "mana-dev-off": {
+        name: "mana-dev-off",
+        evalWeights: { manaDevWeight: 0 },
+    },
 };
