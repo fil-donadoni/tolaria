@@ -24,7 +24,7 @@
 import { describe, it, expect } from "vitest";
 import { confirmDamage } from "../game";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { twoHeadedGiantOfForiys, hillGiant } from "../cards/sets/lea/red";
+import { twoHeadedGiantOfForiys } from "../cards/sets/lea/red";
 import { grizzlyBears } from "../cards/sets/lea/green";
 import type { GameState, CardInstanceState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
