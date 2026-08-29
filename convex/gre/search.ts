@@ -3425,8 +3425,11 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *
  *  `remaining` is `maxIter - i`; a budget with no `iterations` bound yields
  *  `remaining = Infinity`, so the visit-lead condition can never hold and the
- *  rule never fires (time is then the only ceiling, as before). */
-function rootDecisionSettled(
+ *  rule never fires (time is then the only ceiling, as before). Exported as a
+ *  test seam (like `selectRootMove` / `computeActionPriors`) so the two
+ *  conjuncts are assertable against a hand-built root, without running a full
+ *  search to reach a specific determinization. */
+export function rootDecisionSettled(
     root: Node,
     remaining: number,
     weights: EvalWeights
