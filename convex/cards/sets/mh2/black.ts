@@ -176,7 +176,7 @@ export const grief: CardDefinition = {
  *  `additionalCosts.oneOf`, the shape Bitter Triumph (`lci/black.ts`) shipped:
  *  the engine flattens the named leg onto the spec (`resolveAdditionalCosts`,
  *  `convex/gre/additionalCost.ts`) and the ordinary cost machinery pays it —
- *  the sacrifice through the cast's permanent picker (CR 701.16), the discard
+ *  the sacrifice through the cast's permanent picker (CR 701.21), the discard
  *  through its hand-cost picker (CR 701.9).
  *
  *  With no creature on the battlefield AND an empty hand NEITHER leg is

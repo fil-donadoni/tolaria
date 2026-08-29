@@ -684,7 +684,7 @@ describe("Bone Shards (CR 601.2b — sacrifice a creature OR discard a card)", (
         expect(getLegalActions(ok, okP1, okP1.hand[0])).toContain("cast");
     });
 
-    it("destroys the announced target through the real resolution path (CR 701.7)", () => {
+    it("destroys the announced target through the real resolution path (CR 701.8 Destroy)", () => {
         const state = shardsBoard({ spare: true, creature: true });
         const shards = getPlayer(state, "p1").hand[0];
         state.stack.push({
