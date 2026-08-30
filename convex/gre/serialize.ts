@@ -204,6 +204,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "copiedFrom",
     "counters",
     "countersAtLeave",
+    "capturedBindings",
     "createdBy",
     "damageLockThisTurn",
     "damageMarked",
@@ -433,6 +434,17 @@ function compactCard(
     // reads it (see `CardInstanceState.countersAtLeave`).
     if (card.countersAtLeave && Object.keys(card.countersAtLeave).length > 0) {
         out.countersAtLeave = card.countersAtLeave;
+    }
+    // CR 608.2h / 400.7 (issue #2384) — the cross-ability binding memory
+    // outlives the resolution that wrote it BY DESIGN (Skyclave Apparition's
+    // ETB exile is read by its own leave-trigger many turns later), so it must
+    // round-trip: state is saved at every stable point, and a memory that did
+    // not survive the save would silently make the later ability do nothing.
+    if (
+        card.capturedBindings &&
+        Object.keys(card.capturedBindings).length > 0
+    ) {
+        out.capturedBindings = card.capturedBindings;
     }
     // CR 704.5m world-rule timestamp — battlefield-only, must round-trip so a
     // mid-game save/load preserves which World permanent is the newest.
@@ -862,6 +874,12 @@ function expandCard(
         result.countersAtLeave = compact.countersAtLeave as Record<
             string,
             number
+        >;
+    }
+    if (compact.capturedBindings) {
+        result.capturedBindings = compact.capturedBindings as Record<
+            string,
+            string[]
         >;
     }
     if (compact.worldSeq !== undefined) {

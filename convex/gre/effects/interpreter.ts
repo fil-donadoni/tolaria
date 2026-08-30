@@ -2606,6 +2606,31 @@ export const OP_EXECUTORS: {
     returnExiledForSource(ctx) {
         ctx.returnExiledForSource(ctx.sourceInstanceId);
     },
+    // CR 608.2h / 400.7 (issue #2384) — persist an in-script snapshot binding
+    // onto the resolving SOURCE permanent, so a LATER, SEPARATE ability of the
+    // same source can recall it. Reads the row through `ctx.recallChoice`
+    // directly rather than `readBinding`, so only a binding THIS resolution
+    // actually captured is persisted (re-persisting an already-recalled row
+    // would be a no-op, but the narrower read keeps the write half honest).
+    // No-op when the binding was never captured — CR 608.2b, the later
+    // recall then finds nothing and its readers skip in turn.
+    captureBinding(ctx, op) {
+        const row = ctx.recallChoice(op.ref);
+        if (!row) return;
+        ctx.captureBinding(op.ref, row);
+    },
+    // CR 608.2h (issue #2384) — the READ half: restore the row captured on this
+    // source into the CURRENT resolution under `bind`, after which every
+    // downstream ref (`{ ref: "$x.manaValue" }`, `{ ref: "$x.owner" }`, …)
+    // resolves through the ordinary binding path. Nothing captured → nothing
+    // bound, and every reader of that binding skips (CR 608.2b) — which is
+    // exactly "the ETB found no legal target, so the leave-trigger makes no
+    // token".
+    recallCapturedBinding(ctx, op) {
+        const row = ctx.recallCapturedBinding(op.bind);
+        if (!row) return;
+        ctx.noteChoice(op.bind, row);
+    },
     // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
     // announced target permanent. Only a "permanent" TargetSelection is a
     // legal attach host (the ability's targetRequirement already restricts
@@ -4163,11 +4188,32 @@ export const OP_EXECUTORS: {
         // Destructured OUT of the spread for the same reason `entersWith` is:
         // the resolved (real-`TriggeredAbility`) shape must replace the
         // source descriptor shape, not sit alongside it.
+        // CR 208.2 (issue #2384) — `power` / `toughness` are `EffectValue`s,
+        // resolved here into plain numbers for the same reason `entersWith`
+        // is destructured out below: `TokenSpec` takes already-resolved data.
+        // An X/X token whose X does not resolve (a ref naming a binding this
+        // resolution never captured — Skyclave Apparition's leave-trigger when
+        // its ETB exiled nothing) creates NO token at all (CR 608.2b), rather
+        // than a 0/0 that the lethal-damage SBA would wipe a moment later.
         const {
             entersWith: rawEntersWith,
             triggeredAbilities: rawTriggeredAbilities,
+            power: rawPower,
+            toughness: rawToughness,
             ...restToken
         } = op.token;
+        const power =
+            rawPower === undefined ? undefined : resolveValue(ctx, rawPower);
+        const toughness =
+            rawToughness === undefined
+                ? undefined
+                : resolveValue(ctx, rawToughness);
+        if (
+            (rawPower !== undefined && power === undefined) ||
+            (rawToughness !== undefined && toughness === undefined)
+        ) {
+            return;
+        }
         const resolvedCounters = rawEntersWith?.counters
             ?.map((c) => {
                 const n = resolveValue(ctx, c.count);
@@ -4180,6 +4226,8 @@ export const OP_EXECUTORS: {
             );
         const token: TokenSpec = {
             ...restToken,
+            ...(power === undefined ? {} : { power }),
+            ...(toughness === undefined ? {} : { toughness }),
             ...(resolvedCounters?.length || rawEntersWith?.asEnters?.length
                 ? {
                       entersWith: {

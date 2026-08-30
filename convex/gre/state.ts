@@ -865,6 +865,26 @@ export type CardInstanceState = {
      *  it into P/T, and it is dropped on any further zone change and on any
      *  re-entry to the battlefield (`resetBattlefieldTransientState`). */
     countersAtLeave?: Record<string, number>;
+    /** CR 608.2h / 400.7 (issue #2384): binding rows one of THIS permanent's
+     *  abilities captured for a LATER, separate ability of the same permanent
+     *  to read — the cross-ability last-known-information channel, written by
+     *  the `captureBinding` Effect Op and read by `recallCapturedBinding`.
+     *
+     *  Each value is a `bindSnapshot` row (`gre/effects/interpreter.ts`) — the
+     *  same `string[]` shape a normal in-script binding stores — so a recalled
+     *  binding is indistinguishable from a freshly-bound one to every reader.
+     *  Skyclave Apparition's ETB exile records the exiled card's mana value
+     *  and owner here; its own leave-trigger, possibly many turns later, sizes
+     *  the replacement Illusion off that row even though the exiled card is by
+     *  then a different object (CR 400.7) or gone from exile entirely.
+     *
+     *  NOT wiped when the permanent LEAVES the battlefield — the leave-trigger
+     *  that reads it resolves after the departure, which is the entire point
+     *  (contrast `countersAtLeave`, whose live twin is wiped there). It is
+     *  dropped when the permanent ENTERS the battlefield
+     *  (`markEnteredThisTurn`): CR 400.7 makes that a new object, which
+     *  remembers nothing its previous incarnation captured. */
+    capturedBindings?: Record<string, string[]>;
     /** World-rule timestamp (CR 704.5m / 613.7m): the monotonic seq this
      *  permanent was stamped with when it was first observed carrying the
      *  World supertype. Lower = has been a world permanent longer; the
@@ -9057,6 +9077,38 @@ function findCardInGraveyardOrExile(
     return undefined;
 }
 
+/** Finds a card instance by id in EVERY zone a card can sit in — battlefield,
+ *  graveyard, exile, hand, library (CR 400.1).
+ *
+ *  The lookup behind the cross-ability binding memory (`captureBinding` /
+ *  `recallCapturedBinding`, issue #2384): a leave-the-battlefield trigger
+ *  resolves with its source ALREADY GONE from the battlefield, and the
+ *  destination is whatever the departure was — a graveyard (it died), exile
+ *  (it was exiled), a hand or a library (it was bounced or tucked). Unlike
+ *  `findCardInGraveyardOrExile` this is deliberately hidden-zone-inclusive:
+ *  nothing here reads the card's characteristics, only a memory the source
+ *  itself wrote about ITS OWN earlier ability, so no hidden information is
+ *  exposed by finding it. Returns undefined for a token that has ceased to
+ *  exist (CR 704.5d) or an id that is not in the game. */
+function findCardInAnyZone(
+    state: GameState,
+    cardId: string
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        for (const zone of [
+            player.battlefield,
+            player.graveyard,
+            player.exile,
+            player.hand,
+            player.library,
+        ]) {
+            const found = zone.find((c) => c.id === cardId);
+            if (found) return found;
+        }
+    }
+    return undefined;
+}
+
 /** Records that the permanent `sourceInstanceId` dealt damage to player
  *  `targetPlayerId` this turn (CR 120.3). Sets a turn-scoped per-instance flag
  *  only when the damaged player is NOT the source's controller — i.e. the
@@ -11500,6 +11552,16 @@ export function markEnteredThisTurn(
 ): void {
     card.isSummoningSick = true;
     card.enteredOnTurn = turn;
+    // CR 400.7 (issue #2384) — a permanent that re-enters the battlefield is a
+    // NEW object and remembers nothing its previous incarnation captured, so
+    // the cross-ability binding memory is dropped at the single entry stamp
+    // every non-token battlefield entry funnels through (cast resolution,
+    // reanimation/put-onto-battlefield, a played land). Deliberately NOT in
+    // `resetBattlefieldTransientState`: that helper also runs on the
+    // battlefield → hand/library DEPARTURE path, where wiping the memory would
+    // destroy exactly the last-known information a leave-the-battlefield
+    // trigger is about to resolve and read (a bounced Skyclave Apparition).
+    delete card.capturedBindings;
 }
 
 /** The ONE layer-5 colour-SET write (CR 613.1e; CR 105.3 — "the new color
@@ -18299,6 +18361,36 @@ export function buildSpellContext(
                 ...(item.collectedChoices ?? {}),
                 [key]: values,
             };
+        },
+        captureBinding(name: string, values: string[]): void {
+            // CR 608.2h / 400.7 (issue #2384) — persist the row on the SOURCE
+            // permanent's own instance, not on the stack item: this memory must
+            // outlive the resolution that gathered it, so a LATER, separate
+            // ability of the same source can read it (Skyclave Apparition's ETB
+            // exile → its own leave-trigger, arbitrarily many turns apart).
+            // Keyed by `ctx.sourceInstanceId`, mirroring the exile-and-return
+            // bundle's `sourceId` (ADR 0028).
+            const card = findCardInAnyZone(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (!card) return;
+            card.capturedBindings = {
+                ...(card.capturedBindings ?? {}),
+                [name]: [...values],
+            };
+        },
+        recallCapturedBinding(name: string): string[] | undefined {
+            // Read from whatever zone the source now occupies — a
+            // leave-the-battlefield trigger resolves with its source already in
+            // a graveyard / exile / hand / library, which is the whole point of
+            // the channel.
+            const card = findCardInAnyZone(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            const row = card?.capturedBindings?.[name];
+            return row ? [...row] : undefined;
         },
         // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
         // The interpreter checkpoints the CURRENT Op index in the stack

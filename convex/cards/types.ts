@@ -2302,10 +2302,24 @@ export interface EffectTokenSpec {
     subtypes?: string[];
     /** Optional supertypes (Legendary, Snow). */
     supertypes?: CardSupertype[];
-    /** Power for creature tokens (CR 208.2). */
-    power?: number;
-    /** Toughness for creature tokens. */
-    toughness?: number;
+    /** Power for creature tokens (CR 208.2). A full `EffectValue` (issue
+     *  #2384), not a bare number: Skyclave Apparition's leave-trigger creates
+     *  "an X/X blue Illusion creature token, where X is the mana value of the
+     *  exiled card" — X is only knowable at RESOLUTION, from a ref. Widened
+     *  rather than duplicated into a parallel `powerValue` field (primitive
+     *  reuse — "parametrize the almost-right primitive"): `EffectValue`
+     *  already includes `number`, so every existing fixed-P/T token spec in
+     *  the catalogue keeps type-checking unchanged. Resolved to a plain number
+     *  by the `createToken` Op executor before the spec reaches
+     *  `SpellContext.createToken` — the same "resolve values in the
+     *  interpreter, hand primitives plain data" contract
+     *  `entersWith.counters[].count` already follows. A power/toughness that
+     *  does NOT resolve (a ref naming an uncaptured binding) skips the whole
+     *  Op — CR 608.2b, no token is created. */
+    power?: EffectValue;
+    /** Toughness for creature tokens. See `power` above — same `EffectValue`
+     *  widening, same resolution, same skip-on-unresolved rule. */
+    toughness?: EffectValue;
     /** Colors of the token (CR 105 / 110.5 — colorless if omitted). */
     colors?: Color[];
     /** Keyword static abilities the token enters with (e.g. `["flying"]`). */
@@ -5125,6 +5139,28 @@ export interface SpellContext {
      *  `collectedChoices` (serialized across suspend/replay, cleared on
      *  completion). */
     noteChoice: (choiceId: string, values: string[]) => void;
+
+    /** CR 608.2h / 400.7 (issue #2384) — persists a binding row onto the
+     *  RESOLVING SOURCE permanent's own instance state, OUTLIVING this
+     *  resolution. `noteChoice` is scoped to one stack item; this is the
+     *  cross-ability channel a source needs when one of its abilities gathers
+     *  last-known information a LATER ability of the same source must read
+     *  (Skyclave Apparition: ETB exiles a permanent, its own leave-trigger
+     *  sizes a token off that card's mana value many turns later).
+     *
+     *  The stored unit is a `bindSnapshot` row (power / toughness /
+     *  controller / id / mana value / owner / …), so the recalled binding
+     *  behaves exactly like a freshly-bound one. Keyed by
+     *  `ctx.sourceInstanceId` — never by an author-supplied id, mirroring
+     *  `exileWithAttachments`'s bundle key (ADR 0028). No-op when the source
+     *  instance cannot be found in any zone. */
+    captureBinding: (name: string, values: string[]) => void;
+    /** CR 608.2h (issue #2384) — reads back a row stored by `captureBinding`
+     *  on the SAME source, from whatever zone the source now occupies (a
+     *  leave-the-battlefield trigger resolves with its source already in a
+     *  graveyard, exile, hand or library). Undefined when nothing was captured
+     *  under that name. */
+    recallCapturedBinding: (name: string) => string[] | undefined;
 
     // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
     // NOT for card authors: these three manipulate the stack item's
@@ -11870,6 +11906,51 @@ export type EffectOp =
      *  bundle (the return trigger's `holdsExileBundle` condition normally gates
      *  it, but a stale fire is harmless). */
     | { op: "returnExiledForSource" }
+    /** CR 608.2h / 400.7 (issue #2384) — PERSIST the snapshot binding named by
+     *  `ref` onto the RESOLVING SOURCE permanent, so a LATER, SEPARATE ability
+     *  of that same source can read it back with `recallCapturedBinding`.
+     *
+     *  A binding normally lives for exactly one resolution (it is a
+     *  `collectedChoices` entry on the stack item, wiped when that item
+     *  finishes). Skyclave Apparition needs one to outlive that: its ETB
+     *  exiles a permanent, and its OWN leave-the-battlefield trigger — possibly
+     *  many turns later — sizes a token off THAT card's mana value, by which
+     *  point CR 400.7 has made the exiled card a different object (or it may
+     *  have left exile entirely). The stored row is the `bindSnapshot`
+     *  last-known-information row itself, so every existing reader
+     *  (`{ ref: "$x.manaValue" }`, `{ ref: "$x.owner" }`, …) works on the
+     *  recalled binding with no new grammar.
+     *
+     *  The WRITE half of a `$source`-keyed pair, exactly like
+     *  `exileWithAttachments` / `returnExiledForSource` (ADR 0028): the key is
+     *  always `ctx.sourceInstanceId`, never author-supplied. `ref` must name a
+     *  snapshot binding an EARLIER Op in the same script bound.
+     *
+     *  What it deliberately does NOT do: store an arbitrary computed number
+     *  (the unit is a binding row, not a scalar — a scalar would lose the
+     *  owner/controller/type slots this card also reads); survive the source
+     *  RE-ENTERING the battlefield (CR 400.7 — `markEnteredThisTurn` drops the
+     *  memory, the re-entered permanent is a new object); or reach any
+     *  permanent other than the resolving source. No-op when `ref` names a
+     *  binding this resolution never captured (CR 608.2b). */
+    | { op: "captureBinding"; ref: string }
+    /** CR 608.2h / 400.7 (issue #2384) — the READ half of `captureBinding`:
+     *  restore the row this source captured under `bind` into the CURRENT
+     *  resolution, declaring `bind` as an ordinary snapshot binding every
+     *  downstream ref reads through the normal path.
+     *
+     *  Mirrors `returnExiledForSource`'s relationship to
+     *  `exileWithAttachments` (ADR 0028) — the source is always
+     *  `ctx.sourceInstanceId`, so there is no field for it. Reads the memory
+     *  wherever the source now IS (battlefield, graveyard, exile, hand,
+     *  library): a leave-the-battlefield trigger resolves with its source
+     *  already gone, which is the whole point.
+     *
+     *  No-op when the source captured nothing under that name — the binding is
+     *  simply never declared at runtime, so every later Op reading it skips
+     *  (CR 608.2b). That is exactly the "Apparition's ETB found no legal
+     *  target, so its leave-trigger makes no token" case. */
+    | { op: "recallCapturedBinding"; bind: string }
     /** CR 701.3a/701.3c (ADR 0065, issue #1311) — attach `$source` to the
      *  announced target permanent, without `$source` leaving the
      *  battlefield. A thin declarative skin over `SpellContext.attachTo`, one
