@@ -1758,9 +1758,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // not inside resolution), removing two closures. Net: total 474->472,
         // FREE 319->317, AFK-ready 310->308; X-only and Op-blocked unchanged.
         // Partition: 317+15+140=472.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
+        //
+        // Twilight Diviner (ecl/black.ts, issue #1533) ships a NEW `resolve()`
+        // triggered ability — its "copy of one of them" must copy the RUNTIME
+        // entering creature named by the firing event, unreachable from an
+        // `effects[]` body. It is FREE (the clause-mapper sees only the covered
+        // `createTokenCopyOf`) and carries a per-card test, so it lands in
+        // AFK-ready. Net: total 472->473, FREE 317->318, AFK-ready 308->309;
+        // X-only and Op-blocked unchanged. Partition: 318+15+140=473.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
