@@ -207,6 +207,31 @@ export type BladeSetupStep =
           cards?: string[];
           haltForDefenderResponse?: boolean;
       }
+    /** Declare the DEFENDER's blocks (CR 509.1) on a position already walked
+     *  to an open `DECLARE_BLOCKERS` window (pair it with `declare-attackers`,
+     *  which stops exactly there), leaving the position in the priority round
+     *  that follows the block declaration — the window where the ATTACKER
+     *  finally knows which of its creatures is blocked and by what, and the
+     *  only one in which "my unblocked attacker faces nothing" and "my
+     *  attacker is about to die to its blocker" are distinguishable positions
+     *  at all (issues #2937 / #2938).
+     *
+     *  `blocks` pairs blocker NAME to attacker NAME, like every other blade
+     *  matcher — never an instance id. Omitted (or empty) declares NO blocks,
+     *  which is the position that leaves every attacker unblocked; that is a
+     *  real declaration, not a skip, so the defender must actually own a
+     *  creature that COULD have blocked, or the engine never opens the window
+     *  in the first place and `declare-attackers` throws before this step runs.
+     *
+     *  Runs through `applyMoveInSearch` (the engine's own chokepoint) and the
+     *  real `validateDeclaredBlockers` (CR 509.1a/509.1b restrictions and
+     *  requirements), and throws when a name matches no (or more than one)
+     *  creature, when the declaration is illegal, or when the position does
+     *  not come out the other side with blockers confirmed. */
+    | {
+          kind: "declare-blockers";
+          blocks?: { blocker: string; attacker: string }[];
+      }
     /** Queue one ADDITIONAL combat phase (CR 500.8) and walk the position
      *  forward until the turn RE-ENTERS `DECLARE_ATTACKERS` in it — the
      *  second combat, which no `ScenarioSpec` can describe: `extraPhases` is

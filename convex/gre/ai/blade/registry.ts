@@ -1764,6 +1764,84 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #1920 NEGATIVE CONTROL for the entry above — and the pair is where the discrimination lives, not this entry alone. The reactive entry is RED on all 5 seeds pre-#1920 and green after; this one is green on all 5 both before and after. Together they say the fix bought DISCRIMINATION (activate when a threat is on the stack, not otherwise) rather than a blanket bias toward activating, which is exactly the failure mode making a payoff visible invites: the indestructible grant is a KEYWORD, so `evaluateCreature` prices it as material, and at the 1-ply policy level this activation measures +22 ABOVE `pass` in this very position. READ WITH CARE — this entry is a tripwire, not a tight guard. Measured insensitive to two deliberate breaks: disabling issue #1890 item 1's rollout guardrail (`isDiscouragedRolloutMove`) and making activation costs free again (reverting #2155's payment in the leaf) BOTH leave it green on all 5 seeds, because the root prefers `pass` here by a margin wider than either. Do not cite it as the pin on the guardrail or on cost payment; those are pinned in `activationCostsInSearch.bot.test.ts` and `activationPayoffInSearch.bot.test.ts`. Recorded in docs/findings/1920-noThreat-blade-entries-insensitive.md.",
     },
     {
+        label: "defensive grant: does NOT buy indestructible for an UNBLOCKED attacker",
+        spec: {
+            cards: [
+                {
+                    name: "Iron-Shield Elf",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "hand" },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Iron-Shield Elf"] },
+            { kind: "declare-blockers" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Iron-Shield Elf" }],
+        },
+        note: "Issue #2937, the position the pre-existing `does not activate Iron-Shield Elf with no threat` entry cannot express: blocks are already DECLARED and the Elf is unblocked, so the sorcery-window guardrail (`isDiscouragedRolloutMove`, issue #1890 item 1) does not fire and the activation is judged on value alone. Nothing will deal the Elf damage this turn and nothing is aimed at it, so discarding a card AND tapping it buys nothing. The discard fodder is deliberately the CHEAPEST card that can pay the cost (a spare land, ~45 of hand value against the flat +30 `KEYWORD_BONUS` used to credit the grant) — that is what makes it a guard rather than a tripwire. Ships as a DISCRIMINATING PAIR with the entry below, which is the same board one block declaration apart.",
+    },
+    {
+        label: "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block",
+        spec: {
+            cards: [
+                {
+                    name: "Iron-Shield Elf",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "hand" },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Iron-Shield Elf"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Mons's Goblin Raiders",
+                        attacker: "Iron-Shield Elf",
+                    },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Iron-Shield Elf" }],
+        },
+        note: "Issue #2937, the mirror half of the pair above — the SAME board, one block declaration apart. The 1/1 Raiders is lethal to a 3/1 Elf (CR 510.1c / 704.5g), so a spare land is a cheap price for keeping the body: with indestructible the Elf survives the exchange and the Raiders still dies. The pair is what proves the change bought DISCRIMINATION on the live board threat rather than a blanket bias in either direction — the flat, threat-blind `KEYWORD_BONUS` credit the fix removes could not tell these two positions apart at all.",
+    },
+    {
         label: "activation timing: does not crack Sylvan Safekeeper with no threat",
         spec: {
             cards: [

@@ -35,6 +35,10 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         short: "Md",
         name: "Mana development (lands the hand still wants to spend)",
     },
+    protection: {
+        short: "Pr",
+        name: "Protection (temporary defensive grant vs. a live threat)",
+    },
     flexibility: { short: "Fx", name: "Flexibility (options / reach)" },
 };
 

@@ -38,6 +38,7 @@ import { getCardByName } from "../../../cards";
 import {
     validateAttackerEligibility,
     validateDeclaredAttackers,
+    validateDeclaredBlockers,
 } from "../../combat";
 import { enumerateMoves } from "../../moves";
 import { applyMoveInSearch, decidingPlayer } from "../../search";
@@ -172,6 +173,100 @@ export function applyDeclareAttackers(
         throw fail(
             `the position did not reach an open DECLARE_BLOCKERS window (ended at "${state.phase}").`
         );
+    }
+}
+
+/** The block step, narrowed. */
+type DeclareBlockersStep = Extract<
+    BladeSetupStep,
+    { kind: "declare-blockers" }
+>;
+
+/** The single battlefield permanent named `name` on `seat`'s side, or a throw.
+ *  Name-based like every other blade lookup; ambiguity is an authoring error,
+ *  never a guess. */
+function uniqueByName(
+    state: GameState,
+    name: string,
+    ownerIsDefender: boolean,
+    fail: (detail: string) => Error
+): CardInstanceState {
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const side = state.players.find((p) =>
+        ownerIsDefender ? p.id === defenderId : p.id === state.activePlayerId
+    );
+    const wantedId = getCardByName(name).id;
+    const found = (side?.battlefield ?? []).filter(
+        (c) => (c.card as { id?: string } | undefined)?.id === wantedId
+    );
+    if (found.length === 0) {
+        throw fail(
+            `no battlefield permanent named "${name}" on the ${ownerIsDefender ? "defending" : "attacking"} side.`
+        );
+    }
+    if (found.length > 1) {
+        throw fail(
+            `"${name}" matches ${found.length} permanents on the ${ownerIsDefender ? "defending" : "attacking"} side — the step cannot guess which one.`
+        );
+    }
+    return found[0];
+}
+
+/**
+ * Declare the defender's blocks and leave the position in the priority round
+ * that follows (CR 509.1 → 509.4). Mutates `state` in place.
+ *
+ * Same discipline as `applyDeclareAttackers` above: the declaration goes
+ * through `applyMoveInSearch`, the real restriction/requirement checks run
+ * afterward against the state they read (`validateDeclaredBlockers` reads
+ * `combat.blockerAssignments`, which only exists once the move is applied),
+ * and every way of finding no purchase THROWS.
+ */
+export function applyDeclareBlockers(
+    state: GameState,
+    step: DeclareBlockersStep,
+    fail: (detail: string) => Error
+): void {
+    if (state.phase !== "DECLARE_BLOCKERS") {
+        throw fail(
+            `the position is at phase "${state.phase}", not "DECLARE_BLOCKERS" — put a \`declare-attackers\` step before this one.`
+        );
+    }
+    const combat = state.combat;
+    if (!combat || !combat.confirmed) {
+        throw fail("no confirmed attack — nothing to block.");
+    }
+    if (combat.blockersConfirmed) {
+        throw fail("blockers are already declared in this position.");
+    }
+    const defenderId = getOpponentId(state, state.activePlayerId);
+    const owed = decidingPlayer(state);
+    if (owed !== defenderId) {
+        throw fail(
+            `the defender does not owe the block declaration here (owed by ${owed ?? "nobody"}).`
+        );
+    }
+
+    const assignments = (step.blocks ?? []).map(({ blocker, attacker }) => {
+        const blockerCard = uniqueByName(state, blocker, true, fail);
+        const attackerCard = uniqueByName(state, attacker, false, fail);
+        if (!combat.attackerIds.includes(attackerCard.id)) {
+            throw fail(`"${attacker}" is not among the declared attackers.`);
+        }
+        return { blockerId: blockerCard.id, attackerId: attackerCard.id };
+    });
+
+    applyMoveInSearch(state, defenderId, {
+        kind: "declare-blockers",
+        assignments,
+    });
+
+    const legal = validateDeclaredBlockers(state);
+    if (!legal.ok) {
+        throw fail(`the declared block is illegal — ${legal.reason}`);
+    }
+    if (!state.combat?.blockersConfirmed) {
+        throw fail("the engine did not confirm the block declaration.");
     }
 }
 
