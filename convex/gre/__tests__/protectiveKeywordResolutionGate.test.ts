@@ -396,8 +396,9 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
     // The vehicle is a DRAW, not a burn spell: Solitary Confinement also
     // carries "Prevent all damage that would be dealt to you", so a Lightning
     // Bolt at the shrouded player leaves the life total at 20 whether the
-    // spell was countered or merely prevented — the same trap CR 702.16e sets
-    // for the permanent cases above. A draw has no prevention leg.
+    // spell was countered or merely prevented — the same trap protection's
+    // damage leg (CR 702.16e) sets for the permanent cases above.
+    // A draw has no prevention leg.
     it("counters a spell already targeting them", () => {
         const state = boardWithLibrary();
         pushSpell(state, ancestralRecall.id, "p1", [

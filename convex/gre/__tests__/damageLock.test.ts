@@ -310,9 +310,9 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
 // The kicked/UNkicked pair is the discriminator for Urza's Rage's prevention
 // half, and it runs against a CR 615.1 prevention SHIELD rather than against
 // protection from red: a targeted red spell can never legally reach a creature
-// protected from red (CR 702.16b bars the target, CR 608.2b counters the spell
-// on resolution since issue #2942), so the protection pairing could only ever
-// be measured on an illegal board. The shield is the real-play analogue —
+// protected from red — CR 702.16b bars it as a target, and the resolution gate
+// (CR 608.2b) counters the spell since issue #2942 — so the protection pairing
+// could only ever be measured on an illegal board. The shield is the real-play analogue —
 // Circle-of-Protection-style prevention does NOT bar targeting — and it
 // exercises the same `unpreventable` field at the same damage site. The
 // protection leg keeps its own coverage below, on an UNTARGETED source.

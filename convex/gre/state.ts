@@ -5458,9 +5458,11 @@ function permanentTargetStillMeetsRestrictions(
 
 /** CR 608.2b, protective-KEYWORD half (issue #2942) — re-checks a still-legal
  *  target against the protective keywords it may have GAINED while the
- *  spell/ability sat on the stack: protection (CR 702.16b), shroud
- *  (CR 702.18a), hexproof (CR 702.11b) and every continuous `cantBeTargeted`
- *  guard (CR 611, Guardian Beast / Anti-Magic Aura / Artifact Ward).
+ *  spell/ability sat on the stack: protection (CR 702.16b),
+ *  shroud (CR 702.18a),
+ *  hexproof (CR 702.11b),
+ *  and every continuous `cantBeTargeted` guard (CR 611, Guardian Beast /
+ *  Anti-Magic Aura / Artifact Ward).
  *
  *  Until this landed the whole protective family was ANNOUNCEMENT-ONLY: the
  *  guards were consulted by `getLegalTargets` (offered set) and
@@ -5503,9 +5505,10 @@ function targetStillTargetableBySource(
     // CR 702.16b — every quality family at once (colour, characteristic,
     // each-opponent, coloured-spell), through the single shared predicate.
     if (isProtectedFromSource(candidate, item, sourceIsSpell)) return false;
-    // CR 702.11b / 702.18a / 611 — hexproof (opponent-controlled sources
-    // only), shroud (every source), and declared `permanent-guard` bundles
-    // with their CR 109.5 source narrowings.
+    // CR 702.11b — hexproof (opponent-controlled sources only).
+    // CR 702.18a — shroud (every source, the controller's own included).
+    // CR 611 — declared `permanent-guard` bundles, with their CR 109.5
+    // source narrowings.
     return !isGuardedAgainst(state, candidate, "cantBeTargeted", {
         types: item.types,
         subtypes: item.subtypes,
