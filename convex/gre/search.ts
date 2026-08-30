@@ -935,6 +935,9 @@ export function applyMoveInSearch(
             // greedy sandbox (`applyMoveForSearch`). The picks ride on the move
             // (`castCostPicks`), so the tree charges exactly what the executor
             // submits.
+            const castCostOut: {
+                additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+            } = {};
             if (move.castCostPicks && preCastSpell) {
                 applyCastCostPicksForSearch(
                     state,
@@ -944,7 +947,8 @@ export function applyMoveInSearch(
                         (preCastSpell.card as { id?: string }).id ?? ""
                     ) ?? undefined,
                     move.additionalCostLegId,
-                    move.castCostPicks
+                    move.castCostPicks,
+                    castCostOut
                 );
             }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD,
@@ -985,6 +989,18 @@ export function applyMoveInSearch(
                     ? { kickerPayments: move.kickerPayments }
                     : {}),
                 ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
+                // CR 118.8 / 608.2h — the additional-cost victim snapshot the
+                // cost payment above collected, stamped exactly as
+                // `tryCommitCast` stamps it, so a spell reading the victim back
+                // at resolve (`getAdditionalSacrificeMv` — Metamorphosis,
+                // Sacrifice, Burnt Offering) produces its real effect on THIS,
+                // the chokepoint every rollout and all self-play route through.
+                ...(castCostOut.additionalSacrificeSnapshot
+                    ? {
+                          additionalSacrificeSnapshot:
+                              castCostOut.additionalSacrificeSnapshot,
+                      }
+                    : {}),
                 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the ISMCTS
                 // in-tree `cast-spell` executor is the SECOND wholesale
                 // reimplementation of "build a StackItem from a cast" (the
@@ -2771,6 +2787,68 @@ function resolvedMarginDelta(
     return materialMargin(probe, botId, weights) - before;
 }
 
+/** Total floating mana `playerId` holds: the fungible pool plus every
+ *  restricted unit (CR 106.4 / 106.6 — Metamorphosis' "spend only to cast
+ *  creature spells" mana lives in `restrictedMana`, not `manaPool`). */
+function floatingManaOf(state: GameState, playerId: string): number {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return 0;
+    let total = 0;
+    for (const amount of Object.values(player.manaPool)) total += amount ?? 0;
+    for (const unit of player.restrictedMana ?? []) total += unit.amount;
+    return total;
+}
+
+/** Whether resolving `move` leaves the bot holding floating mana that NOTHING
+ *  in the resulting position can spend before it empties (CR 106.4 — unused
+ *  mana is lost as the step ends).
+ *
+ *  Effect-keyed, never card-keyed: the probe asks the position itself whether
+ *  a spender exists (any legal cast or activation), so it covers a ritual cast
+ *  with an empty hand, Metamorphosis' creature-only mana with no creature
+ *  spell to pay for, and anything else shaped like them — and it stops firing
+ *  the moment a spender is in hand, which is precisely when the ritual line is
+ *  the right play.
+ *
+ *  Fail-closed at every step: a resolution the sandbox cannot simulate, a
+ *  cast that produced no mana at all, or a window the bot does not itself own
+ *  all answer `false`, leaving the pick to the ordinary tie-breaks. */
+function isWastedManaCast(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell") return false;
+    const before = floatingManaOf(state, botId);
+    const probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, botId, move);
+        settleStackForBreakdown(probe);
+    } catch {
+        return false;
+    }
+    // The cast has to have PRODUCED mana — an ordinary spell that merely taps
+    // its cost out leaves the pool no fuller than it found it.
+    if (floatingManaOf(probe, botId) <= before) return false;
+    // CR 117.3c / 601.3a — `enumerateMoves` answers for the player HOLDING
+    // priority, and the sandbox leaves it with the opponent (given the window
+    // to respond to the spell this probe then resolved past), so asking the bot
+    // directly returns an empty list for the wrong reason. Hand priority back
+    // so the question asked is the intended one: is there anything this player
+    // could pay for with the mana it now holds? Timing legality is unaffected —
+    // a sorcery-speed cast is gated on the ACTIVE player and an empty stack
+    // inside the enumerator, never on this field.
+    const spender = cloneGameState(probe);
+    spender.priorityPlayerId = botId;
+    const spending = enumerateMoves(spender, botId);
+    // An empty list is the enumerator declining the window altogether, not
+    // evidence about mana — fail closed.
+    if (spending.length === 0) return false;
+    return !spending.some(
+        (m) => m.kind === "cast-spell" || m.kind === "activate-ability"
+    );
+}
+
 /** Whether `move` is a SELF-HARM removal cast: it targets only the bot's own
  *  Permanents AND resolving it strictly lowers the bot's material margin (issue
  *  #365). Effect-keyed (the resolved margin drop), NOT a per-card list, so it
@@ -3247,6 +3325,33 @@ export function selectRootMove(
                     mean(e) >= bestMean - weights.outcomeEps
             );
             if (hold) return finish(hold, "self-harm-removal");
+        }
+
+        // Wasted-mana hold (CR 106.4 / 500.4). A cast whose resolution leaves
+        // the bot holding floating mana nothing in the position can spend — a
+        // ritual with an empty hand, Metamorphosis' creature-only mana with no
+        // creature spell to pay for — burns a card, and with an additional
+        // sacrifice cost a creature too, for a resource that empties unused at
+        // the end of the step. The LEAF evaluation says so plainly (the
+        // reported Metamorphosis line scores 218 for `pass` against −12 for the
+        // cast), but the root pick is settled on the ACCUMULATED `meanMargin`,
+        // and the `pass` edge's own subtree contains the very same blunder one
+        // ply deeper, which drags its mean below the cast's — so the cast wins
+        // the material tie-break at EVERY budget, `hard` included. This is the
+        // same washing `project_combat_eval_washed_at_horizon` describes, and
+        // the same answer: encode the preference as a root tie-break.
+        //
+        // Fires only when `pass` is outcome-equal, so a ritual that actually
+        // enables something out-rewards the field and never reaches here, and
+        // the spender test is the position's own legal move list — no card
+        // names, no per-card registry (ADR 0102).
+        if (isWastedManaCast(rootState, best.move, botId)) {
+            const hold = pool.find(
+                (e) =>
+                    e.move.kind === "pass" &&
+                    mean(e) >= bestMean - weights.outcomeEps
+            );
+            if (hold) return finish(hold, "wasted-mana-hold");
         }
     }
 

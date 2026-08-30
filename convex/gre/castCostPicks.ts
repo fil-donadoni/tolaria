@@ -34,6 +34,7 @@ import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
 import {
+    applySacrificeSelection,
     autoResolveFungible,
     buildSacrificeRequirements,
     type SacrificeRequirement,
@@ -44,7 +45,19 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
 import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+    StackItem,
+} from "./state";
+
+/** The cost-victim snapshot a cast's stack item carries (CR 118.8 / 608.2h),
+ *  named once here so both search sandboxes stamp the same shape the mutation
+ *  path does. */
+type AdditionalSacrificeSnapshot = NonNullable<
+    StackItem["additionalSacrificeSnapshot"]
+>;
 
 /** The cards named to pay one cast's mandatory additional-cost parks. Every
  *  field is absent when the cast has no such park, so a Move for an ordinary
@@ -114,18 +127,34 @@ export function buildCastCostSelection(
     };
 }
 
-/** Every permanent that actually leaves the battlefield to pay the cast's
- *  sacrifice legs: the victims the server auto-resolved at announcement PLUS
- *  the ones the payer submits (`picks.sacrificeIds`). The search must apply
- *  both — `sacrificeIds` alone is the submission list, not the payment. */
-export function castSacrificeVictims(
+/** Pay a cast's sacrifice legs on a SEARCH SANDBOX state: every permanent that
+ *  actually leaves the battlefield — the victims the server auto-resolved at
+ *  announcement PLUS the ones the payer submits (`picks.sacrificeIds`); the
+ *  search must apply both, since `sacrificeIds` alone is the submission list,
+ *  not the payment.
+ *
+ *  Returns the snapshot-flagged victim's `additionalSacrificeSnapshot` (CR
+ *  118.8 / 608.2h), which the caller stamps onto the pushed stack item exactly
+ *  as the mutation path does (`sacrificeSnapshotFromSelection`, `game.ts`).
+ *  Without it every card whose resolution reads the victim back —
+ *  `SpellContext.getAdditionalSacrificeMv` / `getAdditionalCostSubtypes`
+ *  (Metamorphosis, Sacrifice, Burnt Offering, Bone Shards' subtype read) —
+ *  resolved for NOTHING inside the tree: the search paid a creature and a card
+ *  for a blank, so it could never find the ritual line, and (the reported
+ *  symptom) a rollout that washes the material loss out could still pick the
+ *  cast on visits.
+ *
+ *  The removal itself goes through `applySacrificeSelection`, the SAME
+ *  authority the three mutation commit sites use, so the sandbox and the
+ *  server can never drift on which victim is snapshot-flagged. */
+export function applyCastSacrificeVictims(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     additionalCosts: AdditionalCostSpec | undefined,
     picks: CastCostPicks | undefined,
     reason: string
-): string[] {
+): AdditionalSacrificeSnapshot | undefined {
     const { selection } = buildCastCostSelection(
         state,
         player,
@@ -133,13 +162,21 @@ export function castSacrificeVictims(
         additionalCosts,
         reason
     );
-    if (!selection) return [];
+    if (!selection) return undefined;
     const submitted = picks?.sacrificeIds ?? [];
-    const victims = [...selection.picked];
+    const picked = [...selection.picked];
     for (const id of submitted) {
-        if (!victims.includes(id)) victims.push(id);
+        if (!picked.includes(id)) picked.push(id);
     }
-    return victims;
+    const results = applySacrificeSelection(state, { ...selection, picked });
+    const snap = results.find((r) => r.snapshot);
+    if (!snap) return undefined;
+    return {
+        cardInstanceId: snap.id,
+        mv: snap.mv,
+        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
+        ...(snap.power !== undefined ? { power: snap.power } : {}),
+    };
 }
 
 /** The deterministic (K=1) picks for every mandatory additional-cost park a
@@ -178,7 +215,7 @@ export function planCastCostPicks(
     // names the picks the payer must SUBMIT, so a fully-auto-resolved selection
     // leaves it empty. Track owed-ness separately so the Move still carries the
     // park and `applyCastCostPicksForSearch` removes the auto-resolved victim
-    // via `castSacrificeVictims`.
+    // via `applyCastSacrificeVictims`.
     let owesSacrifice = false;
 
     if (selection) {
