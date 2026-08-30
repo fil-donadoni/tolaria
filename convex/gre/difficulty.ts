@@ -47,7 +47,16 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  the tree that the bot misses lines a deeper search finds (it even misreads
  *  some forced tactics), making it genuinely beatable. `medium` and `hard` both
  *  read clean tactics perfectly; `hard`'s extra budget tells in deeper midgame
- *  positions. The strength gradient is verified in `difficulty.test.ts`. */
+ *  positions. The strength gradient is verified in `difficulty.test.ts`.
+ *
+ *  EARLY STOP (issue #2685): no preset needs a `minIterations` field — the
+ *  settle rule defaults to active (`minIterations` unset ⇒ 0) and stops a
+ *  search early only once the root pick is provably settled. That is what
+ *  makes an obvious decision cost ~0s while a contested one still runs to the
+ *  ceiling, without any preset change. `medium.timeMs` STAYS 1500: raising it
+ *  (e.g. to 3000) is licensed only by a ladder verdict showing the extra
+ *  iterations pay on rich decisions at the same iteration budget, which does
+ *  not exist yet. */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
     easy: { iterations: 3, timeMs: 120 },
     medium: { iterations: 400, timeMs: 1500 },

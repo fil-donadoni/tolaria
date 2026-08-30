@@ -53,6 +53,12 @@ DSL-first, frontend wiring walk, proof-of-failure for every guarding test.
 Iterate with targeted runs only (`bunx vitest run <path>`). Card variants in
 tests go through `withTemporaryDefinition` — the catalogue is frozen.
 
+**Touching the Bot (`convex/gre/{search,evaluate,moves,applyMove,ai}`,
+`src/lib/ai/`, `convex/limited/botDrafter`)? Invoke `/bot-slice` FIRST**
+and find your row in its **Seams** table. A missed bot seam fails no
+suite — it just makes the bot quietly stupid, or makes the change
+invisible in the DecisionTrace you would debug it with (#2686).
+
 **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure means editing the
 subject and reverting it, and with no orchestrator there is no second copy of
 your work: `git checkout <file>` on a file with uncommitted changes discards

@@ -181,11 +181,22 @@ import {
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
  *  `DEFAULT_BUDGET` provides both. `now` is injectable for deterministic tests
- *  of the time bound. */
+ *  of the time bound.
+ *
+ *  `minIterations` (issue #2685) turns on the EARLY-STOP rule: once this many
+ *  iterations have completed, the loop stops before `iterations`/`timeMs` when
+ *  the root pick is provably settled (see `rootDecisionSettled`). Defaults to
+ *  0 — the rule is always active but only ever fires when the visit/reward
+ *  counts say the pick cannot change, so a budget that omits it (the blade
+ *  suite, every existing test) keeps running to `iterations` on any contested
+ *  decision and stops early only on an already-decided one. The rule reads only
+ *  visit/reward counts, never the clock, so a fixed-iterations test stays
+ *  bit-reproducible. */
 export type SearchBudget = {
     iterations?: number;
     timeMs?: number;
     now?: () => number;
+    minIterations?: number;
 };
 
 /** The single shipped difficulty preset for this slice (CR-agnostic tuning).
@@ -3392,6 +3403,58 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/** Whether the root pick is PROVABLY SETTLED — more iterations cannot change
+ *  it (issue #2685). Two conditions, both pure functions of the grown tree
+ *  (visit/reward counts only, never the clock):
+ *
+ *   1. VISIT LEAD UNCATCHABLE — the most-visited root child's visit count
+ *      exceeds every other child's by MORE than the iterations remaining, so
+ *      no other child can catch it (each iteration adds at most one visit to
+ *      one child).
+ *   2. MEAN-REWARD LEAD DECISIVE — its mean reward beats the best OTHER
+ *      child's by more than `weights.outcomeEps`, so `selectRootMove`'s
+ *      outcome band (`contenders`) collapses to that single edge and every
+ *      outcome-gated tie-break has nothing to override.
+ *
+ *  Both hold ⇒ `selectRootMove` returns this edge, PROVIDED the one full-pool
+ *  tie-break that is NOT gated on outcome-equality — the extra-turn structural
+ *  credit (`selectRootMove`, issue #244) — has nothing to fire on. That credit
+ *  is computed from the ROOT STATE (a castable extra-turn spell), not from
+ *  visit counts, so this visit/reward-only predicate cannot see it: the caller
+ *  (`runSearchWithTrace`) disables the early stop entirely when the root holds
+ *  a castable extra-turn spell (see `extraTurnGrantAtRoot`). Reads the root
+ *  children directly; never touches the RNG, so it is deterministic and cannot
+ *  perturb the search it short-circuits.
+ *
+ *  `remaining` is `maxIter - i`; a budget with no `iterations` bound yields
+ *  `remaining = Infinity`, so the visit-lead condition can never hold and the
+ *  rule never fires (time is then the only ceiling, as before). `remaining`
+ *  being 0 (the final iteration, nothing left to search) also returns false,
+ *  so `"settled"` strictly means an EARLY stop. Exported as a test seam (like
+ *  `selectRootMove` / `computeActionPriors`) so the two conjuncts are
+ *  assertable against a hand-built root, without running a full search to
+ *  reach a specific determinization. */
+export function rootDecisionSettled(
+    root: Node,
+    remaining: number,
+    weights: EvalWeights
+): boolean {
+    if (remaining <= 0) return false;
+    const pool = [...root.children.values()].filter((e) => e.visits > 0);
+    if (pool.length < 2) return false;
+    const mean = (e: Edge) => e.totalReward / e.visits;
+
+    // The most-visited root child (exists: pool.length >= 2 above).
+    const top = pool.reduce((m, e) => (e.visits > m.visits ? e : m));
+    let runnerUpMean = -Infinity;
+    for (const e of pool) {
+        if (e === top) continue;
+        if (top.visits - e.visits <= remaining) return false;
+        runnerUpMean = Math.max(runnerUpMean, mean(e));
+    }
+    return mean(top) - runnerUpMean > weights.outcomeEps;
+}
+
 /** Choose a move for `playerId` by ISMCTS, and surface a DecisionTrace of what
  *  was weighed. Deterministic given `seed` and an iteration budget — the trace
  *  is built only after the move is chosen, so it never perturbs selection. The
@@ -3466,6 +3529,12 @@ function runSearchWithTrace(
     const maxIter = budget.iterations ?? Infinity;
     const timeMs = budget.timeMs;
     const now = budget.now ?? (() => performance.now());
+    // Early-stop floor (issue #2685): the settle rule may not fire before this
+    // many iterations. Defaults to 0 — the rule is always active, but it only
+    // stops a search whose root pick is already decided, so an omitted floor
+    // (blade entries, every pre-existing test) costs nothing on a contested
+    // decision.
+    const minIter = budget.minIterations ?? 0;
     // Always captured (issue #2682) — an iteration-only budget (the untimed
     // blade suite) still wants to know its real wall-clock cost, not just a
     // timed one. `performance.now()` is cheap enough that measuring it
@@ -3476,6 +3545,22 @@ function runSearchWithTrace(
         dominatedAtRoot.map((m) =>
             priorityMoveKey(state, playerId, playerId, m)
         )
+    );
+
+    // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
+    // structural credit in `selectRootMove` is the ONE full-pool tie-break not
+    // gated on outcome-equality, so a settled NON-grant pick could still be
+    // overridden by an under-visited extra-turn cast — and that override reads
+    // the ROOT STATE, not the visit/reward counts `rootDecisionSettled` sees.
+    // Disable the early-stop rule when the root holds a castable extra-turn
+    // spell. The probe is cheap and cast-only: `botExtraTurnGrantDelta` returns
+    // 0 for every non-`cast-spell` move without probing, and extra-turn spells
+    // are rare. Runs on a clone (never the search's RNG stream), so it cannot
+    // perturb determinism.
+    const extraTurnGrantAtRoot = moves.some(
+        (m) =>
+            m.kind === "cast-spell" &&
+            botExtraTurnGrantDelta(state, m, playerId) > 0
     );
 
     let i = 0;
@@ -3499,6 +3584,21 @@ function runSearchWithTrace(
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
             stoppedBy = "time";
+            break;
+        }
+        // Early stop (issue #2685): after `minIter`, bail once the root pick is
+        // settled — the most-visited child can no longer be overtaken and its
+        // mean-reward lead is decisive. Deterministic (reads only visit/reward
+        // counts), so a fixed-seed iteration budget still replays bit-identically.
+        // Never fires when the root holds a castable extra-turn spell (see
+        // `extraTurnGrantAtRoot`), whose non-outcome-gated credit could still
+        // override a settled pick.
+        if (
+            !extraTurnGrantAtRoot &&
+            i >= minIter &&
+            rootDecisionSettled(root, maxIter - i, weights)
+        ) {
+            stoppedBy = "settled";
             break;
         }
     }
