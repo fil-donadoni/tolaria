@@ -23168,6 +23168,7 @@ describe("Effect Script Op: lookDistribute chooser + exile destination + counter
 // no suspension.
 
 describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)", () => {
+    const grizzlyBears = getCardByName("Grizzly Bears");
     const hillGiant = getCardByName("Hill Giant");
 
     const libOf = (owner: "p1" | "p2", cardIds: string[]) =>
