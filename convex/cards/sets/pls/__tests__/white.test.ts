@@ -20,7 +20,7 @@ import {
 import { crawWurm, grizzlyBears } from "../../lea/green";
 import { lightningBolt, dragonWhelp } from "../../lea/red";
 import { benalishHero } from "../../lea/white";
-import { blackKnight } from "../../lea/black";
+import { blackKnight, scatheZombies } from "../../lea/black";
 import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
 import {
     makeInstance,
@@ -1507,9 +1507,16 @@ describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, 
     it("prevents when the target creature SHARES a colour with the chosen permanent", () => {
         // Black Knight (B) vs. Swamp — no shared colour; use two black objects
         // instead: the chosen permanent is a black creature.
+        //
+        // The ATTACKER is Scathe Zombies, not a second Black Knight: Guard Dogs
+        // is WHITE and its ability TARGETS the attacker, so a Black Knight
+        // (protection from white, CR 702.16b) could never legally be that
+        // target — and since issue #2942 the CR 608.2b resolution gate says so
+        // too, countering the ability before it can open its choice. The
+        // chosen-permanent slot is not targeted and keeps its Black Knight.
         const state = board({
             chosenCardId: blackKnight.id,
-            attackerCardId: blackKnight.id,
+            attackerCardId: scatheZombies.id,
         });
         activate(state);
         expect(preventsCombat(state)).toBe(true);
@@ -1518,7 +1525,7 @@ describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, 
     it("prevents NOTHING when the two share no colour (tested both ways)", () => {
         const state = board({
             chosenCardId: benalishHero.id, // white
-            attackerCardId: blackKnight.id, // black
+            attackerCardId: scatheZombies.id, // black
         });
         activate(state);
         expect(preventsCombat(state)).toBe(false);
@@ -1529,7 +1536,7 @@ describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, 
         // a colour with the black attacker — the printed {W} cost does not.
         const state = board({
             chosenCardId: benalishHero.id,
-            attackerCardId: blackKnight.id,
+            attackerCardId: scatheZombies.id,
         });
         const chosen = state.players[0].battlefield.find(
             (c) => c.id === "chosen"
@@ -1543,7 +1550,7 @@ describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, 
     it("a colourless object shares no colour with anything (CR 202.2)", () => {
         const state = board({
             chosenCardId: blackKnight.id,
-            attackerCardId: blackKnight.id,
+            attackerCardId: scatheZombies.id,
         });
         const atk = state.players[1].battlefield.find((c) => c.id === "atk")!;
         atk.colorOverride = [];

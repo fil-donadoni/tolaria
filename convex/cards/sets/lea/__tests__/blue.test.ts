@@ -3928,15 +3928,20 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
                 makePlayer("p2", { battlefield: [knight] }),
             ],
         });
-        castSleight(state, "bk", "permanent", "blue"); // white → blue
-        castSleight(state, "bk", "permanent", "red"); // blue → red
+        // The chain deliberately avoids BLUE as an intermediate: Sleight of
+        // Mind is a blue spell, so the moment the Knight's text reads
+        // "protection from blue" it stops being a legal target for the second
+        // Sleight (CR 702.16b) — and since issue #2942 the CR 608.2b gate
+        // counters that second copy at resolution instead of letting it chain.
+        castSleight(state, "bk", "permanent", "red"); // white → red
+        castSleight(state, "bk", "permanent", "green"); // red → green
 
         const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
         expect(after.textChanges).toEqual([
-            { kind: "color-word", from: "white", to: "blue" },
-            { kind: "color-word", from: "blue", to: "red" },
+            { kind: "color-word", from: "white", to: "red" },
+            { kind: "color-word", from: "red", to: "green" },
         ]);
-        expect(getProtectedColors(after)).toEqual(["R"]);
+        expect(getProtectedColors(after)).toEqual(["G"]);
     });
 
     it("applies to a spell on the stack (spell-or-permanent branch)", () => {
