@@ -612,8 +612,8 @@
     /* ── Proportional card corner (ADR 0103 §7) ──
      * The printed Magic corner is a fixed FRACTION of the card, not a fixed
      * radius: a hand card and a battlefield thumb are different sizes and must
-     * still show the same corner. `--card-radius` is that fraction
-     * (horizontal / vertical), and this is the one recipe that applies it.
+     * still show the same corner. `--card-radius` is that fraction, and this
+     * is the one recipe that applies it.
      *
      * Issue #2724 migrated every card surface onto it: the ~20 sites that used
      * to hard-code `rounded-[7%]` / `[6%]` / `[8%]` (card-image, board card,
@@ -1356,11 +1356,19 @@
          * a grey line (the flattened hexes are `--color-border-subtle` /
          * `--color-border-accent`).
          *
-         * `--card-radius` is a PERCENTAGE PAIR, not a length: the printed
-         * Magic corner is a fraction of the card, so one token gives a 63mm
-         * hand card and a 40px battlefield thumb the same corner. Applied by
-         * `.card-corner` (and by `.card-ring`, which implies it); issue #2724
-         * migrated every card surface onto the two recipes. */
+         * `--card-radius` is a PERCENTAGE, not a length: the card corner is a
+         * fraction of the card, so one token gives a 63mm hand card and a 40px
+         * battlefield thumb the same corner. Applied by `.card-corner` (and by
+         * `.card-ring`, which implies it); issue #2724 migrated every card
+         * surface onto the two recipes.
+         *
+         * ONE value, not the `4.8% / 3.45%` pair it shipped with (779d1ca6):
+         * a single `8%` resolves to 8% of the card's WIDTH horizontally and 8%
+         * of its HEIGHT vertically, so the corner is a slightly vertical
+         * ellipse rather than the circular printed corner. Chosen by eye. The
+         * circular equivalent of this size is `8% / 5.73%` — write the pair if
+         * the geometry is ever wanted back, and expect `border-radius` to keep
+         * accepting either. */
         --hairline-w: 1px;
         --hairline: rgb(232 226 210 / 0.12);
         --hairline-strong: rgb(232 226 210 / 0.3);

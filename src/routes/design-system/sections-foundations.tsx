@@ -2,7 +2,15 @@
 import { RatioBadge, Section, Specimen, Sub, NextScope } from "./lib";
 import { contrastRatio } from "./contrast";
 import { cn } from "@/lib/utils";
-import { PALETTE_TOKENS, SIGNAL_TOKENS } from "@/lib/design-tokens";
+import {
+    PALETTE_TOKENS,
+    SIGNAL_TOKENS,
+    FRAME_V4_TOKENS,
+} from "@/lib/design-tokens";
+
+const CARD_RADIUS = FRAME_V4_TOKENS.find(
+    (t) => t.name === "--card-radius"
+)!.value;
 
 /** The three surface tokens every ratio on this page is measured against.
  *  Read from the typed mirror, not hand-listed: these were spelled out as
@@ -394,7 +402,7 @@ export function FoundationsSections() {
                 id="scales"
                 index="04"
                 title="Radius · scrim · z-index"
-                blurb="Three scales that drifted: radius had 19 distinct values (rounded-sm dominates chrome at 155 uses, and every card surface carved its own 6/7/8%), scrims ranged bg-black/10 → /70, and z-index is a flat ladder where z-100 serves 35 consumers and z-[110]/[120] exist only to beat it. Identity v4 closes the card half of the radius drift with --card-radius (a proportional 4.8% / 3.45%, the printed corner) and pins the scrim at one token; the chrome radii are unchanged."
+                blurb={`Three scales that drifted: radius had 19 distinct values (rounded-sm dominates chrome at 155 uses, and every card surface carved its own 6/7/8%), scrims ranged bg-black/10 → /70, and z-index is a flat ladder where z-100 serves 35 consumers and z-[110]/[120] exist only to beat it. Identity v4 closes the card half of the radius drift with --card-radius (one proportional ${CARD_RADIUS}, the card corner as a fraction) and pins the scrim at one token; the chrome radii are unchanged.`}
             >
                 <Sub
                     title="Radius"

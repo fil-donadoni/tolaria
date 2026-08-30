@@ -377,33 +377,57 @@ describe("design tokens v3 — CSS ↔ typed mirror", () => {
 // drift guard above already and would prove nothing new.
 // ─────────────────────────────────────────────────────────────────────────────
 describe("identity v4 — card corner (ADR 0103 §7)", () => {
-    /** `4.8% / 3.45%` → `[4.8, 3.45]`. Throws on a length, which is the point:
-     *  the corner has to be PROPORTIONAL or one token cannot serve a 63mm hand
-     *  card and a 40px battlefield thumb at once. */
-    function radiusPercents(value: string): [number, number] {
-        const m = /^([\d.]+)%\s*\/\s*([\d.]+)%$/.exec(value.trim());
-        if (!m)
-            throw new Error(`--card-radius is not a percentage pair: ${value}`);
-        return [Number(m[1]), Number(m[2])];
+    /** `8%` → `8`. Throws on a length, which is the point: the corner has to
+     *  be PROPORTIONAL or one token cannot serve a 63mm hand card and a 40px
+     *  battlefield thumb at once.
+     *
+     *  ONE percentage, not a pair, since 779d1ca6: `8%` resolves to 8% of the
+     *  card's width horizontally and 8% of its HEIGHT vertically, so the corner
+     *  is a slightly vertical ellipse rather than the geometrically circular
+     *  `4.8% / 3.45%` this token shipped with. That is a chosen look, not a
+     *  drift — which is why the aspect-ratio row that used to live here (`v/h
+     *  ≈ 63/88`, "equal percentages paint an egg") is GONE rather than
+     *  relaxed: with a single value there is no second number to relate, and a
+     *  test asserting a relation the value cannot express is a test that only
+     *  ever blocks the next intentional change. */
+    function radiusPercent(value: string): number {
+        const m = /^([\d.]+)%$/.exec(value.trim());
+        if (!m) throw new Error(`--card-radius is not a percentage: ${value}`);
+        return Number(m[1]);
     }
 
-    it("--card-radius is a percentage pair, not a length", () => {
+    it("--card-radius is a percentage, not a length", () => {
         // A `px` radius here is the bug the token exists to prevent: it would
         // look right at exactly one card size and wrong at every other.
-        const [h, v] = radiusPercents(rootTokens["--card-radius"]);
-        expect(h).toBeCloseTo(4.8, 5);
-        expect(v).toBeCloseTo(3.45, 5);
+        //
+        // The NUMBER is deliberately not restated: the CSS ↔ typed mirror
+        // above already fails on any disagreement between `index.css` and
+        // `design-tokens.ts`, so a third copy of `8` here would only mean that
+        // changing the corner costs an extra edit in a file that proves
+        // nothing about it.
+        expect(() => radiusPercent(rootTokens["--card-radius"])).not.toThrow();
     });
 
-    it("the horizontal fraction exceeds the vertical one, in the card's aspect ratio", () => {
-        // A Magic card is 63×88mm, so the SAME physical corner is a bigger
-        // fraction of the width than of the height. Equal percentages (the
-        // obvious-looking `4.8% / 4.8%`) paint an egg.
-        const [h, v] = radiusPercents(rootTokens["--card-radius"]);
-        expect(h).toBeGreaterThan(v);
-        // 63/88 = 0.716; the pair must encode the same ratio to within a
-        // rounding step, or the corner is not circular.
-        expect(v / h).toBeCloseTo(63 / 88, 2);
+    it("clears the ui-gate probe's square-card floor at every card size", () => {
+        // The one contract about this token that no single file can hold.
+        // `scripts/ui-gate/probe.js` counts a card as SQUARE (`cardsSquare`, a
+        // hard floor of 0 on every surface in `budgets.json`) when its computed
+        // corner falls under MIN_RADIUS_FRACTION of the card's width. A
+        // `--card-radius` under that floor would red `bun run check:ui` on
+        // every surface at once — a live-browser lane, minutes away and outside
+        // `check:all`, for a value visible here in milliseconds.
+        //
+        // Both sides are READ, neither is retyped: the day someone moves the
+        // token or the floor, this row is derived from the two real values.
+        const probe = readFileSync(
+            resolve(process.cwd(), "scripts/ui-gate/probe.js"),
+            "utf8"
+        );
+        const m = /MIN_RADIUS_FRACTION\s*=\s*([\d.]+)/.exec(probe);
+        expect(m, "probe.js declares MIN_RADIUS_FRACTION").not.toBeNull();
+        expect(radiusPercent(rootTokens["--card-radius"])).toBeGreaterThan(
+            Number(m![1]) * 100
+        );
     });
 
     it(".card-corner applies the token (the recipe every card surface uses)", () => {

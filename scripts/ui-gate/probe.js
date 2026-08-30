@@ -267,7 +267,7 @@ window.__tolariaProbe = () => {
     // ── Square-corner check (ADR 0103 §7, issue #2724) ──
     //
     // A Magic card has a rounded corner, and the corner is a FRACTION of the
-    // card (`--card-radius`, 4.8% by 3.45%), not a fixed length. When a card
+    // card (`--card-radius`), not a fixed length. When a card
     // surface loses that — a tile hand-rolling `rounded-sm`, a wrapper clipping
     // with `overflow-hidden` and no radius of its own, a `--card-radius` that
     // failed to resolve — the corner shows page background inside the card's
@@ -295,11 +295,16 @@ window.__tolariaProbe = () => {
     //
     // The threshold is PROPORTIONAL, because that is what the token is for: a
     // fixed radius looks right at one card size and wrong at every other. The
-    // floor is half the printed fraction (2.4% of the width), which
-    // `--card-radius` clears at every size and a fixed `rounded-sm` fails on
-    // anything bigger than a thumbnail. It does NOT catch a fixed radius that
-    // happens to land near the right fraction on one small card — that case is
-    // also visually indistinguishable, and the CSS recipe is what holds it.
+    // floor is 2.4% of the width — deliberately well UNDER `--card-radius`
+    // itself (8% since 779d1ca6, 4.8% before it), so this counter answers "is
+    // this card square?" and never "is the corner the value I remember?". That
+    // second question belongs to the token's own mirror in
+    // `src/__tests__/design-tokens.test.ts`, which reads this constant and
+    // fails offline if the token ever drops under it. A fixed `rounded-sm`
+    // still fails the floor on anything bigger than a thumbnail. It does NOT
+    // catch a fixed radius that happens to land near the right fraction on one
+    // small card — that case is also visually indistinguishable, and the CSS
+    // recipe is what holds it.
     const MIN_RADIUS_FRACTION = 0.024;
     /** `border-top-left-radius`'s horizontal component in px. Chrome reports a
      *  percentage radius AS a percentage, so resolve it against the box. */

@@ -276,8 +276,8 @@ export const FRAME_V4_TOKENS: readonly TokenSpec[] = [
     },
     {
         name: "--card-radius",
-        value: "4.8% / 3.45%",
-        role: "the printed Magic corner as a fraction of the card, so every card size shows the same corner (applied by .card-corner; call sites migrate in #2724)",
+        value: "8%",
+        role: "the card corner as a fraction of the card, so every card size shows the same corner (applied by .card-corner; call sites migrated in #2724)",
     },
     {
         name: "--panel-radius",
@@ -331,7 +331,7 @@ export const V4_TOKEN_GROUPS: readonly TokenGroup[] = [
     {
         id: "v4-frame",
         title: "Hairlines & card corner",
-        blurb: "One hairline width, two strengths (ivory/12 and ivory/30), kept translucent so an edge over card art composites instead of painting a grey line. --card-radius is a percentage pair, not a length: the printed Magic corner is a fraction of the card, so one token serves every card size.",
+        blurb: "One hairline width, two strengths (ivory/12 and ivory/30), kept translucent so an edge over card art composites instead of painting a grey line. --card-radius is a percentage, not a length: the card corner is a fraction of the card, so one token serves every card size.",
         tokens: FRAME_V4_TOKENS,
     },
     {

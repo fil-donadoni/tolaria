@@ -7,10 +7,20 @@
 // which `src/__tests__/design-tokens.test.ts` pins to `src/index.css`. The
 // page cannot describe a token the stylesheet no longer declares.
 import { Section, Specimen, Sub, TokenRows } from "./lib";
-import { V4_TOKEN_GROUPS, PALETTE_TOKENS } from "@/lib/design-tokens";
+import {
+    V4_TOKEN_GROUPS,
+    PALETTE_TOKENS,
+    FRAME_V4_TOKENS,
+} from "@/lib/design-tokens";
 
 const hex = (name: string): string =>
     PALETTE_TOKENS.find((t) => t.name === name)!.hex;
+
+/** Read, never retyped — the header rule of this page applied to the one token
+ *  whose value has actually moved since v4 shipped. */
+const CARD_RADIUS = FRAME_V4_TOKENS.find(
+    (t) => t.name === "--card-radius"
+)!.value;
 
 /** The proportional corner at three card sizes. The point of the specimen is
  *  that the corner GROWS with the card: a fixed `rounded-md` looks right at
@@ -133,7 +143,7 @@ export function IdentityV4Sections() {
 
             <Sub
                 title="Card corner"
-                note="--card-radius · 4.8% / 3.45% · the printed corner, as a fraction"
+                note={`--card-radius · ${CARD_RADIUS} · the card corner, as a fraction`}
             >
                 <Specimen
                     label="Proportional corner at three card sizes"

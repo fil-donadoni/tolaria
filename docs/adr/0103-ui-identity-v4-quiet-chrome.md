@@ -16,7 +16,7 @@ A new visual identity, **v4**, as a skin change — token values, type, frame, m
 4. **Type: Geist for everything on the chrome** — display 500 weight, −0.025em tracking, lining tabular numerals; UI 400/600; eyebrow labels uppercase 10.5–11px tracking .16em (never monospace — the mono eyebrow is phase's dev-dashboard signature). **Beleren is confined to the card domain** (text-only card faces, card frame). Serif displays (Cormorant, Crimson Pro, Source Serif 4) were built, shown and rejected.
 5. **Panel = hairline + material.** `1px` ivory/12 border, 4–6px radius, a fine grain (SVG noise at ~7% overlay) and a soft shadow for elevation; **no corner brackets**. One ornament atom survives — a rule with a diamond — for hero and game-over only. Same `Panel` composition API (`PanelHeader/Body/Footer`); same `Button`/`Banner`/`GameDialog`/`ActionSheet`/`BottomSheet` primitives, re-skinned once.
 6. **Lobby is a game main menu, not a web page**: four art-backed **Mode Tiles** (Play vs Bot · Solo game · Open a table · Limited), one **Loadout** (active deck + Bo1/Bo3 + the single primary action), **Deck Shelves** (your decks, presets), live Limited events in a footer, a player HUD; fits one desktop viewport. The existing navigation (Home · Limited · Decks · Admin · Settings · Sign out; phone bottom nav) stays.
-7. **The board shows the real printed card**, full image, everywhere — never an art-crop tile with an Arena-style name band. Card corners use a proportional radius (`4.8% / 3.45%`, the printed corner) on every card surface and on the tilt wrapper, so no background ever shows at a corner. Card size is **adaptive per zone**: width = min(max, (zone − gaps) / n) — a zone never clips and never scrolls.
+7. **The board shows the real printed card**, full image, everywhere — never an art-crop tile with an Arena-style name band. Card corners use a proportional radius (`4.8% / 3.45%`, the printed corner — see the amendment below) on every card surface and on the tilt wrapper, so no background ever shows at a corner. Card size is **adaptive per zone**: width = min(max, (zone − gaps) / n) — a zone never clips and never scrolls.
 8. **Preserved, re-skinned:** `CardTilt3D` hover glare + 3D tilt; permanent stacks (`battlefield-stacks.ts`, same-name/same-state clusters with a count badge); the overlay strips (scry/surveil ordering, pile division, trigger order) keep today's behaviour; rings are **inset** (pseudo-element, zero layout impact) — candidates/legal targets in `signal-target`, selected in `accent`, attackers in `signal-pending`, with at most a soft outer glow.
 9. **Card Preview Overlay carries an engine view** (#2704): beside the live Oracle text, the tree of keyword / target / effect / triggered / activated nodes with parameter chips, read from the real `CardDefinition`, a `DSL n/n` or `protocol` badge, "Report a problem" and rulings links.
 10. **Every dialog shape is mapped once** — modal (GameDialog wide/narrow, game over, pregame, cast cost), prompt-bar (pinned Panel), banner/toast, anchored picker popover, fullscreen strip, context menu / action sheet, bottom sheet, HUD badge, text inputs — from the 2026-08-23 census (~80 surfaces, 10 shapes). Popovers and menus get 44px rows and real spacing.
@@ -37,3 +37,23 @@ A new visual identity, **v4**, as a skin change — token values, type, frame, m
 - `check:ui` at five viewports is the receipt for every slice; the phone board keeps ADR 0101's portrait/landscape bands — the prototype's phone layout is an illustration of the skin on those bands, not a new layout.
 - The prototypes are the primary source: branch `prototype/identity-v4`, routes `/prototype/identity` (lobby + board, knobs `ground/frame/accent/font/perm/density`) and `/prototype/dialogs` (`view=preview|dialogs|elements`). They never merge; the implementation rewrites, it does not promote.
 - Beleren leaves the chrome; any place that used it as a "brand" face (nav, titles, buttons, life totals) moves to Geist display.
+
+## Amendment (779d1ca6): one `8%`, not the circular pair
+
+`--card-radius` is **`8%`**, a single percentage, not the `4.8% / 3.45%` pair
+§7 decided. The pair encoded a geometrically CIRCULAR corner: 4.8% of a 63mm
+width and 3.45% of an 88mm height are the same physical 3mm. A single `8%`
+resolves per axis instead — 8% of the width horizontally, 8% of the **height**
+vertically — so the corner is a slightly vertical ellipse, larger than the
+printed one. That is a deliberate look, chosen on the rendered board; the
+circular equivalent at this size is `8% / 5.73%` if the geometry is ever wanted
+back.
+
+What §7 still holds, and what the guards hold with it, is the part that
+mattered: the corner is a **fraction**, so one token serves a 40px pile thumb
+and a 120px hand card. `design-tokens.test.ts` therefore asserts that the token
+is a percentage and that it clears the `cardsSquare` floor in
+`scripts/ui-gate/probe.js` — it no longer asserts the number itself (the
+CSS ↔ typed mirror owns that) nor the `v/h ≈ 63/88` relation, which a single
+value cannot express. A test that pins a look the ADR does not own is a test
+that only ever blocks the next intentional change to it.
