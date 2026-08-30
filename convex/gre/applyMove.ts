@@ -71,7 +71,7 @@ import {
 import type { CardDefinition } from "../cards/types";
 import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
 import { completeSacrificeSelection } from "./paymentPicks";
-import { castSacrificeVictims, type CastCostPicks } from "./castCostPicks";
+import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
@@ -340,7 +340,10 @@ export function applyCastCostPicksForSearch(
     card: CardInstanceState,
     cardDef: CardDefinition | undefined,
     chosenLegId: string | undefined,
-    picks: CastCostPicks | undefined
+    picks: CastCostPicks | undefined,
+    costOut?: {
+        additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+    }
 ): void {
     if (!picks) return;
     const player = getPlayer(state, playerId);
@@ -348,19 +351,43 @@ export function applyCastCostPicksForSearch(
     // CR 701.21 — the sacrifice victims: the ones the server auto-resolves at
     // announcement (fungible board) PLUS the ones the payer names. Both leave
     // the battlefield; `picks.sacrificeIds` alone is the submission list, not
-    // the payment.
-    for (const id of castSacrificeVictims(
+    // the payment. CR 118.8 / 608.2h — the snapshot-flagged victim's mv /
+    // subtypes / power come back through `costOut` so the caller can stamp them
+    // onto the pushed stack item, exactly as `tryCommitCast` does: without it
+    // every card that reads the victim back (`getAdditionalSacrificeMv` —
+    // Metamorphosis, Sacrifice, Burnt Offering) resolves for NOTHING in the
+    // tree, so the search pays a creature and a card for a blank and can never
+    // find the ritual line.
+    const sacSnapshot = applyCastSacrificeVictims(
         state,
         player,
         card,
         spec,
         picks,
         cardDef?.name ?? "Sacrifice"
-    )) {
-        removePermanentTo(state, id, "graveyard", "sacrifice");
+    );
+    if (costOut && sacSnapshot) {
+        costOut.additionalSacrificeSnapshot = sacSnapshot;
     }
-    // CR 701.13 — the exile additional cost (Soul Exchange).
+    // CR 701.13 — the exile additional cost (Soul Exchange), whose exiled
+    // permanent snapshots into the SAME stack-item field and OVERWRITES the
+    // sacrifice one when both are present — the ordering `tryCommitCast` uses
+    // (`convex/game.ts`), mirrored here so the two paths cannot diverge.
     if (picks.additionalCostCardId) {
+        const exiled = player.battlefield.find(
+            (c) => c.id === picks.additionalCostCardId
+        );
+        if (costOut && exiled) {
+            const exDefId = (exiled.card as { id?: string }).id;
+            const exDef = exDefId ? tryGetDefinition(exDefId) : undefined;
+            costOut.additionalSacrificeSnapshot = {
+                cardInstanceId: exiled.id,
+                mv: manaValue(exDef?.manaCost),
+                ...(exiled.subtypes && exiled.subtypes.length > 0
+                    ? { subtypes: [...exiled.subtypes] }
+                    : {}),
+            };
+        }
         removePermanentTo(state, picks.additionalCostCardId, "exile");
     }
 }
@@ -1008,6 +1035,9 @@ export function applyMoveForSearch(
             // pre-removal block as the Kicker permanent leg above. The picks
             // ride on the move (`castCostPicks`), so the search charges exactly
             // what the executor will submit.
+            const castCostOut: {
+                additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+            } = {};
             if (move.castCostPicks && preCastSpell) {
                 applyCastCostPicksForSearch(
                     next,
@@ -1017,7 +1047,8 @@ export function applyMoveForSearch(
                         (preCastSpell.card as { id?: string }).id ?? ""
                     ) ?? undefined,
                     move.additionalCostLegId,
-                    move.castCostPicks
+                    move.castCostPicks,
+                    castCostOut
                 );
             }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
@@ -1066,6 +1097,15 @@ export function applyMoveForSearch(
                     ? { kickerPayments: move.kickerPayments }
                     : {}),
                 ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
+                // CR 118.8 / 608.2h — the additional-cost victim snapshot, so a
+                // spell that reads it back at resolve (`getAdditionalSacrificeMv`)
+                // produces its real effect in the sandbox instead of a blank.
+                ...(castCostOut.additionalSacrificeSnapshot
+                    ? {
+                          additionalSacrificeSnapshot:
+                              castCostOut.additionalSacrificeSnapshot,
+                      }
+                    : {}),
                 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the bot
                 // search-tree `cast-spell` executor is a wholesale
                 // reimplementation of "build a StackItem from a cast", not a

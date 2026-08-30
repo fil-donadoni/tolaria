@@ -3323,6 +3323,80 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)". Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.',
     },
+
+    // ── Wasted-mana hold (the Metamorphosis report) ───────────────────────
+    // A cast whose resolution leaves the bot holding floating mana NOTHING in
+    // the position can spend is a card — and, behind an additional sacrifice
+    // cost, a creature — traded for a resource that empties unused at the end
+    // of the step (CR 106.4). The leaf evaluation says so plainly (`pass`
+    // scored 218 against the cast's -12 in the reported position), but the
+    // root pick is settled on the ACCUMULATED `meanMargin`, and the `pass`
+    // edge's own subtree contains the same blunder one ply deeper, dragging
+    // its mean BELOW the cast's — so the cast won the material tie-break at
+    // every budget, `hard` included. `isWastedManaCast` (`search.ts`) holds
+    // instead, whenever `pass` is outcome-equal. Each futile entry is paired
+    // with a NEGATIVE CONTROL in the same shape with a spender added, where
+    // the hold must have exactly zero effect.
+    {
+        label: "wasted mana: does not cast Metamorphosis with no creature spell to spend it on",
+        spec: {
+            cards: [
+                { name: "Metamorphosis", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 10 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Metamorphosis" }] },
+        note: "The reported game, reproduced: with an otherwise empty hand the bot sacrificed a Grizzly Bears and spent the card to make three creature-only mana it had no creature spell to pay for. Reproduces on EVERY seed at the `hard` budget (and 4/10 at `easy`), and only once the library holds creatures — a big body inflates the rollout margins on both sides, which is what pushes the cast's accumulated mean past `pass`'s. The creature-only mana is real inside the tree only since the cast-side sacrifice snapshot landed (`applyCastSacrificeVictims`); before that Metamorphosis resolved to nothing at all in the sandbox.",
+    },
+    {
+        label: "wasted mana: does not burn Dark Ritual into an empty hand",
+        spec: {
+            cards: [{ name: "Dark Ritual", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Dark Ritual" }] },
+        note: "The same blunder without the sacrifice cost, which is why the fix is not card-shaped: the bot burned the Ritual with nothing to cast, on every seed, with and without creatures in the library. Here the evaluator is actively WRONG rather than merely ignored — `availableManaFor` counts pool mana per unit (the issue #2247 asymmetry), so tapping one Swamp into three black reads as +24 at the leaf — and the hold is what corrects the pick.",
+    },
+    {
+        label: "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm",
+        spec: {
+            cards: [
+                { name: "Dark Ritual", owner: "me", zone: "hand" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Dark Ritual" }] },
+        note: "Negative control for the hold. One Swamp pays the Ritual, and its three black mana plus the three remaining lands exactly cover the 6-MV Craw Wurm, so a spender IS in the position and `isWastedManaCast` must not fire. Measured against the pre-fix tree, which casts here too: the guard provably costs this line nothing. One land fewer and the Wurm is a mana short — then holding is correct and the guard fires by design.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

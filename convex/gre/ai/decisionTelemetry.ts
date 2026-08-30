@@ -31,7 +31,8 @@ export type RootDecisionMechanism =
     | "self-harm-removal"
     | "free-development"
     | "hold-trick"
-    | "colour-mode-evidence";
+    | "colour-mode-evidence"
+    | "wasted-mana-hold";
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
  *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)
@@ -139,6 +140,7 @@ const NAMED_RULES: RootDecisionMechanism[] = [
     "free-development",
     "hold-trick",
     "colour-mode-evidence",
+    "wasted-mana-hold",
 ];
 
 export type RootDecisionSummary = {
