@@ -2,8 +2,8 @@
     "generator": "oracle-legality@2",
     "corpus": {
         "source": "https://api.scryfall.com/bulk-data/oracle-cards",
-        "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260826090157.jsonl.gz",
-        "updatedAt": "2026-08-26T09:01:57.441+00:00",
+        "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260830090156.jsonl.gz",
+        "updatedAt": "2026-08-30T09:01:56.964+00:00",
         "cardCount": 34890,
         "sha256": "fe9122363a58e687b7531f1291bb5475e40f497b39ec97a0b400518adb2e2dd6"
     },
