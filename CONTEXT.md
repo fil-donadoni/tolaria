@@ -253,6 +253,10 @@ _Avoid_: Multikicker (that names the repeatable cost alone, not the copies it bu
 An ability that applies continuously while the **Permanent** is in the appropriate **Zone**. Does not use the **Stack**.
 _Avoid_: Passive ability, aura effect
 
+**Linked Abilities**:
+Two abilities printed on the same object where one acts and the other refers back to what that action produced — "exile one or more cards" paired with "cards **exiled with** this", or "choose a colour" paired with "the chosen colour" (CR 607). The second ability sees **only** what the first one did: cards a different object exiled, or a colour chosen by another effect, are not in its set. The link is to the **Object**, not to the card, so a **Permanent** that leaves the **Battlefield** and returns is a new object whose linked set is empty — what its previous incarnation exiled is no longer "exiled with" it (CR 400.7). A linked set is a set, not an ordered pile: an effect that must pick one member of a multi-card set has no defined order to fall back on.
+_Avoid_: Remembered cards, associated cards, its exile pile
+
 **Mana Ability**:
 An **Activated Ability** that produces **Mana** and has no target. Resolves immediately — does not use the **Stack** (CR 605.3a).
 _Avoid_: Tap for mana
