@@ -7140,6 +7140,20 @@ export interface StaticAttackRequirement {
     id: string;
     /** Oracle text shown when the requirement forces an attack. */
     oracleText: string;
+    /** Optional source-level gate (CR 611.2c — "as long as ..."), mirroring
+     *  `StaticKeywordGrant.condition` / `StaticPTBuff.condition`. When present
+     *  and false, the requirement is ignored this read — the creature is NOT
+     *  forced to attack. `attack-requirement` is a RECOMPUTED kind (see
+     *  `counterGatedStatics.test.ts` `KIND_MATERIALIZATION`), evaluated at
+     *  every `mustAttack` read, so a board-state condition is live for free
+     *  with no refresh sweep. Use for a delirium-conditioned "attacks each
+     *  combat if able" (Dragon's Rage Channeler — only forced to attack while
+     *  delirium is on). */
+    condition?: (
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
 }
 
 /** Card-level block requirement (CR 509.1c). Declares that creatures
@@ -8184,6 +8198,16 @@ export interface PermanentEnteredEvent {
      *  sharp line between "play a land" (305.1) and "a land enters" (603.6a).
      *  Mirrors `wasCast`'s "true only at the one real chokepoint" shape. */
     wasPlayed?: boolean;
+    /** CR 603.6a — true ONLY when this permanent's previous zone was a graveyard
+     *  (reanimation, CR 400.7) or it was CAST from a graveyard (Flashback /
+     *  Escape / Retrace / a graveyard-cast permission, CR 702.34 / 702.138 /
+     *  702.81). Read by "if they entered or were cast from a graveyard" trigger
+     *  conditions (Twilight Diviner). A token, a land played from hand, a
+     *  library/hand tutor, or an exile-return leaves this false/undefined.
+     *  Optional so every pre-existing `PERMANENT_ENTERED` fixture / serialized
+     *  log without the field deserializes as "not from graveyard" (a condition
+     *  reading it simply sees `undefined` — fail-closed). */
+    enteredFromGraveyard?: boolean;
     /** Effective power/toughness (CR 613.4) of the entering permanent,
      *  snapshotted at `emitPermanentEntered` — present ONLY when `types`
      *  includes "Creature" (a noncreature has no meaningful P/T). Read by an

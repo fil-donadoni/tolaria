@@ -11,14 +11,23 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    applySourceStaticEffects,
+} from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { mustAttack } from "../../../../gre/combat";
 import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import { mineCollapse, blazingRootwalla, ragavanNimblePilferer } from "../red";
+import {
+    mineCollapse,
+    blazingRootwalla,
+    ragavanNimblePilferer,
+    dragonsRageChanneler,
+} from "../red";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -338,5 +347,91 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
             )
         ).toBe(true);
         expect(state.players[1].exile).toHaveLength(0);
+    });
+});
+
+// Dragon's Rage Channeler — {R} Human Shaman 1/1 (MH2 118, issue #1533).
+// "Whenever you cast a noncreature spell, surveil 1.
+//  Delirium — As long as there are four or more card types among cards in your
+//  graveyard, this creature gets +2/+2, has flying, and attacks each combat if
+//  able."
+//
+// The three continuous clauses share ONE delirium gate (`hasDelirium`), but
+// they ride THREE different kinds: `pt-buff` (recomputed, layer 7c),
+// `keyword-grant` (materialized, layer 6), and — the NEW seam this issue ships
+// — `attack-requirement` with a `condition` field (recomputed at every
+// `mustAttack` read, `convex/gre/combat.ts`). These tests prove each clause is
+// delirium-gated, and that the +2/+2 (a visible continuous effect) survives
+// the wire projection.
+describe("Dragon's Rage Channeler (delirium +2/+2, flying, must-attack — CR 508.1d)", () => {
+    const MOUNTAIN = getCardByName("Mountain").id; // Land
+    const BEARS = getCardByName("Balduvian Bears").id; // Creature
+    const BOLT = getCardByName("Lightning Bolt").id; // Instant
+    const WRATH = getCardByName("Wrath of God").id; // Sorcery
+
+    function grave(cardId: string, id: string): CardInstanceState {
+        return makeInstance(cardId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+    }
+
+    function board(graveyard: CardInstanceState[]) {
+        const drc = makeInstance(dragonsRageChanneler.id, {
+            id: "drc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drc], graveyard }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, drc };
+    }
+
+    it("is 1/1, flightless, and not required to attack with fewer than four card types", () => {
+        const { state, drc } = board([
+            grave(BEARS, "g0"),
+            grave(BOLT, "g1"),
+            grave(WRATH, "g2"),
+        ]);
+        expect(getEffectivePower(state, drc)).toBe(1);
+        expect(getEffectiveToughness(state, drc)).toBe(1);
+        expect(mustAttack(drc, state)).toBe(false);
+        applySourceStaticEffects(state, drc);
+        expect(drc.staticAbilities).not.toContain("flying");
+    });
+
+    it("gets +2/+2, flying, and must attack once delirium is on (four card types)", () => {
+        const { state, drc } = board([
+            grave(MOUNTAIN, "g0"),
+            grave(BEARS, "g1"),
+            grave(BOLT, "g2"),
+            grave(WRATH, "g3"),
+        ]);
+        expect(getEffectivePower(state, drc)).toBe(3);
+        expect(getEffectiveToughness(state, drc)).toBe(3);
+        expect(mustAttack(drc, state)).toBe(true);
+        applySourceStaticEffects(state, drc);
+        expect(drc.staticAbilities).toContain("flying");
+    });
+
+    it("delirium +2/+2 survives the wire projection (visible client-side)", () => {
+        const { state } = board([
+            grave(MOUNTAIN, "g0"),
+            grave(BEARS, "g1"),
+            grave(BOLT, "g2"),
+            grave(WRATH, "g3"),
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimDrc = projected.players[0].battlefield.find(
+            (c) => c.id === "drc"
+        )!;
+        expect(getEffectivePower(projected, slimDrc)).toBe(3);
+        expect(getEffectiveToughness(projected, slimDrc)).toBe(3);
     });
 });

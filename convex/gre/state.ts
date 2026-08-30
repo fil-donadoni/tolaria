@@ -4731,6 +4731,11 @@ export interface StagedEntry {
         entersTapped?: boolean;
         entersAttacking?: boolean;
     };
+    /** CR 603.6a — carried across an as-enters park so the deferred entry tail
+     *  (`runStagedEntryTail`) can still mark the eventual PERMANENT_ENTERED as
+     *  "from graveyard" (Twilight Diviner's source-zone condition survives a
+     *  reanimated permanent that owes an "as it enters" choice). */
+    enteredFromGraveyard?: boolean;
 }
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -6689,7 +6694,10 @@ function finalizeSpellResolution(
                     putReanimatedOnBattlefield(
                         state,
                         reanimated,
-                        item.castById
+                        item.castById,
+                        // CR 303.4i — reanimated from a graveyard (Animate
+                        // Dead), so the ETB is "entered from a graveyard".
+                        true
                     );
                     host = reanimated;
                 }
@@ -6883,8 +6891,14 @@ function finalizeSpellResolution(
         // the battlefield, ..."). Drained by `processPendingActionTriggers`
         // after this resolve completes. `wasCast: true` — this IS the
         // cast-resolution chokepoint (CR 601.2i), read by an "if you cast it"
-        // trigger condition (Lutri, the Spellchaser).
-        emitPermanentEntered(state, item, { wasCast: true });
+        // trigger condition (Lutri, the Spellchaser). `enteredFromGraveyard`
+        // carries CR 702.34/702.138/702.81 — the spell was cast from a
+        // graveyard (Flashback/Escape/Retrace/graveyard-cast), read by
+        // Twilight Diviner's "entered or were cast from a graveyard".
+        emitPermanentEntered(state, item, {
+            wasCast: true,
+            enteredFromGraveyard: item.castFromGraveyard === true,
+        });
     } else {
         // CR 702.131a (issue #1460) — the INSTANT/SORCERY form of Ascend is
         // NOT handled here: it is the spell's first spell ability and must
@@ -7051,8 +7065,16 @@ export function emitPermanentEntered(
      *    must NOT fire when a land merely ENTERS (fetch / tutor / reanimation).
      *  Every other call site (reanimation, tutor-to-battlefield, hand-cheat,
      *  token creation) passes nothing, matching each field's "one chokepoint
-     *  only" doc. */
-    opts?: { wasCast?: boolean; wasPlayed?: boolean }
+     *  only" doc.
+     *  - `enteredFromGraveyard` (CR 603.6a) — true when the permanent's
+     *    previous zone was a graveyard (reanimation) or it was cast from a
+     *    graveyard (Flashback/Escape/Retrace). Read by "if they entered or
+     *    were cast from a graveyard" trigger conditions (Twilight Diviner). */
+    opts?: {
+        wasCast?: boolean;
+        wasPlayed?: boolean;
+        enteredFromGraveyard?: boolean;
+    }
 ): void {
     const cardId = (card.card as { id?: string }).id;
     // Arboria (CR 508.1c) — putting a NONTOKEN permanent onto the battlefield
@@ -7095,6 +7117,9 @@ export function emitPermanentEntered(
             types: [...card.types],
             ...(opts?.wasCast ? { wasCast: true } : {}),
             ...(opts?.wasPlayed ? { wasPlayed: true } : {}),
+            ...(opts?.enteredFromGraveyard
+                ? { enteredFromGraveyard: true }
+                : {}),
             ...(power !== undefined ? { power } : {}),
             ...(toughness !== undefined ? { toughness } : {}),
         },
@@ -11756,7 +11781,7 @@ function stageReanimatedOnBattlefield(
     /** ADR 0100 D5 — set by the as-enters finalize when RE-ENTERING this tail
      *  after the permanent's choices were answered, so the CR 614 chokepoint
      *  below does not park it a second time. */
-    entryOpts?: { asEntersResolved?: boolean }
+    entryOpts?: { asEntersResolved?: boolean; enteredFromGraveyard?: boolean }
 ): boolean {
     // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
     // moved here from graveyard/exile/library (reanimation, library tutor) is
@@ -11809,7 +11834,10 @@ function stageReanimatedOnBattlefield(
             controllerId,
             "effect",
             enterDestination.asEnters,
-            state.stack[state.stack.length - 1]?.id
+            state.stack[state.stack.length - 1]?.id,
+            {
+                enteredFromGraveyard: entryOpts?.enteredFromGraveyard,
+            }
         );
         return false;
     }
@@ -11926,7 +11954,8 @@ function stageReanimatedOnBattlefield(
  *  order (see `putReanimatedSetOnBattlefield`) rather than per member. */
 function finishReanimatedEntry(
     state: GameState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    enteredFromGraveyard?: boolean
 ): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
@@ -11939,7 +11968,7 @@ function finishReanimatedEntry(
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
-    emitPermanentEntered(state, card);
+    emitPermanentEntered(state, card, { enteredFromGraveyard });
 }
 
 /** Reanimation helper: drops a card that has been removed from its source
@@ -11957,15 +11986,20 @@ function finishReanimatedEntry(
 function putReanimatedOnBattlefield(
     state: GameState,
     card: CardInstanceState,
-    controllerId: string
+    controllerId: string,
+    enteredFromGraveyard?: boolean
 ): boolean {
     // Returns whether the card is actually on the battlefield now. A staging
     // redirect (Containment Priest → exile, Worms of the Earth → graveyard) or
     // a deferred entry (shock-land pay-choice) returns false, so callers can
     // gate any follow-up that assumes a live permanent (moveZone's `bind`
     // snapshot / `tapped`) instead of crashing on a card that never entered.
-    if (stageReanimatedOnBattlefield(state, card, controllerId)) {
-        finishReanimatedEntry(state, card);
+    if (
+        stageReanimatedOnBattlefield(state, card, controllerId, {
+            enteredFromGraveyard,
+        })
+    ) {
+        finishReanimatedEntry(state, card, enteredFromGraveyard);
         return true;
     }
     return false;
@@ -12007,7 +12041,8 @@ function putReanimatedOnBattlefield(
  *  (excludes any Aura deferred on a host choice — those enter on submit). */
 export function putReanimatedSetOnBattlefield(
     state: GameState,
-    cards: { card: CardInstanceState; controllerId: string }[]
+    cards: { card: CardInstanceState; controllerId: string }[],
+    enteredFromGraveyard?: boolean
 ): string[] {
     if (cards.length === 0) return [];
 
@@ -12025,7 +12060,11 @@ export function putReanimatedSetOnBattlefield(
 
     const staged: CardInstanceState[] = [];
     for (const { card, controllerId } of nonAuras) {
-        if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+        if (
+            stageReanimatedOnBattlefield(state, card, controllerId, {
+                enteredFromGraveyard,
+            })
+        ) {
             staged.push(card);
         }
     }
@@ -12048,7 +12087,11 @@ export function putReanimatedSetOnBattlefield(
             // CR 303.4f + ADR 0003 — a single legal host is a zero-branch
             // decision: auto-attach and enter now, inside the simultaneous
             // batch (no prompt).
-            if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+            if (
+                stageReanimatedOnBattlefield(state, card, controllerId, {
+                    enteredFromGraveyard,
+                })
+            ) {
                 card.attachedTo = hosts[0].id;
                 staged.push(card);
                 continue;
@@ -12092,7 +12135,8 @@ export function putReanimatedSetOnBattlefield(
     const stagedIds = new Set(staged.map((c) => c.id));
     for (const card of staged) applySourceStaticEffects(state, card);
     for (const card of staged) applyExistingGrantsTo(state, card, stagedIds);
-    for (const card of staged) emitPermanentEntered(state, card);
+    for (const card of staged)
+        emitPermanentEntered(state, card, { enteredFromGraveyard });
     return staged.map((c) => c.id);
 }
 
@@ -12119,7 +12163,10 @@ export function stageAsEntersEntry(
     origin: StagedEntry["origin"],
     owed: readonly AsEntersChoice[],
     parkedStackItemId: string | undefined,
-    extra?: { tokenEntry?: StagedEntry["tokenEntry"] }
+    extra?: {
+        tokenEntry?: StagedEntry["tokenEntry"];
+        enteredFromGraveyard?: boolean;
+    }
 ): void {
     if (origin === "effect") {
         // CR 400.7 — "an object that moves from one zone to another becomes a
@@ -12178,6 +12225,9 @@ export function stageAsEntersEntry(
         owed: [...owed],
         ...(presented ? { consultedDefIds: [presented] } : {}),
         ...(extra?.tokenEntry ? { tokenEntry: extra.tokenEntry } : {}),
+        ...(extra?.enteredFromGraveyard
+            ? { enteredFromGraveyard: extra.enteredFromGraveyard }
+            : {}),
     };
     state.stagedEntries = [...(state.stagedEntries ?? []), entry];
     offerOrAutoAnswerAsEnters(state, entry);
@@ -12885,7 +12935,10 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     state,
                     entry.card,
                     entry.controllerId,
-                    { asEntersResolved: true }
+                    {
+                        asEntersResolved: true,
+                        enteredFromGraveyard: entry.enteredFromGraveyard,
+                    }
                 )
             ) {
                 if (answered.attachedTo !== undefined) {
@@ -12901,7 +12954,12 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                 // CR 613.1b — an Aura additionally applies its control-changing
                 // static effect once its host is set (Control Magic).
                 if (isAura(entry.card)) finishAuraEntry(state, entry.card);
-                else finishReanimatedEntry(state, entry.card);
+                else
+                    finishReanimatedEntry(
+                        state,
+                        entry.card,
+                        entry.enteredFromGraveyard
+                    );
             }
             return;
         }
@@ -14777,15 +14835,18 @@ export function buildSpellContext(
                 // controller's choice, so `entered` is empty NOW (documented:
                 // the boolean under-reports a deferred entry — no single Aura
                 // reanimator in the pool ties an "if you do" rider to it).
-                const entered = putReanimatedSetOnBattlefield(state, [
-                    { card, controllerId: controllerId ?? playerId },
-                ]);
+                const entered = putReanimatedSetOnBattlefield(
+                    state,
+                    [{ card, controllerId: controllerId ?? playerId }],
+                    fromZone === "graveyard"
+                );
                 return entered.length > 0;
             }
             return putReanimatedOnBattlefield(
                 state,
                 card,
-                controllerId ?? playerId
+                controllerId ?? playerId,
+                fromZone === "graveyard"
             );
         },
         // CR 400.7 / 614-batch (issue #1094) — the simultaneous twin of
@@ -14821,7 +14882,7 @@ export function buildSpellContext(
                 const [card] = player.graveyard.splice(idx, 1);
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
-            return putReanimatedSetOnBattlefield(state, staged);
+            return putReanimatedSetOnBattlefield(state, staged, true);
         },
         // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
         // `cardInstanceId` in `playerId`'s library, splice it out, and put it

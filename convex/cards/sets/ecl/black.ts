@@ -2,8 +2,13 @@
 // `import * as ecl from "./sets/ecl"` resolves through ecl/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, TriggeredAbility } from "../../types";
+import type {
+    CardDefinition,
+    SpellContext,
+    TriggeredAbility,
+} from "../../types";
 import { PERMANENT_TYPES } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // A discarded/milled card CAN be a land, so the "permanent card" check below
 // needs the full CR 300.1 permanent-type list (`PERMANENT_TYPES`, incl. Land) —
@@ -185,5 +190,90 @@ export const ironShieldElf: CardDefinition = {
                 { op: "tapUntap", action: "tap", target: { ref: "$source" } },
             ],
         },
+    ],
+};
+
+// Twilight Diviner — {2}{B} Creature — Elf Cleric, 3/3 (ECL, Vintage Cube FREE
+// residue #1533, split from the #1526 surveil cluster). "When this creature
+// enters, surveil 2. Whenever one or more other creatures you control enter,
+// if they entered or were cast from a graveyard, create a token that's a copy
+// of one of them. This ability triggers only once each turn."
+//
+// ETB surveil 2 (CR 701.25): the `scryReorder` Op with `destination:
+// "graveyard"`, the same shape as Master of Death (mh2/multicolor.ts).
+//
+// The second ability is a raw `TriggeredAbility` rather than `enteredTrigger`
+// — that factory exposes neither `oncePerEventBatch` nor `maxTriggersPerTurn`.
+//   - "another-yours" is the `matches` filter: controller match, self-
+//     exclusion, and a Creature type check (CR 603.2).
+//   - "entered or were cast from a graveyard" is an intervening-if (CR 603.4)
+//     reading the `PERMANENT_ENTERED.enteredFromGraveyard` provenance flag
+//     (issue #1533), stamped at the graveyard reanimation chokepoints
+//     (`returnToBattlefield` / `returnGraveyardSetToBattlefield` / Animate
+//     Dead) and the cast-from-graveyard chokepoint (`finalizeSpellResolution`
+//     → `castFromGraveyard`).
+//   - "one or more" is `oncePerEventBatch: true` (CR 603.3b); "only once each
+//     turn" is `maxTriggersPerTurn: 1` (CR 603.2, per-source tallied).
+//   - the copy is `resolve()` (imperative): the token must copy a RUNTIME
+//     source (the entering creature) named by the firing event, which a DSL
+//     `effects` body cannot see (`enteredTrigger` docs). A simultaneous batch
+//     copies the first staged creature — the Oracle's "one of them" choice
+//     among a simultaneous batch is out of scope (tracked-by: #1533 note).
+function twilightDivinerGraveyardCopy(): TriggeredAbility {
+    return {
+        id: "twilight-diviner-graveyard-copy",
+        oracleText:
+            "Whenever one or more other creatures you control enter, if they entered or were cast from a graveyard, create a token that's a copy of one of them. This ability triggers only once each turn.",
+        event: "PERMANENT_ENTERED",
+        matches: (event, self) =>
+            event.type === "PERMANENT_ENTERED" &&
+            event.controllerId === self.controllerId &&
+            event.instanceId !== self.id &&
+            event.types.includes("Creature") &&
+            // CR 603.4 — "if they entered or were cast from a graveyard": the
+            // condition is checked at TRIGGER time, so a creature that entered
+            // from anywhere else never fires this ability at all.
+            event.enteredFromGraveyard === true,
+        // CR 603.3b — "one or more" collapses a simultaneous batch (Living
+        // Death) into ONE firing.
+        oncePerEventBatch: true,
+        // CR 603.2 — "only once each turn".
+        maxTriggersPerTurn: 1,
+        resolve: (ctx: SpellContext, event) => {
+            if (event.type !== "PERMANENT_ENTERED") return;
+            // CR 707.2 — copy the entering creature; `$controller` is Twilight
+            // Diviner's controller ("you").
+            ctx.createTokenCopyOf(event.instanceId, ctx.controller);
+        },
+    };
+}
+
+export const twilightDiviner: CardDefinition = {
+    id: "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
+    name: "Twilight Diviner",
+    rarity: "rare",
+    oracleText:
+        "When this creature enters, surveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest on top of your library in any order.)\nWhenever one or more other creatures you control enter, if they entered or were cast from a graveyard, create a token that's a copy of one of them. This ability triggers only once each turn.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Cleric"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "twilight-diviner-etb-surveil",
+            oracleText: "When this creature enters, surveil 2.",
+            scope: "self",
+            effects: [
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 2,
+                    destination: "graveyard",
+                    prompt: "Surveil 2 — keep cards on top or put them into your graveyard.",
+                },
+            ],
+        }),
+        twilightDivinerGraveyardCopy(),
     ],
 };
