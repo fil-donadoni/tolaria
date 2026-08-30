@@ -285,7 +285,7 @@ export const ragavanNimblePilferer: CardDefinition = {
     ],
 };
 
-// Dragon's Rage Channeler — {R} Creature — Human Shaman, 1/1 (MH2 118,
+// Dragon's Rage Channeler — {R} Creature — Human Shaman, 1/1 (MH2 121,
 // Vintage Cube FREE residue #1533, split from the #1526 surveil cluster).
 // "Whenever you cast a noncreature spell, surveil 1."
 // "Delirium — As long as there are four or more card types among cards in your
