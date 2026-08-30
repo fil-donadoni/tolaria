@@ -26330,6 +26330,14 @@
         "source": "compiled"
     },
     {
+        "name": "Thalia, Guardian of Thraben",
+        "scryfallId": "824423ff-6441-4be6-b754-810adf9ca6a2",
+        "oracleId": "9b7f1d05-707c-4ed3-9f0e-8ced1232c2ee",
+        "firstSet": "dka",
+        "firstPrintId": "824423ff-6441-4be6-b754-810adf9ca6a2",
+        "firstPrintSet": "dka"
+    },
+    {
         "name": "Thallid",
         "scryfallId": "4caaf31b-86a9-485b-8da7-d5b526ed1233",
         "oracleId": "46abaabe-7015-4d82-a5aa-2706b1f51bed",
