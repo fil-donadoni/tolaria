@@ -46,7 +46,11 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
-import { applyDeclareAttackers, applyExtraCombat } from "./combatSetup";
+import {
+    applyDeclareAttackers,
+    applyDeclareBlockers,
+    applyExtraCombat,
+} from "./combatSetup";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
@@ -523,6 +527,15 @@ export function applyBladeSetup(
             case "declare-attackers":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.
                 applyDeclareAttackers(
+                    state,
+                    step,
+                    (detail) =>
+                        new BladeSetupError(scenario.label, step, detail)
+                );
+                break;
+            case "declare-blockers":
+                // Logic in `combatSetup.ts`; this file keeps only the dispatch.
+                applyDeclareBlockers(
                     state,
                     step,
                     (detail) =>

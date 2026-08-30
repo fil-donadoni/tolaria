@@ -45,6 +45,17 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     defender: () => -30,
 };
 
+/** The flat `KEYWORD_BONUS` contribution one keyword occurrence makes at
+ *  `power`, or 0 for a keyword the table does not price. Exported so a caller
+ *  that must UNDO one occurrence's contribution reads the same table
+ *  `creatureValueRaw` added it from, rather than re-typing the magnitude —
+ *  `evaluate.ts` subtracts the occurrences that came from a duration-scoped
+ *  defensive grant, which are priced by threat instead (issues #2937/#2938,
+ *  `ai/protectionValue.ts`). */
+export function keywordBonusFor(keyword: string, power: number): number {
+    return KEYWORD_BONUS[keyword]?.(power) ?? 0;
+}
+
 /** Pure Forge-scale creature body value from raw characteristics — no game
  *  state. Shared by the realized `evaluateCreature` (effective P/T), the
  *  latent `cardValue*` (base P/T), and the per-Op `createToken` valuer, so all

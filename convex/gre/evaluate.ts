@@ -65,6 +65,11 @@ import {
     dslRealizedAbilityValueById,
     latentValue,
 } from "./cardValue";
+import { keywordBonusFor } from "./creatureBody";
+// Issue #2937 — the single authority on which granted keywords are PROTECTIVE
+// and on whether anything the opponent is doing can currently reach the
+// permanent that carries them.
+import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./ai/evalWeights";
 
 /** A won position. Large enough to dominate every reachable material margin so
@@ -179,7 +184,17 @@ export function evaluateCreature(
             Math.max(0, getPermanentEffectiveToughness(state, card)),
             manaValue(getInstanceManaCost(card)),
             card.staticAbilities
-        ) +
+        ) -
+        // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
+        // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
+        // for a printed characteristic and wrong for a duration-scoped
+        // defensive GRANT in a position where nothing can reach the creature:
+        // a flat, unconditional +30 is what made the bot discard a card to gain
+        // indestructible with nothing to be indestructible against. Zero unless
+        // the creature both carries such a grant AND stands in a provably quiet
+        // position (`ai/defensiveGrants.ts`, fail-closed in every clause), so
+        // no other board's valuation moves.
+        quietDefensiveGrantFlat(state, card) +
         // `card` doubles as the ability-gate subject (issue #1936): the
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
@@ -554,6 +569,26 @@ function flexibilityTerm(
  *  something this term should urge the player to ramp toward.
  *
  *  Zero card names, pure, and state-only by construction. */
+/** The flat `KEYWORD_BONUS` value `creatureValueRaw` has already added for
+ *  defensive keyword occurrences that reached `card` through a DURATION-SCOPED
+ *  grant, in a position where nothing can currently reach it (issue #2937).
+ *  Read off the same table that added it (`keywordBonusFor`), so the two can
+ *  never drift, and gated on `isQuietFor` so the correction never fires while
+ *  anything is on the stack, any combat damage is headed at the creature, or
+ *  the opponent can pay for an answer. */
+function quietDefensiveGrantFlat(
+    state: GameState,
+    card: CardInstanceState
+): number {
+    const keywords = temporaryDefensiveKeywords(card);
+    if (keywords.length === 0) return 0;
+    if (!isQuietFor(state, card)) return 0;
+    const power = Math.max(0, getPermanentEffectivePower(state, card));
+    let flat = 0;
+    for (const keyword of keywords) flat += keywordBonusFor(keyword, power);
+    return flat;
+}
+
 function manaDevelopmentTerm(
     player: PlayerState,
     weights: EvalWeights
