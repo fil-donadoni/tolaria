@@ -64,7 +64,7 @@ function boardWithAttackingInti(): {
     return { state, inti };
 }
 
-describe("Inti, Seneschal of the Sun (CR 603.3c reflexive trigger + impulse draw, issue #1527)", () => {
+describe("Inti, Seneschal of the Sun (CR 603.12 reflexive trigger + impulse draw, issue #1527)", () => {
     it("declining the discard does nothing — no reflexive trigger, hand untouched", () => {
         const { state, inti } = boardWithAttackingInti();
         pushAttackTrigger(state, inti);

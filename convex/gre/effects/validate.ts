@@ -2773,7 +2773,7 @@ function isCaptureMap(value: unknown): boolean {
     );
 }
 
-/** SHAPE of a `reflexiveTrigger` Op's `capture` map (CR 603.3c). Same
+/** SHAPE of a `reflexiveTrigger` Op's `capture` map (CR 603.12). Same
  *  vocabulary as `isCaptureMap` MINUS the `{ select }` list source, which is a
  *  delayed-only shape (its freeze-at-cast combat-partner semantics has no
  *  reflexive analogue), and minus `$event.<field>` refs (a reflexive ability
@@ -4467,7 +4467,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return errors;
         },
     },
-    // CR 603.3c — a REFLEXIVE triggered ability created by the resolving
+    // CR 603.12 — a REFLEXIVE triggered ability created by the resolving
     // effect ("Sacrifice a creature. When you do, …"). No `timing` (nothing
     // is waited for) and no `targetPlayer` / `watch` — the delayed-trigger
     // fields that scope a FUTURE firing have no reflexive analogue. The
@@ -5210,7 +5210,7 @@ function checkCaptureSource(
     at: string,
     errors: string[],
     eventScope: EventScope,
-    /** CR 603.3c — a `reflexiveTrigger` capture carries the recorded binding
+    /** CR 603.12 — a `reflexiveTrigger` capture carries the recorded binding
      *  VERBATIM instead of flattening it to a single id, so the single-value
      *  restriction below does not apply: a picks binding crosses as picks, a
      *  list as a list. (`$event` stays illegal either way — a reflexive
@@ -5314,7 +5314,7 @@ function captureBindingKind(
 }
 
 /** The binding family a `reflexiveTrigger` capture key declares INSIDE the
- *  body scope (CR 603.3c). Unlike `captureBindingKind`, a BARE ref keeps its
+ *  body scope (CR 603.12). Unlike `captureBindingKind`, a BARE ref keeps its
  *  outer family wholesale — the interpreter carries the recorded binding
  *  across verbatim rather than flattening it to an instance id, so a picks
  *  binding is still picks inside the body (what lets an `if
@@ -5465,7 +5465,7 @@ function checkOpListRefs(
         // delayedTrigger (CR 603.7, ADR 0048): capture sources and the
         // `targetPlayer` selector resolve at SCHEDULING time, in the OUTER
         // scope (the body's own fire-time scope is walked below).
-        // reflexiveTrigger (CR 603.3c) resolves its capture sources in the
+        // reflexiveTrigger (CR 603.12) resolves its capture sources in the
         // SAME outer scope, at the moment the Op executes.
         if (entry.op === "delayedTrigger" || entry.op === "reflexiveTrigger") {
             const capture = entry.capture;
@@ -5615,7 +5615,7 @@ function checkOpListRefs(
             );
         }
 
-        // Recurse into the reflexiveTrigger body (CR 603.3c) with a FRESH
+        // Recurse into the reflexiveTrigger body (CR 603.12) with a FRESH
         // scope, exactly like the delayed body above — its ONLY initial
         // bindings are the capture keys. Two differences, both following from
         // "carried verbatim, resolved immediately":
@@ -5788,14 +5788,14 @@ function validateOpSchema(
         );
         return;
     }
-    // CR 603.3c — a reflexive trigger's body is itself a fresh script run on
+    // CR 603.12 — a reflexive trigger's body is itself a fresh script run on
     // a separate stack object; nesting another deferred-body construct inside
     // it would compound capture scoping with no card needing it. `inDelayed`
     // covers BOTH deferred-body constructs (delayedTrigger / reflexiveTrigger)
     // — one deferral level per script, either kind.
     if (entry.op === "reflexiveTrigger" && inDelayed) {
         errors.push(
-            `${at}: reflexiveTrigger must not nest inside a delayedTrigger / reflexiveTrigger body — one deferral level per script (CR 603.3c)`
+            `${at}: reflexiveTrigger must not nest inside a delayedTrigger / reflexiveTrigger body — one deferral level per script (CR 603.12)`
         );
         return;
     }
@@ -5927,7 +5927,7 @@ function validateOpSchema(
             validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
         });
     }
-    // Recurse into a `reflexiveTrigger` body (CR 603.3c) — same contract as
+    // Recurse into a `reflexiveTrigger` body (CR 603.12) — same contract as
     // the delayed body above: a FRESH script executed on its own stack
     // object, so `inForEach` resets and `inDelayed` is set (banning a nested
     // deferred-body construct of either kind).

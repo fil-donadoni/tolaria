@@ -1,7 +1,7 @@
 // BIG — red card behavior tests (ADR 0043 colour split).
 //
 // Generous Plunderer's upkeep ability (`mayPay` gating a `createToken` +
-// `reflexiveTrigger` combo, CR 603.3c) is an explicit SKIP in the catalogue-
+// `reflexiveTrigger` combo, CR 603.12) is an explicit SKIP in the catalogue-
 // wide DSL smoke sweep (`effectScriptSmoke.test.ts`: 'Op "mayPay" suspends
 // for a Pay/Skip decision — covered by the card's own suspension/resume
 // tests') because a live Pay/Skip decision can't be driven by a canned
@@ -73,7 +73,7 @@ function pushUpkeepTrigger(
     resolveTopOfStack(state);
 }
 
-describe("Generous Plunderer — upkeep Treasure (CR 603.3c reflexive trigger)", () => {
+describe("Generous Plunderer — upkeep Treasure (CR 603.12 reflexive trigger)", () => {
     it("accepting creates the controller's Treasure, then a reflexive ability gives the targeted opponent a TAPPED Treasure", () => {
         const { state, plunderer } = boardWithPlunderer();
         pushUpkeepTrigger(state, plunderer);
@@ -90,7 +90,7 @@ describe("Generous Plunderer — upkeep Treasure (CR 603.3c reflexive trigger)",
         expect(ownTreasure!.isTapped).toBe(false);
 
         // The reflexive ability is now its own object on the stack
-        // (CR 603.3c/603.3d), auto-targeting the sole legal opponent — a
+        // (CR 603.12/603.3d), auto-targeting the sole legal opponent — a
         // 2-player game has no real "which opponent" decision to offer.
         const reflexive = state.stack.find((s) => s.reflexiveTrigger);
         expect(reflexive).toBeDefined();

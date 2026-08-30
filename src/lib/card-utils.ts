@@ -2527,7 +2527,7 @@ export function stackAbilityKindOf(item: {
 /**
  * The oracle text of an on-stack (or about-to-be-stacked) ABILITY, whatever
  * flavour it is — activated, triggered, delayed, or the inline body of a
- * reflexive trigger (CR 603.3c, ADR 0048).
+ * reflexive trigger (CR 603.12, ADR 0048).
  *
  * The single resolver for every surface that prints an ability's text. The
  * stack row and the APNAP trigger-ORDER prompt used to each roll their own,

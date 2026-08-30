@@ -14,7 +14,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // exile the top card of your library. You may play that card until your
 // next end step."
 //
-// Ability 1 — a CR 603.3c REFLEXIVE trigger (Minsc & Boo, Timeless Heroes,
+// Ability 1 — a CR 603.12 REFLEXIVE trigger (Minsc & Boo, Timeless Heroes,
 // `clb/multicolor.ts`, precedent): the outer "whenever you attack, you may
 // discard a card" is an untargeted `choice` (kind "choose-hand-card", count
 // {min:0,max:1}) gated by `picksNonEmpty`; "when you do" is the
@@ -77,7 +77,7 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                             player: "controller",
                             cards: { ref: "$intiDiscard" },
                         },
-                        // CR 603.3c — the reflexive ability triggers off the
+                        // CR 603.12 — the reflexive ability triggers off the
                         // discard having HAPPENED; its own target ("target
                         // attacking creature") is announced now, per CR
                         // 603.3d.

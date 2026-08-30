@@ -1482,7 +1482,7 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.designationImagePrintId) {
         base.designationImagePrintId = item.designationImagePrintId;
     }
-    // CR 603.3c/603.3d — a reflexive trigger sits on the stack awaiting
+    // CR 603.12/603.3d — a reflexive trigger sits on the stack awaiting
     // priority like any other; its marker and its inline target requirement
     // must survive a save taken while it is there (the requirement is what
     // `raiseTriggerTargetSelection` re-reads if targeting is still owed).
@@ -1631,7 +1631,7 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         item.designationImagePrintId =
             compact.designationImagePrintId as string;
     }
-    // CR 603.3c/603.3d — restore the reflexive-trigger marker and its inline
+    // CR 603.12/603.3d — restore the reflexive-trigger marker and its inline
     // target requirement.
     if (compact.reflexiveTrigger) {
         item.reflexiveTrigger = compact.reflexiveTrigger as boolean;
@@ -1705,7 +1705,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // point, so the batch must survive a DB round-trip (round-trips as raw JSON —
     // its StackItems already carry `card: { id }`, no fat defs).
     "pendingTriggerBatch",
-    // CR 603.3c — reflexive triggered abilities queued by a still-resolving
+    // CR 603.12 — reflexive triggered abilities queued by a still-resolving
     // effect. Normally drained at the end of the resolution that made them,
     // but a script can suspend on a player choice AFTER its `reflexiveTrigger`
     // Op ran — a stable save point with the queue non-empty — so it must

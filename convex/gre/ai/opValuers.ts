@@ -636,7 +636,7 @@ const choiceOp: Valuer<"choice"> = () => {
 const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
     valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
 
-// CR 603.3c — a reflexive trigger's whole value IS its body: the Op itself
+// CR 603.12 — a reflexive trigger's whole value IS its body: the Op itself
 // only queues a stack object. Same recursion as `delayedTrigger`, and — unlike
 // it — with no discount for the wait, since a reflexive ability resolves in
 // the same priority round rather than at a future phase boundary. Same

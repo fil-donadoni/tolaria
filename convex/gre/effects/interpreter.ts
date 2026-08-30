@@ -4973,7 +4973,7 @@ export const OP_EXECUTORS: {
             watchInstanceId
         );
     },
-    // CR 603.3c — create a REFLEXIVE triggered ability from inside this
+    // CR 603.12 — create a REFLEXIVE triggered ability from inside this
     // resolving effect ("Sacrifice a creature. When you do, …"). Nothing is
     // scheduled: the ability is queued now and the next trigger drain puts it
     // on the stack above this object (CR 603.3b APNAP with the other triggers
@@ -5682,7 +5682,7 @@ function resolveCaptureSource(
     return stored.length === 1 ? stored[PLAYER_BINDING_ID] : stored[SNAP_ID];
 }
 
-/** Resolves ONE `reflexiveTrigger` capture (CR 603.3c). Differs from
+/** Resolves ONE `reflexiveTrigger` capture (CR 603.12). Differs from
  *  `resolveCaptureSource` in exactly one, deliberate way: a BARE binding ref
  *  (`{ ref: "$sac" }`) carries the WHOLE recorded binding across verbatim
  *  instead of flattening it to an instance id.
@@ -5708,7 +5708,7 @@ function resolveReflexiveCaptureSource(
     // validator rejects it here); narrow it out.
     if ("select" in source) return undefined;
     // `$event.<field>` — a reflexive trigger has no firing event of its own
-    // (it triggers off the resolving effect's action, CR 603.3c), so the
+    // (it triggers off the resolving effect's action, CR 603.12), so the
     // validator rejects an event ref here; narrow it out defensively.
     if (isEventRef(source.ref)) return undefined;
     const parsed = parseRef(source.ref);

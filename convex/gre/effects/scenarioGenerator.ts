@@ -1028,7 +1028,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`;
             return;
         case "reflexiveTrigger":
-            // CR 603.3c — the Op's only same-resolution outcome is a QUEUED
+            // CR 603.12 — the Op's only same-resolution outcome is a QUEUED
             // trigger; the body's effects land only after the reflexive
             // ability is placed on the stack, its targets are announced
             // (CR 603.3d) and both players pass priority — none of which a
@@ -2171,7 +2171,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     delayedTrigger() {
         return null;
     },
-    // `reflexiveTrigger` (CR 603.3c) — never reached: `analyseOp` skips every
+    // `reflexiveTrigger` (CR 603.12) — never reached: `analyseOp` skips every
     // script with a reflexiveTrigger Op (the body resolves on a SEPARATE
     // stack object, after target announcement and a priority round the canned
     // single-resolution scenario never runs). Kept for the 1:1 coverage

@@ -778,7 +778,7 @@ export const TRIGGER_BATCH_STACK_ID = "trigger-batch";
  *  scheduling order; they are pushed as collected, never prompted (matching
  *  pre-ADR-0058 behavior). */
 function isPlainTrigger(item: StackItem): boolean {
-    // CR 603.3c — a REFLEXIVE triggered ability rides the inline-body
+    // CR 603.12 — a REFLEXIVE triggered ability rides the inline-body
     // machinery (`delayedTriggerId` / `delayedEffects`) but is NOT an
     // engine-internal firing: it is an ordinary triggered ability its
     // controller may order against the other triggers that became waiting
@@ -807,7 +807,7 @@ function isPlainTrigger(item: StackItem): boolean {
  *  for targets with #1193 and for modes with #2461. */
 function triggerOrderKey(item: StackItem): string {
     const cardId = (item.card as { id?: string }).id ?? "";
-    // CR 603.3c/603.3d — a reflexive ability DOES announce its own targets as
+    // CR 603.12/603.3d — a reflexive ability DOES announce its own targets as
     // it goes on the stack, so two reflexive instances are NOT
     // outcome-interchangeable the way two copies of a plain trigger are (ADR
     // 0003's premise). Key each by its own instance id so a pair of them is
