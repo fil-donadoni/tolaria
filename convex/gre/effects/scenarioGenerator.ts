@@ -626,6 +626,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // skip — covered by the Op's own hand-written interpreter tests.
             req.skip ??= `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`;
             return;
+        case "captureBinding":
+        case "recallCapturedBinding":
+            // CR 608.2h / 400.7 (issue #2384) — the pair's whole point is that
+            // the write and the read happen in TWO SEPARATE resolutions of two
+            // DIFFERENT abilities of the same source, arbitrarily far apart. A
+            // canned scenario resolves one stack item, so it can neither set up
+            // the earlier ability nor observe a later one — there is no
+            // same-resolution outcome to assert. Explicit skip; covered by the
+            // Ops' own hand-written interpreter tests (per-Op regime).
+            req.skip ??= `Op "${op.op}" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`;
+            return;
         case "attach":
             // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
             // requires "target creature YOU control" (Lion Sash), unlike the
@@ -2472,18 +2483,34 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     createToken(rawOp, _scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "createToken" }>;
         if (op.count !== undefined && typeof op.count !== "number") return null;
+        // CR 208.2 (issue #2384) — `power`/`toughness` may be a full
+        // `EffectValue` (an X/X token sized off a ref at resolution). The
+        // canned scenario can only assert a FIXED size, so a dynamic one is
+        // declined here exactly like a dynamic `count` above; the Op's own
+        // interpreter test covers the resolved-size path.
+        const tokenPower = op.token.power;
+        const tokenToughness = op.token.toughness;
+        if (tokenPower !== undefined && typeof tokenPower !== "number") {
+            return null;
+        }
+        if (
+            tokenToughness !== undefined &&
+            typeof tokenToughness !== "number"
+        ) {
+            return null;
+        }
         const count = op.count ?? 1;
         const pid = assertionPlayerId(op.controller);
         const matches = (c: CardInstanceState) =>
             c.isToken === true &&
-            c.power === op.token.power &&
-            c.toughness === op.token.toughness &&
+            c.power === tokenPower &&
+            c.toughness === tokenToughness &&
             c.types.length === op.token.types.length &&
             c.types.every((t) => op.token.types.includes(t));
         const before = findPlayer(pre, pid).battlefield.filter(matches).length;
         const expected = before + count;
         return {
-            label: `createToken ${count}× ${op.token.types.join("/")} ${op.token.power ?? "-"}/${op.token.toughness ?? "-"} for player ${pid} (${before}→${expected})`,
+            label: `createToken ${count}× ${op.token.types.join("/")} ${tokenPower ?? "-"}/${tokenToughness ?? "-"} for player ${pid} (${before}→${expected})`,
             check: (post) => {
                 const now = findPlayer(post, pid).battlefield.filter(
                     matches
@@ -2574,6 +2601,18 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // doesn't sequence). Kept for the 1:1 coverage guard; the Op's own
     // interpreter tests are the behavioural guarantor.
     returnExiledForSource() {
+        return null;
+    },
+    // `captureBinding` / `recallCapturedBinding` (CR 608.2h / 400.7, issue
+    // #2384) — never reached: `analyseOp` skips every script carrying either,
+    // because the channel spans two separate resolutions of two different
+    // abilities of the same source and a canned scenario resolves one stack
+    // item. Kept for the 1:1 coverage guard; the Ops' own interpreter tests are
+    // the behavioural guarantor.
+    captureBinding() {
+        return null;
+    },
+    recallCapturedBinding() {
         return null;
     },
     // `dealDamageDividedAsChosen` (CR 601.2d / 120.4) — never reached:

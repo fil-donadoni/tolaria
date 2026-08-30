@@ -6,6 +6,7 @@
 import type {
     ActivatedAbilityContext,
     EffectTokenSpec,
+    EffectValue,
     TokenSpec,
 } from "./types";
 
@@ -447,3 +448,21 @@ export const FOOD_TOKEN: EffectTokenSpec = {
         },
     ],
 };
+
+/** CR 208.2 (issue #2384) — collapse an `EffectTokenSpec` power/toughness to
+ *  the plain number `TokenSpec` takes.
+ *
+ *  The DSL spec's P/T is a full `EffectValue` so a token can be sized at
+ *  RESOLUTION off a ref (Skyclave Apparition's X/X Illusion). Every consumer
+ *  that builds a `TokenSpec` OUTSIDE a resolution — an imperative
+ *  `SpellContext.createToken` caller, the static token catalogue — has no
+ *  bindings to resolve a ref against, so a dynamic size degrades to
+ *  "unspecified" (undefined), exactly the way `toTokenSpec` already degrades a
+ *  dynamic `entersWith.counters[].count` to "no entry counters". A literal
+ *  number — the shape of every shared spec and of every fixed-size token in the
+ *  pool — passes through untouched. */
+export function literalTokenPT(
+    value: EffectValue | undefined
+): number | undefined {
+    return typeof value === "number" ? value : undefined;
+}

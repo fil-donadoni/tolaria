@@ -363,6 +363,17 @@ const exileWithAttachments: Valuer<"exileWithAttachments"> = (op) => ({
 const returnExiledForSource: Valuer<"returnExiledForSource"> = () =>
     ZERO_OP_VALUE;
 
+// CR 608.2h / 400.7 (issue #2384) — the cross-ability binding memory. Both
+// halves are pure BOOKKEEPING: `captureBinding` writes a last-known-information
+// row onto the source and `recallCapturedBinding` reads it back, neither moving
+// a card, a life total, or a permanent. The material consequence belongs
+// entirely to the Ops that read the recalled binding (Skyclave Apparition's
+// `createToken`, valued by `createToken` itself), so pricing either half again
+// here would double-count it.
+const captureBinding: Valuer<"captureBinding"> = () => ZERO_OP_VALUE;
+const recallCapturedBinding: Valuer<"recallCapturedBinding"> = () =>
+    ZERO_OP_VALUE;
+
 const counter: Valuer<"counter"> = () => ({
     points: COUNTER_VALUE,
     tags: ["disruption", "targeted"],
@@ -472,18 +483,28 @@ const createToken: Valuer<"createToken"> = (op, ctx) => {
         : { amount: 1, scaling: false };
     const spec = op.token;
     const isCreatureToken = spec.types.includes("Creature");
+    // CR 208.2 (issue #2384) — the token's P/T may be a full `EffectValue` (an
+    // X/X sized off a ref at resolution, Skyclave Apparition's Illusion), so it
+    // goes through the SAME `ctx.value` grounding `count` already uses rather
+    // than being read as a bare number. A dynamic size also makes the whole
+    // creation scaling: the bot must see "bigger when X is bigger", exactly as
+    // it does for a scaling count.
+    const p = spec.power === undefined ? undefined : ctx.value(spec.power);
+    const t =
+        spec.toughness === undefined ? undefined : ctx.value(spec.toughness);
+    const ptScaling = (p?.scaling ?? false) || (t?.scaling ?? false);
     const per = isCreatureToken
         ? TOKEN_DISCOUNT *
           creatureValueRaw(
-              Math.max(0, spec.power ?? 0),
-              Math.max(0, spec.toughness ?? 0),
+              Math.max(0, p?.amount ?? 0),
+              Math.max(0, t?.amount ?? 0),
               0, // a token has no mana value (CR 111.4 — no mana cost)
               spec.staticAbilities ?? []
           )
         : NONCREATURE_TOKEN_VALUE; // a utility token (Clue, Treasure) — flat presence
     return {
         points: per * count,
-        tags: tagScaling(scaling, "tokens"),
+        tags: tagScaling(scaling || ptScaling, "tokens"),
     };
 };
 
@@ -1269,6 +1290,8 @@ export const OP_VALUERS: {
     exileSelf,
     exileWithAttachments,
     returnExiledForSource,
+    captureBinding,
+    recallCapturedBinding,
     counter,
     mayPay,
     sacrifice,
@@ -1536,6 +1559,16 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // strip still takes the permanent's whole printed function away from
     // whoever controls it for as long as it lasts.
     loseAllAbilitiesWhileSourceRemains: "harmful",
+    // ── Explicitly signless ──────────────────────────────────────────────
+    // CR 608.2h / 400.7 (issue #2384) — the cross-ability binding memory names
+    // no recipient at all: it writes and reads a last-known-information row on
+    // the source itself, helping and hurting nobody. Listed rather than left to
+    // the `?? "neutral"` fallback so the sign is a RECORDED decision — a silent
+    // absence would read as "sign genuinely context-dependent", which these are
+    // not. Whatever material follows belongs to the Ops that read the recalled
+    // binding.
+    captureBinding: "neutral",
+    recallCapturedBinding: "neutral",
     // CR 205.1a layer 4 (`setCardTypes`) is deliberately UNLISTED, i.e.
     // "neutral": replacing a permanent's card types is genuinely ambiguous in
     // sign on its own (it can strip Artifact off an opponent's Equipment or

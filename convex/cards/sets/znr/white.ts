@@ -3,6 +3,9 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../../../convex/cards/types";
+import { PERMANENT_TYPES } from "../../../../convex/cards/types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Luminarch Aspirant — {1}{W} Creature — Human Cleric, 1/1 (issue #681, Cube
@@ -68,32 +71,111 @@ export const luminarchAspirant: CardDefinition = {
     ],
 };
 
-// TODO(issue #679 stub — Skyclave Apparition's leave trigger needs to size a
-// replacement token off the mana value of a card THIS SOURCE exiled earlier
-// in the game (arbitrarily many turns prior) and that no longer exists
-// anywhere in the game (CR 400.7 — an exiled permanent that leaves exile
-// becomes a new object; nothing keeps its mana value queryable). The only
-// SpellContext channel that carries a value forward from an ETB exile to a
-// later leave-trigger is the `exileWithAttachments` / `returnExiledForSource`
-// bundle (ADR 0028) — and that channel is wired ONLY for a return-to-
-// BATTLEFIELD host (Tawnos's Coffin shape, `resolve()` re-enters the SAME
-// card under its owner's control), not for "read a stored number, then
-// create an unrelated token." `addCounter` stores a number on a permanent
-// but only for that permanent's own remaining lifetime on the battlefield —
-// by the time Skyclave Apparition's OWN leave-trigger fires, the same
-// last-known-info snapshot semantics that make `self` usable for e.g.
-// `power`/`controllerId` (CR 603.10) are not exercised anywhere in this
-// codebase for `counters`, so relying on it here would be new, untested
-// engine behavior rather than a card-definition composition. Flagged in
-// convex/cards/sets/mrd/colorless.ts (Chrome Mox) at authoring time. Stop-
-// and-issue per gre-development.md; tracked stub.
-// export const skyclaveApparition: CardDefinition = {
-//     id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
-//     name: "Skyclave Apparition",
-//     rarity: "rare",
-//     manaCost: { X: 1, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Kor", "Spirit"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Skyclave Apparition — {1}{W}{W} Creature — Kor Spirit, 2/2 (issue #2384,
+// Cube). "When this creature enters, exile up to one target nonland, nontoken
+// permanent you don't control with mana value 4 or less. // When this creature
+// leaves the battlefield, the exiled card's owner creates an X/X blue Illusion
+// creature token, where X is the mana value of the exiled card."
+//
+// TWO Oracle sentences = TWO TriggeredAbilities (CLAUDE.md § one Oracle line =
+// one TriggeredAbility): an ETB (CR 603.6a) and a leaves-the-battlefield
+// trigger (CR 603.10a, which looks back in time).
+//
+// THE HARD PART (what #679's stub flagged): the two abilities can be
+// arbitrarily many turns apart, and by the time the leave-trigger resolves the
+// exiled card is — per CR 400.7 — a NEW OBJECT with no relation to the one that
+// was exiled; it may also have left exile entirely. So X cannot be a live zone
+// lookup. It is read from a LAST-KNOWN-INFORMATION snapshot taken at the
+// instant of the exile (CR 608.2h) and carried across the two resolutions by
+// the `captureBinding` / `recallCapturedBinding` pair (issue #2384) — the
+// $source-keyed write/read couple modelled on `exileWithAttachments` /
+// `returnExiledForSource` (ADR 0028). `exile`'s own `bind` snapshots the target
+// BEFORE it moves, so the row carries both the mana value AND the owner (CR
+// 108.3 — the token goes to the exiled CARD's owner, which is not always the
+// opponent: a creature you own but an opponent controls is a legal target).
+//
+// Two consequences that fall out of reading the SNAPSHOT rather than the card:
+//   - a third party moving the exiled card out of exile does not change X;
+//   - an ETB that exiled nothing (no legal target, or the optional target was
+//     declined) captures nothing, so the leave-trigger's `createToken` finds an
+//     unresolved size and creates NO token (CR 608.2b) — which is also what
+//     happens if the Apparition leaves the battlefield before its own ETB
+//     trigger has resolved.
+//
+// The exile is PERMANENT — no play-from-exile grant (contrast the
+// `grantCastFromExile` family): plain `exile`, and the owner can never play it.
+export const skyclaveApparition: CardDefinition = {
+    id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
+    name: "Skyclave Apparition",
+    rarity: "rare",
+    oracleText:
+        "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.\nWhen this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Kor", "Spirit"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "skyclave-apparition-exile",
+            oracleText:
+                "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with mana value 4 or less.",
+            scope: "self",
+            // CR 603.3d — a REAL target chosen as the trigger goes on the
+            // stack (subject to hexproof / protection / ward), not a
+            // resolution-time choice. "up to one" = `count 0..1` (CR 601.2c);
+            // "nonland" = every permanent type minus Land; "nontoken" =
+            // `isToken: false`; "you don't control" = `controller: "opponent"`
+            // (two-seat engine, CLAUDE.md § Out of Scope); "mana value 4 or
+            // less" = `mvFilter.max` (CR 202.3).
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                excludeTypes: "Land",
+                isToken: false,
+                controller: "opponent",
+                mvFilter: { max: 4 },
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                // CR 701.13 — a plain exile: the card stays in exile forever,
+                // no play-from-exile grant. `bind` snapshots it BEFORE the
+                // move, so the row is last-known information (CR 608.2h).
+                { op: "exile", target: { target: 0 }, bind: "$exiled" },
+                // CR 608.2h / 400.7 — hand that row to the source permanent, so
+                // its OWN leave-trigger can still read it after CR 400.7 has
+                // made the exiled card a different object.
+                { op: "captureBinding", ref: "$exiled" },
+            ],
+        }),
+        leftTrigger({
+            id: "skyclave-apparition-token",
+            oracleText:
+                "When this creature leaves the battlefield, the exiled card's owner creates an X/X blue Illusion creature token, where X is the mana value of the exiled card.",
+            scope: "self",
+            // No `toZone` — the trigger fires on EVERY exit (died, bounced,
+            // exiled, tucked), per the Oracle text.
+            effects: [
+                // Restore the row the ETB captured. Nothing captured → the
+                // binding is never declared → the createToken below finds an
+                // unresolved size and does nothing (CR 608.2b).
+                { op: "recallCapturedBinding", bind: "$exiled" },
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Illusion",
+                        types: ["Creature"],
+                        subtypes: ["Illusion"],
+                        colors: ["U"],
+                        // CR 202.3 — X is the exiled card's mana value, read off
+                        // the snapshot taken before it left the battlefield.
+                        power: { ref: "$exiled.manaValue" },
+                        toughness: { ref: "$exiled.manaValue" },
+                    },
+                    // CR 108.3 — the exiled CARD's owner, not this ability's
+                    // controller and not simply "the opponent".
+                    controller: { ref: "$exiled.owner" },
+                },
+            ],
+        }),
+    ],
+};

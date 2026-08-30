@@ -346,6 +346,17 @@ function slimCard<
     // that never crosses the wire cannot leak a future non-public one
     // (#1977/#1982), and the engine reads it server-side only.
     delete (slimmed as { sourceLki?: unknown }).sourceLki;
+    // CR 608.2h / 400.7 (issue #2384) — `capturedBindings`, the cross-ability
+    // binding memory one of this permanent's abilities left for a later one, is
+    // the third field of exactly the `sourceLki` shape and gets the same
+    // treatment. No client reads it; the engine reads it server-side only, at
+    // `recallCapturedBinding`. Everything Skyclave Apparition puts there is
+    // already-public exile-zone information, so this is payload hygiene TODAY —
+    // but a future card capturing a binding to a card in a HIDDEN zone (a hand
+    // card snapshot carries its id, name and mana value) would leak it to the
+    // opponent through a field nothing renders, and stripping is the
+    // fail-closed default that makes that impossible (#1977/#1982).
+    delete (slimmed as { capturedBindings?: unknown }).capturedBindings;
     return slimmed;
 }
 

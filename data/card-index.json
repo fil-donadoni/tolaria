@@ -23624,6 +23624,14 @@
         "source": "compiled"
     },
     {
+        "name": "Skyclave Apparition",
+        "scryfallId": "b83cfbaa-7890-4f6f-878b-4edb45677371",
+        "oracleId": "d90af00a-d322-4265-9954-7b1e80702e18",
+        "firstSet": "znr",
+        "firstPrintId": "b83cfbaa-7890-4f6f-878b-4edb45677371",
+        "firstPrintSet": "znr"
+    },
+    {
         "name": "Skycloud Expanse",
         "scryfallId": "c8c0da61-59c5-4206-83d9-c4676e169f01",
         "oracleId": "76f335d0-7f71-4b1a-b60d-73de954cbe2c",

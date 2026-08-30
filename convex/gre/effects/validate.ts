@@ -873,6 +873,19 @@ function isEffectCardBackFace(value: unknown): boolean {
  *  `staticEffects` is deliberately NOT accepted (its predicates carry
  *  closures — a token needing continuous static effects stays a `resolve()`
  *  card). Unknown keys are rejected: the grammar is frozen (ADR 0045). */
+/** CR 208.2 (issue #2384) — a token spec's `power` / `toughness`: any INTEGER
+ *  literal, or any non-literal `EffectValue` (a ref / count / … resolved at
+ *  token-creation time, sizing an X/X off the script's bindings).
+ *
+ *  Not plain `isEffectValue`: that one's literal leg is `isPositiveInt`, which
+ *  rejects `0` — and a 0/1 Eldrazi Spawn is a real printed token. The integer
+ *  leg here is exactly the check this field carried before the widening, so no
+ *  previously-valid spec becomes invalid. */
+function isTokenPTValue(value: unknown): boolean {
+    if (Number.isInteger(value)) return true;
+    return typeof value !== "number" && isEffectValue(value);
+}
+
 function isEffectTokenSpec(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -908,8 +921,12 @@ function isEffectTokenSpec(value: unknown): boolean {
     if ("supertypes" in s && !isStringArray(s.supertypes, TOKEN_SUPERTYPES)) {
         return false;
     }
-    if ("power" in s && !Number.isInteger(s.power)) return false;
-    if ("toughness" in s && !Number.isInteger(s.toughness)) return false;
+    // CR 208.2 (issue #2384) — a full `EffectValue`, not a bare integer: an
+    // X/X token sized at RESOLUTION off a ref (Skyclave Apparition's Illusion).
+    // A literal number is still the common shape and still accepted —
+    // `EffectValue` includes `number`.
+    if ("power" in s && !isTokenPTValue(s.power)) return false;
+    if ("toughness" in s && !isTokenPTValue(s.toughness)) return false;
     if ("colors" in s && !isStringArray(s.colors, TOKEN_COLORS)) return false;
     if ("staticAbilities" in s && !isStringArray(s.staticAbilities)) {
         return false;
@@ -3141,6 +3158,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
     // `$source`. No parameters — the source is always the resolving ability's own.
     returnExiledForSource: { required: {} },
+    // CR 608.2h / 400.7 (issue #2384) — persist an in-script snapshot binding
+    // onto the resolving SOURCE permanent so a LATER ability of the same source
+    // can read it back (Skyclave Apparition's ETB exile → its own leave-
+    // trigger). `ref` is a BARE binding name (no property path); the ordered
+    // ref pass checks it names a snapshot binding an earlier Op bound, exactly
+    // like an object position. No key field — the memory is always keyed by
+    // `ctx.sourceInstanceId`, mirroring `exileWithAttachments` (ADR 0028).
+    captureBinding: { required: { ref: isBindingName } },
+    // CR 608.2h (issue #2384) — the READ half: restore the row this source
+    // captured under `bind`, DECLARING `bind` as an ordinary snapshot binding
+    // for the rest of the script (the generic `bind` walker below picks it up,
+    // so every downstream ref is checked exactly as for a `destroy`/`exile`
+    // bind).
+    recallCapturedBinding: { required: { bind: isBindingName } },
     // CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the
     // announced target permanent (Reconfigure's first activated ability).
     attach: {
@@ -5442,9 +5473,21 @@ function checkOpListRefs(
                 continue;
             }
             if (k === "token") {
-                const token = v as { entersWith?: unknown } | null;
+                const token = v as {
+                    entersWith?: unknown;
+                    power?: unknown;
+                    toughness?: unknown;
+                } | null;
                 if (token && typeof token === "object") {
                     collectRefUses(token.entersWith, "entersWith", uses);
+                    // CR 208.2 (issue #2384) — `token.power` / `token.toughness`
+                    // are `EffectValue`s evaluated in THIS outer scope at
+                    // token-creation time, exactly like
+                    // `entersWith.counters[].count` above (and unlike the
+                    // token's independently-scoped ability bodies), so a
+                    // dangling ref in an X/X token's size must be caught here.
+                    collectRefUses(token.power, "power", uses);
+                    collectRefUses(token.toughness, "toughness", uses);
                 }
                 continue;
             }
@@ -5733,6 +5776,21 @@ function checkOpListRefs(
             } else {
                 declared.set(entry.bind, bindingKindOf(entry.op));
             }
+        }
+
+        // CR 608.2h (issue #2384) — `captureBinding.ref` is a BARE binding
+        // name held as a plain string (not a `{ ref }` object), so the generic
+        // `collectRefUses` walk above cannot see it. Recorded here as an OBJECT
+        // position: it must name a snapshot binding an EARLIER Op in this same
+        // script bound, which is exactly what an object position enforces.
+        if (entry.op === "captureBinding" && typeof entry.ref === "string") {
+            checkRefUse(
+                { ref: entry.ref, kind: "object" },
+                declared,
+                at,
+                errors,
+                eventScope
+            );
         }
 
         // `choice.bindOther` declares an object SNAPSHOT binding — the single

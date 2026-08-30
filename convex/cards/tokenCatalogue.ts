@@ -27,6 +27,7 @@
 
 import { getAllCards, tokenDefinitionId } from "./index";
 import * as SHARED_TOKENS from "./sharedTokens";
+import { literalTokenPT } from "./sharedTokens";
 import { tokenPrintIdFor } from "./tokenPrintLookup";
 import { resolveTokenTriggeredAbilities } from "./tokenTriggeredAbilities";
 import type {
@@ -123,7 +124,14 @@ function toTokenSpec(
     spec: EffectTokenSpec,
     producerCardId: string | undefined
 ): TokenSpec {
-    const { entersWith, backFace, triggeredAbilities, ...rest } = spec;
+    const {
+        entersWith,
+        backFace,
+        triggeredAbilities,
+        power,
+        toughness,
+        ...rest
+    } = spec;
     const counters = entersWith?.counters
         ?.map((c) =>
             typeof c.count === "number" && c.count > 0
@@ -133,6 +141,17 @@ function toTokenSpec(
         .filter((c): c is { type: string; count: number } => c !== undefined);
     return {
         ...rest,
+        // CR 208.2 (issue #2384) — the DSL spec's P/T is an `EffectValue` so a
+        // token can be sized at RESOLUTION off a ref. A catalogue entry has no
+        // runtime bindings, so only a LITERAL size survives — the same
+        // degradation the dynamic `entersWith` count above takes, and the right
+        // default for a staged debug board (the scenario sets P/T itself).
+        ...(literalTokenPT(power) === undefined
+            ? {}
+            : { power: literalTokenPT(power) }),
+        ...(literalTokenPT(toughness) === undefined
+            ? {}
+            : { toughness: literalTokenPT(toughness) }),
         // CR 707.1 — art resolution mirrors `SpellContext.createToken`: an
         // explicit `imagePrintId` wins, else the build-time Scryfall
         // reverse-link keyed by (producing card id, token name).

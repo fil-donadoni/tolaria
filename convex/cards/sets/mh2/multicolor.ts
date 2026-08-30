@@ -6,7 +6,7 @@ import type {
     TokenSpec,
 } from "../../types";
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
-import { INSECT_TOKEN } from "../../sharedTokens";
+import { INSECT_TOKEN, literalTokenPT } from "../../sharedTokens";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 
@@ -132,8 +132,11 @@ const gristInsectToken: TokenSpec = {
     name: INSECT_TOKEN.name,
     types: INSECT_TOKEN.types,
     subtypes: INSECT_TOKEN.subtypes,
-    power: INSECT_TOKEN.power,
-    toughness: INSECT_TOKEN.toughness,
+    // CR 208.2 (issue #2384) — `EffectTokenSpec` P/T is an `EffectValue` so a
+    // token can be sized at resolution; this one is a literal 1/1 and
+    // `TokenSpec` takes plain numbers, so collapse it through the shared helper.
+    power: literalTokenPT(INSECT_TOKEN.power),
+    toughness: literalTokenPT(INSECT_TOKEN.toughness),
     colors: INSECT_TOKEN.colors,
     imagePrintId: tokenPrintIdFor(GRIST_ID, "Insect"),
 };

@@ -2839,6 +2839,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Effect Script Op for the RETURN half of the exile-and-return family (CR 603.7a / ADR 0028) — the paired counterpart of `exileWithAttachments`. Returns every exile-and-return bundle keyed to the resolving `$source`: the host re-enters under its owner's control (tapped if the bundle noted so, carrying its noted counters, CR 122) and any bundled Auras re-enter attached (CR 303.4). A thin declarative skin over `SpellContext.returnExiledForSource(ctx.sourceInstanceId)` (ADR 0045, one execution path); carries no parameters — the source is always the resolving ability's own source. Lives on the source's \"leaves the battlefield / becomes untapped\" trigger (Banishing Light's leftTrigger, Tawnos's Coffin's untap trigger); a stale fire with nothing held is a harmless no-op (the primitive early-returns), so the `holdsExileBundle` gate is a convenience, not a correctness requirement. No `mechanicId` — the return is a delayed-trigger action (CR 603.7a), not a CR 701 keyword action.",
     },
     {
+        op: "captureBinding",
+        status: "implemented",
+        cr: "608.2h",
+        binding: "SpellContext.captureBinding",
+        note: "Effect Script Op for the WRITE half of the cross-ability last-known-information channel (CR 608.2h / 400.7, issue #2384). Persists an in-script snapshot binding — the `bindSnapshot` row an earlier `exile`/`destroy`/`moveZone` bind captured — onto the RESOLVING SOURCE permanent's own instance state, so a LATER, SEPARATE ability of that same source can read it back with `recallCapturedBinding`. An ordinary binding lives for exactly one resolution (a `collectedChoices` entry on the stack item); Skyclave Apparition needs one to outlive it, because its enters-the-battlefield exile and its own leaves-the-battlefield trigger can be arbitrarily many turns apart and CR 400.7 has by then made the exiled card a different object. Keyed ALWAYS by `ctx.sourceInstanceId`, never author-supplied — the same `$source`-keyed pairing `exileWithAttachments` / `returnExiledForSource` uses (ADR 0028). The stored unit is a binding ROW, not a scalar, so the recalled binding is indistinguishable from a fresh one to every existing reader (`.manaValue`, `.owner`, `.power`, …) and the channel needs no new ref grammar. Dropped when the source RE-ENTERS the battlefield (CR 400.7 — `markEnteredThisTurn`); no `mechanicId` — this is a resolution-time information channel, not a CR 701 keyword action.",
+    },
+    {
+        op: "recallCapturedBinding",
+        status: "implemented",
+        cr: "608.2h",
+        binding: "SpellContext.recallCapturedBinding",
+        note: 'Effect Script Op for the READ half of the cross-ability last-known-information channel (CR 608.2h, issue #2384) — the paired counterpart of `captureBinding`, mirroring `returnExiledForSource`\'s relationship to `exileWithAttachments` (ADR 0028). Restores the row this source captured under `bind` into the CURRENT resolution, DECLARING `bind` as an ordinary snapshot binding the rest of the script reads through the normal ref path. Carries no source field — always `ctx.sourceInstanceId` — and reads the memory from whatever zone the source now occupies, because a leaves-the-battlefield trigger resolves with its source already in a graveyard / exile / hand / library. Nothing captured under that name is a no-op: the binding is simply never declared, so every downstream reader skips (CR 608.2b) — exactly the "the enters-the-battlefield trigger found no legal target, so the leave-trigger makes no token" case. No `mechanicId`.',
+    },
+    {
         op: "attach",
         status: "implemented",
         cr: "701.3a",
