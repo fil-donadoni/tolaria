@@ -245,6 +245,23 @@ function twilightDivinerGraveyardCopy(): TriggeredAbility {
             // Diviner's controller ("you").
             ctx.createTokenCopyOf(event.instanceId, ctx.controller);
         },
+        // aiEffects (PRD #1423, issue #1519) — a bare `resolve()` body is
+        // invisible to the bot's Effect Script value model. The real body
+        // copies an unknowable entering creature, so a representative 2/2
+        // stands in — the SAME convention Sin (`fin/multicolor.ts`) and
+        // `createTokenCopy`'s own valuer use.
+        aiEffects: [
+            {
+                op: "createToken",
+                token: {
+                    name: "Copy",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                },
+                controller: "controller",
+            },
+        ],
     };
 }
 
