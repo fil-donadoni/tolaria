@@ -145,6 +145,11 @@ export type MoveMutations = {
      *  `sacrificeFilter` activation cost (Fallen Angel, Atog) or a static
      *  additional-sacrifice tax. One call per victim. */
     selectSacrifice: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 701.13 / 118.8 — names the single permanent exiled for a cast's
+     *  `additionalCosts.exileFilter` additional cost (Soul Exchange). */
+    selectAdditionalCost: (
+        a: GP & { cardInstanceId: string }
+    ) => Promise<unknown>;
     /** CR 602.1 / 118.8 — names ONE permanent to tap for a `tapOtherFilter`
      *  activation cost (Hand of Justice, Crew N). One call per permanent. */
     selectActivationCost: (
@@ -486,6 +491,31 @@ export async function executeMove(
             // below threw against an expected input of `"target"`.
             if (move.confirmTargets) {
                 await mutations.confirmTargets(base);
+            }
+            // CR 601.2f / 701.21 / 701.13 (issue #2135) — the MANDATORY
+            // additional-cost parks (the card's own filtered sacrifice plus
+            // Drought's static sacrifice, and the exile additional cost, Soul
+            // Exchange). The server parks a `pendingCast` carrying an unanswered
+            // picker for each and refuses to commit until every one is named;
+            // the picks travel ON the move (the same shape the activation side
+            // already used for `costPicks`), so the search valued exactly what
+            // this now names. Submitted AFTER targeting — while a
+            // `pendingTarget` is live the expected input is "target", and each
+            // picker asserts "priority". One pick per call (ADR 0091 decision 5).
+            const castPicks = move.castCostPicks;
+            if (castPicks) {
+                for (const cardInstanceId of castPicks.sacrificeIds ?? []) {
+                    await mutations.selectSacrifice({
+                        ...base,
+                        cardInstanceId,
+                    });
+                }
+                if (castPicks.additionalCostCardId) {
+                    await mutations.selectAdditionalCost({
+                        ...base,
+                        cardInstanceId: castPicks.additionalCostCardId,
+                    });
+                }
             }
             if (move.tapPlan.length > 0) {
                 // issue #1779 / PRD #1776 T4 — one batched call instead of N

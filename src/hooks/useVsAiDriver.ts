@@ -255,6 +255,11 @@ export function useVsAiDriver(
         activatePlayerAbility: useMutation(api.game.activatePlayerAbility),
         tapForActivationPayment: useMutation(api.game.tapForActivationPayment),
         selectSacrifice: useMutation(api.game.selectSacrifice),
+        // CR 701.13 / 118.8 (issue #2135) — the cast-side exile additional cost
+        // (Soul Exchange). Now Move-realised like the activation pickers below:
+        // the pick travels on the `cast-spell` Move (`castCostPicks`), so it
+        // belongs in `MoveMutations` and is submitted by `executeMove`.
+        selectAdditionalCost: useMutation(api.game.selectAdditionalCost),
         // CR 602.1 / 118 — the deferred activation-cost pickers. Unlike the
         // attack-tax / mana-spend pickers below these ARE Move-realised: the
         // picks travel on the `activate-ability` Move (`costPicks`), so they
@@ -308,8 +313,8 @@ export function useVsAiDriver(
     // ADR 0091 / issue #1209 — the remaining CAST-side payment pickers. Like the
     // three above they hang off `pendingCast`, are not Move-realised, and are
     // driven directly — through the generic `pay-owed-payment` branch rather
-    // than a per-park branch of their own.
-    const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
+    // than a per-park branch of their own. (`selectAdditionalCost` moved into
+    // `MoveMutations` above — it is Move-realised now, issue #2135.)
     const selectCastAlternativeHandCost = useMutation(
         api.game.selectCastAlternativeHandCost
     );
@@ -327,7 +332,7 @@ export function useVsAiDriver(
     // (`submitOwedPayment`) is exhaustive over the submission union.
     const owedPaymentMutations: OwedPaymentMutations = {
         selectSacrifice: mutations.selectSacrifice,
-        selectAdditionalCost,
+        selectAdditionalCost: mutations.selectAdditionalCost,
         selectConvokeCreatures,
         selectCastExileCost,
         selectCastAlternativeHandCost,

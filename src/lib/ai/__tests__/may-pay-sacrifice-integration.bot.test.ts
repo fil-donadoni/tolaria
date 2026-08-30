@@ -52,6 +52,7 @@ function engineMutations(state: GameState): MoveMutations {
         activateManaAbility: reject,
         tapForActivationPayment: reject,
         selectSacrifice: reject,
+        selectAdditionalCost: reject,
         selectActivationCost: reject,
         selectActivationExileCost: reject,
         selectActivationDiscardCost: reject,
