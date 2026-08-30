@@ -3234,8 +3234,17 @@ describe("Lace cycle (CR 305.7 — target spell or permanent becomes [color])", 
         expect(types).not.toContain("player");
     });
 
-    it("protection interaction respects new color (CR 702.16b)", () => {
-        const proRedCreature = makeInstance(whiteKnight.id, {
+    // A lace recolours a PROTECTED creature — but only from a source that
+    // creature is not protected FROM. White Knight has protection from black
+    // (CR 702.16b), so Deathlace (a black spell) can never legally target it;
+    // that is why the vehicle here is Chaoslace, a RED spell. Before issue
+    // #2942 this fixture cast Deathlace at it and the engine obliged, because
+    // the CR 608.2b resolution gate carved protection out entirely — the
+    // carve-out that fixture was the stated reason for. Recolouring the
+    // creature does NOT move its protection: the quality is parsed from the
+    // ability TEXT (CR 702.16a), not from the permanent's own colours.
+    it("recolours a protected creature without moving its protection (CR 702.16b)", () => {
+        const proBlackCreature = makeInstance(whiteKnight.id, {
             id: "wk",
             controllerId: "p2",
             ownerId: "p2",
@@ -3244,16 +3253,46 @@ describe("Lace cycle (CR 305.7 — target spell or permanent becomes [color])", 
             manaPool: { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 },
         });
         const p2 = makePlayer("p2", {
-            battlefield: [proRedCreature],
+            battlefield: [proBlackCreature],
         });
         const state = makeState({ players: [p1, p2] });
 
-        expect(getProtectedColors(proRedCreature).includes("B")).toBe(true);
+        expect(getProtectedColors(proBlackCreature).includes("B")).toBe(true);
 
-        pushSpell(state, deathlace.id, "p1", [{ type: "permanent", id: "wk" }]);
+        pushSpell(state, chaoslace.id, "p1", [{ type: "permanent", id: "wk" }]);
         resolveTopOfStack(state);
 
-        expect(STATIC_EFFECT_CTX.getColors(proRedCreature)).toEqual(["B"]);
+        expect(STATIC_EFFECT_CTX.getColors(proBlackCreature)).toEqual(["R"]);
+        expect(getProtectedColors(proBlackCreature)).toEqual(["B"]);
+    });
+
+    // The mirror, and the direct CR 608.2b proof for the protective-keyword
+    // leg (issue #2942): the black lace CANNOT recolour the creature that is
+    // protected from black. It is countered by the game rules on resolution
+    // and nothing happens.
+    it("a black lace is countered against a creature with protection from black (CR 608.2b)", () => {
+        const proBlackCreature = makeInstance(whiteKnight.id, {
+            id: "wk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [proBlackCreature] }),
+            ],
+        });
+
+        const lace = pushSpell(state, deathlace.id, "p1", [
+            { type: "permanent", id: "wk" },
+        ]);
+        resolveTopOfStack(state);
+
+        expect(proBlackCreature.colorOverride).toBeUndefined();
+        expect(STATIC_EFFECT_CTX.getColors(proBlackCreature)).toEqual(["W"]);
+        // CR 608.2b — a countered spell goes to its owner's graveyard.
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(lace.id);
     });
 
     it("wire format: colorOverride survives projectPublicState", () => {

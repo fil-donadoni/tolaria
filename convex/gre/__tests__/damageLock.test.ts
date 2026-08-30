@@ -25,7 +25,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { crawWurm } from "../../cards/sets/lea/green";
 import { lightningBolt } from "../../cards/sets/lea/red";
-import { lavaBurst } from "../../cards/sets/ice/red";
+import { lavaBurst, pyroclasm } from "../../cards/sets/ice/red";
 import { whippoorwill } from "../../cards/sets/drk/green";
 import { callousGiant, urzasRage } from "../../cards/sets/inv/red";
 import { divinePresence, harshJudgment } from "../../cards/sets/inv/white";
@@ -98,7 +98,14 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
         expect(state.targetPreventionShields?.[0].remaining).toBe(100);
     });
 
-    it("beats protection from red on a creature (CR 702.16e is prevention)", () => {
+    // CR 608.2b beats CR 615.12: "can't be prevented" is a statement about
+    // DAMAGE, and a spell that is countered for having no legal target never
+    // deals any. A creature with protection from red is not a legal target for
+    // a red spell at all (CR 702.16b), so unpreventable or not, Lava Burst
+    // does nothing to it. Before issue #2942 the resolution gate carved the
+    // protective keywords out and this fixture marked 3 damage — a board state
+    // reachable only because the gate could not see protection.
+    it("is countered against protection from red rather than dealing unpreventable damage (CR 608.2b)", () => {
         const bear = makeInstance(crawWurm.id, {
             id: "bear",
             controllerId: "p2",
@@ -115,7 +122,11 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")!
                 .damageMarked
-        ).toBe(3);
+        ).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            lavaBurst.id
+        );
     });
 
     it("beats a CR 614.9 transient redirect shield (Mirrorwood Treefolk)", () => {
@@ -296,8 +307,72 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
     });
 });
 
-describe("Urza's Rage — unpreventable damage vs protection (CR 702.16e)", () => {
-    it("kicked damage is dealt through protection from red", () => {
+// The kicked/UNkicked pair is the discriminator for Urza's Rage's prevention
+// half, and it runs against a CR 615.1 prevention SHIELD rather than against
+// protection from red: a targeted red spell can never legally reach a creature
+// protected from red — CR 702.16b bars it as a target, and the resolution gate
+// (CR 608.2b) counters the spell since issue #2942 — so the protection pairing
+// could only ever be measured on an illegal board. The shield is the real-play analogue —
+// Circle-of-Protection-style prevention does NOT bar targeting — and it
+// exercises the same `unpreventable` field at the same damage site. The
+// protection leg keeps its own coverage below, on an UNTARGETED source.
+describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () => {
+    /** A Craw Wurm under p2 behind a 100-point prevention shield. */
+    function shieldedBoard(): GameState {
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            targetPreventionShields: [
+                {
+                    targetType: "permanent",
+                    targetId: "bear",
+                    remaining: 100,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        });
+    }
+
+    it("kicked damage is dealt through a prevention shield", () => {
+        const state = shieldedBoard();
+        const item = pushSpell(state, urzasRage.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        // 10 damage on a 6/4 is lethal, so the proof is that it DIED — with the
+        // prevention half honoured nothing is marked at all and the Craw Wurm
+        // stays on the battlefield.
+        expect(state.players[1].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "bear")).toBe(
+            true
+        );
+    });
+
+    it("UNkicked damage is still prevented by the shield", () => {
+        const state = shieldedBoard();
+        pushSpell(state, urzasRage.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")!
+                .damageMarked
+        ).toBeUndefined();
+    });
+
+    // CR 608.2b (issue #2942) — the kicker buys unpreventable DAMAGE, not a
+    // legal target. Against protection from red the spell never resolves.
+    it("kicked damage still cannot reach a creature with protection from red (CR 608.2b)", () => {
         const bear = makeInstance(crawWurm.id, {
             id: "bear",
             controllerId: "p2",
@@ -315,38 +390,17 @@ describe("Urza's Rage — unpreventable damage vs protection (CR 702.16e)", () =
         ]);
         item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
-        // 10 damage on a 6/4 is lethal, so the proof is that it DIED — under
-        // the old unconditional protection check nothing was marked at all and
-        // the Craw Wurm stayed on the battlefield.
         expect(state.players[1].battlefield.some((c) => c.id === "bear")).toBe(
-            false
-        );
-        expect(state.players[1].graveyard.some((c) => c.id === "bear")).toBe(
             true
         );
-    });
-
-    it("UNkicked damage is still prevented by protection from red", () => {
-        const bear = makeInstance(crawWurm.id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-            staticAbilities: ["protection from red"],
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        pushSpell(state, urzasRage.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")!
                 .damageMarked
         ).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            urzasRage.id
+        );
     });
 });
 
@@ -426,18 +480,47 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
         expect(state.players[0].life).toBe(20);
     });
 
+    // The vehicle is Pyroclasm, not Lightning Bolt: a red spell cannot legally
+    // TARGET a creature with protection from red (CR 702.16b), and since issue
+    // #2942 the CR 608.2b gate counters one that tries. Pyroclasm damages every
+    // creature without targeting anything, so this is the shape in which
+    // CR 702.16e's prevention leg is actually reachable from a spell source —
+    // and the shape in which the turn-scoped lock can be seen beating it.
     it("beats protection on damage from an unrelated source (CR 702.16e)", () => {
         const state = lockedBoard();
         const bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
         bear.staticAbilities = ["protection from red"];
-        pushSpell(state, lightningBolt.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
+        pushSpell(state, pyroclasm.id, "p1");
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")!
                 .damageMarked
-        ).toBe(3);
+        ).toBe(2);
+    });
+
+    // The must-NOT twin: with no lock armed, the SAME untargeted red source is
+    // prevented by protection from red (CR 702.16e). Without this row the
+    // assertion above would pass just as well if the prevention leg had been
+    // deleted outright.
+    it("without the lock, protection from red still prevents the same damage (CR 702.16e)", () => {
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["protection from red"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, pyroclasm.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear")!
+                .damageMarked
+        ).toBeUndefined();
     });
 
     it("a Mirrorwood Treefolk shield on the locked creature cannot move the damage", () => {

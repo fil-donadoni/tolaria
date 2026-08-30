@@ -144,7 +144,11 @@ describe("Angry Mob — CDA P/T (CR 604.3 / 102.1)", () => {
 describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
     it("destroys the targeted black creature", () => {
         const ex = makeInstance(exorcist.id, { id: "ex", controllerId: "p1" });
-        const black = makeInstance(getCardByName("Black Knight").id, {
+        // Scathe Zombies, not Black Knight: Exorcist is WHITE, so a Black
+        // Knight (protection from white, CR 702.16b) is not a legal target for
+        // its ability — and since issue #2942 the CR 608.2b resolution gate
+        // counters the ability instead of destroying it anyway.
+        const black = makeInstance(getCardByName("Scathe Zombies").id, {
             id: "black",
             controllerId: "p2",
             ownerId: "p2",
