@@ -10229,16 +10229,40 @@ export function exileWithAttachments(
 ): string | null {
     const found = findOnBattlefield(state, targetId);
     if (!found) return null;
-    // CR 610.3b — the specified event (this source leaving the battlefield)
-    // has already happened, so the initial one-shot effect does nothing. The
-    // source must be GONE, not merely off the battlefield: a resolving SPELL
-    // is its own source and is still on the stack, and it has not "left the
-    // battlefield" in CR 610.3's sense — only a source that is neither in play
-    // nor on the stack has actually departed.
+    // CR 610.3a / 610.3b — the specified event (this source leaving the
+    // battlefield) has already happened, so the initial one-shot effect does
+    // nothing at all.
+    //
+    // The ONE legitimate exemption is a resolving SPELL acting as its own
+    // source: it has never been on the battlefield and has not "left" it in
+    // CR 610.3's sense. That is tested against the CURRENTLY-RESOLVING item
+    // only, and only when it is a plain spell — NOT by scanning the stack for
+    // the id.
+    //
+    // A stack scan would defeat the guard entirely for the ACTIVATED half of
+    // the family (Parallax Wave/Tide, Tawnos's Coffin, Safe Haven, CR 610.3a):
+    // `buildActivatedAbilityStackItem` clones the source and KEEPS its `id`
+    // (`gre/activationCommit.ts`), so the resolving ability's stack item shares
+    // the permanent's id and the scan always matched — exiling a card under a
+    // bundle keyed to a source that can never leave again, i.e. stranding it
+    // forever. A triggered ability is unaffected either way (`buildTriggerItem`
+    // allocates a FRESH id), which is exactly why the trigger-path test passed
+    // while the activated path stayed broken.
+    //
+    // Reading the resolving item rather than the whole stack also closes the
+    // blink hole: instance ids survive a zone change, so an O-Ring bounced and
+    // recast while its old trigger is still on the stack would otherwise match
+    // its own earlier id.
+    const resolving = state.stack[state.stack.length - 1];
+    const isOwnResolvingSpell =
+        resolving !== undefined &&
+        resolving.id === opts.sourceId &&
+        resolving.abilityId === undefined &&
+        resolving.triggeredAbilityId === undefined;
     if (
         opts.requireSourceOnBattlefield &&
         !findOnBattlefield(state, opts.sourceId) &&
-        !state.stack.some((item) => item.id === opts.sourceId)
+        !isOwnResolvingSpell
     ) {
         return null;
     }
