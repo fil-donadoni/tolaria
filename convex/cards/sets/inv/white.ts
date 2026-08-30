@@ -1178,9 +1178,14 @@ export const glimmeringAngel: CardDefinition = {
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white
 // Reflection creature token, where X is the mana value of that spell."
-// tracked-by: #1329 (`EffectTokenSpec.power`/`toughness` are literal numbers
-// only, no `EffectValue` — a token sized dynamically off the triggering
-// spell's mana value isn't expressible via `createToken`).
+// tracked-by: #1329. The dynamic-token-size half of that blocker is now GONE:
+// `EffectTokenSpec.power`/`toughness` take a full `EffectValue` as of issue
+// #2384 (Skyclave Apparition's X/X Illusion), so an X/X token IS expressible
+// via `createToken`. What still blocks this card is reading X off the
+// TRIGGERING SPELL: `EVENT_FIELD_REGISTRY` has no `SPELL_CAST` row exposing the
+// cast spell as an object, so `{ ref: "$event.<spell>.manaValue" }` has nothing
+// to resolve — plus "destroy all Reflections", a subtype-filtered mass destroy.
+// Re-verify against #1329 before quoting the old premise.
 
 // Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
 // this creature this turn if able." tracked-by: #1332 (no "must be

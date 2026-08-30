@@ -18381,16 +18381,40 @@ export function buildSpellContext(
             };
         },
         recallCapturedBinding(name: string): string[] | undefined {
-            // Read from whatever zone the source now occupies — a
+            // CR 608.2h — "the effect uses the CURRENT information of that
+            // object if it's in the public zone it was expected to be in; if
+            // it's no longer in that zone [...] the effect uses the object's
+            // LAST KNOWN INFORMATION". Both halves are needed here, in that
+            // order.
+            //
+            // CURRENT first: read from whatever zone the source now occupies. A
             // leave-the-battlefield trigger resolves with its source already in
-            // a graveyard / exile / hand / library, which is the whole point of
-            // the channel.
+            // a graveyard / exile / hand / library, which is the ordinary case
+            // and the whole point of the channel. Reading live also means an
+            // ability already ON the stack when a LATER ability of the same
+            // source captured still sees that capture.
             const card = findCardInAnyZone(
                 state,
                 item.triggerSourceId ?? item.id
             );
             const row = card?.capturedBindings?.[name];
-            return row ? [...row] : undefined;
+            if (row) return [...row];
+            // LAST KNOWN INFORMATION second, and this leg is load-bearing: the
+            // source may have RE-ENTERED the battlefield while this ability was
+            // still on the stack (Skyclave Apparition dies, its leave-trigger
+            // goes on the stack, and in response someone reanimates it at
+            // instant speed). CR 400.7 makes that a new object with no memory,
+            // so `markEnteredThisTurn` has wiped the live row — but the ability
+            // on the stack came from the OLD object, which did capture one, and
+            // CR 603.10a's look-back is exactly what says the trigger still
+            // does its thing. The stack item is a `{ ...self }` snapshot taken
+            // when the ability was put on the stack (`buildTriggerItem`,
+            // gre/triggers.ts; `buildActivatedAbilityStackItem`,
+            // gre/activationCommit.ts), so it still holds the pre-re-entry map
+            // — the clear replaces the property on the CARD, it never mutates
+            // the object the snapshot points at.
+            const frozen = (item as CardInstanceState).capturedBindings?.[name];
+            return frozen ? [...frozen] : undefined;
         },
         // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
         // The interpreter checkpoints the CURRENT Op index in the stack

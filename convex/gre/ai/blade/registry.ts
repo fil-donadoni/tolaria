@@ -2108,6 +2108,81 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #2283, second reported shape. Also the `controller: you` half of the census: the enumerator must offer only the bot's OWN lands, because a submission naming an opponent's land is rejected by `applyOneTargetSelection` and re-freezes the bot.",
     },
     {
+        // ISSUE #2283 shape 3, and issue #2384's "bot visibility" criterion —
+        // the OPTIONAL ("up to one") targeted trigger, which neither entry
+        // above covers: both of those lower a MANDATORY `count: 1`.
+        //
+        // Skyclave Apparition's ETB is `{ min: 0, max: 1 }` plus a filter stack
+        // no other blade entry exercises — `mvFilter.max`, `isToken: false`,
+        // `excludeTypes: "Land"`, `controller: "opponent"`. That combination is
+        // the documented failure surface: the requirement makes a round trip
+        // (`TargetRequirement` → `PendingTarget` → `requirementFromPendingTarget`)
+        // and a filter DROPPED on the way back makes the enumerator offer a
+        // target `applyOneTargetSelection` then rejects — which re-freezes the
+        // bot exactly as hard as offering nothing. Here that would mean
+        // offering the Shivan Dragon (mana value 6), one of the seat's own
+        // permanents, or a land.
+        //
+        // EXPECTATION: legality + progress, NOT which permanent it exiles —
+        // target quality is a matter of opinion (is the 2/2 flier worth more
+        // than the 2/2 bear?) and is deliberately out of scope, exactly as in
+        // the two entries above.
+        label: "raised target: answers its own Skyclave Apparition ETB trigger (up to one, mv-filtered) (#2384)",
+        spec: {
+            cards: [
+                {
+                    name: "Skyclave Apparition",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // TWO legal targets, so the requirement admits a REAL choice
+                // (with exactly one the engine auto-selects and the bot is
+                // never asked — the reason this class stayed invisible).
+                {
+                    name: "Hypnotic Specter",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // ILLEGAL by mana value (6 > 4). A submission naming it is
+                // rejected server-side, so the enumerator must not offer it.
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // Lands on both sides — excluded by `excludeTypes: "Land"`, so they
+            // are the negative control for that leg of the filter stack.
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Skyclave Apparition" }],
+        bot: "me",
+        budget: { iterations: 100 },
+        // A forced window — the bot owes this selection and has no other legal
+        // action — so the answer must hold on ANY seed (ADR 0070 §3).
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                answersRaisedTargetLegally(move, state, "me"),
+            describe:
+                "a legal `submit-target` submission for the raised Skyclave Apparition trigger target that clears `pendingTarget` and lands the target on the trigger's stack item",
+        },
+        note: "Issue #2384. The `{ min: 0, max: 1 }` + `mvFilter` lowering, which no other raised-target entry covers; also the deterministic proof that the ETB exile is reachable through Move enumeration at all (that issue's bot-visibility criterion).",
+    },
+    {
         label: "combo: casts Splinter Twin on Deceiver Exarch with both pieces assembled",
         spec: {
             cards: [

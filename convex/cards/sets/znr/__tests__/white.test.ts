@@ -277,6 +277,20 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
         expect(tokensOf(state, 1)).toHaveLength(0);
     });
 
+    it("DECLINING the optional target with a legal one available exiles nothing and makes no token (CR 601.2c)", () => {
+        // Distinct from the no-legal-target case above: here the Specter IS a
+        // legal target and the controller chooses zero anyway ("up to one").
+        const { state } = setup(["Hypnotic Specter"]);
+        const trig = fireEtb(state);
+        expect(trig.targets).toEqual([]);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["p2-0"]);
+        expect(state.players[1].exile).toHaveLength(0);
+
+        fireLtb(state, "graveyard");
+        expect(tokensOf(state, 0)).toHaveLength(0);
+        expect(tokensOf(state, 1)).toHaveLength(0);
+    });
+
     it("fires on a BOUNCE too — the leave-trigger is zone-agnostic (CR 603.10a)", () => {
         const { state } = setup(["Hypnotic Specter"]);
         fireEtb(state, "p2-0");

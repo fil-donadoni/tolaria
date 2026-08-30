@@ -279,6 +279,50 @@ describe("Effect Script Ops: captureBinding / recallCapturedBinding (CR 608.2h)"
         expect(tokens[0].power).toBe(4);
     });
 
+    it("still creates the token when the source RE-ENTERS the battlefield while its leave-trigger is on the stack (CR 603.10a look-back)", () => {
+        const id = registerHost(
+            "test-captured-binding-reanimate-race",
+            CAPTURE_ETB,
+            RECALL_LTB
+        );
+        const { state } = setup(id);
+
+        fireEtb(state, "victim");
+
+        // The host dies; its leave-trigger goes on the stack carrying the
+        // `{ ...self }` snapshot `buildTriggerItem` takes.
+        removePermanentTo(state, "host", "graveyard");
+        processPendingActionTriggers(state);
+        const trig = state.stack.find((s) =>
+            s.triggeredAbilityId?.endsWith("-ltb")
+        )!;
+        expect(trig).toBeDefined();
+
+        // IN RESPONSE, the same card is reanimated. CR 400.7 — the permanent
+        // now on the battlefield is a NEW object with no memory, so the live
+        // row is gone; the trigger on the stack came from the OLD one.
+        const revived = state.players[0].graveyard.find(
+            (c) => c.id === "host"
+        )!;
+        state.players[0].graveyard = state.players[0].graveyard.filter(
+            (c) => c.id !== "host"
+        );
+        revived.zone = "battlefield";
+        markEnteredThisTurn(revived, state.turn);
+        state.players[0].battlefield.push(revived);
+        expect(revived.capturedBindings).toBeUndefined();
+
+        state.stack = state.stack.filter((s) => s.id !== trig.id);
+        state.stack.push(trig);
+        resolveTopOfStack(state);
+
+        // The trigger still does its thing (CR 603.10a) — the token is created
+        // at the size the OLD object captured.
+        const tokens = illusions(state, 1);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].power).toBe(4);
+    });
+
     it("is stripped from the wire projection — no client reads it (#1977/#1982)", () => {
         const id = registerHost(
             "test-captured-binding-projection",
