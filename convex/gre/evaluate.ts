@@ -66,12 +66,10 @@ import {
     latentValue,
 } from "./cardValue";
 import { keywordBonusFor } from "./creatureBody";
-// Issues #2937 / #2938 — the single authority on which granted keywords are
-// PROTECTIVE and on how live the threat they answer currently is.
-import {
-    liveThreatSeverity,
-    temporaryDefensiveGrantFamilies,
-} from "./ai/protectionValue";
+// Issue #2937 — the single authority on which granted keywords are PROTECTIVE
+// and on whether anything the opponent is doing can currently reach the
+// permanent that carries them.
+import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./ai/evalWeights";
 
 /** A won position. Large enough to dominate every reachable material margin so
@@ -190,12 +188,13 @@ export function evaluateCreature(
         // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
         // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
         // for a printed characteristic and wrong for a duration-scoped
-        // defensive GRANT: a flat, unconditional +30 is what made the bot
-        // discard a card to gain indestructible with nothing to be
-        // indestructible against. Take those occurrences back out here; their
-        // worth is supplied instead, threat-scaled, by the `protection` term
-        // below (`protectionTerm`). Zero on every board with no such grant.
-        temporaryDefensiveKeywordFlat(state, card) +
+        // defensive GRANT in a position where nothing can reach the creature:
+        // a flat, unconditional +30 is what made the bot discard a card to gain
+        // indestructible with nothing to be indestructible against. Zero unless
+        // the creature both carries such a grant AND stands in a provably quiet
+        // position (`ai/defensiveGrants.ts`, fail-closed in every clause), so
+        // no other board's valuation moves.
+        quietDefensiveGrantFlat(state, card) +
         // `card` doubles as the ability-gate subject (issue #1936): the
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
@@ -242,12 +241,6 @@ export type EvalTerms = {
      *  `manaDevelopmentTerm` for the calibration and the on-curve vs flooded
      *  contrast it draws. */
     manaDevelopment: number;
-    /** Threat-scaled worth of DURATION-SCOPED defensive keyword grants
-     *  (issues #2937 / #2938): what an until-end-of-turn indestructible /
-     *  shroud / hexproof / protection is saving against a threat that is
-     *  actually live. Zero on every board carrying no such grant. See
-     *  `protectionTerm`. */
-    protection: number;
     /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
      *  holdable instants in hand the player can afford to cast this turn, PLUS
      *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
@@ -577,47 +570,23 @@ function flexibilityTerm(
  *
  *  Zero card names, pure, and state-only by construction. */
 /** The flat `KEYWORD_BONUS` value `creatureValueRaw` has already added for
- *  keyword occurrences that reached `card` through a DURATION-SCOPED defensive
- *  grant (issue #2937). Read off the same table that added it, so the two can
- *  never drift. */
-function temporaryDefensiveKeywordFlat(
+ *  defensive keyword occurrences that reached `card` through a DURATION-SCOPED
+ *  grant, in a position where nothing can currently reach it (issue #2937).
+ *  Read off the same table that added it (`keywordBonusFor`), so the two can
+ *  never drift, and gated on `isQuietFor` so the correction never fires while
+ *  anything is on the stack, any combat damage is headed at the creature, or
+ *  the opponent can pay for an answer. */
+function quietDefensiveGrantFlat(
     state: GameState,
     card: CardInstanceState
 ): number {
-    const { keywords } = temporaryDefensiveGrantFamilies(card);
+    const keywords = temporaryDefensiveKeywords(card);
     if (keywords.length === 0) return 0;
+    if (!isQuietFor(state, card)) return 0;
     const power = Math.max(0, getPermanentEffectivePower(state, card));
     let flat = 0;
     for (const keyword of keywords) flat += keywordBonusFor(keyword, power);
     return flat;
-}
-
-/** Threat-scaled worth of the DURATION-SCOPED defensive keywords on one
- *  permanent (issues #2937 / #2938) — what the grant is saving, right now.
- *
- *  Zero unless the permanent carries such a grant AND a threat that grant
- *  answers is live (`ai/protectionValue.ts` owns both questions), so the term
- *  is identically zero on every board that has not just bought protection.
- *  That narrowness is deliberate: it buys the discrimination both issues ask
- *  for — pass with nothing to protect against, pay when a removal spell is on
- *  the stack or a lethal block is declared — without moving the evaluation of
- *  any other position.
- *
- *  The at-risk magnitude is the permanent's own `cardValue` (its latent worth,
- *  the same discounted body the `hand` term prices a card at), scaled by
- *  `protectionShare`: protection against an identified threat saves most, but
- *  not all, of what is at stake — the threat might have been answered another
- *  way, or never cast. */
-function protectionTerm(
-    state: GameState,
-    card: CardInstanceState,
-    weights: EvalWeights
-): number {
-    const { families } = temporaryDefensiveGrantFamilies(card);
-    if (families.length === 0) return 0;
-    const severity = liveThreatSeverity(state, card, families);
-    if (severity === 0) return 0;
-    return severity * weights.protectionShare * cardValue(state, card);
 }
 
 function manaDevelopmentTerm(
@@ -656,13 +625,11 @@ function playerTerms(
         permanents: 0,
         mana: 0,
         manaDevelopment: 0,
-        protection: 0,
         flexibility: 0,
     };
 
     for (const perm of player.battlefield) {
         terms.permanents += weights.permanentWeight;
-        terms.protection += protectionTerm(state, perm, weights);
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(state, perm);
         } else {
@@ -717,7 +684,6 @@ function sumTerms(t: EvalTerms): number {
         t.permanents +
         t.mana +
         t.manaDevelopment +
-        t.protection +
         t.flexibility
     );
 }
@@ -1442,7 +1408,6 @@ export function evaluateBreakdown(
         permanents: 0,
         mana: 0,
         manaDevelopment: 0,
-        protection: 0,
         flexibility: 0,
     };
     if (!me || !opp) {

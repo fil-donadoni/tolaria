@@ -33,7 +33,6 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             permanentWeight: 5,
             manaWeight: 12,
             manaDevWeight: 12,
-            protectionShare: 0.75,
             flexWeight: 6,
             flexCardCap: 3,
             sourceBreadthWeight: 4,

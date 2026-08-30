@@ -46,13 +46,6 @@ export type EvalWeights = {
      *  is worth — see the calibration note in `evaluate.ts`'s
      *  `manaDevelopmentTerm`. */
     manaDevWeight: number;
-    /** Share of a permanent's at-risk worth that a DURATION-SCOPED defensive
-     *  keyword grant is credited with saving while the threat it answers is
-     *  live (issues #2937 / #2938, `evaluate.ts`'s `protectionTerm`). Below 1
-     *  because protection against an identified threat saves most, not all, of
-     *  what is at stake — the threat might have been answered another way, or
-     *  never cast at all. */
-    protectionShare: number;
     /** Bonus per castable held instant / live flexible activation, the
      *  reactive-flexibility term (`W_FLEX`). */
     flexWeight: number;
@@ -125,7 +118,6 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5,
     manaWeight: 12,
     manaDevWeight: 12,
-    protectionShare: 0.75,
     flexWeight: 6,
     flexCardCap: 3,
     sourceBreadthWeight: 4,

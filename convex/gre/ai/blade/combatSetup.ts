@@ -38,6 +38,7 @@ import { getCardByName } from "../../../cards";
 import {
     validateAttackerEligibility,
     validateDeclaredAttackers,
+    validateBlockerEligibility,
     validateDeclaredBlockers,
 } from "../../combat";
 import { enumerateMoves } from "../../moves";
@@ -176,6 +177,18 @@ export function applyDeclareAttackers(
     }
 }
 
+/** The permanent `instanceId` names, on either battlefield, or undefined. */
+function findPermanent(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    return undefined;
+}
+
 /** The block step, narrowed. */
 type DeclareBlockersStep = Extract<
     BladeSetupStep,
@@ -244,6 +257,35 @@ export function applyDeclareBlockers(
     if (owed !== defenderId) {
         throw fail(
             `the defender does not owe the block declaration here (owed by ${owed ?? "nobody"}).`
+        );
+    }
+
+    // An empty `blocks` is a real DECLINE-to-block declaration, not a skipped
+    // step — so it must be a decision the defender actually had. Without this,
+    // a spec whose defender controls nothing that could block produces a
+    // no-op step that reads in the diff as a deliberate decline, and the entry
+    // silently asserts on a different position than the one it is written for.
+    // CR 509.1a — the eligibility the real declaration would have been judged
+    // against.
+    const defender = state.players.find((p) => p.id === defenderId);
+    const defenderBattlefield = defender?.battlefield ?? [];
+    const attackers = combat.attackerIds
+        .map((id) => findPermanent(state, id))
+        .filter((c): c is CardInstanceState => c !== undefined);
+    const couldHaveBlocked = defenderBattlefield.some((blocker) =>
+        attackers.some(
+            (attacker) =>
+                validateBlockerEligibility(
+                    attacker,
+                    blocker,
+                    defenderBattlefield,
+                    state
+                ).eligible
+        )
+    );
+    if (!couldHaveBlocked) {
+        throw fail(
+            "the defender controls no creature that could legally block — the block window this step declares in is not a real decision."
         );
     }
 
