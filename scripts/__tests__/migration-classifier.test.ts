@@ -1764,11 +1764,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // entering creature named by the firing event, unreachable from an
         // `effects[]` body. It is FREE (the clause-mapper sees only the covered
         // `createTokenCopyOf`) and carries a per-card test, so it lands in
-        // AFK-ready. Net: total 472->473, FREE 317->318, AFK-ready 308->309;
-        // X-only and Op-blocked unchanged. Partition: 318+15+140=473.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
+        // AFK-ready. Net: total 472->473, FREE 317->318, AFK-ready 308->309.
+        //
+        // Karn, Scion of Urza (dom/colorless.ts, issue #1570) adds one
+        // `resolve()` activated ability (the −2 CDA Construct token — a
+        // `compute` closure no `EffectTokenSpec` slot can hold, ADR 0046,
+        // NOT-DSL-migratable). FREE (only `createToken`, a covered Op) with a
+        // per-card test. Net: total 473->474, FREE 318->319, AFK-ready
+        // 309->310; X-only and Op-blocked unchanged. Partition: 319+15+140=474.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
