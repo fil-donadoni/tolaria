@@ -182,9 +182,10 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
         // 112-123s inside `bun run land`, 11/11 green standing alone on the
         // same tree). The failure was a wall-clock timeout, never an
         // assertion, so it read in the log exactly like a real red on an
-        // unrelated PR's gate: the false-positive shape
-        // `docs/findings/2724` / `2725` recorded twice. The bound is generous
-        // on purpose — nothing here measures speed, only order-independence.
+        // unrelated PR's gate — the false-positive shape the findings drawer
+        // recorded twice (2724 / 2725, drained by this fix). The bound is
+        // generous on purpose: nothing here measures speed, only
+        // order-independence.
     }, 300_000);
 });
 
