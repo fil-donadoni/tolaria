@@ -16,9 +16,9 @@
 //
 // One CARD_DISCARDED event is emitted per discarded card, so the ability fires
 // once per card discarded — matching "whenever you discard a card" oracle
-// wording (a discard of N cards fires it N times, CR 603.3a). A "whenever you
+// wording (a discard of N cards fires it N times, CR 603.2c). A "whenever you
 // discard one or more cards" collapse is opt-in via `oncePerEventBatch`
-// (CR 603.3b), which folds every CARD_DISCARDED event in one `collectTriggers`
+// (CR 603.2c), which folds every CARD_DISCARDED event in one `collectTriggers`
 // batch into a single firing.
 
 import type {
@@ -62,7 +62,7 @@ export interface DiscardTriggerArgs {
         discardingPlayerId: string,
         discardedCardInstanceId: string
     ) => void;
-    /** CR 603.3b — "whenever you discard ONE OR MORE cards": when a single
+    /** CR 603.2c — "whenever you discard ONE OR MORE cards": when a single
      *  action discards N cards (a cleanup-step hand-size discard, Bog Down),
      *  the engine emits N CARD_DISCARDED events into one `collectTriggers`
      *  batch; setting this collapses them into ONE firing. Leave unset for

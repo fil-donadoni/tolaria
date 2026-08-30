@@ -227,7 +227,7 @@ describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => 
     });
 });
 
-describe("Inti, Seneschal of the Sun — one-or-more discard batching (CR 603.3b, issue #2107)", () => {
+describe("Inti, Seneschal of the Sun — one-or-more discard batching (CR 603.2c, issue #2107)", () => {
     it("fires once for a two-card discard event, exiling exactly one card", () => {
         const inti = makeInstance(intiSeneschalOfTheSun.id, {
             id: "inti",
@@ -274,7 +274,7 @@ describe("Inti, Seneschal of the Sun — one-or-more discard batching (CR 603.3b
         discardToGraveyard(state, "p1", "hand-2");
         processPendingActionTriggers(state);
 
-        // "One or more cards" collapses the batch into ONE firing (CR 603.3b)
+        // "One or more cards" collapses the batch into ONE firing (CR 603.2c)
         // — not one trigger per discarded card.
         expect(
             state.stack.filter(
