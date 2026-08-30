@@ -216,9 +216,11 @@ export const ironShieldElf: CardDefinition = {
 //     turn" is `maxTriggersPerTurn: 1` (CR 603.2, per-source tallied).
 //   - the copy is `resolve()` (imperative): the token must copy a RUNTIME
 //     source (the entering creature) named by the firing event, which a DSL
-//     `effects` body cannot see (`enteredTrigger` docs). A simultaneous batch
-//     copies the first staged creature — the Oracle's "one of them" choice
-//     among a simultaneous batch is out of scope (tracked-by: #1533 note).
+//     `effects` body cannot see (`enteredTrigger` docs). The resolver reads the
+//     FULL batch off `ctx.triggerEventBatch` (issue #2954): a single entering
+//     creature is copied straight; several entering at once (Living Death)
+//     raise a `choose-permanents` choice so the controller picks "one of them"
+//     (CR 603.3b + CR 707.2).
 function twilightDivinerGraveyardCopy(): TriggeredAbility {
     return {
         id: "twilight-diviner-graveyard-copy",
@@ -241,9 +243,52 @@ function twilightDivinerGraveyardCopy(): TriggeredAbility {
         maxTriggersPerTurn: 1,
         resolve: (ctx: SpellContext, event) => {
             if (event.type !== "PERMANENT_ENTERED") return;
-            // CR 707.2 — copy the entering creature; `$controller` is Twilight
-            // Diviner's controller ("you").
-            ctx.createTokenCopyOf(event.instanceId, ctx.controller);
+            // CR 603.3b / 707.2 — "create a token that's a copy of ONE OF
+            // THEM". The batch this trigger fired on is the single event (the
+            // dominant Reanimate/Unearth case) or, for a simultaneous mass
+            // reanimation, EVERY member (issue #2954, carried on
+            // `triggerEventBatch`). Dedupe the entering instances and keep only
+            // those still on the battlefield — a member that left in response
+            // is no longer copyable (CR 608.2b), the same fizzle the
+            // single-creature path already had via `createTokenCopyOf`'s
+            // battlefield lookup. Membership is ANY battlefield (not just the
+            // controller's): `createTokenCopyOf`'s own lookup is
+            // controller-agnostic, so a member that changed control since entry
+            // stays copyable ("one of them", CR 707.2) exactly as it does in
+            // the single-creature path.
+            const batch = ctx.triggerEventBatch ?? [event];
+            const onBattlefield = new Set(
+                ctx.allPlayerIds.flatMap((pid) => ctx.getBattlefieldIds(pid))
+            );
+            const instanceIds: string[] = [];
+            for (const e of batch) {
+                if (e.type !== "PERMANENT_ENTERED") continue;
+                if (!onBattlefield.has(e.instanceId)) continue;
+                if (!instanceIds.includes(e.instanceId)) {
+                    instanceIds.push(e.instanceId);
+                }
+            }
+            if (instanceIds.length === 0) return; // every source gone — fizzle
+            if (instanceIds.length === 1) {
+                ctx.createTokenCopyOf(instanceIds[0], ctx.controller);
+                return;
+            }
+            // CR 603.3b + 707.2 — several entered at once: "you" choose which
+            // one of them the token copies. `allControllers` mirrors the
+            // controller-agnostic membership above so the submit validator
+            // accepts a member that changed control since entry.
+            const picked = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "twilight-diviner-copy-pick",
+                kind: "choose-permanents",
+                zone: "battlefield",
+                allControllers: true,
+                candidateIds: instanceIds,
+                count: 1,
+                prompt: "Choose one of the creatures that entered from a graveyard to copy.",
+            });
+            if (!picked || picked.length === 0) return;
+            ctx.createTokenCopyOf(picked[0], ctx.controller);
         },
         // aiEffects (PRD #1423, issue #1519) — a bare `resolve()` body is
         // invisible to the bot's Effect Script value model. The real body

@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 import { moonshadow, ironShieldElf, twilightDiviner } from "../black";
-import { balduvianBears } from "../../ice";
+import { balduvianBears, aurochs } from "../../ice";
 import {
     makeInstance,
     makePlayer,
@@ -23,6 +23,8 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { compactState, expandState } from "../../../../gre/serialize";
 
 // Moonshadow — {B} Creature — Elemental (CR 702.111 menace; CR 122.1
 // -1/-1 counters; CR 603.2 zone-change triggers).
@@ -361,6 +363,73 @@ describe("Twilight Diviner (CR 701.25 ETB surveil 2; CR 603.4 graveyard-entry to
         const tokens = state.players[0].battlefield.filter((c) => c.isToken);
         expect(tokens).toHaveLength(1);
         expect((tokens[0].card as { id?: string }).id).toBe(balduvianBears.id);
+    });
+
+    it("offers a choice across a simultaneous graveyard batch (CR 603.3b + 707.2, issue #2954)", () => {
+        const { state } = setup();
+        // Two DIFFERENT creatures reanimated at once (the Living Death shape),
+        // so the token's copied card id proves which one the controller picked.
+        const corpseA = makeInstance(balduvianBears.id, {
+            id: "corpseA",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const corpseB = makeInstance(aurochs.id, {
+            id: "corpseB",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].graveyard.push(corpseA, corpseB);
+
+        const item = pushSpell(state, balduvianBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const entered = ctx.returnGraveyardSetToBattlefield([
+            { playerId: "p1", cardInstanceId: "corpseA" },
+            { playerId: "p1", cardInstanceId: "corpseB" },
+        ]);
+        expect(entered).toHaveLength(2);
+
+        // Drop the filler spell, then drain the simultaneous PERMANENT_ENTERED
+        // batch through the trigger scan: ONE trigger carrying BOTH events.
+        state.stack = [];
+        processPendingActionTriggers(state);
+        const trigger = state.stack.find(
+            (s) => s.triggeredAbilityId === "twilight-diviner-graveyard-copy"
+        );
+        expect(trigger).toBeDefined();
+        expect(trigger!.triggerEventBatch).toHaveLength(2);
+
+        // Resolve: the controller must choose which entering creature to copy.
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-permanents");
+        expect(head?.candidateIds).toEqual(
+            expect.arrayContaining(["corpseA", "corpseB"])
+        );
+
+        // The pending-choice stable-save point must preserve the full batch, or
+        // a reload collapses back to the first staged creature (CR 603.3b).
+        const reloaded = expandState(compactState(state));
+        const reloadedTrigger = reloaded.stack.find(
+            (s) => s.triggeredAbilityId === "twilight-diviner-graveyard-copy"
+        );
+        expect(reloadedTrigger?.triggerEventBatch).toHaveLength(2);
+
+        // Pick the Aurochs.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: ["corpseB"],
+        });
+
+        // Exactly one token, a copy of the CHOSEN creature.
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect((tokens[0].card as { id?: string }).id).toBe(aurochs.id);
     });
 
     it("does not trigger for a creature that enters from exile", () => {

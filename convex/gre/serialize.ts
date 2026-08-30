@@ -1453,6 +1453,14 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
         base.sourceLki = lki;
     }
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
+    // CR 603.3b (issue #2954) — a `oncePerEventBatch` trigger's full firing
+    // batch must survive a save taken while the trigger sits on the stack (a
+    // pending "copy one of them" choice is a stable save point); without it the
+    // reloaded item collapses back to `triggerEvent`'s first member and the
+    // resolver copies the wrong creature.
+    if (item.triggerEventBatch) {
+        base.triggerEventBatch = item.triggerEventBatch;
+    }
     // CR 114 — an emblem-sourced trigger resolves its effect from the emblem
     // registry keyed by `emblemSourceId` (`resolveTopOfStack`, state.ts). It
     // must survive a save/load while the trigger sits on the stack awaiting
@@ -1598,6 +1606,11 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];
+    }
+    // CR 603.3b (issue #2954) — rehydrate the full firing batch.
+    if (compact.triggerEventBatch) {
+        item.triggerEventBatch =
+            compact.triggerEventBatch as StackItem["triggerEventBatch"];
     }
     if (compact.emblemSourceId) {
         item.emblemSourceId = compact.emblemSourceId as string;

@@ -119,12 +119,17 @@ export function buildMonarchDrawStackItem(
     };
 }
 
-/** Builds a StackItem representing a triggered ability on the stack. */
+/** Builds a StackItem representing a triggered ability on the stack.
+ *  `events` is the firing batch (always at least one member); the first member
+ *  rides `triggerEvent` for the singular-event paths, and — for a
+ *  `oncePerEventBatch` ability that fired on several events at once — the whole
+ *  set rides `triggerEventBatch` so a batch-aware resolver can enumerate every
+ *  member (CR 603.3b, issue #2954). */
 function buildTriggerItem(
     state: GameState,
     self: CardInstanceState,
     triggeredAbilityId: string,
-    event: GameEvent
+    events: GameEvent[]
 ): StackItem {
     return {
         ...self,
@@ -133,7 +138,8 @@ function buildTriggerItem(
         castById: self.controllerId,
         triggeredAbilityId,
         triggerSourceId: self.id,
-        triggerEvent: event,
+        triggerEvent: events[0],
+        ...(events.length > 1 ? { triggerEventBatch: events } : {}),
         // CR 603.3d — a triggered ability's targets are chosen when it is put
         // on the stack, not inherited from the source permanent. The `...self`
         // spread copies the source's stale `targets` (e.g. an Aura still
@@ -402,11 +408,37 @@ export function collectTriggers(
                 // CR 603.3b — "whenever one or more X" abilities collapse
                 // every matching event in this batch into a single trigger
                 // (see `TriggeredAbility.oncePerEventBatch`); everything else
-                // fires once per matching event, as before.
-                let firedThisBatch = false;
+                // fires once per matching event, as before. For the
+                // batch-collapsed ability, ALL matching events ride the ONE
+                // trigger item (`triggerEventBatch`, issue #2954) so a
+                // batch-aware resolver (Twilight Diviner's "copy one of them")
+                // can enumerate the whole set rather than only the first.
+                if (ability.oncePerEventBatch) {
+                    const matching: GameEvent[] = [];
+                    for (const event of events) {
+                        if (!triggerHandlesEventType(ability, event.type))
+                            continue;
+                        // CR 603.2 — the per-turn cap is checked per event, so
+                        // a reached cap empties the batch (no trigger fires).
+                        if (triggerCapReached(permanent, ability)) continue;
+                        if (!ability.matches(event, permanent, state)) continue;
+                        matching.push(event);
+                    }
+                    if (matching.length > 0) {
+                        noteTriggerFired(permanent, ability);
+                        out.push(
+                            buildTriggerItem(
+                                state,
+                                permanent,
+                                ability.id,
+                                matching
+                            )
+                        );
+                    }
+                    continue;
+                }
                 for (const event of events) {
                     if (!triggerHandlesEventType(ability, event.type)) continue;
-                    if (ability.oncePerEventBatch && firedThisBatch) continue;
                     // CR 603.2 — "this ability triggers only N times each turn"
                     // (Nadu, Winged Wisdom). The cap is checked BEFORE
                     // `matches`, so an over-quota ability never fires: no stack
@@ -414,10 +446,9 @@ export function collectTriggers(
                     // a trigger that goes on the stack and then fizzles.
                     if (triggerCapReached(permanent, ability)) continue;
                     if (!ability.matches(event, permanent, state)) continue;
-                    firedThisBatch = true;
                     noteTriggerFired(permanent, ability);
                     out.push(
-                        buildTriggerItem(state, permanent, ability.id, event)
+                        buildTriggerItem(state, permanent, ability.id, [event])
                     );
                 }
             }
@@ -439,7 +470,9 @@ export function collectTriggers(
                 for (const event of events) {
                     if (!triggerHandlesEventType(ability, event.type)) continue;
                     if (!ability.matches(event, card, state)) continue;
-                    out.push(buildTriggerItem(state, card, ability.id, event));
+                    out.push(
+                        buildTriggerItem(state, card, ability.id, [event])
+                    );
                 }
             }
         }
@@ -692,7 +725,7 @@ export function collectTriggers(
             if (!ability.functionsFromOwnDiscard) continue;
             if (!triggerHandlesEventType(ability, event.type)) continue;
             if (!ability.matches(event, card, state)) continue;
-            out.push(buildTriggerItem(state, card, ability.id, event));
+            out.push(buildTriggerItem(state, card, ability.id, [event]));
         }
     }
 
@@ -738,7 +771,9 @@ export function collectStateTriggers(state: GameState): StackItem[] {
                 if (stateTriggerAlreadyOnStack(state, permanent.id, ability.id))
                     continue;
                 if (!ability.matches(event, permanent, state)) continue;
-                out.push(buildTriggerItem(state, permanent, ability.id, event));
+                out.push(
+                    buildTriggerItem(state, permanent, ability.id, [event])
+                );
             }
         }
     }
