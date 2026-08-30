@@ -167,6 +167,17 @@ export type ZonePickKind =
  *  only the order changes). The kept cards always return to the TOP of the
  *  library in the chosen order. */
 export type LibraryDestination = "library-bottom" | "graveyard" | "none";
+
+/** Where the un-kept cards of a `look-distribute` choice go (Karn, Scion of
+ *  Urza's +1 "exile the other with a silver counter on it", issue #1570). A
+ *  superset of {@link LibraryDestination} scoped to the `lookDistribute` Op
+ *  ONLY — `"exile"` is NOT a legal `order-top` destination (scry/surveil/ponder
+ *  never exile), so it stays out of the shared union rather than teaching
+ *  `orderTop` a dead branch. `"exile"` sends each un-kept looked-at card to its
+ *  owner's exile (CR 400.7), optionally stamped with counters (the silver
+ *  counter) — the same zone move `bottomLookedAtCards`'s graveyard leg already
+ *  performs, mirrored with a counter tag. */
+export type LookDistributeDestination = LibraryDestination | "exile";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

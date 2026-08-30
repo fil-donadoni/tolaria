@@ -6,6 +6,7 @@ import type {
     PhaseReturnCondition,
     PhaseInRider,
     LibraryDestination,
+    LookDistributeDestination,
 } from "../gre/types";
 
 type CardId = string;
@@ -3556,6 +3557,18 @@ export interface SpellContext {
         from: MovableZone,
         to: MovableZone
     ) => void;
+    /** CR 122.1 (issue #1570) — merge counters onto a card that already sits in
+     *  exile (Karn, Scion of Urza's silver counter), so a later "a card with a
+     *  <type> counter on it" `choice(zone: "exile")` + `hasCounter` filter finds
+     *  it (Dauthi Voidwalker's shape). The counter rides the card's ordinary
+     *  `counters` field and is stripped by the existing zone-change path when the
+     *  card later LEAVES exile (CR 122.2 — the same strip the void-counter
+     *  machinery already performs). Compose it AFTER a `moveCardById(… →
+     *  "exile")`. No-op when the card is in no exile (CR 608.2b). */
+    stampCardCounters: (
+        cardInstanceId: string,
+        counters: Record<string, number>
+    ) => void;
     /** CR 702.26 — phase `permanentId` out of existence along with every Aura
      *  and Equipment attached to it. Silent: no enters/leaves events, no
      *  triggers, no zone change. Counters and attachment links are preserved.
@@ -4883,8 +4896,10 @@ export interface SpellContext {
         /** For `kind: "order-top"` only — the second zone the un-kept looked-at
          *  cards go to (`library-bottom` scry / `graveyard` surveil / `none`
          *  order-only). Prefer the higher-level {@link SpellContext.orderTop},
-         *  which raises this choice and applies the split for you. */
-        destination?: LibraryDestination;
+         *  which raises this choice and applies the split for you. A
+         *  `look-distribute` choice may additionally carry `"exile"` (Karn,
+         *  Scion of Urza's +1, issue #1570). */
+        destination?: LookDistributeDestination;
         /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
          *  land: `"hand"` (every card shipped before #2070 — Impulse, Stock
          *  Up, Narset) or `"library-top"` (Thassa's Oracle). Orthogonal to
@@ -11987,7 +12002,13 @@ export type EffectOp =
      *  a spell target — Exhume "each player puts a creature card from their
      *  graveyard", Titania "return target land card from YOUR graveyard" via
      *  the `TriggeredAbility`-has-no-`targetRequirement` choice-as-target
-     *  substitute, ADR 0002 precedent: Banishing Light). `to: "battlefield"`
+     *  substitute, ADR 0002 precedent: Banishing Light). `from: "exile"`
+     *  (issue #1570) is the fourth: pairs with a
+     *  `choice(zone: "exile", filter: { hasCounter })` Op for "put a card you
+     *  own with a silver counter on it from exile into your hand" (Karn, Scion
+     *  of Urza's −1) — the Dauthi Voidwalker-shaped retrieval generalized to a
+     *  plain zone move, routed through the same generic `moveCardById`
+     *  (CR 122.2 strips the counter on leaving exile). `to: "battlefield"`
      *  routes through `returnToBattlefield` (owner control, same as the
      *  `target`-shape above); every other destination is the existing generic
      *  `moveCardById` branch (already used with a graveyard source
@@ -12022,7 +12043,7 @@ export type EffectOp =
           op: "moveZone";
           cards: EffectRef;
           player: EffectPlayerRef;
-          from: "library" | "hand" | "graveyard";
+          from: "library" | "hand" | "graveyard" | "exile";
           to: EffectMoveZone | "library-top";
           tapped?: boolean;
           bind?: string;
@@ -12731,6 +12752,17 @@ export type EffectOp =
            *  top when more than one is kept. Orthogonal to `destination`
            *  (the UN-kept cards' target) — the two never interact. */
           keepTo: "hand" | "library-top";
+          /** Who MAKES the keep choice (Karn, Scion of Urza's +1: "an opponent
+           *  chooses one of them", issue #1570). Omitted = the library owner
+           *  chooses (every card shipped before #1570 — Impulse, Stock Up,
+           *  Narset), byte-for-byte unchanged. Set to `"opponent"` (or any
+           *  `EffectPlayerRef`) for the fateseal-style chooser≠zone-owner seam
+           *  `scryReorder` already ships (`chooser`, issue #1532): the choice
+           *  is raised for `chooser` with `zoneOwnerId` = the library owner,
+           *  so the peek is exposed to the chooser and the kept/un-kept moves
+           *  still run against the owner's library. Unresolvable chooser skips
+           *  the whole Op (CR 608.2b). */
+          chooser?: EffectPlayerRef;
           /** Restricts which of the looked-at cards may be KEPT (put to
            *  `keepTo`) — the bottomed/graveyarded remainder is unfiltered
            *  (Narset, Parter of Veils: "you MAY reveal a NONCREATURE,
@@ -12755,8 +12787,24 @@ export type EffectOp =
            *  Surveil leg); `randomBottom` and the bottom-order pick are then
            *  moot (a graveyard has no meaningful order) and no `markKnown` is
            *  granted (the graveyard is already a public zone, ADR 0026).
+           *  `"exile"` (Karn, Scion of Urza's +1, issue #1570) sends them to
+           *  their owner's exile instead, one `moveCardById` per card, each
+           *  stamped with `counters` (the silver counter) when set — the same
+           *  public-zone no-order move the graveyard leg performs, so no
+           *  `markKnown` and no bottom-order pick, exactly as for graveyard.
            *  Omit for the library-bottom default. */
-          destination?: LibraryDestination;
+          destination?: LookDistributeDestination;
+          /** Counter(s) stamped on each un-kept card when `destination:
+           *  "exile"` (Karn's silver counter, CR 122.1). The counter rides the
+           *  card's ordinary `counters` field through the zone move (CR 122.2
+           *  strips it only when the card later LEAVES exile), so a later
+           *  "a card with a silver counter on it" `choice(zone: "exile")` +
+           *  `hasCounter` filter (Dauthi Voidwalker's shape) finds it. Valid
+           *  ONLY alongside `destination: "exile"` (validator-enforced) —
+           *  `"library-bottom"` and `"graveyard"` have no counter-tag semantics.
+           *  Applied through the same `applyGraveyardRedirectCounters`-family
+           *  stamp the graveyard-bound replacement uses. */
+          counters?: Record<string, number>;
           /** "Put the rest on the bottom ... in a RANDOM order" (Narset). The
            *  un-kept looked-at cards are bottomed WITHOUT a player-ordering pick
            *  and WITHOUT being marked known — CR 401.4's random order is

@@ -1558,6 +1558,32 @@ function isLibraryDestination(value: unknown): boolean {
     );
 }
 
+/** The `destination` of a `lookDistribute` Op (issue #1570, Karn, Scion of
+ *  Urza's +1 "exile the other") — the whole `LibraryDestination` vocabulary
+ *  plus `"exile"`, which sends each un-kept looked-at card to its owner's
+ *  exile, optionally stamped with `counters`. Scoped to `lookDistribute` ONLY:
+ *  `scryReorder`'s `orderTop` primitive has no exile leg, so `"exile"` stays
+ *  out of `isLibraryDestination`. */
+function isLookDistributeDestination(value: unknown): boolean {
+    return isLibraryDestination(value) || value === "exile";
+}
+
+/** A JSON-pure counter-type → count map (issue #1570, Karn's `counters: {
+ *  silver: 1 }` on `lookDistribute`'s exile destination). Mirrors the
+ *  `tagCounters: Record<string, number>` shape the graveyard-bound replacement
+ *  carries; every value must be a positive number. */
+function isCountersMap(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+        return false;
+    return Object.entries(value).every(
+        ([k, v]) =>
+            typeof k === "string" &&
+            k.length > 0 &&
+            typeof v === "number" &&
+            v > 0
+    );
+}
+
 /** The `destination` of a `digMatchingToHand` Op (issue #1085) — where every
  *  NON-matching revealed card goes: `"exile"` (Desperate Research's "Exile
  *  the rest") or `"graveyard"` (a Surveil-shaped future card). Distinct from
@@ -3203,11 +3229,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if (!("from" in entry)) {
                     errors.push('field "from" is required with "cards"');
                 }
-                if (entry.from === "exile") {
-                    errors.push(
-                        'field "from" does not accept "exile" with "cards" — only "library" / "hand" / "graveyard"'
-                    );
-                }
                 // issue #1151 (closing #1120 gap 3) — `bind` snapshots the
                 // permanent that just entered the battlefield, so it only
                 // makes sense alongside `to: "battlefield"` (a library/
@@ -3960,21 +3981,36 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         // `filter` restricts the keep-eligible subset (Narset's "noncreature,
         // nonland card"); `optional` makes the keep a "may" (min 0);
         // `destination` (issue #1101) is where the un-kept cards go
-        // (`library-bottom` default / `graveyard`, mirrors `scryReorder`);
+        // (`library-bottom` default / `graveyard` — mirrors `scryReorder` —
+        // or `exile` with `counters`, Karn's +1, issue #1570); `chooser`
+        // (issue #1570) names who picks when it isn't the library owner;
         // `randomBottom` bottoms the rest unordered + unknown (issue #1266,
-        // meaningless for a graveyard destination); `bind` names the kept-card
-        // snapshot binding.
+        // meaningless for a graveyard/exile destination); `bind` names the
+        // kept-card snapshot binding.
         optional: {
             take: isEffectValue,
             prompt: isNonEmptyString,
             filter: isCardFilter,
             optional: isBoolean,
-            destination: isLibraryDestination,
+            destination: isLookDistributeDestination,
+            // issue #1570 — counter(s) stamped on the un-kept cards, valid only
+            // with `destination: "exile"` (enforced in `check` below).
+            counters: isCountersMap,
+            chooser: isPlayerRef,
             randomBottom: isBoolean,
             bind: isBindingName,
             // CR 701.20a — public reveal of the looked-at window ("window") or
             // only the kept cards ("kept"); omit for a private look (CR 401.4).
             reveal: isRevealScope,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            if ("counters" in entry && entry.destination !== "exile") {
+                errors.push(
+                    'field "counters" is only valid with destination: "exile" (issue #1570)'
+                );
+            }
+            return errors;
         },
     },
     // CR 702.75a (issue #783) — HIDEAWAY: look at the top `look` cards, exile

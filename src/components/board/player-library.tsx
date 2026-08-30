@@ -79,18 +79,21 @@ export default function PlayerLibrary({
 
     // Satyr Wayfinder / Narset (QA): a `look-distribute` whose rest needs no
     // ORDERING — either it goes to the graveyard (Satyr, Reviving Vapors:
-    // order is cosmetic) or the server randomizes it (`randomizeRest`,
-    // Narset's random bottom) — is a simple "choose the hand card(s)" grid
-    // pick, NEVER the two-zone scry-style drag picker. The looked-at cards
-    // are exposed on `libraryPeek` (exactly N cards — the library itself is
-    // never shown). The single-list submit is legal for `look-distribute`:
-    // the rest falls to `destination` in look order / randomly.
+    // order is cosmetic), it goes to exile (Karn's +1, issue #1570), or the
+    // server randomizes it (`randomizeRest`, Narset's random bottom) — is a
+    // simple "choose the hand card(s)" grid pick, NEVER the two-zone
+    // scry-style drag picker. The looked-at cards are exposed on `libraryPeek`
+    // (exactly N cards — the library itself is never shown). The single-list
+    // submit is legal for `look-distribute`: the rest falls to `destination`
+    // in look order / randomly.
     const orderPickOwnerForGrid = head?.zoneOwnerId ?? head?.playerId;
     const isLookDistributeGridPick =
         !!head &&
         head.kind === "look-distribute" &&
         head.zone === "library" &&
-        (head.destination === "graveyard" || head.randomizeRest === true) &&
+        (head.destination === "graveyard" ||
+            head.destination === "exile" ||
+            head.randomizeRest === true) &&
         head.playerId === playerId &&
         player.id === orderPickOwnerForGrid &&
         !!player.libraryPeek;
