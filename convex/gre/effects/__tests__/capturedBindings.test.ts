@@ -279,6 +279,40 @@ describe("Effect Script Ops: captureBinding / recallCapturedBinding (CR 608.2h)"
         expect(tokens[0].power).toBe(4);
     });
 
+    it("prefers the LIVE row (CR 608.2h current information) over the stack item's frozen snapshot", () => {
+        // The mirror of the re-entry test below. CR 608.2h reads CURRENT
+        // information while the object is in the zone it was expected in, and
+        // only falls back to last known information when it is not — so an
+        // ability ALREADY on the stack must see a capture made after it got
+        // there. Isolated by stripping the frozen copy off the built trigger
+        // item, which is exactly the state an ability put on the stack BEFORE
+        // the capture would have.
+        const id = registerHost(
+            "test-captured-binding-live-precedence",
+            CAPTURE_ETB,
+            RECALL_LTB
+        );
+        const { state } = setup(id);
+
+        fireEtb(state, "victim");
+        removePermanentTo(state, "host", "graveyard");
+        processPendingActionTriggers(state);
+        const trig = state.stack.find((s) =>
+            s.triggeredAbilityId?.endsWith("-ltb")
+        )!;
+        expect(trig).toBeDefined();
+        delete (trig as CardInstanceState).capturedBindings;
+
+        state.stack = state.stack.filter((s) => s.id !== trig.id);
+        state.stack.push(trig);
+        resolveTopOfStack(state);
+
+        // Only the live read can have served this.
+        const tokens = illusions(state, 1);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].power).toBe(4);
+    });
+
     it("still creates the token when the source RE-ENTERS the battlefield while its leave-trigger is on the stack (CR 603.10a look-back)", () => {
         const id = registerHost(
             "test-captured-binding-reanimate-race",
