@@ -93,6 +93,7 @@ import {
     getLegalTargets,
     NO_TARGETING_SOURCE,
     targetingSourceFromCard,
+    protectionSourceFromTargeting,
 } from "./rules";
 import {
     checkPermanentTargetFilters,
@@ -185,6 +186,7 @@ import {
 } from "./madness";
 import { markReboundExiled, openReboundCastWindow } from "./rebound";
 import {
+    isProtectedFrom,
     isProtectedFromSource,
     playerHasProtectionFromEverything,
 } from "./protection";
@@ -5501,22 +5503,48 @@ function targetStillTargetableBySource(
 ): boolean {
     // CR 112.1 / 113.3 — the shared discriminator; an ability's stack item is
     // a clone of its source permanent and is otherwise indistinguishable.
-    const sourceIsSpell = isSpellStackItem(item);
+    // Built through `targetingSourceFromCard`, the SAME total projection
+    // `pendingTargetingSource` hands the announcement path, so no dimension
+    // can be derived differently on the two sides of the stack.
+    const source = targetingSourceFromCard(item, isSpellStackItem(item));
+    // CR 113.7a / 601.2 — a spell or ability on the stack is controlled by the
+    // player who PUT IT THERE, which is `castById`, not the card object's own
+    // `controllerId`: the cast commit spreads the card and stamps `castById`
+    // without re-stamping `controllerId`, so a card cast from an OPPONENT's
+    // zone under a cross-player permission (Robber of the Rich's
+    // `grantCastFromExile`) sits on the stack still carrying its owner's
+    // `controllerId`. Reading that field would make the caster's own hexproof
+    // creature an illegal target for the caster's own stolen spell — the
+    // offered-vs-accepted divergence ADR 0068 exists to prevent, moved to a
+    // third site. Every announcement site passes the ACTING player
+    // (`getLegalTargets`'s `casterId`, `selectTarget`'s `playerId`); this is
+    // the same player. The `??` covers a synthetic item with no `castById` at
+    // all: falling back to the object's controller is what the pre-existing
+    // damage-side reads already do, and it never fabricates a controller.
+    const sourceControllerId = item.castById ?? item.controllerId;
     // CR 702.16b — every quality family at once (colour, characteristic,
-    // each-opponent, coloured-spell), through the single shared predicate.
-    if (isProtectedFromSource(candidate, item, sourceIsSpell)) return false;
+    // each-opponent, coloured-spell), through the single shared predicate and
+    // the single shared projection into its source view.
+    if (
+        isProtectedFrom(
+            candidate,
+            protectionSourceFromTargeting(source, sourceControllerId)
+        )
+    ) {
+        return false;
+    }
     // CR 702.11b — hexproof (opponent-controlled sources only).
     // CR 702.18a — shroud (every source, the controller's own included).
     // CR 611 — declared `permanent-guard` bundles, with their CR 109.5
     // source narrowings.
     return !isGuardedAgainst(state, candidate, "cantBeTargeted", {
-        types: item.types,
-        subtypes: item.subtypes,
-        isSpell: sourceIsSpell,
+        types: source.types,
+        subtypes: source.subtypes,
+        isSpell: source.isSpell,
         // CR 702.11b — the source's controller. Hexproof bars only an
         // opponent-controlled source; the permanent's own controller may
         // still target it, exactly as at announcement.
-        controllerId: item.controllerId,
+        controllerId: sourceControllerId,
     });
 }
 
@@ -5548,7 +5576,11 @@ function targetStillTargetableBySource(
  *  are all battlefield/objects-that-can-be-targeted clauses whose engine
  *  bridges — `staticAbilities` on a permanent, `permanent-guard` static
  *  effects — do not apply to a graveyard card), so there is nothing further
- *  this gate could prove there. PLAYER targets ARE covered, through the
+ *  this gate could prove there. What WOULD force this branch open is a card
+ *  granting the graveyard itself a targeting restriction — a Ground Seal
+ *  ("cards in graveyards can't be the targets of spells or abilities"), which
+ *  the shipped pool has no instance of and which would need a
+ *  graveyard-scoped guard reader before this gate could consult one. PLAYER targets ARE covered, through the
  *  player-scoped siblings of the same two authorities (`playerHasShroud`,
  *  CR 702.18 via CR 115.4; `playerHasProtectionFromEverything`, CR 702.16j
  *  via CR 115.4) — the same announcement-time predicates `selectTarget`
@@ -5578,11 +5610,13 @@ function isTargetStillLegal(
             // below, and the SAME two predicates `selectTarget` gates the
             // accepted set with — neither takes source characteristics: both
             // bar every source, the guarded player's own included.
-            if (item) {
-                if (playerHasShroud(state, target.id)) return false;
-                if (playerHasProtectionFromEverything(state, target.id))
-                    return false;
-            }
+            // Deliberately NOT gated on `item`: neither predicate takes a
+            // source (both bar every source, the guarded player's own
+            // included), so an item-less caller has no reason to skip them —
+            // and gating would make a future one fail open silently.
+            if (playerHasShroud(state, target.id)) return false;
+            if (playerHasProtectionFromEverything(state, target.id))
+                return false;
             return true;
         }
         case "spell": {

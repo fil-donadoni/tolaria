@@ -189,6 +189,41 @@ describe("CR 608.2b — hexproof gained in response (CR 702.11b)", () => {
     });
 });
 
+describe("CR 113.7a — the source's controller is the CASTER, not the card object", () => {
+    // Robber of the Rich (`cards/sets/eld/red.ts`) grants a cross-player cast:
+    // p1 casts a card out of p2's exile. The cast commit spreads the card and
+    // stamps `castById`, leaving the object's own `controllerId` pointing at
+    // p2 — so a gate reading `controllerId` would call p1's own spell an
+    // opponent's source and counter it against p1's own hexproof creature.
+    it("lets a stolen spell target the CASTER's own hexproof permanent (CR 702.11b)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, unsummon.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // The stolen-cast shape: owned and "controlled" by p2 as a card
+        // object, put on the stack by p1.
+        item.controllerId = "p2";
+        item.ownerId = "p2";
+        grantKeyword(state, "bear", "hexproof");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+        expect(state.players[0].hand.some((c) => c.id === "bear")).toBe(true);
+    });
+});
+
 describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
     // The case with NO damage-prevention fallback: destruction is not in
     // protection's DEBT (CR 702.16b–e cover damage / enchant / block / target,
@@ -413,6 +448,22 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
                 ownerId: "p2",
             })
         );
+        resolveTopOfStack(state);
+
+        expect(getPlayer(state, "p2").hand).toHaveLength(0);
+        expect(getPlayer(state, "p2").library).toHaveLength(3);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // CR 702.16j via CR 115.4 — the OTHER player-scoped authority the gate
+    // reads (The One Ring, issue #674). Unlike shroud it has no source
+    // narrowing at all: it bars the protected player's own spells too.
+    it("counters a spell against a player with protection from everything (CR 702.16j)", () => {
+        const state = boardWithLibrary();
+        pushSpell(state, ancestralRecall.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        state.playerProtectionFromEverything = ["p2"];
         resolveTopOfStack(state);
 
         expect(getPlayer(state, "p2").hand).toHaveLength(0);
