@@ -71,6 +71,7 @@ import {
 import type { CardDefinition } from "../cards/types";
 import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
 import { completeSacrificeSelection } from "./paymentPicks";
+import { castSacrificeVictims, type CastCostPicks } from "./castCostPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
@@ -310,6 +311,57 @@ export function applyKickerPermanentLegForSearch(
         } else {
             removePermanentTo(state, id, "hand");
         }
+    }
+}
+
+/** CR 601.2f / 701.21 / 701.13 (issue #2135) — pay a `cast-spell` move's
+ *  MANDATORY additional-cost parks on a search sandbox state, in place: the
+ *  filtered sacrifice (the card's own `additionalCosts.sacrificeFilter` plus
+ *  Drought's board-wide static sacrifice) and the exile additional cost (Soul
+ *  Exchange).
+ *
+ *  Same reason `applyDelveExileForSearch` / `applyAdditionalCostLegForSearch`
+ *  exist: a cost the search tree does not charge is a cost the Bot values at
+ *  zero — a Natural Order cast was valued as free removal while the sacrifice
+ *  it must make never happened in the tree. WHICH card pays rides on the move
+ *  (`castCostPicks`, `gre/castCostPicks.ts`), chosen deterministically
+ *  cheapest-first (K=1, `gre/parkKinds.ts`), and this applies exactly the cards
+ *  `executor.ts` will name to `selectSacrifice` / `selectAdditionalCost` — the
+ *  search and live play agree by construction rather than by parallel
+ *  maintenance.
+ *
+ *  Shared by BOTH move-application sandboxes — `applyMoveForSearch` below and
+ *  `applyMoveInSearch` (`search.ts`) — for the same reason
+ *  `applyRetraceCastForSearch` is: a cost charged in one tree and not the
+ *  other is a divergence between the greedy selector and ISMCTS. */
+export function applyCastCostPicksForSearch(
+    state: GameState,
+    playerId: string,
+    card: CardInstanceState,
+    cardDef: CardDefinition | undefined,
+    chosenLegId: string | undefined,
+    picks: CastCostPicks | undefined
+): void {
+    if (!picks) return;
+    const player = getPlayer(state, playerId);
+    const spec = resolveAdditionalCosts(cardDef?.additionalCosts, chosenLegId);
+    // CR 701.21 — the sacrifice victims: the ones the server auto-resolves at
+    // announcement (fungible board) PLUS the ones the payer names. Both leave
+    // the battlefield; `picks.sacrificeIds` alone is the submission list, not
+    // the payment.
+    for (const id of castSacrificeVictims(
+        state,
+        player,
+        card,
+        spec,
+        picks,
+        cardDef?.name ?? "Sacrifice"
+    )) {
+        removePermanentTo(state, id, "graveyard", "sacrifice");
+    }
+    // CR 701.13 — the exile additional cost (Soul Exchange).
+    if (picks.additionalCostCardId) {
+        removePermanentTo(state, picks.additionalCostCardId, "exile");
     }
 }
 
@@ -949,6 +1001,24 @@ export function applyMoveForSearch(
                         move.kickerPayments
                     );
                 }
+            }
+            // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory
+            // additional-cost parks (filtered sacrifice + Drought, and the exile
+            // additional cost) before the spell leaves its zone, in the same
+            // pre-removal block as the Kicker permanent leg above. The picks
+            // ride on the move (`castCostPicks`), so the search charges exactly
+            // what the executor will submit.
+            if (move.castCostPicks && preCastSpell) {
+                applyCastCostPicksForSearch(
+                    next,
+                    playerId,
+                    preCastSpell,
+                    tryGetDefinition(
+                        (preCastSpell.card as { id?: string }).id ?? ""
+                    ) ?? undefined,
+                    move.additionalCostLegId,
+                    move.castCostPicks
+                );
             }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
             // and pays a discarded land on the way. Probed (and charged) before

@@ -88,6 +88,7 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
 import { enumerateActivationCostPicks } from "./activationCostPicks";
+import { planCastCostPicks, type CastCostPicks } from "./castCostPicks";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
 // High Artificer), shared with the castability census (`coloredCostLeftover`,
 // rules.ts) so the plan and the Cast affordance can never disagree.
@@ -348,6 +349,18 @@ export type Move =
            *  folded into `tapPlan`. Absent / 0 when neither applies. Deducted
            *  in `applyMove`. */
           payLife?: number;
+          /** CR 601.2f / 701.21 / 701.13 (issue #2135) — the cards named to pay
+           *  this cast's MANDATORY additional-cost parks (a filtered sacrifice
+           *  — the card's own `additionalCosts.sacrificeFilter` plus Drought's
+           *  board-wide static sacrifice — and the exile additional cost, Soul
+           *  Exchange). The server parks a `pendingCast` for each and never
+           *  commits until they are answered, so the pick travels ON the move:
+           *  `applyMove`/`applyMoveInSearch` remove exactly these cards in the
+           *  search, and `executor.ts` names exactly these cards to the server.
+           *  K=1 for every cast-side park (`gre/parkKinds.ts`), so this is the
+           *  single deterministic plan, never a variant axis. Absent for a cast
+           *  with no such park. */
+          castCostPicks?: CastCostPicks;
       }
     | {
           kind: "activate-ability";
@@ -1628,6 +1641,23 @@ function enumerateCastMoves(
         // move.
         if (groups.slice(0, -1).some((g) => isVariableCount(g))) continue;
         const lastReq = groups[groups.length - 1];
+        // CR 601.2f / 701.21 / 701.13 (issue #2135) — the mandatory
+        // additional-cost parks: the card's OWN filtered sacrifice
+        // (`additionalCosts.sacrificeFilter`, flattened through the chosen
+        // `oneOf` leg) plus Drought's board-wide static sacrifice (CR 118.8),
+        // and the exile additional cost (Soul Exchange, CR 701.13). K=1 for
+        // every cast-side park (`gre/parkKinds.ts`): one deterministic plan,
+        // carried ON the move so the search applies exactly what the executor
+        // later submits. Computed once per announce-variant — the plan is
+        // X-invariant (it reads the board and the flattened additional cost,
+        // never the chosen X). `null` = a leg has no legal payment (e.g. a
+        // black spell under Drought with no Swamp), which the castability gate
+        // does not check for static sacrifices; fail closed rather than emit a
+        // move the executor cannot pay.
+        const castCostPicks = def
+            ? planCastCostPicks(state, player, card, def, additionalCostLegId)
+            : undefined;
+        if (castCostPicks === null) continue;
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
@@ -1767,6 +1797,7 @@ function enumerateCastMoves(
                     ),
                     tapPlan,
                     ...(payLife > 0 ? { payLife } : {}),
+                    ...(castCostPicks ? { castCostPicks } : {}),
                 });
                 if (moves.length >= MAX_COMBINATIONS) return moves;
             }

@@ -94,6 +94,7 @@ import {
     applyKickerPermanentLegForSearch,
     applyRetraceCastForSearch,
     applyDelveExileForSearch,
+    applyCastCostPicksForSearch,
 } from "./applyMove";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
@@ -927,6 +928,24 @@ export function applyMoveInSearch(
                         move.kickerPayments
                     );
                 }
+            }
+            // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory
+            // additional-cost parks (filtered sacrifice + Drought, and the exile
+            // additional cost) before the spell leaves its zone, mirroring the
+            // greedy sandbox (`applyMoveForSearch`). The picks ride on the move
+            // (`castCostPicks`), so the tree charges exactly what the executor
+            // submits.
+            if (move.castCostPicks && preCastSpell) {
+                applyCastCostPicksForSearch(
+                    state,
+                    playerId,
+                    preCastSpell,
+                    tryGetDefinition(
+                        (preCastSpell.card as { id?: string }).id ?? ""
+                    ) ?? undefined,
+                    move.additionalCostLegId,
+                    move.castCostPicks
+                );
             }
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD,
             // not the hand, and destroys a land card from hand on the way. The

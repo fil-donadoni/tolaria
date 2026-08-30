@@ -57,6 +57,7 @@ const FORCE_OF_WILL = getCardByName("Force of Will");
 
 const BEAR = getCardByName("Grizzly Bears").id; // {1}{G} 2/2
 const WURM = getCardByName("Craw Wurm").id; // {4}{G}{G} 6/4
+const SWAMP = getCardByName("Swamp").id;
 const LIONS = getCardByName("Savannah Lions").id; // {W} 2/1, white
 const CRUSADER = getCardByName("Benalish Hero").id; // {W} 1/1, white
 const UNSUMMON = getCardByName("Unsummon").id; // {U} Instant — blue
@@ -479,6 +480,44 @@ describe("cast parks the bot used to stall on (CR 601.2f / 118.8 / 118.9)", () =
             {
                 mutation: "selectAdditionalCost",
                 args: { cardInstanceId: "bear" },
+            },
+        ]);
+    });
+
+    it("Drought (stale static sacrifice) — the fallback still answers a cast-side sacrifice the search did not anticipate (CR 601.2f / 118.5)", async () => {
+        // Issue #2135 — a STALE payload: the search planned a cast BEFORE
+        // Drought entered, so the move's `castCostPicks` never named the Swamp.
+        // The reactive fallback must still answer the board-wide sacrifice the
+        // carried pick did not cover — this is the safety net the executor's
+        // own submission cannot be allowed to replace.
+        const state = baseState(
+            {
+                hand: [inst(BEAR, "h-bear", "hand")],
+                battlefield: [inst(SWAMP, "swamp")],
+            },
+            {
+                pendingCast: {
+                    playerId: BOT,
+                    cardInstanceId: "spell",
+                    manaCost: {},
+                    tappedLandIds: [],
+                    sacrificeSelection: {
+                        playerId: BOT,
+                        reason: "Drought",
+                        requirements: [
+                            { filter: { subtypes: ["Swamp"] }, count: 1 },
+                        ],
+                        picked: [],
+                    },
+                },
+            }
+        );
+        const { action, calls } = await realise(state);
+        expect(action.park).toBe("cast:sacrificeSelection");
+        expect(calls).toEqual([
+            {
+                mutation: "selectSacrifice",
+                args: { cardInstanceId: "swamp" },
             },
         ]);
     });
