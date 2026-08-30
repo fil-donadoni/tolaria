@@ -8199,14 +8199,15 @@ export interface PermanentEnteredEvent {
      *  Mirrors `wasCast`'s "true only at the one real chokepoint" shape. */
     wasPlayed?: boolean;
     /** CR 603.6a — true ONLY when this permanent's previous zone was a graveyard
-     *  (reanimation, CR 400.7) or it was CAST from a graveyard (Flashback /
-     *  Escape / Retrace / a graveyard-cast permission, CR 702.34 / 702.138 /
-     *  702.81). Read by "if they entered or were cast from a graveyard" trigger
-     *  conditions (Twilight Diviner). A token, a land played from hand, a
-     *  library/hand tutor, or an exile-return leaves this false/undefined.
-     *  Optional so every pre-existing `PERMANENT_ENTERED` fixture / serialized
-     *  log without the field deserializes as "not from graveyard" (a condition
-     *  reading it simply sees `undefined` — fail-closed). */
+     *  (reanimation, CR 400.7) or it was CAST from a graveyard. Cast-from-a-
+     *  graveyard covers Flashback (CR 702.34), Escape (CR 702.138),
+     *  Retrace (CR 702.81), and a graveyard-cast permission. Read by "if they
+     *  entered or were cast from a graveyard" trigger conditions (Twilight
+     *  Diviner). A token, a land played from hand, a library/hand tutor, or an
+     *  exile-return leaves this false/undefined. Optional so every pre-existing
+     *  `PERMANENT_ENTERED` fixture / serialized log without the field
+     *  deserializes as "not from graveyard" (a condition reading it simply
+     *  sees `undefined` — fail-closed). */
     enteredFromGraveyard?: boolean;
     /** Effective power/toughness (CR 613.4) of the entering permanent,
      *  snapshotted at `emitPermanentEntered` — present ONLY when `types`

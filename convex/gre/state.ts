@@ -6892,9 +6892,10 @@ function finalizeSpellResolution(
         // after this resolve completes. `wasCast: true` — this IS the
         // cast-resolution chokepoint (CR 601.2i), read by an "if you cast it"
         // trigger condition (Lutri, the Spellchaser). `enteredFromGraveyard`
-        // carries CR 702.34/702.138/702.81 — the spell was cast from a
-        // graveyard (Flashback/Escape/Retrace/graveyard-cast), read by
-        // Twilight Diviner's "entered or were cast from a graveyard".
+        // carries the cast-from-a-graveyard fact — Flashback (CR 702.34),
+        // Escape (CR 702.138), Retrace (CR 702.81), or a graveyard-cast
+        // permission — read by Twilight Diviner's "entered or were cast from a
+        // graveyard".
         emitPermanentEntered(state, item, {
             wasCast: true,
             enteredFromGraveyard: item.castFromGraveyard === true,
