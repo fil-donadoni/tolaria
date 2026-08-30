@@ -23037,7 +23037,7 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
 // `counters` legs and the `moveZone` `from: "exile"` cards-shape source are
 // new in issue #1570.
 
-describe("Effect Script Op: lookDistribute chooser + exile destination + counters (CR 701.20a / 400.7 / 122.1, issue #1570)", () => {
+describe("Effect Script Op: lookDistribute reveal + chooser + silver counter (CR 701.20a / 400.7 / 122.1, issue #1570)", () => {
     const libOf = (owner: "p1" | "p2", ids: string[]) =>
         ids.map((cid) =>
             makeInstance(BEAR_ID, {
