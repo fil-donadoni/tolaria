@@ -1,7 +1,7 @@
 ---
 title: ladder.bot.test.ts's cross-game isolation test fails as a 60s wall-clock timeout under machine load
 discoveredBy: 2725
-status: draft
+status: fixed
 confidence: high
 ---
 
@@ -26,3 +26,7 @@ ticket. It is worth writing down anyway because the failure mode is a
 false-positive RED on an unrelated PR's gate, which is exactly the shape that
 teaches people to re-run the lane instead of reading it (#2512's argument
 against a flapping ceiling, one level up).
+
+**Resolution.** Fixed in PR #2955 by giving the `it` an explicit 300s
+timeout: the test measures order-independence, never speed, so the default 60s
+bound was only ever a false-positive red on a loaded machine.

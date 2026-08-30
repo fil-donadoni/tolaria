@@ -177,7 +177,15 @@ describe("playLadderGame: cross-game isolation (issue #2681)", () => {
 
         // The seam is always clean afterward, whatever order it ran in.
         expect(getSearchVariant()).toBeNull();
-    });
+        // NINE full self-play games in one `it`, against vitest's default 60s
+        // `testTimeout` — which does not fit on a loaded machine (measured
+        // 112-123s inside `bun run land`, 11/11 green standing alone on the
+        // same tree). The failure was a wall-clock timeout, never an
+        // assertion, so it read in the log exactly like a real red on an
+        // unrelated PR's gate: the false-positive shape
+        // `docs/findings/2724` / `2725` recorded twice. The bound is generous
+        // on purpose — nothing here measures speed, only order-independence.
+    }, 300_000);
 });
 
 /**

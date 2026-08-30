@@ -1,7 +1,7 @@
 ---
 title: ladder.bot.test.ts's cross-game isolation case times out at 60s when the gate runs it alongside everything else
 discoveredBy: 2724
-status: draft
+status: fixed
 confidence: medium
 ---
 
@@ -32,3 +32,7 @@ whoever owns that contention rather than to this test. What makes it worth
 recording is the failure MODE: a red `check:pr` on a
 frontend-only diff reads as "my change broke the bot" and costs a debugging
 detour before anyone notices it is a timeout.
+
+**Resolution.** Fixed in PR #2955 by giving the `it` an explicit 300s
+timeout: the test measures order-independence, never speed, so the default 60s
+bound was only ever a false-positive red on a loaded machine.
