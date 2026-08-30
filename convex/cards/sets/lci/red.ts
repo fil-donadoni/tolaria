@@ -116,6 +116,10 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                 oracleText:
                     "Whenever you discard one or more cards, exile the top card of your library. You may play that card until your next end step.",
                 scope: "your",
+                // CR 603.3b — "one or more cards" fires ONCE per discard
+                // event, no matter how many cards that event discarded (a
+                // Bog Down or a cleanup-step hand-size discard).
+                oncePerEventBatch: true,
                 resolve: (ctx, _event, discardingPlayerId) => {
                     const top = ctx.peekLibraryTop(discardingPlayerId, 1);
                     if (top.length === 0) return; // empty library
