@@ -98,7 +98,7 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../cards/types";
-import type { LibraryDestination } from "../types";
+import type { LookDistributeDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
 import { parseProtectionFromColor } from "../protection";
@@ -1781,7 +1781,9 @@ function choiceCandidates(
  *  in look order. `randomBottom` (Narset's "random order") suppresses the
  *  `markKnown` for a `library-bottom` destination — CR 401.4's random order is
  *  unobservable for face-down library cards, so no knowledge is granted;
- *  meaningless for `destination: "graveyard"` (a public zone, ADR 0026). */
+ *  meaningless for `destination: "graveyard"`/`"exile"` (a public zone,
+ *  ADR 0026). `counters` (issue #1570, Karn's silver counter) is stamped on
+ *  each un-kept card when `destination` is `"exile"`. */
 function bottomLookedAtCards(
     ctx: SpellContext,
     playerId: string,
@@ -1789,7 +1791,8 @@ function bottomLookedAtCards(
     pickSet: Set<string>,
     randomBottom: boolean,
     chosenBottom: string[] = [],
-    destination: LibraryDestination = "library-bottom"
+    destination: LookDistributeDestination = "library-bottom",
+    counters?: Record<string, number>
 ): void {
     const restTop =
         chosenBottom.length > 0
@@ -1807,6 +1810,18 @@ function bottomLookedAtCards(
         // library-bottom branch below).
         for (const id of restTop) {
             ctx.moveCardById(playerId, id, "library", "graveyard");
+        }
+        return;
+    }
+    if (destination === "exile") {
+        // CR 400.7 (issue #1570, Karn's +1) — the un-kept looked-at card(s) go
+        // to their owner's exile, one `moveCardById` per card, each stamped
+        // with `counters` (the silver counter) so a later "a card with a silver
+        // counter on it" retrieval finds it. Exile is a public zone like the
+        // graveyard leg above: no `markKnown`, no bottom-order pick.
+        for (const id of restTop) {
+            ctx.moveCardById(playerId, id, "library", "exile");
+            if (counters) ctx.stampCardCounters(id, counters);
         }
         return;
     }
@@ -1831,14 +1846,16 @@ function bottomLookedAtCards(
  *  headed to the library top, or vice-versa for the rest. */
 function keepPromptFor(
     keepTo: "hand" | "library-top",
-    destination: LibraryDestination
+    destination: LookDistributeDestination
 ): string {
     const keepPhrase =
         keepTo === "hand" ? "into your hand" : "on top of your library";
     const restPhrase =
         destination === "graveyard"
             ? "put the rest into your graveyard"
-            : "order the rest on the bottom of your library";
+            : destination === "exile"
+              ? "put the rest into exile"
+              : "order the rest on the bottom of your library";
     return `Choose which card(s) to put ${keepPhrase}, then ${restPhrase}.`;
 }
 
@@ -3367,6 +3384,15 @@ export const OP_EXECUTORS: {
     lookDistribute(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        // Chooser≠zone-owner seam (issue #1570, Karn's +1 "an opponent chooses
+        // one of them") — the CHOOSER picks from `playerId`'s library, mirroring
+        // `scryReorder`'s `chooser` (issue #1532). Default = the library owner
+        // (every card shipped before #1570). Unresolvable chooser skips (CR 608.2b).
+        const chooserId =
+            op.chooser === undefined
+                ? playerId
+                : resolvePlayerRef(ctx, op.chooser);
+        if (chooserId === undefined) return;
         const look = resolveValue(ctx, op.look);
         if (look === undefined || look <= 0) return;
         const topIds = ctx.peekLibraryTop(playerId, look);
@@ -3423,18 +3449,25 @@ export const OP_EXECUTORS: {
                 new Set(),
                 randomBottom,
                 [],
-                destination
+                destination,
+                op.counters
             );
             return;
         }
         const picks = ctx.requestChoice({
-            playerId,
+            playerId: chooserId,
             // A fixed choiceId is unique per Op position: the pipeline keys on
             // `step:choiceId` and `step` IS this Op's checkpointed position, so
             // two lookDistribute Ops at different positions never collide.
             choiceId: "dig-to-hand",
             kind: "look-distribute",
             zone: "library",
+            // The chooser picks from `playerId`'s library (Karn's "an opponent
+            // chooses one of them") — `zoneOwnerId` names the library owner when
+            // it differs from the chooser, the same seam `scryReorder`'s
+            // fateseal uses. The peek is exposed to the chooser; the kept/un-kept
+            // moves still run against `playerId`'s library.
+            ...(chooserId !== playerId ? { zoneOwnerId: playerId } : {}),
             // The FULL looked-at window is shown (candidateIds); `eligibleIds`
             // (when a filter is present) restricts which of those may be
             // kept — the filtered-out cards can only go to `destination`.
@@ -3523,7 +3556,8 @@ export const OP_EXECUTORS: {
             pickSet,
             randomBottom,
             chosenBottom,
-            destination
+            destination,
+            op.counters
         );
     },
     // CR 702.75a (issue #783) — HIDEAWAY: look at the top `look` cards, exile

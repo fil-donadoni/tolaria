@@ -22,7 +22,7 @@
 // `cardInstanceIds`, the bottom cards (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { LibraryDestination } from "@convex/gre/types";
+import type { LookDistributeDestination } from "@convex/gre/types";
 import {
     canAddCategorizedPick,
     type PickCategory,
@@ -115,6 +115,11 @@ const META_GRAVEYARD: ZoneMeta = {
     hint: "discarded / milled",
     icon: "graveyard",
 };
+const META_EXILE: ZoneMeta = {
+    title: "Exile",
+    hint: "removed from the game",
+    icon: "graveyard",
+};
 
 export type LookedAtCard = { instanceId: string; defId: string };
 
@@ -130,7 +135,7 @@ const clamp = (v: number, lo: number, hi: number) =>
     Math.min(hi, Math.max(lo, v));
 
 /** Zone chrome per destination (labels/hints/detach flags). */
-function chromeFor(destination: LibraryDestination): {
+function chromeFor(destination: LookDistributeDestination): {
     leftMeta: ZoneMeta | null;
     rightMeta: ZoneMeta;
     hasSecond: boolean;
@@ -147,6 +152,16 @@ function chromeFor(destination: LibraryDestination): {
         case "graveyard":
             return {
                 leftMeta: META_GRAVEYARD,
+                rightMeta: META_LIBRARY_TOP,
+                hasSecond: true,
+                detached: true,
+            };
+        case "exile":
+            // Unreachable in practice (an `exile` destination always routes to
+            // the grid pick, never the drag picker) — kept only so the widened
+            // `LookDistributeDestination` prop type is exhaustively handled.
+            return {
+                leftMeta: META_EXILE,
                 rightMeta: META_LIBRARY_TOP,
                 hasSecond: true,
                 detached: true,
@@ -171,7 +186,7 @@ export default function LibraryOrderPicker({
     onConfirm,
 }: {
     lookedAt: LookedAtCard[];
-    destination: LibraryDestination;
+    destination: LookDistributeDestination;
     prompt: string;
     submitting: boolean;
     /** `look-distribute` mode (Impulse / Stock Up / Thassa's Oracle): the
@@ -235,10 +250,12 @@ export default function LibraryOrderPicker({
               leftMeta:
                   destination === "graveyard"
                       ? META_GRAVEYARD
-                      : META_LIBRARY_BOTTOM,
+                      : destination === "exile"
+                        ? META_EXILE
+                        : META_LIBRARY_BOTTOM,
               rightMeta: keepToHand ? META_HAND : META_LIBRARY_TOP_KEEP,
               hasSecond: true,
-              detached: destination === "graveyard",
+              detached: destination === "graveyard" || destination === "exile",
           }
         : putBack
           ? {

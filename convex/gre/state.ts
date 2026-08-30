@@ -2621,6 +2621,7 @@ import type {
     PendingChoiceKind,
     ManaRestriction,
     LibraryDestination,
+    LookDistributeDestination,
 } from "./types";
 export type {
     ZonePickKind,
@@ -2636,6 +2637,7 @@ export type {
     PendingChoiceKind,
     ManaRestriction,
     LibraryDestination,
+    LookDistributeDestination,
 };
 
 /** Default prompts for an `order-top` choice keyed by destination — used when a
@@ -2952,8 +2954,10 @@ export type PendingChoice = {
      *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`
      *  order-only Ponder). Set when the choice is raised; read by the resolve
      *  step (`SpellContext.orderTop`) to apply the split. See
-     *  {@link LibraryDestination}. */
-    destination?: LibraryDestination;
+     *  {@link LibraryDestination}. A `look-distribute` choice may additionally
+     *  name `"exile"` (`LookDistributeDestination`) — Karn, Scion of Urza's +1
+     *  sends the un-kept card to exile with a silver counter, issue #1570. */
+    destination?: LookDistributeDestination;
     /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
      *  land: `"hand"` (every card shipped before #2070) or `"library-top"`
      *  (Thassa's Oracle). Orthogonal to `destination` above, which names the
@@ -15405,6 +15409,20 @@ export function buildSpellContext(
                         ownerId: playerId,
                     },
                 ]);
+            }
+        },
+        // CR 122.1 (issue #1570) — stamp counters (Karn, Scion of Urza's silver
+        // counter) onto a card already in exile. Reuses the void-counter stamp
+        // (`applyGraveyardRedirectCounters` — merge onto `card.counters`) so the
+        // `hasCounter` filter Dauthi Voidwalker's retrieval uses finds it, and
+        // the existing CR 122.1e strip on leaving exile applies unchanged. No-op
+        // when the card is in no exile (CR 608.2b).
+        stampCardCounters(cardInstanceId, counters) {
+            for (const p of state.players) {
+                const card = p.exile.find((c) => c.id === cardInstanceId);
+                if (!card) continue;
+                applyGraveyardRedirectCounters(card, counters);
+                return;
             }
         },
         // CR 702.26 — phase a permanent (and its Auras/Equipment) out of

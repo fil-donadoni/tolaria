@@ -23030,6 +23030,136 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
     });
 });
 
+// --- lookDistribute chooser + exile destination + counters (issue #1570) ---
+// Karn, Scion of Urza's +1: reveal the top two, the OPPONENT chooses one to
+// hand, the other is exiled with a silver counter. The chooser≠zone-owner seam
+// is scryReorder's fateseal shape (issue #1532); the `destination: "exile"` +
+// `counters` legs and the `moveZone` `from: "exile"` cards-shape source are
+// new in issue #1570.
+
+describe("Effect Script Op: lookDistribute chooser + exile destination + counters (CR 701.20a / 400.7 / 122.1, issue #1570)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("Karn +1: the OPPONENT chooses one to hand, the other is exiled with a silver counter", () => {
+        const id = registerScript("test-op-dig-chooser-exile", [
+            {
+                op: "lookDistribute",
+                player: "controller",
+                look: 2,
+                take: 1,
+                keepTo: "hand",
+                reveal: "window",
+                chooser: "opponent",
+                destination: "exile",
+                counters: { silver: 1 },
+                prompt: "Choose a card for your opponent to put into their hand; the other is exiled with a silver counter.",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the pick
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.destination).toBe("exile");
+        // The opponent (p2) is the chooser; p1 owns the looked-at library
+        // (the fateseal chooser≠zone-owner seam).
+        expect(head.playerId).toBe("p2");
+        expect(head.zoneOwnerId).toBe("p1");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // "a" → p1's hand; "b" → p1's exile with a silver counter; "c" stays.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        const exiled = state.players[0].exile.find((c) => c.id === "b")!;
+        expect(exiled).toBeDefined();
+        expect(exiled.counters).toEqual({ silver: 1 });
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["c"]);
+    });
+
+    it("Karn −1: a silver-counter card is retrieved from exile to hand, and the counter is stripped (CR 122.1e)", () => {
+        const silverCard = makeInstance(BEAR_ID, {
+            id: "silv",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            counters: { silver: 1 },
+        });
+        const plainExiled = makeInstance(BEAR_ID, {
+            id: "plain",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        const id = registerScript("test-op-move-zone-exile-hand", [
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zone: "exile",
+                filter: { hasCounter: { type: "silver" } },
+                count: 1,
+                prompt: "Choose a card with a silver counter on it.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "exile",
+                to: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { exile: [silverCard, plainExiled] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-exile-card");
+        // The hasCounter filter precomputed candidateIds — only the
+        // silver-countered card is eligible.
+        expect(head.candidateIds).toEqual(["silv"]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["silv"],
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("silv");
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["plain"]);
+        // CR 122.1e / 400.7 — the silver counter ceases to exist on leaving exile.
+        const inHand = state.players[0].hand.find((c) => c.id === "silv")!;
+        expect(inHand.counters?.silver).toBeUndefined();
+    });
+});
+
 // --- digMatchingToHand Op: filter-driven reveal-and-split (CR 701.20a /
 // 401.4, issue #1085) ------------------------------------------------------
 // Deterministic sibling of lookDistribute: reveals the top `look` cards to every
@@ -23038,7 +23168,6 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
 // no suspension.
 
 describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)", () => {
-    const grizzlyBears = getCardByName("Grizzly Bears");
     const hillGiant = getCardByName("Hill Giant");
 
     const libOf = (owner: "p1" | "p2", cardIds: string[]) =>
