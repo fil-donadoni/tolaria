@@ -29,7 +29,7 @@ import { getPlayer, resolveTopOfStack, type GameState } from "../state";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { royalAssassin, terror } from "../../cards/sets/lea/black";
 import { lightningBolt } from "../../cards/sets/lea/red";
-import { unsummon } from "../../cards/sets/lea/blue";
+import { ancestralRecall, unsummon } from "../../cards/sets/lea/blue";
 import { swordsToPlowshares } from "../../cards/sets/lea/white";
 import { ashesToAshes } from "../../cards/sets/drk/black";
 import { antiMagicAura } from "../../cards/sets/leg/blue";
@@ -362,14 +362,49 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
 });
 
 describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", () => {
-    it("counters a spell already targeting them", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
+    /** p2 with a three-card library, so a resolved draw is observable. */
+    function boardWithLibrary(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "lib3",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
         });
-        pushSpell(state, lightningBolt.id, "p1", [
+    }
+
+    // The vehicle is a DRAW, not a burn spell: Solitary Confinement also
+    // carries "Prevent all damage that would be dealt to you", so a Lightning
+    // Bolt at the shrouded player leaves the life total at 20 whether the
+    // spell was countered or merely prevented — the same trap CR 702.16e sets
+    // for the permanent cases above. A draw has no prevention leg.
+    it("counters a spell already targeting them", () => {
+        const state = boardWithLibrary();
+        pushSpell(state, ancestralRecall.id, "p1", [
             { type: "player", id: "p2" },
         ]);
-        // Solitary Confinement's `player-guard` gives its controller shroud.
+        // Solitary Confinement's `player-guard` gives its controller shroud
+        // (CR 702.18 via CR 115.4), read by `playerHasShroud`.
         state.players[1].battlefield.push(
             makeInstance(solitaryConfinement.id, {
                 id: "confinement",
@@ -379,19 +414,19 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
         );
         resolveTopOfStack(state);
 
-        expect(state.players[1].life).toBe(20);
+        expect(getPlayer(state, "p2").hand).toHaveLength(0);
+        expect(getPlayer(state, "p2").library).toHaveLength(3);
         expect(state.stack).toHaveLength(0);
     });
 
     it("still resolves against a player with no guard (control)", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-        });
-        pushSpell(state, lightningBolt.id, "p1", [
+        const state = boardWithLibrary();
+        pushSpell(state, ancestralRecall.id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
 
-        expect(state.players[1].life).toBe(17);
+        expect(getPlayer(state, "p2").hand).toHaveLength(3);
+        expect(getPlayer(state, "p2").library).toHaveLength(0);
     });
 });
