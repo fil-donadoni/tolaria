@@ -10,7 +10,11 @@ import { describe, it, expect } from "vitest";
 import { intiSeneschalOfTheSun } from "../red";
 import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    discardToGraveyard,
+    processPendingActionTriggers,
+} from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -220,6 +224,66 @@ describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => 
         expect(exiled.castableFromExileIncludesLand).toBe(true);
         expect(exiled.castableFromExileUntilTurn).toBe(2);
         expect(exiled.knownTo).toEqual(["p1"]);
+    });
+});
+
+describe("Inti, Seneschal of the Sun — one-or-more discard batching (CR 603.2c, issue #2107)", () => {
+    it("fires once for a two-card discard event, exiling exactly one card", () => {
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top1 = makeInstance(grizzlyBears.id, {
+            id: "top-1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const top2 = makeInstance(grizzlyBears.id, {
+            id: "top-2",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const hand1 = makeInstance(grizzlyBears.id, {
+            id: "hand-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const hand2 = makeInstance(grizzlyBears.id, {
+            id: "hand-2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [inti],
+                    library: [top1, top2],
+                    hand: [hand1, hand2],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Two discards in one action (a Bog Down, or the cleanup-step
+        // hand-size discard): both CARD_DISCARDED events land in the same
+        // batch BEFORE the trigger scan drains them.
+        discardToGraveyard(state, "p1", "hand-1");
+        discardToGraveyard(state, "p1", "hand-2");
+        processPendingActionTriggers(state);
+
+        // "One or more cards" collapses the batch into ONE firing (CR 603.2c)
+        // — not one trigger per discarded card.
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === "inti-discard-impulse"
+            )
+        ).toHaveLength(1);
+
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[0].exile).toHaveLength(1);
     });
 });
 

@@ -25,12 +25,9 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 //
 // Ability 2 — the SAME impulse-draw PROTOCOL shipped for Ragavan/Robber of
 // the Rich (no Op skin, precedent: Elkin Bottle / Ice Cauldron,
-// ice/colorless.ts), riding `discardTrigger`'s resolve hook.
-// SIMPLIFICATION (tracked-by: #2785) (flagged, `discardTrigger`'s own documented behavior): one
-// CARD_DISCARDED event fires PER discarded card (a discard of N cards fires
-// this ability N times, not once for "one or more cards") — unobservable
-// here since Inti's OWN ability 1 above only ever discards exactly one card
-// at a time, the only golden path this catalogue produces today.
+// ice/colorless.ts), riding `discardTrigger`'s resolve hook. "one or more
+// cards" collapses a multi-card discard into a single firing via
+// `oncePerEventBatch` (CR 603.2c, issue #2107).
 // The play-permission window is granted via
 // `grantCastFromExile(..., "until-next-end-step")` (issue #1557) — exact
 // CR 514.2 turn-boundary semantics for "you may play that card until your
@@ -116,6 +113,10 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                 oracleText:
                     "Whenever you discard one or more cards, exile the top card of your library. You may play that card until your next end step.",
                 scope: "your",
+                // CR 603.2c — "one or more cards" fires ONCE per discard
+                // event, no matter how many cards that event discarded (a
+                // Bog Down or a cleanup-step hand-size discard).
+                oncePerEventBatch: true,
                 resolve: (ctx, _event, discardingPlayerId) => {
                     const top = ctx.peekLibraryTop(discardingPlayerId, 1);
                     if (top.length === 0) return; // empty library
