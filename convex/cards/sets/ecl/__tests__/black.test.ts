@@ -1,7 +1,7 @@
 // ECL — black card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { moonshadow, ironShieldElf } from "../black";
+import { moonshadow, ironShieldElf, twilightDiviner } from "../black";
 import { balduvianBears } from "../../ice";
 import {
     makeInstance,
@@ -14,6 +14,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import {
+    buildSpellContext,
     removePermanentTo,
     discardToGraveyard,
     processPendingActionTriggers,
@@ -268,5 +269,121 @@ describe("Iron-Shield Elf (CR 702.12 indestructible grant + CR 701.26 tap, disca
         )!;
         expect(live.staticAbilities).toContain("indestructible");
         expect(live.isTapped).toBe(true);
+    });
+});
+
+// Twilight Diviner — {2}{B} Elf Cleric 3/3 (ECL, issue #1533). "When this
+// creature enters, surveil 2. Whenever one or more other creatures you control
+// enter, if they entered or were cast from a graveyard, create a token that's
+// a copy of one of them. This ability triggers only once each turn."
+//
+// The graveyard-entry token-copy ability rides the NEW
+// `PERMANENT_ENTERED.enteredFromGraveyard` provenance flag (issue #1533),
+// stamped at the graveyard reanimation chokepoints (`returnToBattlefield` from
+// a graveyard) and the cast-from-graveyard chokepoint
+// (`finalizeSpellResolution` → `castFromGraveyard`). These tests prove the
+// flag is set on a graveyard reanimation and NOT on an exile return, and that
+// the full trigger fires and creates a token copy of the entering creature.
+describe("Twilight Diviner (CR 701.25 ETB surveil 2; CR 603.4 graveyard-entry token copy)", () => {
+    function setup() {
+        const diviner = makeInstance(twilightDiviner.id, {
+            id: "diviner",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [diviner] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, diviner };
+    }
+
+    it("stamps enteredFromGraveyard on a graveyard reanimation, not on an exile return", () => {
+        const { state } = setup();
+        const corpse = makeInstance(balduvianBears.id, {
+            id: "corpse",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].graveyard.push(corpse);
+        const exiled = makeInstance(balduvianBears.id, {
+            id: "exiled",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        state.players[0].exile.push(exiled);
+
+        const item = pushSpell(state, balduvianBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+
+        expect(ctx.returnToBattlefield("p1", "corpse", "graveyard")).toBe(true);
+        expect(ctx.returnToBattlefield("p1", "exiled", "exile")).toBe(true);
+
+        const entered = (state.pendingEvents ?? []).filter(
+            (e) => e.type === "PERMANENT_ENTERED"
+        );
+        const corpseEvent = entered.find((e) => e.instanceId === "corpse");
+        const exiledEvent = entered.find((e) => e.instanceId === "exiled");
+        expect(corpseEvent?.enteredFromGraveyard).toBe(true);
+        expect(exiledEvent?.enteredFromGraveyard).toBeUndefined();
+    });
+
+    it("creates a token copy of another creature that entered from your graveyard", () => {
+        const { state } = setup();
+        const corpse = makeInstance(balduvianBears.id, {
+            id: "corpse",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].graveyard.push(corpse);
+
+        const item = pushSpell(state, balduvianBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        expect(ctx.returnToBattlefield("p1", "corpse", "graveyard")).toBe(true);
+
+        // Drop the filler spell (it was only needed to build the SpellContext),
+        // then drain the PERMANENT_ENTERED event through the trigger scan.
+        state.stack = [];
+        processPendingActionTriggers(state);
+        expect(
+            state.stack.some(
+                (s) =>
+                    s.triggeredAbilityId === "twilight-diviner-graveyard-copy"
+            )
+        ).toBe(true);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        expect((tokens[0].card as { id?: string }).id).toBe(balduvianBears.id);
+    });
+
+    it("does not trigger for a creature that enters from exile", () => {
+        const { state } = setup();
+        const exiled = makeInstance(balduvianBears.id, {
+            id: "exiled",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        state.players[0].exile.push(exiled);
+
+        const item = pushSpell(state, balduvianBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        expect(ctx.returnToBattlefield("p1", "exiled", "exile")).toBe(true);
+
+        state.stack = [];
+        processPendingActionTriggers(state);
+        expect(
+            state.stack.some(
+                (s) =>
+                    s.triggeredAbilityId === "twilight-diviner-graveyard-copy"
+            )
+        ).toBe(false);
     });
 });

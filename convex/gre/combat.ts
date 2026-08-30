@@ -10,7 +10,7 @@ import type {
     StaticBlockRequirement,
 } from "../cards/types";
 import { isProtectedFromSource } from "./protection";
-import { getEffectivePower } from "./layers";
+import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
 import {
     globalAttackProhibitionReason,
@@ -1216,9 +1216,12 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
 
 /** True if `card` carries an `attack-requirement` static effect
  *  (CR 508.1d) or has been forced to attack this turn by an external
- *  effect (Nettling Imp — `mustAttackThisTurn`). */
+ *  effect (Nettling Imp — `mustAttackThisTurn`). A `condition` on the
+ *  `attack-requirement` (CR 611.2c "as long as ...") is evaluated fresh
+ *  against `state` here — the recomputed kind, no refresh sweep needed. */
 function hasAttackRequirement(
     card: CardInstanceState,
+    state: GameState,
     massAttackPlayerId?: string
 ): boolean {
     if (card.mustAttackThisTurn) return true;
@@ -1232,7 +1235,12 @@ function hasAttackRequirement(
     if (!cardId) return false;
     const def = tryGetDefinition(cardId);
     if (!def?.staticEffects) return false;
-    return def.staticEffects.some((e) => e.kind === "attack-requirement");
+    return def.staticEffects.some(
+        (e) =>
+            e.kind === "attack-requirement" &&
+            (e.condition === undefined ||
+                e.condition(card, state, STATIC_EFFECT_CTX))
+    );
 }
 
 /**
@@ -1256,7 +1264,7 @@ export function mustAttack(
     defenderBattlefield?: CardInstanceState[],
     massAttackPlayerId?: string
 ): boolean {
-    if (!hasAttackRequirement(card, massAttackPlayerId)) return false;
+    if (!hasAttackRequirement(card, state, massAttackPlayerId)) return false;
     return validateAttackerEligibility(card, defenderBattlefield, state)
         .eligible;
 }

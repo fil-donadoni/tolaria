@@ -1,5 +1,10 @@
 // mh2 — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import type {
+    CardDefinition,
+    PermanentView,
+    StaticEffectStateView,
+} from "../../types";
+import { EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { dashTrigger } from "../../abilities/dash";
@@ -277,6 +282,105 @@ export const ragavanNimblePilferer: CardDefinition = {
             ],
         },
         dashTrigger("Ragavan, Nimble Pilferer"),
+    ],
+};
+
+// Dragon's Rage Channeler — {R} Creature — Human Shaman, 1/1 (MH2 121,
+// Vintage Cube FREE residue #1533, split from the #1526 surveil cluster).
+// "Whenever you cast a noncreature spell, surveil 1."
+// "Delirium — As long as there are four or more card types among cards in your
+//  graveyard, this creature gets +2/+2, has flying, and attacks each combat if
+//  able."
+//
+// Delirium is an ability word (CR 207.2c), no Mechanics Registry row. The
+// three continuous clauses share ONE delirium gate, expressed as three
+// `staticEffects[]` entries:
+//   - +2/+2 is `pt-buff` with `condition: hasDelirium` (CR 611.2c, the
+//     Carnage Interpreter shape, `clu/multicolor.ts`).
+//   - flying is `keyword-grant` with `condition: hasDelirium` — a MATERIALIZED
+//     kind re-run by `refreshCounterGatedStatics` on every stable transition
+//     (issue #1095), so the keyword appears/disappears live as the graveyard
+//     crosses the four-type threshold.
+//   - "attacks each combat if able" is `attack-requirement` with the NEW
+//     `condition` field (issue #1533): a RECOMPUTED kind evaluated at every
+//     `mustAttack` read (`convex/gre/combat.ts`), so a 1/1 that doesn't fly
+//     and is NOT forced to attack while delirium is off.
+const DELIRIUM_CARD_TYPES = 4;
+
+/** "Four or more card types among cards in your graveyard" (CR 207.2c /
+ *  CR 205.3). Reads the SOURCE's controller's graveyard through
+ *  `StaticEffectStateView` — the same wire-projection-safe shape Barrowgoyf's
+ *  graveyard CDA (`m3c/black.ts`) and the count reader's `countTypes: true`
+ *  branch (Unholy Heat, this file) use. FAIL-CLOSED: a missing graveyard view
+ *  reads zero distinct types, withholding the buff rather than granting it
+ *  spuriously. */
+function hasDelirium(
+    source: PermanentView,
+    state: StaticEffectStateView
+): boolean {
+    const controller = state.players.find((p) => p.id === source.controllerId);
+    if (!controller) return false;
+    const cardTypes = new Set<string>();
+    for (const card of controller.graveyard) {
+        for (const type of card.types) cardTypes.add(type);
+    }
+    return cardTypes.size >= DELIRIUM_CARD_TYPES;
+}
+
+export const dragonsRageChanneler: CardDefinition = {
+    id: "4ced112a-e775-4f97-97b3-74877e9dce12",
+    rarity: "uncommon",
+    name: "Dragon's Rage Channeler",
+    oracleText:
+        "Whenever you cast a noncreature spell, surveil 1. (Look at the top card of your library. You may put that card into your graveyard.)\nDelirium — As long as there are four or more card types among cards in your graveyard, this creature gets +2/+2, has flying, and attacks each combat if able.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Shaman"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "dragons-rage-channeler-surveil",
+            oracleText: "Whenever you cast a noncreature spell, surveil 1.",
+            event: "SPELL_CAST",
+            // CR 603.2 — fires when the source's controller casts a spell that
+            // is NOT a creature (the Displacer Kitten / Third Path Iconoclast
+            // shape, `clb/blue.ts`).
+            matches: (event, self) =>
+                event.type === "SPELL_CAST" &&
+                event.casterId === self.controllerId &&
+                !event.spellTypes.includes("Creature"),
+            effects: [
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 1,
+                    destination: "graveyard",
+                    prompt: "Surveil 1 — keep the top card on top or put it into your graveyard.",
+                },
+            ],
+        },
+    ],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: hasDelirium,
+            power: 2,
+            toughness: 2,
+        },
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: hasDelirium,
+            keyword: "flying",
+        },
+        {
+            kind: "attack-requirement",
+            id: "dragons-rage-channeler-attack-requirement",
+            oracleText: "Dragon's Rage Channeler attacks each combat if able.",
+            condition: hasDelirium,
+        },
     ],
 };
 

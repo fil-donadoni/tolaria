@@ -6818,6 +6818,14 @@
         "source": "compiled"
     },
     {
+        "name": "Dragon's Rage Channeler",
+        "scryfallId": "4ced112a-e775-4f97-97b3-74877e9dce12",
+        "oracleId": "0c016ccc-a341-4b76-87ba-69c639d2746d",
+        "firstSet": "mh2",
+        "firstPrintId": "4ced112a-e775-4f97-97b3-74877e9dce12",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Drain Life",
         "scryfallId": "5d077a49-73d4-4958-b42a-31b814e110e8",
         "oracleId": "e75ba79f-4cc2-4ede-8641-559ab94e7e36",
@@ -27652,6 +27660,14 @@
         "firstSet": "lea",
         "firstPrintId": "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Twilight Diviner",
+        "scryfallId": "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
+        "oracleId": "05d7222b-cc08-4f1f-8e35-6058599572ba",
+        "firstSet": "ecl",
+        "firstPrintId": "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
+        "firstPrintSet": "ecl"
     },
     {
         "name": "Twilight Mire",
