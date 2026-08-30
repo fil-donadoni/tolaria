@@ -4418,7 +4418,7 @@ export interface SpellContext {
          *  Undefined for every phase-boundary timing. */
         watchInstanceId?: string
     ) => void;
-    /** CR 603.3c — creates a REFLEXIVE triggered ability from inside a
+    /** CR 603.12 — creates a REFLEXIVE triggered ability from inside a
      *  resolving effect ("Sacrifice a creature. **When you do**, ~ deals X
      *  damage to any target"). Unlike `scheduleDelayedTrigger` there is no
      *  waiting-for-a-boundary: the reflexive trigger is queued right here and
@@ -4433,7 +4433,7 @@ export interface SpellContext {
      *  through the same `runDelayedTriggerBody` seam an inline delayed
      *  trigger uses. `targetRequirement` rides ON the queued stack item (the
      *  ability has no card-def row to read it from). Controlled by the
-     *  resolving object's controller (CR 603.3c). */
+     *  resolving object's controller (CR 603.12). */
     pushReflexiveTrigger: (
         sourceCardId: string,
         oracleText: string,
@@ -13906,7 +13906,7 @@ export type EffectOp =
            *  interpreter when the trigger fires. */
           effects: EffectOp[];
       }
-    /** reflexiveTrigger — a REFLEXIVE triggered ability (CR 603.3c) created
+    /** reflexiveTrigger — a REFLEXIVE triggered ability (CR 603.12) created
      *  by the resolving effect that just did the thing it triggers off:
      *  "Sacrifice a creature. **When you do**, ~ deals X damage to any
      *  target, where X is that creature's power" (Minsc & Boo, Timeless

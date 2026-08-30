@@ -52,7 +52,7 @@ const ALLOWLIST: ReadonlyArray<{
         nestedReflexive: true,
         reason:
             "The player target belongs to the REFLEXIVE trigger this ability's " +
-            "script raises ('When you do, target opponent …', CR 603.3c/603.3d), " +
+            "script raises ('When you do, target opponent …', CR 603.12/603.3d), " +
             "which carries its own targetRequirement on the `reflexiveTrigger` Op — " +
             "see the nested-declaration check below, which asserts it is really there.",
     },
@@ -129,7 +129,7 @@ function requirementsOf(
 
 /** Walks an Effect Script for a `reflexiveTrigger` Op carrying a player-typed
  *  requirement. A reflexive trigger ("When you do, target opponent …") is its
- *  OWN targeted ability (CR 603.3c/603.3d) — its declaration rides the Op, not
+ *  OWN targeted ability (CR 603.12/603.3d) — its declaration rides the Op, not
  *  the enclosing ability row, and the `if`/`forEach` constructs can nest it
  *  arbitrarily deep. */
 function nestedReflexiveDeclaresPlayer(effects: unknown): boolean {

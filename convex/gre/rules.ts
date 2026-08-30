@@ -3598,7 +3598,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // Already-targeted (or engine-locked to []) and non-targeted triggers
         // are skipped; only a trigger with an un-set target slot is a candidate.
         if (item.targets !== undefined) continue;
-        // CR 603.3c/603.3d — a REFLEXIVE triggered ability has no card-def
+        // CR 603.12/603.3d — a REFLEXIVE triggered ability has no card-def
         // ability row to read a `targetRequirement` from; its requirement
         // rides on the stack item itself (`reflexiveTrigger` Op). Everything
         // downstream — legality, auto-select, the `kind:"trigger"`

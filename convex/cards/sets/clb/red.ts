@@ -57,7 +57,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // not the "this creature attacks" `attackerIds.includes(self.id)` variant.
 //
 // "You may sacrifice ANOTHER creature or an artifact. If you do, ..." — NOT a
-// CR 603.3c reflexive triggered ability, despite the shape's surface
+// CR 603.12 reflexive triggered ability, despite the shape's surface
 // resemblance to Minsc & Boo's "Sacrifice a creature. WHEN YOU DO, ..."
 // (`sets/clb/multicolor.ts`). The CR glossary defines a reflexive triggered
 // ability's second sentence as starting "When," "Whenever," or "At" — Gut's

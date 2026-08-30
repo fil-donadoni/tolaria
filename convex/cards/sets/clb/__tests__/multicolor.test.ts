@@ -1,7 +1,7 @@
 // CLB multicolor card tests.
 //
 // Minsc & Boo, Timeless Heroes is the tracer for the `reflexiveTrigger` Op
-// (CR 603.3c), `sacrifice`'s `bind` snapshot (CR 608.2h) and
+// (CR 603.12), `sacrifice`'s `bind` snapshot (CR 608.2h) and
 // `TargetRequirement.requireAbilityAny` (CR 702 OR-of-keywords) — each earns
 // its coverage in the engine suites (`gre/effects/__tests__/interpreter.test.ts`,
 // `gre/__tests__/targeting.test.ts`). What this file adds is the CARD: the
@@ -226,7 +226,7 @@ describe("Minsc & Boo, Timeless Heroes — +1 (CR 702 'trample or haste')", () =
     });
 });
 
-describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.3c)", () => {
+describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.12)", () => {
     /** Minsc plus one sacrificeable creature under p1's control. */
     function boardWithFodder(
         fodder: Partial<CardInstanceState> = {}
@@ -374,7 +374,7 @@ describe("Minsc & Boo, Timeless Heroes — −2 (reflexive trigger, CR 603.3c)",
         expect(state.players[0].hand).toHaveLength(0);
     });
 
-    it("nothing triggers when there is no creature to sacrifice (CR 603.3c)", () => {
+    it("nothing triggers when there is no creature to sacrifice (CR 603.12)", () => {
         const { state, minsc } = minscOnBoard();
         activate(state, minsc, "minsc-and-boo-minus2");
         expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(false);

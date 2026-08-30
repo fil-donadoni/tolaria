@@ -2021,7 +2021,7 @@ export type StackItem = CardInstanceState & {
      *  ability tile (art + oracle text) instead of the full-card image. Undefined
      *  for the legacy template path, where the text lives on the card def. */
     delayedOracleText?: string;
-    /** CR 603.3c/603.3d — the target requirement of a REFLEXIVE triggered
+    /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
      *  announced from rides ON the stack item instead;
@@ -2029,7 +2029,7 @@ export type StackItem = CardInstanceState & {
      *  card-def ability's `targetRequirement`. Undefined for a non-targeted
      *  reflexive ability and for every other kind of stack item. */
     inlineTargetRequirement?: TargetRequirement;
-    /** CR 603.3c — marks this stack item as a REFLEXIVE triggered ability
+    /** CR 603.12 — marks this stack item as a REFLEXIVE triggered ability
      *  (created by the `reflexiveTrigger` Op). It rides the inline-body
      *  machinery (`delayedTriggerId` / `delayedEffects`) but, unlike a genuine
      *  delayed / Madness / Storm firing, it IS an ordinary triggered ability
@@ -3697,7 +3697,7 @@ export type GameState = {
      *  batch is pushed onto the stack in one shot and the field is cleared.
      *  Undefined at every fully-resolved point. */
     pendingTriggerBatch?: StackItem[];
-    /** CR 603.3c — REFLEXIVE triggered abilities created by an effect that is
+    /** CR 603.12 — REFLEXIVE triggered abilities created by an effect that is
      *  still resolving ("Sacrifice a creature. When you do, …"), queued by
      *  `SpellContext.pushReflexiveTrigger` and placed on the stack by the
      *  same `processPendingActionTriggers` drain that stacks event-derived
@@ -5043,7 +5043,7 @@ function resolveManaAbilityTriggerImmediately(
  *  step that tapped the land — no intervening priority pass, and the player is
  *  never forced to commit "pay"/"skip" before the bonus mana arrives. */
 export function processPendingActionTriggers(state: GameState): void {
-    // CR 603.3c — reflexive abilities created during the resolution that just
+    // CR 603.12 — reflexive abilities created during the resolution that just
     // ended are "waiting to be put on the stack" exactly like the event-derived
     // triggers below, so they join the SAME batch and are APNAP-ordered with
     // them (CR 603.3b). Drained unconditionally: a reflexive trigger can exist
@@ -16731,7 +16731,7 @@ export function buildSpellContext(
                 instance,
             ];
         },
-        // CR 603.3c — queue a REFLEXIVE triggered ability created by this
+        // CR 603.12 — queue a REFLEXIVE triggered ability created by this
         // resolving effect. Nothing is scheduled or waited for: the item is
         // handed to the next `processPendingActionTriggers` drain, which
         // places it (CR 603.3b APNAP ordering) and announces its targets

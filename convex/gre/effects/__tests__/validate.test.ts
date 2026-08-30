@@ -4837,7 +4837,7 @@ describe("validateEffectScript — createToken token.triggeredAbilities[] (CR 70
 });
 
 describe("validateEffectScript — reflexiveTrigger inline targetRequirement (CR 603.3d, review finding on issue #2365)", () => {
-    // A `reflexiveTrigger` (CR 603.3c) queues its own targeted trigger via
+    // A `reflexiveTrigger` (CR 603.12) queues its own targeted trigger via
     // `StackItem.inlineTargetRequirement`, resolved by the SAME
     // `triggerTargetMinMax` (gre/rules.ts) a card-def `TriggeredAbility`
     // uses. That resolver has no CR 601.2b X-announcement step (603.3d

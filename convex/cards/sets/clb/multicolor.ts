@@ -6,7 +6,7 @@
 import type { CardDefinition, EffectTokenSpec } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
-// Minsc & Boo, Timeless Heroes — the reflexive-trigger tracer (CR 603.3c)
+// Minsc & Boo, Timeless Heroes — the reflexive-trigger tracer (CR 603.12)
 // ─────────────────────────────────────────────────────────────────────────
 //
 // {2}{R}{G} Legendary Planeswalker — Minsc, starting loyalty 3 (CR 306.5b).
@@ -29,7 +29,7 @@ import type { CardDefinition, EffectTokenSpec } from "../../types";
 //
 //   • −2 — the card this whole slice exists for. "Sacrifice a creature. WHEN
 //     YOU DO, ~ deals X damage to any target" is a REFLEXIVE triggered
-//     ability (CR 603.3c): a separate stack object, created by the resolving
+//     ability (CR 603.12): a separate stack object, created by the resolving
 //     ability, whose target is announced AFTER the sacrifice (CR 603.3d) —
 //     which is the whole point, since you pick the damage target knowing what
 //     died and therefore how big X is, and both players get priority before
@@ -165,7 +165,7 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
                     permanents: { ref: "$sacPicks" },
                     bind: "$sacked",
                 },
-                // CR 603.3c — the reflexive ability triggers off the sacrifice
+                // CR 603.12 — the reflexive ability triggers off the sacrifice
                 // having HAPPENED. Controlling no creature means nothing was
                 // sacrificed, so nothing triggers.
                 {

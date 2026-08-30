@@ -79,7 +79,7 @@ export const legionExtruder: CardDefinition = {
 // mechanicsRegistry.ts:1704). The upkeep clause is the Minsc & Boo shape
 // (`clb/multicolor.ts`): a bare cost-free `mayPay` ("you may…", issue #680)
 // gates an `if` whose THEN branch both creates the controller's own Treasure
-// AND queues a `reflexiveTrigger` (CR 603.3c) for "When you do…" — nesting
+// AND queues a `reflexiveTrigger` (CR 603.12) for "When you do…" — nesting
 // the reflexive trigger inside the `mayPay` gate is what makes it fire ONLY
 // when a Treasure was actually created, not merely offered. The reflexive
 // trigger announces its OWN single-opponent target (CR 603.3d,

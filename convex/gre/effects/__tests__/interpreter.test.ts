@@ -25096,7 +25096,7 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// reflexiveTrigger (CR 603.3c) + sacrifice `bind` (CR 608.2h)
+// reflexiveTrigger (CR 603.12) + sacrifice `bind` (CR 608.2h)
 // ─────────────────────────────────────────────────────────────────────────
 //
 // "Sacrifice a creature. WHEN YOU DO, ~ deals X damage to any target, where X
@@ -25106,7 +25106,7 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
 // queues), let the trigger drain place the reflexive ability on the stack
 // (`processPendingActionTriggers`, called by `resolveTopOfStack`), announce
 // its target through the CR 603.3d machinery, then resolve it.
-describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
+describe("Effect Script Op: reflexiveTrigger (CR 603.12)", () => {
     /** The Minsc-shaped script: sacrifice a chosen creature, then a reflexive
      *  trigger that burns for the sacrificed creature's power. */
     const SAC_THEN_BURN: EffectOp[] = [
@@ -25172,7 +25172,7 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         });
     }
 
-    it("puts the reflexive ability on the stack as a SEPARATE object after the sacrifice, and burns for the sacrificed creature's power (CR 603.3c + 608.2h LKI)", () => {
+    it("puts the reflexive ability on the stack as a SEPARATE object after the sacrifice, and burns for the sacrificed creature's power (CR 603.12 + 608.2h LKI)", () => {
         const id = registerScript("test-op-reflexive-burn", SAC_THEN_BURN);
         const state = sacrificeBoard();
         pushSpell(state, id, "p1", []);
@@ -25215,7 +25215,7 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(false);
     });
 
-    it("does not trigger when nothing was sacrificed (CR 603.3c — the action never happened)", () => {
+    it("does not trigger when nothing was sacrificed (CR 603.12 — the action never happened)", () => {
         const id = registerScript("test-op-reflexive-none", SAC_THEN_BURN);
         // p1 controls no creature, so the choice finds no candidates.
         const state = makeState();
