@@ -279,6 +279,32 @@ describe("Effect Script Ops: captureBinding / recallCapturedBinding (CR 608.2h)"
         expect(tokens[0].power).toBe(4);
     });
 
+    it("is stripped from the wire projection — no client reads it (#1977/#1982)", () => {
+        const id = registerHost(
+            "test-captured-binding-projection",
+            CAPTURE_ETB,
+            RECALL_LTB
+        );
+        const { state } = setup(id);
+
+        fireEtb(state, "victim");
+        // Present on the authoritative state...
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "host")!
+                .capturedBindings
+        ).toBeDefined();
+        // ...and absent from what either seat actually receives.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const host = projected.players[0].battlefield.find(
+                (c) => c.id === "host"
+            )!;
+            expect(
+                (host as { capturedBindings?: unknown }).capturedBindings
+            ).toBeUndefined();
+        }
+    });
+
     it("the recalled-size token's P/T survives projection (wire format)", () => {
         const id = registerHost(
             "test-captured-binding-wire",
