@@ -188,7 +188,7 @@ import {
     isProtectedFromSource,
     playerHasProtectionFromEverything,
 } from "./protection";
-import { isGuardedAgainst } from "./permanentGuard";
+import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import {
     validateBlockerEligibility,
@@ -5456,6 +5456,67 @@ function permanentTargetStillMeetsRestrictions(
     return checkPermanentTargetFilters(ctx, candidate, values) === null;
 }
 
+/** CR 608.2b, protective-KEYWORD half (issue #2942) — re-checks a still-legal
+ *  target against the protective keywords it may have GAINED while the
+ *  spell/ability sat on the stack: protection (CR 702.16b), shroud
+ *  (CR 702.18a), hexproof (CR 702.11b) and every continuous `cantBeTargeted`
+ *  guard (CR 611, Guardian Beast / Anti-Magic Aura / Artifact Ward).
+ *
+ *  Until this landed the whole protective family was ANNOUNCEMENT-ONLY: the
+ *  guards were consulted by `getLegalTargets` (offered set) and
+ *  `selectTarget` (accepted set) and by nothing downstream, so a Sylvan
+ *  Safekeeper sacrifice in RESPONSE to Terror left the creature dead — the
+ *  spell resolved and destroyed a permanent it could no longer legally
+ *  target. Protection-vs-BURN was the only cell that looked right, and for
+ *  the wrong reason: CR 702.16e prevents the DAMAGE at application
+ *  (`applyDamage` below), so the spell still resolved. Destroy / bounce /
+ *  exile have no such downstream leg — the CR 608.2b counter IS the whole
+ *  protection there.
+ *
+ *  Reads the SAME authorities the announcement path reads, never a second
+ *  copy of the reasoning: `isProtectedFromSource` (`protection.ts`, the one
+ *  predicate every CR 702.16 consult site shares) and
+ *  `isGuardedAgainst(…, "cantBeTargeted", …)` (`permanentGuard.ts`, which
+ *  bridges the bare `shroud` / `hexproof` keyword strings as well as declared
+ *  `permanent-guard` static effects). The source bundle is projected off the
+ *  RESOLVING stack item — its live colours (CR 202.2 / layer 5), types,
+ *  subtypes and controller — with the CR 112.1 / 113.3 spell bit from the
+ *  shared `isSpellStackItem` discriminator, so an ability is judged as an
+ *  ability (Anti-Magic Aura's "spells only" guard stays inert) and hexproof's
+ *  CR 702.11b own-controller allowance still holds.
+ *
+ *  Covers ABILITIES on the same terms as spells — deliberately, unlike
+ *  `spellTargetStillMeetsRestrictions`'s narrowing 2. That narrowing exists
+ *  because an ability's REQUIREMENT can be pinned dynamically at trigger time
+ *  and re-deriving it from static card data would invent illegality. Nothing
+ *  here re-derives a requirement: it reads the TARGET's current keywords
+ *  against the SOURCE's current characteristics, both live, and CR 702.16b /
+ *  702.18a / 702.11b all say "spells or abilities" without qualification. */
+function targetStillTargetableBySource(
+    state: GameState,
+    item: StackItem,
+    candidate: CardInstanceState
+): boolean {
+    // CR 112.1 / 113.3 — the shared discriminator; an ability's stack item is
+    // a clone of its source permanent and is otherwise indistinguishable.
+    const sourceIsSpell = isSpellStackItem(item);
+    // CR 702.16b — every quality family at once (colour, characteristic,
+    // each-opponent, coloured-spell), through the single shared predicate.
+    if (isProtectedFromSource(candidate, item, sourceIsSpell)) return false;
+    // CR 702.11b / 702.18a / 611 — hexproof (opponent-controlled sources
+    // only), shroud (every source), and declared `permanent-guard` bundles
+    // with their CR 109.5 source narrowings.
+    return !isGuardedAgainst(state, candidate, "cantBeTargeted", {
+        types: item.types,
+        subtypes: item.subtypes,
+        isSpell: sourceIsSpell,
+        // CR 702.11b — the source's controller. Hexproof bars only an
+        // opponent-controlled source; the permanent's own controller may
+        // still target it, exactly as at announcement.
+        controllerId: item.controllerId,
+    });
+}
+
 /** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).
  *  A target is illegal when the object it points at has left the zone it was
  *  chosen in: a permanent off the battlefield, a spell off the stack, a
@@ -5464,18 +5525,31 @@ function permanentTargetStillMeetsRestrictions(
  *  item's own characteristic-based filters (CR 608.2b: "its characteristics
  *  may have changed") — see `permanentTargetStillMeetsRestrictions`.
  *
- *  Scope note: for PLAYER / GRAVEYARD-CARD targets this gate intentionally
- *  checks ZONE EXISTENCE only, the actual crash class it fixes (a
- *  `resolve()` body reading a target that already left, e.g. Swords'
- *  `getController`). Characteristic-based illegality this gate does NOT
- *  cover on any target kind — protection (CR 702.16b), shroud/hexproof
- *  (CR 702.11/702.18) — is enforced at target *selection* and at the aura
- *  re-check in `finalizeSpellResolution`; folding it in here would also
- *  reject deliberately-constructed in-isolation effects (e.g. Deathlace
- *  recoloring a protected creature to exercise the layer-3 primitive). That
- *  scope holds for PERMANENT targets too — the registry's `PERMANENT_FILTER_KEYS`
- *  has no protection-flavored entry, so `permanentTargetStillMeetsRestrictions`
- *  can never reach it.
+ *  …and (issue #2942) when the target has GAINED a protective keyword since
+ *  it was chosen — protection (CR 702.16b), shroud (CR 702.18a), hexproof
+ *  (CR 702.11b) or a continuous `cantBeTargeted` guard (CR 611) — see
+ *  `targetStillTargetableBySource`. This is the leg the old carve-out
+ *  deliberately omitted, on the ground that folding it in "would also reject
+ *  deliberately-constructed in-isolation effects (e.g. Deathlace recoloring a
+ *  protected creature to exercise the layer-3 primitive)". That reasoning is
+ *  retired, not weakened: an in-isolation fixture that targets a permanent
+ *  its source could never legally have targeted was never exercising the
+ *  primitive under legal conditions, so the fixtures were RE-POINTED at a
+ *  legal source (`lea/__tests__/white.test.ts`, the Lace-cycle protection
+ *  case) rather than given an opt-out seam. A seam would have to be readable
+ *  from production code, and a gate that can be switched off is a gate that
+ *  fails open on the next caller that forgets it.
+ *
+ *  Scope note: GRAVEYARD-CARD targets keep ZONE EXISTENCE only — a card in a
+ *  graveyard has no protective keyword to gain (CR 702.16b/702.18a/702.11b
+ *  are all battlefield/objects-that-can-be-targeted clauses whose engine
+ *  bridges — `staticAbilities` on a permanent, `permanent-guard` static
+ *  effects — do not apply to a graveyard card), so there is nothing further
+ *  this gate could prove there. PLAYER targets ARE covered, through the
+ *  player-scoped siblings of the same two authorities (`playerHasShroud`,
+ *  CR 702.18 via CR 115.4; `playerHasProtectionFromEverything`, CR 702.16j
+ *  via CR 115.4) — the same announcement-time predicates `selectTarget`
+ *  reads.
  *
  *  SPELL targets are the exception (issue #1956): their restrictions describe
  *  the candidate's own on-stack STATE (what it targets, how it was cast), not
@@ -5490,10 +5564,24 @@ function isTargetStillLegal(
     item?: StackItem
 ): boolean {
     switch (target.type) {
-        case "player":
+        case "player": {
             // CR 800.4a — a player can leave the game, but in 1v1 the target
             // player always exists; treat a missing player id as illegal.
-            return state.players.some((p) => p.id === target.id);
+            if (!state.players.some((p) => p.id === target.id)) return false;
+            // CR 608.2b + CR 115.4 (issue #2942) — a player who has GAINED
+            // shroud (CR 702.18, Ivory Mask) or protection from everything
+            // (CR 702.16j, The One Ring) in response is no longer a legal
+            // target. The player-scoped siblings of the permanent authorities
+            // below, and the SAME two predicates `selectTarget` gates the
+            // accepted set with — neither takes source characteristics: both
+            // bar every source, the guarded player's own included.
+            if (item) {
+                if (playerHasShroud(state, target.id)) return false;
+                if (playerHasProtectionFromEverything(state, target.id))
+                    return false;
+            }
+            return true;
+        }
         case "spell": {
             // CR 608.2b — a spell target that has left the stack (resolved or
             // countered) is now illegal…
@@ -5516,9 +5604,13 @@ function isTargetStillLegal(
             // …and so is one whose CHARACTERISTICS (its own, or — for
             // `attachedToFilter` — its host's) no longer satisfy the
             // resolving item's own permanent target filters (issue #1853).
-            return item
-                ? permanentTargetStillMeetsRestrictions(state, item, found.card)
-                : true;
+            if (!item) return true;
+            if (!permanentTargetStillMeetsRestrictions(state, item, found.card))
+                return false;
+            // …and so is one that has GAINED protection / shroud / hexproof
+            // or fallen under a `cantBeTargeted` guard since it was chosen
+            // (issue #2942).
+            return targetStillTargetableBySource(state, item, found.card);
         }
         default:
             return false;
