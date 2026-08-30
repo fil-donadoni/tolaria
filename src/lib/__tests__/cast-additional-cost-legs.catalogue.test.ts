@@ -20,9 +20,12 @@
 // THROUGH the real `projectPublicState` reducer:
 //   • SURFACE — with a full hand and full life, every declared leg is offered;
 //   • HIDE — with an empty hand, no `discard` leg is offered; with 1 life, no
-//     `payLife` leg is offered;
-//   • NEITHER — with both broken at once, no leg at all is offered, which is
-//     precisely the "empty hand AND life < 3 ⇒ uncastable" acceptance case.
+//     `payLife` leg is offered; with an empty battlefield, no `sacrificeFilter`
+//     leg is offered;
+//   • NEITHER — with every satisfiable leg broken at once, no leg at all is
+//     offered, which is precisely the "no creature AND empty hand ⇒
+//     uncastable" acceptance case (Bone Shards) and the "empty hand AND
+//     life < 3" one (Bitter Triumph).
 // A new card reusing these shapes is picked up automatically — zero per-card
 // authoring — and the sweep fails if it ever becomes vacuous, so deleting the
 // last such card cannot hide the regression.
@@ -35,13 +38,27 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
+import type { AdditionalCostLeg } from "@convex/cards/types";
 import { payableAdditionalCostLegsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 
-/** A filler hand card that satisfies an untyped "discard a card" requirement.
- *  A `filter`ed leg would need a matching card — none ships today, and the
- *  sweep reports that as a skip rather than a false green. */
+/** A filler hand card that satisfies an untyped "discard a card" requirement,
+ *  and — on the battlefield — an untyped "sacrifice a creature" one. A
+ *  `filter`ed discard leg, or a sacrifice leg filtered to anything but a plain
+ *  creature, would need a matching card; the sweep reports those as a skip
+ *  rather than a false green. */
 const FILLER = "Grizzly Bears";
+
+/** Whether a `sacrificeFilter` leg is satisfied by a plain vanilla creature —
+ *  i.e. the filter asks for a creature and nothing more (Bone Shards). Any
+ *  narrower filter is reported as an unsatisfiable shape, so a card the filler
+ *  cannot pay for surfaces loudly instead of passing on a subset. */
+function isPlainCreatureSacrifice(leg: AdditionalCostLeg): boolean {
+    const f = leg.sacrificeFilter;
+    if (!f) return false;
+    const keys = Object.keys(f);
+    return keys.length === 1 && keys[0] === "types" && f.types === "Creature";
+}
 
 const oneOfCards = getAllCards().filter(
     (c) => (c.additionalCosts?.oneOf?.length ?? 0) > 0
@@ -53,6 +70,8 @@ function offeredLegIds(opts: {
     cardId: string;
     life: number;
     spares: number;
+    /** Creatures on the caster's battlefield — the sacrifice leg's candidates. */
+    creatures?: number;
 }): string[] {
     const inst = makeInstance(opts.cardId, {
         id: "probe",
@@ -68,9 +87,20 @@ function offeredLegIds(opts: {
             zone: "hand",
         })
     );
+    const battlefield = Array.from({ length: opts.creatures ?? 0 }, (_, i) =>
+        makeInstance(getAllCards().find((c) => c.name === FILLER)!.id, {
+            id: `body${i}`,
+            controllerId: "p1",
+            ownerId: "p1",
+        })
+    );
     const state = makeState({
         players: [
-            makePlayer("p1", { hand: [inst, ...spares], life: opts.life }),
+            makePlayer("p1", {
+                hand: [inst, ...spares],
+                battlefield,
+                life: opts.life,
+            }),
             makePlayer("p2"),
         ],
         activePlayerId: "p1",
@@ -98,8 +128,12 @@ describe("cast-time additional-cost legs — client picker gate (CR 601.2b)", ()
             (l) => l.discard !== undefined && l.discard.filter === undefined
         );
         const lifeLegs = legs.filter((l) => (l.payLife ?? 0) > 0);
+        const sacrificeLegs = legs.filter(isPlainCreatureSacrifice);
         const skipped = legs.filter(
-            (l) => !untypedDiscardLegs.includes(l) && !lifeLegs.includes(l)
+            (l) =>
+                !untypedDiscardLegs.includes(l) &&
+                !lifeLegs.includes(l) &&
+                !sacrificeLegs.includes(l)
         );
 
         describe(`${def.name}`, () => {
@@ -116,6 +150,7 @@ describe("cast-time additional-cost legs — client picker gate (CR 601.2b)", ()
                         cardId: def.id,
                         life: 20,
                         spares: 3,
+                        creatures: 1,
                     }).sort()
                 ).toEqual(legs.map((l) => l.id).sort());
             });
@@ -126,6 +161,7 @@ describe("cast-time additional-cost legs — client picker gate (CR 601.2b)", ()
                         cardId: def.id,
                         life: 20,
                         spares: 0,
+                        creatures: 1,
                     });
                     for (const l of untypedDiscardLegs) {
                         expect(offered).not.toContain(l.id);
@@ -139,6 +175,7 @@ describe("cast-time additional-cost legs — client picker gate (CR 601.2b)", ()
                         cardId: def.id,
                         life: 1,
                         spares: 3,
+                        creatures: 1,
                     });
                     for (const l of lifeLegs) {
                         expect(offered).not.toContain(l.id);
@@ -146,10 +183,35 @@ describe("cast-time additional-cost legs — client picker gate (CR 601.2b)", ()
                 });
             }
 
-            if (untypedDiscardLegs.length > 0 && lifeLegs.length > 0) {
-                it("NEITHER — empty hand AND 1 life offers no leg at all (the spell is uncastable, CR 601.2h)", () => {
+            if (sacrificeLegs.length > 0) {
+                it("HIDE — an EMPTY battlefield removes every 'sacrifice a creature' leg (CR 701.21)", () => {
+                    const offered = offeredLegIds({
+                        cardId: def.id,
+                        life: 20,
+                        spares: 3,
+                        creatures: 0,
+                    });
+                    for (const l of sacrificeLegs) {
+                        expect(offered).not.toContain(l.id);
+                    }
+                });
+            }
+
+            if (
+                skipped.length === 0 &&
+                untypedDiscardLegs.length +
+                    lifeLegs.length +
+                    sacrificeLegs.length >
+                    1
+            ) {
+                it("NEITHER — with every leg's resource gone, no leg at all is offered (the spell is uncastable, CR 601.2f)", () => {
                     expect(
-                        offeredLegIds({ cardId: def.id, life: 1, spares: 0 })
+                        offeredLegIds({
+                            cardId: def.id,
+                            life: 1,
+                            spares: 0,
+                            creatures: 0,
+                        })
                     ).toEqual([]);
                 });
             }

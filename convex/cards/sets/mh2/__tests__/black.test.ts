@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { dauthiVoidwalker } from "../black";
+import { boneShards, dauthiVoidwalker } from "../black";
+import { grizzlyBears, lightningBolt, swamp } from "../../lea";
+import { payableAdditionalCostLegs } from "../../../../gre/additionalCost";
+import { getLegalActions } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
 import {
@@ -562,5 +565,142 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
                 getPlayer(state, "p2").graveyard.some((c) => c.id === "recast1")
             ).toBe(false);
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bone Shards — the caster-chosen additional-cost disjunction (CR 601.2b),
+// second card on the `additionalCosts.oneOf` shape after Bitter Triumph and
+// the FIRST whose disjunction includes a SACRIFICE leg. `oneOf`'s leg
+// resolution and the generic affordability probe are covered generically in
+// `convex/__tests__/additionalCostLegChoice.test.ts`; what this block proves
+// is that BONE SHARDS' two legs are gated off the right two board facts, and
+// that the real cast gate — not a hand-rolled predicate — withholds the
+// affordance when neither leg can be paid.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Bone Shards (CR 601.2b — sacrifice a creature OR discard a card)", () => {
+    /** p1 holds Bone Shards, a Swamp in play for the {B}, plus optionally a
+     *  spare hand card (the discard leg) and a creature (the sacrifice leg).
+     *  p2 has a Grizzly Bears for the spell to kill. */
+    function shardsBoard(opts: { spare: boolean; creature: boolean }) {
+        const shards = makeInstance(boneShards.id, {
+            id: "shards",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const hand = [shards];
+        if (opts.spare) {
+            hand.push(
+                makeInstance(lightningBolt.id, {
+                    id: "spare",
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const battlefield = [
+            makeInstance(swamp.id, {
+                id: "swamp0",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        if (opts.creature) {
+            battlefield.push(
+                makeInstance(grizzlyBears.id, {
+                    id: "own-bear",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand,
+                    battlefield,
+                    manaPool: { B: 1 },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "their-bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        return state;
+    }
+
+    const legIds = (state: GameState) =>
+        payableAdditionalCostLegs(
+            getPlayer(state, "p1"),
+            boneShards.additionalCosts,
+            "shards"
+        ).map((l) => l.id);
+
+    it("offers BOTH legs with a creature on the battlefield and a spare card in hand", () => {
+        expect(legIds(shardsBoard({ spare: true, creature: true }))).toEqual([
+            "sacrifice-creature",
+            "discard",
+        ]);
+    });
+
+    it("hides the discard leg on an otherwise-empty hand — the spell itself can't pay (CR 601.2a)", () => {
+        expect(legIds(shardsBoard({ spare: false, creature: true }))).toEqual([
+            "sacrifice-creature",
+        ]);
+    });
+
+    it("hides the sacrifice leg with no creature — a Swamp is not a candidate", () => {
+        expect(legIds(shardsBoard({ spare: true, creature: false }))).toEqual([
+            "discard",
+        ]);
+    });
+
+    it("cannot be cast when NEITHER leg is payable, and the affordance returns when one is (CR 601.2f)", () => {
+        // No creature, no other card in hand: both legs are dead, so the whole
+        // spell is uncastable even though the {B} is fully payable. The
+        // assertion runs through the REAL cast gate (`getLegalActions`), the
+        // one `hasPayableAdditionalCost` guards.
+        const stuck = shardsBoard({ spare: false, creature: false });
+        const stuckP1 = getPlayer(stuck, "p1");
+        expect(legIds(stuck)).toEqual([]);
+        expect(getLegalActions(stuck, stuckP1, stuckP1.hand[0])).not.toContain(
+            "cast"
+        );
+
+        // One creature is enough to bring the affordance back.
+        const ok = shardsBoard({ spare: false, creature: true });
+        const okP1 = getPlayer(ok, "p1");
+        expect(getLegalActions(ok, okP1, okP1.hand[0])).toContain("cast");
+    });
+
+    it("destroys the announced target through the real resolution path (CR 701.8 Destroy)", () => {
+        const state = shardsBoard({ spare: true, creature: true });
+        const shards = getPlayer(state, "p1").hand[0];
+        state.stack.push({
+            ...shards,
+            zone: "stack",
+            castById: "p1",
+            targets: [{ type: "permanent", id: "their-bear" }],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(
+            getPlayer(state, "p2").battlefield.some(
+                (c) => c.id === "their-bear"
+            )
+        ).toBe(false);
+        expect(
+            getPlayer(state, "p2").graveyard.some((c) => c.id === "their-bear")
+        ).toBe(true);
     });
 });

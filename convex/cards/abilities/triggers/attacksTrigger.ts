@@ -29,6 +29,7 @@
 // `resolveTokenTriggeredAbilities`, issue #2364) can express at all.
 
 import type {
+    AbilityMode,
     EffectOp,
     AttackersDeclaredEvent,
     GameEvent,
@@ -103,6 +104,17 @@ export interface AttacksTriggerArgs {
      *  must inspect WHICH creatures attacked still needs a `resolve` callback.
      *  Mutually exclusive with `resolve`. */
     effects?: EffectOp[];
+    /** CR 603.3c / 700.2b — announce-time mode list for a MODAL attack trigger
+     *  ("Whenever this creature attacks, choose one — • … • …",
+     *  Territorial Kavu). Each mode carries its own `targetRequirement` and its
+     *  own Effect Script; the controller announces exactly one as the trigger
+     *  is put on the stack, before targets, and a mode whose targets have no
+     *  legal candidates can't be chosen. The SAME {@link AbilityMode} list
+     *  `enteredTrigger` / `ActivatedAbility` use, forwarded verbatim onto the
+     *  built `TriggeredAbility` — a modal trigger differs from a modal ETB
+     *  only in WHICH event puts it on the stack. Mutually exclusive with
+     *  `effects` / `resolve`: the body lives on the modes. */
+    modes?: AbilityMode[];
     /** Imperative resolution body, receiving the narrowed event plus the
      *  flattened declaration payload. Mutually exclusive with `effects`. */
     resolve?: (
@@ -120,9 +132,13 @@ export interface AttacksTriggerArgs {
  *  (CR 508.1m). The factory handles event narrowing, per-attacker scope
  *  gating and CR 603.4 wiring so card authors write only the body. */
 export function attacksTrigger(args: AttacksTriggerArgs): TriggeredAbility {
-    if (args.effects === undefined && args.resolve === undefined) {
+    if (
+        args.effects === undefined &&
+        args.resolve === undefined &&
+        args.modes === undefined
+    ) {
         throw new Error(
-            `attacksTrigger("${args.id}"): declare either effects[] or resolve — neither was given`
+            `attacksTrigger("${args.id}"): declare effects[], modes[] or resolve — none was given`
         );
     }
     const userResolve = args.resolve;
@@ -165,9 +181,17 @@ export function attacksTrigger(args: AttacksTriggerArgs): TriggeredAbility {
         // ADR 0045 — an `effects[]` script is compiled downstream by
         // `getAbilityEffectFn` (effectRegistry.ts); the factory only passes it
         // through. Otherwise wrap the imperative resolve with the payload.
-        ...(args.effects
-            ? { effects: args.effects }
-            : {
+        //
+        // CR 603.3c / 700.2b — a MODAL trigger has NEITHER: its body lives on
+        // the announced mode, so with `modes` alone no wrapper is synthesized
+        // (there would be no `args.resolve` for it to call). A body passed
+        // ALONGSIDE `modes` is forwarded verbatim rather than swallowed, so
+        // `validateAbilityEffectScript` — the catalogue-wide authority on
+        // modes[]-XOR-body — actually SEES the conflict (the shape
+        // `enteredTrigger` already uses for its own modal ETBs).
+        ...(args.effects ? { effects: args.effects } : {}),
+        ...(args.resolve
+            ? {
                   resolve: (ctx: SpellContext, event: GameEvent) => {
                       if (event.type !== "ATTACKERS_DECLARED") return;
                       userResolve!(ctx, event, {
@@ -175,7 +199,9 @@ export function attacksTrigger(args: AttacksTriggerArgs): TriggeredAbility {
                           attackerIds: event.attackerIds,
                       });
                   },
-              }),
+              }
+            : {}),
+        ...(args.modes ? { modes: args.modes } : {}),
         ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
     };
 

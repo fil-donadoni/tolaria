@@ -2573,6 +2573,13 @@ export const OP_EXECUTORS: {
             sourceId: ctx.sourceInstanceId,
             returnTapped: op.returnTapped ?? false,
             includeAttachments: op.includeAttachments ?? false,
+            // CR 610.3b — this Op IS the "until THIS leaves the battlefield"
+            // family, so the source's departure is the specified event. If it
+            // already happened (the O-Ring was destroyed in response to its own
+            // ETB trigger), the object doesn't move at all — exiling it here
+            // would strand it, since the return trigger has already come and
+            // gone with nothing held.
+            requireSourceOnBattlefield: true,
         });
     },
     // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by

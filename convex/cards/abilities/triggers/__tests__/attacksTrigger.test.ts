@@ -61,10 +61,38 @@ describe("attacksTrigger (CR 508.1m / 109.2)", () => {
         expect(ability.resolve).toBeUndefined();
     });
 
-    it("throws when neither effects nor resolve is given", () => {
+    it("throws when neither effects, modes nor resolve is given", () => {
         expect(() =>
             attacksTrigger({ id: "t", oracleText: "o", scope: "self" })
-        ).toThrow(/effects\[\] or resolve/);
+        ).toThrow(/effects\[\], modes\[\] or resolve/);
+    });
+
+    // CR 603.3c / 700.2b — a MODAL attack trigger (Territorial Kavu) carries
+    // its body on the announced mode, so `modes` alone satisfies the factory
+    // and must reach the built ability verbatim. The factory must synthesize
+    // NO `resolve` wrapper in that case: there is no `args.resolve` for one to
+    // call, and a wrapper would make the modal ability look non-modal to
+    // `validateAbilityEffectScript`.
+    it("forwards modes[] verbatim and synthesizes no resolve wrapper", () => {
+        const modes = [
+            {
+                id: "a",
+                label: "A",
+                oracleText: "A.",
+                effects: [
+                    { op: "draw", player: "controller", count: 1 },
+                ] as never,
+            },
+        ];
+        const ability = attacksTrigger({
+            id: "t",
+            oracleText: "o",
+            scope: "self",
+            modes,
+        });
+        expect(ability.modes).toBe(modes);
+        expect(ability.resolve).toBeUndefined();
+        expect(ability.effects).toBeUndefined();
     });
 
     it("ignores every other event type", () => {
