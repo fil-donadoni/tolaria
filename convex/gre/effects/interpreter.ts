@@ -2702,6 +2702,9 @@ export const OP_EXECUTORS: {
                     // `choice` Op's chooser, which for a "puts a card from
                     // THEIR graveyard" pick is always that same owner: Exhume,
                     // Titania), mirroring the `target`-shape's reanimation.
+                    // `from: "exile"` (issue #1570) is the same reanimation,
+                    // sourced from an exile zone instead — the same primitive
+                    // the `target`-shape's departed-object return already uses.
                     const entered =
                         op.from === "hand"
                             ? ctx.putFromHandOntoBattlefield(playerId, id)
@@ -2711,7 +2714,12 @@ export const OP_EXECUTORS: {
                                     id,
                                     "graveyard"
                                 )
-                              : ctx.putFromLibraryOntoBattlefield(playerId, id);
+                              : op.from === "exile"
+                                ? ctx.returnToBattlefield(playerId, id, "exile")
+                                : ctx.putFromLibraryOntoBattlefield(
+                                      playerId,
+                                      id
+                                  );
                     if (entered && op.tapped) {
                         ctx.tap({ type: "permanent", id });
                     }

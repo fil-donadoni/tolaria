@@ -21,7 +21,7 @@ import { constructArtifactsYouControlToken } from "../../sharedTokens";
 //     your hand." The Dauthi Voidwalker retrieval shape (issue #1156): a
 //     `choice(zone: "exile")` filtered by `hasCounter: { type: "silver" }`,
 //     then a `moveZone { cards, from: "exile", to: "hand" }` (the `from:
-//     "exile"` cards-shape source is NEW, issue #1570). CR 122.1e strips the
+//     "exile"` cards-shape source is NEW, issue #1570). CR 122.2 strips the
 //     silver counter on leaving exile, exactly as the void counter.
 //   • −2 — "Create a 0/0 colorless Construct artifact creature token with
 //     'This token gets +1/+1 for each artifact you control.'" The shared CDA
@@ -111,7 +111,7 @@ export const karnScionOfUrza: CardDefinition = {
                     bind: "$picked",
                 },
                 {
-                    // CR 400.7 / 122.1e (issue #1570) — move the picked card to
+                    // CR 400.7 / 122.2 (issue #1570) — move the picked card to
                     // hand from exile; leaving exile strips the silver counter
                     // (the same strip the void counter uses).
                     op: "moveZone",

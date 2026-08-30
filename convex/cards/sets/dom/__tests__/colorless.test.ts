@@ -100,7 +100,7 @@ describe("Karn, Scion of Urza — +1 reveal-2 / opponent-chooses / silver-counte
 });
 
 describe("Karn, Scion of Urza — −1 silver-counter retrieval (CR 122.1, issue #1570)", () => {
-    it("puts a silver-counter card from exile into hand, stripping the counter (CR 122.1e)", () => {
+    it("puts a silver-counter card from exile into hand, stripping the counter (CR 122.2)", () => {
         const silverCard = makeInstance(ornithopter.id, {
             id: "silv",
             controllerId: "p1",

@@ -23096,7 +23096,7 @@ describe("Effect Script Op: lookDistribute reveal + chooser + silver counter (CR
         expect(state.players[0].library.map((c) => c.id)).toEqual(["c"]);
     });
 
-    it("Karn −1: a silver-counter card is retrieved from exile to hand, and the counter is stripped (CR 122.1e)", () => {
+    it("Karn −1: a silver-counter card is retrieved from exile to hand, and the counter is stripped (CR 122.2)", () => {
         const silverCard = makeInstance(BEAR_ID, {
             id: "silv",
             controllerId: "p1",
@@ -23154,9 +23154,58 @@ describe("Effect Script Op: lookDistribute reveal + chooser + silver counter (CR
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].hand.map((c) => c.id)).toContain("silv");
         expect(state.players[0].exile.map((c) => c.id)).toEqual(["plain"]);
-        // CR 122.1e / 400.7 — the silver counter ceases to exist on leaving exile.
+        // CR 122.2 / 400.7 — the silver counter ceases to exist on leaving exile.
         const inHand = state.players[0].hand.find((c) => c.id === "silv")!;
         expect(inHand.counters?.silver).toBeUndefined();
+    });
+
+    it("moveZone cards from: exile reanimates to the battlefield (the widened from-union is not a dead branch)", () => {
+        const exiledCreature = makeInstance(BEAR_ID, {
+            id: "cre",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        const id = registerScript("test-op-move-zone-exile-bf", [
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zone: "exile",
+                count: 1,
+                prompt: "Choose an exiled card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "exile",
+                to: "battlefield",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { exile: [exiledCreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["cre"],
+        });
+        // The exiled creature reanimated onto its owner's battlefield, not a
+        // silent CR 608.2b miss from a library-sourced fallback.
+        expect(state.players[0].battlefield.some((c) => c.id === "cre")).toBe(
+            true
+        );
+        expect(state.players[0].exile).toHaveLength(0);
     });
 });
 

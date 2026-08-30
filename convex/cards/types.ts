@@ -3562,7 +3562,7 @@ export interface SpellContext {
      *  <type> counter on it" `choice(zone: "exile")` + `hasCounter` filter finds
      *  it (Dauthi Voidwalker's shape). The counter rides the card's ordinary
      *  `counters` field and is stripped by the existing zone-change path when the
-     *  card later LEAVES exile (CR 122.1e — the same strip the void-counter
+     *  card later LEAVES exile (CR 122.2 — the same strip the void-counter
      *  machinery already performs). Compose it AFTER a `moveCardById(… →
      *  "exile")`. No-op when the card is in no exile (CR 608.2b). */
     stampCardCounters: (
@@ -12008,7 +12008,7 @@ export type EffectOp =
      *  own with a silver counter on it from exile into your hand" (Karn, Scion
      *  of Urza's −1) — the Dauthi Voidwalker-shaped retrieval generalized to a
      *  plain zone move, routed through the same generic `moveCardById`
-     *  (CR 122.1e strips the counter on leaving exile). `to: "battlefield"`
+     *  (CR 122.2 strips the counter on leaving exile). `to: "battlefield"`
      *  routes through `returnToBattlefield` (owner control, same as the
      *  `target`-shape above); every other destination is the existing generic
      *  `moveCardById` branch (already used with a graveyard source
@@ -12796,7 +12796,7 @@ export type EffectOp =
           destination?: LookDistributeDestination;
           /** Counter(s) stamped on each un-kept card when `destination:
            *  "exile"` (Karn's silver counter, CR 122.1). The counter rides the
-           *  card's ordinary `counters` field through the zone move (CR 122.1e
+           *  card's ordinary `counters` field through the zone move (CR 122.2
            *  strips it only when the card later LEAVES exile), so a later
            *  "a card with a silver counter on it" `choice(zone: "exile")` +
            *  `hasCounter` filter (Dauthi Voidwalker's shape) finds it. Valid

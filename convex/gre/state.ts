@@ -15415,7 +15415,7 @@ export function buildSpellContext(
         // counter) onto a card already in exile. Reuses the void-counter stamp
         // (`applyGraveyardRedirectCounters` — merge onto `card.counters`) so the
         // `hasCounter` filter Dauthi Voidwalker's retrieval uses finds it, and
-        // the existing CR 122.1e strip on leaving exile applies unchanged. No-op
+        // the existing CR 122.2 strip on leaving exile applies unchanged. No-op
         // when the card is in no exile (CR 608.2b).
         stampCardCounters(cardInstanceId, counters) {
             for (const p of state.players) {
