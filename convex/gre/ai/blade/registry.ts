@@ -2018,6 +2018,63 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 500.8 pair, positive half (issue #2886). Differs from the negative half above in exactly one thing: `state.extraPhases` is non-empty, granted through the real primitive by the `extra-combat` setup step. NOT a strength claim — no structural extra-combat credit is added anywhere (ADR 0111 decision 6): an extra combat is INSIDE the rollout horizon, so its value is measured, not credited.",
     },
     {
+        label: "activation timing: holds a sacrifice engine through its own main phase",
+        spec: {
+            cards: [
+                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                {
+                    name: "Titania, Protector of Argoth",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: "Issue #2939, the HOLD half. Zuran Orb's payoff never decays — life, plus the Elemental Titania makes of the sacrificed land — so `isTransientOnlyAbility` is silent on it and, before this change, the bot converted lands in its own precombat main on 5/5 seeds. The other side of the trade is what makes that the worst window: the land keeps tapping for mana until the moment it is given up (`spendsStandingPermanent`), and the same activation is available at instant speed all the way to the opponent's end step. Measured at the root: `pass` and the activation are EXACTLY tied at mean 0.75 with 100 visits each, so this was never a mis-valuation — it was a tie decided by the material tie-break, which is precisely the shape the hold rule owns. Its discriminating mirror is the entry below.",
+    },
+    {
+        label: "activation timing: converts a sacrifice engine at the opponent's end step",
+        spec: {
+            cards: [
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Titania, Protector of Argoth",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "END_STEP",
+            turn: 5,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the seat
+        // holding the engine has to be `opp` for this to be the OPPONENT's end
+        // step from the bot's point of view. The built board hands priority to
+        // the active player; one `pass` walks it to the bot (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: "Issue #2939, the FIRE half — the same board one phase later, in the last window the bot holds priority before its own turn. Without it the hold rule would be a refusal rather than a discipline: the bot deferred here too, on 5/5 seeds, and simply never converted. The cause was NOT valuation: `pass` and the activation are again tied at mean 0.75, and the material tie-break preferred `pass` on a SUBTREE-accumulated margin (1781.7 against 1552.8) even though the immediate position after activating scores 729.5 against 482.0 (the number `firingBeatsHolding` computes: `policyValue` resolves one stack item, so the life gain is still on the stack; fully settled it is 745.5). Both subtrees hold the same future activation, so the accumulation measures rollout noise; `firingBeatsHolding` asks the immediate question instead. It is NOT the stop condition — on this board every conversion is a strict gain (482.0 -> 745.5 -> 1009.0 -> 1272.5 -> 1498.5 as the lands go), so it would say yes five times and strip the bot to zero lands in one end step. The stop is the once-per-turn clause in `isDeferredEngineActivation`: a tie-break redirects ONE outcome-equal pick, and the second conversion must earn itself on mean reward. That floor is pinned by the unit control `the SECOND conversion of the same turn is left held`, which a blade entry cannot express — `ScenarioSpec` has no `activationsThisTurn`.",
+    },
+    {
         label: "activation cost: names the discard for Survival of the Fittest",
         spec: {
             cards: [
@@ -3364,55 +3421,71 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Titania's own PERMANENT_LEFT trigger (CR 603.10) — a 5/3 Elemental
         // token worth far more than the land.
         //
-        // WHY STRETCH (the ticket's own "diagnose the 2/5" finding). The token
-        // payoff IS simulated — `applyActivationCostsForSearch` sacrifices the
-        // land through `removePermanentTo`, which queues PERMANENT_LEFT, and
+        // WHY IT MOVED WINDOW, AND WHY IT IS NOW `must` (issue #2939).
+        // As shipped by #2686 this position sat in the bot's own precombat main
+        // and was `stretch`, because "activate now" and "activate later"
+        // converged at the turn-boundary horizon and the root pick was seed
+        // noise (measured 10/12) — the "search cannot price timing" ceiling
+        // #2687 tracks. Its own note promised promotion "when #2687 lands".
+        //
+        // #2939 supplies that timing discipline from the tie-break side rather
+        // than from search depth, and it settles the question the other way for
+        // the ORIGINAL window: with the land still tapping for mana until the
+        // moment it is given up, the bot's own main phase is the WRONG window,
+        // and the bot now holds there deterministically (3/3). Left where it
+        // was, this entry would have asserted a play the engine has since
+        // decided is a mistake. So the position moves to the window where the
+        // conversion IS right — the opponent's end step (CR 513.1) — keeping
+        // the pair's axis (does Titania pay the land off?) exactly as #2686
+        // drew it, and only the window changes. There it is deterministic on
+        // all 3 of its original seeds at its original 400-iteration budget, so
+        // the promotion its note asked for is taken here.
+        //
+        // The seats invert for the forced reason every reactive entry inverts
+        // them: `me` is always the ACTIVE player in a `ScenarioSpec`, so the
+        // seat holding the engine has to be `opp` for this to be the
+        // OPPONENT's end step. One `pass` walks priority to the bot.
+        //
+        // The token payoff was never the problem and still is not:
+        // `applyActivationCostsForSearch` sacrifices the land through
+        // `removePermanentTo`, which queues PERMANENT_LEFT, and
         // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
-        // ply later (measured: material margin 427.5 → 654.5 on resolution). The
-        // 2/5 is a ROLLOUT-HORIZON artifact, not a trigger bug: Zuran Orb's
-        // activation is free and repeatable, so the greedy `selectRolloutMove`
-        // chain-activates it until all five lands are gone, and the "pass"
-        // subtree reaches the identical 5-token board a turn later — "activate
-        // now" and "activate later" converge at the turn-boundary horizon and
-        // the root pick falls to seed noise (measured 10/12 seeds). That is the
-        // "search cannot price timing" ceiling #2687 tracks, not a term this
-        // ticket can add. So the entry stays `stretch` — a report-only signal,
-        // promoted to `must` when #2687 lands — rather than a false-red
-        // `must` guarding an assertion the search cannot price.
+        // ply later (measured: material margin 427.5 → 654.5 on resolution).
         label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
         spec: {
             cards: [
                 {
                     name: "Titania, Protector of Argoth",
-                    owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
-                // The hand card that puts the bot's 5 lands ON CURVE: a 6-MV
-                // card it cannot cast yet, so each of its 5 lands still has
-                // development value (`handNeed 6 > lands 5`).
-                { name: "Craw Wurm", owner: "me", zone: "hand" },
-                {
-                    name: "Grizzly Bears",
                     owner: "opp",
                     zone: "battlefield",
                     summoningSick: false,
                 },
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
+                // The hand card that puts the bot's 5 lands ON CURVE: a 6-MV
+                // card it cannot cast yet, so each of its 5 lands still has
+                // development value (`handNeed 6 > lands 5`).
+                { name: "Craw Wurm", owner: "opp", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "END_STEP",
             turn: 6,
             landCount: 5,
             libraryCount: 20,
         },
-        bot: "me",
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        tier: "stretch",
+        tier: "must",
         expect: {
             moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 1 of the discriminating pair (positive control), `stretch` — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger), but "activate now" vs "activate later" wash out at the rollout horizon (the greedy rollout chain-activates the free sac outlet), so the root pick is seed noise (10/12) — the #2687 "search cannot price timing" ceiling, not a term this ticket can add. The term-bearing half is the partner; this one rides the token, not `manaDevWeight`.',
+        note: 'Half 1 of the discriminating pair (positive control) — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger); the pair still asks the only question #2686 wanted asked — does the bot convert a land when Titania pays it off, and refuse when she is not there. Re-pointed and promoted `stretch` → `must` by issue #2939: the original PRECOMBAT_MAIN window was seed noise (10/12) at the timing ceiling #2687 tracks, and #2939 resolves that ceiling AGAINST the original window (the land keeps tapping for mana until it is given up, so the bot now deterministically holds in its own main phase — the sibling `activation timing: holds a sacrifice engine through its own main phase` asserts exactly that). Moved to the window where the conversion is right, it is deterministic on all 3 original seeds at the original 400-iteration budget. The term-bearing half is still the partner; this one rides the token, not `manaDevWeight`.',
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2686).

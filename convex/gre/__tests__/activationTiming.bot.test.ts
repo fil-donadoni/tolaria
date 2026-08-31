@@ -38,9 +38,15 @@ import {
     type Node,
 } from "../search";
 import {
+    setRootDecisionSink,
+    type RootDecisionRecord,
+} from "../ai/decisionTelemetry";
+import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
     isTransientOnlyAbility,
+    spendsStandingPermanent,
 } from "../ai/abilityTiming";
 import type { Move } from "../moves";
 import {
@@ -54,6 +60,9 @@ import type { CardInstanceState, GameState } from "../state";
 const MOTHER = getCardByName("Mother of Runes").id;
 const FACTORY = getCardByName("Mishra's Factory").id;
 const SORCERER = getCardByName("Prodigal Sorcerer").id;
+const ORB = getCardByName("Zuran Orb").id;
+const TITANIA = getCardByName("Titania, Protector of Argoth").id;
+const FOREST = getCardByName("Forest").id;
 const BOLT = getCardByName("Lightning Bolt").id;
 const GIANT = getCardByName("Hill Giant").id;
 
@@ -61,6 +70,7 @@ const MOTHER_ABILITY = "mother-of-runes-protect";
 const SORCERER_ZAP = "prodigal-sorcerer-zap";
 const FACTORY_ANIMATE = "mishras-factory-animate";
 const FACTORY_MANA = "mishras-factory-mana";
+const ORB_GAIN = "zuran-orb-gain-life";
 
 function perm(cardId: string, id: string, extra = {}): CardInstanceState {
     return makeInstance(cardId, {
@@ -510,5 +520,309 @@ describe("selectRolloutMove — the reactive window is never muted (issue #1890)
                 () => 0
             )
         ).toEqual(ACTIVATE);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The SECOND justification: a cost that gives up a standing permanent
+//    (issue #2939)
+// ---------------------------------------------------------------------------
+//
+// Zuran Orb is the fixture, and — like every other card in this file — only as
+// a SHAPE: a `useStack: true` ability with a sacrifice cost whose payoff (life)
+// outlives the turn. Nothing under test reads its name.
+describe("spendsStandingPermanent — cost-side domination (issue #2939)", () => {
+    const orb = perm(ORB, "orb");
+    const orbAbility = effectiveAbilityOf(orb, ORB_GAIN)!;
+
+    it("accepts a `sacrificeFilter` cost (CR 701.21a, paid per CR 602.1)", () => {
+        expect(orbAbility.cost.sacrificeFilter).toBeDefined();
+        expect(spendsStandingPermanent(orbAbility)).toBe(true);
+    });
+
+    it("accepts a cost that sacrifices the SOURCE itself", () => {
+        expect(
+            spendsStandingPermanent({
+                ...orbAbility,
+                cost: { sacrifice: true },
+            })
+        ).toBe(true);
+    });
+
+    it("rejects a `{T}` cost — the untap step gives it back (CR 502.3)", () => {
+        const zap = effectiveAbilityOf(perm(SORCERER, "tim"), SORCERER_ZAP)!;
+        expect(zap.cost.tap).toBe(true);
+        expect(spendsStandingPermanent(zap)).toBe(false);
+    });
+
+    it("rejects the other irreversible costs — deliberate, fail-closed exclusions", () => {
+        for (const cost of [
+            { life: 2 },
+            { removeCounter: { type: "corpse", count: 1 } },
+            { discardThis: true },
+        ]) {
+            expect(spendsStandingPermanent({ ...orbAbility, cost })).toBe(
+                false
+            );
+        }
+    });
+
+    it("is INDEPENDENT of the payoff clause — the Orb is not transient", () => {
+        // The whole reason the cost clause has to exist: `isTransientOnlyAbility`
+        // is silent here (gained life never expires), so before #2939 nothing
+        // deferred this activation at all.
+        expect(isTransientOnlyAbility(orbAbility)).toBe(false);
+        expect(isDeferrableStackAbility(orbAbility)).toBe(true);
+    });
+});
+
+describe("selectRootMove — a sacrifice engine is held, then converted (issue #2939)", () => {
+    // The cost pick is part of the Move the search enumerates; the conversion
+    // rule REPLAYS the move to score the immediate position, so a move with no
+    // pick would apply as a no-op and prove nothing.
+    const ACTIVATE: Extract<Move, { kind: "activate-ability" }> = {
+        kind: "activate-ability",
+        cardInstanceId: "orb",
+        abilityId: ORB_GAIN,
+        targets: [],
+        confirmTargets: false,
+        tapPlan: [],
+        costPicks: { sacrificeIds: ["f1"] },
+    };
+    const PASS: Move = { kind: "pass" };
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[],
+        mover: string
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                key: `${e.move.kind}:${i}`,
+                mover,
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    /** The engine plus enough lands for the sacrifice cost to be payable.
+     *  Titania is here for the same reason the issue's position has her: she
+     *  is what makes converting a land a material GAIN, and the conversion rule
+     *  fires only while it is one. */
+    const engineBoard = () => [
+        perm(ORB, "orb"),
+        perm(TITANIA, "tit"),
+        perm(FOREST, "f1"),
+        perm(FOREST, "f2"),
+        perm(FOREST, "f3"),
+    ];
+
+    it("FIRE (hold): the bot's own main phase, outcome-equal — keeps the land", () => {
+        const state = botAt("PRECOMBAT_MAIN", engineBoard());
+        const root = rootOf(
+            [
+                { move: ACTIVATE, meanReward: 0.6635, meanMargin: 330 },
+                { move: PASS, meanReward: 0.6631, meanMargin: 327 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+
+    it("NO-FIRE (hold): an activation with REAL value still wins on mean reward", () => {
+        // The gate that keeps the rule from ever costing the bot a real play:
+        // it fires only inside `OUTCOME_EPS`, so the sacrifice that is actually
+        // decisive this turn is untouched.
+        const state = botAt("PRECOMBAT_MAIN", engineBoard());
+        const root = rootOf(
+            [
+                { move: ACTIVATE, meanReward: 0.92, meanMargin: 330 },
+                { move: PASS, meanReward: 0.6, meanMargin: 400 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "activate-ability"
+        );
+    });
+
+    it("FIRE (convert): the OPPONENT's end step, outcome-equal — takes the option", () => {
+        // The mirror. `pass` is the incumbent pick AND carries the better
+        // subtree margin (the shape measured on the issue's position: both
+        // subtrees hold the same future activation, so the accumulation cannot
+        // discriminate); the immediate position decides instead.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: engineBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "activate-ability"
+        );
+    });
+
+    it("NO-FIRE (convert): a conversion that does not pay is left held", () => {
+        // The stop condition, and the reason the rule needs no counter and no
+        // per-card knowledge: strip the payoff engine off the board and
+        // sacrificing a land for 2 life is a material LOSS, so
+        // `firingBeatsHolding` declines it in the very window it would
+        // otherwise fire in. This is what keeps a repeatable engine from
+        // eating every land the bot has.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        perm(ORB, "orb"),
+                        perm(FOREST, "f1"),
+                        perm(FOREST, "f2"),
+                        perm(FOREST, "f3"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+
+    it("NO-FIRE (convert): the SECOND conversion of the same turn is left held", () => {
+        // The floor, and the reason a repeatable engine cannot eat every land:
+        // `firingBeatsHolding` says yes to every conversion on this board
+        // (measured 482.0 -> 745.5 -> 1009.0 -> 1272.5 -> 1498.5), so it is not
+        // what stops the drain. `activationsThisTurn` is — a tie-break redirects
+        // ONE outcome-equal pick, and the next conversion must win on mean
+        // reward like any other play.
+        const board = engineBoard();
+        board[0].activationsThisTurn = { [ORB_GAIN]: 1 };
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: board }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+
+    it("records `last-window-fire` as the deciding mechanism", () => {
+        // The telemetry seam, asserted the way the `wasted-mana-hold` rule
+        // asserts its own: a new `RootDecisionMechanism` value that `finish`
+        // never emits is a mechanism nobody can see in the decision corpus.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: engineBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        const records: RootDecisionRecord[] = [];
+        setRootDecisionSink((r) => records.push(r));
+        try {
+            selectRootMove(root, [ACTIVATE, PASS], state, "p1");
+        } finally {
+            setRootDecisionSink(null);
+        }
+        expect(records.map((r) => r.mechanism)).toContain("last-window-fire");
+    });
+
+    it("NO-FIRE (convert): the bot's OWN end step is not the last window", () => {
+        // Its own end step is followed by the whole opponent turn, in which the
+        // option is still worth holding — so the hold rule owns this window and
+        // the conversion rule must stay silent.
+        const state = botAt("END_STEP", engineBoard());
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+});
+
+describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (CR 500.5)", () => {
+    // Ashnod's Altar is the fixture only as a SHAPE: a sacrifice cost whose
+    // script adds mana. Deferring one to the opponent's end step produces mana
+    // that empties unused at the end of that step (CR 500.5).
+    const ALTAR = getCardByName("Ashnod's Altar").id;
+
+    it("rejects an ability whose script adds mana", () => {
+        const altar = perm(ALTAR, "alt");
+        const ability = getEffectiveActivatedAbilities(altar)[0].ability;
+        expect(ability.cost.sacrificeFilter).toBeDefined();
+        expect(spendsStandingPermanent(ability)).toBe(false);
+    });
+
+    it("recurses into the structural constructs (ADR 0045)", () => {
+        // The same cost, the same `addMana`, one construct deeper: a scan that
+        // only looked at the top level would call this deferrable.
+        const orbAbility = effectiveAbilityOf(perm(ORB, "orb"), ORB_GAIN)!;
+        expect(spendsStandingPermanent(orbAbility)).toBe(true);
+        expect(
+            spendsStandingPermanent({
+                ...orbAbility,
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "permanents", zone: "battlefield" },
+                        effects: [{ op: "addMana", mana: { C: 1 } }],
+                    },
+                ],
+            })
+        ).toBe(false);
     });
 });

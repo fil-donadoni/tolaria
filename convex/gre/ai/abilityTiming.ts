@@ -142,6 +142,110 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
     return ability.effects !== undefined && opsAllTransient(ability.effects);
 }
 
+/** Whether `ability`'s cost gives up a permanent that is STILL DOING ITS JOB
+ *  while unspent — a sacrifice cost (CR 701.21a, paid at activation per
+ *  CR 602.1), either of the source itself or of a permanent matching a filter.
+ *
+ *  This is the SECOND way an instant-speed activation can be strictly
+ *  dominated by holding it, and it is the one `isTransientOnlyAbility` cannot
+ *  see (issue #2939). That predicate asks about the PAYOFF: an effect that
+ *  expires this turn is worth only the window it is held for. This one asks
+ *  about the COST: a sacrificed land keeps tapping for mana and a sacrificed
+ *  creature keeps blocking until the moment it is given up, so converting it
+ *  early buys nothing the later conversion would not also buy and forfeits
+ *  every use in between. Zuran Orb's payoff (life, and Titania's Elemental)
+ *  never decays, so only the cost side makes firing it in the mover's own main
+ *  phase the strictly worse window.
+ *
+ *  The two are ORed at the call site rather than merged here because they
+ *  justify the same verdict from opposite ends and a caller may one day want
+ *  only one of them.
+ *
+ *  Scoped to SACRIFICE, and every other cost key is a deliberate exclusion:
+ *
+ *    * `tap` (the {T} symbol, CR 107.5) and `mana` — the untap step gives both
+ *      back (CR 502.3), so the resource is rented for the turn either way and
+ *      holding preserves nothing that firing destroys. Prodigal Sorcerer's
+ *      `{T}` ping is the shipped guard for that (issue #1890), and it must
+ *      keep winning or losing on mean reward.
+ *    * `life`, `removeCounter`, `discardThis`, `discardLastDrawn` — each is
+ *      irreversible too, but none of them is a resource the OPPONENT's turn
+ *      lets the bot use in the meantime, which is the whole argument here.
+ *      Fail closed: this rule redirects a root pick, so a cost it cannot argue
+ *      about is left alone.
+ *    * `tapOtherFilter` — the tapped creatures WOULD still be able to block if
+ *      the cost were deferred, so the argument does apply; it is left out
+ *      because whether those creatures matter is a combat judgement the
+ *      outcome-equality gate this feeds cannot make, and issue #2939 is
+ *      explicitly about sacrifice engines.
+ *
+ *  A sacrifice-for-MANA outlet is excluded, and not as a workaround: mana
+ *  empties at the end of every step and phase (CR 500.5), so an outlet
+ *  deferred to the opponent's end step produces mana that is simply lost. Its
+ *  whole point is to convert a permanent AT the moment the mana is needed,
+ *  which is the mover's own main phase — the exact window this predicate would
+ *  otherwise defer it out of. Detected from the SCRIPT (`addMana` anywhere in
+ *  it, recursing through the structural constructs the way `opsAllTransient`
+ *  does), because the cards that make it bite — Ashnod's Altar, Phyrexian
+ *  Altar, Priest of Yawgmoth — are mana abilities under CR 605.1a that carry
+ *  `useStack: true` in their definitions, so `isDeferrableStackAbility`'s own
+ *  mana-ability exclusion never sees them. That mislabel is a card-definition
+ *  bug in its own right; it is recorded in
+ *  `docs/findings/2939-sac-for-mana-usestack-mislabel.md` rather than fixed
+ *  here, and this clause is correct even after it is fixed.
+ *
+ *  Per-card-agnostic by construction: reads the cost shape and the Op
+ *  vocabulary only (ADR 0102). */
+export function spendsStandingPermanent(ability: ActivatedAbility): boolean {
+    if (
+        ability.cost.sacrifice !== true &&
+        ability.cost.sacrificeFilter === undefined
+    ) {
+        return false;
+    }
+    return !producesMana(ability);
+}
+
+/** Whether `ability`'s script can add mana (CR 106.4) — recursing through the
+ *  structural constructs, so a modal or conditional branch that produces mana
+ *  counts. An imperative `resolve()` ability has no script to read and is
+ *  treated as NOT mana-producing, which is the fail-open direction here but
+ *  the fail-CLOSED one for the caller: it leaves the deferral rule applying to
+ *  a card it could not read, and `isDeferrableStackAbility` still gates on
+ *  `useStack`. */
+function producesMana(ability: ActivatedAbility): boolean {
+    return ability.effects !== undefined && opsAddMana(ability.effects);
+}
+
+function opsAddMana(effects: readonly EffectOp[]): boolean {
+    for (const op of effects) {
+        switch (op.op) {
+            case "addMana":
+                return true;
+            case "if":
+                if (opsAddMana(op.then)) return true;
+                if (op.else && opsAddMana(op.else)) return true;
+                continue;
+            case "forEach":
+                if (opsAddMana(op.effects)) return true;
+                continue;
+            case "optionChoice":
+                for (const mode of op.modes) {
+                    if (opsAddMana(mode.effects)) return true;
+                }
+                continue;
+            case "coinFlip":
+            case "coinFlipSync":
+                if (opsAddMana(op.win.effects)) return true;
+                if (opsAddMana(op.loss.effects)) return true;
+                continue;
+            default:
+                continue;
+        }
+    }
+    return false;
+}
+
 /** One ENTRY of a permanent's POST-LAYER activated-ability set (CR 611.2a /
  *  613.1f, layer 6), by id — the ability template plus, when it reached the
  *  permanent through a grant (CR 113.1), the granting card's definition id.

@@ -146,6 +146,7 @@ import {
     effectiveActivatedAbilityEntryOf,
     isDeferrableStackAbility,
     isTransientOnlyAbility,
+    spendsStandingPermanent,
 } from "./ai/abilityTiming";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
@@ -3431,6 +3432,50 @@ export function selectRootMove(
         );
         if (hold) return finish(hold, "hold-trick");
     }
+
+    // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and
+    // the half that makes it a discipline rather than a refusal. The hold rule
+    // defers a sacrifice engine out of the mover's own main phase; something has
+    // to spend it, or the bot simply never converts.
+    //
+    // The window is the OPPONENT's end step (CR 513.1): the last priority the
+    // bot holds before its own turn begins, so deferring past it no longer buys
+    // information — it just pushes the payoff a whole turn cycle back, and a
+    // permanent the engine builds arrives a turn later than it had to (the
+    // Elemental that could have been attack-legal, CR 302.6).
+    //
+    // Why this cannot ride on the material tie-break that already exists: the
+    // `meanMargin` it compares is accumulated over the whole SUBTREE, and both
+    // subtrees here contain the same future activation — `pass` keeps the
+    // option and takes it later in the rollout, `activate` has taken it
+    // already. So the accumulation is measuring rollout noise rather than the
+    // decision, and it measured it backwards in the issue's position: `pass`
+    // 1781.7 against the activation's 1552.8 while the IMMEDIATE position after
+    // activating scored 729.5 against 482.0 (the number `firingBeatsHolding`
+    // actually computes: `policyValue` resolves one stack item, so the life gain
+    // is still on the stack; the fully-settled position is 745.5). The comparison that answers "now
+    // or a turn later" is the immediate one, so this rule makes it explicitly.
+    //
+    // `firingBeatsHolding` decides WHETHER converting pays; it is NOT what stops
+    // a repeatable engine. It cannot be: every conversion on the issue's own
+    // board is a strict gain, so the check would say yes five times in a row.
+    // The stop is the once-per-turn clause in `isDeferredEngineActivation` — a
+    // tie-break redirects ONE outcome-equal pick, and the second conversion has
+    // to earn itself on mean reward.
+    if (
+        rootState &&
+        !!botId &&
+        best.move.kind === "pass" &&
+        isLastDeferralWindow(rootState, botId)
+    ) {
+        const fire = pool.find(
+            (e) =>
+                mean(e) >= bestMean - weights.outcomeEps &&
+                isDeferredEngineActivation(rootState, botId, e.move) &&
+                firingBeatsHolding(rootState, botId, e.move, weights)
+        );
+        if (fire) return finish(fire, "last-window-fire");
+    }
     return finish(best, mechanism);
 }
 
@@ -3471,6 +3516,28 @@ export function selectRootMove(
  *     Salvager's permanent +1/+1 counters, a fetchland's search) has banked its
  *     value the moment it resolves, whenever that is, and must be left to win or
  *     lose on mean reward. Without the clause this rule swallowed the latter.
+ *
+ *     Issue #2939 adds the SECOND justification, from the other side of the
+ *     trade: a cost that gives up a permanent still doing its job
+ *     (`spendsStandingPermanent`). Zuran Orb's life gain and the Elemental it
+ *     feeds Titania do not decay, so the transience clause is silent on it, yet
+ *     firing in the mover's own main phase still forfeits every use of the
+ *     sacrificed land between now and the window the same activation is
+ *     available in anyway. The two clauses are ORed: either side being
+ *     dominated is enough. The Prodigal Sorcerer guard survives because a `{T}`
+ *     cost is given back at untap, so nothing is forfeited by firing early.
+ *
+ *     KNOWN ASYMMETRY with case 1, stated rather than papered over: case 1
+ *     deliberately excludes REMOVAL, because a removal spell cast at sorcery
+ *     speed can be the decisive play. The cost clause has no such exclusion, so
+ *     a sacrifice-cost removal outlet (Mogg Fanatic, Goblin Bombardment) is now
+ *     deferrable, and the `OUTCOME_EPS` gate is weakest exactly there —
+ *     clearing a blocker pre-combat is combat value, which washes out at the
+ *     search horizon. It is left in because the gate still requires the two to
+ *     be outcome-equal and because the cost argument genuinely applies (the
+ *     creature can be sacrificed after blocks are declared instead, with strictly
+ *     more information); if a blade position ever shows it costing the bot a
+ *     real play, the narrowing goes here.
  *
  *  3. **A FLASH PERMANENT dumped at sorcery speed** (issue #2248) — a
  *     `cast-spell` of a non-Instant card carrying the Flash keyword, cast by
@@ -3516,11 +3583,110 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         if (!source) return false;
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability) return false;
+        if (!isDeferrableStackAbility(ability)) return false;
+        // Shape 2 has TWO independent justifications, one per side of the
+        // trade (issue #2939): a payoff that expires this turn, or a cost that
+        // gives up a permanent still doing its job. See
+        // `spendsStandingPermanent`.
         return (
-            isDeferrableStackAbility(ability) && isTransientOnlyAbility(ability)
+            isTransientOnlyAbility(ability) || spendsStandingPermanent(ability)
         );
     }
     return false;
+}
+
+/** Whether `pid` is at the LAST priority window of this turn cycle in which
+ *  deferring still costs nothing — the opponent's end step (CR 513.1, issue
+ *  #2939). "The last window before the bot's own turn" is the normal case, not
+ *  an invariant: an extra turn taken by the opponent makes this one cycle
+ *  early, which converts sooner than strictly necessary and never later.
+ *
+ *  Deliberately not "any window on the opponent's turn": the end step is the
+ *  one where every threat and answer of the turn is already known, which is the
+ *  whole payoff the hold rule defers FOR. Anything earlier still has
+ *  information left to buy. */
+function isLastDeferralWindow(state: GameState, pid: string): boolean {
+    return state.phase === "END_STEP" && state.activePlayerId !== pid;
+}
+
+/** Whether `move` converts a sacrifice engine `pid` controls whose payoff does
+ *  NOT decay — the exact shape the hold rule deferred (issue #2939), read back
+ *  so the two rules can never disagree about what they are talking about.
+ *
+ *  The `!isTransientOnlyAbility` clause is load-bearing rather than
+ *  symmetry-for-its-own-sake: an ability whose whole effect expires this turn
+ *  buys nothing by being fired at the end step either, and firing one would
+ *  walk straight back into the Sylvan Safekeeper blunder (#2422/#2938) —
+ *  a land traded for a shroud that expires minutes later with nothing to
+ *  protect against. Only a LASTING payoff earns the conversion. */
+function isDeferredEngineActivation(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    const source = player.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    if (!ability) return false;
+    if (
+        !isDeferrableStackAbility(ability) ||
+        isTransientOnlyAbility(ability) ||
+        !spendsStandingPermanent(ability)
+    ) {
+        return false;
+    }
+    // ONE conversion per turn, and this — not the material check below — is the
+    // floor that makes the rule safe (issue #2939 review). A repeatable engine
+    // whose every conversion is a strict material gain never stops paying:
+    // measured on the fire-half board, 482.0 -> 745.5 -> 1009.0 -> 1272.5 ->
+    // 1498.5 as the lands go, so `firingBeatsHolding` alone would strip the bot
+    // to zero lands inside a single end step and hand it its own turn with no
+    // mana.
+    //
+    // A tie-break is licensed to redirect ONE outcome-equal pick, never to run
+    // an engine to completion. The second conversion has to earn itself on mean
+    // reward like any other play — the same discipline the hold rule's
+    // `OUTCOME_EPS` gate applies from the other direction. `activationsThisTurn`
+    // is the engine's own tally (`recordActivation`, `activationCommit.ts`,
+    // which the search records too), reset at the turn boundary, so "once"
+    // means once per opponent turn and this rule invents no state of its own.
+    return (source.activationsThisTurn?.[move.abilityId] ?? 0) === 0;
+}
+
+/** Whether taking `move` NOW leaves `pid` in a strictly better immediate
+ *  position than leaving the board as it stands (issue #2939).
+ *
+ *  Both sides go through the seams the search itself uses — `applyMoveInSearch`
+ *  to realise the activation and `policyValue` to resolve it one ply and score
+ *  the result — so this cannot drift from what the tree believes. The holding
+ *  side is `evaluate` on the untouched root: `pass` moves no material, and
+ *  applying it would advance the phase and score a different turn.
+ *
+ *  Runs at the ROOT only, behind the `isLastDeferralWindow` and
+ *  `isDeferredEngineActivation` gates — so once per qualifying candidate (the
+ *  cost-pick variants of a single ability, capped at `MAX_VICTIM_VARIANTS`),
+ *  never on the hot path. The clone goes through `cloneGameState`, the search's
+ *  own seam (ADR 0001 / #108), never `structuredClone`.
+ *
+ *  The two sides compare like with like because `state.combat` is torn down in
+ *  `endCombatStep` before END_STEP, so `policyValue`'s combat corrections are
+ *  both zero here and it reduces to `evaluate`. That is a property of the
+ *  WINDOW, not of `policyValue` — a future change leaving combat standing into
+ *  an end step would bias the probe. */
+function firingBeatsHolding(
+    state: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights
+): boolean {
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, pid, move);
+    return (
+        policyValue(probe, pid, move, weights) > evaluate(state, pid, weights)
+    );
 }
 
 // ---------------------------------------------------------------------------
