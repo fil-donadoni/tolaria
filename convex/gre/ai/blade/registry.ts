@@ -1862,7 +1862,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { kind: "activate-ability", card: "Sylvan Safekeeper" },
             ],
         },
-        note: "Issue #1920 regression guard, the sacrifice-cost sibling of the Iron-Shield Elf control above: with nothing on the stack, sacrificing a land to give a creature shroud buys nothing and permanently costs a mana source. It is here because the cost half of this exact card (#2422, the bot sacrificing a land to Safekeeper with an empty stack) is a SHIPPED bug this change could plausibly have reopened from the payoff side — the shroud grant is now visible material. It does not: `pass` on all 5 seeds before and after. Same caveat as the Elf control above, and stronger here — this position is FAR from the decision boundary: with activation costs made free again AND the rollout guardrail disabled, the bot still passes on all 5 seeds. Treat it as a tripwire against a much larger future mis-valuation, not as a proof about any single mechanism. Deliberately NO reactive counterpart entry: with a Bolt on the stack aimed at the Bears the bot still passes on all 5 seeds, before and after, because at 1 ply the sacrificed land outweighs a shroud grant whose payoff (the Bolt fizzling on an illegal target, CR 608.2b) is two resolutions away. That is a genuine remaining lookahead-depth gap, NOT something #1920 claims to fix — recorded in docs/findings/1920-safekeeper-reactive-depth.md rather than shipped as a red entry.",
+        note: "Issue #1920 regression guard, the sacrifice-cost sibling of the Iron-Shield Elf control above: with nothing on the stack, sacrificing a land to give a creature shroud buys nothing and permanently costs a mana source. It is here because the cost half of this exact card (#2422, the bot sacrificing a land to Safekeeper with an empty stack) is a SHIPPED bug this change could plausibly have reopened from the payoff side — the shroud grant is now visible material. It does not: `pass` on all 5 seeds before and after. Same caveat as the Elf control above, and stronger here — this position is FAR from the decision boundary: with activation costs made free again AND the rollout guardrail disabled, the bot still passes on all 5 seeds. Treat it as a tripwire against a much larger future mis-valuation, not as a proof about any single mechanism. Its discriminating mirror is the entry below (issue #2938): the same two permanents with a Bolt on the stack aimed at the Bears, where the activation IS the expected move. When this note was first written that mirror could not be shipped — the bot passed there too, on all 5 seeds — and the cause was NOT the valuation: shroud gained in response did not make the Bolt fizzle at all (CR 608.2b), so paying a land bought literally nothing. Issue #2942 fixed the rules half; the pair discriminates now.",
+    },
+    {
+        label: "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
+        spec: {
+            cards: [
+                {
+                    name: "Sylvan Safekeeper",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        // The Bolt reaches the stack through the REAL cast pipeline (ADR 0070
+        // §4). The seats are inverted relative to the control above for the
+        // same forced reason the #1890 Mother of Runes pair inverts them: `me`
+        // is always the active player in a `ScenarioSpec`, and only the
+        // priority holder has a legal cast, so the seat holding the Safekeeper
+        // has to be `opp` for the threat to exist at all.
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Grizzly Bears",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // The target is PINNED, exactly as the analogous Mother of Runes
+            // payoff entry pins it: the ability reads "target creature you
+            // control", so the Safekeeper itself is a second legal target, and
+            // an activation aimed there would sacrifice a land and still let
+            // the Bears die while satisfying a card-only matcher.
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Sylvan Safekeeper",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #2938, the DISCRIMINATING mirror of the no-threat control above — the same two permanents, one Bolt apart. Sacrificing a land is the textbook use of the ability here: the Bears gains shroud, the Bolt has no legal target on resolution and is countered by the game rules (CR 608.2b), and a 2/2 outlives a spare mana source. Chooses the activation on all 5 seeds. It is a REAL pair, not a tripwire: the two positions differ only in whether a threat is live, and the bot answers them differently. What makes it assertable is a RULES change, not a bot one — until #2942 the shroud grant did not counter the targeting spell, so the bot passing here was the correct play in this engine and teaching it to pay would have been teaching it a lie (the measurement is in #2938's investigation comment). Breaking the CR 608.2b protection re-check in `isTargetStillLegal` (`convex/gre/state.ts`) turns this entry red on all 5 seeds while the control above stays green — that is the proof this asserts the payoff and not the cost. The finding this retires is docs/findings/1920-safekeeper-reactive-depth.md (declined).",
     },
     {
         label: "activation timing: does not animate Mishra's Factory after its own combat",
