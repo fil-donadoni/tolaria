@@ -575,8 +575,13 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
     // The cost pick is part of the Move the search enumerates; the conversion
     // rule REPLAYS the move to score the immediate position, so a move with no
     // pick would apply as a no-op and prove nothing.
-    const ACTIVATE: Move = {
-        ...activation("orb", ORB_GAIN),
+    const ACTIVATE: Extract<Move, { kind: "activate-ability" }> = {
+        kind: "activate-ability",
+        cardInstanceId: "orb",
+        abilityId: ORB_GAIN,
+        targets: [],
+        confirmTargets: false,
+        tapPlan: [],
         costPicks: { sacrificeIds: ["f1"] },
     };
     const PASS: Move = { kind: "pass" };
