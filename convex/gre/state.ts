@@ -1966,6 +1966,15 @@ export type StackItem = CardInstanceState & {
     sourceLki?: CardInstanceState;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
+    /** CR 603.3b — for a `oncePerEventBatch` ability, the FULL set of events in
+     *  the firing batch (not just the first). `triggerEvent` above still holds
+     *  the first member for the singular-event paths (intervening-if re-check,
+     *  `$event` refs); this is the extra channel a batch-aware `resolve()` reads
+     *  to enumerate every member — Twilight Diviner's "copy one of THEM" choice
+     *  over a simultaneous reanimation (issue #2954). Undefined for a plain
+     *  single-event trigger (and never set for a delayed/emblem trigger), so a
+     *  resolver can treat `triggerEventBatch ?? [triggerEvent]` as the batch. */
+    triggerEventBatch?: GameEvent[];
     /** CR 608.2 / 603.3 (issue #1189) — set the FIRST time this triggered
      *  ability's resolution has tallied `GameState.abilityResolutionCounts`
      *  (`recordAbilityResolution`, `resolveTopOfStackInner`). A dedicated
@@ -13742,6 +13751,11 @@ export function buildSpellContext(
         // event, not the original firing event); the validator forbids `$event`
         // at all of those sites, so this is only ever read at a real trigger.
         triggerEvent: item.triggerEvent,
+        // CR 603.3b (issue #2954) — the FULL firing batch for a
+        // `oncePerEventBatch` ability. Same shape and scope as `triggerEvent`
+        // above; a batch-aware imperative `resolve()` reads it to enumerate the
+        // whole set (Twilight Diviner's "copy one of them" choice).
+        triggerEventBatch: item.triggerEventBatch,
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
 

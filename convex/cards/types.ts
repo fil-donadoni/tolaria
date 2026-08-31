@@ -2781,6 +2781,16 @@ export interface SpellContext {
      *  issue #865) — legal only at trigger sites (the validator enforces the
      *  scope statically, so a spell/activated script can never read it). */
     triggerEvent?: GameEvent;
+    /** CR 603.3b (issue #2954) — the FULL firing batch for a
+     *  `oncePerEventBatch` triggered ability, threaded from
+     *  `StackItem.triggerEventBatch`. `triggerEvent` above still carries the
+     *  first member (the singular-event channel for intervening-if / `$event`);
+     *  this is the enumeration a batch-aware imperative `resolve()` reads to
+     *  offer a choice across every member (Twilight Diviner's "copy one of
+     *  them"). Undefined at spell / activated-ability / single-event-trigger
+     *  sites — a resolver treats `triggerEventBatch ?? [triggerEvent]` as the
+     *  whole batch. */
+    triggerEventBatch?: GameEvent[];
     /** Chosen targets (validated at cast time). Always an ANNOUNCED target
      *  (CR 601.2c) in practice — `selectTarget` / `getLegalTargets` /
      *  `enumerateTargetTuples` never produce the "hand-card" member of
