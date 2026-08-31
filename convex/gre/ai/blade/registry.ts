@@ -1900,9 +1900,20 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "activate-ability", card: "Sylvan Safekeeper" }],
+            // The target is PINNED, exactly as the analogous Mother of Runes
+            // payoff entry pins it: the ability reads "target creature you
+            // control", so the Safekeeper itself is a second legal target, and
+            // an activation aimed there would sacrifice a land and still let
+            // the Bears die while satisfying a card-only matcher.
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Sylvan Safekeeper",
+                    target: "Grizzly Bears",
+                },
+            ],
         },
-        note: "Issue #2938, the DISCRIMINATING mirror of the no-threat control above — the same two permanents, one Bolt apart. Sacrificing a land is the textbook use of the ability here: the Bears gains shroud, the Bolt has no legal target on resolution and is countered by the game rules (CR 608.2b), and a 2/2 outlives a spare mana source. Chooses the activation on all 5 seeds. It is a REAL pair, not a tripwire: the two positions differ only in whether a threat is live, and the bot answers them differently. What makes it assertable is a RULES change, not a bot one — until #2942 the shroud grant did not counter the targeting spell, so the bot passing here was the correct play in this engine and teaching it to pay would have been teaching it a lie (the measurement is in #2938's investigation comment). Breaking the CR 608.2b protection re-check in `isTargetStillLegal` (`convex/gre/state.ts`) turns this entry red on all 5 seeds while the control above stays green — that is the proof this asserts the payoff and not the cost.",
+        note: "Issue #2938, the DISCRIMINATING mirror of the no-threat control above — the same two permanents, one Bolt apart. Sacrificing a land is the textbook use of the ability here: the Bears gains shroud, the Bolt has no legal target on resolution and is countered by the game rules (CR 608.2b), and a 2/2 outlives a spare mana source. Chooses the activation on all 5 seeds. It is a REAL pair, not a tripwire: the two positions differ only in whether a threat is live, and the bot answers them differently. What makes it assertable is a RULES change, not a bot one — until #2942 the shroud grant did not counter the targeting spell, so the bot passing here was the correct play in this engine and teaching it to pay would have been teaching it a lie (the measurement is in #2938's investigation comment). Breaking the CR 608.2b protection re-check in `isTargetStillLegal` (`convex/gre/state.ts`) turns this entry red on all 5 seeds while the control above stays green — that is the proof this asserts the payoff and not the cost. The finding this retires is docs/findings/1920-safekeeper-reactive-depth.md (declined).",
     },
     {
         label: "activation timing: does not animate Mishra's Factory after its own combat",
