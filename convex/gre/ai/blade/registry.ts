@@ -2018,6 +2018,63 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 500.8 pair, positive half (issue #2886). Differs from the negative half above in exactly one thing: `state.extraPhases` is non-empty, granted through the real primitive by the `extra-combat` setup step. NOT a strength claim — no structural extra-combat credit is added anywhere (ADR 0111 decision 6): an extra combat is INSIDE the rollout horizon, so its value is measured, not credited.",
     },
     {
+        label: "activation timing: holds a sacrifice engine through its own main phase",
+        spec: {
+            cards: [
+                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                {
+                    name: "Titania, Protector of Argoth",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: "Issue #2939, the HOLD half. Zuran Orb's payoff never decays — life, plus the Elemental Titania makes of the sacrificed land — so `isTransientOnlyAbility` is silent on it and, before this change, the bot converted lands in its own precombat main on 5/5 seeds. The other side of the trade is what makes that the worst window: the land keeps tapping for mana until the moment it is given up (`spendsStandingPermanent`), and the same activation is available at instant speed all the way to the opponent's end step. Measured at the root: `pass` and the activation are EXACTLY tied at mean 0.75 with 100 visits each, so this was never a mis-valuation — it was a tie decided by the material tie-break, which is precisely the shape the hold rule owns. Its discriminating mirror is the entry below.",
+    },
+    {
+        label: "activation timing: converts a sacrifice engine at the opponent's end step",
+        spec: {
+            cards: [
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Titania, Protector of Argoth",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "END_STEP",
+            turn: 5,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the seat
+        // holding the engine has to be `opp` for this to be the OPPONENT's end
+        // step from the bot's point of view. The built board hands priority to
+        // the active player; one `pass` walks it to the bot (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
+        },
+        note: "Issue #2939, the FIRE half — the same board one phase later, in the last window the bot holds priority before its own turn. Without it the hold rule would be a refusal rather than a discipline: the bot deferred here too, on 5/5 seeds, and simply never converted. The cause was NOT valuation: `pass` and the activation are again tied at mean 0.75, and the material tie-break preferred `pass` on a SUBTREE-accumulated margin (1781.7 against 1552.8) even though the immediate position after activating scores 745.5 against 482.0. Both subtrees hold the same future activation, so the accumulation measures rollout noise; `firingBeatsHolding` asks the immediate question instead. That comparison is also the stop condition — a board that has given up enough lands stops qualifying with no counter and no per-card knowledge.",
+    },
+    {
         label: "activation cost: names the discard for Survival of the Fittest",
         spec: {
             cards: [

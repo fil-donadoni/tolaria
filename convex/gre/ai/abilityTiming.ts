@@ -142,6 +142,51 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
     return ability.effects !== undefined && opsAllTransient(ability.effects);
 }
 
+/** Whether `ability`'s cost gives up a permanent that is STILL DOING ITS JOB
+ *  while unspent — a sacrifice cost (CR 701.21a, paid at activation per
+ *  CR 602.1), either of the source itself or of a permanent matching a filter.
+ *
+ *  This is the SECOND way an instant-speed activation can be strictly
+ *  dominated by holding it, and it is the one `isTransientOnlyAbility` cannot
+ *  see (issue #2939). That predicate asks about the PAYOFF: an effect that
+ *  expires this turn is worth only the window it is held for. This one asks
+ *  about the COST: a sacrificed land keeps tapping for mana and a sacrificed
+ *  creature keeps blocking until the moment it is given up, so converting it
+ *  early buys nothing the later conversion would not also buy and forfeits
+ *  every use in between. Zuran Orb's payoff (life, and Titania's Elemental)
+ *  never decays, so only the cost side makes firing it in the mover's own main
+ *  phase the strictly worse window.
+ *
+ *  The two are ORed at the call site rather than merged here because they
+ *  justify the same verdict from opposite ends and a caller may one day want
+ *  only one of them.
+ *
+ *  Scoped to SACRIFICE, and every other cost key is a deliberate exclusion:
+ *
+ *    * `tap` (CR 302.6's cost symbol) and `mana` — the untap step gives both
+ *      back (CR 502.1), so the resource is rented for the turn either way and
+ *      holding preserves nothing that firing destroys. Prodigal Sorcerer's
+ *      `{T}` ping is the shipped guard for that (issue #1890), and it must
+ *      keep winning or losing on mean reward.
+ *    * `life`, `removeCounter`, `discardThis`, `discardLastDrawn` — each is
+ *      irreversible too, but none of them is a resource the OPPONENT's turn
+ *      lets the bot use in the meantime, which is the whole argument here.
+ *      Fail closed: this rule redirects a root pick, so a cost it cannot argue
+ *      about is left alone.
+ *    * `tapOtherFilter` — the tapped creatures WOULD still be able to block if
+ *      the cost were deferred, so the argument does apply; it is left out
+ *      because whether those creatures matter is a combat judgement the
+ *      outcome-equality gate this feeds cannot make, and issue #2939 is
+ *      explicitly about sacrifice engines.
+ *
+ *  Per-card-agnostic by construction: reads the cost shape only (ADR 0102). */
+export function spendsStandingPermanent(ability: ActivatedAbility): boolean {
+    return (
+        ability.cost.sacrifice === true ||
+        ability.cost.sacrificeFilter !== undefined
+    );
+}
+
 /** One ENTRY of a permanent's POST-LAYER activated-ability set (CR 611.2a /
  *  613.1f, layer 6), by id — the ability template plus, when it reached the
  *  permanent through a grant (CR 113.1), the granting card's definition id.
