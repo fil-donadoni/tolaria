@@ -160,7 +160,7 @@ export type RootDecisionSummary = {
     /** Share of decisions with more than one `OUTCOME_EPS` contender — the
      *  decisions the search itself did NOT resolve. */
     multiContenderShare: number;
-    /** Share of decisions decided by one of the six named tie-break rules. */
+    /** Share of decisions decided by one of the named tie-break rules. */
     namedRuleShare: number;
     /** Share of decisions whose final pick is the strict mean-reward argmax. */
     meanArgmaxShare: number;

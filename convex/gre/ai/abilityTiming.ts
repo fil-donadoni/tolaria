@@ -163,8 +163,8 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
  *
  *  Scoped to SACRIFICE, and every other cost key is a deliberate exclusion:
  *
- *    * `tap` (CR 302.6's cost symbol) and `mana` — the untap step gives both
- *      back (CR 502.1), so the resource is rented for the turn either way and
+ *    * `tap` (the {T} symbol, CR 107.5) and `mana` — the untap step gives both
+ *      back (CR 502.3), so the resource is rented for the turn either way and
  *      holding preserves nothing that firing destroys. Prodigal Sorcerer's
  *      `{T}` ping is the shipped guard for that (issue #1890), and it must
  *      keep winning or losing on mean reward.
@@ -179,12 +179,71 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
  *      outcome-equality gate this feeds cannot make, and issue #2939 is
  *      explicitly about sacrifice engines.
  *
- *  Per-card-agnostic by construction: reads the cost shape only (ADR 0102). */
+ *  A sacrifice-for-MANA outlet is excluded, and not as a workaround: mana
+ *  empties at the end of every step and phase (CR 500.5), so an outlet
+ *  deferred to the opponent's end step produces mana that is simply lost. Its
+ *  whole point is to convert a permanent AT the moment the mana is needed,
+ *  which is the mover's own main phase — the exact window this predicate would
+ *  otherwise defer it out of. Detected from the SCRIPT (`addMana` anywhere in
+ *  it, recursing through the structural constructs the way `opsAllTransient`
+ *  does), because the cards that make it bite — Ashnod's Altar, Phyrexian
+ *  Altar, Priest of Yawgmoth — are mana abilities under CR 605.1a that carry
+ *  `useStack: true` in their definitions, so `isDeferrableStackAbility`'s own
+ *  mana-ability exclusion never sees them. That mislabel is a card-definition
+ *  bug in its own right; it is recorded in
+ *  `docs/findings/2939-sac-for-mana-usestack-mislabel.md` rather than fixed
+ *  here, and this clause is correct even after it is fixed.
+ *
+ *  Per-card-agnostic by construction: reads the cost shape and the Op
+ *  vocabulary only (ADR 0102). */
 export function spendsStandingPermanent(ability: ActivatedAbility): boolean {
-    return (
-        ability.cost.sacrifice === true ||
-        ability.cost.sacrificeFilter !== undefined
-    );
+    if (
+        ability.cost.sacrifice !== true &&
+        ability.cost.sacrificeFilter === undefined
+    ) {
+        return false;
+    }
+    return !producesMana(ability);
+}
+
+/** Whether `ability`'s script can add mana (CR 106.4) — recursing through the
+ *  structural constructs, so a modal or conditional branch that produces mana
+ *  counts. An imperative `resolve()` ability has no script to read and is
+ *  treated as NOT mana-producing, which is the fail-open direction here but
+ *  the fail-CLOSED one for the caller: it leaves the deferral rule applying to
+ *  a card it could not read, and `isDeferrableStackAbility` still gates on
+ *  `useStack`. */
+function producesMana(ability: ActivatedAbility): boolean {
+    return ability.effects !== undefined && opsAddMana(ability.effects);
+}
+
+function opsAddMana(effects: readonly EffectOp[]): boolean {
+    for (const op of effects) {
+        switch (op.op) {
+            case "addMana":
+                return true;
+            case "if":
+                if (opsAddMana(op.then)) return true;
+                if (op.else && opsAddMana(op.else)) return true;
+                continue;
+            case "forEach":
+                if (opsAddMana(op.effects)) return true;
+                continue;
+            case "optionChoice":
+                for (const mode of op.modes) {
+                    if (opsAddMana(mode.effects)) return true;
+                }
+                continue;
+            case "coinFlip":
+            case "coinFlipSync":
+                if (opsAddMana(op.win.effects)) return true;
+                if (opsAddMana(op.loss.effects)) return true;
+                continue;
+            default:
+                continue;
+        }
+    }
+    return false;
 }
 
 /** One ENTRY of a permanent's POST-LAYER activated-ability set (CR 611.2a /

@@ -38,6 +38,11 @@ import {
     type Node,
 } from "../search";
 import {
+    setRootDecisionSink,
+    type RootDecisionRecord,
+} from "../ai/decisionTelemetry";
+import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
     isTransientOnlyAbility,
@@ -544,7 +549,7 @@ describe("spendsStandingPermanent — cost-side domination (issue #2939)", () =>
         ).toBe(true);
     });
 
-    it("rejects a `{T}` cost — the untap step gives it back (CR 502.1)", () => {
+    it("rejects a `{T}` cost — the untap step gives it back (CR 502.3)", () => {
         const zap = effectiveAbilityOf(perm(SORCERER, "tim"), SORCERER_ZAP)!;
         expect(zap.cost.tap).toBe(true);
         expect(spendsStandingPermanent(zap)).toBe(false);
@@ -711,6 +716,66 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         );
     });
 
+    it("NO-FIRE (convert): the SECOND conversion of the same turn is left held", () => {
+        // The floor, and the reason a repeatable engine cannot eat every land:
+        // `firingBeatsHolding` says yes to every conversion on this board
+        // (measured 482.0 -> 745.5 -> 1009.0 -> 1272.5 -> 1498.5), so it is not
+        // what stops the drain. `activationsThisTurn` is — a tie-break redirects
+        // ONE outcome-equal pick, and the next conversion must win on mean
+        // reward like any other play.
+        const board = engineBoard();
+        board[0].activationsThisTurn = { [ORB_GAIN]: 1 };
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: board }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+
+    it("records `last-window-fire` as the deciding mechanism", () => {
+        // The telemetry seam, asserted the way the `wasted-mana-hold` rule
+        // asserts its own: a new `RootDecisionMechanism` value that `finish`
+        // never emits is a mechanism nobody can see in the decision corpus.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: engineBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        const records: RootDecisionRecord[] = [];
+        setRootDecisionSink((r) => records.push(r));
+        try {
+            selectRootMove(root, [ACTIVATE, PASS], state, "p1");
+        } finally {
+            setRootDecisionSink(null);
+        }
+        expect(records.map((r) => r.mechanism)).toContain("last-window-fire");
+    });
+
     it("NO-FIRE (convert): the bot's OWN end step is not the last window", () => {
         // Its own end step is followed by the whole opponent turn, in which the
         // option is still worth holding — so the hold rule owns this window and
@@ -726,5 +791,38 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
             "pass"
         );
+    });
+});
+
+describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (CR 500.5)", () => {
+    // Ashnod's Altar is the fixture only as a SHAPE: a sacrifice cost whose
+    // script adds mana. Deferring one to the opponent's end step produces mana
+    // that empties unused at the end of that step (CR 500.5).
+    const ALTAR = getCardByName("Ashnod's Altar").id;
+
+    it("rejects an ability whose script adds mana", () => {
+        const altar = perm(ALTAR, "alt");
+        const ability = getEffectiveActivatedAbilities(altar)[0].ability;
+        expect(ability.cost.sacrificeFilter).toBeDefined();
+        expect(spendsStandingPermanent(ability)).toBe(false);
+    });
+
+    it("recurses into the structural constructs (ADR 0045)", () => {
+        // The same cost, the same `addMana`, one construct deeper: a scan that
+        // only looked at the top level would call this deferrable.
+        const orbAbility = effectiveAbilityOf(perm(ORB, "orb"), ORB_GAIN)!;
+        expect(spendsStandingPermanent(orbAbility)).toBe(true);
+        expect(
+            spendsStandingPermanent({
+                ...orbAbility,
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "permanents", zone: "battlefield" },
+                        effects: [{ op: "addMana", mana: { C: 1 } }],
+                    },
+                ],
+            })
+        ).toBe(false);
     });
 });
