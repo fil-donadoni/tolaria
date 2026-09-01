@@ -51,11 +51,14 @@ export function equipAbility(args: {
 }
 
 /** Generic "When this Equipment enters, create <token>, then attach this
- *  Equipment to it" self-ETB trigger — the shell shared VERBATIM by CR
- *  702.92a (Living Weapon), CR 702.163a (For Mirrodin!) and CR 702.182a (Job
- *  select): the three keywords differ ONLY in the token spec they create,
- *  never in the trigger/attach structure (issue #2610). One self-ETB
- *  trigger, two Ops, nothing equipment-specific in the engine: the
+ *  Equipment to it" self-ETB trigger — the shell shared VERBATIM by three
+ *  keywords, differing ONLY in the token spec they create, never in the
+ *  trigger/attach structure (issue #2610):
+ *    - CR 702.92a (Living Weapon)
+ *    - CR 702.163a (For Mirrodin!)
+ *    - CR 702.182a (Job select)
+ *  One self-ETB trigger, two Ops, nothing equipment-specific in the
+ *  engine: the
  *  `createToken` Op's `bind` snapshots the just-created token (there is no
  *  announced-target form for an object that didn't exist when the ability
  *  was put on the stack, CR 601.2b) and the generic `attach` Op reads it
