@@ -210,6 +210,22 @@ affordance appears. **Walk the reducers before marking done.**
 4. Any newly-depended-on reducer: at least one SURFACE test **through** the
    reducer (hand-built views mask dropped fields and do not count).
 
+## Bot reachability analysis (mandatory for EVERY new card/mechanic)
+
+The exact mirror of the section above. A card that resolves right AND renders
+right can still be one the Bot never plays — it never enumerates the action,
+cannot answer a choice the card raises, or has no opinion on whether the effect
+is worth anything. Silent in a way the UI case is not: no test reds, the card
+simply never shows up in a game against the Bot.
+
+| Seam                                                   | Question                  | What already guards it                                                                                |
+| ------------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `enumerateMoves` (`gre/moves.ts`)                      | is the action REACHABLE?  | **nothing catalogue-wide** — only per-mechanic `*.bot.test.ts`                                        |
+| `CHOICE_CANDIDATE_GENERATORS` + minimal-legal fallback | can the Bot ANSWER it?    | partial by design; no generator = never a search decision, no fallback = freeze                       |
+| `OP_VALUERS` / `OP_BENEFICENCE`                        | does it know it WANTS to? | valuer censused by `opValuerCoverage.bot.test.ts`; **beneficence is not** — `?? "neutral"` fails open |
+
+Procedure, checklist and the failure gallery: `docs/guides/bot-reachability.md`.
+
 ## Exhaustive target-type matching
 
 Code switching on `TargetRequirement.type` MUST use an exhaustive helper or

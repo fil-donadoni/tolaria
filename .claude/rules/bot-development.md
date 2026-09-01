@@ -23,3 +23,5 @@ You are in the Bot — read `/bot-slice` first; full seam map + doctrine.
   (`Record<keyof EvalTerms, …>`, so `tsc` reds on a missing row). #2686
   shipped `manaDevelopment` and it was invisible in both.
 - Determinism required — fixed `iterations`, never wall-clock (`timeMs`).
+- A NEW CARD owes a Bot reachability walk too, though its diff touches no bot
+  path (`gre-development.md` § Bot reachability).

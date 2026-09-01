@@ -266,7 +266,12 @@ exactly when it is needed and costs nothing when it is not.
    (upserts by label; row is deployment-local by design). Interactive work:
    Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
    for pure refactors.
-8. **UI verify** — mandatory whenever the diff can change what a user sees
+8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
+   freeze, no silent ignore. Three seams per
+   `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
+   in the PR like a preset scenario. The guards cover valuation only, and the
+   `blade` receipt field fires on `BOT_GLOBS`, which a new card never touches.
+9. **UI verify** — mandatory whenever the diff can change what a user sees
    (`bun run check:ui`, five viewports + probe receipt,
    `.claude/rules/chrome-debug.md`); nothing owed when the diff cannot reach
    the DOM
