@@ -569,13 +569,13 @@ export const crownOfTheAges: CardDefinition = {
     ],
 };
 // Elkin Bottle — "{3}, {T}: Exile the top card of your library. Until the
-// beginning of your next upkeep, you may play that card." (CR 601.3e / 608.2g
+// beginning of your next upkeep, you may play that card." (CR 601.3 / 305.1-analog / 608.2g
 // play-from-exile, the Impulse idiom.) Composes shipped primitives:
 //   - `peekLibraryTop(caster, 1)` reads the top card's instance id (CR 401.1).
 //   - `exileFaceDown(caster, id, "library", caster)` exiles it hidden to the
 //     opponent but known to its controller (CR 406.3), same as Ice Cauldron.
 //   - `grantCastFromExile(id, caster)` marks it castable from exile by the
-//     controller (CR 601.3e) — the shipped impulse-play seam (#666).
+//     controller (CR 601.3 / 305.1-analog) — the shipped impulse-play seam (#666).
 // SIMPLIFICATION (tracked-by: #2785) (flagged, CR 608.2g): the "until the beginning of your next
 // upkeep" window END is not auto-revoked on a timer — the play permission
 // persists while the card remains in exile, matching every other shipped
@@ -607,7 +607,7 @@ export const elkinBottle: CardDefinition = {
                 const cardId = top[0];
                 // CR 406.3 — exiled hidden to the opponent, known to controller.
                 ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
-                // CR 601.3e — the controller may play/cast it from exile.
+                // CR 601.3 / 305.1-analog — controller may play/cast from exile.
                 // CR 305.9 (issue #1689) — oracle says "you may play that
                 // card", land-inclusive.
                 ctx.grantCastFromExile(
@@ -819,7 +819,7 @@ export const hematiteTalisman: CardDefinition = makeTalisman({
     color: "R",
     colorWord: "red",
 });
-// Ice Cauldron — noted-mana battery + cast-from-exile (CR 106.10, CR 601.3e).
+// Ice Cauldron — noted-mana battery + cast-from-exile (CR 106.10, CR 601.3).
 // "{X}, {T}: You may exile a nonland card from your hand. You may cast that card
 // for as long as it remains exiled. Put a charge counter and note the TYPE and
 // AMOUNT of mana spent to pay this activation cost. Activate only if there are
@@ -886,7 +886,7 @@ export const iceCauldron: CardDefinition = {
                             "hand",
                             ctx.caster
                         );
-                        // CR 601.3e — castable from exile by the controller.
+                        // CR 601.3 — castable from exile by the controller.
                         ctx.grantCastFromExile(exiledCardId, ctx.caster);
                     }
                 }

@@ -118,7 +118,7 @@ export default function PlayerExile({
                     <LibrarySearchConfirm min={choiceMin} max={choiceMax} />
                 ) : undefined
             }
-            // CR 601.3e — a card a player has exiled with cast-from-exile
+            // CR 601.3 — a card a player has exiled with cast-from-exile
             // permission (Ice Cauldron) is castable by that player from
             // the Exile zone. Surface a Cast button on those cards; the
             // backend cast mutation already validates the exile origin.

@@ -1266,7 +1266,7 @@ describe("Sunken Hope (each-player-upkeep mandatory return, CR 603.6a)", () => {
     });
 });
 
-describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile + delayed return, CR 701.20a/601.3e/603.7a)", () => {
+describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile + delayed return, CR 701.20a/601.3/603.7a)", () => {
     it("reveals the opponent's single card at random; an instant/sorcery is exiled with a free, until-next-end-step cast permission", () => {
         const misch = makeInstance(planeswalkersMischief.id, {
             id: "misch",

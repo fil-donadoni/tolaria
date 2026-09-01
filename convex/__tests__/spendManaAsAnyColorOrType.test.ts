@@ -327,7 +327,7 @@ describe("Robber of the Rich — the fixing rides ONE exiled card's cast permiss
         expect(state.stack[0].card.id).toBe(darkRitual.id);
         // CR 609.4b — the {G} was spent as though it were {B}.
         expect(state.players[0].manaPool.G).toBe(0);
-        // The permission is consumed with the card leaving exile (CR 601.3e).
+        // The permission is consumed with the card leaving exile (CR 601.3).
         expect(state.players[1].exile).toHaveLength(0);
     });
 });

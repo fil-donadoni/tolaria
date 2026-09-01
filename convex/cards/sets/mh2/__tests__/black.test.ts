@@ -72,7 +72,7 @@ registerTokenDefinition({
 //     its mana cost. Activate only as a sorcery." — the genuinely new
 //     surface this issue ships: the `choose-exile-card` choice kind, the
 //     `hasCounter` filter, `sorcerySpeedOnly`, and the free-cast waiver.
-describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
+describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
     describe("ability 1 — graveyard-bound void-exile (shipped mechanism, issue #1145)", () => {
         it("redirects an OPPONENT's discarded card into exile with a void counter instead of the graveyard", () => {
             const dauthi = makeInstance(dauthiVoidwalker.id, {
@@ -269,7 +269,7 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
             expect(granted.castableFromExileIncludesLand).toBe(true);
             expect(granted.castableFromExileUntilTurn).toBe(state.turn);
             expect(granted.castFromExileWithoutPayingManaCost).toBe(true);
-            // CR 601.3e (issue #1156) — the ONE place a cast's mana cost is
+            // CR 601.3 (issue #1156) — the ONE place a cast's mana cost is
             // computed returns an empty cost for the granted card.
             expect(castRawManaCost(state, granted, "exile")).toEqual({});
 
@@ -374,7 +374,7 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
             const src = locateCastSource(state, caster, "castSeam1");
             expect(src.zone).toBe("exile");
             expect(src.card?.id).toBe("castSeam1");
-            // CR 601.3e — the free-cast waiver zeroes the cost entirely, even
+            // CR 601.3 — the free-cast waiver zeroes the cost entirely, even
             // though the caster's pool is empty.
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({});
 

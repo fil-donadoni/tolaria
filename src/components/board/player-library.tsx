@@ -332,7 +332,7 @@ export default function PlayerLibrary({
                                   onCommitted={onClose}
                               />
                           ) : (
-                              // CR 601.3e-analog (issue #2398, Bolas's Citadel)
+                              // CR 601.3 (issue #2398, Bolas's Citadel)
                               // — the SPELL half of the same permission. The
                               // two are mutually exclusive by card type (CR
                               // 305.9: a land is played, never cast), so the

@@ -1,7 +1,7 @@
 /**
  * Emry, Lurker of the Loch — the FULL GRE → `game.ts` → wire path for her
  * `{T}: Choose target artifact card in your graveyard. You may cast that card
- * this turn.` ability (issue #1650, CR 601.2c / 601.3e).
+ * this turn.` ability (issue #1650, CR 601.2c / 601.3).
  *
  * The per-colour card test (`convex/cards/sets/eld/__tests__/blue.test.ts`)
  * asserts the ability's own behaviour by pushing it straight on the stack. This

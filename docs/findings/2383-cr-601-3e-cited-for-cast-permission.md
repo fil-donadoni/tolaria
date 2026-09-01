@@ -1,7 +1,8 @@
 ---
 title: "CR 601.3e is cited across the cast-from-exile machinery for a rule about alternative CHARACTERISTICS — the permission rule is plain CR 601.3"
 discoveredBy: 2383
-status: draft
+status: triaged
+issue: 2972
 confidence: high
 ---
 

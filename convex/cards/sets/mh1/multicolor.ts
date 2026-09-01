@@ -17,7 +17,7 @@ import { WRENN_AND_SIX_EMBLEM_ID } from "../../emblems";
 //   - `convoke` (CR 702.51) — the coloured payWith: each tapped creature pays a
 //     generic OR one mana of its colour (so a B/G creature covers a {B/G} pip).
 //   - `delve` (CR 702.66) — the generic payWith it shares the picker chain with.
-//   - `castableFromOwnGraveyard` (CR 601.3e) — "You may cast this card from your
+//   - `castableFromOwnGraveyard` (CR 601.3) — "You may cast this card from your
 //     graveyard" (resolves normally, lands in the graveyard — no exile).
 //   - `trample` (CR 702.19).
 // The two {B/G} pips are declared via `manaCost.hybrid` (issue #1338); the flat

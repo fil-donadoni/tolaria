@@ -2882,7 +2882,7 @@ export function enumerateMoves(
     ) {
         moves.push({ kind: "play-land", cardInstanceId: libraryTop.id });
     }
-    // CR 601.3e-analog (issue #2398, Bolas's Citadel) — the SPELL half of the
+    // CR 601.3 (issue #2398, Bolas's Citadel) — the SPELL half of the
     // same top-of-library permission. Index 0 ONLY, for the same
     // hidden-information reason as the land loop above. Without this the Bot
     // could hold Citadel and never once cast off the top: `getLegalActions`

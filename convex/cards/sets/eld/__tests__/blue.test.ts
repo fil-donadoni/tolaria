@@ -276,7 +276,7 @@ function gyCard(
     });
 }
 
-describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (CR 601.2c / 601.3e, issue #1650)", () => {
+describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (CR 601.2c / 601.3, issue #1650)", () => {
     it("only artifact cards in the activator's OWN graveyard are legal targets (CR 601.2c)", () => {
         const { state } = emryBoard([
             gyCard(solRing.id, "gy-artifact"),
@@ -300,7 +300,7 @@ describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (
         ]);
     });
 
-    it("resolution stamps a THIS-TURN cast permission on the targeted card, cost still payable (CR 601.3e)", () => {
+    it("resolution stamps a THIS-TURN cast permission on the targeted card, cost still payable (CR 601.3)", () => {
         const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
         resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
             { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },

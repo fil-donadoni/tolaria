@@ -242,7 +242,7 @@ export const huntingDrake: CardDefinition = {
 // card, exile it. You may cast it without paying its mana cost for as long
 // as it remains exiled. At the beginning of the next end step, if you
 // haven't cast it, return it to its owner's hand. Activate only as a
-// sorcery." (CR 701.20a public reveal, CR 701.13 exile, CR 601.3e temporary
+// sorcery." (CR 701.20a public reveal, CR 701.13 exile, CR 601.3 temporary
 // cast permission, CR 603.7a delayed trigger.)
 //
 // protocol card (gre-development.md § DSL-first authoring): a PUBLIC

@@ -109,7 +109,7 @@ function answer(state: GameState, ids: string[]): void {
     });
 }
 
-describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; CR 400.2 / 601.3e / 601.2f)", () => {
+describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; CR 400.2 / 601.3 / 601.2f)", () => {
     it("looks at the opponent's whole hand, exiles the chosen nonland card and hands it back playable but taxed", () => {
         const state = setup([bear("kept"), bear("taken")], 3);
         putTriggerOnStack(state);
@@ -131,7 +131,7 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         // CR 400.7 — the card left the hand for its OWNER's exile.
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["kept"]);
         const exiled = state.players[1].exile.find((c) => c.id === "taken")!;
-        // CR 601.3e — the OWNER (not this card's controller) may play it, for
+        // CR 601.3 — the OWNER (not this card's controller) may play it, for
         // as long as it remains exiled: an open-ended window, no expiry turn.
         expect(exiled.castableFromExileBy).toBe("p2");
         expect(exiled.castableFromExileUntilTurn).toBeUndefined();

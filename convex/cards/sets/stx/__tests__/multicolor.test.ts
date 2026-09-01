@@ -33,7 +33,7 @@ function submit(state: ReturnType<typeof makeState>, ids: string[]) {
     });
 }
 
-describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4 / 601.3e)", () => {
+describe("Expressive Iteration (look 3: hand / bottom / exile-playable; CR 401.4 / 601.3)", () => {
     it("puts one card to hand, one to bottom, exiles one (playable this turn)", () => {
         const state = makeState({
             players: [

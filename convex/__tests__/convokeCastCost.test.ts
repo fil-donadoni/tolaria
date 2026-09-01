@@ -318,7 +318,7 @@ describe("castability probe — convoke + delve + can't-spend-mana (CR 601.2f)",
         expect(getLegalActions(state, player, hogaak)).not.toContain("cast");
     });
 
-    it("offers 'cast' from the GRAVEYARD via the intrinsic permission (CR 601.3e)", () => {
+    it("offers 'cast' from the GRAVEYARD via the intrinsic permission (CR 601.3)", () => {
         const { state, player, hogaak } = board({
             creatures: [CRAW_WURM, DRUDGE_SKELETONS],
             gyCount: 5,

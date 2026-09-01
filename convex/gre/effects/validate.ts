@@ -3042,7 +3042,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // exile-redirect grant (Yawgmoth's Will's second clause). `player` names
     // the grantee.
     armGraveyardRedirect: { required: { player: isPlayerRef } },
-    // CR 601.3e / 117.6 (issue #1156) — grant cast/play permission (+
+    // CR 601.3 / 117.6 (issue #1156) — grant cast/play permission (+
     // optional cost waiver) for the exile card a preceding `choice(zone:
     // "exile")` Op picked. `card` is a bare picks ref; `player` names the
     // grantee; `window`/`withoutPayingManaCost` are optional.
@@ -3101,7 +3101,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return [];
         },
     },
-    // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+
+    // CR 601.3 / 117.6-analog (issue #1344) — grant cast permission (+
     // optional cost waiver) for a graveyard card. `card` is EITHER a bare
     // picks ref (the card a preceding Op bound — Malcolm) OR an announced
     // target slot (`{ target: n }`, CR 601.2c — Emry, Lurker of the Loch,

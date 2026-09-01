@@ -1,5 +1,5 @@
 // End-to-end integration for the cast-from-TOP-of-library capability
-// (CR 601.3e-analog — Bolas's Citadel, issue #2398): GRE → `convex/game.ts` →
+// (CR 601.3 — Bolas's Citadel, issue #2398): GRE → `convex/game.ts` →
 // the UI render model.
 //
 // The GRE-level and wire-level assertions live in
@@ -135,7 +135,7 @@ function citadelBoard(libraryIds: string[], withCitadel = true, life = 20) {
     });
 }
 
-describe("cast-from-top-of-library end-to-end (CR 601.3e-analog, Bolas's Citadel)", () => {
+describe("cast-from-top-of-library end-to-end (CR 601.3, Bolas's Citadel)", () => {
     it("the controller's own top-of-library spell arrives face-up with a CASTABLE affordance", async () => {
         const state = citadelBoard([grizzlyBears.id, forest.id]);
         const top = await topSlotFor(state, "p1", "p1");

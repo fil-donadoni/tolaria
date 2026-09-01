@@ -1,7 +1,7 @@
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 
-/** Cast-from-top-of-library affordance (CR 601.3e-analog — an unconditional,
+/** Cast-from-top-of-library affordance (CR 601.3 — an unconditional,
  *  player-wide permission granted by a battlefield source while it remains in
  *  play, e.g. Bolas's Citadel). Rendered over the NONLAND card on top of the
  *  viewer's own library when the projection tagged it with `legalActions`

@@ -325,7 +325,7 @@ export const callousGiant: CardDefinition = {
 
 // Chaotic Strike — {1}{R} Instant. "Cast this spell only during combat after
 // blockers are declared. Flip a coin. If you win the flip, target creature
-// gets +1/+1 until end of turn. Draw a card." (CR 601.3e cast restriction via
+// gets +1/+1 until end of turn. Draw a card." (CR 601.3 cast restriction via
 // `castPhaseRestriction`, spanning every step from DECLARE_BLOCKERS through
 // END_OF_COMBAT — "after blockers are declared" is not just the one step;
 // CR 705.2 coin flip via the shipped `coinFlip` Op; the draw is unconditional,

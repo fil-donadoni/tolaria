@@ -1,4 +1,4 @@
-// #754 — cast-from-exile affordance (CR 601.3e — Ice Cauldron: "You may cast
+// #754 — cast-from-exile affordance (CR 601.3 — Ice Cauldron: "You may cast
 // that card for as long as it remains exiled"). A card exiled with cast-from-
 // exile permission must be clickable/castable by its CONTROLLER from the Exile
 // zone (routed through announceCast), while the OPPONENT gets no cast affordance.
@@ -91,7 +91,7 @@ function makeExiledCard(
         ownerId: "me",
         zone: "exile",
         isTapped: false,
-        // CR 601.3e — the controller may cast this from exile.
+        // CR 601.3 — the controller may cast this from exile.
         castableFromExileBy: "me",
         // The projection attaches legalActions to the viewer's own castable
         // exile card; "cast" present iff the cast is legal+affordable right now.
@@ -164,7 +164,7 @@ function renderExile(player: Player, viewerId: string) {
     );
 }
 
-describe("PlayerExile cast-from-exile (#754, CR 601.3e)", () => {
+describe("PlayerExile cast-from-exile (#754, CR 601.3)", () => {
     beforeEach(() => {
         playCard.mockClear();
         announceCast.mockClear();
