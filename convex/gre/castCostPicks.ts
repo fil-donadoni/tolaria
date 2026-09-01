@@ -229,10 +229,16 @@ export function applyCastSacrificeVictims(
  *  exile leg (CR 701.13, Soul Exchange), and the cards exiled for a graveyard
  *  cast's non-mana exile cost (CR 702.138a escape / CR 702.34a flashback).
  *  `undefined` when the cast owes no such park. `null` when a leg has no legal
- *  payment — the cast is then not a legal move at all, and for the exile leg
- *  this `null` is the ONLY gate: `getLegalActions` does not check that the
- *  graveyard holds enough fodder, so without it the enumerator would offer an
- *  escape cast the announcement throws on.
+ *  payment — the cast is then not a legal move at all.
+ *
+ *  For the escape / flashback exile leg this `null` is DEFENCE IN DEPTH, not
+ *  the only gate: `getLegalActions` already refuses "cast" for a graveyard too
+ *  thin to pay (`hasPayableEscapeExileCost` / `hasPayableFlashbackNonManaCost`,
+ *  `gre/rules.ts`), and breaking either one alone leaves the Move correctly
+ *  suppressed — it takes breaking BOTH to make the enumerator offer a cast the
+ *  announcement throws on (measured, issue #2980 proof-of-failure). The one
+ *  shape this gate answers ALONE is the X-dependent `flashbackExileFromGraveyard`
+ *  cost, whose X the affordability gate cannot see: it runs before announcement.
  *
  *  `chosenLegId` names the caster-chosen `oneOf` leg (`additionalCostLegId`),
  *  flattened through `resolveAdditionalCosts` so a `oneOf` leg carrying a

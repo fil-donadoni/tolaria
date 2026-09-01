@@ -1906,10 +1906,12 @@ function enumerateCastMovesFromZone(
                       { castFromZone, chosenX: x }
                   )
                 : hoistedCostPicks;
-            // `null` = a leg has no legal payment (a black spell under Drought
-            // with no Swamp; a graveyard too thin to pay an escape exile).
-            // Neither is checked by the castability gate, so fail closed rather
-            // than emit a move the executor announces and cannot pay.
+            // `null` = a leg has no legal payment: a black spell under Drought
+            // with no Swamp (which the castability gate does not check at all),
+            // or an exile cost the graveyard cannot fund at THIS X (which the
+            // gate cannot check, since it runs before an X is announced). Fail
+            // closed rather than emit a move the executor announces and cannot
+            // pay.
             if (castCostPicks === null) continue;
             const tapPlan = planManaPayment(state, player, normCost, {
                 cardInstanceId: card.id,

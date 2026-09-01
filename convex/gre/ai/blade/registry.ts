@@ -3865,7 +3865,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
-        note: "Issue #2980, half 2 — the discriminating twin. Same lethal-shaped board, one fewer card of fodder. `getLegalActions` does not check that the graveyard can pay an escape exile, so the ONLY gate is `planCastCostPicks` returning null; without it the Bot announces a cast the mutation throws on, which is the announce-then-abort freeze shape.",
+        note: "Issue #2980, half 2 — the discriminating twin. Same lethal-shaped board, one fewer card of fodder. Two independent gates suppress the cast — `hasPayableEscapeExileCost` (gre/rules.ts) and `planCastCostPicks` returning null — and either alone is sufficient, so the measured proof reds this entry only with BOTH removed; a cast offered past them is the announce-then-abort freeze shape.",
     },
 
     // -----------------------------------------------------------------------
