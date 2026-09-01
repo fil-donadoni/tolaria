@@ -72,6 +72,7 @@ import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
 import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
 import { completeSacrificeSelection } from "./paymentPicks";
 import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
+import { cheapestFirst } from "./paymentPicks";
 // CR 613.1f (issue #1920 review, finding 4) — the POST-LAYER ability set, the
 // same authority the search's push gate reads (`effectiveAbilityOf`). Two
 // different answers to "which ability is this" is how an ability gets pushed
@@ -221,7 +222,17 @@ export function applyDelveExileForSearch(
         Number.isFinite(shortfall) ? shortfall : 0
     );
     if (delveCount <= 0) return;
-    for (const c of delveEligibleCards(player, card.id).slice(0, delveCount)) {
+    // CHEAPEST FIRST, matching `castExileViewFor` + `chooseCastExileCost`
+    // (`gre/paymentPicks.ts`) — the pair the LIVE bot answers the delve park
+    // with. Both were raw graveyard order until issue #2980 reordered the live
+    // one; leaving this in zone order would have the tree model a different
+    // post-cast graveyard than the bot actually produces, and which cards leave
+    // is observable (threshold, delirium, escape fodder, a graveyard-counting
+    // CDA).
+    for (const c of cheapestFirst(delveEligibleCards(player, card.id)).slice(
+        0,
+        delveCount
+    )) {
         moveCard(player, c.id, "graveyard", "exile");
     }
 }

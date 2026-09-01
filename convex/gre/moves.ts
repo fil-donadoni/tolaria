@@ -39,13 +39,17 @@ import {
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
+    castExileCostOccupiesPayWithSlot,
     castRawManaCost,
     exileCastPermission,
     graveyardCastMechanism,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
-import { payableAdditionalCostLegs } from "./additionalCost";
+import {
+    payableAdditionalCostLegs,
+    resolveAdditionalCosts,
+} from "./additionalCost";
 import {
     enumerateKickerVariants,
     foldBuybackCost,
@@ -135,6 +139,7 @@ import {
 } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
+import { hasEscape } from "./escape";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
@@ -1653,8 +1658,19 @@ function enumerateCastMovesFromZone(
     // here and sizes the exile picker to it. The enumerator was strictly
     // STRICTER than the server, which made the whole flashback half of that
     // card unreachable for the Bot at any X but 0 — i.e. useless.
+    // Gated on `!hasEscape` for the same reason `buildCastExileCostChoice` is
+    // (CR 702.138 escape beats CR 702.34 flashback): under Underworld Breach an
+    // escape cast of Flash of Insight pays `{X}{1}{U}` in MANA, so its ceiling
+    // is `maxAffordableX` — not the count of blue cards in the graveyard, which
+    // is what the flashback cost spends (issue #2980 review, F6).
+    //
+    // Read off the RAW `additionalCosts` rather than the leg-resolved spec:
+    // `xValues` is computed once for the whole card, above the `announceVariants`
+    // cross-product where `additionalCostLegId` is chosen. Inert today — Flash
+    // of Insight declares the field top-level and no card carries it inside a
+    // `oneOf` leg — but a card that did would keep this ceiling for every leg.
     const flashbackExileX =
-        castFromZone === "graveyard"
+        castFromZone === "graveyard" && !hasEscape(state, card)
             ? def?.additionalCosts?.flashbackExileFromGraveyard
             : undefined;
     const xLockedToZero =
@@ -1877,9 +1893,30 @@ function enumerateCastMovesFromZone(
             // the cost between them with nothing left over and nothing missing.
             // Without this the enumerator drops the cast entirely and the Bot
             // never casts a delve spell off a short board.
-            const delveFuel = spellHasDelve(card)
-                ? delveEligibleCards(player, card.id).length
-                : 0;
+            // CR 702.66 / 601.2g — Delve rides the cast's ONE exile-picker
+            // slot, so it is unavailable when this cast's own exile additional
+            // cost has already claimed it (an escape cast, a non-mana flashback
+            // cast). `announceCast` gates the delve picker the same way; an
+            // enumerator that discounted the cost anyway would build a tap plan
+            // short of what the server charges and park the announcement
+            // unpayable (issue #2980 review, F1).
+            const delveFuel =
+                spellHasDelve(card) &&
+                !castExileCostOccupiesPayWithSlot(
+                    state,
+                    player,
+                    card,
+                    castFromZone,
+                    {
+                        additionalCosts: resolveAdditionalCosts(
+                            def?.additionalCosts,
+                            additionalCostLegId
+                        ),
+                        chosenX: x,
+                    }
+                )
+                    ? delveEligibleCards(player, card.id).length
+                    : 0;
             if (delveFuel > 0) {
                 const shortfall = genericManaShortfall(
                     player,

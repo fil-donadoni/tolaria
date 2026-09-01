@@ -36,6 +36,7 @@ import { underworldBreach } from "../../cards/sets/thb/red";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { lavaDart } from "../../cards/sets/ons/red";
 import { flashOfInsight } from "../../cards/sets/jud/blue";
+import { treasureCruise } from "../../cards/sets/ktk/blue";
 import {
     grizzlyBears,
     island,
@@ -402,6 +403,60 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
                 withMountainOnly.players[0].graveyard[0]
             )
         ).toContain("cast");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Delve and the exile cost share ONE picker slot (CR 702.66 / 601.2g)
+// ---------------------------------------------------------------------------
+
+describe("a delve spell given escape does not double-spend the exile slot", () => {
+    it("prices the FULL cost, so an unaffordable delve-escape cast is not offered", () => {
+        // Underworld Breach grants escape to Treasure Cruise ({7}{U}, delve).
+        // The escape cost is the card's own mana cost plus exile three others,
+        // and `announceCast` builds the delve picker only when the exile slot
+        // is free — so this cast pays {7}{U} in full and delves for nothing.
+        // Two Islands cannot cover that, and the Move must not be offered:
+        // discounting the generic cost by a delve the server never charges
+        // builds a tap plan short of the real cost and parks the announcement
+        // unpayable, which is the announce-then-abort freeze.
+        const cruise = makeInstance(treasureCruise.id, {
+            id: "cruise",
+            controllerId: ME,
+            ownerId: ME,
+            zone: "graveyard",
+        });
+        const state = stateWith({
+            battlefield: [
+                untapped(underworldBreach.id, "breach"),
+                untapped(island.id, "i1"),
+                untapped(island.id, "i2"),
+            ],
+            graveyard: [cruise, ...filler(8)],
+        });
+        expect(castsOf(state, "cruise")).toEqual([]);
+    });
+
+    it("still delves normally from the HAND, where no exile cost claims the slot", () => {
+        const cruise = makeInstance(treasureCruise.id, {
+            id: "cruise",
+            controllerId: ME,
+            ownerId: ME,
+            zone: "hand",
+        });
+        const me = makePlayer(ME, {
+            hand: [cruise],
+            graveyard: filler(8),
+            battlefield: [untapped(island.id, "i1"), untapped(island.id, "i2")],
+        });
+        const state = makeState({
+            players: [me, makePlayer(OPP)],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: ME,
+            priorityPlayerId: ME,
+        });
+        // {7}{U} with two Islands and seven delvable cards is payable.
+        expect(castsOf(state, "cruise").length).toBeGreaterThan(0);
     });
 });
 

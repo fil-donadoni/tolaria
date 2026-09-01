@@ -591,3 +591,32 @@ export function findCastSourceCard(
               : player.library;
     return held.find((c) => c.id === cardInstanceId);
 }
+
+/** CR 702.66 / 702.138a / 702.34a (issue #2980) — does this cast's own exile
+ *  ADDITIONAL cost already occupy the one `PendingCast.exileFromGraveyardChoice`
+ *  slot, leaving no room for Delve's `payWith` offset to ride it?
+ *
+ *  `announceCast` decides exactly this, with `if (!castExileChoice &&
+ *  !castConvokeChoice)` — the delve picker is built only when the slot is free.
+ *  Its comment claimed "no delve card in the pool also carries one of those
+ *  exile costs", which Underworld Breach falsifies for every nonland card in
+ *  the graveyard: a Treasure Cruise given escape owes "exile three other cards"
+ *  AND wants to delve, and only one of them fits.
+ *
+ *  The enumerator must agree, or it discounts the generic cost by a delve the
+ *  server will never charge: the tap plan then covers less than the real cost,
+ *  the announcement parks unpayable, and the cast can never commit — the
+ *  announce-then-abort freeze (issue #2980 review, F1). Answering `true` makes
+ *  the enumerator price the FULL cost, which simply drops the Move when the
+ *  mana is short: fail closed, same as the server. */
+export function castExileCostOccupiesPayWithSlot(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    zone: CastFromZone,
+    opts?: { additionalCosts?: AdditionalCostSpec; chosenX?: number }
+): boolean {
+    return (
+        buildCastExileCostChoice(state, player, card, zone, opts) !== undefined
+    );
+}
