@@ -72,8 +72,16 @@ function getEmblemStaticEffects(emblem: EmblemInstance): StaticEffect[] {
     return tryGetEmblemDefinition(emblem.emblemId)?.staticEffects ?? [];
 }
 
-/** Returns the card definition's static effects, or [] if unknown. */
-function getStaticEffects(card: PermanentView): StaticEffect[] {
+/** Returns the card definition's static effects, or [] if unknown.
+ *
+ *  `modeOverride` resolves a STORED registry entry, whose `effectIndex` was
+ *  computed against the mode recorded in its own payload — not against
+ *  whatever mode the permanent carries now. Omit it and the live mode is used,
+ *  which is what the per-read derivation wants. */
+function getStaticEffects(
+    card: PermanentView,
+    modeOverride?: string
+): StaticEffect[] {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
     const def = tryGetDefinition(cardId);
@@ -82,7 +90,8 @@ function getStaticEffects(card: PermanentView): StaticEffect[] {
     // CR 700.2c — a modal permanent also contributes its chosen mode's static
     // effects (Jihad's per-colour anthem). Mirrors `getEffectiveStaticEffects`
     // in state.ts (kept local to avoid a layers ↔ state import cycle).
-    const chosenModeId = (card as { chosenModeId?: string }).chosenModeId;
+    const chosenModeId =
+        modeOverride ?? (card as { chosenModeId?: string }).chosenModeId;
     if (!chosenModeId || !def.modes) return cardEffects;
     const mode = def.modes.find((m) => m.id === chosenModeId);
     const modeEffects = mode?.staticEffects ?? [];
@@ -233,13 +242,20 @@ export function isSourceTappedLive(
     return false;
 }
 
-/** CR 613.4 — the layer-7 sublayers, applied in this order. */
-const LAYER_7_SUBLAYERS: readonly ContinuousEffectSublayer[] = [
-    "7a",
-    "7b",
-    "7c",
-    "7d",
-];
+/** CR 613.4 — the layer-7 sublayers, applied in this order. Declared as a
+ *  `Record` over the sublayer union rather than a bare literal, so `tsc` reds
+ *  when the union gains a member instead of the pipeline silently skipping
+ *  it. */
+const LAYER_7_SUBLAYER_ORDER: Record<ContinuousEffectSublayer, number> = {
+    "7a": 0,
+    "7b": 1,
+    "7c": 2,
+    "7d": 3,
+};
+
+const LAYER_7_SUBLAYERS: readonly ContinuousEffectSublayer[] = (
+    Object.keys(LAYER_7_SUBLAYER_ORDER) as ContinuousEffectSublayer[]
+).sort((a, b) => LAYER_7_SUBLAYER_ORDER[a] - LAYER_7_SUBLAYER_ORDER[b]);
 
 /** Timestamp floor for entries this module DERIVES per read rather than reads
  *  out of `state.continuousEffects` (PRD #2064 S2).
@@ -303,6 +319,14 @@ function layer7EffectsFor(
     const templates = new Map<string, DerivedTemplate>();
     let ordinal = DERIVED_TIMESTAMP_BASE;
 
+    // One walk covers both `pt-cda` (7a) and `pt-buff` (7c) for battlefield
+    // sources AND emblems. The pre-registry code reached emblems from the
+    // pt-buff walk only, so an emblem-declared `pt-cda` contributed nothing;
+    // it now contributes to 7a. That is a deliberate widening, not an
+    // accident — CR 604.3 makes a characteristic-defining ability apply in
+    // every zone and CR 114.3 gives an emblem abilities like any other object,
+    // so no rule ever kept emblems out of 7a. No emblem in `cards/emblems.ts`
+    // declares one today, so no board changes.
     const pushSourceEffects = (
         source: PermanentView,
         effects: readonly StaticEffect[]
@@ -370,7 +394,13 @@ function layer7EffectsFor(
             timestamp: ordinal++,
             expiry: { kind: "instance-duration" },
             affected: { kind: "instances", instanceIds: [target.id] },
-            payload: { kind: "pt-set", ...sets[index] },
+            // Built field by field: the instance entry also carries a
+            // `duration`, which belongs to the expiry, not to the payload.
+            payload: {
+                kind: "pt-set",
+                power: sets[index].power,
+                toughness: sets[index].toughness,
+            },
             characteristicDefining: false,
         });
     }
@@ -410,7 +440,11 @@ function layer7EffectsFor(
             timestamp: ordinal++,
             expiry: { kind: "instance-duration" },
             affected: { kind: "instances", instanceIds: [target.id] },
-            payload: { kind: "pt-modify", ...mods[index] },
+            payload: {
+                kind: "pt-modify",
+                power: mods[index].power,
+                toughness: mods[index].toughness,
+            },
             characteristicDefining: false,
         });
     }
@@ -441,6 +475,17 @@ function layer7EffectsFor(
     // yet — S6 does — but the read path unions them now so a producer added
     // later needs no second consumer, and so the registry, not this walk, is
     // what layer 7 is defined against.
+    //
+    // Two hazards the flip must clear, neither guarded here because the stored
+    // set is empty and a guard on an empty set proves nothing:
+    //
+    // 1. DOUBLE COUNT. A provenance that starts being stored must stop being
+    //    derived in the SAME change — store a `counter`-expiry entry while
+    //    `target.counters` still holds the counter and the permanent gets the
+    //    bonus twice.
+    // 2. ORDER. A stored entry always outranks a derived one (see
+    //    `DERIVED_TIMESTAMP_BASE`), which is invisible in the summing sublayer
+    //    7c but decides the winner in the last-wins sublayers 7a and 7b.
     //
     // The FIRST producer of a stored layer-7 entry must ship with PRD #2064 S5:
     // `projectPublicState` does not carry `continuousEffects`, so the client
@@ -502,15 +547,37 @@ function resolveLayer7Payload(
             ? findPermanent(state, entry.expiry.sourceId)
             : undefined);
     if (!source) return undefined;
-    const effect =
-        derived?.effect ?? getStaticEffects(source)[payload.effectIndex];
-    if (!effect) return undefined;
-    if (effect.kind === "pt-buff") {
+    let effect = derived?.effect;
+    if (!effect) {
+        // A stored entry names its source by INSTANCE id, which an id reused
+        // across games would resolve to the wrong object; `sourceCardId` is
+        // the entry's own record of what it was written against, so a
+        // mismatch means the entry no longer describes this permanent.
+        if ((source.card as { id?: string }).id !== payload.sourceCardId) {
+            return undefined;
+        }
+        // `payload.modeId`, not the live mode: `effectIndex` was computed
+        // against the mode the entry recorded (CR 700.2).
+        effect = getStaticEffects(source, payload.modeId)[payload.effectIndex];
+    }
+    // A stored `effectIndex` can point at any `StaticEffect` kind — including
+    // a CR 611.3 rules-modifying one this registry deliberately excludes — so
+    // the kind is checked before the effect is treated as layer 7 at all.
+    if (effect?.kind === "pt-buff") {
         if (!effect.applies(target, source, STATIC_EFFECT_CTX))
             return undefined;
+        // CR 611.2c — the source-level gate. The derivation above already
+        // applied it, so this only fires for a STORED entry; running it in
+        // both places keeps the gate from being provenance-dependent.
+        if (
+            effect.condition &&
+            !effect.condition(source, state, STATIC_EFFECT_CTX)
+        ) {
+            return undefined;
+        }
         return { power: effect.power, toughness: effect.toughness };
     }
-    if (effect.kind === "pt-cda") {
+    if (effect?.kind === "pt-cda") {
         if (!effect.applies(target, source, STATIC_EFFECT_CTX))
             return undefined;
         return effect.compute(source, state, STATIC_EFFECT_CTX, target);
@@ -537,6 +604,8 @@ function findPermanent(
  * effects are other provenances or other sublayers and are excluded, as they
  * always were.
  */
+// Production reads go through `computeEffectivePT`; this survives as the seam
+// `layers.test.ts` uses to assert the static-buff provenance in isolation.
 export function getStaticPTBuff(
     state: LayerStateView,
     target: PermanentView
@@ -613,7 +682,11 @@ function computeEffectivePT(
                 continue;
             }
             if (sublayer === "7d") {
-                // CR 613.4d — the switch takes no value from its payload.
+                // CR 613.4d — the switch takes no value from its payload, so
+                // it is gated on the payload KIND: `ContinuousEffectSlot` does
+                // not pin payload to sublayer, and an entry carrying a value
+                // must not both swap and silently lose that value.
+                if (entry.payload.kind !== "pt-switch") continue;
                 const swapped = power;
                 power = toughness;
                 toughness = swapped;

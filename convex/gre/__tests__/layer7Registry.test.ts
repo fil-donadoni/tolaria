@@ -193,6 +193,62 @@ describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", (
         expect(getEffectiveToughness(state, bear)).toBe(4);
     });
 
+    it("does not let a 7d entry both switch and drop its own value (CR 613.4d)", () => {
+        // `ContinuousEffectSlot` pins sublayer to LAYER, not to payload kind,
+        // so a 7d entry carrying a value is representable. Swapping on it
+        // would silently discard that value; the pipeline ignores it instead.
+        const bear = creature("bear", 1, 3);
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-bogus", 10, "7d", {
+                    kind: "pt-modify",
+                    power: 9,
+                    toughness: 9,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(1);
+        expect(getEffectiveToughness(state, bear)).toBe(3);
+    });
+
+    it("ignores a stored template whose sourceCardId no longer matches", () => {
+        // A stored entry names its source by INSTANCE id; ids are reused across
+        // games, so the entry's own record of the card it was written against
+        // is what decides whether it still describes this permanent.
+        const anthem = creature("crusade", 0, 0, {
+            types: crusade.types,
+            card: { id: crusade.id },
+        });
+        const bear = creature("bear", 2, 2, {
+            card: { id: "synth-bear", manaCost: { W: 1 } },
+        });
+        const state = stateWith(
+            [anthem, bear],
+            [
+                {
+                    id: "ce-stale",
+                    layer: 7,
+                    sublayer: "7c",
+                    timestamp: 10,
+                    expiry: { kind: "source", sourceId: "crusade" },
+                    affected: { kind: "predicate" },
+                    payload: {
+                        kind: "template",
+                        sourceCardId: "some-other-card",
+                        effectIndex: 0,
+                    },
+                    characteristicDefining: false,
+                } as ContinuousEffect,
+            ]
+        );
+
+        // Crusade's own derived entry still applies once — 2/2 + 1/+1.
+        expect(getEffectivePower(state, bear)).toBe(3);
+        expect(getEffectiveToughness(state, bear)).toBe(3);
+    });
+
     it("derives a 7a CDA below a 7b set, whatever their timestamps (CR 613.4a/b)", () => {
         const bear = creature("bear", 2, 2);
         const state = stateWith(
@@ -203,16 +259,15 @@ describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", (
                     power: 4,
                     toughness: 4,
                 }),
-                entry("ce-set", 10, "7b", {
-                    kind: "pt-set",
-                    power: 1,
-                    toughness: 1,
-                }),
+                // Sets POWER only, so toughness stays observable: the 7a
+                // contribution has to survive into the answer, and a 7a body
+                // that did nothing would show up as 2 instead of 6.
+                entry("ce-set", 10, "7b", { kind: "pt-set", power: 1 }),
             ]
         );
 
         expect(getEffectivePower(state, bear)).toBe(1);
-        expect(getEffectiveToughness(state, bear)).toBe(1);
+        expect(getEffectiveToughness(state, bear)).toBe(6);
     });
 });
 
@@ -232,8 +287,13 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
             zone: "battlefield" as const,
             isTapped: false,
         };
+        // WHITE, so Crusade's "white creatures get +1/+1" actually applies:
+        // a colourless bear would let the filter drop every `source`-expiry
+        // entry with no test noticing (the anthem would contribute 0 either
+        // way, and nothing else in the repo calls these two accessors).
         const bear = creature("bear", 2, 2, {
             subtypes: [],
+            card: { id: "synth-bear", manaCost: { W: 1 } },
             counters: { "+1/+1": 1 },
             temporaryPTMods: [
                 {
@@ -244,8 +304,6 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
             ],
             temporaryPTSet: [{ power: 9 }],
         });
-        // Crusade pumps WHITE creatures; the bear is colourless, so use an
-        // indefinite registry entry for the third, non-boundary contribution.
         const state = stateWith(
             [anthem as CardInstanceState, bear],
             [
@@ -257,15 +315,16 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
             ]
         );
 
-        // Everything counted: base 2/2, +1/+1 counter, indefinite +1/+1,
-        // temporary +5/+5, and a 7b set of power 9 underneath the modifiers.
-        expect(getEffectivePower(state, bear)).toBe(16);
-        expect(getEffectiveToughness(state, bear)).toBe(9);
+        // Everything counted: base 2/2, Crusade +1/+1, +1/+1 counter,
+        // indefinite +1/+1, temporary +5/+5, and a 7b set of power 9
+        // underneath the modifiers.
+        expect(getEffectivePower(state, bear)).toBe(17);
+        expect(getEffectiveToughness(state, bear)).toBe(10);
 
-        // Permanent material only: the 7b set and the +5/+5 pump are gone,
-        // the counter and the indefinite entry remain.
-        expect(getPermanentEffectivePower(state, bear)).toBe(4);
-        expect(getPermanentEffectiveToughness(state, bear)).toBe(4);
+        // Permanent material only: the 7b set and the +5/+5 pump are gone;
+        // the anthem, the counter and the indefinite entry all remain.
+        expect(getPermanentEffectivePower(state, bear)).toBe(5);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(5);
     });
 
     it("keeps a while-source-tapped effect as permanent material (CR 611.2b)", () => {
