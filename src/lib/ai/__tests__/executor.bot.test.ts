@@ -534,6 +534,41 @@ describe("executeMove (issue #110)", () => {
         );
     });
 
+    // issue #2980 — an ESCAPE cast (CR 702.138a) and a non-mana FLASHBACK cast
+    // (CR 702.34a / 118.5) park a graveyard/hand exile picker the server refuses
+    // to commit without. The ids ride on the Move and are submitted in ONE
+    // batched call — `selectCastExileCost` validates count / colour /
+    // card-type threshold against the parked picker in one go.
+    it("cast-spell → submits the carried graveyard-exile picks, last of the parks, before the tap plan (issue #2980)", async () => {
+        const m = await run({
+            kind: "cast-spell",
+            cardInstanceId: "uro",
+            chosenX: undefined,
+            chosenModeId: undefined,
+            confirmTargets: false,
+            targets: [],
+            castFromZone: "graveyard",
+            tapPlan: [{ cardInstanceId: "forest", manaChoiceIndex: undefined }],
+            castCostPicks: {
+                sacrificeIds: ["bear"],
+                exileCostCardIds: ["gy1", "gy2", "gy3"],
+            },
+        });
+        expect(m.selectCastExileCost).toHaveBeenCalledTimes(1);
+        expect(m.selectCastExileCost).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceIds: ["gy1", "gy2", "gy3"],
+        });
+        // Canonical park order (`PARK_KINDS`, convex/gre/owedPayment.ts):
+        // sacrifice before the exile cost, and every park before the mana.
+        expect(m.selectSacrifice.mock.invocationCallOrder[0]).toBeLessThan(
+            m.selectCastExileCost.mock.invocationCallOrder[0]
+        );
+        expect(m.selectCastExileCost.mock.invocationCallOrder[0]).toBeLessThan(
+            m.tapForPayment.mock.invocationCallOrder[0]
+        );
+    });
+
     it("cast-spell without a park → no sacrifice/exile submission (ordinary casts unchanged)", async () => {
         const m = await run({
             kind: "cast-spell",
@@ -546,5 +581,6 @@ describe("executeMove (issue #110)", () => {
         });
         expect(m.selectSacrifice).not.toHaveBeenCalled();
         expect(m.selectAdditionalCost).not.toHaveBeenCalled();
+        expect(m.selectCastExileCost).not.toHaveBeenCalled();
     });
 });

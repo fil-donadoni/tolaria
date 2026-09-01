@@ -537,3 +537,41 @@ export function buildCastExileCostChoice(
         },
     };
 }
+
+/** CR 601.3 / 400.7 (issue #2980) — the card a `cast-spell` Move is about to
+ *  cast, looked up in the zone the Move DECLARES, for the two search sandboxes'
+ *  pre-removal cost block.
+ *
+ *  Both sandboxes used to look it up in the caster's HAND and nowhere else, so
+ *  every graveyard and exile cast the enumerator offers silently skipped its
+ *  whole pre-cast cost block: the escape / flashback exile went uncharged (the
+ *  unbounded-recast shape), the flashback sacrifice leg went uncharged, and the
+ *  spell went onto the stack for free. A hand cast resolves exactly as before —
+ *  the declared zone is `"hand"` for every one of them.
+ *
+ *  Exile is the ONE zone whose owner may not be the caster (CR 400.7, a
+ *  cross-player grant), mirroring {@link castSourceForSearch}; every other zone
+ *  is the caster's own. `undefined` when no such zone holds the card — a stale
+ *  Move, which each caller already handles. */
+export function findCastSourceCard(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    declaredZone: CastFromZone | undefined
+): CardInstanceState | undefined {
+    const zone = declaredZone ?? "hand";
+    if (zone === "exile") {
+        for (const p of state.players) {
+            const found = p.exile.find((c) => c.id === cardInstanceId);
+            if (found) return found;
+        }
+        return undefined;
+    }
+    const held =
+        zone === "hand"
+            ? player.hand
+            : zone === "graveyard"
+              ? player.graveyard
+              : player.library;
+    return held.find((c) => c.id === cardInstanceId);
+}

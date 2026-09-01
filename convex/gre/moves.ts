@@ -134,6 +134,7 @@ import {
     turnableFaceUpPermanents,
 } from "./morph";
 import { hasRetrace } from "./retrace";
+import { flashbackExileEligibleCount } from "./flashback";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
@@ -1642,18 +1643,53 @@ function enumerateCastMovesFromZone(
     // here IS the #2283/#2284 bot-freeze class: a Move the server refuses.
     // Derived from the two costs rather than from `lifeInsteadOfMana`, which
     // named only the library-top instance of the same shape.
+    // CR 601.2b / 118.5 (issue #2980) — ONE shape escapes that lock: a
+    // flashback cost whose own NON-MANA leg carries the variable ("Flashback—
+    // {1}{U}, Exile X blue cards from your graveyard", Flash of Insight). CR
+    // 601.2b makes the caster announce "the value of that variable" for any
+    // variable cost paid as the spell is cast, not only one in the MANA cost,
+    // and `announceCast` agrees: its own lock fires solely for the library-top
+    // mana-cost replacement (`libraryTopPayment`), so it accepts any X ≥ 0
+    // here and sizes the exile picker to it. The enumerator was strictly
+    // STRICTER than the server, which made the whole flashback half of that
+    // card unreachable for the Bot at any X but 0 — i.e. useless.
+    const flashbackExileX =
+        castFromZone === "graveyard"
+            ? def?.additionalCosts?.flashbackExileFromGraveyard
+            : undefined;
     const xLockedToZero =
-        !hasX && typeof getInstanceManaCost(card)?.X === "string";
+        !hasX &&
+        typeof getInstanceManaCost(card)?.X === "string" &&
+        flashbackExileX === undefined;
+    // CR 118.5 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
+    // rather than mana, the eligible fodder is the ceiling: `maxAffordableX`
+    // prices X against untapped mana and would answer 0 for a flashback cast
+    // that has already spent every land on its fixed `{1}{U}`, which is
+    // precisely the position Flash of Insight is cast from. The per-X
+    // `planCastCostPicks` below re-checks payability and drops any X this
+    // ceiling over-counts, so the two can only ever under-offer.
     const xCeiling =
-        def?.castXUpperBound === "snow-lands"
-            ? Math.min(
-                  maxAffordableX(player, card, state),
-                  countSnowLands(player.battlefield)
+        flashbackExileX !== undefined
+            ? flashbackExileEligibleCount(
+                  player,
+                  flashbackExileX.color,
+                  card.id
               )
-            : maxAffordableX(player, card, state);
+            : def?.castXUpperBound === "snow-lands"
+              ? Math.min(
+                    maxAffordableX(player, card, state),
+                    countSnowLands(player.battlefield)
+                )
+              : maxAffordableX(player, card, state);
+    // CR 601.2b — a cast announces an X whenever a variable cost is paid as it
+    // is cast: an `{X}` in the cost the ZONE charges (`hasX`), or — issue #2980
+    // — a flashback cost whose non-mana leg carries the variable instead
+    // (Flash of Insight). The second shape adds NOTHING to `normCost`
+    // (`normalizeManaCost` folds an X the cost does not have as 0), so each
+    // variant differs only in the exile cost `planCastCostPicks` prices below.
     const xValues: (number | undefined)[] = xLockedToZero
         ? [0]
-        : hasX
+        : hasX || flashbackExileX !== undefined
           ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
           : [undefined];
 

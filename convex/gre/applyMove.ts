@@ -120,6 +120,7 @@ import { genericManaShortfall, markGraveyardPermanentCastUsed } from "./rules";
 import {
     buildCastExileCostChoice,
     castSourceForSearch,
+    findCastSourceCard,
     graveyardCastMechanism,
     graveyardCastStackFlags,
     reboundCastStackFlags,
@@ -1131,8 +1132,16 @@ export function applyMoveForSearch(
             // forced-minimum calc needs the caster's mana still untapped) and
             // before the spell leaves hand, mirroring
             // `tryAutoCommitPendingCast`'s real-path order.
-            const preCastSpell = player.hand.find(
-                (c) => c.id === move.cardInstanceId
+            // CR 601.3 (issue #2980) — the zone the Move DECLARES, not the
+            // hand: a hand-only lookup skipped this whole pre-cast cost block
+            // for every graveyard and exile cast the enumerator offers, so an
+            // escape cast's exile went uncharged and the spell reached the
+            // stack for free.
+            const preCastSpell = findCastSourceCard(
+                next,
+                player,
+                move.cardInstanceId,
+                move.castFromZone
             );
             if (preCastSpell) {
                 applyDelveExileForSearch(

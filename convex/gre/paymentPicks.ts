@@ -351,9 +351,22 @@ export function castExileViewFor(
     if (!ec) return null;
     const zone = ec.zone ?? "graveyard";
     const source = zone === "hand" ? player.hand : player.graveyard;
-    const candidateIds = source
-        .filter((c) => isExileCostEligible(c, ec.excludeInstanceId, ec.color))
-        .map((c) => c.id);
+    // CHEAPEST FIRST, not graveyard order (issue #2980) — the same conservative
+    // ordering every other "which of my own cards pays this?" pick already uses
+    // (`cheapestFirst`, above). Zone order is arbitrary: it spends whatever
+    // happens to be at the front, which under Underworld Breach (CR 702.138 —
+    // "each NONLAND card in your graveyard has escape") means the escape cost
+    // routinely exiles the very card the next escape wanted, while a LAND — a
+    // card the grant can never make castable, so pure fodder — sits untouched
+    // behind it. Mana value is the available proxy for that: lands and cheap
+    // spells go first, the expensive cards the graveyard is being kept for go
+    // last. Ties break on instance id, so the order is still stable across runs
+    // (determinism is a hard requirement for the search).
+    const candidateIds = cheapestFirst(
+        source.filter((c) =>
+            isExileCostEligible(c, ec.excludeInstanceId, ec.color)
+        )
+    ).map((c) => c.id);
     // Delve's variable-offset mode is bounded by `offsetGeneric`; the escape
     // card-type mode has no fixed count, so exile everything eligible (the only
     // submission guaranteed to clear any card-type threshold); every other mode
