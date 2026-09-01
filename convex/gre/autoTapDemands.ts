@@ -163,6 +163,19 @@ export function buildBoardAbilityDemands(
                 !timing.isControllersTurn
             )
                 continue;
+            // CR 702.142a (Boast, issue #2375) — "Activate only if this
+            // creature attacked this turn". Same class as the
+            // `controllerTurnOnly` filter above: an ability the player cannot
+            // legally activate right now must not reserve mana for itself.
+            // Read straight off the permanent (no new `timing` field needed —
+            // the flag is per-permanent, not per-turn). Absence IS "did not
+            // attack": the engine only ever writes it `true`
+            // (`recordAttackerDeclared`, gre/combat.ts).
+            if (
+                ability.requiresAttackedThisTurn === true &&
+                perm.hasAttackedThisTurn !== true
+            )
+                continue;
             if (
                 ability.activationPhaseRestriction &&
                 ability.activationPhaseRestriction.length > 0 &&

@@ -325,10 +325,41 @@ export function planActivationCostPicks(
     return picks;
 }
 
+/** The activation's filtered-sacrifice selection with the payer's submissions
+ *  FOLDED IN — the complete payment, ready to hand to `applySacrificeSelection`
+ *  (`gre/sacrificeChoice.ts`, the single authority that both removes the
+ *  victims and returns the CR 608.2h snapshot for the snapshot-flagged one).
+ *
+ *  `sel.picked` alone is only what the server auto-resolved at announcement;
+ *  `picks.sacrificeIds` alone is only what the payer named. The search must
+ *  apply both, and it must apply them THROUGH the selection rather than as a
+ *  bare id list, because the per-requirement `snapshot` flag — which victim's
+ *  mana value / power the resulting stack item carries — lives on the
+ *  selection's requirements and is recoverable from nowhere else. */
+export function activationSacrificePayment(
+    state: GameState,
+    player: PlayerState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    picks: ActivationCostPicks | undefined
+): SacrificeSelection | undefined {
+    const sel = activationSacrificeSelection(state, player, source, ability);
+    if (!sel) return undefined;
+    const submitted = picks?.sacrificeIds ?? [];
+    const picked = [...sel.picked];
+    for (const id of submitted) {
+        if (!picked.includes(id)) picked.push(id);
+    }
+    return { ...sel, picked };
+}
+
 /** Every permanent that actually leaves the battlefield to pay the activation's
  *  sacrifice legs: the victims the server auto-resolved at announcement PLUS
  *  the ones the payer submits (`picks.sacrificeIds`). The search must apply
- *  both — `sacrificeIds` alone is the submission list, not the payment. */
+ *  both — `sacrificeIds` alone is the submission list, not the payment.
+ *
+ *  Thin id projection of {@link activationSacrificePayment}; prefer that when
+ *  the caller also needs the cost snapshot. */
 export function activationSacrificeVictims(
     state: GameState,
     player: PlayerState,
@@ -336,14 +367,10 @@ export function activationSacrificeVictims(
     ability: ActivatedAbility,
     picks: ActivationCostPicks | undefined
 ): string[] {
-    const sel = activationSacrificeSelection(state, player, source, ability);
-    if (!sel) return [];
-    const submitted = picks?.sacrificeIds ?? [];
-    const victims = [...sel.picked];
-    for (const id of submitted) {
-        if (!victims.includes(id)) victims.push(id);
-    }
-    return victims;
+    return (
+        activationSacrificePayment(state, player, source, ability, picks)
+            ?.picked ?? []
+    );
 }
 
 /** How many VICTIM variants the enumerator may emit for one activation. WHICH

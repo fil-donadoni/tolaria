@@ -1125,6 +1125,32 @@ function isManaValueValue(value: unknown): boolean {
     return isObjectSelector(s.of);
 }
 
+/** `{ sacrificed: { read, plus? } }` — SHAPE of the cost-sacrifice value
+ *  construct (CR 601.2f / 608.2h, issue #2375, seventeenth EffectValue member).
+ *  No `of` selector — like `abilityResolutionCount` it is scoped to the
+ *  resolving STACK ITEM's own `additionalSacrificeSnapshot`, so there is
+ *  nothing to select and no ref position for the ordered ref pass to
+ *  family-check. `read` is a closed two-member string union; `plus` is an
+ *  OPTIONAL non-negative integer literal (0 is legal — it is an offset, not a
+ *  count, so `isPositiveInt` would wrongly reject the identity), never a
+ *  ref/X/nested value. No other keys are permitted. */
+function isSacrificedValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "sacrificed") return false;
+    const spec = (value as { sacrificed: unknown }).sacrificed;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "read" || k === "plus")) {
+        return false;
+    }
+    if (s.read !== "manaValue" && s.read !== "power") return false;
+    if (s.plus === undefined) return true;
+    return (
+        typeof s.plus === "number" && Number.isInteger(s.plus) && s.plus >= 0
+    );
+}
+
 /** `{ domain: { of, times? } }` — SHAPE of the Domain ability-word value
  *  construct (CR 702 preamble, issue #1066, ninth EffectValue member). `of`
  *  is a PLAYER selector (`EffectPlayerRef`) — UNLIKE `counters`/`manaValue`'s
@@ -1352,7 +1378,8 @@ function isDivideValue(value: unknown): boolean {
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
- *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
+ *  #680), a characteristic of the cost-`sacrificed` permanent (issue #2375),
+ *  a player's `domain` (issue #1066), an object's `escaped` flag
  *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
  *  (issue #1189), the `difference` of two terminals (issue #2006), a
  *  terminal `scaled` by a fixed multiplier (issue #2366), or a terminal
@@ -1370,6 +1397,7 @@ function isEffectValue(value: unknown): boolean {
         isKickerCountValue(value) ||
         isAdditionalCostPaidValue(value) ||
         isManaValueValue(value) ||
+        isSacrificedValue(value) ||
         isDomainValue(value) ||
         isDevotionValue(value) ||
         isEscapedValue(value) ||

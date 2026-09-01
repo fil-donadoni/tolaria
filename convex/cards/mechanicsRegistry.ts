@@ -2019,7 +2019,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Boast",
         kind: "keyword-ability",
         cr: "702.142",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/boast.ts",
+        note: 'Activation-timing capability (engine/cost infra, NOT an Effect Script Op, issue #2375). CR 702.142a: "Boast — [Cost]: [Effect]" means "[Cost]: [Effect]. Activate only if this creature attacked this turn and only once each turn." The shared authoring primitive `boastAbility()` (convex/cards/abilities/boast.ts) expands the keyword into TWO declarative, JSON-serialisable fields on the ActivatedAbility — the new `requiresAttackedThisTurn: true` plus the already-shipped `oncePerTurn: true` — and stamps `boast: true` as the CR 702.142b marker ("effects may refer to boast abilities"). Expansion at AUTHORING time, not read time, is deliberate: every existing `oncePerTurn` consumer keeps working untouched and exactly ONE new field has to be taught to consumers. `requiresAttackedThisTurn` is enforced server-side by `assertActivationTimingLegal` (convex/game.ts) off `CardInstanceState.hasAttackedThisTurn` (set in gre/combat.ts at declare-attackers, CR 508.1; persists past END_OF_COMBAT and is cleared at CLEANUP, CR 514.2 — gre/phases.ts), and mirrored on every other surface that decides whether an activation is offered: `isActivationTimingAllowed` (src/lib/card-utils.ts — the UI affordance hint shared by every zone-listing helper), `enumerateAbilityMoves` (convex/gre/moves.ts — bot Move legality) and `hasFlexibleActivation` (convex/gre/evaluate.ts — the hold-priority valuation term). A `canActivate` closure was rejected explicitly: moves.ts and evaluate.ts both skip ANY ability carrying one, so a closure-gated Boast would be structurally invisible to the bot, and the client affordability sweep (src/lib/__tests__/activation-affordability.catalogue.test.ts) auto-skips them. Used by Broadside Bombardiers (LCC), whose damage reads the cost-sacrificed permanent\'s mana value through the `{ sacrificed: { read: "manaValue", plus: 2 } }` EffectValue member (CR 608.2h last-known information).',
     },
     // 702.143 Foretell
     {
@@ -3493,7 +3495,28 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  deliberately kind-parametrized rather than an experience-only reader, so
  *  poison and energy became readable in the same change ("generalize, don't
  *  add"). Its WRITE half IS an Op — `addPlayerCounter`, itself the
- *  generalization of the energy-only `getEnergy` Op. */
+ *  generalization of the energy-only `getEnergy` Op.
+ *  `sacrificed` (issue #2375, `{ sacrificed: { read, plus? } }`) IS a new
+ *  value-grammar member — the SEVENTEENTH — and like every member since `X`
+ *  (#852) it is NOT an Op and NOT a structural construct, so it earns no
+ *  EFFECT_OP_REGISTRY row and does not reopen ADR 0045. It reads a
+ *  characteristic (mana value / power) of the permanent SACRIFICED TO PAY the
+ *  resolving spell or ability's additional cost, as LAST KNOWN INFORMATION off
+ *  the stack item's `additionalSacrificeSnapshot` (CR 601.2f / 608.2h).
+ *  Reason to exist: the existing `manaValue` member's `of` is an object
+ *  selector that resolves a LIVE battlefield permanent, and a cost-sacrificed
+ *  permanent is in the graveyard before the ability is ever on the stack —
+ *  unreachable by construction, which is why the snapshot accessors
+ *  (`SpellContext.getAdditionalSacrificeMv` / `getAdditionalSacrificePower`)
+ *  already existed and why three shipped `resolve()` cards (Priest of Yawgmoth,
+ *  Freyalise Supplicant, Homarid Spawning Bed) read them imperatively. No `of`
+ *  selector, for `abilityResolutionCount`'s reason: one snapshot per stack
+ *  item, nothing to select. `plus` is a fixed non-negative integer literal
+ *  folded into this ONE member (Broadside Bombardiers' "2 plus the sacrificed
+ *  permanent's mana value"), exactly the shape `EffectDomainValue.times` /
+ *  `EffectCountSpec.times` already ship — NOT a general addition operator and
+ *  NOT a widening of `difference`, which stays exactly as narrow as #2006
+ *  shipped it. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

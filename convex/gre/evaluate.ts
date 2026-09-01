@@ -475,6 +475,17 @@ function hasFlexibleActivation(
         ) {
             continue;
         }
+        // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
+        // attacked this turn". Mirrored from `moves.ts`' enumerator for the
+        // same reason every other gate in this loop is: a flexible-activation
+        // credit for an ability the enumerator will never offer is a
+        // fail-OPEN valuation of an option the player does not hold.
+        if (
+            ability.requiresAttackedThisTurn &&
+            perm.hasAttackedThisTurn !== true
+        ) {
+            continue;
+        }
         if (ability.animatesSelf && perm.animation) continue;
         if (ability.controllerTurnOnly && state.activePlayerId !== player.id) {
             continue;

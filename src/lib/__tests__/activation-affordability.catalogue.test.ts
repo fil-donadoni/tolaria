@@ -67,7 +67,8 @@ type Shape =
     | "discardFilter"
     | "loyalty"
     | "tapOtherFilter"
-    | "sacrificeFilter";
+    | "sacrificeFilter"
+    | "requiresAttackedThisTurn";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -365,6 +366,15 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // viewer's own battlefield — the "new cost shape pays the entry fee once"
     // this sweep is built around (issue #1951 review).
     if (a.cost.sacrificeFilter) out.push("sacrificeFilter");
+    // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
+    // attacked this turn" is an ACTIVATION-TIMING gate rather than a cost leg,
+    // but it lands on the same `getStackAbilities` surface-vs-hide contract
+    // every shape above rides, and it is driven by a field
+    // (`hasAttackedThisTurn`) that `projectPublicState`/`slimCard` could
+    // silently drop. Declared DECLARATIVELY precisely so it can be swept: a
+    // `canActivate` closure is auto-skipped by `skipReason` below and could
+    // never enter this sweep at all.
+    if (a.requiresAttackedThisTurn) out.push("requiresAttackedThisTurn");
     return out;
 }
 
@@ -532,6 +542,20 @@ function env(c: Case, broken: boolean) {
                 ? { loyaltyActivatedThisTurn: true }
                 : {}),
         });
+    }
+    // CR 702.142a (Boast) — the source must have ATTACKED this turn. Satisfied
+    // for every case (a Boast source that never attacked is hidden regardless
+    // of which shape is under test, which would mask the OTHER shapes on the
+    // same ability); broken by clearing the flag, which is how the engine
+    // itself represents "did not attack" — it only ever writes it `true`.
+    if (ability.requiresAttackedThisTurn) {
+        source = {
+            ...source,
+            hasAttackedThisTurn:
+                broken && shape === "requiresAttackedThisTurn"
+                    ? undefined
+                    : true,
+        };
     }
     // Life: the gate is only applied when payerLife is passed.
     let payerLife = 999;

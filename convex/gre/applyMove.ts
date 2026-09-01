@@ -82,9 +82,12 @@ import { effectiveAbilityOf } from "./ai/abilityTiming";
 import { loyaltyActivationViolation, payLoyaltyCost } from "./loyalty";
 import { isPlaneswalker, manaGateBattlefields, manaValue } from "./constants";
 import {
-    activationSacrificeVictims,
+    activationSacrificePayment,
     planActivationCostPicks,
 } from "./activationCostPicks";
+// CR 118.8 / 608.2h — the single authority that removes the chosen victims AND
+// returns the snapshot-flagged one's characteristics (issue #2375).
+import { applySacrificeSelection } from "./sacrificeChoice";
 import { checkStateBasedActions } from "./sba";
 import { applyBestowCharacteristics } from "./bestow";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
@@ -493,13 +496,18 @@ export function applyActivationCostsForSearch(
     state: GameState,
     playerId: string,
     move: Extract<Move, { kind: "activate-ability" }>,
-    /** OUT-collector for the one cost by-product the resulting stack item needs
-     *  (CR 118.1 / 608.2h): the snapshot of a single card exiled from a
-     *  graveyard to pay `cost.exileFromGraveyard`, which is gone by the time
-     *  the ability resolves and which Necropolis reads back as X. Optional so
-     *  every existing caller keeps the plain boolean contract; the search's
-     *  push site (`applyMoveInSearch`, `search.ts`) passes one so the tree
-     *  resolves the ability with the same X live play would. */
+    /** OUT-collector for the cost by-product the resulting stack item needs
+     *  (CR 118.1 / 608.2h): the snapshot of the additional-cost VICTIM, which
+     *  is gone by the time the ability resolves. Two legs fill it, the same two
+     *  the mutation path fills it from and writing the same
+     *  `StackItem.additionalSacrificeSnapshot` field — the single card exiled
+     *  from a graveyard to pay `cost.exileFromGraveyard` (Necropolis reads it
+     *  back as X) and, since issue #2375, the snapshot-flagged permanent
+     *  sacrificed to pay `cost.sacrificeFilter` (Priest of Yawgmoth, Freyalise
+     *  Supplicant, Broadside Bombardiers). Optional so every existing caller
+     *  keeps the plain boolean contract; the search's push site
+     *  (`applyMoveInSearch`, `search.ts`) passes one so the tree resolves the
+     *  ability with the same numbers live play would. */
     out?: {
         additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
     }
@@ -674,14 +682,36 @@ export function applyActivationCostsForSearch(
     if (!owner) return true;
     // CR 701.21 — the filtered-sacrifice victims, both the ones the server
     // auto-resolves at announcement and the ones the payer names.
-    for (const id of activationSacrificeVictims(
+    //
+    // CR 118.8 / 608.2h (issue #2375) — routed through `applySacrificeSelection`
+    // rather than a bare `removePermanentTo` loop so the SNAPSHOT of the
+    // snapshot-flagged victim comes back and is stamped onto `out`, exactly as
+    // `sacrificeSnapshotFromSelection` does on the mutation path
+    // (`convex/game.ts`). Without it the search pays a creature and then
+    // resolves an ability that reads the victim back — Priest of Yawgmoth's
+    // "{B} for each…", Freyalise Supplicant's "damage equal to that creature's
+    // power", Broadside Bombardiers' "2 plus the sacrificed permanent's mana
+    // value" — for NOTHING, so the tree scores the activation as pure loss and
+    // the bot can never find the line. Same class as the exile-from-graveyard
+    // snapshot below, which had already been closed.
+    const sacPayment = activationSacrificePayment(
         state,
         owner,
         src,
         ability,
         picks
-    )) {
-        removePermanentTo(state, id, "graveyard", "sacrifice");
+    );
+    if (sacPayment) {
+        const results = applySacrificeSelection(state, sacPayment);
+        const snap = results.find((r) => r.snapshot);
+        if (out && snap) {
+            out.additionalSacrificeSnapshot = {
+                cardInstanceId: snap.id,
+                mv: snap.mv,
+                ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
+                ...(snap.power !== undefined ? { power: snap.power } : {}),
+            };
+        }
     }
     if (!picks) return true;
     for (const id of picks.tapOtherIds ?? []) {
@@ -701,7 +731,21 @@ export function applyActivationCostsForSearch(
         // "the exiled card's mana value" the mutation path captures
         // (`exileCostSnapshot`, `game.ts`). Single-card costs only, matching
         // that authority: "the exiled card" has no referent above one.
-        if (out && exile.cardInstanceIds.length === 1) {
+        //
+        // The SACRIFICE leg above wins the collision (`!out.additionalSacrificeSnapshot`),
+        // which is how the mutation path resolves it too — `game.ts`'s
+        // `activationSacrificeSnapshot ?? activationExileSnapshot`, whose own
+        // comment records the reason: adding an exile leg must never silently
+        // change what an existing sacrifice-cost card (Priest of Yawgmoth,
+        // Freyalise Supplicant) reads back. No shipped ability declares both,
+        // so this is a latent divergence, not a live bug — but a search that
+        // resolved it the other way from the server is exactly the drift this
+        // whole out-collector exists to prevent.
+        if (
+            out &&
+            !out.additionalSacrificeSnapshot &&
+            exile.cardInstanceIds.length === 1
+        ) {
             const snap = gyOwner?.graveyard.find(
                 (c) => c.id === exile.cardInstanceIds[0]
             );

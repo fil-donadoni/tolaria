@@ -6141,7 +6141,8 @@ function resolveActivatedAbility(
 }
 
 /** Throws a descriptive Error if the activated ability's CR 602.5 timing
- *  restrictions (controller-turn-only, once-per-turn cap) are violated
+ *  restrictions (controller-turn-only, once-per-turn cap, sorcery speed, and
+ *  Boast's CR 702.142a attacked-this-turn precondition) are violated
  *  against the current state. Called by every activation entry point before
  *  cost lock so the rejection is surfaced before any mutation. Exported so an
  *  integration test can drive the real check (no convex-test harness in this
@@ -6154,6 +6155,7 @@ export function assertActivationTimingLegal(
         controllerTurnOnly?: boolean;
         oncePerTurn?: boolean;
         sorcerySpeedOnly?: boolean;
+        requiresAttackedThisTurn?: boolean;
     }
 ): void {
     if (
@@ -6161,6 +6163,18 @@ export function assertActivationTimingLegal(
         state.activePlayerId !== card.controllerId
     ) {
         throw new Error("Activate only during your turn");
+    }
+    // CR 702.142a (Boast) — "Activate only if this creature attacked this
+    // turn". `hasAttackedThisTurn` is stamped at declare-attackers
+    // (`gre/combat.ts`, CR 508.1), deliberately SURVIVES END_OF_COMBAT (CR
+    // 506.4 keeps a creature that attacked flagged for the rest of the turn)
+    // and is cleared at CLEANUP (`gre/phases.ts`, CR 514.2) — so a Boast
+    // ability stays activatable in the postcombat main phase and the end step,
+    // exactly as the rule reads. Absence of the flag IS "did not attack": the
+    // engine only ever writes it `true` and `serialize.ts` round-trips it, so
+    // there is no unknown state here to fail open on.
+    if (ability.requiresAttackedThisTurn && card.hasAttackedThisTurn !== true) {
+        throw new Error("Activate only if this creature attacked this turn");
     }
     if (ability.oncePerTurn) {
         const used = card.activationsThisTurn?.[ability.id] ?? 0;

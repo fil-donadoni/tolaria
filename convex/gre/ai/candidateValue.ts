@@ -473,6 +473,16 @@ function resolveValueAgainstBoard(
     if ("counters" in v || "kickerCount" in v || "additionalCostPaid" in v)
         return CF_ASSUMED_REF_FALLBACK;
     if ("escaped" in v || "abilityResolutionCount" in v) return 1;
+    // sacrificed (issue #2375) — the cost-sacrificed permanent's mana value /
+    // power (CR 601.2f / 608.2h). No such permanent exists at a pre-cast
+    // choice node, so the READ takes the same floor as the object-scoped reads
+    // above; the `plus` LITERAL is static and is added on top. MUST mirror
+    // `contextFreeGrounding`'s own `sacrificed` branch — a floor here that
+    // dropped `plus` would be strictly LESS informed than the context-free
+    // estimate it is supposed to refine (issue #1520).
+    if ("sacrificed" in v) {
+        return CF_ASSUMED_REF_FALLBACK + (v.sacrificed.plus ?? 0);
+    }
     // lifeGainedThisTurn (CR 119.3, issue #1457) — a per-turn tally genuinely
     // resolvable off the live board, unlike the object-scoped reads below.
     // Only the `"controller"` selector is resolvable pre-cast (the caster IS

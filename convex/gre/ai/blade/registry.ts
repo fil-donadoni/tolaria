@@ -3596,6 +3596,145 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "cast-spell", card: "Dark Ritual" }] },
         note: "Negative control for the hold. One Swamp pays the Ritual, and its three black mana plus the three remaining lands exactly cover the 6-MV Craw Wurm, so a spender IS in the position and `isWastedManaCast` must not fire. Measured against the pre-fix tree, which casts here too: the guard provably costs this line nothing. One land fewer and the Wurm is a mana short — then holding is correct and the guard fires by design.",
     },
+    {
+        // BOAST, HALF 1 — THE GATE (CR 702.142a, issue #2375). The negative
+        // half of a discriminating pair: the SAME board, before combat.
+        //
+        // Fair by construction in the strongest available sense — the answer
+        // is forced by the RULES, not by judgement. Broadside Bombardiers has
+        // not attacked this turn, so its boast ability is not activatable at
+        // all (CR 702.142a: "Activate only if this creature attacked this
+        // turn"). Any move is acceptable here EXCEPT that activation, which is
+        // why the expectation is `forbidden` rather than a list of good plays:
+        // whether the bot attacks, casts or passes is a preference, and this
+        // entry has no opinion on it.
+        //
+        // What it guards: `requiresAttackedThisTurn` is a DECLARATIVE field
+        // precisely so `enumerateAbilityMoves` (`gre/moves.ts`) can read it —
+        // a `canActivate` closure is skipped wholesale by that enumerator, so
+        // a closure-gated Boast would be invisible rather than gated. Drop the
+        // enumerator's gate and the move is offered a turn early: the bot eats
+        // its own Grizzly Bears for a boast the server would refuse, which in
+        // live play is a frozen action, not a bad one.
+        label: "boast: does not activate Broadside Bombardiers before it has attacked",
+        spec: {
+            cards: [
+                {
+                    name: "Broadside Bombardiers",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // The only legal victim for the "another creature or artifact"
+                // cost (CR 109.2), so the sacrifice leg has exactly one shape
+                // and cannot be what makes the activation unattractive.
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // The boast's natural target: 2 + Grizzly Bears' mana value 2
+                // = 4 damage, lethal to a 3/3.
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        // Forced by the rules, so it must hold on ANY seed (ADR 0070 §3).
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Broadside Bombardiers" },
+            ],
+        },
+        note: "Half 1 of the Boast pair (issue #2375). Guards the CR 702.142a activation-timing gate in `enumerateAbilityMoves`; half 2 is the same board after the attack, where the activation becomes the expected move.",
+    },
+    {
+        // BOAST, HALF 2 — THE PAYOFF (CR 702.142a / 608.2h, issue #2375).
+        // Same three permanents, walked through a real attack: the boast is
+        // now legal, and it is the only thing left in the turn worth doing.
+        //
+        // Fair by construction: the position is deliberately narrow. Combat is
+        // past blocks, so nothing about the attack is still being decided; the
+        // bot's only other permanent is the Grizzly Bears the cost eats, and
+        // the boast's 2 + 2 = 4 damage is lethal to the opponent's 3/3
+        // (CR 704.5g). Trading a 2/2 for a 3/3 and clearing the only blocker
+        // is material-positive by the evaluator's own arithmetic — no plan
+        // quality, no race judgement, and no life total (which `ScenarioSpec`
+        // cannot express anyway, issue #2147) is involved.
+        //
+        // What it guards is the POSITIVE direction of the CR 702.142a gate:
+        // that a boast is genuinely reachable and preferred once the creature
+        // has attacked, not merely gated. Half 1 and half 2 fail on OPPOSITE
+        // breaks of the same `enumerateAbilityMoves` line — remove the gate and
+        // half 1 reds (the boast is offered a turn early); make the gate always
+        // fire and half 2 reds (the boast is never offered at all) — which is
+        // what makes this a discriminating pair rather than two spellings of
+        // one assertion. Both directions were measured.
+        //
+        // What it does NOT guard, measured rather than assumed: restoring the
+        // `applyActivationCostsForSearch` snapshot bug this issue also closed
+        // leaves BOTH halves green. The search prefers the boast off the
+        // grounded announcement value, not off the damage the tree resolves, so
+        // that seam is pinned by its own unit test
+        // (`convex/cards/sets/lcc/__tests__/red.test.ts`), not here.
+        label: "boast: eats its Grizzly Bears to boast for lethal after attacking",
+        spec: {
+            cards: [
+                {
+                    name: "Broadside Bombardiers",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // TWO defenders: Bombardiers has menace (CR 702.111a), so a
+                // single creature could not legally block it and the engine
+                // would never open the DECLARE_BLOCKERS window the
+                // `declare-blockers` step needs.
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            // The `declare-attackers` setup step walks the DECLARATION, not
+            // the phase, so the built state must already be at the window.
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        setup: [
+            // Only the Bombardiers attacks — the Bears stays home so it is
+            // still on the battlefield to be eaten, and so the position is not
+            // also asking "was that attack good?".
+            { kind: "declare-attackers", cards: ["Broadside Bombardiers"] },
+            // No blocks: a real declaration (CR 509.1), which lands the
+            // position in the attacker's own priority round with the attack
+            // already made — the window where CR 702.142a first admits the
+            // boast.
+            { kind: "declare-blockers" },
+        ],
+        bot: "me",
+        budget: { iterations: 800 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "activate-ability", card: "Broadside Bombardiers" },
+            ],
+        },
+        note: "Half 2 of the Boast pair (issue #2375). The positive direction of the CR 702.142a gate: a boast must be reachable and preferred once the creature has attacked. Measured: reds when the enumerator gate is made to always fire, while half 1 stays green.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
