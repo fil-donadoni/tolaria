@@ -1194,7 +1194,7 @@ export function getLegalActions(
                         isMorphCastAlternativeCost(
                             tryGetDefinition(
                                 (card.card as { id?: string }).id ?? ""
-                            ),
+                            ) ?? undefined,
                             alt
                         )
                             ? faceDownCastView(card)
