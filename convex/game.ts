@@ -8512,6 +8512,26 @@ export const announceCast = mutation({
                 cardDef.flashSurcharge,
                 flashSurchargePaid
             );
+            // CR 118.9d / 601.2f (issue #2970) — "If an alternative cost is
+            // being paid to cast a spell, any additional costs, cost increases,
+            // and cost reductions that affect that spell are applied to that
+            // alternative cost." Folded HERE, after the Kicker and surcharge
+            // legs and immediately before the coverage check, in the exact
+            // position `finalizeTargetSelection` folds it onto its own
+            // alt-derived cost — the two commit paths must price the same cast
+            // identically. Without it this NO-TARGET branch parked
+            // `pendingCast.manaCost = altManaCost` unmodified, so every
+            // battlefield `costIncrease` / `costReduction` static AND the
+            // object-scoped exile-cast tax (`castFromExileCostIncrease`,
+            // issue #2383) were silently skipped for Gush, Foil and every
+            // other untargeted alt-cost cast. The matching hole in the
+            // affordance gate (`getLegalActions`'s alt-cost branch,
+            // `gre/rules.ts`) closes in the SAME change: gate and payment must
+            // agree on this total or the cast parks unpayable.
+            applyCostModifiers(
+                altManaCost,
+                getCostModifiers(state, cardInHand, "spell")
+            );
             // CR 601.2f / 118.8 — board-wide static NON-mana additional cost
             // (Drought) and the card's own additional-cost sacrifice (alt-cost
             // cards carry none today) apply to THIS cast exactly as they do to

@@ -38,7 +38,12 @@ import {
     announceCast,
     selectSacrifice,
 } from "../../game";
-import { getPlayer, type GameState, type PendingTarget } from "../state";
+import {
+    getPlayer,
+    type CardInstanceState,
+    type GameState,
+    type PendingTarget,
+} from "../state";
 import { registerTokenDefinition } from "../../cards";
 import {
     island,
@@ -48,6 +53,11 @@ import {
     grizzlyBears,
 } from "../../cards/sets/lea";
 import { snuffOut } from "../../cards/sets/mmq/black";
+import { gush } from "../../cards/sets/mmq/blue";
+import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
+import { planarGate } from "../../cards/sets/leg/colorless";
+import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
+import { getLegalActions } from "../rules";
 import { drought } from "../../cards/sets/ice/white";
 import { onceUponATime } from "../../cards/sets/eld/green";
 import {
@@ -764,5 +774,265 @@ describe("announceCast — the no-target alt-cost branch, driven through the rea
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].hand.some((c) => c.id === "onceH")).toBe(true);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CR 118.9d — cost modifiers on an UNTARGETED alternative-cost cast (#2970)
+// ═══════════════════════════════════════════════════════════════════════════
+// `bun run cr 118.9d`: "If an alternative cost is being paid to cast a spell,
+// any additional costs, cost increases, and cost reductions that affect that
+// spell are applied to that alternative cost. (See rule 601.2f.)"
+//
+// REGRESSION. `announceCast` splits at announcement: a cast that declares
+// TARGETS commits through `finalizeTargetSelection` (which folds the cost-
+// modifier collector onto whatever cost the cast owes, alternative or not),
+// while a cast with NO targets commits through the no-target alt-cost branch —
+// which folded the Kicker and the conditional-flash surcharge and then went
+// straight to the coverage check. Every CR 601.2f increase and reduction was
+// skipped there, including the object-scoped exile-cast tax (#2383). Nothing
+// broke visibly because the affordance gate had the MATCHING hole (its
+// alt-cost branch probed `alt.mana ?? {}` unmodified): gate and payment agreed
+// on the same WRONG number, so the spell was undercharged and never unpayable.
+// Both halves moved together — a fix to either alone offers a cast that then
+// parks unpayable in `pendingCast` with no exit but abort.
+//
+// Each scenario asserts BOTH halves on the same board: the projected "cast"
+// affordance AND the mana actually spent by the committed cast.
+describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost branch (CR 118.9d / 601.2f, issue #2970)", () => {
+    type AltAnnounceArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        cardInstanceId: string;
+        alternativeCostId: string;
+    };
+
+    const announceAlt = (
+        harness: ReturnType<typeof makeMutationCtx>,
+        cardInstanceId: string,
+        alternativeCostId: string
+    ) =>
+        runMutation<AltAnnounceArgs, void>(
+            announceCast as unknown as Handler<AltAnnounceArgs, void>,
+            harness.ctx,
+            {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId,
+                alternativeCostId,
+            }
+        );
+
+    /** Gush (`alternativeCosts: return two Islands`, NO target requirement — so
+     *  it is the no-target branch by construction) plus exactly two Islands, so
+     *  the return leg is forced and auto-resolves: whatever parks or commits is
+     *  the MANA half, never the pick. `opponentBattlefield` carries the cost
+     *  modifier under test. */
+    function gushBoard(opts: {
+        generic: number;
+        gushZone?: "hand" | "exile";
+        exileTax?: { X: number };
+        p1Battlefield?: CardInstanceState[];
+        p2Battlefield?: CardInstanceState[];
+    }): GameState {
+        const zone = opts.gushZone ?? "hand";
+        const gushInst = makeInstance(gush.id, {
+            id: "gushH",
+            zone,
+            controllerId: "p1",
+            ownerId: "p1",
+            ...(zone === "exile"
+                ? {
+                      castableFromExileBy: "p1",
+                      ...(opts.exileTax
+                          ? { castFromExileCostIncrease: opts.exileTax }
+                          : {}),
+                  }
+                : {}),
+        });
+        // TAPPED: the return leg does not care (CR 118.9 — "return two
+        // Islands you control"), but an UNTAPPED Island is a mana source the
+        // affordability probe would count, which would let the gate pay the
+        // tax off the battlefield and hide the half being asserted. Tapped,
+        // the caster's pool is the only mana in the scenario. Both are
+        // indistinguishable, so the pick auto-resolves and what parks or
+        // commits is purely the MANA half.
+        const islands = [0, 1].map((i) =>
+            makeInstance(island.id, {
+                id: `islandG-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: true,
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: zone === "hand" ? [gushInst] : [],
+                    exile: zone === "exile" ? [gushInst] : [],
+                    battlefield: [...islands, ...(opts.p1Battlefield ?? [])],
+                    manaPool: {
+                        W: 0,
+                        U: opts.generic,
+                        B: 0,
+                        R: 0,
+                        G: 0,
+                        C: 0,
+                    },
+                }),
+                makePlayer("p2", { battlefield: opts.p2Battlefield ?? [] }),
+            ],
+        });
+    }
+
+    const gushIn = (state: GameState, zone: "hand" | "exile") =>
+        (zone === "hand"
+            ? getPlayer(state, "p1").hand
+            : getPlayer(state, "p1").exile
+        ).find((c) => c.id === "gushH")!;
+
+    it("charges a battlefield cost INCREASE on the alt cost, and the gate agrees (Thalia + Gush)", async () => {
+        // Thalia, Guardian of Thraben — "Noncreature spells cost {1} more to
+        // cast", any controller, so it reaches p1's Gush from p2's board.
+        // Gush's alt cost carries NO mana leg, so the {1} IS the whole total:
+        // before the fix the branch parked `manaCost: {}` and spent nothing.
+        const thalia = () =>
+            makeInstance(thaliaGuardianOfThraben.id, {
+                id: "thaliaG",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+
+        // GATE half — one mana affords the taxed alt cost; zero does not.
+        // (The PRINTED cost is {4}{U} + {1} = 6, unaffordable either way, so
+        // "cast" here can only be coming from the alternative-cost branch.)
+        const broke = gushBoard({ generic: 0, p2Battlefield: [thalia()] });
+        expect(
+            getLegalActions(
+                broke,
+                getPlayer(broke, "p1"),
+                gushIn(broke, "hand")
+            )
+        ).not.toContain("cast");
+
+        const state = gushBoard({ generic: 1, p2Battlefield: [thalia()] });
+        expect(
+            getLegalActions(
+                state,
+                getPlayer(state, "p1"),
+                gushIn(state, "hand")
+            )
+        ).toContain("cast");
+
+        // PAYMENT half — the same board, driven through the real mutation.
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announceAlt(harness, "gushH", "return-two-islands");
+
+        const after = harness.state();
+        expect(after.pendingCast).toBeUndefined();
+        const p1 = getPlayer(after, "p1");
+        // The {1} was actually paid — this is the assertion the bug fails.
+        expect(p1.manaPool.U).toBe(0);
+        // …and the alt cost's own leg still resolved: both Islands returned.
+        expect(p1.battlefield).toHaveLength(0);
+        expect(p1.hand.map((c) => c.id).sort()).toEqual([
+            "islandG-0",
+            "islandG-1",
+        ]);
+        expect(after.stack.map((s) => s.id)).toEqual(["gushH"]);
+    });
+
+    it("charges the object-scoped exile-cast tax AND a battlefield increase together (#2383 shape, end to end)", async () => {
+        // The #2383 shape: Gush sits in p1's own exile under an open-ended
+        // cast grant carrying a {2} tax that rides the CARD (Elite
+        // Spellbinder), while p2's Thalia adds {1} from the battlefield. Both
+        // reach the alt cost through the ONE collector (`getCostModifiers`),
+        // so the total is {3}.
+        const thalia = () =>
+            makeInstance(thaliaGuardianOfThraben.id, {
+                id: "thaliaG",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+        const board = (generic: number) =>
+            gushBoard({
+                generic,
+                gushZone: "exile",
+                exileTax: { X: 2 },
+                p2Battlefield: [thalia()],
+            });
+
+        // GATE half — {2} (the tax alone) is one short of the {3} owed.
+        const short = board(2);
+        expect(
+            getLegalActions(
+                short,
+                getPlayer(short, "p1"),
+                gushIn(short, "exile")
+            )
+        ).not.toContain("cast");
+        const state = board(3);
+        expect(
+            getLegalActions(
+                state,
+                getPlayer(state, "p1"),
+                gushIn(state, "exile")
+            )
+        ).toContain("cast");
+
+        // PAYMENT half.
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announceAlt(harness, "gushH", "return-two-islands");
+
+        const after = harness.state();
+        expect(after.pendingCast).toBeUndefined();
+        const p1 = getPlayer(after, "p1");
+        expect(p1.manaPool.U).toBe(0); // all three spent
+        expect(p1.exile).toHaveLength(0);
+        expect(after.stack.map((s) => s.id)).toEqual(["gushH"]);
+    });
+
+    it("applies a battlefield cost REDUCTION to an alt cost's own mana leg (Planar Gate + a Dash cast)", async () => {
+        // A reduction is only observable on an alt cost that HAS a mana leg:
+        // `applyCostModifiers` clamps at zero, so reducing Gush's empty leg
+        // changes nothing. CR 702.109a Dash is that leg — Ragavan's
+        // {1}{R} — and it announces no targets, so it is the same no-target
+        // branch. Planar Gate ("Creature spells you cast cost {2} less")
+        // shaves the generic {1} to nothing, leaving {R}.
+        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+            id: "ragH",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gate = makeInstance(planarGate.id, {
+            id: "gateH",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [ragavan],
+                    battlefield: [gate],
+                    // Exactly {R}: enough for the REDUCED dash cost, one short
+                    // of the unreduced {1}{R}. Before the fix this branch built
+                    // {1}{R}, failed `isManaCostCovered` and parked the cast in
+                    // `pendingCast` instead of committing it.
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announceAlt(harness, "ragH", "dash");
+
+        const after = harness.state();
+        expect(after.pendingCast).toBeUndefined();
+        expect(getPlayer(after, "p1").manaPool.R).toBe(0);
+        const cast = after.stack.find((s) => s.id === "ragH");
+        expect(cast).toBeDefined();
+        expect(cast!.dashed).toBe(true);
     });
 });
