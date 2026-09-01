@@ -82,7 +82,10 @@ export function handleBrainRequest(
     const seed = req.seed ?? (Math.random() * 0x100000000) | 0;
     try {
         const { move, trace } = search(
-            projectedToGameState(state, deckKnowledge),
+            // `botId` is the seat this projection was made for, so the
+            // wire's `library.known[]` can be restored as `knownTo` and
+            // survive determinization (issue #1524).
+            projectedToGameState(state, deckKnowledge, botId),
             botId,
             budget ?? DEFAULT_BUDGET,
             seed,

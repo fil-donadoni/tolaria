@@ -269,10 +269,27 @@ function makeRealLibrary(
  *
  *  Identities are hydrated from the definition exactly like `makeRealInstance`,
  *  and the wire instance's own id is kept so a move naming that card round-trips
- *  to a server whose ids match. */
+ *  to a server whose ids match.
+ *
+ *  RESTORING `knownTo` (issue #1524). ADR 0026 strips raw `knownTo` before
+ *  anything crosses the wire, so a rehydrated state carries no per-card record
+ *  of what the bot knows — and `determinize` reshuffled the whole library every
+ *  ISMCTS iteration, throwing away exactly the knowledge this overlay had just
+ *  restored (the bot forgot a card it had scryed to the top one action ago).
+ *  Every entry in `known[]` IS the projection's own statement that `viewerId`
+ *  legitimately knows this card at this index, so stamping `knownTo:
+ *  [viewerId]` back onto the overlaid instance hands `determinize` the SAME
+ *  authority rather than a second parallel derivation: it re-derives the
+ *  contiguous known runs with `knownLibraryIndices`, the very function the
+ *  projection emitted `known[]` with, and pins them.
+ *
+ *  `viewerId` is optional because most callers of `projectedToGameState` only
+ *  ENUMERATE (owed-input gates, `shouldThink`) and never determinize; omitted,
+ *  the overlay behaves exactly as it did before this existed. */
 function overlayKnownLibraryCards(
     library: CardInstanceState[],
-    player: PublicPlayer
+    player: PublicPlayer,
+    viewerId?: string
 ): CardInstanceState[] {
     const known = Array.isArray(player.library)
         ? undefined
@@ -305,6 +322,9 @@ function overlayKnownLibraryCards(
             staticAbilities:
                 def?.staticAbilities ?? entry.card.staticAbilities ?? [],
             zone: "library",
+            // The wire's own statement of what this viewer knows, put back in
+            // the field the engine already understands (issue #1524).
+            ...(viewerId !== undefined ? { knownTo: [viewerId] } : {}),
         } as CardInstanceState;
         pinned.add(index);
     }
@@ -316,10 +336,19 @@ function overlayKnownLibraryCards(
  *  library rebuilt with real card identities (issue #1509, generalised to
  *  per-seat by #2788); every other seat's library rebuilds to its wire count
  *  with opaque placeholders. Pure; returns a shallow structural view (no deep
- *  copy needed — enumeration never mutates, and search clones first). */
+ *  copy needed — enumeration never mutates, and search clones first).
+ *
+ *  `viewerId` names the seat `state` was PROJECTED FOR. Supply it on any path
+ *  that goes on to SEARCH: it is what lets the wire's `library.known[]` become
+ *  a `knownTo` stamp again, so `determinize` keeps the positions this viewer
+ *  legitimately knows instead of reshuffling them away every ISMCTS iteration
+ *  (issue #1524). Omit it on the enumerate-only paths (`shouldThink`, the
+ *  owed-input gates), which never determinize and are byte-identical without
+ *  it. */
 export function projectedToGameState(
     state: PublicGameState,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    viewerId?: string
 ): GameState {
     return {
         ...state,
@@ -362,7 +391,8 @@ export function projectedToGameState(
                             ? makeRealLibrary(state, p, cardIds)
                             : makeLibraryPlaceholders(p.id, p.library.count);
                     })(),
-                    p
+                    p,
+                    viewerId
                 ),
         })),
         stack: state.stack,
