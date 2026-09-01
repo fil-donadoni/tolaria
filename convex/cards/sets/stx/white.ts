@@ -25,7 +25,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //   3. `moveZone` (CR 400.7) — hand → exile, face up: exile is a PUBLIC zone
 //      (CR 400.2) and this card's Oracle grants no face-down clause, so both
 //      players see what was taken.
-//   4. `grantCastFromExile` (CR 601.3e) with `window: "while-exiled"` — "for
+//   4. `grantCastFromExile` (CR 601.3) with `window: "while-exiled"` — "for
 //      as long as that card remains exiled, ITS OWNER may play it", so the
 //      grantee is the targeted opponent, not this card's controller (the
 //      cross-player direction opposite to Dauthi Voidwalker's).
@@ -36,8 +36,10 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // taxing the moment Elite Spellbinder dies, is bounced or is exiled, while
 // this tax belongs to the exiled CARD OBJECT and outlives its source. It is
 // stamped on `CardInstanceState.castFromExileCostIncrease` and folded in by
-// `getCostModifiers`, the one collector the payment path, the "cast"
-// affordance and the Bot's tap planner already share.
+// `getCostModifiers`, the collector the payment path, the "cast" affordance and
+// the Bot's tap planner share (with one standing exception, documented on the
+// field itself: `announceCast`'s untargeted alternative-cost branch folds no
+// cost modifiers at all).
 //
 // CR 305.9 (issue #1689) — the Oracle says "may PLAY it", so the grant is
 // land-inclusive (`includesLand`). Inert in practice: step 2's filter can only

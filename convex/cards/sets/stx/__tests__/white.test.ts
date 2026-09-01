@@ -12,6 +12,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { getLegalActions } from "../../../../gre/rules";
+import { finalizeTargetSelection } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../../index";
 
@@ -202,6 +203,32 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         expect(projectPublicState(state, 1, "p1").players[1].hand[0]?.id).toBe(
             "landOnly"
         );
+    });
+
+    it("charges the tax at the real PAYMENT site, not just the affordance gate (CR 601.2f)", () => {
+        // 4 green: exactly {1}{G} + {2}. `finalizeTargetSelection` is the
+        // announce-commit path the mutation runs — it recomputes the cost
+        // through `getCostModifiers` and pays it out of the pool on the spot,
+        // so the mana actually spent is the assertion. Untaxed, this cast
+        // would leave 2 mana floating.
+        const state = setup([bear("taken")], 4);
+        putTriggerOnStack(state);
+        resolveTopOfStack(state);
+        answer(state, ["taken"]);
+
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p2",
+                cardInstanceId: "taken",
+                targetType: "any",
+                count: 0,
+                selected: [],
+            },
+            "p2"
+        );
+        expect(state.players[1].manaPool.G).toBe(0);
+        expect(state.stack.some((item) => item.id === "taken")).toBe(true);
     });
 
     it("taxes only the exiled card — another copy cast from hand pays its printed cost", () => {

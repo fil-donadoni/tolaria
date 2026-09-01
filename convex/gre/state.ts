@@ -20989,6 +20989,29 @@ export function moveCard(
     // battlefield→graveyard path preserves counters as last-known-information
     // for death triggers and does not route through this primitive.
     if (from === "exile") delete card.counters;
+    // CR 601.3 / 400.7 (issue #2383) — the per-card cast-from-exile GRANT and
+    // its four riders are meaningful only while the card sits in exile. The
+    // cast path clears them in `removeFromZone`, the impulse window in the
+    // CLEANUP sweep (`gre/phases.ts`) and the land play in
+    // `consumeExilePlayGrant` (`gre/playLand.ts`) — but this general
+    // zone-mover is the FOURTH exile departure (exile → hand/library/graveyard
+    // via `SpellContext.moveZone`/`moveCardById`) and cleared none of them, so
+    // a card pulled back out of exile kept a live grant and every rider with
+    // it: `getCostModifiers` (below) would tax a later HAND cast of that same
+    // instance, and `getLegalActions`'s `isFreeExileCast` branch — which has
+    // no zone check either — would read a stale waiver as "free to cast".
+    // Unreachable with the shipped pool (every exile-departure effect is
+    // source-linked or filtered to cards no grant touches), which is exactly
+    // why it must be closed here rather than left to the first card that can
+    // reach it. Mirrors the `exiledBySourceId` clear directly above.
+    if (from === "exile") {
+        delete card.castableFromExileBy;
+        delete card.castableFromExileUntilTurn;
+        delete card.castFromExileWithoutPayingManaCost;
+        delete card.castableFromExileIncludesLand;
+        delete card.castFromExileManaSubstitution;
+        delete card.castFromExileCostIncrease;
+    }
     // CR 122.2 / 608.2h — the departure-time counter memory is scoped to the
     // zone the permanent landed in. Any further zone change makes yet another
     // new object, so the memory does not travel with it.
@@ -22470,10 +22493,12 @@ export function getCostModifiers(
     // battlefield effect: the tax belongs to the exiled card object and keeps
     // applying after the granting permanent has left. Spell-only — the field
     // rides a CAST permission, and an activated ability of a card in exile is
-    // not a thing this engine can reach. It can only be set while the card
-    // sits in exile under a live grant (`grantCastFromExile` stamps it,
-    // `removeFromZone` / the CLEANUP sweep / `consumeExilePlayGrant` clear
-    // it), so no zone check is needed here: a card in hand never carries one.
+    // not a thing this engine can reach. No zone check: the field exists only
+    // while the card sits in exile under a live grant, which holds because
+    // ALL FOUR exile departures clear it — `removeFromZone` (the cast),
+    // `moveCard`'s `from === "exile"` block (every other zone move,
+    // issue #2383), the CLEANUP impulse sweep (`gre/phases.ts`) and
+    // `consumeExilePlayGrant` (`gre/playLand.ts`).
     if (kind === "spell" && card.castFromExileCostIncrease) {
         for (const [k, v] of Object.entries(
             normalizeManaCost(card.castFromExileCostIncrease)

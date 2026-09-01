@@ -3080,10 +3080,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 (v as { X?: unknown }).X !== "X",
         },
         check: (entry) => {
-            // CR 601.3e / 601.2f — a waived cost has nothing to increase, so
-            // the pair is authored nonsense rather than a silently-ignored
-            // field. Rejected at validation, where every other impossible
-            // combination in this table is caught.
+            // CR 601.2f / 118.9d — a SCOPE decision, not a rules impossibility:
+            // an increase applies to the mana component even when that
+            // component is {0}, so "cast it without paying its mana cost, and
+            // it costs {2} more" would legally cost {2}. No shipped card wants
+            // that pair, the SpellContext primitive carries no such guard, and
+            // `getLegalActions`'s `isFreeExileCast` branch judges affordability
+            // against a hard-coded `{}` with no cost modifiers folded — so a
+            // card that set both would be OFFERED a free cast and then park
+            // unpayable at announce. Rejected here until a card needs it and
+            // that branch learns to fold.
             if (
                 entry.withoutPayingManaCost === true &&
                 "costIncrease" in entry

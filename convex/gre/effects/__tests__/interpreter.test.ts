@@ -28,6 +28,7 @@ import {
 } from "../../../cards/__tests__/setup";
 import {
     resolveTopOfStack,
+    moveCard,
     removeFromZone,
     getCostModifiers,
     removePermanentTo,
@@ -29540,6 +29541,25 @@ describe("Effect Script Op: grantCastFromExile — the object-scoped costIncreas
         expect(card.castFromExileCostIncrease).toEqual({ X: 2 });
         expect(
             getLegalActions(restored, restored.players[1], card, false, "p2")
+        ).toContain("cast");
+    });
+
+    it("is cleared by EVERY exile departure, not just the cast — a card pulled back out of exile is not taxed on a later hand cast", () => {
+        // `moveCard` is the general exile→hand/library/graveyard mover
+        // (`SpellContext.moveZone`/`moveCardById`), the fourth departure
+        // alongside `removeFromZone`, the CLEANUP sweep and
+        // `consumeExilePlayGrant`. Before issue #2383 it cleared neither the
+        // grant nor any of its riders, so the same instance kept a live
+        // permission — and this tax — in the caster's HAND.
+        const state = taxedState("test-op-exile-tax-departures", 4);
+        moveCard(state.players[1], "taxed1", "exile", "hand");
+        const back = state.players[1].hand.find((c) => c.id === "taxed1")!;
+        expect(back.castFromExileCostIncrease).toBeUndefined();
+        expect(back.castableFromExileBy).toBeUndefined();
+        expect(getCostModifiers(state, back, "spell").increase).toEqual({});
+        // 4 mana against an untaxed {1}{G}: castable, as an ordinary hand card.
+        expect(
+            getLegalActions(state, state.players[1], back, false, "p2")
         ).toContain("cast");
     });
 
