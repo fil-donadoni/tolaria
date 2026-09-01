@@ -823,6 +823,14 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution is proved by the card's own resolution test.
             req.skip ??= `Op "counter" targets a spell on the stack — covered by the card's own resolution test`;
             return;
+        case "moveSpellFromStack":
+            // `moveSpellFromStack` (issue #2605) targets a SPELL on the stack,
+            // same as `counter`: the canned generator seeds only players and
+            // battlefield permanents, never a second spell to move, so it is
+            // reported as an explicit skip rather than silently unhandled.
+            // Execution is proved by the Op's own interpreter tests.
+            req.skip ??= `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`;
+            return;
         case "if":
             // The `if` construct branches on a runtime predicate (issue #806).
             // The taken branch — and thus the observable outcome — depends on
@@ -1972,6 +1980,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // seed). Kept for the 1:1 coverage guard; counter coverage is the card's
     // own resolution test.
     counter() {
+        return null;
+    },
+    // `moveSpellFromStack` (issue #2605) — never reached: `analyseOp` skips
+    // every script carrying it (needs a spell on the stack the generator does
+    // not seed). Kept for the 1:1 coverage guard; execution coverage is the
+    // Op's own interpreter tests.
+    moveSpellFromStack() {
         return null;
     },
     // `sacrifice` (issue #807) — never reached, same rationale as `discard`

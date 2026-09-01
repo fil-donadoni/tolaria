@@ -529,7 +529,7 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
 
 // ---------------------------------------------------------------------------
 // The COUNTER exits (review round 2). `counter()`'s non-graveyard branches and
-// `putSpellOnLibrary` splice the item off the stack and push it straight into
+// `moveSpellFromStack` splice the item off the stack and push it straight into
 // hand / library / exile — the `graveyard` default is the only one that routes
 // through `sendStackItemToGraveyard`. Remand is the sharpest case: it runs NO
 // reset at all, so the countered spell lands in hand with its cast-time record

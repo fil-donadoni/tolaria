@@ -36,6 +36,7 @@ import {
     type BecameTargetSourceKind,
     type SourceDamagePreventionShield,
     type SpellContext,
+    type SpellStackDestination,
     type StaticEffect,
     type TargetRequirement,
     type TargetSelection,
@@ -6625,7 +6626,7 @@ export function emitEntersWithCounterEvents(
  *  `kickerPayments` alone — reached from every OTHER non-battlefield exit:
  *  `sendStackItemToGraveyard` (resolve/fizzle/counter-default),
  *  `shuffleIntoLibraryOnResolve`, `exileOnResolve`, `reboundFromHand`,
- *  `counter()`'s exile/library-top/hand branches, and `putSpellOnLibrary`.
+ *  `counter()`'s exile/library-top/hand branches, and `moveSpellFromStack`.
  *  That split meant `kickerPayments` was defended at every exit but
  *  `buybackPaid` at exactly one: a paid-buyback spell that got COUNTERED
  *  (never touching the buyback-hand branch at all) carried `buybackPaid:
@@ -6671,7 +6672,7 @@ export function emitEntersWithCounterEvents(
  *  `delayedEffects`, `grantedSourceCardId`, `actingPlayerId`) — an ability
  *  vanishes instead of moving to a zone (CR 701.6a/113.7a), and every call
  *  site below is reached ONLY for a genuine spell: `counter()` and
- *  `putSpellOnLibrary()` return early for `abilityId`/`triggeredAbilityId`/
+ *  `moveSpellFromStack()` return early for `abilityId`/`triggeredAbilityId`/
  *  `delayedTriggerId` BEFORE ever reaching a call site here, and
  *  `finalizeSpellResolution`'s non-permanent branch only runs for a spell
  *  that finished resolving. So group (2) is always already `undefined` at
@@ -15974,7 +15975,7 @@ export function buildSpellContext(
                     // reveal-class knowledge so the card stays face-up to all
                     // players until an uncertainty event (a shuffle, CR 701.24,
                     // via `clearKnowledge`) erases it. Identical to the
-                    // `putSpellOnLibrary` (Subtlety) path — one mechanism, not
+                    // `moveSpellFromStack` (Subtlety) path — one mechanism, not
                     // a counterspell-specific marker.
                     grantKnowledgeToAll(state, item.ownerId, [item.id]);
                     break;
@@ -15999,24 +16000,26 @@ export function buildSpellContext(
                     break;
             }
         },
-        putSpellOnLibrary(
+        moveSpellFromStack(
             target: TargetSelection,
-            position: "top" | "bottom"
+            destination: SpellStackDestination
         ): void {
-            // CR 701.6-adjacent (issue #1205, Subtlety) — "put target spell on
-            // the top or bottom of its owner's library." NOT a counter: it
+            // CR 701.6-adjacent (issue #1205 Subtlety, issue #2605 Reprieve) —
+            // "put target spell on the top or bottom of its owner's library" /
+            // "return target spell to its owner's hand." NOT a counter: it
             // ignores `cantBeCountered` (CR 113.6g shields only against counter
             // effects). Mirrors `counter`'s stack-splice + ability-vanish.
             if (target.type !== "spell") {
-                throw new Error("putSpellOnLibrary() requires a spell target");
+                throw new Error("moveSpellFromStack() requires a spell target");
             }
             const idx = state.stack.findIndex((s) => s.id === target.id);
             if (idx === -1) return; // no longer on the stack (CR 608.2b) — no-op.
             const [item] = state.stack.splice(idx, 1);
             // CR 708.9 (issue #2705) — the same stack-departure reveal as
             // `counter`, on the same line relative to the splice and for the
-            // same reason: the library is a hidden zone, so a face-down morph
-            // spell put there by Subtlety would lose its identity outright.
+            // same reason: hand and library are both hidden zones, so a
+            // face-down morph spell moved there would lose its identity
+            // outright.
             turnFaceUp(item);
             // An ability on the stack is not a card (CR 113.7a) — it just
             // ceases to exist, like a countered ability.
@@ -16027,17 +16030,33 @@ export function buildSpellContext(
             ) {
                 return;
             }
+            // CR 707.10a — a copy of a spell is not a card: off the stack it
+            // ceases to exist rather than reaching a hand or a library. Same
+            // carve-out the resolution path and `exileSelf` already make; the
+            // splice above IS the ceasing-to-exist, so there is nothing left
+            // to do.
+            if (item.isCopy) return;
+            // CR 108.3 — the destination is always the spell's OWNER's zone,
+            // never its controller's (a spell cast from an opponent's library
+            // or graveyard goes home to its owner).
             const owner = getPlayer(state, item.ownerId);
-            item.zone = "library";
             resetStackTransientState(item);
-            if (position === "top") owner.library.unshift(item);
-            else owner.library.push(item);
+            if (destination === "hand") {
+                item.zone = "hand";
+                owner.hand.push(item);
+            } else {
+                item.zone = "library";
+                if (destination === "library-top") owner.library.unshift(item);
+                else owner.library.push(item);
+            }
             // The spell was a public object on the stack (CR 405.1), so its
-            // identity is known to everyone. Moving it into the hidden library
-            // does not erase that knowledge — the card stays face-up to all
-            // players until an uncertainty event (shuffle, CR 701.24) clears it.
-            // ADR 0026 `knownTo` reveal-class knowledge, cleared automatically
-            // on shuffle by the same path as any revealed library card.
+            // identity is known to everyone. Moving it into a hidden zone does
+            // not erase that knowledge — the card stays face-up to all players
+            // until an uncertainty event (shuffle, CR 701.24) clears it. ADR
+            // 0026 `knownTo` reveal-class knowledge, cleared automatically on
+            // shuffle by the same path as any revealed library card; in hand it
+            // is what the projection renders as the per-card `seenByOpponent`
+            // eye icon, exactly like `counter`'s Remand branch.
             grantKnowledgeToAll(state, item.ownerId, [item.id]);
         },
         discardAtRandom(

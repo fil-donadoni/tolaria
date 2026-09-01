@@ -854,6 +854,19 @@ export type GainControlDuration =
  *  one of `moveZone`'s recognized object kinds). */
 export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 
+/** Where a spell moved off the stack WITHOUT being countered ends up (issue
+ *  #1205 Subtlety, issue #2605 Reprieve). Distinct from `CounterDestination`
+ *  on both axes, which is why it is its own union rather than a reuse:
+ *
+ *  - it is NOT a counter, so it ignores "can't be countered" (CR 113.6g
+ *    shields only against COUNTER effects) and no counter-watching effect
+ *    sees it;
+ *  - "put on the BOTTOM of its owner's library" is expressible here
+ *    (Subtlety) and not there, while `"graveyard"`/`"exile"` have no
+ *    non-counter card wording asking for them yet — an unused member would
+ *    be an untested branch, so the union carries exactly what ships. */
+export type SpellStackDestination = "hand" | "library-top" | "library-bottom";
+
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
      *  item, "graveyard-card" = card in a player's graveyard (CR 400.7),
@@ -3771,17 +3784,22 @@ export interface SpellContext {
         target: TargetSelection,
         destination?: CounterDestination
     ) => void;
-    /** CR 701.6-adjacent (issue #1205, Subtlety) — move a SPELL on the stack
-     *  onto the top or bottom of its owner's library WITHOUT countering it.
-     *  Distinct from `counter(target, "library-top")`: this is a "put on
-     *  library" effect, not a counter, so it ignores `cantBeCountered` (CR
-     *  113.6g shields only against COUNTER effects). Target must be a
-     *  `type: "spell"` TargetSelection; no-op if it has left the stack
-     *  (CR 608.2b). An ability on the stack (no card) just vanishes, mirroring
-     *  `counter`. `position` is the owner's chosen library end. */
-    putSpellOnLibrary: (
+    /** CR 701.6-adjacent (issue #1205 Subtlety, issue #2605 Reprieve) — move a
+     *  SPELL off the stack into a zone of its OWNER's WITHOUT countering it
+     *  ("put target spell on the top or bottom of its owner's library",
+     *  "return target spell to its owner's hand").
+     *
+     *  Distinct from `counter(target, …)`: this is not a counter, so it
+     *  ignores `cantBeCountered` (CR 113.6g shields only against COUNTER
+     *  effects) and nothing watching for a countered spell can see it. Target
+     *  must be a `type: "spell"` TargetSelection; no-op if it has left the
+     *  stack (CR 608.2b). An ability on the stack (no card) just vanishes,
+     *  mirroring `counter`; a COPY of a spell ceases to exist rather than
+     *  reaching a zone (CR 707.10a). `destination` is always resolved against
+     *  the spell's OWNER, never its controller (CR 108.3). */
+    moveSpellFromStack: (
         target: TargetSelection,
-        position: "top" | "bottom"
+        destination: SpellStackDestination
     ) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.9a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
@@ -10388,9 +10406,8 @@ export type EffectObjectSelector = EffectTargetRef | EffectRef;
  *  guarantees that order: every insertion site APPENDS (`moveCard` /
  *  `removePermanentTo` in `gre/state.ts` both `push`), so `player.graveyard`
  *  runs OLDEST-first and the LAST element is the TOP of the pile. `position`
- *  mirrors the library's own `"top" | "bottom"` grammar
- *  (`putSpellOnLibrary`) rather than inventing a second one (ADR 0045
- *  "generalize, don't add").
+ *  mirrors the library's own `"top" | "bottom"` grammar rather than inventing
+ *  a second one (ADR 0045 "generalize, don't add").
  *
  *  `filter` makes this a FILTERED positional scan, which is what the oracle
  *  wording actually asks for: "the top **creature** card of your graveyard"
@@ -14144,6 +14161,27 @@ export type EffectOp =
           op: "counter";
           target: EffectTargetRef;
           destination?: CounterDestination;
+      }
+    /** CR 701.6-adjacent (issue #2605) — move the announced target SPELL off
+     *  the stack into a zone of its OWNER's, WITHOUT countering it: "return
+     *  target spell to its owner's hand" (Reprieve), "put target spell on the
+     *  top/bottom of its owner's library" (Subtlety). Routes through
+     *  `SpellContext.moveSpellFromStack`; skipped when the target already left
+     *  the stack (CR 608.2b).
+     *
+     *  Deliberately NOT `counter` with a destination: a counter is shut out by
+     *  "can't be countered" (CR 113.6g) and this is not, so the two cannot
+     *  share one Op without a flag that changes what the Op IS. `destination`
+     *  is REQUIRED — unlike `counter`'s, which defaults to CR 701.6a's
+     *  graveyard, there is no default zone a non-counter move belongs in.
+     *  What it deliberately does NOT do: choose the destination for a player
+     *  (Subtlety's owner-picks-the-end stays `resolve()` — the pick is raised
+     *  to a FOREIGN player mid-resolution), and it never touches a permanent
+     *  on the battlefield (that is `moveZone`). */
+    | {
+          op: "moveSpellFromStack";
+          target: EffectTargetRef;
+          destination: SpellStackDestination;
       }
     /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
      *  an Op verb: it branches the script on a PREDEFINED predicate form (never

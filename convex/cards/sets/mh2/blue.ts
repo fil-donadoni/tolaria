@@ -54,10 +54,11 @@ export const subtlety: CardDefinition = {
             },
             // protocol card: the destination is the OWNER's own top/bottom
             // choice (a mid-resolution option-pick raised to the spell's owner,
-            // not the trigger's controller), then `putSpellOnLibrary` moves the
-            // stack spell. No DSL Op expresses "put target spell on its owner's
-            // library, owner chooses the end" — a stack-object move gated on a
-            // foreign player's option pick.
+            // not the trigger's controller), then `moveSpellFromStack` moves
+            // the stack spell. The `moveSpellFromStack` Op (issue #2605) takes
+            // a LITERAL destination, so it cannot express "put target spell on
+            // its owner's library, owner chooses the end" — a stack-object move
+            // gated on a foreign player's option pick.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 // "Up to one" — no target chosen, or it left the stack.
@@ -66,7 +67,7 @@ export const subtlety: CardDefinition = {
                 // owner equals its caster (controller) except in the rare
                 // cast-from-elsewhere case; `getController` is the only ctx
                 // lookup that resolves a STACK item (`getOwnerId` is battlefield-
-                // only), and `putSpellOnLibrary` sends the card to the true
+                // only), and `moveSpellFromStack` sends the card to the true
                 // `ownerId`'s library regardless.
                 const ownerId = ctx.getController(target);
                 // CR 113 — the spell's OWNER chooses the library end.
@@ -80,9 +81,9 @@ export const subtlety: CardDefinition = {
                     prompt: "Put the spell on the top or bottom of your library?",
                 });
                 if (choice === undefined) return; // suspended on the choice
-                ctx.putSpellOnLibrary(
+                ctx.moveSpellFromStack(
                     target,
-                    choice === "top" ? "top" : "bottom"
+                    choice === "top" ? "library-top" : "library-bottom"
                 );
             },
         }),

@@ -785,7 +785,7 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         //
         // Then Subtlety ships (issue #1205 — the first targeted trigger over a
         // stack SPELL, on the #1193 foundation): its `subtlety-etb` resolve
-        // (owner top/bottom option-pick + putSpellOnLibrary — no DSL Op) adds
+        // (owner top/bottom option-pick + moveSpellFromStack — no DSL Op) adds
         // ONE Op-blocked closure. Net: total 696→697, FREE/AFK-ready/X-only
         // unchanged (453/415/14), Op-blocked 229→230. Partition:
         // 453+14+230=697.

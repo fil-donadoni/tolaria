@@ -68,3 +68,35 @@ export const eaglesOfTheNorth: CardDefinition = {
     // CR 702.29e/f — Plainscycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Plains")],
 };
+
+// Reprieve — "Return target spell to its owner's hand. Draw a card." (Issue
+// #2605.) Two declarative clauses, one Op each:
+//  - CR 400.7 stack departure: `moveSpellFromStack` with `destination: "hand"`
+//    — NOT a counter, so a spell with "can't be countered" (CR 113.6g) is
+//    returned all the same, and no counter-watching effect sees it. The
+//    returned card is a new object with no memory of the cast: its targets,
+//    modes and the mana spent on it are all simply gone.
+//  - CR 121.1 draw: the cantrip half, ordered AFTER the return so the drawn
+//    card cannot be the returned one.
+// The whole spell is subject to CR 608.2b like any single-target spell: with
+// its only target no longer on the stack, Reprieve does not resolve at all and
+// its controller draws nothing.
+export const reprieve: CardDefinition = {
+    id: "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
+    name: "Reprieve",
+    rarity: "uncommon",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    oracleText: "Return target spell to its owner's hand.\nDraw a card.",
+    // CR 113 — "target spell": a spell on the stack, never an ability (the
+    // default `spellStackKind`).
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "moveSpellFromStack",
+            target: { target: 0 },
+            destination: "hand",
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};

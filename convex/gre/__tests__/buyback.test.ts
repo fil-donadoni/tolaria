@@ -317,8 +317,8 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
     });
 });
 
-// Non-blocking gap flagged in PR #2412 review round 2: `putSpellOnLibrary`
-// (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.6-adjacent "put
+// Non-blocking gap flagged in PR #2412 review round 2: `moveSpellFromStack`
+// (`SpellContext.moveSpellFromStack`, the Subtlety CR 701.6-adjacent "put
 // target spell on top/bottom of its owner's library" effect — NOT a counter,
 // CR 113.6g) shares `resetStackTransientState` with `counter()`'s
 // library-top/exile/hand branches but had no `buybackPaid` coverage of its
@@ -327,7 +327,7 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
 // resolve-side redirects (`exileOnResolve`/`shuffleIntoLibraryOnResolve`/
 // `reboundFromHand`) which are mutually exclusive with buyback by
 // construction (a spell mid-resolution already chose its own destination).
-describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.6 counter-adjacent / issue #2137)", () => {
+describe("Buyback — moveSpellFromStack (Subtlety) strips buybackPaid (CR 701.6 counter-adjacent / issue #2137)", () => {
     it("top — a paid-buyback spell put on top of its library carries no buybackPaid", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -335,11 +335,11 @@ describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.6 
         const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
         probe.buybackPaid = true;
         // A throwaway spell on the stack — only its presence is needed to
-        // obtain a `SpellContext`; `putSpellOnLibrary` reads no field of its
+        // obtain a `SpellContext`; `moveSpellFromStack` reads no field of its
         // OWN item, only the target's.
         const subtletySource = pushSpell(state, counterspell.id, "p2");
         const ctx = buildSpellContext(state, subtletySource);
-        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "top");
+        ctx.moveSpellFromStack({ type: "spell", id: probe.id }, "library-top");
 
         const inLibrary = getPlayer(state, "p1").library.find(
             (c) => c.id === probe.id
@@ -358,7 +358,10 @@ describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.6 
         probe.buybackPaid = true;
         const subtletySource = pushSpell(state, counterspell.id, "p2");
         const ctx = buildSpellContext(state, subtletySource);
-        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "bottom");
+        ctx.moveSpellFromStack(
+            { type: "spell", id: probe.id },
+            "library-bottom"
+        );
 
         const inLibrary = getPlayer(state, "p1").library.find(
             (c) => c.id === probe.id
