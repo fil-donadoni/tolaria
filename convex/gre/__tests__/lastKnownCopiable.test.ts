@@ -529,6 +529,49 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
         expect(token.staticAbilities).toContain("trample");
     });
 
+    it("REGRESSION (CR 608.2h, Eternalize): a source recovered from EXILE copies THE CARD, not the permanent's last known values", () => {
+        // CR 702.129a — an ability whose own activation cost exiled the card
+        // from the graveyard expects to find it in exile, and does: "a copy of
+        // this card" is the CARD, whose copiable values are its printed ones
+        // (CR 707.2). The store must lose there even though the same instance
+        // id has an entry from when the permanent died, or eternalizing a card
+        // that had been a Clone would resurrect the cloned identity.
+        const printedSource = makeInstance(SELF_COPY_CREATURE_ID, {
+            id: "printed-e",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const clone = makeInstance(grizzlyBears.id, {
+            id: "self3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        applyCopy(clone, printedSource);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [printedSource, clone] }),
+                makePlayer("p2"),
+            ],
+        });
+        selfCopyTriggerOnStack(state, clone);
+        removePermanentTo(state, "self3", "graveyard");
+        expect(state.lastKnownCopiable?.["self3"]?.defId).toBe(
+            SELF_COPY_CREATURE_ID
+        );
+        // The activation cost moves it graveyard → exile.
+        const idx = state.players[0].graveyard.findIndex(
+            (c) => c.id === "self3"
+        );
+        const [card] = state.players[0].graveyard.splice(idx, 1);
+        card.zone = "exile";
+        state.players[0].exile.push(card);
+
+        resolveTopOfStack(state);
+
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(presentedDefId(token)).toBe(grizzlyBears.id);
+    });
+
     it("REGRESSION (CR 608.2b): an announced TARGET that has left still fizzles through the Op", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "tgt",

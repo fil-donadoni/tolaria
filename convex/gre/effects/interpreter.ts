@@ -4323,32 +4323,58 @@ export const OP_EXECUTORS: {
         // below — every other caller keeps `createTokenCopyOf`'s documented
         // CR 608.2b fizzle when its source has left the battlefield.
         let recoveredLastKnown = false;
-        // CR 608.2h / 111.12 (ADR 0086) — an announced TARGET that has left is
-        // an illegal target and the copy fizzles (CR 608.2b, Dance of Many);
-        // a source the effect merely NAMES is read from its last known
-        // information instead, and CR 111.12 exempts that case from "no token
-        // is created". The two are different rules, so the switch is the
-        // SELECTOR SHAPE — a `{ target: N }` slot never opts in, a `ref` to
-        // the ability's own source or to a permanent bound earlier in the same
-        // script always does.
-        const lastKnownCopiable = !("target" in op.source);
+        // CR 608.2h — "the effect uses the current information of that object
+        // if it's in the public zone it was EXPECTED to be in; if it's no
+        // longer in that zone … the effect uses the object's last known
+        // information." Which zone the source was expected in is what splits
+        // the two recoveries below, and they are mutually exclusive.
+        let lastKnownCopiable = false;
         if (!source && "ref" in op.source && op.source.ref === "$source") {
             const gid = ctx.sourceInstanceId;
-            const owner =
-                ctx.getExileCardOwner(gid) ?? ctx.getGraveyardCardOwner(gid);
-            if (owner !== undefined) {
-                source = { type: "graveyard-card", id: gid, playerId: owner };
+            // (a) EXILE — the Eternalize shape (CR 702.129a, issue #2339): the
+            // ability's own activation COST moved the card graveyard → exile,
+            // so the card sitting there IS the object "this card" names and
+            // its copiable values are its printed ones (CR 707.2). The ability
+            // expects to find it there, and does.
+            const exileOwner = ctx.getExileCardOwner(gid);
+            if (exileOwner !== undefined) {
+                source = {
+                    type: "graveyard-card",
+                    id: gid,
+                    playerId: exileOwner,
+                };
                 recoveredLastKnown = true;
             } else {
-                // CR 608.2h — the object is in no public zone at all: bounced
-                // to a hand, shuffled away, or a TOKEN the CR 704.5d sweep
-                // removed from state outright. The LKI store still has its
-                // copiable values, and `createTokenCopyOf` is the one authority
-                // on whether an entry exists — it returns undefined (the copy
-                // simply creates nothing) when there is none, so the carrier
-                // below names the id and lets that check happen there rather
-                // than duplicating the lookup as a second authority here.
-                source = { type: "permanent", id: gid };
+                // (b) Anywhere else — the CR 608.2h / 111.12 family this store
+                // exists for (ADR 0086): a BATTLEFIELD-sourced ability naming
+                // its own source ("when this creature dies, create a token
+                // that's a copy of it"). The permanent expected on the
+                // battlefield is gone, so the copiable values it last had
+                // THERE are the reading — and they must beat the card now
+                // sitting in the graveyard, because `revertCopy` restored that
+                // card's PRINTED identity on the way out and for a Clone the
+                // graveyard card is the wrong object.
+                //
+                // The graveyard carrier is still built when the card is there:
+                // it is the fallback for a source with no LKI entry at all.
+                // `createTokenCopyOf` consults the store first and this second.
+                const graveyardOwner = ctx.getGraveyardCardOwner(gid);
+                source =
+                    graveyardOwner !== undefined
+                        ? {
+                              type: "graveyard-card",
+                              id: gid,
+                              playerId: graveyardOwner,
+                          }
+                        : // In no public zone at all — bounced to a hand,
+                          // shuffled away, or a TOKEN the CR 704.5d sweep
+                          // removed from state outright. The carrier only has
+                          // to name the id; `createTokenCopyOf` is the one
+                          // authority on whether the store holds an entry, and
+                          // creates nothing when it does not.
+                          { type: "permanent", id: gid };
+                recoveredLastKnown = graveyardOwner !== undefined;
+                lastKnownCopiable = true;
             }
         }
         // The `graveyard-card` carrier is the generic "card sitting in a
@@ -4384,6 +4410,7 @@ export const OP_EXECUTORS: {
                       ...(recoveredLastKnown
                           ? { lastKnownFromGraveyardOrExile: true }
                           : {}),
+                      ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
                       ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
                       ...(except?.basePower !== undefined
                           ? { basePower: except.basePower }
