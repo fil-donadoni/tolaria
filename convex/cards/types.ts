@@ -1534,6 +1534,44 @@ export interface ActivatedAbility {
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
      *  turn start. Used by Instill Energy. */
     oncePerTurn?: boolean;
+    /** "Activate only if this creature attacked this turn" (CR 702.142a's
+     *  first clause; the second clause is `oncePerTurn`). A DECLARATIVE,
+     *  JSON-serialisable activation-timing precondition — deliberately NOT a
+     *  `canActivate` closure, even though the predicate is one line: a closure
+     *  is opaque to every consumer that is not the server. `enumerateAbilityMoves`
+     *  (`gre/moves.ts`) and `hasFlexibleActivation` (`gre/evaluate.ts`) both
+     *  `continue` on ANY ability carrying `canActivate`, so a closure-gated
+     *  Boast would be permanently invisible to the bot; and the client
+     *  affordability sweep (`activation-affordability.catalogue.test.ts`)
+     *  auto-SKIPS `canActivate` abilities, so the gate could never be swept.
+     *
+     *  Read off `CardInstanceState.hasAttackedThisTurn` (set in
+     *  `gre/combat.ts` at declare-attackers, CR 508.1; persists past
+     *  END_OF_COMBAT and is cleared at CLEANUP, CR 514.2 — see
+     *  `gre/phases.ts`). Absence of that flag IS "did not attack": the engine
+     *  only ever writes it `true` and `serialize.ts` round-trips it, so there
+     *  is no "unknown" state to fail open on.
+     *
+     *  Enforced server-side by `assertActivationTimingLegal` (`convex/game.ts`)
+     *  and mirrored as a UI hint by `isActivationTimingAllowed`
+     *  (`src/lib/card-utils.ts`) and as a bot-move gate by
+     *  `enumerateAbilityMoves` / `hasFlexibleActivation`. */
+    requiresAttackedThisTurn?: boolean;
+    /** CR 702.142 — marks this ability as a BOAST ability. Boast is a keyword
+     *  that adds rules to the activated ability that follows it: "Boast —
+     *  [Cost]: [Effect]" means "[Cost]: [Effect]. Activate only if this
+     *  creature attacked this turn and only once each turn" (CR 702.142a).
+     *
+     *  The two rules clauses are NOT re-derived from this marker at read time
+     *  — `boastAbility()` (`convex/cards/abilities/boast.ts`) expands them into
+     *  the explicit `requiresAttackedThisTurn: true` + `oncePerTurn: true`
+     *  fields at authoring time, so every existing `oncePerTurn` consumer keeps
+     *  working untouched and exactly one new field (`requiresAttackedThisTurn`)
+     *  has to be taught to consumers. This marker exists for CR 702.142b —
+     *  "effects may refer to boast abilities … it means its boast ability being
+     *  activated" — so a future card that cares WHICH ability boasted can key
+     *  off it rather than pattern-matching the two flags. */
+    boast?: boolean;
     /** "Any player may activate this ability" (CR 113.3c / 602.1). By default
      *  only the source's controller may activate an activated ability; when
      *  this is set, any player with priority may activate it — they pay the
@@ -10802,6 +10840,52 @@ export type EffectManaValueValue = {
     manaValue: { of: EffectObjectSelector };
 };
 
+/** sacrificed — a characteristic of the permanent SACRIFICED TO PAY the
+ *  resolving spell/ability's additional cost (CR 601.2f / 602.1), read back
+ *  from the stack item's `additionalSacrificeSnapshot`. A SEVENTEENTH
+ *  `EffectValue` grammar member; like `manaValue` (issue #680) and
+ *  `abilityResolutionCount` (issue #1189) it is NOT an Op and NOT a new
+ *  STRUCTURAL construct — it does not reopen ADR 0045.
+ *
+ *  Reason to exist: `manaValue`'s `of` is an OBJECT SELECTOR that resolves a
+ *  LIVE battlefield permanent, and the cost-sacrificed permanent is by
+ *  definition no longer there — it hit the graveyard while the cost was paid,
+ *  before the ability was ever put on the stack. CR 608.2h therefore requires
+ *  LAST KNOWN INFORMATION, which the engine already snapshots at payment time
+ *  (`StackItem.additionalSacrificeSnapshot`, exposed as
+ *  `SpellContext.getAdditionalSacrificeMv` / `getAdditionalSacrificePower`).
+ *  This member is the thin JSON-pure skin over those two accessors — the same
+ *  snapshot three shipped `resolve()` cards already read imperatively (Priest
+ *  of Yawgmoth, Freyalise Supplicant, Homarid Spawning Bed), so it is a
+ *  migration target, not a one-card shape.
+ *
+ *  No `of` selector, for the same reason `abilityResolutionCount` has none:
+ *  there is exactly one cost-sacrifice snapshot per stack item, so there is
+ *  nothing to select. `read` names WHICH characteristic — `"manaValue"`
+ *  (CR 202.3) or `"power"` (CR 208.1). Unresolvable (no snapshot on the stack
+ *  item — nothing was sacrificed as a cost, or the snapshot lacks that field)
+ *  yields undefined and the consuming Op skips (CR 608.2b).
+ *
+ *  `plus` is a FIXED integer offset baked into this ONE member, defaulting to
+ *  0 — Broadside Bombardiers (LCC) is "damage equal to 2 PLUS the sacrificed
+ *  permanent's mana value". It mirrors `EffectDomainValue.times` /
+ *  `EffectCountSpec.times` exactly: a literal constant folded into the member
+ *  that reads the quantity, NOT arithmetic composition of two values (the
+ *  frozen-grammar defence, ADR 0045 — nothing else composes it, and a `ref`/
+ *  `X`/nested value is not admissible here). It is emphatically NOT a widening
+ *  of `EffectDifferenceValue`, whose own doc comment reserves a general `plus`
+ *  operator for a separate design decision; `difference` is untouched. */
+export type EffectSacrificedValue = {
+    sacrificed: {
+        /** Which characteristic of the cost-sacrificed permanent to read:
+         *  its mana value (CR 202.3) or its power (CR 208.1). */
+        read: "manaValue" | "power";
+        /** Fixed non-negative integer offset added to the read value
+         *  (defaults to 0). A literal only — see the type's doc comment. */
+        plus?: number;
+    };
+};
+
 /** domain — the Domain ability word (CR 702 preamble, italic, no independent
  *  rules meaning): the number of basic land types among lands a PLAYER
  *  controls (0–5, CR 305.6), a thin JSON-pure skin over
@@ -11005,7 +11089,8 @@ export interface EffectDivideValue {
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), a `counters` count on a selected object
- *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
+ *  (issue #1015), a selected object's `manaValue` (issue #680), a
+ *  characteristic of the cost-`sacrificed` permanent (issue #2375), a player's
  *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
  *  #1189), a player's `playerCounters` of one kind (issue #1969), the
@@ -11025,6 +11110,7 @@ export type EffectValue =
     | EffectKickerCountValue
     | EffectAdditionalCostPaidValue
     | EffectManaValueValue
+    | EffectSacrificedValue
     | EffectDomainValue
     | EffectDevotionValue
     | EffectEscapedValue

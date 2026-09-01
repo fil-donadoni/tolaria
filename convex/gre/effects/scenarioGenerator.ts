@@ -367,6 +367,19 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount is a divided terminal — the canned predictor sizes exactly one undivided count set`;
         return;
     }
+    // sacrificed (issue #2375): a characteristic of the permanent sacrificed
+    // to PAY this spell/ability's additional cost, read as last known
+    // information off the stack item's `additionalSacrificeSnapshot`
+    // (CR 601.2f / 608.2h). The canned generator pushes the stack item
+    // directly and never walks the cost-payment path, so no snapshot is ever
+    // attached and the value would resolve `undefined` — a silently wrong
+    // prediction rather than an honest one. Skip-with-reason, exactly as the
+    // other post-`X` grammar members above; the member's own interpreter test
+    // is the behavioural guarantor (new-grammar-member regime).
+    if ("sacrificed" in value) {
+        req.skip ??= `amount reads the cost-sacrificed permanent's ${value.sacrificed.read} — the canned generator never pays an additional sacrifice cost, so no snapshot exists to read`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

@@ -3632,6 +3632,14 @@
         "firstPrintSet": "otj"
     },
     {
+        "name": "Broadside Bombardiers",
+        "scryfallId": "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
+        "oracleId": "e0c00a74-bdf8-4fee-8042-42c5878e9e3c",
+        "firstSet": "lcc",
+        "firstPrintId": "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
+        "firstPrintSet": "lcc"
+    },
+    {
         "name": "Bronze Sable",
         "scryfallId": "ba7e563d-964c-4afd-9e21-9d400f8719d4",
         "oracleId": "f27e5e11-0ad0-448b-8760-75ed1b97e7d8",

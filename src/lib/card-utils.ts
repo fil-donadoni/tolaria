@@ -1739,11 +1739,17 @@ export function matchesHandCardFilter(
  *     survives the wire (`slimCard` spreads the instance, `convex/
  *     gameProjections.ts`), so a prior fix that skipped this restriction as
  *     "not evaluable as a client hint" was factually wrong.
+ *   - `requiresAttackedThisTurn` (CR 702.142a — Boast's "Activate only if this
+ *     creature attacked this turn", Broadside Bombardiers) — IS evaluable
+ *     client-side off the source instance's `hasAttackedThisTurn`.
  *  Every check fails OPEN when its driving field is unknown (`phase`,
  *  `activePlayerId`, or `activationsThisTurn` undefined) — the discipline
  *  every call site already followed individually before this predicate was
  *  extracted: a gate that cannot be evaluated must never hide an
- *  otherwise-legal ability; only the server's hard throw is authoritative. */
+ *  otherwise-legal ability; only the server's hard throw is authoritative.
+ *  `requiresAttackedThisTurn` is the ONE deliberate exception, because its
+ *  driving field has no unknown state to fail open on — see that parameter's
+ *  own doc comment. */
 export function isActivationTimingAllowed(
     ability: {
         id: string;
@@ -1751,6 +1757,7 @@ export function isActivationTimingAllowed(
         sorcerySpeedOnly?: boolean;
         controllerTurnOnly?: boolean;
         oncePerTurn?: boolean;
+        requiresAttackedThisTurn?: boolean;
     },
     turnOwnerId: string,
     phase: Phase | undefined,
@@ -1759,7 +1766,18 @@ export function isActivationTimingAllowed(
      *  (`CardInstanceState.activationsThisTurn`). Omit (or an id absent from
      *  the map) fails OPEN — an unknown counter must never hide a legal
      *  activation. */
-    activationsThisTurn?: Readonly<Record<string, number>>
+    activationsThisTurn?: Readonly<Record<string, number>>,
+    /** The SOURCE permanent's `hasAttackedThisTurn` flag (CR 508.1), driving
+     *  Boast's "Activate only if this creature attacked this turn"
+     *  (CR 702.142a). Unlike every other gate here this one does NOT fail
+     *  open on an absent value, because absence is not ambiguity: the engine
+     *  only ever writes the flag `true` (`gre/combat.ts`), `serialize.ts`
+     *  round-trips it, and `slimCard` (`convex/gameProjections.ts`) spreads
+     *  the instance so it reaches the client intact — `undefined` therefore
+     *  MEANS "has not attacked". Failing open here would make the hint
+     *  useless: the ability would be offered on every untapped creature all
+     *  game and only the server's throw would say no. */
+    hasAttackedThisTurn?: boolean
 ): boolean {
     if (
         ability.activationPhaseRestriction &&
@@ -1788,6 +1806,13 @@ export function isActivationTimingAllowed(
         if (used >= 1) {
             return false;
         }
+    }
+    // CR 702.142a (Boast) — "Activate only if this creature attacked this
+    // turn". Mirrors the server's `assertActivationTimingLegal` clause exactly;
+    // see the parameter's own doc comment for why this gate is fail-CLOSED
+    // while its siblings above are fail-open.
+    if (ability.requiresAttackedThisTurn && hasAttackedThisTurn !== true) {
+        return false;
     }
     return true;
 }
@@ -1884,6 +1909,10 @@ export function getStackAbilities(
          *  targets. Read by the CR 602.2b no-legal-target gate below. */
         targetRequirement?: TargetRequirement;
         controllerTurnOnly?: boolean;
+        /** CR 702.142a — Boast's "Activate only if this creature attacked this
+         *  turn", weighed by the shared `isActivationTimingAllowed` predicate
+         *  against the source instance's `hasAttackedThisTurn`. */
+        requiresAttackedThisTurn?: boolean;
         activatableByOpponentsOnly?: boolean;
         activatableByEnchantedController?: boolean;
         activateFromHand?: boolean;
@@ -1974,7 +2003,10 @@ export function getStackAbilities(
                 card.controllerId,
                 phase,
                 stateView?.activePlayerId,
-                card.activationsThisTurn
+                card.activationsThisTurn,
+                // CR 702.142a — Boast's attacked-this-turn precondition, read
+                // off the source instance (it survives `slimCard`).
+                card.hasAttackedThisTurn
             )
         ) {
             return false;
@@ -2218,7 +2250,8 @@ export function getGraveyardStackAbilities(
                     card.ownerId,
                     phase,
                     stateView.activePlayerId,
-                    card.activationsThisTurn
+                    card.activationsThisTurn,
+                    card.hasAttackedThisTurn
                 )
             ) {
                 return false;
@@ -2319,7 +2352,8 @@ export function getHandStackAbilities(
                     card.ownerId,
                     phase,
                     stateView.activePlayerId,
-                    card.activationsThisTurn
+                    card.activationsThisTurn,
+                    card.hasAttackedThisTurn
                 )
             ) {
                 return false;
@@ -2404,7 +2438,8 @@ export function getAnyPlayerStackAbilities(
                     card.controllerId,
                     phase,
                     stateView?.activePlayerId,
-                    card.activationsThisTurn
+                    card.activationsThisTurn,
+                    card.hasAttackedThisTurn
                 )
         )
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));

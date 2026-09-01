@@ -692,6 +692,26 @@ function resolveValue(
         const target = resolveObjectRef(ctx, value.manaValue.of);
         return target ? ctx.getManaValue(target) : undefined;
     }
+    // sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the
+    // permanent SACRIFICED TO PAY this spell/ability's additional cost, read
+    // as LAST KNOWN INFORMATION off the stack item's
+    // `additionalSacrificeSnapshot` (the victim is already in the graveyard by
+    // the time the ability resolves, so `manaValue`'s live-battlefield
+    // `resolveObjectRef` cannot reach it). Thin skin over
+    // ctx.getAdditionalSacrificeMv / ctx.getAdditionalSacrificePower — the
+    // exact accessors Priest of Yawgmoth and Freyalise Supplicant read
+    // imperatively. Undefined when no cost sacrifice was snapshotted, so the
+    // consuming Op skips (CR 608.2b). `plus` is a fixed literal offset folded
+    // in here (Broadside Bombardiers' "2 plus the sacrificed permanent's mana
+    // value"), mirroring `domain`'s `times` — not arithmetic composition.
+    if ("sacrificed" in value) {
+        const read =
+            value.sacrificed.read === "power"
+                ? ctx.getAdditionalSacrificePower()
+                : ctx.getAdditionalSacrificeMv();
+        if (read === undefined) return undefined;
+        return read + (value.sacrificed.plus ?? 0);
+    }
     // domain — the Domain ability word (CR 702 preamble, issue #1066), a thin
     // skin over ctx.getDomain. `of` is a PLAYER selector (unlike counters'/
     // manaValue's object `of`) — resolved through the SAME resolvePlayerRef

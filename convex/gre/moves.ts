@@ -2052,6 +2052,20 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
+        // attacked this turn". A DECLARATIVE field precisely so this
+        // enumerator can read it: the `canActivate` skip a few lines above
+        // means a closure-gated Boast would never be enumerated at all, so the
+        // bot could never boast. Mirrors the server's own
+        // `assertActivationTimingLegal`; `hasAttackedThisTurn` is absent (not
+        // `false`) when the creature did not attack, so the comparison is
+        // against `true`.
+        if (
+            ability.requiresAttackedThisTurn &&
+            perm.hasAttackedThisTurn !== true
+        ) {
+            continue;
+        }
         // CR 611.1 — a self-animate ability (manlands: Mishra's Factory, Jade
         // Statue) is a no-op while the source is already animated (one
         // animation at a time; `state.ts` `animateAsCreature` returns early

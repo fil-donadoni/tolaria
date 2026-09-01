@@ -29082,3 +29082,151 @@ describe("Effect Script Op: moveZone — linkToSource + exiledWithSource shape (
         expect(errors.join("\n")).toContain("issue #1323");
     });
 });
+
+// ---------------------------------------------------------------------------
+// `sacrificed` — the cost-sacrifice EffectValue member (issue #2375)
+// ---------------------------------------------------------------------------
+
+// CR 601.2f — an additional cost is paid during casting/activation, so the
+// permanent sacrificed to pay it is in the GRAVEYARD long before the spell or
+// ability resolves. CR 608.2h therefore makes its characteristics LAST KNOWN
+// INFORMATION, snapshotted onto the stack item at payment time
+// (`StackItem.additionalSacrificeSnapshot`) and read back here. This is the
+// member's permanent test per the per-Op regime: a new grammar member pays the
+// entry fee once (interpreter unit + a wire-format assertion), and every later
+// card reusing it rides free.
+describe("EffectValue `sacrificed` (CR 601.2f / 608.2h, issue #2375)", () => {
+    /** Pushes a script spell and stamps the cost-sacrifice snapshot the real
+     *  cost-payment path (`sacrificeSnapshotFromSelection`, convex/game.ts)
+     *  would have attached. */
+    function pushWithSacrifice(
+        state: GameState,
+        scriptId: string,
+        snapshot?: { cardInstanceId: string; mv: number; power?: number }
+    ) {
+        const item = pushSpell(state, scriptId, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        if (snapshot) item.additionalSacrificeSnapshot = snapshot;
+        return item;
+    }
+
+    const DAMAGE_MV_PLUS_2 = registerScript("test-value-sacrificed-mv-plus2", [
+        {
+            op: "dealDamage",
+            amount: { sacrificed: { read: "manaValue", plus: 2 } },
+            to: { target: 0 },
+        },
+    ]);
+
+    // Broadside Bombardiers' own shape: "2 plus the sacrificed permanent's
+    // mana value". One row per mana value, including the 0-cost artifact
+    // boundary the issue calls out — `plus` must survive a falsy read.
+    it.each([
+        { mv: 0, expected: 2, what: "a 0-cost artifact" },
+        { mv: 2, expected: 4, what: "a 2-drop" },
+        { mv: 7, expected: 9, what: "a 7-drop" },
+    ])(
+        "reads the cost-sacrificed permanent's mana value and adds `plus` ($what: mv $mv → $expected damage)",
+        ({ mv, expected }) => {
+            const state = makeState({
+                players: [makePlayer("p1"), makePlayer("p2")],
+            });
+            pushWithSacrifice(state, DAMAGE_MV_PLUS_2, {
+                cardInstanceId: "victim",
+                mv,
+            });
+            resolveTopOfStack(state);
+            expect(state.players[1].life).toBe(20 - expected);
+        }
+    );
+
+    // CR 202.3b — a permanent with `{X}` in its cost has mana value 0 on the
+    // battlefield, but the SNAPSHOT records the mana value the engine computed
+    // at sacrifice time (the last-cast X folded in, CR 608.2h). The member is a
+    // pure reader: whatever the cost-payment path recorded is what resolves,
+    // which is exactly why it must not recompute from a live object.
+    it("reads the snapshot verbatim for an X-cost permanent (last-cast X, CR 608.2h)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, DAMAGE_MV_PLUS_2, {
+            cardInstanceId: "xVictim",
+            mv: 5,
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20 - 7);
+    });
+
+    // `plus` is optional and defaults to 0 — the identity offset must not be
+    // rejected or silently treated as 1.
+    it("defaults `plus` to 0 when omitted", () => {
+        const id = registerScript("test-value-sacrificed-mv-bare", [
+            {
+                op: "dealDamage",
+                amount: { sacrificed: { read: "manaValue" } },
+                to: { target: 0 },
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, id, { cardInstanceId: "victim", mv: 3 });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    // `read: "power"` is the second characteristic the snapshot carries
+    // (Freyalise Supplicant's shape: "deals damage equal to the sacrificed
+    // creature's power"). Same member, different column.
+    it("reads the cost-sacrificed permanent's POWER when `read` says so", () => {
+        const id = registerScript("test-value-sacrificed-power", [
+            {
+                op: "dealDamage",
+                amount: { sacrificed: { read: "power" } },
+                to: { target: 0 },
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, id, {
+            cardInstanceId: "victim",
+            mv: 2,
+            power: 4,
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    // CR 608.2b — an unresolvable amount makes the Op do nothing rather than
+    // deal 0/NaN damage. No snapshot means no additional sacrifice was paid,
+    // which is the fail-CLOSED reading: nothing was sacrificed, nothing is
+    // read, the damage clause is skipped.
+    it("resolves to undefined (Op skips) when no cost sacrifice was snapshotted", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, DAMAGE_MV_PLUS_2, undefined);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    // Wire-format assertion (per the per-Op regime): the amount is computed
+    // server-side off a stack-item field, and the OUTCOME (life totals) must
+    // survive `projectPublicState` — a client reading a stripped field would
+    // otherwise show a stale total.
+    it("wire format — the resulting life total survives projectPublicState", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, DAMAGE_MV_PLUS_2, {
+            cardInstanceId: "victim",
+            mv: 4,
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(14);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(14);
+    });
+});
