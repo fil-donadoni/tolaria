@@ -207,7 +207,7 @@ describe("Enduring Innocence — dies trigger returns it as an enchantment (CR 2
         // SURFACE (per `.claude/rules/gre-development.md`) — the client sees
         // only the projection, so a GRE-only assertion would pass while the
         // board still drew a 2/1 Sheep.
-        const view = projectPublicState(state, "p1");
+        const view = projectPublicState(state, 1, "p1");
         const seat = view.players.find((p) => p.id === "p1")!;
         const card = seat.battlefield.find((c) => c.id === "innocence");
         expect(card).toBeDefined();
