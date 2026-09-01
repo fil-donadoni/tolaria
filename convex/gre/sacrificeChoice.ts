@@ -12,6 +12,8 @@ import { getPlayer, removePermanentTo } from "./state";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+// CR 202.3 — the single mana-value authority (hybrid + Phyrexian pips, CR 202.3f).
+import { manaValue } from "./constants";
 import { tryGetDefinition } from "../cards/index";
 import { liveSupertypesOf } from "../cards/snowReads";
 
@@ -241,14 +243,23 @@ export function isSacrificeSelectionComplete(sel: SacrificeSelection): boolean {
     return nextUnmetRequirement(sel) === undefined;
 }
 
+/** CR 202.3 — the sacrificed permanent's mana value for the cost snapshot.
+ *
+ *  Routed through the engine's SINGLE mana-value authority (`manaValue`,
+ *  gre/constants.ts) rather than summing the cost's numeric fields inline. The
+ *  ad-hoc reducer this replaces was wrong for three shapes the authority
+ *  handles: a HYBRID pip is an array, not a number, so `{B/G}` summed to 0
+ *  (Deathrite Shaman, real mana value 1); a PHYREXIAN pip is an object, so
+ *  `{B/P}` summed to 0 (CR 202.3f); and `xFactor` was added as if it were
+ *  generic mana. Latent while only Priest of Yawgmoth and Freyalise Supplicant
+ *  read the snapshot, it became a number the player reads off the board the
+ *  moment Broadside Bombardiers' boast damage was "2 plus the sacrificed
+ *  permanent's mana value" (issue #2375) — a hybrid victim dealt 2 instead
+ *  of 3. */
 function manaValueOf(c: CardInstanceState): number {
     const cardId = (c.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def?.manaCost) return 0;
-    return Object.values(def.manaCost).reduce<number>(
-        (acc, v) => acc + (typeof v === "number" ? v : 0),
-        0
-    );
+    return manaValue(def?.manaCost);
 }
 
 function pickSnapshotFlags(sel: SacrificeSelection): Map<string, boolean> {

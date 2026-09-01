@@ -1126,7 +1126,7 @@ function isManaValueValue(value: unknown): boolean {
 }
 
 /** `{ sacrificed: { read, plus? } }` — SHAPE of the cost-sacrifice value
- *  construct (CR 601.2f / 608.2h, issue #2375, sixteenth EffectValue member).
+ *  construct (CR 601.2f / 608.2h, issue #2375, seventeenth EffectValue member).
  *  No `of` selector — like `abilityResolutionCount` it is scoped to the
  *  resolving STACK ITEM's own `additionalSacrificeSnapshot`, so there is
  *  nothing to select and no ref position for the ordered ref pass to

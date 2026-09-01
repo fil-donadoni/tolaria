@@ -23,6 +23,7 @@ import { broadsideBombardiers } from "../red";
 import { grizzlyBears } from "../../lea/green";
 import { hillGiant } from "../../lea/red";
 import { blackLotus } from "../../lea/colorless";
+import { deathriteShaman } from "../../rtr/multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { assertActivationTimingLegal } from "../../../../game";
 import { applyActivationCostsForSearch } from "../../../../gre/applyMove";
@@ -183,6 +184,28 @@ describe("Broadside Bombardiers — boast damage reads the cost-sacrificed perma
 
         expect(costOut.additionalSacrificeSnapshot?.mv).toBe(0);
         expect(state.players[1].life).toBe(20 - 2);
+    });
+
+    // CR 202.3f — a HYBRID pip is valued as 1, so Deathrite Shaman ({B/G}) has
+    // mana value 1 and the boast deals 3. Guards the cost snapshot against
+    // re-growing its own ad-hoc mana-value sum instead of routing through
+    // `manaValue` (gre/constants.ts): the reducer this replaced saw a hybrid
+    // pip as an array, summed it to 0, and dealt 2 — a number the player reads
+    // straight off the board. Same class covers Phyrexian pips.
+    it("values a HYBRID-cost victim at 1 per pip (CR 202.3f), not 0", () => {
+        const { state, source } = board();
+        source.hasAttackedThisTurn = true;
+        const shaman = makeInstance(deathriteShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(shaman);
+
+        const costOut = boastAt(state, source, "shaman");
+
+        expect(costOut.additionalSacrificeSnapshot?.mv).toBe(1);
+        expect(state.players[1].life).toBe(20 - 3);
     });
 
     // A larger mana value scales the damage — the amount is READ, not a

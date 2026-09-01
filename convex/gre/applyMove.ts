@@ -731,7 +731,21 @@ export function applyActivationCostsForSearch(
         // "the exiled card's mana value" the mutation path captures
         // (`exileCostSnapshot`, `game.ts`). Single-card costs only, matching
         // that authority: "the exiled card" has no referent above one.
-        if (out && exile.cardInstanceIds.length === 1) {
+        //
+        // The SACRIFICE leg above wins the collision (`!out.additionalSacrificeSnapshot`),
+        // which is how the mutation path resolves it too — `game.ts`'s
+        // `activationSacrificeSnapshot ?? activationExileSnapshot`, whose own
+        // comment records the reason: adding an exile leg must never silently
+        // change what an existing sacrifice-cost card (Priest of Yawgmoth,
+        // Freyalise Supplicant) reads back. No shipped ability declares both,
+        // so this is a latent divergence, not a live bug — but a search that
+        // resolved it the other way from the server is exactly the drift this
+        // whole out-collector exists to prevent.
+        if (
+            out &&
+            !out.additionalSacrificeSnapshot &&
+            exile.cardInstanceIds.length === 1
+        ) {
             const snap = gyOwner?.graveyard.find(
                 (c) => c.id === exile.cardInstanceIds[0]
             );
