@@ -170,7 +170,9 @@ self-contained, because the tracker is about to be closed:
 
 Label: `ready-for-agent` when the shape is settled, `needs-design` when Phase 5
 left a real fork. Add `model:opus` only for a ticket introducing a
-primitive/Op/cross-layer shape later tickets will copy.
+primitive/Op/cross-layer shape later tickets will copy — the criterion is
+`docs/agents/triage-labels.md` § Model-routing labels, which is the single
+authority; this line is a shorthand, not a second rule.
 
 **Wire the native parent edge — `gh issue edit <slice> --parent <tracker>`.**
 Mandatory, on every slice, at creation time. `/process-gh-issues` sorts its

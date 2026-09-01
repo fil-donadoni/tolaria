@@ -32,9 +32,21 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 ## Model-routing labels escalate by exception
 
-`model:opus` and `model:fable` route the implement/fixup subagent in
-`/process-gh-issues`; an unlabelled issue runs on the default tier (Sonnet).
-There is deliberately no `model:sonnet` label — absence IS the default.
+**This section is the single authority on model routing, for filing AND for
+pickup.** `model:opus` and `model:fable` route the implement/fixup subagent in
+`/process-gh-issues` and decide whether `/next-issue` may run an issue on the
+session's tier; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
+and nothing else. An unlabelled issue runs on the default tier (Sonnet). There
+is deliberately no `model:sonnet` label — absence IS the default.
+
+No skill restates the criterion below in its own words. A second prose copy is
+drift by construction: `/next-issue` § 1 once carried an area-based list
+("touches the layer system / bot search…") and it contradicted this section on
+the first bot issue that reached it — the filing skill had correctly left a
+blade-covered bot-search fix unlabelled, and the pickup skill stopped the
+session as opus-class. A session that disagrees with an issue's label applies
+the label (`gh issue edit N --add-label model:opus`) and thereby amends the
+routing durably; it does not keep a private criterion.
 
 Apply `model:opus` **only** when the failure mode is a wrong mental model no
 gate catches: classification/taxonomy work (new event type, new seam, new
@@ -44,5 +56,17 @@ covering tests, bot heuristics with a blade scenario, frontend layout, and
 card slices on existing Ops stay unlabelled regardless of file count. An issue
 implementing an already-written ADR de-escalates: the design work is done, the
 implementation defaults to Sonnet. `model:fable` is reserved for
-architecture-setting work only. Full criterion and rationale:
-`.claude/skills/new-qa-issue/SKILL.md` § Step 5.
+architecture-setting work only — architecture-setting means a new ADR, a new
+subsystem, or a design later issues build on; it is rare for a QA observation.
+
+> A 2026-08-06 audit found 50% of the `ready-for-agent` queue carrying
+> `model:opus` under the looser wording ("complex, high-risk, or
+> wide-blast-radius"), including frontend layout work — which routed most
+> implement/fixup volume to the expensive tier for no measured quality gain.
+> When in doubt, leave it unlabelled: the fixup-rate dashboard is the feedback
+> loop, and re-escalating one issue later is one label edit.
+
+`model:sonnet` was retired because it said exactly what its absence already
+says, so it was pure noise on every routine issue (21 open, 84 closed carried
+it). `resolveModel` is generic over `model:<name>`, so re-creating the label
+would work; it just would not mean anything.
