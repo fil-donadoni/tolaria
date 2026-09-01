@@ -2781,6 +2781,17 @@ export interface SpellContext {
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
     sourceInstanceId: string;
+    /** CR 113.6 / 608.2h — true when the resolving ability DECLARES that it is
+     *  activated from a non-battlefield zone
+     *  (`ActivatedAbility.activateFromGraveyard`: Ashen Ghoul, Eternalize).
+     *  That declaration is what CR 608.2h calls "the public zone it was
+     *  expected to be in", so it decides which last-known reading a copy
+     *  effect takes when its source is gone: the CARD in the graveyard/exile
+     *  (printed copiable values, CR 707.2) for a graveyard-activated ability,
+     *  versus the permanent's last known copiable values
+     *  (`GameState.lastKnownCopiable`, ADR 0086) for a battlefield-sourced
+     *  one. False for a spell and for a triggered ability. */
+    abilityActivatedFromGraveyard: boolean;
     /** The card DEFINITION id of the resolving stack item (CR 108.1 — the
      *  card the spell/ability is printed on). Read by scheduling primitives
      *  that stamp their source card on persisted records — a delayed

@@ -13834,6 +13834,37 @@ export function manaCostForCardFilter(
 }
 
 /** Builds a SpellContext with primitives bound to the current game state. */
+/** CR 113.6 / 608.2h — does the ability this stack item resolves DECLARE that
+ *  it is activated from a non-battlefield zone (`activateFromGraveyard`:
+ *  Ashen Ghoul, Eternalize)? That declaration is what CR 608.2h calls "the
+ *  public zone it was expected to be in", and it is the only honest
+ *  discriminator between the two last-known readings a copy effect can need:
+ *  a graveyard-activated ability copies THE CARD (printed values, CR 707.2),
+ *  a battlefield-sourced one copies what the PERMANENT last was
+ *  (`GameState.lastKnownCopiable`, ADR 0086).
+ *
+ *  Dispatched on the DECLARED zone rather than on where the card happens to be
+ *  found, for exactly the reason `payExileThisCost` gives at its own site: a
+ *  declared discriminator cannot fail open the way "look for it somewhere"
+ *  would. A battlefield permanent exiled in response to its own ability
+ *  (Splinter Twin answered with Path to Exile) is found in exile and is NOT
+ *  the Eternalize shape.
+ *
+ *  False for a spell, for a triggered ability, and for an ability GRANTED by
+ *  another card (CR 113.1) unless the grant template itself declares it — the
+ *  same two-shape lookup `resolveTopOfStackInner` uses. */
+function abilityActivatedFromGraveyard(item: StackItem): boolean {
+    if (!item.abilityId) return false;
+    const ability = item.grantedSourceCardId
+        ? tryGetDefinition(item.grantedSourceCardId)?.grantTemplates?.find(
+              (a) => a.id === item.abilityId
+          )
+        : tryGetDefinition(presentedDefId(item))?.activatedAbilities?.find(
+              (a) => a.id === item.abilityId
+          );
+    return ability?.activateFromGraveyard === true;
+}
+
 export function buildSpellContext(
     state: GameState,
     item: StackItem
@@ -13890,6 +13921,10 @@ export function buildSpellContext(
         // intervening-if re-check at CR 603.4). `triggerSourceId` is captured
         // in `buildTriggerItem` for exactly this purpose.
         sourceInstanceId: item.triggerSourceId ?? item.id,
+        // CR 113.6 / 608.2h — see `abilityActivatedFromGraveyard`. Read by the
+        // `createTokenCopy` Op to decide WHICH last-known reading applies to a
+        // `{ ref: "$source" }` whose source is no longer on the battlefield.
+        abilityActivatedFromGraveyard: abilityActivatedFromGraveyard(item),
         // CR 108.1 — the resolving item's card definition id (ADR 0048:
         // stamped on scheduled delayed triggers so the fired trigger renders
         // its source card). Empty for synthetic items with no registry id.

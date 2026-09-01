@@ -2618,13 +2618,23 @@ export function finalizeCleanup(state: GameState): void {
     }
 
     // CR 514 / 608.2h (ADR 0086) — prune the last-known copiable-values store
-    // on a TWO-TURN window. The longest-lived referent the engine can produce
-    // is a delayed trigger: "at the beginning of the next end step" fires by
-    // turn N+1 and "at the beginning of your next upkeep" by turn N+2's
-    // upkeep, both strictly BEFORE this cleanup — so an entry stamped on turn
-    // N is safe to drop once the turn counter has moved two past it, and row
-    // growth is bounded by two turns of departures instead of by the game
-    // (row size is the Convex cost driver, PRD #1776).
+    // on a TWO-TURN window. It covers every referent that exists TODAY: a
+    // trigger already on the stack resolves before the turn ends, and the
+    // longest-lived scheduled one is a delayed trigger — "at the beginning of
+    // the next end step" fires by turn N+1 and "at the beginning of your next
+    // upkeep" by turn N+2's upkeep, both strictly BEFORE this cleanup. Row
+    // growth is therefore bounded by two turns of departures rather than by
+    // the game (row size is the Convex cost driver, PRD #1776) — though NOT
+    // within a turn: a sacrifice loop writes one entry per dead token.
+    //
+    // It is a window, not a proof, and the margin is zero. `state.extraTurns`
+    // and `skipNextTurn` both push "your next upkeep" past N+2, and the
+    // `leaves-battlefield-indefinite` / `until-next-turn-creature-attacks-you`
+    // timings carry no turn bound at all. Nothing is broken by that today
+    // because no delayed-trigger BODY contains a `createTokenCopy` naming its
+    // own source — the only consumer of this store. The day one does, this
+    // prune owes a reachability check against `state.delayedTriggers` instead
+    // of a turn count.
     //
     // A repeatable CR 514.2-shaped sweep, not once-per-turn bookkeeping: it
     // filters by an absolute turn number, so the extra cleanup step CR 514.3a

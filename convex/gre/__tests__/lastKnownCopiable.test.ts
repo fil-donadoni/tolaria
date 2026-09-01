@@ -313,11 +313,16 @@ describe("LKI copiable store — CR 514 pruning on a two-turn window (ADR 0086)"
     });
 
     it("prunes idempotently across the extra cleanup step CR 514.3a can start", () => {
+        // Run at the turn where the delete actually FIRES, so the second pass
+        // re-enters a store the first one emptied and dropped to `undefined` —
+        // the state a repeat step really sees. A window test that never
+        // triggers a deletion would stay green with the whole prune removed.
         const state = stateWithDepartureOnTurn(5);
-        state.turn = 6;
+        state.turn = 7;
         finalizeCleanup(state);
-        finalizeCleanup(state);
-        expect(state.lastKnownCopiable?.["src"]).toBeDefined();
+        expect(state.lastKnownCopiable).toBeUndefined();
+        expect(() => finalizeCleanup(state)).not.toThrow();
+        expect(state.lastKnownCopiable).toBeUndefined();
     });
 });
 
@@ -433,6 +438,68 @@ registerTokenDefinition({
     ],
 });
 
+const ETERNALIZE_ABILITY_ID = "lki-eternalize-copy";
+const ETERNALIZE_CARD_ID = "test-lki-eternalizer";
+registerTokenDefinition({
+    id: ETERNALIZE_CARD_ID,
+    name: ETERNALIZE_CARD_ID,
+    rarity: "common",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: ETERNALIZE_ABILITY_ID,
+            oracleText:
+                "Exile this card from your graveyard: Create a token that's a copy of it.",
+            cost: { mana: {}, exileThis: true },
+            useStack: true,
+            // CR 113.6 / 702.129a — the DECLARATION that makes this the
+            // graveyard-activated shape, and the only thing the copy path
+            // dispatches on.
+            activateFromGraveyard: true,
+            sorcerySpeedOnly: true,
+            effects: [
+                {
+                    op: "createTokenCopy",
+                    source: { ref: "$source" },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+});
+
+/** The graveyard → exile move an `exileThis` activation cost performs. */
+function moveGraveyardCardToExile(
+    state: ReturnType<typeof makeState>,
+    id: string
+): void {
+    const idx = state.players[0].graveyard.findIndex((c) => c.id === id);
+    const [card] = state.players[0].graveyard.splice(idx, 1);
+    card.zone = "exile";
+    state.players[0].exile.push(card);
+}
+
+/** The activated ability on the stack, keeping the source card's instance id —
+ *  the shape `activateAbility` commits (CR 608.2h last known information). */
+function eternalizeAbilityOnStack(
+    state: ReturnType<typeof makeState>,
+    sourceId: string
+): StackItem {
+    const card = state.players[0].exile.find((c) => c.id === sourceId)!;
+    const item: StackItem = {
+        ...card,
+        zone: "stack",
+        castById: "p1",
+        abilityId: ETERNALIZE_ABILITY_ID,
+        targets: undefined,
+    };
+    state.stack.push(item);
+    return item;
+}
+
 function selfCopyTriggerOnStack(
     state: ReturnType<typeof makeState>,
     source: CardInstanceState
@@ -529,19 +596,27 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
         expect(token.staticAbilities).toContain("trample");
     });
 
-    it("REGRESSION (CR 608.2h, Eternalize): a source recovered from EXILE copies THE CARD, not the permanent's last known values", () => {
-        // CR 702.129a — an ability whose own activation cost exiled the card
-        // from the graveyard expects to find it in exile, and does: "a copy of
-        // this card" is the CARD, whose copiable values are its printed ones
+    it("REGRESSION (CR 608.2h, Eternalize): a GRAVEYARD-ACTIVATED ability copies THE CARD, not the permanent's last known values", () => {
+        // CR 702.129a — an ability that DECLARES `activateFromGraveyard` expects
+        // its source in the graveyard (its own cost then exiles it), so "a copy
+        // of this card" is the CARD and its copiable values are printed
         // (CR 707.2). The store must lose there even though the same instance
         // id has an entry from when the permanent died, or eternalizing a card
         // that had been a Clone would resurrect the cloned identity.
+        //
+        // The discriminator is the DECLARATION, not the zone the card is found
+        // in — see the companion assertion below, where the very same "found in
+        // exile" shape belongs to a battlefield-sourced ability and must take
+        // the store instead.
         const printedSource = makeInstance(SELF_COPY_CREATURE_ID, {
             id: "printed-e",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const clone = makeInstance(grizzlyBears.id, {
+        // Printed as the eternalizer, so the card that lands in exile carries
+        // the graveyard-activated ability; a copy effect had made it present
+        // something else entirely on the battlefield.
+        const clone = makeInstance(ETERNALIZE_CARD_ID, {
             id: "self3",
             controllerId: "p1",
             ownerId: "p1",
@@ -553,23 +628,53 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
                 makePlayer("p2"),
             ],
         });
-        selfCopyTriggerOnStack(state, clone);
         removePermanentTo(state, "self3", "graveyard");
         expect(state.lastKnownCopiable?.["self3"]?.defId).toBe(
             SELF_COPY_CREATURE_ID
         );
-        // The activation cost moves it graveyard → exile.
-        const idx = state.players[0].graveyard.findIndex(
-            (c) => c.id === "self3"
-        );
-        const [card] = state.players[0].graveyard.splice(idx, 1);
-        card.zone = "exile";
-        state.players[0].exile.push(card);
+        // The activation cost moves it graveyard → exile, then the ability goes
+        // on the stack keeping the card's instance id (CR 608.2h).
+        moveGraveyardCardToExile(state, "self3");
+        eternalizeAbilityOnStack(state, "self3");
 
         resolveTopOfStack(state);
 
         const token = state.players[0].battlefield.find((c) => c.isToken)!;
-        expect(presentedDefId(token)).toBe(grizzlyBears.id);
+        expect(presentedDefId(token)).toBe(ETERNALIZE_CARD_ID);
+        expect(token.power).toBe(2);
+    });
+
+    it("the SAME 'found in exile' shape, from a BATTLEFIELD-sourced trigger, takes the store instead (Splinter Twin answered with Path to Exile)", () => {
+        // The pair that proves the split is on the ability's declaration and
+        // not on where the card landed: identical zone, opposite reading.
+        const printedSource = makeInstance(SELF_COPY_CREATURE_ID, {
+            id: "printed-x",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const clone = makeInstance(grizzlyBears.id, {
+            id: "self4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        applyCopy(clone, printedSource);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [printedSource, clone] }),
+                makePlayer("p2"),
+            ],
+        });
+        selfCopyTriggerOnStack(state, clone);
+        // Exile removal in response — the card lands in exile, exactly where the
+        // Eternalize shape above finds its own source.
+        removePermanentTo(state, "self4", "exile");
+        expect(state.players[0].exile.some((c) => c.id === "self4")).toBe(true);
+
+        resolveTopOfStack(state);
+
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(presentedDefId(token)).toBe(SELF_COPY_CREATURE_ID);
+        expect(token.power).toBe(3);
     });
 
     it("REGRESSION (CR 608.2b): an announced TARGET that has left still fizzles through the Op", () => {

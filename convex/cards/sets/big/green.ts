@@ -169,7 +169,7 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
     // protocol card: CR 707.2's copy machinery (`applyCopy` id-swap onto the
     // token, carrying the printed definition's real triggered-ability
     // closures and art) has no Effect Script Op exposing `additionalTypes` +
-    // `lastKnownFromGraveyardOrExile` together — `createTokenCopy`'s DSL skin
+    // the last-known source lookups together — `createTokenCopy`'s DSL skin
     // (`gre/effects/interpreter.ts`) only maps `except.additionalSubtypes`,
     // not `additionalTypes`. Calling the `SpellContext` primitive directly
     // is a straight one-line composition, not a card-shaped closure.
@@ -179,6 +179,24 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
             ctx.controller,
             deadCreature.id,
             {
+                // CR 608.2h / 111.12 (ADR 0086, issue #2075) — "a copy of IT"
+                // names the PERMANENT that died, so the reading is that
+                // permanent's last known copiable values, not the card now
+                // sitting in the graveyard: `revertCopy` restored the printed
+                // identity on the way out, so a Phantasmal Image that had
+                // become this Tyrant (and therefore carries this very trigger)
+                // would otherwise come back as a 0/0 Clone and die to SBAs.
+                // Consulted first; the graveyard widening below stays as the
+                // fallback for a source with no store entry.
+                //
+                // Belt-and-braces TODAY, and deliberately so: `collectTriggers`
+                // (gre/triggers.ts) scans the dead permanent by looking the CARD
+                // up in the graveyard, so a Clone that had become this Tyrant
+                // does not currently fire this trigger at all and the two
+                // readings can only agree. That look-back is a separate CR
+                // 603.10 gap (docs/findings/), and the day it is fixed this
+                // call is already right.
+                lastKnownCopiable: true,
                 lastKnownFromGraveyardOrExile: true,
                 additionalTypes: ["Artifact"],
             }
@@ -186,7 +204,7 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
     },
     // aiEffects (PRD #1423, issue #1431/#2364) — bare `resolve()` closure
     // (no Effect Op exposes `createTokenCopyOf`'s `additionalTypes` +
-    // `lastKnownFromGraveyardOrExile` combination, see the comment above), so
+    // last-known-source combination, see the comment above), so
     // the bot's value model has nothing to walk without a shadow script.
     // Approximates
     // the real effect closely enough for valuation: a 6/6 trampler token

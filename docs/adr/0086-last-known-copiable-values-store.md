@@ -98,10 +98,22 @@ written at the single battlefield-departure chokepoint and read as
   `countersAtLeave`: that field dies with the token and would need a hoisting map
   anyway, i.e. two mechanisms to do one thing.
 - **Pruned at cleanup (CR 514) on a two-turn window.** The longest-lived
-  referent the engine can produce is a delayed trigger: "at the beginning of the
-  next end step" fires by turn N+1 and "at the beginning of your next upkeep" by
-  turn N+2's upkeep, both before the cleanup that would drop a turn-N entry. Row
-  growth is therefore bounded by two turns of departures rather than by the game.
+  referent that exists today is a delayed trigger: "at the beginning of the next
+  end step" fires by turn N+1 and "at the beginning of your next upkeep" by turn
+  N+2's upkeep, both before the cleanup that would drop a turn-N entry. Row
+  growth is therefore bounded by two turns of departures rather than by the game
+  — though not _within_ a turn: a sacrifice loop writes one entry per dead token
+  (~20 bytes each, so small in absolute terms, but "bounded by two turns" is not
+  "bounded").
+
+    **It is a window, not a proof, and #2075 records that the margin is zero.**
+    `extraTurns` and `skipNextTurn` both push "your next upkeep" past N+2, and the
+    `leaves-battlefield-indefinite` and `until-next-turn-creature-attacks-you`
+    timings carry no turn bound at all. Nothing is broken by that today because no
+    delayed-trigger body contains a `createTokenCopy` naming its own source — the
+    store's only consumer. The day one does, this prune owes a reachability check
+    against `state.delayedTriggers` rather than a turn count.
+
 - **It crosses the wire, unredacted, on purpose.** The client Brain runs
   `resolveTopOfStack` on a local clone (ADR 0074); without LKI its simulation
   diverges from the server on exactly the cards this store enables, which is the
