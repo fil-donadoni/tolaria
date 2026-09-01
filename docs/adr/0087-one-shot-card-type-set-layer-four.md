@@ -167,3 +167,65 @@ mirroring `diedTrigger`, which has carried its own death-event P/T since it
 shipped), plus `oncePerEventBatch` (CR 603.3b) and `maxTriggersPerTurn`
 (CR 603.2), both long-shipped `TriggeredAbility` fields the factory simply did
 not forward.
+
+## Amendment 2: entering AS the new type (#2993)
+
+The composition recorded above — `moveZone`, then `setCardTypes`, then
+`setSubtype` — is the right shape for a type set applied to a permanent already
+on the battlefield (Oko's `+1`). It is the wrong shape for the Enduring cycle's
+own sentence, and shipped a bug: the type line landed **after**
+`emitPermanentEntered`, so the `PERMANENT_ENTERED` event announced
+`types: ["Enchantment", "Creature"]` with a `power`, and every "whenever a
+creature enters" watcher fired off a permanent that is not a creature (CR
+603.6a). Enduring Innocence's own sibling drew a card off it.
+
+Reordering the Ops was never available: a graveyard → battlefield entry funnels
+through `resetBattlefieldTransientState`, whose `revertTypeLine` reverts the
+whole layer-4 provenance, so a line set BEFORE the move is wiped by the entry.
+That is exactly why the shipped order was move-then-set. The type has to be
+applied **as** the permanent enters — after the entry-side reset, before the
+ETB notification.
+
+**The Op grows a field; it does not grow a second Op.** `moveZone` takes
+`entersAs: { types, subtypes }`, valid only with `to: "battlefield"` on the
+`target` shape. That keeps the whole Oracle sentence in one Op, matching how it
+reads, and leaves `setCardTypes` as the after-the-fact form it was designed to
+be.
+
+**Both halves are required, which is where this amendment revisits Amendment 1.**
+That amendment recorded that CR 205.1a's correlated-subtype clause is composed
+at the call site rather than folded into the Op, so no subtype → card-type
+classifier was needed. `entersAs` cannot compose at the call site — both halves
+must be in place at the same instant — so it carries both. What it does **not**
+do is derive the second from the first: the author still states the surviving
+subtype line explicitly, so the closed-set classifier this ADR originally
+proposed is still not built and still fails open if it ever is. An OPTIONAL
+`subtypes` would have been the fail-open shape (a permanent that is no longer a
+creature keeping Sheep and Glimmer), so the validator rejects it.
+
+**The mechanism is an entry stamp, mirroring the transform seam.**
+`CardInstanceState.entersAsTypeLine` is written by
+`SpellContext.returnToBattlefield`'s new `opts.entersAs` while the card sits in
+the graveyard/exile, and consumed by `applyEntryTypeLine` inside
+`stageReanimatedOnBattlefield`. This is deliberately the same "mutate the object
+between the departure and the entry" seam `stampBackFaceForEntry` uses for
+"exile it, then return it transformed" (#2380) — a second entry-mutation model
+is what this project already has too many of. A stamp rather than a threaded
+call argument because the funnel can PARK the card across a real save point (CR
+614.12a as-enters choices, ADR 0100) and re-enter it on a later mutation, so the
+line has to ride the instance; it is therefore persisted, not transient.
+
+**It leaves no storage of its own behind.** The stamp writes through
+`applyCardTypeSet` / `applyIndefiniteSubtypeSet` — the extracted card-level
+bodies of the two SpellContext primitives — so the records are the ones
+`revertTypeLine` already reverts, and CR 400.7 needs no knowledge of the entry
+path. A permanent returned as an enchantment and later destroyed still sits in
+the graveyard as the Enchantment Creature — Sheep Glimmer card it prints.
+
+**Known boundary.** The CR 614 entry-REPLACEMENT check
+(`enterBattlefieldDestinationFor` — Containment Priest) runs earlier in the same
+function and still reads the printed type line. No shipped card pair reaches it;
+drafted in
+`docs/findings/2993-entry-type-line-is-invisible-to-the-cr-614-check.md` and a
+line on the ADR 0082 / PRD #2064 migration, where "the characteristics an object
+would have as it enters" gets one authority.
