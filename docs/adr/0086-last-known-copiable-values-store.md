@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (shipped in #2075)
 
 ## Context
 
@@ -61,14 +61,28 @@ Three further facts constrain the shape:
 written at the single battlefield-departure chokepoint and read as
 `createTokenCopyOf`'s fallback.**
 
-- **Contents: the copiable values only** (CR 707.2) — presented definition id,
-  types, subtypes, **base** power/toughness, static abilities, colour override:
-  exactly the fields `applyCopy` writes. Deliberately **not** the _effective_
-  P/T the adjacent departure snapshot takes (`state.ts:7869`): layered buffs are
+- **Contents: the copiable values only** (CR 707.2) — deliberately **not** the
+  _effective_ P/T the adjacent departure snapshot takes: layered buffs are
   correct for "damage equal to its power" and wrong for a copy, because CR 707.2
   ends "Other effects … are not copied". Two LKI snapshots sit side by side with
   deliberately different semantics, and the code must say so or someone will
   unify them.
+
+    **As shipped (#2075), the entry is the presented definition id plus the
+    copy-effect "except it's N/N" stamp — not a materialised dump of types,
+    subtypes, base P/T and static abilities.** Those four ARE the copiable values,
+    and they are exactly what `getDefinition(presentedDefId)` answers: `applyCopy`
+    derives every one of them from the copied definition and reads nothing else
+    off the source object. Materialising them would duplicate the definition into
+    the hottest row in the system for no behavioural gain — the very cost this ADR
+    bounds elsewhere with a two-turn window — and would create a second, driftable
+    authority on what a copy of the object is. The invariant to keep is the
+    pairing: the store carries whatever `CopySource` (`gre/copy.ts`) declares a
+    copy source contributes, minus what the definition id already answers. Issue
+    #2963, which will make the remaining "except" clauses (colours, additional
+    subtypes, no mana cost) inherit off the SOURCE INSTANCE instead of being
+    rebuilt from the copied definition, is the day the store owes those fields.
+
 - **Enumerate the fields; never spread the instance.** A `{...card}` would carry
   `faceDownOf`, which is not a copiable value and which the projection
   deliberately deletes for non-controllers (`gameProjections.ts:325`, `410`).
@@ -114,8 +128,19 @@ written at the single battlefield-departure chokepoint and read as
   and a round-trip smoke test — the drift guard in `serialize.test.ts` fails
   otherwise. The snapshot's definition id should use the v2 card-id string table
   (#1780) rather than embedding raw uuids in the hottest row.
-- `createTokenCopyOf` gains one fallback branch; the fizzle behaviour for an
-  announced **target** that has left is unchanged, because that is CR 608.2b and
-  a different rule.
+- `createTokenCopyOf` gains one fallback branch, opt-in per call; the fizzle
+  behaviour for an announced **target** that has left is unchanged, because that
+  is CR 608.2b and a different rule.
+- **Precedence against the Eternalize recovery** (#2339), settled in #2075.
+  Both widenings answer "the source is not on the battlefield", and CR 608.2h
+  says which applies: the effect reads the object "in the public zone it was
+  **expected** to be in". An ability whose own activation cost moved the card
+  graveyard → **exile** expects it in exile and copies THE CARD (printed
+  values); a battlefield-sourced ability naming its own source expects the
+  battlefield, so the store wins — and it must, because `revertCopy` restored
+  the printed identity of a dead Clone on the way to the graveyard, making that
+  card the wrong object. The `createTokenCopy` Op therefore splits its `$source`
+  recovery on the zone the card is actually found in, and the two opts are
+  mutually exclusive.
 - Unlocks the "when this dies, create a token that's a copy of it" family, none
   of which is expressible today.
