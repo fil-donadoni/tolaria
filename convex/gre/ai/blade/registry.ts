@@ -3669,13 +3669,21 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // quality, no race judgement, and no life total (which `ScenarioSpec`
         // cannot express anyway, issue #2147) is involved.
         //
-        // What it guards is the seam this issue closed:
-        // `applyActivationCostsForSearch` removed the filtered-sacrifice victim
-        // WITHOUT recording its CR 608.2h snapshot, so inside the very tree
-        // that scores the move the ability resolved for nothing — the bot paid
-        // a creature for a blank and `pass` won every time. Restore that bug
-        // and this entry goes red while half 1 stays green, which is what makes
-        // the pair discriminating rather than two spellings of one assertion.
+        // What it guards is the POSITIVE direction of the CR 702.142a gate:
+        // that a boast is genuinely reachable and preferred once the creature
+        // has attacked, not merely gated. Half 1 and half 2 fail on OPPOSITE
+        // breaks of the same `enumerateAbilityMoves` line — remove the gate and
+        // half 1 reds (the boast is offered a turn early); make the gate always
+        // fire and half 2 reds (the boast is never offered at all) — which is
+        // what makes this a discriminating pair rather than two spellings of
+        // one assertion. Both directions were measured.
+        //
+        // What it does NOT guard, measured rather than assumed: restoring the
+        // `applyActivationCostsForSearch` snapshot bug this issue also closed
+        // leaves BOTH halves green. The search prefers the boast off the
+        // grounded announcement value, not off the damage the tree resolves, so
+        // that seam is pinned by its own unit test
+        // (`convex/cards/sets/lcc/__tests__/red.test.ts`), not here.
         label: "boast: eats its Grizzly Bears to boast for lethal after attacking",
         spec: {
             cards: [
@@ -3725,7 +3733,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { kind: "activate-ability", card: "Broadside Bombardiers" },
             ],
         },
-        note: "Half 2 of the Boast pair (issue #2375). Discriminates the cost-sacrifice snapshot fix in `applyActivationCostsForSearch`: without it the search resolves the boast for no damage and prefers `pass`.",
+        note: "Half 2 of the Boast pair (issue #2375). The positive direction of the CR 702.142a gate: a boast must be reachable and preferred once the creature has attacked. Measured: reds when the enumerator gate is made to always fire, while half 1 stays green.",
     },
 ];
 
