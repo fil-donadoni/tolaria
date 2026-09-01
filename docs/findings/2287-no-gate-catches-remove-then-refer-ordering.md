@@ -1,7 +1,8 @@
 ---
 title: No gate catches a remove-then-refer Op ordering, now that it fails silently
 discoveredBy: 2287
-status: draft
+status: triaged
+issue: 2988
 confidence: high
 ---
 
@@ -37,9 +38,15 @@ with a per-slot "has been removed" set instead of a binding environment.
 CLAUDE.md's own rule points the same way: a rule that CAN be enforced
 mechanically belongs in a script the gate runs.
 
-**Why it may not deserve its own issue.** The catalogue is clean as of #2978,
-and the same walk would want to cover the sibling hazards at once (a `bind`
-after a removal, `{ ref: "$x" }` object refs on a removed slot) rather than
-being written twice — which makes it a small piece of a validator pass, not a
-ticket on its own. If a second instance shows up before that pass is scheduled,
-that changes.
+**Narrower than first written.** A re-check found that the sibling hazards are
+already handled: `manaValue` and every object ref resolve through
+`resolveObjectRef`, which re-checks battlefield presence and degrades to a CR
+608.2b skip, and `bindSnapshot` gained the same guard in #2978. The
+controller-of ref was the outlier because it read the raw slot and then did a
+throwing lookup. So the check is not "catch a family of engine crashes" — it is
+"surface, at authoring time, a clause the interpreter will silently decline to
+perform". It must also stay clear of the CORRECT idioms: a snapshot bound
+before the removal, an Op that merely acts on a departed object, and the blink
+pattern (exile with a binding, later return the bound object) are all fine.
+
+**Triaged → #2988.**
