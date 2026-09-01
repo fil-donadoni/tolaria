@@ -108,14 +108,9 @@ import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
 import { playerHasProtectionFromEverything } from "./gre/protection";
 import {
     findFlashbackCastable,
-    flashbackExileEligibleCount,
     getFlashbackAdditionalCost,
 } from "./gre/flashback";
-import {
-    countDistinctCardTypes,
-    findEscapeCastable,
-    getEscapeExileSpec,
-} from "./gre/escape";
+import { countDistinctCardTypes, findEscapeCastable } from "./gre/escape";
 import { findRetraceCastable, RETRACE_COST_LEGS } from "./gre/retrace";
 import {
     applyGenericOffset,
@@ -2140,23 +2135,6 @@ function graveyardCardMatchesColor(
     return isExileCostEligible(card, "", color);
 }
 
-/** True iff `player`'s OWN graveyard holds `count` cards matching `color`,
- *  EXCLUDING `excludeInstanceId` (the flashback card itself — casting it moves
- *  it from the graveyard to the stack before its costs are paid, CR 601.2a, so
- *  it can never be exiled for its own cost). Gates the legality
- *  of a `flashbackExileFromGraveyard` cost at cast announcement (Flash of
- *  Insight). */
-function canPayFlashbackExile(
-    player: PlayerState,
-    count: number,
-    color: Color | undefined,
-    excludeInstanceId: string
-): boolean {
-    return (
-        flashbackExileEligibleCount(player, color, excludeInstanceId) >= count
-    );
-}
-
 /** Untapped permanents on `player`'s battlefield that match `filter` and are
  *  eligible to pay a `tapOtherFilter` cost (CR 602.1 / 118.8). The source
  *  permanent (`sourceId`) is excluded — the cost taps OTHER permanents — as is
@@ -2464,6 +2442,7 @@ function findCastableLibraryTopSpell(
 // (game.ts imports the enumerator). Re-exported here so every existing importer
 // keeps working, including the tests that pull them from `"../../game"`.
 export {
+    buildCastExileCostChoice,
     castRawManaCost,
     flashbackStackFlags,
     graveyardCastStackFlags,
@@ -2472,6 +2451,7 @@ export {
 } from "./gre/castCost";
 export type { CastFromZone } from "./gre/castCost";
 import {
+    buildCastExileCostChoice,
     castRawManaCost,
     graveyardCastStackFlags,
     libraryTopCastPayment,
@@ -6987,69 +6967,36 @@ export function finalizeTargetSelection(
         cardInstanceId,
         castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
     );
-    // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
-    // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
-    // TARGETED flashback cast (e.g. a Lava-Dart-shaped card that both targets
-    // and pays exileFromHand). The no-target announce path builds this same
-    // picker (`zone: "hand"`); a targeted flashback reaches its commit here
-    // instead, AFTER target selection (CR 601.2c → 601.2f), so build the
-    // picker here too and park on it before mana (issue #1038). Reuses the
-    // exile-from-graveyard choice slot — a card never has both. Affordability
-    // is gated by getLegalActions; this re-check is defence in depth.
+    // CR 702.34a / 702.138a / 118.5 — the graveyard cast's own "exile N cards"
+    // additional cost: Flash of Insight's `flashbackExileFromGraveyard`, the
+    // flashback-only "Exile a <colour> card from your HAND" leg (Lava Dart's
+    // sibling shape, `zone: "hand"`), or the ESCAPE exile (a Lightning Bolt
+    // granted escape by Underworld Breach, cast from the graveyard at a
+    // target). All three ride the one picker slot — no shipped card carries
+    // more than one.
+    //
+    // A TARGETED cast reaches its commit HERE, after target selection (CR
+    // 601.2c → 601.2f), rather than in `announceCast`'s untargeted branch, so
+    // the picker is built here too and parked on before mana (issue #1038).
+    // Both sites call the ONE engine-side builder (`gre/castCost.ts`, issue
+    // #2980) — it used to be written out twice, which is precisely why the
+    // Bot's enumerator could not price an escape cast at all (`game.ts`
+    // imports the enumerator, so the enumerator can never import back).
+    // Affordability is gated by getLegalActions; the `unpayable` branch is
+    // defence in depth.
     let castExileChoice: PendingCast["exileFromGraveyardChoice"];
-    const fbHandSpec = getFlashbackAdditionalCost(cardInHand)?.exileFromHand;
-    if (fbHandSpec && castZone === "graveyard") {
-        const eligible = player.hand.filter((c) =>
-            graveyardCardMatchesColor(c, fbHandSpec.color)
-        );
-        if (eligible.length < 1) {
-            throw new Error(
-                "No matching card in your hand to pay the flashback cost"
-            );
+    const castExileBuild = buildCastExileCostChoice(
+        state,
+        player,
+        cardInHand,
+        castZone,
+        { additionalCosts: effectiveAdditionalCosts, chosenX }
+    );
+    if (castExileBuild) {
+        if ("unpayable" in castExileBuild) {
+            throw new Error(castExileBuild.unpayable);
         }
-        castExileChoice = {
-            count: 1,
-            ...(fbHandSpec.color !== undefined
-                ? { color: fbHandSpec.color }
-                : {}),
-            excludeInstanceId: cardInstanceId,
-            zone: "hand",
-        };
-    }
-    // CR 702.138a — the ESCAPE additional cost "exile N other cards from your
-    // graveyard" also applies to a TARGETED escape cast (e.g. a Lightning Bolt
-    // granted escape by Underworld Breach, cast from the graveyard at a target).
-    // The no-target announce path builds this same picker; a targeted escape
-    // reaches its commit here instead, AFTER target selection (CR 601.2c →
-    // 601.2f), so build the picker here too and park on it before mana.
-    const escExileSpec =
-        castZone === "graveyard" && !castExileChoice
-            ? getEscapeExileSpec(state, cardInHand)
-            : undefined;
-    if (escExileSpec) {
-        const others = player.graveyard.filter((c) => c.id !== cardInstanceId);
-        if ("minCardTypes" in escExileSpec) {
-            if (countDistinctCardTypes(others) < escExileSpec.minCardTypes) {
-                throw new Error(
-                    "Not enough card types in your graveyard to pay the escape cost"
-                );
-            }
-            castExileChoice = {
-                count: 1,
-                minCardTypes: escExileSpec.minCardTypes,
-                excludeInstanceId: cardInstanceId,
-            };
-        } else {
-            if (others.length < escExileSpec.count) {
-                throw new Error(
-                    "Not enough other cards in your graveyard to pay the escape cost"
-                );
-            }
-            castExileChoice = {
-                count: escExileSpec.count,
-                excludeInstanceId: cardInstanceId,
-            };
-        }
+        castExileChoice = castExileBuild.choice;
     }
     // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063). Same twin as the escape
     // block above: a TARGETED delve spell reaches its commit here, after target
@@ -8762,108 +8709,36 @@ export const announceCast = mutation({
             args.cardInstanceId,
             castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
         );
-        // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
-        // cost "Exile X blue cards from your graveyard". Applies ONLY on a
-        // flashback cast (from the graveyard); X = the announced chosenX.
-        // Validate the caster's own graveyard holds enough matching cards
-        // (excluding the flashback card itself, CR 601.2a), then open the
-        // picker so commit gates on it. A zero-X flashback cast has no exile
-        // cost (the spell looks at 0 cards).
-        const fbExileSpec =
-            effectiveAdditionalCosts?.flashbackExileFromGraveyard;
+        // CR 702.34a / 702.138a / 118.5 — the graveyard cast's own "exile N
+        // cards" additional cost, in the ONE builder both commit sites read
+        // (`gre/castCost.ts`, issue #2980): Flash of Insight's
+        // `flashbackExileFromGraveyard` (X = the announced `chosenX`; a zero-X
+        // flashback cast owes nothing), the flashback-only "Exile a <colour>
+        // card from your HAND" leg, and the ESCAPE exile (Uro / Phlage /
+        // Underworld Breach's fixed count, Nethergoyf's variable "any number …
+        // with N+ card types among them"). All three ride the one picker slot
+        // — no shipped card carries more than one — and none of them applies
+        // outside a graveyard cast.
+        //
+        // Lifted out of this mutation so the Bot's move enumerator can price
+        // the same cost: `game.ts` imports `gre/moves.ts`, so the enumerator
+        // could never import this back, and an escape cast it enumerated
+        // without the exile leg would be announced at a price the executor
+        // cannot pay. Affordability is gated by getLegalActions; the
+        // `unpayable` branch is defence in depth.
         let castExileChoice: PendingCast["exileFromGraveyardChoice"];
-        if (
-            fbExileSpec &&
-            castFromZone === "graveyard" &&
-            chosenX !== undefined &&
-            chosenX > 0
-        ) {
-            if (
-                !canPayFlashbackExile(
-                    player,
-                    chosenX,
-                    fbExileSpec.color,
-                    args.cardInstanceId
-                )
-            ) {
-                throw new Error(
-                    "Not enough matching cards in your graveyard to pay the flashback cost"
-                );
+        const castExileBuild = buildCastExileCostChoice(
+            state,
+            player,
+            cardInHand,
+            castFromZone,
+            { additionalCosts: effectiveAdditionalCosts, chosenX }
+        );
+        if (castExileBuild) {
+            if ("unpayable" in castExileBuild) {
+                throw new Error(castExileBuild.unpayable);
             }
-            castExileChoice = {
-                count: chosenX,
-                ...(fbExileSpec.color !== undefined
-                    ? { color: fbExileSpec.color }
-                    : {}),
-                excludeInstanceId: args.cardInstanceId,
-            };
-        }
-        // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from
-        // your hand" cost (generalized `FlashbackCost.exileFromHand`). Applies
-        // ONLY on a flashback cast; the caster exiles exactly ONE matching card
-        // from their own HAND via the same picker (`zone: "hand"`). Reuses the
-        // exile-from-graveyard choice slot — a card never has both. Affordability
-        // is gated by getLegalActions; this re-check is defence in depth.
-        const fbHandSpec =
-            getFlashbackAdditionalCost(cardInHand)?.exileFromHand;
-        if (fbHandSpec && castFromZone === "graveyard" && !castExileChoice) {
-            const eligible = player.hand.filter((c) =>
-                graveyardCardMatchesColor(c, fbHandSpec.color)
-            );
-            if (eligible.length < 1) {
-                throw new Error(
-                    "No matching card in your hand to pay the flashback cost"
-                );
-            }
-            castExileChoice = {
-                count: 1,
-                ...(fbHandSpec.color !== undefined
-                    ? { color: fbHandSpec.color }
-                    : {}),
-                excludeInstanceId: args.cardInstanceId,
-                zone: "hand",
-            };
-        }
-        // CR 702.138a — the ESCAPE additional cost "Exile N other cards from
-        // your graveyard" (Uro / Phlage / Underworld Breach fixed count,
-        // Nethergoyf variable "any number … with N+ card types among them").
-        // Applies ONLY on an escape (graveyard) cast; the caster exiles the cost
-        // cards from their OWN graveyard, never the escaping card itself
-        // (CR 702.138a escape, "other cards"). Reuses the flashback exile picker slot.
-        const escExileSpec =
-            castFromZone === "graveyard"
-                ? getEscapeExileSpec(state, cardInHand)
-                : undefined;
-        if (escExileSpec && !castExileChoice) {
-            const others = player.graveyard.filter(
-                (c) => c.id !== args.cardInstanceId
-            );
-            if ("minCardTypes" in escExileSpec) {
-                // Nethergoyf — need enough OTHER cards to muster the card-type
-                // threshold, else the escape cost can't be paid (CR 702.138a).
-                if (
-                    countDistinctCardTypes(others) < escExileSpec.minCardTypes
-                ) {
-                    throw new Error(
-                        "Not enough card types in your graveyard to pay the escape cost"
-                    );
-                }
-                castExileChoice = {
-                    count: 1,
-                    minCardTypes: escExileSpec.minCardTypes,
-                    excludeInstanceId: args.cardInstanceId,
-                };
-            } else {
-                if (others.length < escExileSpec.count) {
-                    throw new Error(
-                        "Not enough other cards in your graveyard to pay the escape cost"
-                    );
-                }
-                castExileChoice = {
-                    count: escExileSpec.count,
-                    excludeInstanceId: args.cardInstanceId,
-                };
-            }
+            castExileChoice = castExileBuild.choice;
         }
         // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): "Each card you
         // exile from your graveyard while casting this spell pays for {1}."
