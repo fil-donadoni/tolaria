@@ -13844,13 +13844,17 @@ export type EffectOp =
      *  the public `reveal` Op (CR 701.20, `markKnownToAll` — every player):
      *  every card currently in that hand is stamped known to the looker ALONE
      *  (`SpellContext.markKnown`, ADR 0026) and a transient look dialog is
-     *  enqueued for the looker (`notifyReveal` kind "look"). The knowledge is
-     *  what makes a following `choice(zone: "hand", zoneOwnerId: …)` pickable
-     *  — the wire projection nulls a hand card the viewer does not know, so a
-     *  "look, then take one" script that skipped this Op would ask the looker
-     *  to choose blind. A hand is a HIDDEN zone (CR 400.2), so the grant is to
-     *  one player only; it persists until an uncertainty event clears it, per
-     *  ADR 0026's knowledge model. Empty hand → no-op (CR 608.2b). */
+     *  enqueued for the looker (`notifyReveal` kind "look"). A hand is a
+     *  HIDDEN zone (CR 400.2), so the grant is to one player only; it persists
+     *  until an uncertainty event clears it, per ADR 0026's knowledge model.
+     *
+     *  NOT redundant with a following `choice(zone: "hand", zoneOwnerId: …)`,
+     *  whose head-of-queue pick already exposes that hand to its chooser
+     *  (`handPickExposed`, issue #1698): the look is its own game action and
+     *  happens even when the pick never does — a hand with no card matching
+     *  the choice's filter raises no choice at all (CR 608.2b), and Elite
+     *  Spellbinder still looked. The knowledge also OUTLIVES the pick window,
+     *  which the #1698 exposure does not. Empty hand → no-op (CR 608.2b). */
     | {
           op: "lookHand";
           player: EffectPlayerRef;

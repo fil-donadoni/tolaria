@@ -4619,12 +4619,14 @@ export const OP_EXECUTORS: {
     // public `reveal` Op (CR 701.20, `markKnownToAll`): every card currently
     // in `player`'s hand is stamped known to `looker` ALONE (`markKnown`, ADR
     // 0026) and the transient look dialog is enqueued for that one player
-    // (`notifyReveal` kind "look"). The knowledge grant is load-bearing, not
-    // cosmetic: a following `choice(zone: "hand", zoneOwnerId: …)` renders
-    // through the wire projection, which nulls a hand card the viewer does
-    // not know — without this Op the looker would be asked to pick blind.
-    // `looker` defaults to the resolving controller (CR 113.7). No-op on an
-    // empty hand or an unresolvable player ref (CR 608.2b).
+    // (`notifyReveal` kind "look"). Distinct from the exposure a following
+    // `choice(zone: "hand", zoneOwnerId: …)` already grants its chooser while
+    // the pick is head-of-queue (`handPickExposed`, issue #1698): the look is
+    // its own game action, it happens even when the filtered pick never
+    // raises (CR 608.2b — an all-lands hand under a nonland filter), and the
+    // knowledge outlives the pick window. `looker` defaults to the resolving
+    // controller (CR 113.7). No-op on an empty hand or an unresolvable player
+    // ref (CR 608.2b).
     lookHand(ctx, op) {
         const ownerId = resolvePlayerRef(ctx, op.player);
         if (ownerId === undefined) return;

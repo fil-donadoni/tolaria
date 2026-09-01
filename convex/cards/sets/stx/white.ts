@@ -13,10 +13,12 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //   1. `lookHand` (CR 400.2, issue #2383) — the PRIVATE look. New Op: the
 //      whole-hand sibling of `lookRandomHand` (Urza's Bauble) and the private
 //      counterpart of the public `reveal` (CR 701.20) the Thoughtseize/Duress
-//      template uses. It is load-bearing rather than cosmetic: the pick below
-//      renders from the wire projection, which nulls a hand card the viewer
-//      does not know, so without the knowledge grant the controller would be
-//      asked to choose blind.
+//      template uses. Not redundant with the pick below, which already
+//      exposes the hand to its chooser while it is head-of-queue
+//      (`handPickExposed`, issue #1698): the look is its own game action and
+//      still happens when the pick never raises — an all-lands hand matches
+//      the nonland filter nowhere, so no choice is offered (CR 608.2b) and
+//      Elite Spellbinder has still looked.
 //   2. `choice` — the "you may exile a nonland card FROM IT" pick, a
 //      `count: { min: 0, max: 1 }` optional pick over the SAME hand
 //      (`zoneOwnerId`, the Grief/Thoughtseize shape) filtered to nonlands.
