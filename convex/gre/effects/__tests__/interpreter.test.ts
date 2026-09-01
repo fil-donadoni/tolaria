@@ -27004,20 +27004,26 @@ describe("Effect Script player ref: { opponentOf } (issue #1568)", () => {
 // library" (Boseiju, Who Endures) / "Exile target nonland permanent. Each
 // player other than ITS controller…" (Fractured Identity) names the
 // controller of an object an EARLIER Op in the same script has already
-// removed. CR 608.2b: "If part of the effect requires information about an
-// illegal target, it fails to determine any such information. Any part of the
-// effect that requires that information won't happen." — a SKIP, exactly like
-// every other unresolvable referent in the DSL, never a raise. Inside a
-// Convex mutation a raise is a rolled-back transaction and a stuck game, not
-// a no-op, so this is the difference between a clause that does nothing and a
-// game nobody can continue.
+// removed.
 //
-// The correct expression of "that player" for a script that genuinely needs
-// the departed object's controller is the SNAPSHOT idiom — bind before the
-// removal, read `{ ref: "$x.controller" }` after — which is last known
-// information (CR 608.2h) and is asserted here alongside the skip, because
-// the two together are what a card author has to choose between.
-describe("Effect Script player ref: { controllerOf } on a departed object (CR 608.2b, issue #2287)", () => {
+// What these tests pin is a DELIBERATE DIVERGENCE, not the CR outcome. Such
+// an object was a perfectly legal target — CR 608.2b, which governs targets
+// already ILLEGAL at the legality check, does not reach it. CR 608.2h does,
+// and it says the effect "uses the object's last known information": the
+// clause should HAPPEN, against the controller the object had when it left.
+// The bare ref reads a live zone and the engine keeps no last-known-controller
+// table, so it cannot deliver that and degrades to a skip — chosen over the
+// raise it shipped until issue #2287, because inside a Convex mutation a
+// raise is a rolled-back transaction and a stuck game rather than a missing
+// clause. These tests therefore assert "does not hang, does not act on a
+// wrong player", NOT "the CR is satisfied".
+//
+// The CR-correct expression of "that player" IS in the DSL, and is what a
+// card must use: the SNAPSHOT idiom — bind before the removal, read
+// `{ ref: "$x.controller" }` after — which is exactly CR 608.2h. It is
+// asserted here beside the skip, because the two together are the choice a
+// card author is actually making.
+describe("Effect Script player ref: { controllerOf } on a departed object (CR 608.2h divergence, issue #2287)", () => {
     /** p1 casts; p2 controls the announced permanent. */
     function boardWithP2Bear(instanceId: string): GameState {
         return makeState({
@@ -27055,8 +27061,9 @@ describe("Effect Script player ref: { controllerOf } on a departed object (CR 60
                 `test-controllerof-departed-${label.replace(/\W+/g, "-")}`,
                 [
                     op,
-                    // "…that player gains 5 life" — the clause that needs the
-                    // information CR 608.2b says cannot be determined.
+                    // "…that player gains 5 life" — the clause whose subject
+                    // the bare ref can no longer name (CR 608.2h wants it to
+                    // land on the last known controller; see the note above).
                     {
                         op: "gainLife",
                         player: { controllerOf: { target: 0 } },
@@ -27167,7 +27174,8 @@ describe("Effect Script player ref: { controllerOf } on a departed object (CR 60
         // controller/power/owner, all battlefield-scoped, so binding a slot
         // that is already gone read through the same raising lookup. The
         // frozen-set `forEach` guard has always left such a member
-        // uncaptured (CR 608.2b); an announced slot now behaves identically.
+        // uncaptured; an announced slot now behaves identically, under the
+        // same divergence noted above rather than a raise.
         const id = registerScript(
             "test-controllerof-bind-departed",
             [

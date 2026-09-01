@@ -15114,11 +15114,16 @@ export function buildSpellContext(
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
         },
-        // CR 109.5 / 608.2b — the controller of an object, or undefined when
-        // the lookup misses because the object has left the zone this reads
-        // (the battlefield for a permanent, the stack for a spell). The
-        // single implementation; `getController` below is the raising
-        // projection of it (issue #2287).
+        // CR 109.5 — the controller of an object, or undefined when the
+        // lookup misses because the object has left the zone this reads (the
+        // battlefield for a permanent, the stack for a spell). Issue #2287.
+        //
+        // NOT a strict superset of `getController` below, which for a spell
+        // that has left the stack falls through to a battlefield lookup by
+        // the same instance id. Unreachable today — `isTargetStillLegal`
+        // marks such a target illegal and `targetLegalityGate` fizzles the
+        // item before any Op runs — but the two are not the same dispatch and
+        // must not be collapsed on the assumption that they are.
         findController(target: TargetSelection): string | undefined {
             if (target.type === "player") return target.id;
             if (target.type === "spell") {

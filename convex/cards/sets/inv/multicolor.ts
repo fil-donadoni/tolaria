@@ -846,18 +846,23 @@ export const stalkingAssassin: CardDefinition = {
 //
 // The life loss is written FIRST although the Oracle prints it second
 // (issue #2287). `counter` removes the spell from the stack, and
-// `{ controllerOf: { target: 0 } }` reads the caster off the live stack
-// item — so with the printed order the ref has nothing left to name and the
-// life loss is skipped (CR 608.2b: "if part of the effect requires
-// information about an illegal target, it fails to determine any such
-// information"). No priority is gained and no trigger can intervene between
-// the two clauses (CR 608.2 — a resolution is atomic), so the observable
-// result of the swap is exactly the printed card, and this is the shipped
-// idiom for every spell-slot `controllerOf` in the catalogue (Word of
-// Blasting, Death Bomb: read the doomed object, THEN remove it). The
-// battlefield-slot alternative — bind a snapshot before the removal and read
-// `{ ref: "$x.controller" }`, CR 608.2h — is not available here: a spell on
-// the stack is not a bindable permanent.
+// `{ controllerOf: { target: 0 } }` reads the caster off the LIVE stack item,
+// so in the printed order the ref has nothing left to name: before #2287 that
+// raised out of the resolution, and after it the life loss is silently
+// skipped. Reading first is the shipped idiom for every spell-slot
+// `controllerOf` in the catalogue — the counter-unless-pay punishers all put
+// the controller read ahead of the counter (Force Spike `leg/blue.ts`, Mana
+// Leak `sth/blue.ts`, the shared `abilities/ward.ts` factory).
+//
+// The swap is observationally identical to the printed order: SBAs "pay no
+// attention to what happens during the resolution of a spell or ability"
+// (CR 704.4), and a triggered ability only goes on the stack when a player
+// would next receive priority (CR 117.5), which is after this resolution
+// completes — so nothing can observe the intermediate state between the two
+// Ops. The battlefield-slot alternative — bind a snapshot before the removal
+// and read `{ ref: "$x.controller" }`, which is CR 608.2h last known
+// information — is not available here: a spell on the stack is not a bindable
+// permanent.
 export const undermine: CardDefinition = {
     id: "2334bc71-5f85-47ff-b393-601a1e746a4e",
     rarity: "rare",

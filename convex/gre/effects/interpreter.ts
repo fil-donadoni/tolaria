@@ -1331,19 +1331,29 @@ function resolvePlayerRef(
     }
     // `{ controllerOf: { target: n } }` (issue #806) — the controller of the
     // object in slot n (a spell's caster or a permanent's controller, CR
-    // 109.5). Skipped when the slot is missing (CR 608.2b) — and equally when
-    // the slot is present but the object has since LEFT the zone the lookup
-    // reads, because an EARLIER Op in this same script destroyed, exiled or
-    // bounced it ("Destroy target artifact… that player may search…"). CR
-    // 608.2b: "If part of the effect requires information about an illegal
-    // target, it fails to determine any such information. Any part of the
-    // effect that requires that information won't happen." So this is a skip,
-    // exactly like every other unresolvable referent in the DSL — never a
-    // raise, which inside a Convex mutation is a rolled-back transaction and
-    // a stuck game (issue #2287). A script that genuinely needs the departed
-    // object's controller uses the snapshot idiom instead: `bind` it before
-    // the removal, then `{ ref: "$x.controller" }` — last known information,
-    // CR 608.2h.
+    // 109.5). Skipped when the slot is missing at resolution (CR 608.2b —
+    // the target was already illegal at the legality check).
+    //
+    // DELIBERATE DIVERGENCE, issue #2287. The slot can also be PRESENT while
+    // the object it names has left the zone this lookup reads, because an
+    // EARLIER Op in this same script destroyed, exiled or bounced it
+    // ("Destroy target artifact… THAT PLAYER may search…"). That object was
+    // never an illegal target, so CR 608.2b does not govern it: CR 608.2h
+    // does, and it says the effect "uses the object's last known
+    // information" — i.e. the clause SHOULD happen, against the controller
+    // the object had when it left (see also CR 113.7a). This ref cannot do
+    // that: it reads a live zone and the engine keeps no last-known-controller
+    // table to fall back on, so it degrades to a skip.
+    //
+    // A skip is the LESSER of the two available wrongs — the alternative,
+    // shipped until #2287, was to raise, and inside a Convex mutation a raise
+    // is a rolled-back transaction and a stuck game rather than a missing
+    // clause. The CR-correct expression of "that player" IS available in the
+    // DSL and is what a card must use: the snapshot idiom, `bind` the object
+    // before the removal and read `{ ref: "$x.controller" }`, which is exactly
+    // CR 608.2h last known information. For a SPELL slot, which is not
+    // bindable, the equivalent is to order the reading Op before the removing
+    // one (Undermine, `sets/inv/multicolor.ts`).
     if ("controllerOf" in ref) {
         const target = ctx.targets[ref.controllerOf.target];
         return target ? ctx.findController(target) : undefined;
