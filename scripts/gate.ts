@@ -142,8 +142,8 @@ function parseCpuMs(field: string): number | null {
 }
 
 /**
- * Cumulative CPU time of every DESCENDANT of `pid`, in ms — the cheapest signal
- * that a held subtree is still doing work, and one that needs no cooperation
+ * CPU time of each LIVE descendant of `pid`, in ms, keyed by pid — the cheapest
+ * signal that a held subtree is doing work, and one that needs no cooperation
  * from the wrapped command.
  *
  * The gate process itself is excluded on purpose: it burns essentially nothing
@@ -154,7 +154,7 @@ function parseCpuMs(field: string): number | null {
  * output). Callers must treat null as "unknown" and keep the holder, never as
  * "stalled": reclaiming a healthy holder is the worse failure.
  */
-function subtreeCpuMs(pid: number): number | null {
+function subtreeCpu(pid: number): Map<number, number> | null {
     const r = spawnSync("ps", ["-Ao", "pid=,ppid=,time="], {
         encoding: "utf8",
     });
@@ -173,17 +173,49 @@ function subtreeCpuMs(pid: number): number | null {
         else children.set(Number(parent), [Number(kid)]);
     }
     if (cpu.size === 0) return null;
-    let total = 0;
+    const subtree = new Map<number, number>();
     const queue = [...(children.get(pid) ?? [])];
-    const seen = new Set<number>();
     while (queue.length) {
         const next = queue.pop()!;
-        if (seen.has(next)) continue;
-        seen.add(next);
-        total += cpu.get(next) ?? 0;
+        if (subtree.has(next)) continue;
+        subtree.set(next, cpu.get(next) ?? 0);
         queue.push(...(children.get(next) ?? []));
     }
-    return total;
+    return subtree;
+}
+
+/**
+ * A MONOTONIC running total of the CPU a subtree has burned, across
+ * descendants that come and go.
+ *
+ * The live snapshot alone is not a progress signal. Every command this mutex
+ * guards reshapes its process tree as it runs: the full suite is three
+ * sequential vitest invocations, each spawning and then tearing down a whole
+ * worker pool, and `check:all:inner` walks a chain of separate tools. When a
+ * heavy phase exits, its CPU leaves the snapshot, and a later lighter-but-still
+ * working phase can spend a long time below the earlier peak. Comparing raw
+ * snapshots reads that as "frozen" and falsely reclaims a healthy holder — the
+ * exact failure the issue #1924 ladder case forbids.
+ *
+ * So a descendant's last known CPU is RETIRED into the total when it exits.
+ * The result only ever rises while any descendant does work, and stops rising
+ * only when the whole subtree is genuinely idle.
+ */
+class SubtreeProgress {
+    private retiredMs = 0;
+    private live = new Map<number, number>();
+
+    /** Total CPU burned so far, or null while unmeasurable. */
+    sample(pid: number): number | null {
+        const now = subtreeCpu(pid);
+        if (!now) return null;
+        for (const [gone, ms] of this.live)
+            if (!now.has(gone)) this.retiredMs += ms;
+        this.live = now;
+        let total = this.retiredMs;
+        for (const ms of now.values()) total += ms;
+        return total;
+    }
 }
 
 function fmtDuration(ms: number): string {
@@ -332,7 +364,7 @@ function who(): number {
     const now = Date.now();
     console.log(`[gate] heavy mutex — ${holderLine(owner, now)}`);
     const live = alive(owner.pid);
-    const cpu = subtreeCpuMs(owner.pid);
+    const cpu = new SubtreeProgress().sample(owner.pid);
     console.log(
         `[gate]   holder pid ${live ? "alive" : "GONE"} · subtree CPU ${
             cpu === null ? "unmeasurable" : `${(cpu / 1000).toFixed(2)}s`
@@ -413,6 +445,7 @@ if (
  * STALL_BEATS + 1 beats.
  */
 function startHeartbeat() {
+    const progress = new SubtreeProgress();
     let lastCpuMs = -1;
     let silentBeats = 0;
     let stalled = false;
@@ -420,7 +453,7 @@ function startHeartbeat() {
         if (stalled) return;
         const owner = readOwner();
         if (!owner || owner.pid !== process.pid) return; // not ours
-        const cpu = subtreeCpuMs(process.pid);
+        const cpu = progress.sample(process.pid);
         if (cpu === null || cpu > lastCpuMs) {
             // Unmeasurable counts as progress: never reclaim a holder we
             // cannot judge.

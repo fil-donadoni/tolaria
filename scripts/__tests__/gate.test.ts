@@ -75,6 +75,25 @@ async function waitForLock(timeoutMs = 5000) {
     throw new Error("holder never took the lock");
 }
 
+/** A hold shaped like every real one: a heavy PARALLEL phase whose children
+ *  then exit, followed by a lighter single-process phase that keeps working.
+ *  The full suite is three sequential vitest invocations, each tearing down a
+ *  worker pool; `check:all:inner` walks a chain of separate tools. The live
+ *  CPU snapshot COLLAPSES at each turnover, so a progress signal that is not
+ *  monotonic reads this healthy command as frozen. */
+function burstThenSteady(
+    parallel: number,
+    burstSeconds: number,
+    tailSeconds: number
+) {
+    const burn = (n: number) =>
+        `end=$(( $(date +%s) + ${n} )); while [ $(date +%s) -lt $end ]; do :; done`;
+    return (
+        `for i in $(seq 1 ${parallel}); do ( ${burn(burstSeconds)} ) & done; wait; ` +
+        `${burn(tailSeconds)}; echo PHASES-DONE`
+    );
+}
+
 function readOwnerTs(): number {
     const f = join(lockRoot, "gate.lock", "owner.json");
     return (JSON.parse(readFileSync(f, "utf8")) as { ts: number }).ts;
@@ -283,6 +302,39 @@ describe("gate.ts — liveness (issue #2999)", () => {
         expect(waiter.stdout).not.toContain("SHOULD-NOT-RUN");
         expect(waiter.stderr).not.toContain("reclaiming");
     }, 20_000);
+
+    it("survives a phase turnover — a heavy parallel phase exiting is not a stall", async () => {
+        // Without a monotonic total this is a FALSE reclaim: the four burners
+        // push the live snapshot to ~8 CPU-seconds, they exit, and the single
+        // tail process cannot climb back past that peak within its lifetime —
+        // so every remaining beat reads "no progress" on a command that is
+        // working and will exit 0.
+        // A slower beat than the other liveness tests on purpose: `ps` reports
+        // CPU at 10ms granularity, so under a loaded machine a 150ms beat can
+        // legitimately see no measurable change on a starved process. 3 beats
+        // of 400ms needs 1.2s of ZERO measurable CPU to trip — unreachable for
+        // a spinning process at any share of a core, while still firing well
+        // inside the 5s tail if the total is not monotonic.
+        const child = spawn("bun", [GATE, "heavy", burstThenSteady(4, 2, 5)], {
+            cwd: lockRoot,
+            env: env({
+                TOLARIA_GATE_HEARTBEAT_MS: "400",
+                TOLARIA_GATE_STALL_BEATS: "3",
+            }),
+            stdio: ["ignore", "pipe", "pipe"],
+        } as never);
+        let out = "";
+        let err = "";
+        child.stdout!.on("data", (d) => (out += d));
+        child.stderr!.on("data", (d) => (err += d));
+        const code = await new Promise<number>((r) =>
+            child.on("exit", (c) => r(c ?? 1))
+        );
+
+        expect(code, err).toBe(0);
+        expect(out).toContain("PHASES-DONE");
+        expect(err).not.toContain("STALLED");
+    }, 30_000);
 
     it("a waiter's first line names the holder — pid, cwd, label and held-for", async () => {
         const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
