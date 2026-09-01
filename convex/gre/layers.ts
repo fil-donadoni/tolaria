@@ -441,6 +441,13 @@ function layer7EffectsFor(
     // yet — S6 does — but the read path unions them now so a producer added
     // later needs no second consumer, and so the registry, not this walk, is
     // what layer 7 is defined against.
+    //
+    // The FIRST producer of a stored layer-7 entry must ship with PRD #2064 S5:
+    // `projectPublicState` does not carry `continuousEffects`, so the client
+    // (`src/lib/effective-stats.ts`, which runs this same pipeline through
+    // `toLayerState`) would compute P/T without it and silently disagree with
+    // the server. Harmless today because the set is empty; a landmine the
+    // moment it is not.
     for (const stored of state.continuousEffects ?? []) {
         if (stored.layer !== 7) continue;
         if (!layer7EntryApplies(stored, target)) continue;
