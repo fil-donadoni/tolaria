@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (shipped in #2075)
 
 ## Context
 
@@ -61,14 +61,28 @@ Three further facts constrain the shape:
 written at the single battlefield-departure chokepoint and read as
 `createTokenCopyOf`'s fallback.**
 
-- **Contents: the copiable values only** (CR 707.2) — presented definition id,
-  types, subtypes, **base** power/toughness, static abilities, colour override:
-  exactly the fields `applyCopy` writes. Deliberately **not** the _effective_
-  P/T the adjacent departure snapshot takes (`state.ts:7869`): layered buffs are
+- **Contents: the copiable values only** (CR 707.2) — deliberately **not** the
+  _effective_ P/T the adjacent departure snapshot takes: layered buffs are
   correct for "damage equal to its power" and wrong for a copy, because CR 707.2
   ends "Other effects … are not copied". Two LKI snapshots sit side by side with
   deliberately different semantics, and the code must say so or someone will
   unify them.
+
+    **As shipped (#2075), the entry is the presented definition id plus the
+    copy-effect "except it's N/N" stamp — not a materialised dump of types,
+    subtypes, base P/T and static abilities.** Those four ARE the copiable values,
+    and they are exactly what `getDefinition(presentedDefId)` answers: `applyCopy`
+    derives every one of them from the copied definition and reads nothing else
+    off the source object. Materialising them would duplicate the definition into
+    the hottest row in the system for no behavioural gain — the very cost this ADR
+    bounds elsewhere with a two-turn window — and would create a second, driftable
+    authority on what a copy of the object is. The invariant to keep is the
+    pairing: the store carries whatever `CopySource` (`gre/copy.ts`) declares a
+    copy source contributes, minus what the definition id already answers. Issue
+    #2963, which will make the remaining "except" clauses (colours, additional
+    subtypes, no mana cost) inherit off the SOURCE INSTANCE instead of being
+    rebuilt from the copied definition, is the day the store owes those fields.
+
 - **Enumerate the fields; never spread the instance.** A `{...card}` would carry
   `faceDownOf`, which is not a copiable value and which the projection
   deliberately deletes for non-controllers (`gameProjections.ts:325`, `410`).
@@ -84,10 +98,22 @@ written at the single battlefield-departure chokepoint and read as
   `countersAtLeave`: that field dies with the token and would need a hoisting map
   anyway, i.e. two mechanisms to do one thing.
 - **Pruned at cleanup (CR 514) on a two-turn window.** The longest-lived
-  referent the engine can produce is a delayed trigger: "at the beginning of the
-  next end step" fires by turn N+1 and "at the beginning of your next upkeep" by
-  turn N+2's upkeep, both before the cleanup that would drop a turn-N entry. Row
-  growth is therefore bounded by two turns of departures rather than by the game.
+  referent that exists today is a delayed trigger: "at the beginning of the next
+  end step" fires by turn N+1 and "at the beginning of your next upkeep" by turn
+  N+2's upkeep, both before the cleanup that would drop a turn-N entry. Row
+  growth is therefore bounded by two turns of departures rather than by the game
+  — though not _within_ a turn: a sacrifice loop writes one entry per dead token
+  (~20 bytes each, so small in absolute terms, but "bounded by two turns" is not
+  "bounded").
+
+    **It is a window, not a proof, and #2075 records that the margin is zero.**
+    `extraTurns` and `skipNextTurn` both push "your next upkeep" past N+2, and the
+    `leaves-battlefield-indefinite` and `until-next-turn-creature-attacks-you`
+    timings carry no turn bound at all. Nothing is broken by that today because no
+    delayed-trigger body contains a `createTokenCopy` naming its own source — the
+    store's only consumer. The day one does, this prune owes a reachability check
+    against `state.delayedTriggers` rather than a turn count.
+
 - **It crosses the wire, unredacted, on purpose.** The client Brain runs
   `resolveTopOfStack` on a local clone (ADR 0074); without LKI its simulation
   diverges from the server on exactly the cards this store enables, which is the
@@ -114,8 +140,19 @@ written at the single battlefield-departure chokepoint and read as
   and a round-trip smoke test — the drift guard in `serialize.test.ts` fails
   otherwise. The snapshot's definition id should use the v2 card-id string table
   (#1780) rather than embedding raw uuids in the hottest row.
-- `createTokenCopyOf` gains one fallback branch; the fizzle behaviour for an
-  announced **target** that has left is unchanged, because that is CR 608.2b and
-  a different rule.
+- `createTokenCopyOf` gains one fallback branch, opt-in per call; the fizzle
+  behaviour for an announced **target** that has left is unchanged, because that
+  is CR 608.2b and a different rule.
+- **Precedence against the Eternalize recovery** (#2339), settled in #2075.
+  Both widenings answer "the source is not on the battlefield", and CR 608.2h
+  says which applies: the effect reads the object "in the public zone it was
+  **expected** to be in". An ability whose own activation cost moved the card
+  graveyard → **exile** expects it in exile and copies THE CARD (printed
+  values); a battlefield-sourced ability naming its own source expects the
+  battlefield, so the store wins — and it must, because `revertCopy` restored
+  the printed identity of a dead Clone on the way to the graveyard, making that
+  card the wrong object. The `createTokenCopy` Op therefore splits its `$source`
+  recovery on the zone the card is actually found in, and the two opts are
+  mutually exclusive.
 - Unlocks the "when this dies, create a token that's a copy of it" family, none
   of which is expressible today.

@@ -2781,6 +2781,17 @@ export interface SpellContext {
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
     sourceInstanceId: string;
+    /** CR 113.6 / 608.2h — true when the resolving ability DECLARES that it is
+     *  activated from a non-battlefield zone
+     *  (`ActivatedAbility.activateFromGraveyard`: Ashen Ghoul, Eternalize).
+     *  That declaration is what CR 608.2h calls "the public zone it was
+     *  expected to be in", so it decides which last-known reading a copy
+     *  effect takes when its source is gone: the CARD in the graveyard/exile
+     *  (printed copiable values, CR 707.2) for a graveyard-activated ability,
+     *  versus the permanent's last known copiable values
+     *  (`GameState.lastKnownCopiable`, ADR 0086) for a battlefield-sourced
+     *  one. False for a spell and for a triggered ability. */
+    abilityActivatedFromGraveyard: boolean;
     /** The card DEFINITION id of the resolving stack item (CR 108.1 — the
      *  card the spell/ability is printed on). Read by scheduling primitives
      *  that stamp their source card on persisted records — a delayed
@@ -2893,7 +2904,20 @@ export interface SpellContext {
      *  is identical wherever the object now sits. Left unset — the default,
      *  and every pre-existing caller — a source that has left the battlefield
      *  still fizzles the copy. Hidden zones (hand, library) are never
-     *  searched: CR 400.2, no rules story copies a card nobody can see. */
+     *  searched: CR 400.2, no rules story copies a card nobody can see.
+     *
+     *  `lastKnownCopiable` (CR 608.2h / 111.12, ADR 0086) widens the lookup a
+     *  second, different way — to the LAST KNOWN COPIABLE VALUES of a source
+     *  that has left the battlefield (`GameState.lastKnownCopiable`). Set it
+     *  when the effect NAMES its source rather than targeting it ("when this
+     *  creature dies, create a token that's a copy of it"): CR 608.2h makes
+     *  such an effect read the object's last known information, and CR 111.12
+     *  exempts exactly that case from "no token is created". Leave it unset
+     *  for an announced TARGET — an absent target is illegal under CR 608.2b
+     *  and the copy fizzles (Dance of Many), which is a different rule and the
+     *  default. Consulted BEFORE `lastKnownFromGraveyardOrExile`: a Clone that
+     *  died sits in the graveyard as its PRINTED self, and the LKI entry is
+     *  what it had actually become. */
     createTokenCopyOf: (
         sourceCreatureId: string,
         controllerId: string,
@@ -2902,6 +2926,7 @@ export interface SpellContext {
             entersTapped?: boolean;
             entersAttacking?: boolean;
             lastKnownFromGraveyardOrExile?: boolean;
+            lastKnownCopiable?: boolean;
         }
     ) => string | undefined;
     // --- Primitives ---

@@ -4323,13 +4323,76 @@ export const OP_EXECUTORS: {
         // below — every other caller keeps `createTokenCopyOf`'s documented
         // CR 608.2b fizzle when its source has left the battlefield.
         let recoveredLastKnown = false;
+        // CR 608.2h — "the effect uses the current information of that object
+        // if it's in the public zone it was EXPECTED to be in; if it's no
+        // longer in that zone … the effect uses the object's last known
+        // information." Which zone the ability EXPECTED is what splits the two
+        // recoveries below, and they are mutually exclusive.
+        //
+        // The split is on the ability's own DECLARATION
+        // (`activateFromGraveyard`, read through `ctx.abilityActivatedFromGraveyard`),
+        // never on where the card is found: a battlefield permanent answered
+        // with Path to Exile is found in exile and is emphatically not the
+        // Eternalize shape. Same reasoning `payExileThisCost` records at its
+        // own site — a declared discriminator cannot fail open the way "look
+        // for it somewhere" would.
+        let lastKnownCopiable = false;
         if (!source && "ref" in op.source && op.source.ref === "$source") {
             const gid = ctx.sourceInstanceId;
-            const owner =
-                ctx.getExileCardOwner(gid) ?? ctx.getGraveyardCardOwner(gid);
-            if (owner !== undefined) {
-                source = { type: "graveyard-card", id: gid, playerId: owner };
-                recoveredLastKnown = true;
+            if (ctx.abilityActivatedFromGraveyard) {
+                // (a) The graveyard-activated shape (CR 702.129a, issue #2339).
+                // The ability's own activation COST moved the card out of the
+                // graveyard (Eternalize exiles it), so the card sitting in
+                // exile — or still in the graveyard — IS the object "this card"
+                // names, and its copiable values are its printed ones
+                // (CR 707.2). Never the LKI store: the permanent this card once
+                // was is a different object (CR 400.7).
+                const owner =
+                    ctx.getExileCardOwner(gid) ??
+                    ctx.getGraveyardCardOwner(gid);
+                if (owner !== undefined) {
+                    source = {
+                        type: "graveyard-card",
+                        id: gid,
+                        playerId: owner,
+                    };
+                    recoveredLastKnown = true;
+                }
+            } else {
+                // (b) The battlefield-sourced shape — the CR 608.2h / 111.12
+                // family this store exists for (ADR 0086): an ability naming
+                // its own source ("when this creature dies, create a token
+                // that's a copy of it"; Splinter Twin's granted "create a token
+                // that's a copy of it"). The permanent expected on the
+                // battlefield is gone, so the copiable values it last had THERE
+                // are the reading — and they must beat whatever card now sits
+                // in the graveyard or exile, because `revertCopy` /
+                // `revertTransform` / the CR 708.9 reveal restored that card's
+                // printed identity on the way out.
+                //
+                // A card carrier is still built when the card is in a public
+                // zone: it is the fallback for a source with no LKI entry at
+                // all. `createTokenCopyOf` consults the store first and this
+                // second.
+                const cardOwner =
+                    ctx.getGraveyardCardOwner(gid) ??
+                    ctx.getExileCardOwner(gid);
+                source =
+                    cardOwner !== undefined
+                        ? {
+                              type: "graveyard-card",
+                              id: gid,
+                              playerId: cardOwner,
+                          }
+                        : // In no public zone at all — bounced to a hand,
+                          // shuffled away, or a TOKEN the CR 704.5d sweep
+                          // removed from state outright. The carrier only has
+                          // to name the id; `createTokenCopyOf` is the one
+                          // authority on whether the store holds an entry, and
+                          // creates nothing when it does not.
+                          { type: "permanent", id: gid };
+                recoveredLastKnown = cardOwner !== undefined;
+                lastKnownCopiable = true;
             }
         }
         // The `graveyard-card` carrier is the generic "card sitting in a
@@ -4357,13 +4420,15 @@ export const OP_EXECUTORS: {
             op.entersTapped ||
             op.entersAttacking ||
             except ||
-            recoveredLastKnown
+            recoveredLastKnown ||
+            lastKnownCopiable
                 ? {
                       entersTapped: op.entersTapped,
                       entersAttacking: op.entersAttacking,
                       ...(recoveredLastKnown
                           ? { lastKnownFromGraveyardOrExile: true }
                           : {}),
+                      ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
                       ...(except?.basePower !== undefined
                           ? { basePower: except.basePower }
                           : {}),
