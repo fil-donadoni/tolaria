@@ -11,7 +11,9 @@
 //
 // What is hidden vs known, from `observerId`'s point of view:
 //   * Observer's OWN hand     → known (kept exactly).
-//   * Observer's OWN library  → contents may be known but ORDER is not; shuffle.
+//   * Observer's OWN library  → contents may be known but ORDER generally is
+//                               not; shuffle — EXCEPT the positions the
+//                               observer legitimately knows (issue #1524).
 //   * Opponent's hand         → hidden; its cards are indistinguishable from the
 //                               opponent's library, so the two zones are pooled
 //                               and re-dealt (a card the observer can't see could
@@ -78,6 +80,7 @@ import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
 } from "./libraryReveal";
+import { knownLibraryIndices } from "./libraryKnownRuns";
 import { shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
@@ -124,12 +127,21 @@ export function determinize(
 
     for (const player of next.players) {
         const pinTop =
-            (topRevealed.has(player.id) ||
-                (player.id === observerId && topLookedAt.has(player.id))) &&
-            player.library.length > 0;
+            topRevealed.has(player.id) ||
+            (player.id === observerId && topLookedAt.has(player.id));
+        // ADR 0026 (issue #1524) — every position this observer legitimately
+        // knows, from the SAME derivation the wire projection grants them
+        // with (`knownLibraryIndices`): the contiguous known run from the top,
+        // the contiguous known run from the bottom, and the CR 401.5 index-0
+        // carve-out above. Re-sampling any of them would have the search
+        // reason about a card the bot can plainly see is something else — the
+        // scry-to-top the bot instantly forgot, before this.
+        const pinned = new Set(
+            knownLibraryIndices(player.library, observerId, pinTop)
+        );
         if (player.id === observerId) {
-            // Own hand is known; only the library ORDER is hidden.
-            determinizeObserver(player, rng, pinTop);
+            // Own hand is known; only the UNKNOWN library order is hidden.
+            determinizeObserver(player, rng, pinned);
             continue;
         }
         // A decklist for this seat turns the re-deal into a SAMPLE from what
@@ -142,51 +154,100 @@ export function determinize(
                 deckCardIds,
                 observerId,
                 rng,
-                pinTop
+                pinned
             );
         } else {
             // Opponent hand + library are both hidden and interchangeable.
-            determinizeOpponent(player, rng, pinTop);
+            determinizeOpponent(player, rng, pinned);
         }
     }
 
     return next;
 }
 
-/** The observer keeps its hand; its library keeps its size but is reshuffled
- *  (draw order is unknown to the observer). `pinTop` holds index 0 in place —
- *  the CR 401.5 continuously-revealed top card is not hidden information, so it
- *  is not re-sampled. */
+/** Split a library into the cards held at `pinned` indices (keyed by index) and
+ *  the rest, in order. The two together always account for every card, so a
+ *  caller that re-deals `unpinned` and hands it back to `placeAtPinned` cannot
+ *  change the library's SIZE — which is a public fact the deck-out SBA reads
+ *  (CR 704.5b). */
+function splitPinned(
+    library: CardInstanceState[],
+    pinned: ReadonlySet<number>
+): {
+    held: Map<number, CardInstanceState>;
+    unpinned: CardInstanceState[];
+} {
+    const held = new Map<number, CardInstanceState>();
+    const unpinned: CardInstanceState[] = [];
+    library.forEach((card, index) => {
+        if (pinned.has(index)) held.set(index, card);
+        else unpinned.push(card);
+    });
+    return { held, unpinned };
+}
+
+/** Rebuild a library of `length` cards with every pinned index holding exactly
+ *  the card it held before, and `fill` (already re-dealt) flowing into the gaps
+ *  in order. `fill.length` must be `length - held.size`, which `splitPinned`
+ *  guarantees for every caller here. */
+function placeAtPinned(
+    length: number,
+    held: Map<number, CardInstanceState>,
+    fill: CardInstanceState[]
+): CardInstanceState[] {
+    const out: CardInstanceState[] = [];
+    let next = 0;
+    for (let index = 0; index < length; index++) {
+        const kept = held.get(index);
+        out.push(kept ?? fill[next++]);
+    }
+    return out;
+}
+
+/** The observer keeps its hand; its library keeps its size but the positions it
+ *  does NOT know are reshuffled. `pinned` holds every position it DOES know
+ *  (issue #1524) — a scry keep, a Brainstorm put-back, cards ordered onto the
+ *  bottom, and the CR 401.5 continuously-revealed top — in place, because none
+ *  of that is hidden information and re-sampling it would delete knowledge the
+ *  bot legitimately has. */
 function determinizeObserver(
     player: PlayerState,
     rng: () => number,
-    pinTop: boolean
+    pinned: ReadonlySet<number>
 ): void {
-    if (!pinTop) {
+    if (pinned.size === 0) {
         player.library = shuffleWithRng(player.library, rng);
         return;
     }
-    const [top, ...rest] = player.library;
-    player.library = [top, ...shuffleWithRng(rest, rng)];
+    const { held, unpinned } = splitPinned(player.library, pinned);
+    player.library = placeAtPinned(
+        player.library.length,
+        held,
+        shuffleWithRng(unpinned, rng)
+    );
 }
 
 /** Pool the opponent's hand + library — indistinguishable to the observer —
  *  shuffle, then re-deal the first `handSize` cards back to the hand and the
- *  remainder to the library, preserving both counts. `pinTop` withholds index 0
- *  from the pool entirely and puts it straight back on top: a CR 401.5 revealed
- *  top card is public, so it can neither move nor turn up in the hand. */
+ *  remainder to the library, preserving both counts.
+ *
+ *  `pinned` withholds those library positions from the pool ENTIRELY and puts
+ *  their real cards straight back at their own indices: a card the observer has
+ *  been shown (a CR 401.5 revealed top, a fateseal, a surveil aimed at this
+ *  opponent) can neither move nor turn up in the opponent's hand (issue
+ *  #1524). Every unpinned position is still pooled and re-dealt exactly as
+ *  before. */
 function determinizeOpponent(
     player: PlayerState,
     rng: () => number,
-    pinTop: boolean
+    pinned: ReadonlySet<number>
 ): void {
     const handSize = player.hand.length;
-    const top = pinTop ? player.library[0] : undefined;
-    const hidden = pinTop ? player.library.slice(1) : player.library;
-    const pool = shuffleWithRng([...player.hand, ...hidden], rng);
+    const { held, unpinned } = splitPinned(player.library, pinned);
+    const pool = shuffleWithRng([...player.hand, ...unpinned], rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
-    const rest = pool.slice(handSize).map((c) => inZone(c, "library"));
-    player.library = top !== undefined ? [top, ...rest] : rest;
+    const fill = pool.slice(handSize).map((c) => inZone(c, "library"));
+    player.library = placeAtPinned(player.library.length, held, fill);
 }
 
 /** One imagined hidden card, hydrated from its definition so a simulated
@@ -255,21 +316,21 @@ function unknownCard(
  *  in either zone, and splitting the draws would make the hand and the library
  *  independently sampled from the same finite multiset — which double-counts.
  *
- *  `pinTop` withholds index 0 of the library from the sample entirely and puts
- *  the real card straight back: a CR 401.5 continuously-revealed top card is
- *  PUBLIC, so it can neither move nor be replaced by a guess. Its identity is
- *  also struck from the remainder first, or the card the observer is looking at
- *  right now could be dealt a second time into the hand. */
+ *  `pinned` withholds those library positions from the sample entirely and puts
+ *  their real cards straight back AT THEIR OWN INDICES (issue #1524): a card
+ *  the observer has been shown — the CR 401.5 continuously-revealed top, a
+ *  fateseal, a surveil aimed at this opponent — can neither move nor be
+ *  replaced by a guess. Their identities are also struck from the remainder
+ *  first, or a card the observer is looking at right now could be dealt a
+ *  second time into the hand. */
 function determinizeInformedOpponent(
     state: GameState,
     player: PlayerState,
     deckCardIds: readonly string[],
     observerId: string,
     rng: () => number,
-    pinTop: boolean
+    pinned: ReadonlySet<number>
 ): void {
-    const top = pinTop ? player.library[0] : undefined;
-
     // A hidden-zone card the observer HAS been shown is not a guess to make —
     // it is a fact to keep. `knownTo` is the engine's record of exactly that
     // (a look effect adds the looker, a reveal adds everyone, face-down exile
@@ -281,21 +342,21 @@ function determinizeInformedOpponent(
     // it: the bot would forget a card it is looking at right now — and it bites
     // hardest exactly when it matters, since a revealed opponent hand is
     // usually revealed because the bot is mid-decision over it.
-    const seen = (c: CardInstanceState): boolean =>
-        c !== top && c.knownTo?.includes(observerId) === true;
-
-    const keptHand = player.hand.filter(seen);
-    const keptLibrary = player.library.filter(seen);
+    //
+    // For the LIBRARY that fact now includes the card's POSITION, so the kept
+    // cards come from the pinned-index split rather than a `filter` that
+    // collapsed them all to the front.
+    const { held, unpinned } = splitPinned(player.library, pinned);
+    const keptHand = player.hand.filter(
+        (c) => c.knownTo?.includes(observerId) === true
+    );
     const handSlots = player.hand.length - keptHand.length;
-    const librarySlots =
-        player.library.length -
-        keptLibrary.length -
-        (top !== undefined ? 1 : 0);
+    const librarySlots = unpinned.length;
 
     const remainder = unseenRemainder(state, player, deckCardIds, observerId);
     // Strike every already-placed card from the pool, or it could be dealt a
     // SECOND time into a slot the observer cannot see.
-    for (const c of [...(top ? [top] : []), ...keptHand, ...keptLibrary]) {
+    for (const c of [...held.values(), ...keptHand]) {
         const at = remainder.indexOf(String(c.card.id ?? ""));
         if (at >= 0) remainder.splice(at, 1);
     }
@@ -314,9 +375,8 @@ function determinizeInformedOpponent(
         ...keptHand.map((c) => inZone(c, "hand")),
         ...Array.from({ length: handSlots }, (_, i) => draw("hand", i)),
     ];
-    const rest = [
-        ...keptLibrary.map((c) => inZone(c, "library")),
-        ...Array.from({ length: librarySlots }, (_, i) => draw("library", i)),
-    ];
-    player.library = top !== undefined ? [top, ...rest] : rest;
+    const fill = Array.from({ length: librarySlots }, (_, i) =>
+        draw("library", i)
+    );
+    player.library = placeAtPinned(player.library.length, held, fill);
 }
