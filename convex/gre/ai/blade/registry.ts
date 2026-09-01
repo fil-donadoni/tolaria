@@ -23,6 +23,8 @@ import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
+import { getCardByName } from "../../../cards";
+import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
@@ -34,8 +36,6 @@ const MOUNTAINS_5 = Array.from({ length: 5 }, () => ({
     zone: "battlefield" as const,
     tapped: false,
 }));
-import { getCardByName } from "../../../cards";
-import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable

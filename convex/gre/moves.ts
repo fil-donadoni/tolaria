@@ -1612,17 +1612,23 @@ function enumerateCastMovesFromZone(
     // to the same ceiling the cast mutation enforces, so the Bot never offers
     // an X the human cast path would reject.
     const hasX = typeof rawCost.X === "string";
-    // CR 107.3b (issue #2398 review round 1, finding 5) — when the permission
-    // replaced the whole mana cost, `rawCost` is `{}` and carries no X at all,
-    // while the PRINTED cost may still have one (Fireball off the top of the
-    // library). "The only legal choice for X is 0", which `announceCast`
-    // enforces, so the enumeration announces exactly that value rather than
-    // omitting `chosenX` and relying on the mutation to fill it in: an explicit
-    // 0 is what keeps the Move and the mutation reading the same number
-    // (the #2283/#2284 bot-freeze class — a Move the server refuses).
+    // CR 107.3b (issue #2398 review round 1 finding 5; widened by issue #2971
+    // review finding 1) — `announceCast` decides whether this cast OWES an X
+    // from the card's PRINTED mana cost (`cardDef.manaCost`), never from the
+    // cost the zone actually charges, and rejects a Move with no `chosenX`
+    // outright ("Must choose X (>= 0) for this spell"). So whenever the printed
+    // cost carries an `{X}` that the zone cost does NOT — a library-top cast
+    // whose mana cost the permission replaced, a Flashback cost with no X of
+    // its own (Flash of Insight, printed {X}{1}{U}, flashback {1}{U}), a waived
+    // exile/graveyard grant on an X spell (Fireball under Dauthi Voidwalker) —
+    // "the only legal choice for X is 0", and the enumeration announces exactly
+    // that rather than omitting `chosenX` and relying on the mutation to fill
+    // it in. `executor.ts` forwards `move.chosenX` verbatim, so an omission
+    // here IS the #2283/#2284 bot-freeze class: a Move the server refuses.
+    // Derived from the two costs rather than from `lifeInsteadOfMana`, which
+    // named only the library-top instance of the same shape.
     const xLockedToZero =
-        lifeInsteadOfMana !== undefined &&
-        typeof getInstanceManaCost(card)?.X === "string";
+        !hasX && typeof getInstanceManaCost(card)?.X === "string";
     const xCeiling =
         def?.castXUpperBound === "snow-lands"
             ? Math.min(

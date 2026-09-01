@@ -260,15 +260,17 @@ function recipientOf(
 
 /** The card definition behind `instanceId`, wherever the instance currently
  *  lives. An ability's source is normally a battlefield permanent, but the
- *  enumerator also activates abilities from the graveyard and the hand, so all
- *  three zones are scanned. Undefined when the instance or its definition can't
- *  be resolved — which makes the caller fall back to "no opinion". */
+ *  enumerator also activates abilities from the graveyard and the hand, and
+ *  since issue #2971 CASTS a spell out of the graveyard or out of ANY player's
+ *  exile — so every zone a Move can name is scanned. Undefined when the
+ *  instance or its definition can't be resolved, which makes the caller fall
+ *  back to "no opinion". */
 function definitionOfInstance(
     state: GameState,
     instanceId: string
 ): CardDefinition | undefined {
     for (const p of state.players) {
-        for (const zone of [p.battlefield, p.graveyard, p.hand]) {
+        for (const zone of [p.battlefield, p.graveyard, p.hand, p.exile]) {
             const found = zone.find((c) => c.id === instanceId);
             if (found) {
                 const id = (found.card as { id?: string } | undefined)?.id;
@@ -290,10 +292,15 @@ function slotSignerFor(
 ): ((slot: number) => Beneficence) | undefined {
     if (move.kind === "cast-spell") {
         if (move.targets.length === 0) return undefined;
-        const player = state.players.find((p) => p.id === botId);
-        const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-        const defId = (card?.card as { id?: string } | undefined)?.id;
-        const def = defId ? tryGetDefinition(defId) : undefined;
+        // Issue #2971 review finding 3 — was `player.hand.find(...)`, which
+        // resolves to `undefined` for every cast the graveyard and exile loops
+        // now enumerate: the sign of each target slot then reads as "no
+        // opinion" and `misdirectedTargetCount` returns 0, so a flashed-back
+        // burn spell pointed at the bot's OWN face carried no penalty at all.
+        // The `activate-ability` branch below already used the any-zone
+        // resolver; both now do, which is what keeps a cast and an activation
+        // of the same card scored the same way.
+        const def = definitionOfInstance(state, move.cardInstanceId);
         if (!def) return undefined;
         return (slot) => targetSlotBeneficence(def, move.chosenModeId, slot);
     }

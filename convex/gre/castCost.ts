@@ -327,7 +327,18 @@ export function searchCanModelGraveyardCast(
 ): boolean {
     if (mechanism === "escape") return false;
     if (mechanism === "flashback") {
-        return getFlashbackAdditionalCost(card) === undefined;
+        // Two INDEPENDENT places a flashback cast can owe a non-mana cost, and
+        // the gate has to read both (issue #2971 review finding 2 — it read
+        // only the first, so Flash of Insight slipped through):
+        //   - the flashback cost object's own `sacrifice` / `exileFromHand`
+        //     legs (Lava Dart), via `getFlashbackAdditionalCost`;
+        //   - `additionalCosts.flashbackExileFromGraveyard` (Flash of Insight,
+        //     `jud/blue.ts`), which lives on the DEFINITION, not on the
+        //     flashback object, and whose park `announceCast` builds as a
+        //     `PendingCast.exileFromGraveyardChoice`.
+        if (getFlashbackAdditionalCost(card) !== undefined) return false;
+        const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+        return def?.additionalCosts?.flashbackExileFromGraveyard === undefined;
     }
     return true;
 }
@@ -387,6 +398,19 @@ export function castSourceForSearch(
         player.library[0]?.id !== cardInstanceId
             ? "hand"
             : "library");
+    // CR 702.81a (issue #2971 review finding 7) — a graveyard Move whose card
+    // still HAS retrace, reached with `retraceZone === undefined`, means
+    // `applyRetraceCastForSearch` declined to charge the land discard (the
+    // grant lapsed between enumeration and application). Applying it anyway
+    // would put the spell on the stack for free and with no `exileOnResolve`,
+    // so it returns to the graveyard and is recastable — the unbounded-recast
+    // shape the discard exists to bound. Refuse instead; the caller skips.
+    if (zone === "graveyard" && retraceZone === undefined) {
+        const inGraveyard = player.graveyard.find(
+            (c) => c.id === cardInstanceId
+        );
+        if (inGraveyard && hasRetrace(state, inGraveyard)) return null;
+    }
     // CR 400.7 — exile is the ONE origin whose owner may not be the caster (a
     // cross-player grant). Every other zone a cast can come from is the
     // caster's own, mirroring `castZoneOwner` (`convex/game.ts`).

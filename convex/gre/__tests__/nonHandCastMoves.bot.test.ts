@@ -31,12 +31,20 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import { island, mountain, forest, grizzlyBears } from "../../cards/sets/lea";
+import {
+    island,
+    mountain,
+    forest,
+    plains,
+    grizzlyBears,
+} from "../../cards/sets/lea";
 import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { firebolt } from "../../cards/sets/ody/red";
+import { ephemerate } from "../../cards/sets/mh1/white";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { hogaakArisenNecropolis } from "../../cards/sets/mh1/multicolor";
+import { lurrus } from "../../cards/sets/iko/multicolor";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 
@@ -334,6 +342,72 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         expect(castOf(state, "p1", "gyPlain")).toBeUndefined();
     });
 
+    it("offers the BROAD player-wide permission (CR 601.3 — Yawgmoth's Will)", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "gyBroad",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = graveyardBoard(bears, [{ def: forest, count: 2 }]);
+        // Before the grant: no mechanism, so no candidate — the fail-closed
+        // baseline this half of the test needs in order to mean anything.
+        expect(castOf(state, "p1", "gyBroad")).toBeUndefined();
+        state.graveyardPlayPermissionThisTurn = [
+            { playerId: "p1", zones: ["spell"] },
+        ];
+        expect(castOf(state, "p1", "gyBroad")?.castFromZone).toBe("graveyard");
+    });
+
+    it("charges Lurrus's once-per-turn permanent permission at commit (CR 702.139)", () => {
+        // The most delicate new line in both sandboxes: the real commit sites
+        // call `markGraveyardPermanentCastUsed`, and a sandbox that does not
+        // recasts the same permanent every turn for free — a line that does not
+        // exist. Two permanents in the graveyard, so the SECOND one disappearing
+        // from the next enumeration is what proves the charge landed.
+        const lurrusPerm = makeInstance(lurrus.id, {
+            id: "lurrus",
+            controllerId: "p1",
+            ownerId: "p1",
+            summoningSick: false,
+        });
+        const gy = [0, 1].map((i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `gyPerm-${i}`,
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: gy,
+                    battlefield: [lurrusPerm, ...lands(forest, 4, "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(castOf(state, "p1", "gyPerm-0")?.castFromZone).toBe("graveyard");
+        const move = castOf(state, "p1", "gyPerm-0")!;
+
+        for (const after of [
+            applyMoveForSearch(state, "p1", move),
+            (() => {
+                const t = cloneGameState(state);
+                applyMoveInSearch(t, "p1", move);
+                return t;
+            })(),
+        ]) {
+            expect(after.graveyardPermanentCastUsedThisTurn).toEqual(["p1"]);
+            // …and the permission is spent for the turn, so the OTHER permanent
+            // is no longer a candidate.
+            expect(castOf(after, "p1", "gyPerm-1")).toBeUndefined();
+        }
+        // The parent state is untouched (both sandboxes clone).
+        expect(state.graveyardPermanentCastUsedThisTurn).toBeUndefined();
+    });
+
     it("does NOT offer an ESCAPE cast — its exile-N-others cost is not carriable (fail closed)", () => {
         // CR 702.138a escape. `planCastCostPicks` has no branch for it, and
         // the Move has no field for the picked ids, so an enumerated escape cast
@@ -416,20 +490,26 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         });
         const move = castOf(state, "p1", "gyBolt")!;
         const { greedy, tree } = applyBoth(state, "p1", move);
-        for (const after of [greedy, tree]) {
-            const item = stackItem(after, "gyBolt");
-            // `resolveTopOfStack` may already have resolved it in the greedy
-            // leaf; the flags are what matter while it is on the stack.
-            if (item) {
-                expect(item.castFromGraveyard).toBe(true);
-                // The flag that BOUNDS the line: without it the tree models a
-                // flashback card as infinitely recastable.
-                expect(item.exileOnResolve).toBe(true);
-            }
-            expect(
-                getPlayer(after, "p1").graveyard.some((c) => c.id === "gyBolt")
-            ).toBe(false);
-        }
+        // The ISMCTS tree leaves the item ON the stack, so the flags are
+        // asserted there UNCONDITIONALLY — an `if (item)` guard would pass
+        // vacuously the day the item stops being pushed at all.
+        const item = stackItem(tree, "gyBolt")!;
+        expect(item.castFromGraveyard).toBe(true);
+        // The flag that BOUNDS the line: without it the tree models a
+        // flashback card as infinitely recastable.
+        expect(item.exileOnResolve).toBe(true);
+        // The greedy 1-ply leaf resolves the spell in the same call, so what it
+        // proves is the DEPARTURE and the destination the flag produced: the
+        // card is out of the graveyard and in exile, not back in the graveyard.
+        expect(
+            getPlayer(greedy, "p1").graveyard.some((c) => c.id === "gyBolt")
+        ).toBe(false);
+        expect(
+            getPlayer(greedy, "p1").exile.some((c) => c.id === "gyBolt")
+        ).toBe(true);
+        expect(
+            getPlayer(tree, "p1").graveyard.some((c) => c.id === "gyBolt")
+        ).toBe(false);
     });
 
     it("PER-CARD GRANT (CR 601.3): castFromGraveyard, and NOT exileOnResolve", () => {
@@ -476,16 +556,55 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         });
         const move = castOf(state, "p1", "exiledBolt")!;
         const { greedy, tree } = applyBoth(state, "p1", move);
-        for (const after of [greedy, tree]) {
-            expect(getPlayer(after, "p2").exile).toHaveLength(0);
-            const item = stackItem(after, "exiledBolt");
-            if (item) {
-                expect(item.castById).toBe("p1");
-                // An exile cast is not a graveyard cast: no graveyard flags.
-                expect(item.castFromGraveyard).toBeUndefined();
-                expect(item.exileOnResolve).toBeUndefined();
-            }
-        }
+        // The departure holds in both: the card left the OPPONENT's exile.
+        expect(getPlayer(greedy, "p2").exile).toHaveLength(0);
+        expect(getPlayer(tree, "p2").exile).toHaveLength(0);
+        // The flags are asserted unconditionally on the tree, which keeps the
+        // item on the stack.
+        const item = stackItem(tree, "exiledBolt")!;
+        expect(item.castById).toBe("p1");
+        // An exile cast is not a graveyard cast: no graveyard flags.
+        expect(item.castFromGraveyard).toBeUndefined();
+        expect(item.exileOnResolve).toBeUndefined();
+    });
+
+    it("REBOUND (CR 702.88a): a HAND cast is stamped reboundFromHand — the flag census reaches the pre-existing zone too", () => {
+        // Not a new candidate, but a behaviour delta of the same change: the
+        // sandboxes now spread `reboundCastStackFlags` alongside the graveyard
+        // flags instead of a hand-written retrace flag, so a rebound spell cast
+        // from HAND is finally modelled as exiling on resolution and coming
+        // back at the next upkeep — which it always did on the real path. The
+        // flag is gated on the zone being the hand, which is what makes CR
+        // 702.88a's "only once" free.
+        const eph = makeInstance(ephemerate.id, {
+            id: "handEph",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "myBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            summoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [eph],
+                    battlefield: [bear, ...lands(plains, 1, "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const move = castsOf(state, "p1").find(
+            (m) => m.cardInstanceId === "handEph"
+        );
+        expect(move).toBeDefined();
+        const tree = cloneGameState(state);
+        applyMoveInSearch(tree, "p1", move!);
+        const item = tree.stack.find((it) => it.id === "handEph")!;
+        expect(item.reboundFromHand).toBe(true);
     });
 
     it("a stale Move whose card no permitted source holds is SKIPPED, never thrown", () => {
