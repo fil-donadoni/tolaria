@@ -2,9 +2,10 @@
 // `import * as onc from "./sets/onc"` resolves through onc/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { tokenCreatedTrigger } from "../../abilities/triggers/tokenCreatedTrigger";
+import { equipAbility, forMirrodin } from "../../abilities/equipment";
 
 // Staff of the Storyteller — {1}{W} Artifact (residue of #1302, parent PRD
 // #620; unblocked by #1345). "When this artifact enters, create a 1/1 white
@@ -94,5 +95,59 @@ export const staffOfTheStoryteller: CardDefinition = {
             useStack: true,
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
+    ],
+};
+
+// Glimmer Lens (issue #2610) — {1}{W} Artifact — Equipment. Oracle text:
+// "For Mirrodin! (When this Equipment enters, create a 2/2 red Rebel
+// creature token, then attach this to it.)\nWhenever equipped creature and
+// at least one other creature attack, draw a card.\nEquip {1}{W}". Coloured
+// cast cost ({1}{W}), so it lives here rather than colorless.ts — the exact
+// `staffOfTheStoryteller` precedent above (ADR 0043).
+//
+//  - For Mirrodin! (CR 702.163a) is the shared `forMirrodin()` self-ETB
+//    trigger (`abilities/equipment.ts`) — the generalized Living Weapon
+//    factory parametrized on `REBEL_TOKEN` instead of the Germ.
+//  - "Whenever equipped creature and at least one other creature attack,
+//    draw a card." is printed on the EQUIPMENT itself (not granted), so
+//    `self` is Glimmer Lens and the host is read via `self.attachedTo` (the
+//    `AURA_AFFECTS_HOST` convention). `ATTACKERS_DECLARED` carries the WHOLE
+//    attacking batch as ONE event (CR 508.1), so the trigger fires exactly
+//    once per combat by construction — never once per additional attacker.
+//    The condition is "the host is among the attackers AND at least 2
+//    creatures total attacked" (equipped creature + at least one other).
+export const glimmerLens: CardDefinition = {
+    id: "c9262000-e6f3-4da1-ad1c-038f65d3bef6", // ONC 6
+    name: "Glimmer Lens",
+    rarity: "rare",
+    oracleText:
+        "For Mirrodin! (When this Equipment enters, create a 2/2 red Rebel creature token, then attach this to it.)\nWhenever equipped creature and at least one other creature attack, draw a card.\nEquip {1}{W}",
+    manaCost: { generic: 1, W: 1 },
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+    triggeredAbilities: [
+        forMirrodin({ id: "glimmer-lens-for-mirrodin" }),
+        {
+            id: "glimmer-lens-attack-draw",
+            oracleText:
+                "Whenever equipped creature and at least one other creature attack, draw a card.",
+            event: "ATTACKERS_DECLARED",
+            // CR 508.1 — the equipped creature (self.attachedTo, the aura/
+            // equipment host convention) is among the declared attackers AND
+            // the batch has at least one OTHER attacker alongside it.
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "ATTACKERS_DECLARED" &&
+                !!self.attachedTo &&
+                event.attackerIds.includes(self.attachedTo) &&
+                event.attackerIds.length >= 2,
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+    activatedAbilities: [
+        equipAbility({
+            id: "glimmer-lens-equip",
+            cost: { generic: 1, W: 1 },
+            oracleText: "Equip {1}{W}",
+        }),
     ],
 };

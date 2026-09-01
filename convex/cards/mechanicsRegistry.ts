@@ -2194,13 +2194,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.162",
         status: "planned",
     },
-    // 702.163 For Mirrodin!
+    // 702.163 For Mirrodin! (issue #2610) — identical shell to Living Weapon
+    // (CR 702.92) with a 2/2 red Rebel token instead of the 0/0 Germ; both
+    // route through the generalized `equipmentAttachTokenTrigger` factory.
     {
         id: "for-mirrodin",
         name: "For Mirrodin!",
         kind: "keyword-ability",
         cr: "702.163",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "forMirrodin() self-ETB enteredTrigger — createToken (REBEL_TOKEN, bind) + attach Op (ADR 0065), via the shared equipmentAttachTokenTrigger() factory (abilities/equipment.ts)",
     },
     // 702.164 Toxic
     {
@@ -2352,13 +2356,18 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.181",
         status: "planned",
     },
-    // 702.182 Job Select
+    // 702.182 Job select (issue #2610) — identical shell to Living Weapon
+    // (CR 702.92) with a 1/1 colorless Hero token instead of the 0/0 Germ;
+    // both route through the generalized `equipmentAttachTokenTrigger`
+    // factory.
     {
         id: "job-select",
         name: "Job Select",
         kind: "keyword-ability",
         cr: "702.182",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "jobSelect() self-ETB enteredTrigger — createToken (HERO_TOKEN, bind) + attach Op (ADR 0065), via the shared equipmentAttachTokenTrigger() factory (abilities/equipment.ts)",
     },
     // 702.183 Tiered
     {
