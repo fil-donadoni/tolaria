@@ -14,7 +14,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import {
     enteringEffectivePower,
-    kickerPaidCondition,
+    additionalCostPaidCondition,
 } from "../../abilities/triggers/shared";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { protectionColorModes } from "../../abilities";
@@ -1254,13 +1254,13 @@ export const saprolingSymbiosis: CardDefinition = {
 // Closed by issue #1328 (capability slice, decomposed from #1086): same
 // `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`),
 // same Waterspout Elemental (`pls/blue.ts`) template —
-// `conditionOnSelf: kickerPaidCondition("kicker")` at check time, `if {
-// kickerPaid: "kicker" }` inside `effects[]` at resolution time, no
+// `conditionOnSelf: additionalCostPaidCondition("kicker")` at check time, `if {
+// additionalCostPaid: "kicker" }` inside `effects[]` at resolution time, no
 // `interveningIf`. The resolution-time branch reads the RESOLVING STACK
 // ITEM's own `kickerPayments`, which is what still gates an ability COPY put
 // on the stack without re-running `matches` (CR 707.10) — an `interveningIf`
 // would not, and that, not blink safety, is why the pair is the template (see
-// Benalish Emissary, `inv/white.ts`, and `kickerPaidCondition` in
+// Benalish Emissary, `inv/white.ts`, and `additionalCostPaidCondition` in
 // `cards/abilities/triggers/shared.ts`).
 // `destroy`'s `cantBeRegenerated: true` (ADR 0053) is the
 // direct Op passthrough for "It can't be regenerated" — the second half of
@@ -1291,13 +1291,13 @@ export const verduranEmissary: CardDefinition = {
                 "When this creature enters, if it was kicked, destroy target artifact. It can't be regenerated.",
             scope: "self",
             // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker"),
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
             targetRequirement: { type: "Artifact", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker" },
+                        left: { additionalCostPaid: "kicker" },
                         op: "ge",
                         right: 1,
                     },

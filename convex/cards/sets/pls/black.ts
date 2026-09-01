@@ -8,7 +8,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 
 // Warped Devotion — {2}{B} Enchantment. "Whenever a permanent is returned to
 // a player's hand, that player discards a card." (CR 603.2 triggered
@@ -169,7 +169,7 @@ export const noxiousVapors: CardDefinition = {
 // the unified sacrificeChoice layer (never auto-picked) — the framework's
 // own guarantee, not something this card re-implements. Single Kicker →
 // `{ kickerCount: true }` (Hypnotic Cloud's identical "discards N instead"
-// shape, `inv/black.ts`) rather than `{ kickerPaid: "kicker" }`; both read
+// shape, `inv/black.ts`) rather than `{ additionalCostPaid: "kicker" }`; both read
 // the same answer for a one-Kicker card, and `kickerCount` is the
 // established idiom there.
 //
@@ -524,7 +524,7 @@ export const morgueToad: CardDefinition = {
 // the Battlemage cycle's own headline shape: two INDEPENDENTLY payable
 // Kickers, each with its own CR 603.4 intervening-if ETB trigger.)
 //
-// The per-Kicker gate is `kickerPaidCondition("<id>")` — the shared predicate
+// The per-Kicker gate is `additionalCostPaidCondition("<id>")` — the shared predicate
 // over `PermanentView.kickerPayments` (issue #1950), the per-Kicker-id twin of
 // the aggregate `wasKicked` boolean (`CardInstanceState.wasKicked`), which can
 // only say "kicked at all", never WHICH of two. Declared as `conditionOnSelf`
@@ -541,7 +541,7 @@ export const morgueToad: CardDefinition = {
 // (issue #2042) by the departure-time `StackItem.sourceLki` snapshot, which
 // `resolveTopOfStackInner` now prefers over the live permanent (CR 608.2h).
 // The resolution-time answer stays the
-// `if { kickerPaid: "<id>" }` branch inside `effects[]` — the resolving stack
+// `if { additionalCostPaid: "<id>" }` branch inside `effects[]` — the resolving stack
 // item's own record, the same shape Thunderscape (`pls/red.ts`) and
 // Stormscape (`pls/blue.ts`) use, and what still holds for an ability COPY
 // that never re-runs `matches` (CR 707.10). This card
@@ -578,7 +578,7 @@ export const nightscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{U} kicker, return up to two target nonblack creatures to their owners' hands.",
             scope: "self",
-            conditionOnSelf: kickerPaidCondition("kicker-u"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-u"),
             targetRequirement: {
                 type: "Creature",
                 count: { min: 0, max: 2 },
@@ -588,7 +588,7 @@ export const nightscapeBattlemage: CardDefinition = {
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-u" },
+                        left: { additionalCostPaid: "kicker-u" },
                         op: "ge",
                         right: 1,
                     },
@@ -604,13 +604,13 @@ export const nightscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{R} kicker, destroy target land.",
             scope: "self",
-            conditionOnSelf: kickerPaidCondition("kicker-r"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-r"),
             targetRequirement: { type: "Land", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-r" },
+                        left: { additionalCostPaid: "kicker-r" },
                         op: "ge",
                         right: 1,
                     },

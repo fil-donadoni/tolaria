@@ -583,7 +583,11 @@ export const orimsChant: CardDefinition = {
         { op: "restrictCasting", player: { target: 0 } },
         {
             op: "if",
-            predicate: { left: { kickerPaid: "kicker" }, op: "ge", right: 1 },
+            predicate: {
+                left: { additionalCostPaid: "kicker" },
+                op: "ge",
+                right: 1,
+            },
             then: [
                 {
                     op: "forEach",
@@ -898,10 +902,10 @@ export const voiceOfAll: CardDefinition = {
 //     unshipped rather than working around it). NO LONGER APPLIES, and #1328
 //     itself CLOSED once it shipped: `kickerPayments` is now a typed,
 //     serialized field on `CardInstanceState`/`PermanentView` (#1950), and
-//     `kickerPaidCondition` (`abilities/triggers/shared.ts`, issue #2015) is
+//     `additionalCostPaidCondition` (`abilities/triggers/shared.ts`, issue #2015) is
 //     the shared per-Kicker CHECK-TIME predicate its three shipped cycle
 //     siblings already use — paired, as they all are, with a resolution-time
-//     `if { kickerPaid: "<id>" }` branch inside the ability's own
+//     `if { additionalCostPaid: "<id>" }` branch inside the ability's own
 //     `effects[]` rather than an `interveningIf`; see that helper's doc block
 //     for why that branch is the load-bearing one (CR 707.10 ability copies),
 //     and why the blink hazard it used to guard against is gone. The card is

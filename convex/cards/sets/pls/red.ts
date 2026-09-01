@@ -5,7 +5,7 @@
 
 import type { CardDefinition, CardPrint, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { chooseColorEffects } from "../../abilities/chooseColor";
@@ -664,12 +664,12 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // {1}{B} kicker, target player discards two cards.\nWhen this creature
 // enters, if it was kicked with its {G} kicker, destroy target enchantment."
 // (CR 702.33 Kicker — TWO independently payable Kickers, ADR 0079/#1937 —
-// each with its own intervening-if ETB trigger reading `{ kickerPaid: "<id>" }`
+// each with its own intervening-if ETB trigger reading `{ additionalCostPaid: "<id>" }`
 // (the frozen Effect Script value ADR 0079 introduced specifically for this
 // cycle), NOT a single combined Kicker.)
 //
 // Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
-// `kickerPaidCondition("<id>")` — the shared predicate over the permanent's
+// `additionalCostPaidCondition("<id>")` — the shared predicate over the permanent's
 // own per-Kicker payment record (`PermanentView.kickerPayments`, ADR 0079 /
 // issue #1950), NOT the aggregate `wasKicked` boolean. `wasKicked` says only
 // "kicked with *something*", so gating on it left the residual partial-kick
@@ -684,7 +684,7 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // Battlemage as if neither trigger fires; `condition` would stamp
 // `UNDECIDABLE_TRIGGER_GATE` and the bot would over-value it (issue #1936).
 //
-// The resolution-time half is the `if { kickerPaid: "<id>" }` gate inside
+// The resolution-time half is the `if { additionalCostPaid: "<id>" }` gate inside
 // each `effects[]` — ADR 0079's documented answer, reading the RESOLVING
 // STACK ITEM's own `kickerPayments` (`buildTriggerItem`'s `...self` spread,
 // `gre/triggers.ts`), i.e. CR 608.2h last known information, and what still
@@ -698,7 +698,7 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // `removePermanentTo` stamps a departure-time LKI snapshot
 // (`StackItem.sourceLki`) that `resolveTopOfStackInner` prefers over the live
 // permanent, so either seam now reads the right record. Check-time
-// `conditionOnSelf` + resolution-time `if { kickerPaid }` stays the pair
+// `conditionOnSelf` + resolution-time `if { additionalCostPaid }` stays the pair
 // because only the `effects[]` branch also gates a CR 707.10 ability copy; the
 // blink case is locked by a regression test in `__tests__/red.test.ts`.
 export const thunderscapeBattlemage: CardDefinition = {
@@ -731,13 +731,13 @@ export const thunderscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-b"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-b"),
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-b" },
+                        left: { additionalCostPaid: "kicker-b" },
                         op: "ge",
                         right: 1,
                     },
@@ -766,13 +766,13 @@ export const thunderscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-g"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-g"),
             targetRequirement: { type: "Enchantment", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-g" },
+                        left: { additionalCostPaid: "kicker-g" },
                         op: "ge",
                         right: 1,
                     },

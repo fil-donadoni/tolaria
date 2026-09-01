@@ -1091,7 +1091,7 @@ export function applyMoveForSearch(
                 // record onto the stack item exactly where the real commit
                 // paths snapshot it (`PendingCast.kickerPayments` /
                 // `.buybackPaid` → `StackItem`), so a resolving Kicker/Buyback
-                // spell reads `wasKicked` / `{ kickerPaid }` / the Buyback
+                // spell reads `wasKicked` / `{ additionalCostPaid }` / the Buyback
                 // return-to-hand redirect correctly inside the search.
                 ...(move.kickerPayments
                     ? { kickerPayments: move.kickerPayments }

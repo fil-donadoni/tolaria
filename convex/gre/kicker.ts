@@ -63,7 +63,7 @@ export function totalKickerCount(payments: KickerPayments | undefined): number {
 }
 
 /** CR 702.33 — how many times the NAMED Kicker was paid (0 = not paid). Backs
- *  `SpellContext.getKickerPaidCount()` and the `{ kickerPaid: "<id>" }` value.
+ *  `SpellContext.getKickerPaidCount()` and the `{ additionalCostPaid: "<id>" }` value.
  *  Fail-closed on an unknown id: an unrecognised name reads 0, so a mistyped
  *  intervening-if simply never fires rather than throwing mid-resolution. */
 export function kickerPaidCount(
@@ -189,7 +189,7 @@ export function resolveKickerPayments(
  *         spell isn't cast"). `cloneSpellOntoStack` deliberately carries
  *         `kickerPayments` onto the copy (CR 707.10 copies "additional or
  *         alternative costs", so the copy IS kicked for `wasKicked` /
- *         `{ kickerPaid }` purposes) but never calls the cast choke point —
+ *         `{ additionalCostPaid }` purposes) but never calls the cast choke point —
  *         nobody paid a kicker for the copy, so nobody kicked it.
  *       - A spell that RESOLVES and snapshots its payments onto the entering
  *         permanent (`CardInstanceState.kickerPayments`, the intervening-if

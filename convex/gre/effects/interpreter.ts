@@ -673,15 +673,15 @@ function resolveValue(
     // gate (Overload, Burst Lightning, Bloodchief's Thirst, Tear Asunder,
     // Consult the Star Charts). One execution path, no arithmetic.
     if ("kickerCount" in value) return ctx.getKickerCount();
-    // kickerPaid — how many times the NAMED Kicker was paid (CR 702.33 /
+    // additionalCostPaid — how many times the NAMED Kicker was paid (CR 702.33 /
     // 702.33e), a thin skin over ctx.getKickerPaidCount. The PER-KICKER sibling
     // of `kickerCount`: a card with two independently payable Kickers ("Kicker
     // {A} and/or {B}", the Planeshift Battlemage cycle) has one intervening-if
     // per Kicker, and a total cannot say WHICH was paid (ADR 0079). `>= 1` in a
     // comparison predicate is "this Kicker was paid". One execution path, no
     // arithmetic.
-    if ("kickerPaid" in value) {
-        return ctx.getKickerPaidCount(value.kickerPaid);
+    if ("additionalCostPaid" in value) {
+        return ctx.getKickerPaidCount(value.additionalCostPaid);
     }
     // manaValue — the mana value of a selected object (CR 202.3), a thin skin
     // over ctx.getManaValue. `of` resolves through the SAME resolveObjectRef

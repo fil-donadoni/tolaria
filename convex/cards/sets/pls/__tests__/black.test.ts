@@ -813,18 +813,18 @@ describe("Nightscape Familiar (CR 601.2f cost reduction for blue AND red spells,
 // ADR 0079, issue #1950). New construct combination — a per-Kicker gate split
 // across TWO seams, both reading the new `kickerPayments` record:
 //
-//   • check time (CR 603.4): `conditionOnSelf: kickerPaidCondition("<id>")`,
+//   • check time (CR 603.4): `conditionOnSelf: additionalCostPaidCondition("<id>")`,
 //     a callback OUTSIDE `effects[]` reading `PermanentView.kickerPayments`,
 //     so an unpaid Kicker's trigger never reaches the stack at all;
-//   • resolution time (CR 603.10): an `if { kickerPaid: "<id>" }` branch
+//   • resolution time (CR 603.10): an `if { additionalCostPaid: "<id>" }` branch
 //     INSIDE the ability's own `effects[]`, reading the resolving stack
 //     item's own payment record — its last known information, which survives
 //     a blink of the source. Deliberately NOT an `interveningIf` (issue
-//     #2015; see `kickerPaidCondition`'s doc block and the blink regression
+//     #2015; see `additionalCostPaidCondition`'s doc block and the blink regression
 //     in `pls/__tests__/red.test.ts`).
 //
 // The catalogue-wide auto-generated smoke sweep cannot drive either half (its
-// generator explicitly skips any script reading `kickerPaid`/`kickerCount`,
+// generator explicitly skips any script reading `additionalCostPaid`/`kickerCount`,
 // and it never invokes a `conditionOnSelf` callback), so per the per-Op
 // regime (ADR 0045/0046) this card earns its own coverage here.
 describe("Nightscape Battlemage (CR 702.33 plural Kicker — two independent ETB triggers, PLS 47)", () => {

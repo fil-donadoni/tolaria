@@ -5183,3 +5183,46 @@ describe("validateEffectScript — addSubtype enchantRestriction (CR 303.4, issu
         ).toBe(true);
     });
 });
+
+// ADR 0085 decision 3 (issue #2077) — the per-cost DSL reader is
+// `{ additionalCostPaid: "<id>" }`. Kicker is about to stop being the only
+// keyword whose cost is "you may pay an additional [cost] as you cast this
+// spell": Offspring (CR 702.175a) uses that phrasing verbatim, with Gift
+// (CR 702.174) and Casualty queued behind it. The old `{ kickerPaid }` spelling
+// must FAIL rather than alias — two accepted names for one value is exactly the
+// drift the Mechanics Registry guard exists to prevent, and an author writing
+// `{ kickerPaid: "offspring" }` would be taught that offspring is a kicker,
+// which is the CR 702.33d conflation the family work exists to prevent.
+describe("validateEffectScript — per-cost payment value (ADR 0085 decision 3, issue #2077)", () => {
+    const scriptWith = (amount: unknown): EffectOp[] => [
+        {
+            op: "dealDamage",
+            amount: amount as EffectOp extends { amount: infer A } ? A : never,
+            to: { target: 0 },
+        } as EffectOp,
+    ];
+
+    it("accepts the new name", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: scriptWith({ additionalCostPaid: "kicked" }) })
+            )
+        ).toEqual([]);
+    });
+
+    it("REJECTS the old `kickerPaid` name — no alias, no compatibility shim", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: scriptWith({ kickerPaid: "kicked" }) })
+            )
+        ).not.toEqual([]);
+    });
+
+    it("rejects an empty id — it could never match a declared cost", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: scriptWith({ additionalCostPaid: "" }) })
+            )
+        ).not.toEqual([]);
+    });
+});

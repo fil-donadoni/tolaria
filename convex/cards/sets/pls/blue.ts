@@ -11,7 +11,7 @@ import {
 } from "../../types";
 import { chooseColorEffects } from "../../abilities/chooseColor";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Planar Overlay — {2}{U} Sorcery. "Each player chooses a land they control
@@ -606,12 +606,12 @@ export const sleepingPotion: CardDefinition = {
 // with its {2}{B} kicker, destroy target nonblack creature. That creature
 // can't be regenerated." (CR 702.33a "Kicker {A} and/or {B}" — TWO
 // independently-payable Kickers, ADR 0079/#1937's flagship shape, each with
-// its own `{ kickerPaid: "<id>" }` intervening-if — the EXACT Thunderscape
+// its own `{ additionalCostPaid: "<id>" }` intervening-if — the EXACT Thunderscape
 // Battlemage template (`pls/red.ts`, issue #1951/PR #2005), the cycle's
 // first-landed sibling.)
 //
 // Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
-// `kickerPaidCondition("<id>")` — the shared predicate over the permanent's own
+// `additionalCostPaidCondition("<id>")` — the shared predicate over the permanent's own
 // per-Kicker payment record (`PermanentView.kickerPayments`). This card
 // originally shipped with NO check-time gate at all: both triggers went on the
 // stack on every ETB, so a Battlemage kicked only with {W} still announced the
@@ -625,7 +625,7 @@ export const sleepingPotion: CardDefinition = {
 // typed on `CardInstanceState`/`PermanentView`, persisted by `compactCard`,
 // and cleared on a CR 400.7 zone change — so the gate is now sound (#2015).
 //
-// The `if { kickerPaid: "<id>" }` gate inside each `effects[]` STAYS as ADR
+// The `if { additionalCostPaid: "<id>" }` gate inside each `effects[]` STAYS as ADR
 // 0079's documented resolution-time answer, reading `ctx.getKickerPaidCount()`
 // off the resolving item's own `kickerPayments` (`buildTriggerItem`,
 // `gre/triggers.ts`, spreads the entering permanent's fields onto each
@@ -669,12 +669,12 @@ export const stormscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {W} kicker, you gain 3 life.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-w"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-w"),
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-w" },
+                        left: { additionalCostPaid: "kicker-w" },
                         op: "ge",
                         right: 1,
                     },
@@ -688,7 +688,7 @@ export const stormscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {2}{B} kicker, destroy target nonblack creature. That creature can't be regenerated.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-b"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-b"),
             targetRequirement: {
                 type: "Creature",
                 count: 1,
@@ -698,7 +698,7 @@ export const stormscapeBattlemage: CardDefinition = {
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-b" },
+                        left: { additionalCostPaid: "kicker-b" },
                         op: "ge",
                         right: 1,
                     },
@@ -805,10 +805,10 @@ export const sunkenHope: CardDefinition = {
 //
 // A SINGLE Kicker (unlike the Battlemage cycle's "and/or" pair), so the
 // check-time gate is the plain aggregate `wasKicked` predicate via
-// `kickerPaidCondition("kicker")` — same helper the Battlemage cycle shares
+// `additionalCostPaidCondition("kicker")` — same helper the Battlemage cycle shares
 // (`abilities/triggers/shared.ts`), just with one id instead of two.
 //
-// The resolution-time re-check STAYS the `if { kickerPaid: "kicker" }`
+// The resolution-time re-check STAYS the `if { additionalCostPaid: "kicker" }`
 // branch inside `effects[]`, reading the resolving TRIGGER stack item's own
 // `kickerPayments` record (`buildTriggerItem`, gre/triggers.ts, spreads the
 // entering permanent's fields onto the item it raises — CR 608.2h last known
@@ -862,12 +862,12 @@ export const waterspoutElemental: CardDefinition = {
                 "When this creature enters, if it was kicked, return all other creatures to their owners' hands and you skip your next turn.",
             scope: "self",
             // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker"),
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker" },
+                        left: { additionalCostPaid: "kicker" },
                         op: "ge",
                         right: 1,
                     },
@@ -946,7 +946,7 @@ export const confound: CardDefinition = {
 //
 // The correct shape needs vocabulary that does not exist yet: an Effect
 // Script value that reads a TARGET stack item's kicker payments at
-// resolution. Today's `{ kickerCount: true }` / `{ kickerPaid: id }`
+// resolution. Today's `{ kickerCount: true }` / `{ additionalCostPaid: id }`
 // (`gre/effects/interpreter.ts`) read `ctx.getKickerCount()` — the RESOLVING
 // spell's own payments, never a target's. That is the stop-and-issue case
 // (an unbuilt capability is NOT a valid `resolve()` justification), so the
