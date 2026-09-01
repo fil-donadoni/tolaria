@@ -29584,8 +29584,29 @@ describe("Effect Script Op: moveSpellFromStack (CR 400.7, issue #2605)", () => {
         victimCastBy: string = "p2"
     ) {
         const id = registerScript(scriptId, effects);
+        // p2's library is SEEDED with two distinguishable cards: with an empty
+        // library, "top" and "bottom" both land at index 0 and a swapped
+        // implementation would pass either assertion.
         const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "lib-top",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            id: "lib-bottom",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
         });
         const victim = pushSpell(state, victimCardId, victimCastBy);
         pushSpell(state, id, "p1", [{ type: "spell", id: victim.id }]);
@@ -29707,11 +29728,13 @@ describe("Effect Script Op: moveSpellFromStack (CR 400.7, issue #2605)", () => {
             ],
             "test-op-move-spell-lib-top"
         );
-        const before = state.players[1].library.length;
         resolveTopOfStack(state);
 
-        expect(state.players[1].library.length).toBe(before + 1);
-        expect(state.players[1].library[0].id).toBe(victim.id);
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            victim.id,
+            "lib-top",
+            "lib-bottom",
+        ]);
     });
 
     it("puts the spell on the BOTTOM of its owner's library (`library-bottom`)", () => {
@@ -29725,10 +29748,12 @@ describe("Effect Script Op: moveSpellFromStack (CR 400.7, issue #2605)", () => {
             ],
             "test-op-move-spell-lib-bottom"
         );
-        const before = state.players[1].library.length;
         resolveTopOfStack(state);
 
-        expect(state.players[1].library.length).toBe(before + 1);
-        expect(state.players[1].library[before].id).toBe(victim.id);
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "lib-top",
+            "lib-bottom",
+            victim.id,
+        ]);
     });
 });
