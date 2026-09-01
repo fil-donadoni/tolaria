@@ -18,6 +18,7 @@
 
 import { describe, it, expect } from "vitest";
 import { compileCard } from "../compile";
+import { runGates } from "../gates";
 import { conditionRule } from "../grammar/shared/condition";
 import { triggerHeadRule } from "../grammar/shared/triggerHead";
 import { triggeredSlot } from "../grammar/slots/triggered";
@@ -251,5 +252,76 @@ describe("targets are announced, not invented (CR 603.3d)", () => {
                 "When this creature enters, destroy target creature. Tap target land."
             )
         ).toMatch(/one target per activated ability|targets were announced/);
+    });
+});
+
+describe("the ready gates read the REBUILT ability, not the descriptor", () => {
+    // Issue #2698 — a trigger's Effect Script lives on a JSON descriptor until
+    // the registry seam rebuilds it, so gates that read the RAW definition
+    // would never see it: `validateEffectScript` looks at
+    // `triggeredAbilities[].effects`, which does not exist yet. Every trigger
+    // card would reach `ready` with its body unchecked — fail-OPEN, in the one
+    // module whose whole contract is to fail closed.
+    it("quarantines a trigger whose script reads an UNCENSUSED event field", () => {
+        // ADR 0049 — `$event.<field>` is censused per event type in
+        // `EVENT_FIELD_REGISTRY`, and an unlisted field is a static validation
+        // failure rather than a runtime skip. The check needs the ability's
+        // `event` to be known, which only the REBUILT ability has: on the raw
+        // descriptor there is no `triggeredAbilities` entry to scope the ref
+        // against, so this reason cannot be reached at all.
+        const result = runGates({
+            oracleId: "test-2698-dangling",
+            plannedMechanics: [],
+            definition: {
+                name: "Test Dangling",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+                compiledTriggeredAbilities: [
+                    {
+                        id: "test-2698-dangling-trigger",
+                        oracleText:
+                            "When this creature enters, that player gains 1 life.",
+                        head: { kind: "entered", scope: "self" },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: { ref: "$event.noSuchField" },
+                                amount: 1,
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+        expect(result.reasons.map((r) => r.kind)).toContain(
+            "validate-effect-script"
+        );
+    });
+
+    it("keeps the JSON round-trip gate on the RAW definition", () => {
+        // The mirror: the expanded form holds the factories' closures by
+        // construction, so a `not-json` verdict taken from it would fire for
+        // every trigger card and say nothing about the row the lockfile stores.
+        const result = runGates({
+            oracleId: "test-2698-json",
+            plannedMechanics: [],
+            definition: {
+                name: "Test Json",
+                types: ["Enchantment"],
+                compiledTriggeredAbilities: [
+                    {
+                        id: "test-2698-json-trigger",
+                        oracleText:
+                            "When this enchantment enters, draw a card.",
+                        head: { kind: "entered", scope: "self" },
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
+                    },
+                ],
+            },
+        });
+        expect(result.reasons).toEqual([]);
     });
 });

@@ -54,7 +54,10 @@ import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
 } from "../gre/effects/scenarioGenerator";
-import { validateEffectScript } from "../gre/effects/validate";
+import {
+    validateAbilityEffectScript,
+    validateEffectScript,
+} from "../gre/effects/validate";
 import type { CardDefinition, EffectOp } from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
 
@@ -139,7 +142,31 @@ export function runGates(input: GateInput): GateResult {
         });
     }
 
-    const errors = validateEffectScript(expanded);
+    // `validateEffectScript` reads only the CARD-LEVEL spell script (it returns
+    // early on `def.effects === undefined`), so on its own it validated
+    // nothing at all for a card whose whole behaviour is an ability — every
+    // activated card #2697 shipped and every triggered card this ticket ships.
+    // The per-ability validator is the one that walks an ability body, and for
+    // a triggered ability it is also what makes the ADR 0049 `$event.<field>`
+    // census check possible: the check is scoped by the ability's OWN event
+    // type, which only the rebuilt ability carries.
+    const errors = [
+        ...validateEffectScript(expanded),
+        ...(expanded.activatedAbilities ?? []).flatMap((ability) =>
+            validateAbilityEffectScript(ability, expanded.name)
+        ),
+        ...(expanded.triggeredAbilities ?? []).flatMap((ability) =>
+            validateAbilityEffectScript(
+                ability,
+                expanded.name,
+                // CR 603.2 — an array-`event` ability spans several event
+                // types, so no single census applies and `$event` is not
+                // legal at that site (ADR 0049); passing undefined is what
+                // says so.
+                typeof ability.event === "string" ? ability.event : undefined
+            )
+        ),
+    ];
     for (const error of errors) {
         reasons.push({ kind: "validate-effect-script", detail: error });
     }
