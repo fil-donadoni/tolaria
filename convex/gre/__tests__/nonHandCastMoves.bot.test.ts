@@ -42,6 +42,8 @@ import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { firebolt } from "../../cards/sets/ody/red";
 import { ephemerate } from "../../cards/sets/mh1/white";
+import { fireball } from "../../cards/sets/lea/red";
+import { flashOfInsight } from "../../cards/sets/jud/blue";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { hogaakArisenNecropolis } from "../../cards/sets/mh1/multicolor";
 import { lurrus } from "../../cards/sets/iko/multicolor";
@@ -406,6 +408,73 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         }
         // The parent state is untouched (both sandboxes clone).
         expect(state.graveyardPermanentCastUsedThisTurn).toBeUndefined();
+    });
+
+    it("announces an explicit chosenX: 0 when the ZONE cost has no X but the printed one does (CR 107.3b)", () => {
+        // `announceCast` decides whether a cast owes an X from the card's
+        // PRINTED mana cost and rejects a Move with no `chosenX` outright
+        // ("Must choose X (>= 0) for this spell"), while the enumerator reads
+        // the cost the ZONE charges. Fireball ({X}{R}) under a free-cast exile
+        // waiver is that split: the waived cost is `{}` and carries no X, so
+        // every Move must name the one legal value rather than omitting the
+        // field and letting the mutation refuse it — the #2283/#2284 shape.
+        const fb = makeInstance(fireball.id, {
+            id: "exiledFireball",
+            zone: "exile",
+            controllerId: "p2",
+            ownerId: "p2",
+            castableFromExileBy: "p1",
+            castFromExileWithoutPayingManaCost: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: lands(mountain, 3, "p1") }),
+                makePlayer("p2", { exile: [fb] }),
+            ],
+        });
+        const moves = castsOf(state, "p1").filter(
+            (m) => m.cardInstanceId === "exiledFireball"
+        );
+        expect(moves.length).toBeGreaterThan(0);
+        for (const m of moves) expect(m.chosenX).toBe(0);
+    });
+
+    it("does NOT offer a flashback cast whose non-mana cost lives on the DEFINITION (fail closed)", () => {
+        // CR 702.34a / 118.5 — Flash of Insight's flashback owes "Exile X blue
+        // cards from your graveyard", declared as
+        // `additionalCosts.flashbackExileFromGraveyard` rather than on the
+        // flashback object, so a gate reading only `getFlashbackAdditionalCost`
+        // lets it through. Its park is built inside `announceCast` and the Move
+        // has no field for the picked ids.
+        const flash = makeInstance(flashOfInsight.id, {
+            id: "gyFlash",
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blueFodder = Array.from({ length: 4 }, (_, i) =>
+            makeInstance(island.id, {
+                id: `blue-${i}`,
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [flash, ...blueFodder],
+                    battlefield: lands(island, 4, "p1"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // The gate permits it — which is why the candidate set has to decline
+        // it on its own terms.
+        expect(getLegalActions(state, getPlayer(state, "p1"), flash)).toContain(
+            "cast"
+        );
+        expect(castOf(state, "p1", "gyFlash")).toBeUndefined();
     });
 
     it("does NOT offer an ESCAPE cast — its exile-N-others cost is not carriable (fail closed)", () => {
