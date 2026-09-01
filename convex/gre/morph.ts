@@ -41,7 +41,7 @@
 // Megamorph (CR 702.37b) is NOT implemented — see `CardDefinition.morph`.
 
 import type { AlternativeCost, CardDefinition, ManaCost } from "../cards/types";
-import { tryGetDefinition } from "../cards";
+import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getManaSubstitutions, normalizeManaCost } from "./state";
 import {
@@ -96,6 +96,37 @@ export function isMorphCastId(
     altCostId: string | undefined
 ): boolean {
     return altCostId === MORPH_CAST_ALT_COST_ID && def?.morph !== undefined;
+}
+
+/** CR 702.37c / 707.2 (issue #2970 review) — the characteristics a MORPH cast
+ *  is priced against: "a 2/2 creature with no text, no name, no subtypes, and
+ *  no mana cost", so any effect that would change what it costs to cast must be
+ *  judged against THOSE, never the real card's. Returns a throwaway view of the
+ *  announced card with the face-down sentinel swapped in — the same substitution
+ *  `turnFaceDown` (`gre/faceDown.ts`) performs on a real permanent — so every
+ *  def-derived reader (`getColors`, `getPrintedTypes`, `getName`) and every
+ *  live-array reader (`types`, `subtypes`) sees the vanilla 2/2.
+ *
+ *  Without it, Gloom ("White spells cost {3} more to cast", `lea/black.ts`)
+ *  taxes a face-down Exalted Angel — a colourless spell — and Sapphire Leech /
+ *  Aura of Silence are the same shape on colour and card type. The card itself
+ *  is NOT mutated: it is still face up in its zone, and only turns face down
+ *  when the cast commits.
+ *
+ *  Shared by all three sites that price a cast: `announceCast`'s no-target
+ *  alt-cost branch (`game.ts`), `getLegalActions`'s alt-cost affordance branch
+ *  (`gre/rules.ts`) and the Bot's morph variant (`gre/moves.ts`) — one view, so
+ *  the gate, the payment and the tap plan cannot disagree. */
+export function faceDownCastView(card: CardInstanceState): CardInstanceState {
+    return {
+        ...card,
+        card: { id: FACE_DOWN_CARD_ID },
+        types: ["Creature"],
+        subtypes: [],
+        power: 2,
+        toughness: 2,
+        staticAbilities: [],
+    };
 }
 
 /** CR 702.37e — the morph cost of a FACE-DOWN permanent, i.e. "what the

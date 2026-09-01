@@ -122,7 +122,11 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
-import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
+import {
+    faceDownCastView,
+    morphCastAlternativeCost,
+    turnableFaceUpPermanents,
+} from "./morph";
 import { hasRetrace } from "./retrace";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
@@ -1888,16 +1892,23 @@ function enumerateCastMoves(
             chosenX: 0,
         });
         foldFlashSurchargeCost(morphCost, flashSurcharge, flashSurchargeOwed);
-        // CR 601.2f — the same battlefield cost modifiers every other cast
-        // branch folds. A face-down spell is a colourless creature spell with
-        // no name, so a modifier keyed on the printed card's characteristics
-        // legitimately may not apply to it; `getCostModifiers` reads the
-        // instance, which at enumeration time is still face up. That is a
-        // known simplification of CR 702.37c's "any effects … that would apply
-        // to casting a card with these characteristics", and it is unreachable
-        // in the shipped pool: no cost modifier in the catalogue keys on a
-        // characteristic a face-down spell loses.
-        const morphModifiers = getCostModifiers(state, card, "spell");
+        // CR 601.2f / 702.37c / 707.2 (issue #2970 review) — the same
+        // battlefield cost modifiers every other cast branch folds, but read
+        // against the FACE-DOWN characteristics: a face-down spell is a
+        // colourless, nameless 2/2 creature spell, so "any effects … that
+        // would apply to casting a card with these characteristics" are the
+        // ones keyed on those, not on the real card's. The instance is still
+        // face up at enumeration time, hence the throwaway view — the SAME one
+        // `announceCast` and `getLegalActions` price against, so the tap plan
+        // and the charged total cannot disagree. This was previously written
+        // off as unreachable in the shipped pool; it is not — Gloom
+        // (`lea/black.ts`) keys on colour, which a face-down spell loses, and
+        // taxed a face-down Exalted Angel {3}.
+        const morphModifiers = getCostModifiers(
+            state,
+            faceDownCastView(card),
+            "spell"
+        );
         applyCostModifiers(morphCost, morphModifiers);
         const morphTapPlan = planManaPayment(state, player, morphCost);
         if (morphTapPlan !== null) {

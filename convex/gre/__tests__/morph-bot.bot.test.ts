@@ -98,6 +98,31 @@ describe("morph — Bot move enumeration (CR 702.37)", () => {
         expect(casts[0].targets).toEqual([]);
     });
 
+    it("plans the morph tap against the FACE-DOWN characteristics — Gloom does not tax a colourless face-down spell (CR 702.37c morph / 707.2, issue #2970 review)", () => {
+        // Gloom ("White spells cost {3} more to cast") keys on COLOUR, which a
+        // face-down spell loses (CR 707.2 — no name, no colour, no subtypes).
+        // The enumerator reads the instance, which is still FACE UP in hand at
+        // enumeration time, so it must price against the face-down view or it
+        // plans a tap for {6} — which three Plains cannot cover, so the Bot
+        // stops offering the morph cast at all, exactly when it most wants it.
+        const state = handBoard(3);
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Gloom").id, {
+                id: "gloom",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            })
+        );
+        const casts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell"
+        );
+        expect(casts).toHaveLength(1);
+        expect(casts[0].alternativeCostId).toBe(MORPH_CAST_ALT_COST_ID);
+        expect(casts[0].tapPlan).toHaveLength(3);
+    });
+
     it("offers BOTH the printed cast and the face-down cast when both are affordable", () => {
         const state = handBoard(6);
         const casts = enumerateMoves(state, "p1").filter(
