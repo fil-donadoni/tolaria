@@ -3,9 +3,12 @@
 //
 // Broadside Bombardiers (issue #2375) is the card that shipped Boast
 // (CR 702.142). Its two halves are tested where each actually lives:
-//   * the KEYWORD's activation-timing rule (CR 702.142a) across every surface
-//     that decides whether an activation is offered — the server's hard throw,
-//     the bot's move enumerator and the client's zone-listing helper;
+//   * the KEYWORD's activation-timing rule (CR 702.142a) on the two surfaces
+//     that live on this side of the project boundary — the server's hard throw
+//     and the bot's move enumerator. The CLIENT surface (`getStackAbilities`
+//     over a real `projectPublicState`) is asserted in
+//     `src/lib/__tests__/boastActivationAffordance.test.ts`, because a file in
+//     the convex project may not import `src/**`;
 //   * the DAMAGE amount, which reads the cost-sacrificed permanent's mana value
 //     as last known information (CR 608.2h) off the stack item's
 //     `additionalSacrificeSnapshot`, driven through the REAL cost-payment path
@@ -25,9 +28,6 @@ import { enumerateMoves } from "../../../../gre/moves";
 import { applyActivationCostsForSearch } from "../../../../gre/applyMove";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getStackAbilities } from "../../../../../src/lib/card-utils";
-import { projectPublicState } from "../../../../gameProjections";
-import type { CardInstance } from "../../../../../src/types/game";
 import type {
     CardInstanceState,
     GameState,
@@ -121,26 +121,6 @@ describe("Broadside Bombardiers — Boast (CR 702.142a) activation timing, issue
         // CR 602.5b — and never a second time in the same turn.
         source.activationsThisTurn = { [BOAST_ID]: 1 };
         expect(boastMoves(state)).toHaveLength(0);
-    });
-
-    // SURFACE (gre-development.md § Frontend wiring analysis): the client's
-    // affordance hint runs through the real reducer over a REAL projection, so a
-    // `hasAttackedThisTurn` the wire drops would show the ability as available
-    // all game with only the server's throw to say no.
-    it("wire format — getStackAbilities hides the boast pre-attack and offers it post-attack over projectPublicState", () => {
-        const { state, source } = board();
-        const listed = (s: GameState) => {
-            const projected = projectPublicState(s, 1, "p1");
-            const slim = projected.players[0].battlefield.find(
-                (c) => c?.id === "bombardiers"
-            ) as CardInstance;
-            return getStackAbilities(slim, s.phase).map((a) => a.id);
-        };
-
-        expect(listed(state)).not.toContain(BOAST_ID);
-
-        source.hasAttackedThisTurn = true;
-        expect(listed(state)).toContain(BOAST_ID);
     });
 });
 

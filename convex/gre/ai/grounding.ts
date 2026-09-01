@@ -133,6 +133,22 @@ export function contextFreeGrounding(): GroundingContext {
                 scaling: inner.scaling,
             };
         }
+        // sacrificed (issue #2375) — a characteristic of the cost-sacrificed
+        // permanent (CR 601.2f / 608.2h). The READ itself is a dynamic
+        // runtime value and takes the same `CF_ASSUMED_REF` floor every other
+        // dynamic read takes, but the `plus` LITERAL is known statically and
+        // must be added on top rather than swallowed by the generic floor
+        // below — the wrong-magnitude failure mode `scaled` documents (issue
+        // #1520): Broadside Bombardiers' "2 plus the sacrificed permanent's
+        // mana value" would otherwise ground as a bare representative 2,
+        // pricing a boast at half what it does and hiding the activation
+        // behind `pass`.
+        if ("sacrificed" in v) {
+            return {
+                amount: CF_ASSUMED_REF + (v.sacrificed.plus ?? 0),
+                scaling: true,
+            };
+        }
         // counters / manaValue / domain / kickerCount / additionalCostPaid / escaped /
         // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
         // runtime state.
