@@ -1649,7 +1649,7 @@ describe("schema drift guard", () => {
                 id: "ce-1",
                 layer: 6,
                 timestamp: 1,
-                expiry: { kind: "indefinite" },
+                expiry: { kind: "indefinite", controllerId: "p1" },
                 affected: { kind: "instances", instanceIds: ["c1"] },
                 payload: { kind: "keyword-grant", keyword: "flying" },
                 characteristicDefining: false,
@@ -1721,7 +1721,14 @@ describe("optional field round-trip smoke tests", () => {
     // reason the key is persisted rather than transient (CR 611.2a — the spell
     // that generated them has resolved and left, so no load can rebuild them
     // by walking any zone).
-    it("continuousEffects (every expiry provenance)", () => {
+    //
+    // Asserted through `JSON.parse(JSON.stringify(...))`, NOT through
+    // `roundTrip` alone: the generic optional-key loop writes `out[k] = v`
+    // without copying, so a plain `toEqual` after an in-memory round trip
+    // compares the array with itself and would pass for a payload carrying a
+    // closure — exactly the risk ADR 0082 flags and this test exists to
+    // retire. The JSON hop is what the Convex write actually does.
+    it("continuousEffects (every expiry provenance, JSON-safe)", () => {
         const state = freshState();
         state.continuousEffects = [
             {
@@ -1736,7 +1743,6 @@ describe("optional field round-trip smoke tests", () => {
                     effectIndex: 0,
                 },
                 characteristicDefining: false,
-                controllerId: "p1",
             },
             {
                 id: "ce-2",
@@ -1745,6 +1751,7 @@ describe("optional field round-trip smoke tests", () => {
                 expiry: {
                     kind: "duration",
                     duration: { phase: "end-of-turn", playerId: "p1" },
+                    controllerId: "p1",
                 },
                 affected: { kind: "instances", instanceIds: ["c1", "c2"] },
                 payload: { kind: "keyword-grant", keyword: "trample" },
@@ -1768,15 +1775,16 @@ describe("optional field round-trip smoke tests", () => {
                 layer: 7,
                 sublayer: "7a",
                 timestamp: 4,
-                expiry: { kind: "indefinite" },
+                expiry: { kind: "indefinite", controllerId: "p2" },
                 affected: { kind: "instances", instanceIds: ["c2"] },
                 payload: { kind: "pt-set", power: 0, toughness: 0 },
                 characteristicDefining: true,
             },
         ];
-        expect(roundTrip(state).continuousEffects).toEqual(
-            state.continuousEffects
+        const throughDb = expandState(
+            JSON.parse(JSON.stringify(compactState(state)))
         );
+        expect(throughDb.continuousEffects).toEqual(state.continuousEffects);
     });
 
     it("pendingActivation", () => {
