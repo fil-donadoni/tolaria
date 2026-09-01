@@ -98,7 +98,7 @@ describe("morph — Bot move enumeration (CR 702.37)", () => {
         expect(casts[0].targets).toEqual([]);
     });
 
-    it("plans the tap against the FACE-DOWN characteristics — Gloom does not tax a colourless face-down spell (CR 702.37c / 707.2, issue #2970 review)", () => {
+    it("plans the morph tap against the FACE-DOWN characteristics — Gloom does not tax a colourless face-down spell (CR 702.37c morph / 707.2, issue #2970 review)", () => {
         // Gloom ("White spells cost {3} more to cast") keys on COLOUR, which a
         // face-down spell loses (CR 707.2 — no name, no colour, no subtypes).
         // The enumerator reads the instance, which is still FACE UP in hand at

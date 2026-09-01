@@ -1098,7 +1098,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         expect(getPlayer(after, "p1").manaPool.W).toBe(0);
         const cast = after.stack.find((s) => s.id === "angelH");
         expect(cast).toBeDefined();
-        // CR 702.37c — the commit turns the stack item face down rather than
+        // CR 702.37c morph — the commit turns the item face down rather than
         // stamping `morphed` (that flag only rides a PARKED payment).
         expect(cast!.faceDown).toBe(true);
     });
