@@ -335,7 +335,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
     });
 
     it("does NOT offer an ESCAPE cast — its exile-N-others cost is not carriable (fail closed)", () => {
-        // CR 702.138a. `planCastCostPicks` has no branch for the exile cost and
+        // CR 702.138a escape. `planCastCostPicks` has no branch for it, and
         // the Move has no field for the picked ids, so an enumerated escape cast
         // would be priced as if the exile were free and park unpayable at the
         // real mutation. Tracked at
