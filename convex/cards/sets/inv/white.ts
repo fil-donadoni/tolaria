@@ -1164,10 +1164,12 @@ export const glimmeringAngel: CardDefinition = {
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you
-// control. This effect doesn't remove this Aura." tracked-by: #1329
+// control. This effect doesn't remove this Aura." tracked-by: #2067
 // (`StaticKeywordGrant.keyword` is a fixed string applied once at attach
 // time, not a continuously-recomputed layer-6 read — no support for a
-// protection SET that changes as the controller's board changes).
+// protection SET that changes as the controller's board changes). The slice
+// is blocked in turn on PRD #2064 / ADR 0082 (Continuous Effects Registry);
+// #1329 is the INV umbrella that carries all three sibling slices.
 
 // Protective Sphere — {2}{W} Enchantment. "{1}, Pay 1 life: Prevent all
 // damage that would be dealt to you this turn by a source of your choice
@@ -1178,14 +1180,15 @@ export const glimmeringAngel: CardDefinition = {
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white
 // Reflection creature token, where X is the mana value of that spell."
-// tracked-by: #1329. The dynamic-token-size half of that blocker is now GONE:
+// tracked-by: #2066 (umbrella #1329). The dynamic-token-size half of that
+// blocker is now GONE:
 // `EffectTokenSpec.power`/`toughness` take a full `EffectValue` as of issue
 // #2384 (Skyclave Apparition's X/X Illusion), so an X/X token IS expressible
 // via `createToken`. What still blocks this card is reading X off the
 // TRIGGERING SPELL: `EVENT_FIELD_REGISTRY` has no `SPELL_CAST` row exposing the
 // cast spell as an object, so `{ ref: "$event.<spell>.manaValue" }` has nothing
 // to resolve — plus "destroy all Reflections", a subtype-filtered mass destroy.
-// Re-verify against #1329 before quoting the old premise.
+// Re-verify against #2066 before quoting the old premise.
 
 // Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
 // this creature this turn if able." tracked-by: #1332 (no "must be
