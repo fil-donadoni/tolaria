@@ -35,8 +35,9 @@
  * a decline mode with a placeholder Op is the workaround that file's own
  * comment names as a workaround. A missing Op is not a licence to guess
  * (`.claude/rules/gre-development.md` § DSL-first authoring) — it is
- * stop-and-open-an-issue, so the ~2,254 "you may" trigger cards stay
- * `unparsed` with the exact fragment recorded, which is what ranks the Op.
+ * stop-and-open-an-issue, so the 2,254 "you may" trigger cards stay `unparsed`
+ * with the exact fragment recorded, which is what ranks the Op — tracked-by:
+ * issue #3022.
  */
 
 import {
