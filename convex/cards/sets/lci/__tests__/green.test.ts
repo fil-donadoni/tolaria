@@ -33,7 +33,10 @@ import {
     tryAutoCommitPendingActivation,
     assertActivationTimingLegal,
 } from "../../../../game";
-import { getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    targetingSourceFromCard,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -233,7 +236,7 @@ describe("Map token (CR 111.10) — the ability shape", () => {
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            map,
+            targetingSourceFromCard(map, false),
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("sentinel");
