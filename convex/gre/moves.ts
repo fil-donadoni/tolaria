@@ -38,6 +38,13 @@ import {
     resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import {
+    castRawManaCost,
+    exileCastPermission,
+    graveyardCastMechanism,
+    searchCanModelGraveyardCast,
+    type CastFromZone,
+} from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import { payableAdditionalCostLegs } from "./additionalCost";
 import {
@@ -297,6 +304,21 @@ export type Move =
     | {
           kind: "cast-spell";
           cardInstanceId: string;
+          /** CR 601.3 (issue #2971) — the zone this cast comes FROM. Absent
+           *  means the hand, which is every cast the enumerator emitted before
+           *  the exile / graveyard loops landed.
+           *
+           *  Carried rather than re-derived: both search sandboxes used to
+           *  GUESS the zone (hand, unless the id happened to be the library
+           *  top), and a guess is exactly what breaks on the shapes this field
+           *  exists for — a cross-player exile grant puts the card in the
+           *  OPPONENT's exile, and a graveyard card is indistinguishable from
+           *  a hand card by id alone. The real mutation derives the zone
+           *  server-side (`locateCastSource`, game.ts) from the same
+           *  permissions the enumerator gated on, so the executor forwards
+           *  nothing extra to `announceCast` — this field is for the SANDBOXES,
+           *  which have no `locateCastSource`. */
+          castFromZone?: CastFromZone;
           chosenModeId?: string;
           /** CR 118.9 — id of the ALTERNATIVE casting cost this variant pays
            *  instead of the printed mana cost, forwarded verbatim to
@@ -1371,7 +1393,24 @@ function enumerateCastMoves(
      *  (`libraryTopCastLifeCost`, gre/rules.ts — the same single authority the
      *  server's commit sites read, so the enumerated Move and the mutation
      *  charge the identical amount). Absent for every ordinary cast. */
-    opts?: { lifeInsteadOfMana?: number }
+    opts?: { lifeInsteadOfMana?: number; castFromZone?: CastFromZone }
+): Move[] {
+    const castFromZone = opts?.castFromZone ?? "hand";
+    const moves = enumerateCastMovesFromZone(state, player, card, opts);
+    if (castFromZone === "hand") return moves;
+    // Stamp the zone once, here, rather than at each of the four `moves.push`
+    // sites below (printed cost, bestow, morph, dash) — a new cast variant
+    // cannot forget it.
+    return moves.map((m) =>
+        m.kind === "cast-spell" ? { ...m, castFromZone } : m
+    );
+}
+
+function enumerateCastMovesFromZone(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    opts?: { lifeInsteadOfMana?: number; castFromZone?: CastFromZone }
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -1380,10 +1419,20 @@ function enumerateCastMoves(
     if (lifeInsteadOfMana !== undefined && player.life < lifeInsteadOfMana) {
         return [];
     }
+    // CR 601.3 / 702.34a / 702.35a — what this cast actually PAYS from the zone
+    // it comes from, through `castRawManaCost` (`gre/castCost.ts`), the ONE
+    // authority the real commit paths read. Byte-identical to the previous
+    // `getInstanceManaCost(card)` for a HAND cast — that is exactly what the
+    // helper returns for `"hand"` — while a flashback cast now prices the
+    // flashback cost, a madness cast the madness cost, and a waived exile /
+    // graveyard grant nothing at all, instead of the printed cost none of them
+    // pays. Before this the enumerator had no way to reach those costs at all:
+    // the helper lived in `convex/game.ts`, which imports this module.
     const rawCost =
         lifeInsteadOfMana !== undefined
             ? {}
-            : (getInstanceManaCost(card) ?? {});
+            : (castRawManaCost(state, card, opts?.castFromZone ?? "hand") ??
+              {});
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
@@ -2868,7 +2917,79 @@ export function enumerateMoves(
     for (const card of player.graveyard) {
         if (!hasRetrace(state, card)) continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
-        moves.push(...enumerateCastMoves(state, player, card));
+        moves.push(
+            ...enumerateCastMoves(state, player, card, {
+                castFromZone: "graveyard",
+            })
+        );
+    }
+    // CR 601.3 (issue #2971) — every OTHER graveyard-cast mechanism. The gap
+    // the two loops above document is closed here: Flashback (CR 702.34), the
+    // broad player-wide permission (Yawgmoth's Will), the per-card grant
+    // (Malcolm, Emry), a card's own intrinsic permission (Hogaak, CR 702.51)
+    // and the once-per-turn permanent permission (Lurrus, CR 702.139). A Bot
+    // holding six shipped flashback cards played none of them from the
+    // graveyard, ever — `getLegalActions` returned "cast" for all of them, only
+    // the candidate SET was missing.
+    //
+    // `graveyardCastMechanism` FIRST, `getLegalActions` second, for the same
+    // fail-closed reason the retrace loop states: the gate's final "cast is for
+    // all non-land cards" fallback is zone-blind and would report "cast" for a
+    // graveyard card no mechanism permits, which `locateCastSource` then
+    // refuses to locate. `searchCanModelGraveyardCast` then drops the two
+    // mechanisms whose cost the `cast-spell` Move cannot carry — escape's
+    // exile-N-others and a non-mana flashback cost — rather than offering a
+    // cast the executor would announce and fail to pay (the announce-then-abort
+    // bot-freeze shape).
+    for (const card of player.graveyard) {
+        const mechanism = graveyardCastMechanism(
+            state,
+            player,
+            card,
+            player.id
+        );
+        if (mechanism === undefined || mechanism === "retrace") continue;
+        if (!searchCanModelGraveyardCast(card, mechanism)) continue;
+        if (!getLegalActions(state, player, card).includes("cast")) continue;
+        moves.push(
+            ...enumerateCastMoves(state, player, card, {
+                castFromZone: "graveyard",
+            })
+        );
+    }
+    // CR 601.3 (issue #2971) — a cast from EXILE. Scanned across EVERY player's
+    // exile, not just this player's own: a grant may be CROSS-PLAYER (CR 400.7
+    // — Dauthi Voidwalker's opponent-exile free cast, Robber of the Rich's
+    // stolen top card, Elite Spellbinder handing the OWNER a taxed cast), so
+    // the card sits in one player's zone while another holds the permission.
+    // That is exactly the split `getLegalActions`' `casterId` parameter exists
+    // for, so it is passed here.
+    //
+    // Lands are excluded: a land in exile under a play grant is PLAYED, never
+    // cast (CR 305.9), and has its own enumeration
+    // (`resolvePlayLandSourceZone`) — which is also what keeps a cast-only
+    // grant on a land from being offered as either.
+    for (const zoneOwner of state.players) {
+        for (const card of zoneOwner.exile) {
+            if (card.types.includes("Land")) continue;
+            if (!exileCastPermission(card, player.id)) continue;
+            if (
+                !getLegalActions(
+                    state,
+                    zoneOwner,
+                    card,
+                    false,
+                    player.id
+                ).includes("cast")
+            ) {
+                continue;
+            }
+            moves.push(
+                ...enumerateCastMoves(state, player, card, {
+                    castFromZone: "exile",
+                })
+            );
+        }
     }
     // Library: index 0 ONLY — the permission is positional and the rest of the
     // library is hidden (CR 400.2). Feeding the whole library here would leak

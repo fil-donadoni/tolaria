@@ -14,15 +14,24 @@
 // Nothing here reads a mutation, a ctx, or the database: it is a pure function
 // of `GameState` plus the card, which is what makes the move legal to make.
 
-import { getInstanceManaCost } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import type { ManaCost } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getMadnessCost } from "./madness";
 import { hasEscape, getEscapeManaCost } from "./escape";
-import { hasFlashback, getFlashbackCost } from "./flashback";
+import {
+    getFlashbackAdditionalCost,
+    getFlashbackCost,
+    hasFlashback,
+} from "./flashback";
 import { hasRetrace } from "./retrace";
 import { hasRebound } from "./rebound";
-import { canCastSpellsFromTopOfLibrary, libraryTopCastLifeCost } from "./rules";
+import {
+    canCastFromGraveyardByPermission,
+    canCastPermanentFromGraveyardByPermission,
+    canCastSpellsFromTopOfLibrary,
+    libraryTopCastLifeCost,
+} from "./rules";
 
 /** The zone a cast originates from (CR 601.3). Normally the hand; exile for
  *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
@@ -219,4 +228,183 @@ export function castRawManaCost(
     // plain cast under the BROAD graveyard-cast permission (Yawgmoth's Will)
     // pays the card's normal printed mana cost.
     return getInstanceManaCost(card);
+}
+
+// ---------------------------------------------------------------------------
+// Which mechanism licenses a cast from a NON-hand zone, and whether the Bot's
+// search sandboxes can model it (issue #2971)
+// ---------------------------------------------------------------------------
+
+/** The graveyard-cast mechanisms this engine ships. Named as a closed union so
+ *  a new one cannot be added without every consumer here going red — the same
+ *  discipline `PARK_VARIANT_K` (`gre/parkKinds.ts`) imposes on cast parks. */
+export type GraveyardCastMechanism =
+    | "escape"
+    | "flashback"
+    | "retrace"
+    | "grant"
+    | "intrinsic"
+    | "permission"
+    | "permanent-permission";
+
+/** CR 601.3 — which mechanism, if any, lets `caster` cast `card` out of
+ *  `player`'s graveyard right now, or `undefined` when none does.
+ *
+ *  This is the CANDIDATE-SET question, deliberately separate from the legality
+ *  question `getLegalActions` answers: that function's final "cast is for all
+ *  non-land cards" fallback is zone-BLIND, so handing it an arbitrary graveyard
+ *  card reports "cast" for a spell `locateCastSource` would then refuse to
+ *  locate. Every caller gates on THIS first and on `getLegalActions` second —
+ *  the same fail-closed order the retrace and library-top loops already use.
+ *
+ *  Precedence mirrors `castRawManaCost` and `graveyardCastStackFlags` above,
+ *  because a mechanism decides both what the cast PAYS and what it STAMPS: a
+ *  disagreement between the three would be exactly the class of bug that keeps
+ *  the cost and the flags in one file. */
+export function graveyardCastMechanism(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    casterId: string
+): GraveyardCastMechanism | undefined {
+    if (!player.graveyard.some((c) => c.id === card.id)) return undefined;
+    // CR 702.138 — escape wins over everything: a card never has both escape
+    // and flashback, and `castRawManaCost` checks it first.
+    if (hasEscape(state, card)) return "escape";
+    // CR 702.34 — flashback.
+    if (hasFlashback(card)) return "flashback";
+    // CR 702.81 — retrace (its own enumeration loop; listed for completeness).
+    if (hasRetrace(state, card)) return "retrace";
+    if (card.types.includes("Land")) return undefined;
+    // CR 601.3 (issue #1344) — the per-card grant (Malcolm, Emry), which may
+    // also waive the mana cost.
+    if (card.castableFromGraveyardBy === casterId) return "grant";
+    // CR 702.51 (issue #1338, Hogaak) — the card's own intrinsic permission.
+    if (
+        tryGetDefinition((card.card as { id?: string }).id ?? "")
+            ?.castableFromOwnGraveyard === true
+    ) {
+        return "intrinsic";
+    }
+    // CR 601.3 (issue #1149, Yawgmoth's Will) — the broad, player-wide
+    // permission.
+    if (canCastFromGraveyardByPermission(state, player, card)) {
+        return "permission";
+    }
+    // CR 702.139 (issue #1392, Lurrus) — the once-per-turn permanent-only
+    // permission held by a battlefield source.
+    if (canCastPermanentFromGraveyardByPermission(state, player, card)) {
+        return "permanent-permission";
+    }
+    return undefined;
+}
+
+/** Whether the Bot's search sandboxes can HONESTLY model a graveyard cast made
+ *  by `mechanism` — i.e. whether every cost it owes is representable on the
+ *  `cast-spell` Move today.
+ *
+ *  Two mechanisms are not, and both fail CLOSED (never enumerated) rather than
+ *  being offered at a price the executor cannot pay — the announce-then-abort
+ *  shape (`#2283`/`#2284`) this enumerator exists to avoid:
+ *
+ *  - **escape** (CR 702.138a) owes "exile N other cards from your graveyard",
+ *    built only inside `announceCast` as a `PendingCast.exileFromGraveyardChoice`
+ *    park. `planCastCostPicks` (`gre/castCostPicks.ts`) has no branch for it and
+ *    the Move has no field to carry the picked ids, so an enumerated escape cast
+ *    would be priced as if the exile were free and would park unpayable at the
+ *    real mutation.
+ *  - **flashback with a non-mana flashback cost** (CR 702.34a / 118.5 — Lava
+ *    Dart's "Sacrifice a Mountain", the `flashbackExileFromGraveyard` X cost) is
+ *    the same shape: `getFlashbackAdditionalCost` is read only by `announceCast`.
+ *    Plain, mana-only flashback owes nothing extra and IS modelled.
+ *
+ *  Tracked at `docs/findings/2971-escape-and-flashback-cost-not-enumerable.md`.
+ *  When either cost becomes representable, delete its branch here — nothing
+ *  else in the enumerator needs to change. */
+export function searchCanModelGraveyardCast(
+    card: CardInstanceState,
+    mechanism: GraveyardCastMechanism
+): boolean {
+    if (mechanism === "escape") return false;
+    if (mechanism === "flashback") {
+        return getFlashbackAdditionalCost(card) === undefined;
+    }
+    return true;
+}
+
+/** CR 601.3 — whether `casterId` currently holds a permission to cast `card`
+ *  out of `zoneOwner`'s EXILE. Two shapes, both riding the card object:
+ *  the open-ended / turn-scoped grant (`castableFromExileBy` — Ice Cauldron,
+ *  the impulse windows, Robber of the Rich, Dauthi Voidwalker's free cast,
+ *  Elite Spellbinder's taxed grant) and a madness cast (CR 702.35a), which is
+ *  the same field plus the `madnessExiled` marker.
+ *
+ *  The grant may be CROSS-PLAYER (CR 400.7): the card sits in its OWNER's exile
+ *  while a different player holds the permission, which is why `zoneOwner` and
+ *  `casterId` are separate parameters — the same split `getLegalActions`'
+ *  `casterId` and `castZoneOwner` (`convex/game.ts`) already carry.
+ *
+ *  A LAND in exile under such a grant is deliberately included in neither
+ *  answer here nor excluded: a land is PLAYED, never cast (CR 305.9), and the
+ *  caller filters on type — the land half has its own enumeration
+ *  (`resolvePlayLandSourceZone`). */
+export function exileCastPermission(
+    card: CardInstanceState,
+    casterId: string
+): boolean {
+    return card.castableFromExileBy === casterId;
+}
+
+/** CR 601.3 / 400.7 (issue #2971) — the zone a `cast-spell` Move actually
+ *  leaves, and the player whose zone that is, for the Bot's two search
+ *  sandboxes (`applyMoveForSearch`, `applyMoveInSearch`). `null` when no
+ *  permitted source still holds the card — a stale Move, which the caller skips
+ *  rather than throwing, exactly as `resolvePlayLandSourceZone` does for the
+ *  land half.
+ *
+ *  The sandboxes have no `locateCastSource` (that lives in `convex/game.ts`,
+ *  which imports the enumerator), so before this they GUESSED: hand, unless the
+ *  id happened to be the library top. The guess is wrong for every zone this
+ *  issue enumerates, and wrong in the worst way — `removeFromZone` throws
+ *  `Card <id> not found in hand`, surfacing as a search error rather than an
+ *  illegal cast. `declaredZone` is the Move's own `castFromZone`, stamped by
+ *  the enumerator from the permission it gated on; the legacy derivation stays
+ *  as the fail-closed backstop for hand-built Moves that carry no zone.
+ *
+ *  `retraceZone` is threaded separately because `applyRetraceCastForSearch`
+ *  both PROBES and CHARGES: it must run before this, and its answer wins. */
+export function castSourceForSearch(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    declaredZone: CastFromZone | undefined,
+    retraceZone: "graveyard" | undefined
+): { owner: PlayerState; zone: CastFromZone } | null {
+    const zone: CastFromZone =
+        retraceZone ??
+        declaredZone ??
+        (player.hand.some((c) => c.id === cardInstanceId) ||
+        player.library[0]?.id !== cardInstanceId
+            ? "hand"
+            : "library");
+    // CR 400.7 — exile is the ONE origin whose owner may not be the caster (a
+    // cross-player grant). Every other zone a cast can come from is the
+    // caster's own, mirroring `castZoneOwner` (`convex/game.ts`).
+    const owner =
+        zone === "exile"
+            ? state.players.find((p) =>
+                  p.exile.some((c) => c.id === cardInstanceId)
+              )
+            : player;
+    if (!owner) return null;
+    const held =
+        zone === "hand"
+            ? owner.hand
+            : zone === "exile"
+              ? owner.exile
+              : zone === "graveyard"
+                ? owner.graveyard
+                : owner.library;
+    if (!held.some((c) => c.id === cardInstanceId)) return null;
+    return { owner, zone };
 }

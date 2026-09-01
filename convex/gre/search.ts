@@ -96,6 +96,13 @@ import {
     applyDelveExileForSearch,
     applyCastCostPicksForSearch,
 } from "./applyMove";
+import { markGraveyardPermanentCastUsed } from "./rules";
+import {
+    castSourceForSearch,
+    graveyardCastMechanism,
+    graveyardCastStackFlags,
+    reboundCastStackFlags,
+} from "./castCost";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
 // object the mutation path commits.
@@ -963,11 +970,46 @@ export function applyMoveInSearch(
                 playerId,
                 move.cardInstanceId
             );
-            const spellCard = removeFromZone(
+            // CR 601.3 / 400.7 (issue #2971) — the zone this cast leaves and
+            // the player whose zone it is, through the shared resolver. A
+            // hard-coded `"hand"` threw `Card <id> not found in hand` for every
+            // graveyard and exile cast the enumerator now offers, and cannot
+            // express a cross-player exile grant at all. `null` = a stale Move:
+            // skip it, mirroring the `play-land` leaf above.
+            const castSource = castSourceForSearch(
+                state,
                 player,
                 move.cardInstanceId,
-                retraceZone ?? "hand"
+                move.castFromZone,
+                retraceZone
             );
+            if (castSource === null) return;
+            const castFromZone = castSource.zone;
+            // CR 702.139 (issue #1392, Lurrus) — read the mechanism while the
+            // card is still IN the graveyard, then charge the once-per-turn
+            // permanent permission at commit exactly as every real commit site
+            // does. Without it this tree — the chokepoint every rollout, blade
+            // scenario and self-play game routes through — recasts the same
+            // permanent every turn for free.
+            const castMechanism =
+                castFromZone === "graveyard"
+                    ? graveyardCastMechanism(
+                          state,
+                          castSource.owner,
+                          castSource.owner.graveyard.find(
+                              (c) => c.id === move.cardInstanceId
+                          )!,
+                          playerId
+                      )
+                    : undefined;
+            const spellCard = removeFromZone(
+                castSource.owner,
+                move.cardInstanceId,
+                castFromZone
+            );
+            if (castMechanism === "permanent-permission") {
+                markGraveyardPermanentCastUsed(state, playerId);
+            }
             const stackItem: StackItem = {
                 ...spellCard,
                 castById: playerId,
@@ -1018,11 +1060,16 @@ export function applyMoveInSearch(
                 ...(wasCastOffSorceryTiming(state, playerId)
                     ? { castOffSorceryTiming: true }
                     : {}),
-                // CR 702.81a (issue #2358) — "cast from a graveyard" holds for a
-                // retrace cast; NO `exileOnResolve`, so the card lands back in
-                // the graveyard as it finishes resolving. Mirrors
-                // `graveyardCastStackFlags`'s retrace branch (`convex/game.ts`).
-                ...(retraceZone ? { castFromGraveyard: true } : {}),
+                // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
+                // zone-dependent stack flags, read from the SAME two helpers
+                // every real commit site spreads (`gre/castCost.ts`) rather
+                // than the single hand-written retrace flag this tree carried
+                // before. Flashback's `exileOnResolve` is the one that BOUNDS
+                // the line: without it the tree models a flashback card as
+                // infinitely recastable, the same unbounded-recast failure the
+                // retrace land discard was written to prevent.
+                ...graveyardCastStackFlags(state, spellCard, castFromZone),
+                ...reboundCastStackFlags(spellCard, castFromZone),
             };
             // CR 702.37c (issue #2705) — a MORPH cast puts a face-down 2/2 on
             // the stack, not the printed card: "It becomes a 2/2 face-down
