@@ -57,6 +57,9 @@ import { gush } from "../../cards/sets/mmq/blue";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
 import { planarGate } from "../../cards/sets/leg/colorless";
 import { ragavanNimblePilferer } from "../../cards/sets/mh2/red";
+import { exaltedAngel } from "../../cards/sets/ons/white";
+import { gloom } from "../../cards/sets/lea/black";
+import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { getLegalActions } from "../rules";
 import { drought } from "../../cards/sets/ice/white";
 import { onceUponATime } from "../../cards/sets/eld/green";
@@ -1034,5 +1037,93 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         const cast = after.stack.find((s) => s.id === "ragH");
         expect(cast).toBeDefined();
         expect(cast!.dashed).toBe(true);
+    });
+
+    /** Exalted Angel (the one shipped morph card) in p1's hand with `pool`
+     *  white mana available, and `modifier` on the battlefield of the player
+     *  who should carry it. A morph cast takes no targets (CR 702.37c — no
+     *  text, no name), so it lands on the SAME no-target alt-cost branch. */
+    function morphBoard(
+        pool: number,
+        modifier: { def: CardDefinition; controller: "p1" | "p2" }
+    ): GameState {
+        const angel = makeInstance(exaltedAngel.id, {
+            id: "angelH",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mod = makeInstance(modifier.def.id, {
+            id: "modH",
+            controllerId: modifier.controller,
+            ownerId: modifier.controller,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [angel],
+                    battlefield: modifier.controller === "p1" ? [mod] : [],
+                    manaPool: { W: pool, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", {
+                    battlefield: modifier.controller === "p2" ? [mod] : [],
+                }),
+            ],
+        });
+    }
+
+    const angelIn = (state: GameState) =>
+        getPlayer(state, "p1").hand.find((c) => c.id === "angelH")!;
+
+    it("prices a MORPH cast against the FACE-DOWN characteristics — Gloom does not tax a colourless face-down spell (CR 702.37c / 707.2)", async () => {
+        // A morph cast reaches this same no-target alt-cost branch, so the
+        // fold above reaches it too — and `getCostModifiers` must be handed
+        // the face-down view, not the real card. Gloom ("White spells cost {3}
+        // more to cast") keys on COLOUR, which a face-down spell loses: the
+        // {3} morph cost stays {3}, never {6}. Exalted Angel's printed
+        // {4}{W}{W} is 6 before Gloom's {3}, so "cast" at three mana can only
+        // be the alternative-cost branch speaking.
+        const state = morphBoard(3, { def: gloom, controller: "p2" });
+        expect(
+            getLegalActions(state, getPlayer(state, "p1"), angelIn(state))
+        ).toContain("cast");
+
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announceAlt(harness, "angelH", MORPH_CAST_ALT_COST_ID);
+
+        const after = harness.state();
+        expect(after.pendingCast).toBeUndefined();
+        // Exactly the rule's {3} left the pool — a taxed {6} could not even be
+        // covered, and would have parked the cast instead.
+        expect(getPlayer(after, "p1").manaPool.W).toBe(0);
+        const cast = after.stack.find((s) => s.id === "angelH");
+        expect(cast).toBeDefined();
+        // CR 702.37c — the commit turns the stack item face down rather than
+        // stamping `morphed` (that flag only rides a PARKED payment).
+        expect(cast!.faceDown).toBe(true);
+    });
+
+    it("lets a REDUCTION widen the alt-cost affordance, gate and payment together (Planar Gate + a morph cast)", async () => {
+        // The reduction direction of the gate's new fold, which the Dash case
+        // above cannot reach (Ragavan's printed {R} is affordable on the same
+        // board, so the PLAIN branch already grants "cast" there). Here the
+        // printed cost is out of reach and only the REDUCED alternative cost
+        // is payable, so "cast" exists if and only if the alt branch folds the
+        // reduction: Exalted Angel printed {4}{W}{W} less Planar Gate's {2} is
+        // still 4, while the {3} morph cast less the same {2} is 1. Planar
+        // Gate keys on "creature spell", which a face-down spell still is, so
+        // the face-down view above does not exempt it.
+        const state = morphBoard(1, { def: planarGate, controller: "p1" });
+        expect(
+            getLegalActions(state, getPlayer(state, "p1"), angelIn(state))
+        ).toContain("cast");
+
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announceAlt(harness, "angelH", MORPH_CAST_ALT_COST_ID);
+
+        const after = harness.state();
+        expect(after.pendingCast).toBeUndefined();
+        expect(getPlayer(after, "p1").manaPool.W).toBe(0);
+        expect(after.stack.map((s) => s.id)).toEqual(["angelH"]);
     });
 });

@@ -63,6 +63,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { affordableAlternativeCosts } from "./alternativeCost";
+import { faceDownCastView, isMorphCastAlternativeCost } from "./morph";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
@@ -1177,20 +1178,45 @@ export function getLegalActions(
                     : {}),
             }) ||
                 affordableAlternativeCosts(state, caster, card).some((alt) =>
-                    canPotentiallyPayCost(caster, card, alt.mana ?? {}, state, {
-                        foldCostModifiers: true,
-                        // CR 601.3c / 601.2f — the surcharge buys the TIMING,
-                        // not the spell, so it joins an alternative cost the
-                        // same way it joins a printed one; `announceCast`'s
-                        // alt branch folds it just above the modifiers. Inert
-                        // today (no shipped card carries both
-                        // `alternativeCosts` and `flashSurcharge`) — here so
-                        // the gate can never price a cast the commit path
-                        // prices differently.
-                        ...(flashSurchargeRequired(state, caster.id, card)
-                            ? { extraMana: flashSurchargeOf(card) }
-                            : {}),
-                    })
+                    canPotentiallyPayCost(
+                        caster,
+                        // CR 702.37c / 707.2 (issue #2970 review) — a MORPH
+                        // variant is cast as "a 2/2 creature with no text, no
+                        // name, no subtypes, and no mana cost", so the
+                        // modifiers folded below (and any characteristic-keyed
+                        // mana restriction the solver reads) must be judged
+                        // against THOSE characteristics. Same view
+                        // `announceCast` and the Bot's morph variant price
+                        // against, so the three cannot disagree. Identity to
+                        // the real card is unchanged — the view is a spread,
+                        // so the instance id and any object-scoped exile tax
+                        // ride along.
+                        isMorphCastAlternativeCost(
+                            tryGetDefinition(
+                                (card.card as { id?: string }).id ?? ""
+                            ),
+                            alt
+                        )
+                            ? faceDownCastView(card)
+                            : card,
+                        alt.mana ?? {},
+                        state,
+                        {
+                            foldCostModifiers: true,
+                            // CR 601.3c / 601.2f — the surcharge buys the
+                            // TIMING, not the spell, so it joins an
+                            // alternative cost the same way it joins a
+                            // printed one; `announceCast`'s alt branch folds
+                            // it just above the modifiers. Inert today (no
+                            // shipped card carries both `alternativeCosts`
+                            // and `flashSurcharge`) — here so
+                            // the gate can never price a cast the commit path
+                            // prices differently.
+                            ...(flashSurchargeRequired(state, caster.id, card)
+                                ? { extraMana: flashSurchargeOf(card) }
+                                : {}),
+                        }
+                    )
                 )) &&
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card)
@@ -2214,10 +2240,16 @@ function canPotentiallyPayCost(
          *  payment path folds the same modifiers: the plain hand-cast branch,
          *  the library-top branch (issue #2398) and — since issue #2970 — the
          *  ALTERNATIVE-cost branch, which CR 118.9d says takes every increase
-         *  and reduction onto the alternative cost. The remaining branches
-         *  (flashback/escape/madness/graveyard-permission) still omit it and
-         *  so still judge affordability against their unmodified override
-         *  cost; each is its own gate-vs-payment question, not this one. */
+         *  and reduction onto the alternative cost. EVERY OTHER cast branch in
+         *  this function still omits the flag — flashback, escape, madness,
+         *  retrace, the intrinsic-graveyard permission, the per-card graveyard
+         *  grant, the battlefield-permanent permission and the free-exile
+         *  waiver — and so judges affordability against its unmodified
+         *  override cost. Each is its own gate-vs-payment question, not this
+         *  one; the free-exile branch is a live instance of exactly this
+         *  issue's shape in the OTHER direction (the payment DOES fold, so the
+         *  gate over-offers), drafted at
+         *  `docs/findings/2970-free-exile-gate-skips-cost-modifiers.md`. */
         foldCostModifiers?: boolean;
         /** CR 601.3c / 601.2f (issue #2146) — a MANDATORY additional mana cost
          *  this particular cast owes on top of the printed/override cost. Set

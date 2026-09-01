@@ -450,6 +450,7 @@ import {
 import { checkStateBasedActions } from "./gre/sba";
 import {
     canTurnFaceUp,
+    faceDownCastView,
     getMorphCost,
     isMorphCastAlternativeCost,
     morphTurnUpPaymentPlan,
@@ -8528,9 +8529,20 @@ export const announceCast = mutation({
             // affordance gate (`getLegalActions`'s alt-cost branch,
             // `gre/rules.ts`) closes in the SAME change: gate and payment must
             // agree on this total or the cast parks unpayable.
+            // CR 702.37c / 707.2 (issue #2970 review) — a MORPH cast reaches
+            // THIS branch (a face-down spell takes no targets), and it is cast
+            // as "a 2/2 creature with no text, no name, no subtypes, and no
+            // mana cost": the modifiers that apply are the ones keyed on THOSE
+            // characteristics, so the collector is handed the face-down view,
+            // never the real card. Gloom would otherwise tax a face-down
+            // Exalted Angel {3} for being white, which it is not.
             applyCostModifiers(
                 altManaCost,
-                getCostModifiers(state, cardInHand, "spell")
+                getCostModifiers(
+                    state,
+                    isMorphCost ? faceDownCastView(cardInHand) : cardInHand,
+                    "spell"
+                )
             );
             // CR 601.2f / 118.8 — board-wide static NON-mana additional cost
             // (Drought) and the card's own additional-cost sacrifice (alt-cost
