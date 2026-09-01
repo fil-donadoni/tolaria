@@ -234,15 +234,20 @@ bun run scripts/backfill-card-index.ts
 
 (Incremental and idempotent: existing entries are preserved, only missing
 scryfallIds are fetched — adding one card costs one Scryfall request, not a
-full-catalogue refetch. The full reset — `printf '[]\n' > data/card-index.json
-&& bun run scripts/backfill-card-index.ts` — re-downloads everything and is
-needed ONLY to purge **pollution** (indexed-but-not-implemented entries),
-which the additive backfill can't remove.)
+full-catalogue refetch. To purge **pollution** (indexed-but-not-implemented
+entries), which the additive backfill can't remove, add `--prune`.)
+
+**Never reset the lockfile to `[]` first.** It clears pollution, but it also
+destroys the ~1400 `source: "compiled"` rows — written by
+`oracle-index-backfill.ts`, not by this script, which therefore cannot rebuild
+them. `--prune` removes exactly the rows the guard flagged and nothing else
+(it shares the guard's own `isPollutionEntry`).
 
 The drift guard `bun run check:index` (part of `check:all`) fails when the
 lockfile is out of sync — both directions: implemented-but-not-indexed
 (stale → incremental backfill above) and indexed-but-not-implemented
-(pollution → full reset). Never hand-edit the lockfile.
+(pollution → `--prune`). It prints the right command for whichever fired.
+Never hand-edit the lockfile.
 
 ### Step 8b — Token / emblem art (mandatory when the card makes one)
 

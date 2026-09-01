@@ -23,6 +23,18 @@
  * Idempotent: existing lockfile entries are preserved; only missing scryfallIds
  * are fetched and appended. Re-run after adding cards the tool didn't index.
  *
+ * `--prune` additionally REMOVES pollution rows — a row with no
+ * `CardDefinition` behind it any more (a card that was deleted or renamed),
+ * as `check-card-index.ts` defines it. Pruning is opt-in because it deletes
+ * committed data, and it is the ONLY correct way to clear an `extra`.
+ *
+ * NEVER truncate the lockfile to an empty array first. That does clear
+ * pollution, which is why it used to be the written recipe, but it also
+ * destroys every `source: "compiled"` row (~1400 of them), which this script
+ * CANNOT regenerate — those come from `oracle-index-backfill.ts` and its own
+ * Scryfall pass. `--prune` shares `isPollutionEntry` with the guard, so it
+ * removes exactly the rows the guard complained about and nothing else.
+ *
  * Also GRADUATES `source: "compiled"` rows (`oracle-index-backfill.ts`,
  * issue #2702): if a hand-written `CardDefinition` now exists for a
  * previously compiled-only oracle id (ADR 0108 guarantees the same
@@ -34,6 +46,10 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getAllCards } from "../convex/cards/index";
+// The SAME predicate `check-card-index.ts` calls a row "pollution" with, so
+// `--prune` can never remove a row the guard would have kept (or keep one it
+// would have flagged) — one authority, two callers.
+import { isPollutionEntry } from "./lib/card-index-pollution";
 
 export type Entry = {
     name: string;
@@ -232,6 +248,21 @@ async function main() {
     const registryScryfallIds = new Set(cards.map((c) => c.id));
     const graduated = graduateCompiledEntries(existing, registryScryfallIds);
 
+    // `--prune` — drop rows the guard calls pollution. Runs AFTER graduation
+    // (a graduated row has just lost its `source` tag and IS in the registry,
+    // so it is never pollution) and before the fetch, so the summary line
+    // counts the post-prune lockfile.
+    const prune = process.argv.includes("--prune");
+    let pruned = 0;
+    if (prune) {
+        for (const entry of existing) {
+            if (isPollutionEntry(entry, registryScryfallIds)) {
+                byId.delete(entry.scryfallId);
+                pruned++;
+            }
+        }
+    }
+
     const writeLock = () => {
         const merged = [...byId.values()].sort((a, b) =>
             a.name.localeCompare(b.name)
@@ -253,8 +284,14 @@ async function main() {
             `${graduated} compiled row(s) graduated to hand-written — cleared stale source tag.`
         );
     }
+    if (pruned > 0) {
+        console.log(
+            `${pruned} pollution row(s) pruned (no CardDefinition behind them); ` +
+                `every source: "compiled" row kept.`
+        );
+    }
     if (missing.length === 0) {
-        if (graduated > 0) writeLock();
+        if (graduated > 0 || pruned > 0) writeLock();
         console.log("Lockfile already complete.");
         return;
     }

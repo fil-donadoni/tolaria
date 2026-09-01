@@ -265,11 +265,12 @@ data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
   **commented-out stubs** (uncommented by their cluster PR so the build stays
   green); unmodelled layouts → out-of-scope, no stub.
 - **Lockfile refresh as an explicit engineering story**: after import/wiring,
-  regenerate `data/card-index.json` with
-  `printf '[]\n' > data/card-index.json && bun run scripts/backfill-card-index.ts`,
-  and `bun run check:index` must pass (the drift guard). Forgetting this breaks
-  the gate loudly — that's the intended failure mode. (ADR 0041,
-  `project_card_index_lockfile`)
+  top up `data/card-index.json` with `bun run scripts/backfill-card-index.ts`
+  (add `--prune` only if the guard reports pollution), and `bun run check:index`
+  must pass (the drift guard). Never reset the file to `[]` first — that also
+  destroys the ~1400 `source: "compiled"` rows, which the backfill cannot
+  rebuild. Forgetting the refresh breaks the gate loudly — that's the intended
+  failure mode. (ADR 0041, `project_card_index_lockfile`)
 - Multi-art note (ADR 0014): one `CardDefinition` per card + one `CardPrint`
   per artwork.
 - **DSL-first authoring (ADR 0045)**: free and capability cards are written as

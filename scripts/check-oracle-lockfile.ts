@@ -97,9 +97,12 @@ function fail(label: string, message: string, fixCommand: string): never {
         process.stderr.write(`${DIM}  fix: ${fixCommand}${RESET}\n`);
     } else {
         process.stderr.write(
-            `${DIM}  fix: bun run oracle:corpus   # one-off Scryfall fetch — ` +
+            `${DIM}  fix: bun run oracle:corpus   # fetches THE COMMITTED PIN — ` +
                 `data/oracle-corpus.json.gz is gitignored and absent here\n` +
-                `       then: ${fixCommand}${RESET}\n`
+                `       then: ${fixCommand}\n` +
+                `       (do NOT add --repin: taking today's Scryfall drop instead ` +
+                `renumbers every gap index and\n` +
+                `        turns a few-line lockfile diff into ~50k lines of churn)${RESET}\n`
         );
     }
     process.exit(1);
@@ -166,7 +169,7 @@ function checkLockfile(): void {
 
     process.stdout.write(
         `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes; corpus cache absent, ` +
-            `run \`bun run oracle:corpus\` for the full regenerate-and-diff)${RESET}\n`
+            `run \`bun run oracle:corpus\` — it reproduces the committed pin — for the full regenerate-and-diff)${RESET}\n`
     );
 }
 
@@ -234,7 +237,7 @@ function checkLegality(): void {
 
     process.stdout.write(
         `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin; corpus cache absent, ` +
-            `run \`bun run oracle:corpus\` for the full regenerate-and-diff)${RESET}\n`
+            `run \`bun run oracle:corpus\` — it reproduces the committed pin — for the full regenerate-and-diff)${RESET}\n`
     );
 }
 
