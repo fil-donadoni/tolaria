@@ -2304,7 +2304,7 @@ function tapOtherPickedPower(
     );
 }
 
-/** Cast-from-exile lookup (CR 601.3e — Ice Cauldron: "You may cast that card
+/** Cast-from-exile lookup (CR 601.3 — Ice Cauldron: "You may cast that card
  *  for as long as it remains exiled"). Returns the card carrying
  *  `castableFromExileBy === casterId` and matching `instanceId`, or undefined.
  *  Searches EVERY player's exile, not just the caster's own (issue #1156):
@@ -2328,7 +2328,7 @@ function findCastableExileCard(
     return undefined;
 }
 
-/** CR 601.3e / 400.7 (issue #1156) — the player whose zone actually holds a
+/** CR 601.3 / 400.7 (issue #1156) — the player whose zone actually holds a
  *  card being cast/played, which may differ from the CASTER (`player`) for a
  *  cross-player exile grant (Robber of the Rich, Dauthi Voidwalker). Every
  *  other cast zone (hand, graveyard) is always the caster's own — Flashback /
@@ -2409,7 +2409,7 @@ function findGraveyardPermissionCastable(
         : undefined;
 }
 
-/** Per-card cast-from-graveyard grant lookup (CR 601.3e / 117.6-analog,
+/** Per-card cast-from-graveyard grant lookup (CR 601.3 / 117.6-analog,
  *  issue #1344 — Malcolm, Alluring Scoundrel: "you may cast the discarded
  *  card without paying its mana cost"). Returns the NON-LAND card in
  *  `player`'s graveyard matching `instanceId` while it carries
@@ -2429,7 +2429,7 @@ function findGraveyardGrantCastable(
     return card.castableFromGraveyardBy === player.id ? card : undefined;
 }
 
-/** CR 702.51 / 601.3e (issue #1338, Hogaak, Arisen Necropolis) — the INTRINSIC
+/** CR 702.51 / 601.3 (issue #1338, Hogaak, Arisen Necropolis) — the INTRINSIC
  *  self-permission lookup: a non-land card in `player`'s graveyard whose own
  *  definition declares `castableFromOwnGraveyard` ("You may cast this card from
  *  your graveyard"). Always same-player. Never returns a card that has
@@ -2464,7 +2464,7 @@ function findGraveyardPermanentPermissionCastable(
         : undefined;
 }
 
-/** CR 601.3e-analog (issue #2398, Bolas's Citadel) — the cast-from-top-of-
+/** CR 601.3 (issue #2398, Bolas's Citadel) — the cast-from-top-of-
  *  library lookup. Returns the NONLAND card on top of `player`'s own library
  *  when it matches `instanceId` and `player` holds the cast-from-top
  *  permission, or undefined. Position-strict (index 0 only): the permission
@@ -2482,14 +2482,14 @@ function findCastableLibraryTopSpell(
     return player.library[0];
 }
 
-/** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
+/** The zone a cast originates from (CR 601.3). Normally the hand; exile for
  *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
  *  library for a cast off the TOP under a cast-from-top permission
- *  (CR 601.3e-analog, Bolas's Citadel). */
+ *  (CR 601.3, Bolas's Citadel). */
 type CastFromZone = "hand" | "exile" | "graveyard" | "library";
 
 /** Locate the card being cast and the zone it comes from — hand, exile
- *  (Ice Cauldron, CR 601.3e), or graveyard (Flashback, CR 702.34, Escape,
+ *  (Ice Cauldron, CR 601.3), or graveyard (Flashback, CR 702.34, Escape,
  *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601,
  *  issue #1149). A single choke point so every cast-commit site derives the
  *  origin identically. The `card` is undefined when the id isn't castable
@@ -2533,13 +2533,13 @@ export function locateCastSource(
         instanceId
     );
     if (permissionCast) return { card: permissionCast, zone: "graveyard" };
-    // CR 601.3e / 117.6-analog (issue #1344) — a card castable purely under a
+    // CR 601.3 / 117.6-analog (issue #1344) — a card castable purely under a
     // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
     // reached only when the card has none of Flashback/Escape/the broad
     // permission (those branches above already returned).
     const grantCast = findGraveyardGrantCastable(player, instanceId);
     if (grantCast) return { card: grantCast, zone: "graveyard" };
-    // CR 702.51 / 601.3e (issue #1338) — a card castable purely under its OWN
+    // CR 702.51 / 601.3 (issue #1338) — a card castable purely under its OWN
     // intrinsic "you may cast this from your graveyard" permission (Hogaak),
     // reached only when the card has no Flashback/Escape/external permission/
     // specific grant. Resolves normally (no exile-on-resolve).
@@ -2566,7 +2566,7 @@ export function locateCastSource(
             viaGraveyardPermanentPermission: true,
         };
     }
-    // CR 601.3e-analog (issue #2398, Bolas's Citadel) — the NONLAND card on
+    // CR 601.3 (issue #2398, Bolas's Citadel) — the NONLAND card on
     // top of the caster's OWN library, under the player-wide cast-from-top
     // permission. Last in the chain because every other mechanism above is
     // scoped to hand/exile/graveyard and can never name a library card, so
@@ -2763,7 +2763,7 @@ export function castRawManaCost(
     card: CardInstanceState,
     zone: CastFromZone
 ): ManaCost | undefined {
-    // CR 601.3e / 117.6 (issue #1156) — Dauthi Voidwalker's "play it without
+    // CR 601.3 / 117.6 (issue #1156) — Dauthi Voidwalker's "play it without
     // paying its mana cost" free-cast waiver: this specific exile-sourced
     // card was granted a cost-free cast (`SpellContext.grantCastFromExile`'s
     // `withoutPayingManaCost` option). Checked BEFORE the Madness branch — a
@@ -2790,7 +2790,7 @@ export function castRawManaCost(
         return {};
     }
     if (zone !== "graveyard") return getInstanceManaCost(card);
-    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
     // "cast the discarded card without paying its mana cost" free-cast
     // waiver: this specific graveyard-sourced card was granted a cost-free
     // cast (`SpellContext.grantCastFromGraveyard`'s `withoutPayingManaCost`
@@ -3569,7 +3569,7 @@ export function tryAutoCommitPendingCast(
     // restriction permits it (Metamorphosis). Fold it into the affordability
     // check and drain it first at payment.
     const castInstanceId = state.pendingCast!.cardInstanceId;
-    // CR 601.3e — the card may be cast from the hand OR from exile (Ice
+    // CR 601.3 — the card may be cast from the hand OR from exile (Ice
     // Cauldron's "you may cast that card for as long as it remains exiled").
     const castSource = locateCastSource(state, player, castInstanceId);
     const castCard = castSource.card;
@@ -3793,7 +3793,7 @@ export function tryAutoCommitPendingCast(
     if (castSource.viaGraveyardPermanentPermission) {
         markGraveyardPermanentCastUsed(state, playerId);
     }
-    // CR 601.3e / 702.34 — remove from the zone the card was actually cast from
+    // CR 601.3 / 702.34 — remove from the zone the card was actually cast from
     // (hand, exile for Ice Cauldron's noted card, or graveyard for Flashback).
     const castFromZone = castSource.zone;
     // issue #1156 — a cross-player exile grant (Dauthi Voidwalker, Robber of
@@ -6946,7 +6946,7 @@ export function finalizeTargetSelection(
         return;
     }
 
-    // Spell cast branch (CR 601.2c). CR 601.3e / 702.34 — normally the hand,
+    // Spell cast branch (CR 601.2c). CR 601.3 / 702.34 — normally the hand,
     // but Ice Cauldron's noted card is cast from exile, and a Flashback card is
     // cast from the graveyard.
     const castSource = locateCastSource(state, player, cardInstanceId);
@@ -7628,7 +7628,7 @@ export function buildCastSacrificeSelection(
         | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
         | undefined,
     reason: string,
-    /** CR 601.3e / 702.34 — the zone this cast originates from. On a `"graveyard"`
+    /** CR 601.3 / 702.34 — the zone this cast originates from. On a `"graveyard"`
      *  (flashback) cast the card's flashback-only "Sacrifice a <filter>" cost
      *  (Lava Dart) is folded into the selection; on any other zone it is
      *  ignored, so the flashback cost never leaks onto the hand cast. */
@@ -7959,7 +7959,7 @@ export const announceCast = mutation({
             args.playerId
         );
 
-        // CR 601.3e / 702.34 — a spell is normally cast from the hand, but Ice
+        // CR 601.3 / 702.34 — a spell is normally cast from the hand, but Ice
         // Cauldron lets the noted card be cast from exile ("You may cast that
         // card for as long as it remains exiled"), and a Flashback card is cast
         // from the graveyard. Check hand, then castable exile, then flashback.
@@ -7967,7 +7967,7 @@ export const announceCast = mutation({
         const cardInHand = castSource.card;
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
-        // CR 601.3e / 702.34 — the zone this cast originates from (hand, exile
+        // CR 601.3 / 702.34 — the zone this cast originates from (hand, exile
         // for Ice Cauldron, or graveyard for Flashback). Used at commit for
         // `removeFromZone` and to override the cost with the flashback cost.
         const castFromZone = castSource.zone;
@@ -16179,7 +16179,7 @@ export const debugSetupScenario = mutation({
                  *  only. */
                 faceDownExile: v.optional(v.boolean()),
                 /** Grant "me" a play-from-exile permission on this exiled card
-                 *  (CR 601.3e / 608.2g, #946): an impulse "you may play that
+                 *  (CR 601.3 / 608.2g, #946): an impulse "you may play that
                  *  card this turn" window (Headliner Scarlett / Expressive
                  *  Iteration). Sets `castableFromExileBy` + a this-turn expiry so
                  *  a Play (land) / Cast (spell) affordance appears, revoked at

@@ -1,4 +1,4 @@
-// Per-card graveyard-cast grant affordance (CR 601.3e / 117.6-analog, issue
+// Per-card graveyard-cast grant affordance (CR 601.3 / 117.6-analog, issue
 // #1344 — Malcolm, Alluring Scoundrel). A NON-LAND card in the viewer's own
 // graveyard whose projection carries `legalActions` + `castKind:
 // "graveyard-grant"` (gameProjections.ts `projectGraveyardCard`) must render
@@ -148,7 +148,7 @@ function renderGraveyard(player: Player, viewerId: string) {
     );
 }
 
-describe("PlayerGraveyard per-card graveyard-cast grant (issue #1344, CR 601.3e / 117.6-analog)", () => {
+describe("PlayerGraveyard per-card graveyard-cast grant (issue #1344, CR 601.3 / 117.6-analog)", () => {
     beforeEach(() => {
         playCard.mockClear();
         announceCast.mockClear();

@@ -285,7 +285,7 @@ describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => 
     });
 });
 
-describe("Tidal Influence — tide anthem + cast-by-name restriction (CR 601.3e)", () => {
+describe("Tidal Influence — tide anthem + cast-by-name restriction (CR 601.3)", () => {
     it("can't be cast while a permanent named Tidal Influence is on the battlefield (CAPABILITY J)", () => {
         const existing = makeInstance(tidalInfluence.id, {
             id: "ti-1",
@@ -309,7 +309,7 @@ describe("Tidal Influence — tide anthem + cast-by-name restriction (CR 601.3e)
             phase: "PRECOMBAT_MAIN",
             activePlayerId: "p1",
         });
-        // Cast is illegal while a Tidal Influence is already in play (CR 601.3e).
+        // Cast is illegal while a Tidal Influence is already in play (CR 601.3).
         expect(getLegalActions(state, p1, inHand)).not.toContain("cast");
     });
 

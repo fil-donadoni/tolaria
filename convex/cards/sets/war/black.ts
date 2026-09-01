@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 //      to the controller ALONE. `projectPublicState` ORs it into the top-card
 //      knowledge channel only for the library's own viewer.
 //   2. `playsLandsFromTopOfLibrary` (already shipped for Courser of Kruphix) +
-//      `castsSpellsFromTopOfLibrary` (new, CR 601.3e-analog) — the land and
+//      `castsSpellsFromTopOfLibrary` (new, CR 601.3) — the land and
 //      spell halves of "You may play lands and cast spells from the top of
 //      your library". Both are player-wide, battlefield-derived and
 //      position-strict at index 0 (the rest of the library stays hidden,
@@ -47,7 +47,7 @@ export const bolassCitadel: CardDefinition = {
     supertypes: ["Legendary"],
     // CR 401.5 — "You may look at the top card of your library any time."
     looksAtLibraryTop: "controller",
-    // CR 305.1-analog / 601.3e-analog — "You may play lands and cast spells
+    // CR 305.1-analog / 601.3 — "You may play lands and cast spells
     // from the top of your library."
     playsLandsFromTopOfLibrary: true,
     castsSpellsFromTopOfLibrary: {

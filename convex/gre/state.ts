@@ -1233,7 +1233,7 @@ export type CardInstanceState = {
      *  Jeweled Amulet (the mana is unrestricted). Overwritten on each note
      *  ("LAST noted"). Battlefield-only; persisted across a DB round-trip. */
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
-    /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
+    /** Cast-from-exile permission (CR 601.3 — Ice Cauldron: "You may cast that
      *  card for as long as it remains exiled"). When set on a card in the exile
      *  zone, the named player may CAST it from exile as if it were in their
      *  hand. CR 305.9 / 116.2a (issue #1689): a cast permission alone does
@@ -1298,7 +1298,7 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
-    /** CR 601.3e / 117.6 (issue #1156) — a cost waiver riding {@link
+    /** CR 601.3 / 117.6 (issue #1156) — a cost waiver riding {@link
      *  castableFromExileBy}: when both are set, `castableFromExileBy`'s
      *  named player may cast/play this card WITHOUT PAYING ITS MANA COST
      *  ("You may play it this turn without paying its mana cost" — Dauthi
@@ -1314,7 +1314,7 @@ export type CardInstanceState = {
      *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
      *  survives a DB round-trip. */
     castFromExileWithoutPayingManaCost?: boolean;
-    /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3e /
+    /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3 /
      *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
      *  the discarded card without paying its mana cost"). The graveyard-zone
      *  twin of {@link castableFromExileBy}. Distinct from the BROAD,
@@ -1341,7 +1341,7 @@ export type CardInstanceState = {
      *  primitive's "while-exiled" default; no shipped card needs this shape
      *  yet). */
     castableFromGraveyardUntilTurn?: number;
-    /** CR 601.3e / 117.6-analog (issue #1344) — a cost waiver riding {@link
+    /** CR 601.3 / 117.6-analog (issue #1344) — a cost waiver riding {@link
      *  castableFromGraveyardBy}: when both are set, the named player may
      *  cast this card WITHOUT PAYING ITS MANA COST (Malcolm's "without
      *  paying its mana cost"). Mirrors {@link castFromExileWithoutPayingManaCost}
@@ -1373,7 +1373,7 @@ export type CardInstanceState = {
      *  so `getCardsExiledWith` can enumerate the linked set across any owner's
      *  exile (the card stays in its OWNER's exile per CR 400.7, distinct from
      *  the linking source's controller). Distinct from `castableFromExileBy`
-     *  (a play PERMISSION, CR 601.3e) and from `exileHeld` ExileReturnBundles
+     *  (a play PERMISSION, CR 601.3) and from `exileHeld` ExileReturnBundles
      *  (an exile-AND-return arm on the source's LTB, ADR 0028) — this is a bare
      *  retrievable tag with no play grant and no auto-return. Cleared when the
      *  card leaves exile (`removeFromZone`). Persisted so the link survives a
@@ -16152,7 +16152,7 @@ export function buildSpellContext(
                 | "while-exiled"
                 | "until-next-end-step" = "while-exiled",
             opts?: {
-                /** CR 601.3e / 117.6 (issue #1156) — also waive the card's
+                /** CR 601.3 / 117.6 (issue #1156) — also waive the card's
                  *  mana cost entirely (Dauthi Voidwalker: "you may play it
                  *  this turn without paying its mana cost"), stamping
                  *  {@link CardInstanceState.castFromExileWithoutPayingManaCost}
@@ -16186,7 +16186,7 @@ export function buildSpellContext(
                 costIncrease?: ManaCost;
             }
         ): void {
-            // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
+            // CR 601.3 — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
             // (defaults to `playerId` — the historical same-player shape) as
             // playable from exile by `playerId` ("You may cast that card for
             // as long as it remains exiled"). No-op for an id not in that
@@ -16261,7 +16261,7 @@ export function buildSpellContext(
                 | "while-in-graveyard"
                 | "until-next-end-step" = "while-in-graveyard",
             opts?: {
-                /** CR 601.3e / 117.6-analog (issue #1344) — also waive the
+                /** CR 601.3 / 117.6-analog (issue #1344) — also waive the
                  *  card's mana cost entirely (Malcolm, Alluring Scoundrel:
                  *  "you may cast the discarded card without paying its mana
                  *  cost"), stamping {@link
@@ -16280,7 +16280,7 @@ export function buildSpellContext(
                 exilesOnResolve?: boolean;
             }
         ): void {
-            // CR 601.3e / 117.6-analog (issue #1344) — mark a card in
+            // CR 601.3 / 117.6-analog (issue #1344) — mark a card in
             // `playerId`'s OWN graveyard as castable from there by
             // `playerId`. Always SAME-PLAYER — no `zoneOwnerId` parameter,
             // unlike `grantCastFromExile`: no cross-player graveyard-cast
@@ -21218,11 +21218,11 @@ export function removeFromZone(
     // A card leaving hand to be CAST face down gets its marker back from
     // `turnFaceDown` at the commit site, after this runs.
     if (!card.faceDown) delete card.faceDownBy;
-    // CR 601.3e — Ice Cauldron's cast-from-exile permission is consumed once the
+    // CR 601.3 — Ice Cauldron's cast-from-exile permission is consumed once the
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
-    // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
+    // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
@@ -21235,7 +21235,7 @@ export function removeFromZone(
     // rides the SAME permission window; consumed together, so the card carries
     // no stale tax if it is ever exiled again by something else.
     delete card.castFromExileCostIncrease;
-    // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
+    // CR 601.3 / 117.6-analog (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
     // marker, mirroring the exile grant's cleanup above.

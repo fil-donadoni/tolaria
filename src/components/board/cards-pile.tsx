@@ -114,7 +114,7 @@ type CardsPileProps = {
      *  expanded dialog (fan/grid). `onClose` collapses the dialog so the host's
      *  action (e.g. cast-from-exile) can dismiss the reveal after dispatch.
      *  Returns null for cards with no action. Used by the Exile zone to surface
-     *  a Cast button on cast-from-exile cards (CR 601.3e). */
+     *  a Cast button on cast-from-exile cards (CR 601.3). */
     renderCardAction?: (
         card: CardInstance,
         onClose: () => void

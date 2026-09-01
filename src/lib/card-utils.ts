@@ -135,7 +135,7 @@ export function hasImprovise(card: CardInstance): boolean {
 }
 
 /** The `CardInstance` a `PendingCast` is paying for, searched across every
- *  zone a cast can originate from (CR 601.3e / 702.34 — hand, an exile
+ *  zone a cast can originate from (CR 601.3 / 702.34 — hand, an exile
  *  permission like Ice Cauldron, or a graveyard cast like Flashback/Escape).
  *  Mirrors the server's `locateCastSource` zone order; `me` is the viewer's
  *  OWN player object, whose hand is never nulled on the wire. */

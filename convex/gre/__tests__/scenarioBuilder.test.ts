@@ -287,7 +287,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         expect(base).toEqual(baseSnapshot);
     });
 
-    // #946 (CR 601.3e / 608.2g) — `castableFromExile` stamps a this-turn
+    // #946 (CR 601.3 / 608.2g) — `castableFromExile` stamps a this-turn
     // play/cast-from-exile grant so the Debug panel can stage the affordance
     // directly. CR 305.9 (issue #1689) — the LAND-INCLUSIVE shape (Headliner
     // Scarlett / Expressive Iteration: "you may PLAY that card") is now an

@@ -757,7 +757,7 @@ export const sunscapeFamiliar: CardDefinition = {
 // Surprise Deployment — {3}{W} Instant. "Cast this spell only during
 // combat.\nYou may put a nonwhite creature card from your hand onto the
 // battlefield. At the beginning of the next end step, return that creature
-// to your hand. (Return it only if it's on the battlefield.)" (CR 601.3e
+// to your hand. (Return it only if it's on the battlefield.)" (CR 601.3
 // cast-timing restriction via `castPhaseRestriction`, spanning every combat
 // step, precedent Spinal Embrace `inv/multicolor.ts`; CR 400.7 hand →
 // battlefield via a `choice(kind: "choose-hand-card")` + `moveZone(from:

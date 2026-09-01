@@ -306,7 +306,7 @@ export function buildStateFromScenario(
                         "face-down-exile"
                     );
                 }
-                // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
+                // #946 (CR 601.3 / 608.2g) — grant "me" a this-turn play-
                 // from-exile permission so a Play (land) / Cast (spell)
                 // affordance appears; the current turn stamps the expiry so
                 // it lapses at cleanup. CR 305.9 (issue #1689) — a cast

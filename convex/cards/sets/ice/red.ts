@@ -2082,7 +2082,7 @@ export const orcishSquatters: CardDefinition = {
     ],
 };
 // Panic — {R} Instant. "Cast this spell only during combat before blockers are
-// declared" (CR 601.3e cast restriction, via `castPhaseRestriction` —
+// declared" (CR 601.3 cast restriction, via `castPhaseRestriction` —
 // BEGINNING_OF_COMBAT + DECLARE_ATTACKERS, Blaze of Glory pattern); "Target
 // creature can't block this turn" (CR 509.1b, via `setCantBlockThisTurn`) plus
 // the next-upkeep cantrip rider.

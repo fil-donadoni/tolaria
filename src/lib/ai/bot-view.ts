@@ -436,7 +436,7 @@ function readChoiceZone(
             cards = owner.graveyard;
             break;
         case "exile":
-            // Dauthi Voidwalker (CR 601.3e, issue #1156) — choose an exiled
+            // Dauthi Voidwalker (CR 601.3, issue #1156) — choose an exiled
             // card an opponent owns with a void counter. Exile is a public
             // zone (CR 400.2), fully projected like graveyard; the
             // `candidateIds` allow-list (applied below, precomputed from the

@@ -732,7 +732,7 @@ export const slinkingSerpent: CardDefinition = {
 // Spinal Embrace — {3}{U}{U}{B} Instant. "Cast this spell only during
 // combat. Untap target creature you don't control and gain control of it.
 // It gains haste until end of turn. At the beginning of the next end step,
-// sacrifice it. If you do, you gain life equal to its toughness." (CR 601.3e
+// sacrifice it. If you do, you gain life equal to its toughness." (CR 601.3
 // cast-timing restriction via `castPhaseRestriction`, spanning every combat
 // step, precedent Chaotic Strike `inv/red.ts`; CR 701.26 untap; CR 613.1b
 // control change via `gainControl` with NO `duration` — an INDEFINITE

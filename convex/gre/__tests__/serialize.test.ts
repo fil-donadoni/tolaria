@@ -1068,12 +1068,12 @@ describe("game_state serialize round-trip", () => {
         // #666 (CR 106.10) — noted-mana battery: the artifact's last noted
         // type/amount must survive a save/load while it sits on the battlefield.
         lion.notedMana = { mana: { R: 1, U: 2 }, castableCardId: "noted-card" };
-        // #666 (CR 601.3e) — Ice Cauldron's cast-from-exile permission flag.
+        // #666 (CR 601.3) — Ice Cauldron's cast-from-exile permission flag.
         lion.castableFromExileBy = "p1";
         // #946 (CR 514.2 / 608.2g) — the turn-scoped impulse-play expiry marker
         // must survive a save/load so cleanup revokes it on the right turn.
         lion.castableFromExileUntilTurn = 7;
-        // issue #1156 (CR 601.3e / 117.6) — the free-cast waiver riding the
+        // issue #1156 (CR 601.3 / 117.6) — the free-cast waiver riding the
         // exile permission above (Dauthi Voidwalker) must survive a save/load.
         lion.castFromExileWithoutPayingManaCost = true;
         // issue #1689 (CR 305.9) — the land-inclusive marker riding the exile
@@ -1091,7 +1091,7 @@ describe("game_state serialize round-trip", () => {
             types: ["Creature"],
             hostId: "host-1",
         };
-        // issue #1344 (CR 601.3e / 117.6-analog) — Malcolm, Alluring
+        // issue #1344 (CR 601.3 / 117.6-analog) — Malcolm, Alluring
         // Scoundrel's per-card cast-from-graveyard grant, mirroring the
         // exile grant's three fields above.
         lion.castableFromGraveyardBy = "p1";

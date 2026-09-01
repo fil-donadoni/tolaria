@@ -771,7 +771,7 @@ export function applyMoveInSearch(
                 move.cardInstanceId
             );
             if (sourceZone === null) return;
-            // CR 601.3e (#1156) — a cross-player exile grant (Dauthi
+            // CR 601.3 (#1156) — a cross-player exile grant (Dauthi
             // Voidwalker) leaves the card in the OPPONENT's exile, which
             // `moveCard` (single-player zones only) cannot move. That case has
             // never been reachable in this coarse leaf; skip it rather than

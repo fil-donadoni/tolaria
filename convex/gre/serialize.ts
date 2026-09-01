@@ -553,7 +553,7 @@ function compactCard(
     // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron); the noted
     // type/amount lives on the artifact and must survive a save/load.
     if (card.notedMana) out.notedMana = card.notedMana;
-    // CR 601.3e — Ice Cauldron's cast-from-exile permission on an exiled card.
+    // CR 601.3 — Ice Cauldron's cast-from-exile permission on an exiled card.
     if (card.castableFromExileBy) {
         out.castableFromExileBy = card.castableFromExileBy;
     }
@@ -563,7 +563,7 @@ function compactCard(
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
-    // CR 601.3e / 117.6 (issue #1156) — Dauthi Voidwalker's free-cast waiver
+    // CR 601.3 / 117.6 (issue #1156) — Dauthi Voidwalker's free-cast waiver
     // rides `castableFromExileBy`'s permission window and must survive a
     // save/load the same way.
     if (card.castFromExileWithoutPayingManaCost) {
@@ -596,7 +596,7 @@ function compactCard(
     if (card.exiledBySourceId) {
         out.exiledBySourceId = card.exiledBySourceId;
     }
-    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
     // per-card cast-from-graveyard grant on a graveyard card, mirroring
     // `castableFromExileBy` above.
     if (card.castableFromGraveyardBy) {
@@ -609,7 +609,7 @@ function compactCard(
         out.castableFromGraveyardUntilTurn =
             card.castableFromGraveyardUntilTurn;
     }
-    // CR 601.3e / 117.6-analog (issue #1344) — Malcolm's free-cast waiver
+    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm's free-cast waiver
     // rides `castableFromGraveyardBy`'s permission window and must survive a
     // save/load the same way.
     // issue #2380 — the "exile it instead" rider on the same grant window;

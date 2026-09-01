@@ -1103,7 +1103,7 @@ export function applyMoveForSearch(
                 playerId,
                 move.cardInstanceId
             );
-            // CR 601.3e-analog (issue #2398) — the enumerator offers a cast off
+            // CR 601.3 (issue #2398) — the enumerator offers a cast off
             // the TOP of the library under a cast-from-top permission (Bolas's
             // Citadel), so this leaf can no longer assume the hand: hard-coding
             // `"hand"` threw `Card <id> not found in hand` for exactly those

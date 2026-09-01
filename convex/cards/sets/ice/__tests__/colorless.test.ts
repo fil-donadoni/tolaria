@@ -2910,7 +2910,7 @@ describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
     });
 });
 
-describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)", () => {
+describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)", () => {
     it("exiles the chosen card face down, grants cast-from-exile, and notes the mana keyed to it", () => {
         const cauldron = makeInstance(iceCauldron.id, {
             id: "cauldron",
@@ -3014,7 +3014,7 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)"
         expect(player.restrictedMana ?? []).toHaveLength(0); // restricted drained
     });
 
-    it("integration: the noted card is cast FROM EXILE paying the restricted mana (CR 601.3e)", () => {
+    it("integration: the noted card is cast FROM EXILE paying the restricted mana (CR 601.3)", () => {
         // The exiled, cast-from-exile-flagged Brainstorm; pool holds ONLY the
         // {U}{U} instance-restricted noted mana. tryAutoCommitPendingCast must
         // move it exile → stack, draining the restricted mana.
@@ -3417,7 +3417,7 @@ describe("Urza's Bauble (private hand look + next-upkeep cantrip, CR 603.7d)", (
     });
 });
 
-describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)", () => {
+describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3 impulse)", () => {
     it("exiles the top card of the library, granting cast-from-exile to the controller", () => {
         const bottle = makeInstance(elkinBottle.id, {
             id: "bottle",

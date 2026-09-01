@@ -2,7 +2,7 @@ import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 
-/** Play-from-exile affordance (CR 601.3e — Ice Cauldron: "You may cast that
+/** Play-from-exile affordance (CR 601.3 — Ice Cauldron: "You may cast that
  *  card for as long as it remains exiled"; Headliner Scarlett / Expressive
  *  Iteration: "you may play that card this turn"). Rendered over a card in the
  *  Exile zone whose `castableFromExileBy` matches the viewing player. Routes
@@ -44,7 +44,7 @@ export default function ExileCastButton({
     // button with a misleading tooltip — the card genuinely has no action.
     if (isLand && card.castableFromExileIncludesLand !== true) return null;
 
-    // CR 601.3e / 601.2f / 305.2 — the projection attaches `legalActions` to the
+    // CR 601.3 / 601.2f / 305.2 — the projection attaches `legalActions` to the
     // viewer's own castable-from-exile card (gameProjections). "cast" is present
     // only when the cast is legal right now (correct timing AND affordable,
     // counting instance-keyed noted mana, CR 106.6); "play" only when a land

@@ -479,7 +479,7 @@ describe("Urza, Lord High Artificer — activateManaAbility auto-commits a pendi
     });
 });
 
-describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 601.3e / 608.2g / 701.24)", () => {
+describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 601.3 / 608.2g / 701.24)", () => {
     function resolveImpulse(state: GameState, urza: CardInstanceState): void {
         state.stack.push({
             ...urza,
@@ -526,7 +526,7 @@ describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 
         expect(p1.library).toHaveLength(4);
         expect(p1.exile).toHaveLength(1);
         const exiled = p1.exile[0];
-        // CR 601.3e — cast permission, without paying the mana cost, until
+        // CR 601.3 — cast permission, without paying the mana cost, until
         // end of turn.
         expect(exiled.castableFromExileBy).toBe("p1");
         expect(exiled.castFromExileWithoutPayingManaCost).toBe(true);

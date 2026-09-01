@@ -1,6 +1,6 @@
 // Bolas's Citadel — the FULL `game.ts` mutation path for a cast off the top of
 // the library whose mana cost the permission REPLACES with life (issue #2398,
-// CR 601.3e-analog / 118.9-analog / 119.4 / 107.3b / 601.2b).
+// CR 601.3 / 118.9-analog / 119.4 / 107.3b / 601.2b).
 //
 // The per-card test (`convex/cards/sets/war/__tests__/black.test.ts`) covers the
 // legality gate, the wire projection and `libraryTopCastLifeCost`; the client

@@ -163,7 +163,7 @@ export const forceOfNegation: CardDefinition = {
 //
 //   3. "{5}: Shuffle your library, then exile the top card. Until end of
 //      turn, you may play that card without paying its mana cost." (CR
-//      601.3e / 608.2g impulse-play idiom, CR 701.24 shuffle.) Composes
+//      601.3 / 608.2g impulse-play idiom, CR 701.24 shuffle.) Composes
 //      shipped `SpellContext` primitives exactly like Elkin Bottle
 //      (`ice/colorless.ts`) plus a leading shuffle: `shuffleLibrary` →
 //      `peekLibraryTop` → `exileFaceDown` (CR 406.3 — hidden to the opponent,
@@ -290,7 +290,7 @@ export const urzaLordHighArtificer: CardDefinition = {
                 // CR 406.3 — exiled hidden to the opponent, known to the
                 // controller.
                 ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
-                // CR 601.3e / 117.6 — cast/play permission until end of turn,
+                // CR 601.3 / 117.6 — cast/play permission until end of turn,
                 // without paying the mana cost. `includesLand: true`: the
                 // oracle says "play", not "cast" (CR 305.9, issue #1689).
                 ctx.grantCastFromExile(

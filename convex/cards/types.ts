@@ -3836,7 +3836,7 @@ export interface SpellContext {
      *  (Jeweled Amulet) or instance-restricted to the noted card (Ice Cauldron).
      *  No-op if the source isn't on the battlefield or has no noted mana. */
     addNotedMana: (cardInstanceId: string, playerId: string) => void;
-    /** Play-from-exile grant (CR 601.3e — Ice Cauldron: "You may cast that card
+    /** Play-from-exile grant (CR 601.3 — Ice Cauldron: "You may cast that card
      *  for as long as it remains exiled"). Flags the card `cardInstanceId` as
      *  playable from exile by `playerId`; the play/cast pipeline then accepts it
      *  as a source — casting it if it's a spell, or playing it as a land if it's
@@ -3865,7 +3865,7 @@ export interface SpellContext {
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6, issue #1156) —
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6, issue #1156) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
      *  may play it this turn without paying its mana cost"), stamping
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
@@ -3916,7 +3916,7 @@ export interface SpellContext {
             costIncrease?: ManaCost;
         }
     ) => void;
-    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
+    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3 /
      *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
      *  cast the discarded card without paying its mana cost"). The
      *  graveyard-zone twin of {@link grantCastFromExile} — same "grant a
@@ -3941,7 +3941,7 @@ export interface SpellContext {
      *    - "until-next-end-step" (issue #1557): mirrors
      *      `grantCastFromExile`'s same-named window — see its doc comment.
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3e / 117.6-analog, issue #1344)
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6-analog, issue #1344)
      *  — ALSO waives the card's mana cost entirely, stamping {@link
      *  CardInstanceState.castFromGraveyardWithoutPayingManaCost} alongside
      *  the permission flag. Omitted/false grants permission only (the card
@@ -11794,7 +11794,7 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
-    /** CR 601.3e / 117.6 (issue #1156) — grant `player` permission to cast/play
+    /** CR 601.3 / 117.6 (issue #1156) — grant `player` permission to cast/play
      *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
      *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
      *  declarative skin over `SpellContext.grantCastFromExile`, one execution
@@ -11846,7 +11846,7 @@ export type EffectOp =
            *  rejects the pair. */
           costIncrease?: ManaCost;
       }
-    /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
+    /** CR 601.3 / 117.6-analog (issue #1344) — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
      *  names it in either of the two shapes an effect can reach one
      *  (`EffectObjectSelector`, issue #1650):
@@ -14840,7 +14840,7 @@ export type AlternativeCostCondition =
  *  snow land"). Declared on the CARD ITSELF, unlike the `cast-restriction`
  *  statics another PERMANENT imposes on a class of spells (Brand of Ill Omen)
  *  which `castProhibitionReason` battlefield-scans, and unlike the narrow
- *  `castUniqueByName` flag (CR 601.3e) which hard-codes one predicate.
+ *  `castUniqueByName` flag (CR 601.3) which hard-codes one predicate.
  *
  *  Data, not a closure, and evaluated by the frontend-safe
  *  `castConditionUnmetReason` (`convex/cards/castRestrictions.ts`) from INSIDE
@@ -15647,7 +15647,7 @@ export interface CardDefinition {
      *  real sources when this is set, and the payment path drives `manaCost` to
      *  zero via the payWith pickers so `solveSmartAutoTap` taps nothing. */
     cantSpendManaToCast?: boolean;
-    /** CR 702.51 / 601.3e (issue #1338) — intrinsic, always-on permission to
+    /** CR 702.51 / 601.3 (issue #1338) — intrinsic, always-on permission to
      *  cast this card from its owner's OWN graveyard for its normal cost
      *  ("You may cast this card from your graveyard", Hogaak). Distinct from the
      *  external, turn-scoped Yawgmoth's Will / Lurrus permissions and from
@@ -15660,7 +15660,7 @@ export interface CardDefinition {
      *  Cast action is suppressed in `getLegalActions`, the wire `legalActions`
      *  the client's affordance reads, and the Bot's cast-move enumeration, AND
      *  the `announceCast` mutation rejects the cast, from this ONE declaration.
-     *  Distinct from `castUniqueByName` (CR 601.3e, one hard-coded predicate)
+     *  Distinct from `castUniqueByName` (CR 601.3, one hard-coded predicate)
      *  and from the `cast-restriction` statics OTHER permanents impose. */
     castCondition?: CastCondition;
     /** Restricts cast timing to a specific subset of phases (CR 117.1b).
@@ -15677,7 +15677,7 @@ export interface CardDefinition {
      *  `countSnowLands` (honoring Melting / Arcum's Weathervane supertype
      *  mutation). Extend the union as further board-count caps arise. */
     castXUpperBound?: "snow-lands";
-    /** CR 601.3e — "Cast this spell only if no permanent[s] named <this card's
+    /** CR 601.3 — "Cast this spell only if no permanent[s] named <this card's
      *  name> are on the battlefield." When true, the spell's Cast action is
      *  suppressed (and the server cast rejected) while any permanent on either
      *  battlefield shares this card's name (FEM Tidal Influence). Name match
@@ -15811,7 +15811,7 @@ export interface CardDefinition {
      *  hidden-information library (CR 400.2) requires — the top card's
      *  identity crosses the wire only when a reveal is separately in force. */
     playsLandsFromTopOfLibrary?: boolean;
-    /** Unconditional, player-wide permission (CR 601.3e-analog) to CAST
+    /** Unconditional, player-wide permission (CR 601.3) to CAST
      *  nonland spells from the TOP of the controller's own library — and only
      *  the top card (index 0) — while ANY permanent with this field is on the
      *  battlefield (Bolas's Citadel; Vizier of the Menagerie's creature-only

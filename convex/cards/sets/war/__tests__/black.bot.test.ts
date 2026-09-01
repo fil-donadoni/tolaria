@@ -21,7 +21,7 @@ import { grizzlyBears } from "../../lea/green";
 import { forest } from "../../lea/colorless";
 import { fireball } from "../../lea/red";
 
-describe("Bolas's Citadel — bot move enumeration (CR 601.3e-analog)", () => {
+describe("Bolas's Citadel — bot move enumeration (CR 601.3)", () => {
     it("enumerates the library-top cast, priced in LIFE rather than mana", () => {
         const state = citadelBoard([grizzlyBears.id]);
         const moves = enumerateMoves(state, "p1");

@@ -972,7 +972,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, max)
                 .map((c) => c.id);
 
-        // Dauthi Voidwalker (CR 601.3e, issue #1156): choose an exiled card
+        // Dauthi Voidwalker (CR 601.3, issue #1156): choose an exiled card
         // an opponent owns with a void counter to grant a free cast. Greedy
         // value-max (ADR 0018) — take the best-valued candidate, mirroring
         // `choose-graveyard-card`'s Recall default.

@@ -6,7 +6,7 @@ import type { RestrictedMana } from "~/types/game";
  *  symbol in the pool so the player can tell WHY this mana is set apart from
  *  ordinary pool mana and what it can pay for.
  *
- *  - `castableCardId` (Ice Cauldron, CR 601.3e): mana spendable only to cast
+ *  - `castableCardId` (Ice Cauldron, CR 601.3): mana spendable only to cast
  *    one specific exiled card. Resolves the card's printed name for the label.
  *  - `restriction` (Mishra's Workshop / Adarkar Unicorn / Delighted Halfling,
  *    etc.): a spell-class, supertype, or cumulative-upkeep restriction.

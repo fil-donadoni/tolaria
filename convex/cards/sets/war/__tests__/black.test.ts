@@ -6,7 +6,7 @@
 //   * the CONTROLLER-ONLY continuous look at the top of the library
 //     (CR 401.5, `looksAtLibraryTop`) — asymmetric, unlike the existing
 //     both-seats reveal, so the wire assertions below check BOTH viewpoints;
-//   * cast-from-top-of-library permission (CR 601.3e-analog,
+//   * cast-from-top-of-library permission (CR 601.3,
 //     `castsSpellsFromTopOfLibrary`) — the spell twin of Courser of Kruphix's
 //     land permission, position-strict at index 0;
 //   * a WHOLESALE mana-cost substitution (CR 118.9-analog / 119.4 / 107.3b,
@@ -48,7 +48,7 @@ import { gloom } from "../../lea/black";
 import { benalishHero } from "../../lea/white";
 import { naturalOrder } from "../../vis/green";
 
-describe("Bolas's Citadel — cast-from-top permission (CR 601.3e-analog)", () => {
+describe("Bolas's Citadel — cast-from-top permission (CR 601.3)", () => {
     it("canCastSpellsFromTopOfLibrary is held only by the Citadel's controller", () => {
         const state = citadelBoard([grizzlyBears.id]);
         expect(
@@ -221,7 +221,7 @@ describe("Bolas's Citadel — top-of-library look is controller-only (CR 401.5)"
         const ownLib = own.players.find((p) => p.id === "p1")!.library;
         expect(ownLib.known.map((k) => k.index)).toEqual([0]);
         expect(ownLib.known[0].card.card.id).toBe(grizzlyBears.id);
-        // The affordance rides the same card object (CR 601.3e-analog).
+        // The affordance rides the same card object (CR 601.3).
         expect(ownLib.known[0].card.legalActions).toContain("cast");
 
         const theirs = projectPublicState(state, 1, "p2");

@@ -71,7 +71,7 @@ export type SlimHandCard = SlimCardInstance & {
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
- *  cast it from exile (CR 601.3e — Ice Cauldron's noted card). The field is
+ *  cast it from exile (CR 601.3 — Ice Cauldron's noted card). The field is
  *  present only on the viewer's own `castableFromExileBy` cards and drives the
  *  Cast affordance's enabled state, exactly as `SlimHandCard.legalActions` gates
  *  a hand card — so an unaffordable exile cast (e.g. noted mana of the wrong
@@ -92,7 +92,7 @@ export type SlimExileCard = SlimCardInstance & {
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
  *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
  *  / 601, Yawgmoth's Will, issue #1149), a SPECIFIC-CARD graveyard-cast grant
- *  (CR 601.3e / 117.6-analog, Malcolm, Alluring Scoundrel, issue #1344), or
+ *  (CR 601.3 / 117.6-analog, Malcolm, Alluring Scoundrel, issue #1344), or
  *  play it as a LAND under an unconditional play-lands-from-graveyard
  *  permission (CR 305.1-analog, Icetill Explorer #1190, or the same BROAD
  *  #1149 permission when its zones cover "land"). Present only on the
@@ -616,7 +616,7 @@ function projectExileCard(
         exiledByPermanentId?: string;
     }
 ): SlimExileCard {
-    // CR 601.3e — the viewer's own card it may cast from exile carries
+    // CR 601.3 — the viewer's own card it may cast from exile carries
     // `legalActions` so the Cast affordance gates on real legality (timing,
     // affordability incl. noted/restricted mana), exactly like a hand card. The
     // flag rides the controller's view only; opponents never get it. The
@@ -755,7 +755,7 @@ function projectGraveyardCard(
             castKind: "graveyard-permission",
         };
     }
-    // CR 601.3e / 117.6-analog (issue #1344) — a NON-LAND card sitting in the
+    // CR 601.3 / 117.6-analog (issue #1344) — a NON-LAND card sitting in the
     // viewer's own graveyard tagged with a per-card cast grant (Malcolm,
     // Alluring Scoundrel — `castableFromGraveyardBy`), reached only when the
     // card has neither Flashback, Escape, nor the broad permission above
@@ -851,7 +851,7 @@ function libraryTopAffordance(
     if (player.id !== viewerId) return undefined;
     const top = player.library[0];
     if (!top) return undefined;
-    // CR 305.1-analog / 601.3e-analog (issue #2398) — the two halves of a
+    // CR 305.1-analog / 601.3 (issue #2398) — the two halves of a
     // top-of-library permission are orthogonal fields on different cards
     // (Courser of Kruphix plays lands; Vizier of the Menagerie casts spells;
     // Bolas's Citadel does both), so the affordance exists when EITHER covers
@@ -1232,7 +1232,7 @@ export function projectPublicState(
             // `knownTo`; ordinary face-up exile is public to all.
             exile: player.exile.map((c) =>
                 projectExileCard(c, viewerId, {
-                    // CR 601.3e (issue #1156) — `casterId` disambiguates a
+                    // CR 601.3 (issue #1156) — `casterId` disambiguates a
                     // CROSS-PLAYER grant (Robber of the Rich, Dauthi
                     // Voidwalker): the card lives in `player`'s exile, but
                     // `c.castableFromExileBy` may name a DIFFERENT player as
@@ -1489,10 +1489,10 @@ export function projectFullState(
             ),
             // Full debug view has no single viewer — attach exile legalActions
             // for the card's own controller so the Cast affordance gates the
-            // same way it does in the public projection (CR 601.3e), and stamp
+            // same way it does in the public projection (CR 601.3), and stamp
             // the mechanism-agnostic permanent association for pinning.
             exile: player.exile.map((c) => {
-                // CR 601.3e (issue #1156) — same `casterId` disambiguation as
+                // CR 601.3 (issue #1156) — same `casterId` disambiguation as
                 // the public projection above (cross-player grants).
                 const out: SlimExileCard = c.castableFromExileBy
                     ? {

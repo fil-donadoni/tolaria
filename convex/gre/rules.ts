@@ -244,7 +244,7 @@ export function isPlayableLibraryTopLand(
     );
 }
 
-/** CR 601.3e-analog — the SPELL twin of {@link canPlayLandsFromTopOfLibrary}:
+/** CR 601.3 — the SPELL twin of {@link canPlayLandsFromTopOfLibrary}:
  *  the unconditional, player-wide permission to CAST nonland spells from the
  *  top of `player`'s own library, granted by ANY permanent declaring
  *  `castsSpellsFromTopOfLibrary` on their battlefield (Bolas's Citadel).
@@ -270,7 +270,7 @@ export function canCastSpellsFromTopOfLibrary(
 }
 
 /** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
- *  library while `player` holds the cast-from-top permission (CR 601.3e-analog
+ *  library while `player` holds the cast-from-top permission (CR 601.3
  *  — Bolas's Citadel). The mirror of {@link isPlayableLibraryTopLand} for the
  *  cast half, and position-strict for the same reason: the permission names
  *  the TOP card, and the library is otherwise a hidden zone (CR 400.2), so a
@@ -616,7 +616,7 @@ export function getLegalActions(
     player: PlayerState,
     card: CardInstanceState,
     debugAllActions = false,
-    /** CR 601.3e (issue #1156) — the ACTUAL caster, when it differs from
+    /** CR 601.3 (issue #1156) — the ACTUAL caster, when it differs from
      *  `player` (the zone `card` currently lives in). Every shipped
      *  cast-from-exile/graveyard grant before Dauthi Voidwalker was
      *  same-player (Ice Cauldron, Flashback, Escape, Yawgmoth's Will), so
@@ -862,7 +862,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 702.51 / 601.3e (issue #1338, Hogaak) — a NON-LAND card in the player's
+    // CR 702.51 / 601.3 (issue #1338, Hogaak) — a NON-LAND card in the player's
     // OWN graveyard whose definition declares `castableFromOwnGraveyard` ("You
     // may cast this card from your graveyard") is castable from there for its
     // normal printed cost (paid, for Hogaak, entirely via convoke + delve — the
@@ -894,7 +894,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 601.3e / 117.6-analog (issue #1344) — a NON-LAND card in the
+    // CR 601.3 / 117.6-analog (issue #1344) — a NON-LAND card in the
     // player's OWN graveyard tagged with a per-card cast grant (Malcolm,
     // Alluring Scoundrel: "you may cast the discarded card without paying
     // its mana cost") is castable from there — for FREE when
@@ -1025,7 +1025,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 601.3e (issue #1156) — a card in an exile zone (this player's OWN, or
+    // CR 601.3 (issue #1156) — a card in an exile zone (this player's OWN, or
     // — for a cross-player grant like Dauthi Voidwalker — the CASTER's
     // opponent's, `casterId` disambiguating) tagged with the free-cast waiver
     // (`SpellContext.grantCastFromExile`'s `withoutPayingManaCost` option) is
@@ -1053,7 +1053,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 601.3e-analog / 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) —
+    // CR 601.3 / 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) —
     // the NONLAND card on TOP of the player's own library, while the player
     // holds the player-wide cast-from-top permission
     // (`isCastableLibraryTopSpell`, position-strict at index 0: the rest of
@@ -2443,7 +2443,7 @@ function passesCastPhaseRestriction(
     ) {
         return false;
     }
-    // CR 601.3e — "Cast this spell only if no permanent[s] named <this name>
+    // CR 601.3 — "Cast this spell only if no permanent[s] named <this name>
     // are on the battlefield" (FEM Tidal Influence). The match uses the printed
     // card name (CR 201.2); any permanent on either battlefield sharing the
     // spell's name blocks the cast.

@@ -36,7 +36,7 @@ function pushAttackTrigger(
     resolveTopOfStack(state);
 }
 
-describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3e cast-from-exile)", () => {
+describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile)", () => {
     it("exiles the defending player's top library card face down, castable by the attacker, when they have more cards in hand (CR 603.4)", () => {
         const robber = makeInstance(robberOfTheRich.id, {
             id: "robber",
