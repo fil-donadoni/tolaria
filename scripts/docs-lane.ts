@@ -65,6 +65,12 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/adr-index.test.ts",
     "scripts/__tests__/agents-md-drift.test.ts",
     "scripts/__tests__/bot-globs.test.ts",
+    // Scans the SKILLS for two destructive data-regeneration recipes. A skill
+    // step is prose the docs lane will happily carry on its own, and the
+    // recipes got into the skills by being copied from a guard hint in the
+    // first place — so the lane that merges a skill edit has to be the lane
+    // that re-runs this.
+    "scripts/__tests__/destructive-data-recipes.test.ts",
     "scripts/__tests__/findings.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
