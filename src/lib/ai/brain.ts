@@ -1139,10 +1139,9 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // pre-game branch, and `random-reveal` is an engine-drawn reveal acked
         // via `random-reveal-ack` (`decideBotAction` handles all three before
         // reaching here). Reaching any via `chooseResolution` is a bug.
-        // `madness-cast` (CR 702.35a) also has its own dedicated path in
-        // `decideBotAction` (the bot declines): never resolved here.
-        // `rebound-cast` (CR 702.88a) mirrors it — its own dedicated path in
-        // `decideBotAction` (the bot declines): never resolved here.
+        // `madness-cast` (CR 702.35a) and `rebound-cast` (CR 702.88a) are
+        // in-tree search nodes with a decline FALLBACK in `decideBotAction`
+        // (issue #2983): never resolved here either way.
         case "may-pay":
         case "land-entry-tapped":
         case "draw-replacement":
@@ -1377,18 +1376,23 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         return { kind: "name-card", cardName: choice.nameCardDefault };
     }
     if (choice.kind === "madness-cast") {
-        // CR 702.35a — the reflexive Madness cast-choice: the bot's minimal
-        // policy is to DECLINE (send the card to the graveyard). Casting from
-        // exile for the madness cost is a real value decision deferred to a
-        // later slice (ADR 0016); declining is always legal and never stalls.
+        // CR 702.35a — the reflexive Madness cast-choice. This is now the
+        // FALLBACK, not the policy (issue #2983): the choice carries a
+        // candidate generator, so `OwedChoice.searchable` is true and
+        // `answerOwedInput` routes it to the ISMCTS search, which weighs the
+        // madness cast against the decline like any other cast. Reaching here
+        // means the search surfaced no move for the window — a generator that
+        // emitted the decline alone (the madness cost is unaffordable, or the
+        // permission has lapsed), or the driver's own safety net. Declining is
+        // always legal and never stalls, which is exactly what a fallback owes.
         return { kind: "madness-decline" };
     }
     if (choice.kind === "rebound-cast") {
-        // CR 702.88a — the reflexive Rebound cast-choice: the bot's minimal
-        // policy is to DECLINE, mirroring Madness. Casting again for free
-        // (picking a fresh target) is a real value decision deferred to a
-        // later slice (ADR 0016); declining is always legal and never stalls
-        // (unlike Madness, the card simply stays exiled — CR 702.88c).
+        // CR 702.88a — the reflexive Rebound cast-choice: the same fallback
+        // role as Madness above (issue #2983), reached only when the search
+        // produced nothing (no legal target for the free recast). Unlike
+        // Madness, declining bins nothing — the card simply stays exiled
+        // (CR 702.88c).
         return { kind: "rebound-decline" };
     }
     if (choice.kind === "draw-replacement") {

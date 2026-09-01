@@ -116,6 +116,27 @@ export type BladeSetupStep =
     /** Resolve the top of the stack through the real `resolveTopOfStack`
      *  (CR 608). Throws on an empty stack. */
     | { kind: "resolve-top" }
+    /** Discard the named card from a seat's HAND through the real discard
+     *  chokepoint (`discardToGraveyard`, gre/state.ts) plus the engine's own
+     *  post-action trigger scan (`processPendingActionTriggers`), so every
+     *  discard-triggered replacement and trigger is the one a live game
+     *  applies (CR 701.9).
+     *
+     *  Added for issue #2983, whose positions are the two reflexive CAST
+     *  WINDOWS. Before it, NO setup step could reach an open Madness window
+     *  (CR 702.35a) at all: `activate` refuses any ability whose cost stops at
+     *  a decision, and a discard cost always opens `pendingActivation` (even
+     *  with a single card in hand); and `declare-attackers` walks the combat
+     *  forward by PASSING priority, which in an open madness window is itself
+     *  the decline — it bins the card and the window is gone (CR 702.35a).
+     *  So a whole shipped mechanic had no expressible blade position.
+     *
+     *  Leaves the reflexive trigger ON THE STACK unresolved; pair it with a
+     *  `resolve-top` step to open the cast window itself, exactly as the
+     *  `activate` + `resolve-top` fetchland pair reaches a live search-library
+     *  choice. Throws when the seat's hand holds no (or more than one) card of
+     *  that name. */
+    | { kind: "discard"; card: string; controller?: BladeSeat }
     /** Activate the named battlefield permanent's activated ability through
      *  the REAL activation path (`activateAbilityOnState`, `convex/game.ts` —
      *  the exact function the `activateAbility` mutation calls), so every

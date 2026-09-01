@@ -160,6 +160,75 @@ function stateWithBotModalTrigger(): GameState {
     return state;
 }
 
+/** CR 702.35a / 702.88a (issue #2983) — the two reflexive CAST WINDOWS. Both
+ *  are STACKLESS families (the reflexive trigger has already resolved), so they
+ *  cannot go through `stateWithBotChoice`, which hangs its choice off a stack
+ *  item: the window's card sits in EXILE carrying the permission markers the
+ *  generator reads, and `stackItemId` is the empty string the engine stamps
+ *  (`openMadnessCastWindow` / `openReboundCastWindow`).
+ *
+ *  Both fixtures are built so the CAST half is really reachable — mana for the
+ *  madness cost, a legal target for the free recast — because a fixture whose
+ *  cast is unaffordable would pass the routing sweep below while proving
+ *  nothing: the generator emits the decline alone there, which is exactly the
+ *  pre-#2983 behaviour this file is meant to catch. */
+function stateWithBotCastWindow(
+    kind: "madness-cast" | "rebound-cast"
+): GameState {
+    const isMadness = kind === "madness-cast";
+    // Basking Rootwalla, Madness {0}, needs no mana; Ephemerate needs a legal
+    // creature to blink, supplied on the bot's own battlefield.
+    const exiled = makeInstance(
+        getCardByName(isMadness ? "Basking Rootwalla" : "Ephemerate").id,
+        { id: "win-1", controllerId: BOT, ownerId: BOT, zone: "exile" }
+    );
+    exiled.castableFromExileBy = BOT;
+    if (isMadness) {
+        exiled.madnessExiled = true;
+    } else {
+        exiled.castFromExileWithoutPayingManaCost = true;
+    }
+    const state = makeState({
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, {
+                exile: [exiled],
+                battlefield: isMadness
+                    ? []
+                    : [
+                          makeInstance(getCardByName("Grizzly Bears").id, {
+                              id: "blink-me",
+                              controllerId: BOT,
+                              ownerId: BOT,
+                              zone: "battlefield",
+                          }),
+                      ],
+            }),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+    });
+    state.pendingChoices = [
+        {
+            stackItemId: "", // stackless — the reflexive trigger already resolved
+            step: 0,
+            choiceId: `${kind}-win-1`,
+            playerId: BOT,
+            kind,
+            cardInstanceId: "win-1",
+            count: 1,
+            prompt: "Cast it, or not?",
+            ...(isMadness ? { cost: {} } : {}),
+        } as PendingChoice,
+    ];
+    if (isMadness) {
+        state.madnessCastWindow = { cardId: "win-1", ownerId: BOT };
+    } else {
+        state.reboundCastWindow = { cardId: "win-1", ownerId: BOT };
+    }
+    return state;
+}
+
 /** One fixture per generator-covered choice kind. A kind added to
  *  `CHOICE_CANDIDATE_GENERATORS` with no entry here fails the sweep below —
  *  that is the point: the new kind must be proven to reach the search. */
@@ -204,6 +273,11 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
     // CR 608.2b (issue #1888) — an OPTIONAL hand pick ("you may exile a card",
     // Chrome Mox's imprint). Only the `min === 0` shape is an in-tree node; the
     // mandatory shape is pinned as NOT searchable below.
+    // CR 702.35a / 702.88a (issue #2983) — the reflexive cast windows. Before
+    // it, both were answered by a hardcoded decline in `brain.ts` and neither
+    // had a generator, so the search saw an EMPTY move list at the window.
+    "madness-cast": () => stateWithBotCastWindow("madness-cast"),
+    "rebound-cast": () => stateWithBotCastWindow("rebound-cast"),
     "choose-hand-card": () =>
         stateWithBotChoice(
             {
@@ -275,11 +349,27 @@ describe("root pending choices route to the ISMCTS search (issue #1506)", () => 
                 iterations: 24,
             });
             expect(move).not.toBeNull();
-            // A choice window suppresses every other move, so whatever came back
-            // IS an answer to the choice (never a pass / land drop / cast).
-            expect(["pass", "play-land", "cast-spell"]).not.toContain(
-                move!.kind
-            );
+            // A choice window suppresses every other move, so whatever came
+            // back IS an answer to the choice — never an ordinary priority
+            // action.
+            expect(["pass", "play-land"]).not.toContain(move!.kind);
+            // CR 702.35a / 702.88a (issue #2983) — ONE exception, and it is
+            // structural rather than a loosening: for the two reflexive CAST
+            // WINDOWS a `cast-spell` IS the answer (accepting the window is
+            // literally casting the exiled card, which is why `announceCast`
+            // consumes the choice). It must be the window's OWN card, out of
+            // EXILE — an ordinary hand cast here would still be the enumerator
+            // leaking a priority move past a blocking choice.
+            if (kind === "madness-cast" || kind === "rebound-cast") {
+                if (move!.kind === "cast-spell") {
+                    expect(move as { castFromZone?: string }).toMatchObject({
+                        castFromZone: "exile",
+                        cardInstanceId: "win-1",
+                    });
+                }
+            } else {
+                expect(move!.kind).not.toBe("cast-spell");
+            }
         });
     }
 
@@ -383,15 +473,30 @@ describe("kinds with NO candidate generator keep the ADR 0016 heuristic", () => 
         ).toBe(0);
     });
 
-    it("madness-cast (no generator) still declines rather than searching", () => {
+    it("madness-cast whose CAST half is unreachable still declines (issue #2983)", () => {
+        // The kind HAS a generator now, so it is searchable — what this pins is
+        // the other half of the contract: the generator FAILS CLOSED. With no
+        // card in exile at all there is nothing to cast, it emits the decline
+        // alone, and `chooseOwedChoiceAction`'s decline branch is the fallback
+        // the driver lands on. Before #2983 that decline was the POLICY; the
+        // distinction is the whole issue, so it is worth an assertion.
         const state = stateWithBotChoice({
             kind: "madness-cast",
             cardInstanceId: "x",
             cost: {},
         });
         const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
-        expect(view.owedChoice?.searchable).toBe(false);
-        expect(decideBotAction(view).kind).toBe("madness-decline");
+        const rehydrated = projectedToGameState(
+            projectPublicState(state, 1, BOT)
+        );
+        expect(
+            choiceCandidates(rehydrated, rehydrated.pendingChoices![0]).map(
+                (c) => c.move.kind
+            )
+        ).toEqual(["madness-decline"]);
+        expect(chooseOwedChoiceAction(view.owedChoice!).kind).toBe(
+            "madness-decline"
+        );
     });
 });
 

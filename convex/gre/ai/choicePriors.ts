@@ -196,6 +196,14 @@ export function heuristicChoicePrior(
     if (choice.kind === "option-pick" || choice.kind === "trigger-mode") {
         return colorModePrior(state, choice, candidate);
     }
+    // CR 702.35a / 702.88a (issue #2983) — a reflexive cast window is not a
+    // yes/no `accept` move either: its two halves are a `cast-spell` and a
+    // dedicated decline Move, so `acceptOf` returns `undefined` for both and
+    // every candidate would otherwise fall to the flat `NEUTRAL_PRIOR`,
+    // leaving cast-vs-decline pure rollout noise.
+    if (choice.kind === "madness-cast" || choice.kind === "rebound-cast") {
+        return castWindowPrior(choice, candidate);
+    }
 
     const accept = acceptOf(candidate.move);
     if (accept === undefined) return NEUTRAL_PRIOR;
@@ -220,6 +228,42 @@ export function heuristicChoicePrior(
         default:
             return NEUTRAL_PRIOR;
     }
+}
+
+/** CR 702.35a / 702.88a (issue #2983) — prior for a reflexive CAST WINDOW
+ *  candidate: the Madness window ("cast it for its madness cost or put it into
+ *  your graveyard") and the Rebound window ("you may cast this card from exile
+ *  without paying its mana cost").
+ *
+ *  Both open the CAST above the decline, because in both the decline is the
+ *  branch that throws value away and the cast is the branch that spends
+ *  something to keep it — that asymmetry is structural, not card knowledge:
+ *
+ *    * Madness: declining BINS the card (`declineMadness`, gre/madness.ts).
+ *      The card is leaving the player's hand either way; the only question is
+ *      whether it leaves to the graveyard or onto the stack. The cast is
+ *      therefore favoured, but only mildly — the madness cost is real mana that
+ *      could buy something else this turn.
+ *    * Rebound: the recast is FREE (CR 702.88a) and the window never comes
+ *      back — declining leaves the card exiled forever (CR 702.88c). A free
+ *      spell is close to strictly better than no spell, so this opens higher
+ *      than Madness's.
+ *
+ *  Neither is a filter. A cast the generator could not build never reaches this
+ *  seam at all (it emits the decline alone), and a cast that IS built but plays
+ *  badly loses on reward like any other branch — `PRIOR_MIN`/`PRIOR_MAX` keep
+ *  the decline reachable in both directions. */
+function castWindowPrior(
+    choice: PendingChoice,
+    candidate: PriorCandidate
+): number {
+    const isDecline =
+        candidate.move.kind === "madness-decline" ||
+        candidate.move.kind === "rebound-decline";
+    if (choice.kind === "rebound-cast") {
+        return isDecline ? 0.25 : 0.8;
+    }
+    return isDecline ? 0.4 : 0.65;
 }
 
 // ---------------------------------------------------------------------------

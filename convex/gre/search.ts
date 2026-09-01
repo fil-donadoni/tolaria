@@ -103,6 +103,12 @@ import {
     graveyardCastStackFlags,
     reboundCastStackFlags,
 } from "./castCost";
+// CR 702.35a / 702.88a-c (issue #2983) — the reflexive cast windows' own pure
+// resolvers, so the in-tree accept and decline are the EXACT functions the
+// `announceCast` / `submitMadnessDecline` / `submitReboundDecline` mutations
+// drive rather than a sandbox restatement of them.
+import { consumeMadnessCastChoice, declineMadness } from "./madness";
+import { consumeReboundCastChoice, declineRebound } from "./rebound";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
 // object the mutation path commits.
@@ -720,6 +726,38 @@ export function applyMoveInSearch(
             return;
         }
 
+        case "madness-decline":
+        case "rebound-decline": {
+            // CR 702.35a / 702.88c (issue #2983) — decline a reflexive CAST
+            // WINDOW. Before this, neither kind reached this switch at all:
+            // the two choices had no candidate generator, so `enumerateMoves`
+            // returned nothing while one was the head choice and no move of
+            // either kind was ever built. Now that they ARE decision nodes,
+            // the decline is a branch the tree plays — and this switch has no
+            // `default`, so without these cases it would apply NOTHING: the
+            // choice would stay at the head of the queue, the same node would
+            // be re-expanded, and the playout would spin on it instead of
+            // moving past the window.
+            //
+            // Applied through the SAME pure resolvers the two decline
+            // mutations drive (`declineMadness` / `declineRebound`,
+            // gre/{madness,rebound}.ts), followed by the identical CR 117.3c
+            // priority reset those mutations perform — the reflexive ability
+            // is done, so priority returns to the ACTIVE player, not to the
+            // decliner. Copying that reset is what keeps a declined window
+            // from handing the tree a position the server would never produce.
+            if (move.kind === "madness-decline") {
+                declineMadness(state);
+            } else {
+                declineRebound(state);
+            }
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
         case "resolution-choice": {
             // Generic (non-yes/no) choice-node answer — `option-pick`
             // (CR 700.2 / 601.2b modal spells, CR 614.12 "as it enters, choose
@@ -876,6 +914,21 @@ export function applyMoveInSearch(
         }
 
         case "cast-spell": {
+            // CR 702.35a / 702.88a (issue #2983) — a cast that ACCEPTS an open
+            // reflexive cast window consumes that window's pending choice, in
+            // the SAME two calls and the SAME order the `announceCast` mutation
+            // makes them (`convex/game.ts`), and for the same reason: the
+            // choice blocks priority, so leaving it in the queue would put the
+            // spell on the stack with its own window still open — a position
+            // the server can never produce, in which the tree would then be
+            // offered the window's candidates all over again for a card that
+            // has already left exile.
+            //
+            // Both are no-ops unless the head choice is THIS card's window for
+            // THIS player, so an ordinary cast made while some unrelated choice
+            // sits in the queue is untouched.
+            consumeMadnessCastChoice(state, playerId, move.cardInstanceId);
+            consumeReboundCastChoice(state, playerId, move.cardInstanceId);
             // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
             // the tap plan runs (`applyDelveExileForSearch`'s forced-minimum
             // calc needs the caster's mana still untapped, mirroring the
