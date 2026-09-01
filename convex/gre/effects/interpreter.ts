@@ -4323,6 +4323,15 @@ export const OP_EXECUTORS: {
         // below — every other caller keeps `createTokenCopyOf`'s documented
         // CR 608.2b fizzle when its source has left the battlefield.
         let recoveredLastKnown = false;
+        // CR 608.2h / 111.12 (ADR 0086) — an announced TARGET that has left is
+        // an illegal target and the copy fizzles (CR 608.2b, Dance of Many);
+        // a source the effect merely NAMES is read from its last known
+        // information instead, and CR 111.12 exempts that case from "no token
+        // is created". The two are different rules, so the switch is the
+        // SELECTOR SHAPE — a `{ target: N }` slot never opts in, a `ref` to
+        // the ability's own source or to a permanent bound earlier in the same
+        // script always does.
+        const lastKnownCopiable = !("target" in op.source);
         if (!source && "ref" in op.source && op.source.ref === "$source") {
             const gid = ctx.sourceInstanceId;
             const owner =
@@ -4330,6 +4339,16 @@ export const OP_EXECUTORS: {
             if (owner !== undefined) {
                 source = { type: "graveyard-card", id: gid, playerId: owner };
                 recoveredLastKnown = true;
+            } else {
+                // CR 608.2h — the object is in no public zone at all: bounced
+                // to a hand, shuffled away, or a TOKEN the CR 704.5d sweep
+                // removed from state outright. The LKI store still has its
+                // copiable values, and `createTokenCopyOf` is the one authority
+                // on whether an entry exists — it returns undefined (the copy
+                // simply creates nothing) when there is none, so the carrier
+                // below names the id and lets that check happen there rather
+                // than duplicating the lookup as a second authority here.
+                source = { type: "permanent", id: gid };
             }
         }
         // The `graveyard-card` carrier is the generic "card sitting in a
@@ -4357,13 +4376,15 @@ export const OP_EXECUTORS: {
             op.entersTapped ||
             op.entersAttacking ||
             except ||
-            recoveredLastKnown
+            recoveredLastKnown ||
+            lastKnownCopiable
                 ? {
                       entersTapped: op.entersTapped,
                       entersAttacking: op.entersAttacking,
                       ...(recoveredLastKnown
                           ? { lastKnownFromGraveyardOrExile: true }
                           : {}),
+                      ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
                       ...(except?.basePower !== undefined
                           ? { basePower: except.basePower }
                           : {}),

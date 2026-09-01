@@ -225,6 +225,7 @@ import {
     presentedDefId,
     revertCopy,
     type CopyOptions,
+    type CopySource,
 } from "./copy";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
@@ -3682,6 +3683,48 @@ export function queueExtraCombat(state: GameState): void {
     state.extraPhases = [...(state.extraPhases ?? []), { kind: "combat" }];
 }
 
+/** CR 707.2 — the copiable values of a permanent that has LEFT the
+ *  battlefield, as `GameState.lastKnownCopiable` holds them (ADR 0086).
+ *
+ *  Deliberately NOT a materialised characteristic dump. The copiable values of
+ *  an object ARE its presented definition's, "as modified by other copy
+ *  effects, by its face-down status, and by … 'as … enters' or 'as … is turned
+ *  face up'" — so the definition id the permanent PRESENTED as it left, plus
+ *  the instance-level exception a copy effect had stamped on it, reproduce
+ *  types, subtypes, base P/T and static abilities exactly, through the very
+ *  `getDefinition(presentedDefId)` read `applyCopy` performs for a live
+ *  source. Materialising them here would duplicate the definition into the
+ *  hottest row in the system for no behavioural gain (row size is the Convex
+ *  cost driver, PRD #1776) and would introduce a second, driftable authority
+ *  on what a copy of this object is.
+ *
+ *  The pairing to keep true: this type carries whatever `CopySource`
+ *  (`gre/copy.ts`) declares a copy source contributes, minus what the
+ *  definition id already answers. Widen one and the other owes a field —
+ *  issue #2963, which will make the remaining "except" clauses (colours,
+ *  additional subtypes, no mana cost) inherit off the SOURCE INSTANCE rather
+ *  than be rebuilt from the copied definition, is exactly that day. */
+export type LastKnownCopiable = {
+    /** The definition id the permanent presented at the moment it left
+     *  (CR 707.2). Already the COPIED object's id for a Clone (`card.id` is
+     *  overwritten by `applyCopy`), already the back face for a transformed
+     *  permanent, and already the face-down sentinel for a face-down one —
+     *  because the snapshot is taken BEFORE `revertCopy` / `revertTransform` /
+     *  the CR 708.9 reveal run at that same funnel. A token's id is
+     *  content-derived and re-synthesizable (`cards/registry.ts`), so it stays
+     *  resolvable after CR 704.5d removes the token's instance from state. */
+    defId: string;
+    /** CR 707.3 — the "except it's N/N" clause a previous copy effect stamped
+     *  on this object (issue #2076), which copying it inherits. Omitted when
+     *  the permanent carried none, and omitted for a FACE-DOWN permanent,
+     *  which contributes no exception (CR 707.2 — its copiable values are the
+     *  face-down body) exactly as `applyCopy` decides for a live source. */
+    copyExcept?: { basePower?: number; baseToughness?: number };
+    /** `GameState.turn` at departure — the key the CR 514 cleanup prune reads.
+     *  Not information about the object. */
+    turn: number;
+};
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
@@ -4001,6 +4044,48 @@ export type GameState = {
      *  `PermanentFilter.controlledSinceTurnStart`. See that module's header for
      *  why this is a ledger of BREAKS and not a start-of-turn snapshot. */
     controlChangedThisTurn?: string[];
+    /** CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values of every
+     *  permanent that has left the battlefield recently, keyed by the instance
+     *  id it had there. Written at the single battlefield-departure funnel
+     *  (`removePermanentTo`), read as `createTokenCopyOf`'s fallback so a
+     *  NON-TARGETED "create a token that's a copy of it" still creates the
+     *  token after its source is gone:
+     *
+     *  > CR 608.2h — "If the effect requires information from a specific
+     *  > object, including the source of the ability itself … if it's no
+     *  > longer in that zone, the effect uses the object's last known
+     *  > information."
+     *  > CR 111.12 — "If an effect instructs a player to create a token that
+     *  > is a copy of a nonexistent object, no token is created … This does
+     *  > not apply to an effect that would use the last known information of
+     *  > an object."
+     *
+     *  An announced TARGET that has left is a DIFFERENT rule (CR 608.2b makes
+     *  it an illegal target and the copy fizzles — Dance of Many), so the
+     *  fallback is opt-in per call and never the default.
+     *
+     *  Distinct from the effective-P/T departure snapshot taken a few lines
+     *  above it in the same funnel: layered buffs are right for "damage equal
+     *  to its power" and WRONG for a copy, because CR 707.2 ends "Other
+     *  effects … are not copied". The two LKI snapshots sit side by side with
+     *  deliberately opposite semantics — do not unify them.
+     *
+     *  Pruned on a two-turn window at CLEANUP (CR 514, `finalizeCleanup`):
+     *  the longest-lived referent the engine can produce is a delayed trigger
+     *  ("at the beginning of your next upkeep" fires by turn N+2's upkeep),
+     *  so row growth is bounded by two turns of departures rather than by the
+     *  game. Row size is this system's Convex cost driver, so the entry is
+     *  deliberately tiny and its definition id is interned through the v2
+     *  cardId string table on the way to the DB (`serialize.ts`, issue #1780).
+     *
+     *  It crosses the wire UNREDACTED on purpose: the client Brain simulates
+     *  on a local clone (ADR 0074) and would otherwise diverge from the server
+     *  on exactly the cards this store enables. Safe because everything that
+     *  was on the battlefield was public, and CR 708.9 reveals a face-down
+     *  permanent to all players in the very act of leaving. Stated because
+     *  unredacted state crossing `projectPublicState` is a known bug class
+     *  here (#1977/#1982). */
+    lastKnownCopiable?: Record<string, LastKnownCopiable>;
     /** Cumulative damage taken by each player this turn (CR 120.3 tally).
      *  Map `playerId → total damage`. Incremented every time damage actually
      *  lands on a player (after replacement / prevention / protection).
@@ -10133,6 +10218,49 @@ export function removePermanentTo(
     const snapshotCombatPartners = wasCreature
         ? combatPartnerIds(state, cardId)
         : [];
+    // CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values, the store a
+    // NON-TARGETED "create a token that's a copy of it" falls back to when its
+    // source is already gone at resolution (`createTokenCopyOf` below). CR
+    // 111.12: "If an effect instructs a player to create a token that is a
+    // copy of a nonexistent object, no token is created … This does not apply
+    // to an effect that would use the last known information of an object."
+    //
+    // Deliberately NOT the effective P/T snapshot taken immediately above.
+    // Layered buffs belong in that one ("damage equal to its power") and must
+    // stay out of this one, because CR 707.2 ends "Other effects … are not
+    // copied" — hence a def id and a copy-effect exception here, and no
+    // materialised characteristics at all (see `LastKnownCopiable`). Two LKI
+    // snapshots, side by side, with deliberately opposite semantics.
+    //
+    // Taken HERE, before `revertCopy` / `turnFaceUp` / `revertTransform` run a
+    // few lines below, which is the whole reason the entry is correct for a
+    // Clone (still presenting what it had become), for a transformed permanent
+    // (still the back face) and for a face-down one (CR 707.2 — its copiable
+    // values ARE the 2/2 sentinel body, which `presentedDefId` returns only
+    // until the CR 708.9 reveal turns it face up).
+    //
+    // Written for EVERY departing permanent, tokens included: the entry
+    // outlives the instance that the CR 704.5d token sweep
+    // (`checkTokenExistenceSBA`) removes from state entirely, which is why the
+    // store is a map keyed by instance id and not a field on the card.
+    //
+    // LATEST-WINS, unlike the write-once `item.sourceLki` above. That one is
+    // per stack item, so it can freeze the object each ability was sourced
+    // from; this one is a single slot per instance id and can only answer
+    // "what was the object with this id when it last existed" — the newest
+    // departure is that answer. An ability that needs the older object frozen
+    // has `sourceLki` for it.
+    const lastKnownCopiable = (state.lastKnownCopiable ??= {});
+    lastKnownCopiable[creature.id] = {
+        defId: presentedDefId(creature),
+        // CR 707.2 — a face-down permanent contributes no exception (its
+        // copiable values are the face-down body), the same call `applyCopy`
+        // makes for a live source.
+        ...(!creature.faceDown && creature.copyExcept
+            ? { copyExcept: { ...creature.copyExcept } }
+            : {}),
+        turn: state.turn,
+    };
     creature.zone = toZone;
     creature.attachedTo = undefined;
     // CR 704.5m — the world-rule timestamp is a battlefield-only property of
@@ -16600,12 +16728,49 @@ export function buildSpellContext(
             // non-battlefield source yields exactly the same copy. Narrow by
             // construction: opt-in per call, and only the two PUBLIC zones
             // (CR 400.2) — never a card in hand or library.
+            //
+            // CR 608.2h / 111.12 (ADR 0086) — `opts.lastKnownCopiable` opts in
+            // to the OTHER exception: an effect that names the source without
+            // TARGETING it ("create a token that's a copy of it" — an ETB or a
+            // dies trigger copying its own source) still creates the token
+            // after that source has left the battlefield, from the copiable
+            // values it last had there (`GameState.lastKnownCopiable`, written
+            // at the departure funnel). CR 111.12 says so outright: the "no
+            // token is created" rule for a nonexistent object "does not apply
+            // to an effect that would use the last known information of an
+            // object."
+            //
+            // Consulted BEFORE the graveyard/exile widening below, and that
+            // order is load-bearing: a Clone that died IS in the graveyard,
+            // but `revertCopy` restored its PRINTED identity on the way there,
+            // so the graveyard card is the wrong object to copy and the LKI
+            // entry is the right one. Eternalize is unaffected — its source
+            // was never on the battlefield, so it has no LKI entry and falls
+            // straight through.
             const source =
                 findOnBattlefield(state, sourceCreatureId)?.card ??
+                (opts?.lastKnownCopiable
+                    ? state.lastKnownCopiable?.[sourceCreatureId]
+                    : undefined) ??
                 (opts?.lastKnownFromGraveyardOrExile
                     ? findCardInGraveyardOrExile(state, sourceCreatureId)
                     : undefined);
             if (!source) return undefined;
+            // A `LastKnownCopiable` is not a card instance — it is exactly the
+            // `CopySource` surface (`gre/copy.ts`) rebuilt from what the object
+            // last presented. Enumerated, never spread from an instance: a
+            // `{...card}` would carry `faceDownOf`, which is not a copiable
+            // value and which the projection deliberately strips for
+            // non-controllers.
+            const copySource: CopySource =
+                "defId" in source
+                    ? {
+                          card: { id: source.defId },
+                          ...(source.copyExcept
+                              ? { copyExcept: source.copyExcept }
+                              : {}),
+                      }
+                    : source;
             // Minimal placeholder body: a 0/0 creature token, overwritten by
             // `applyCopy` INSIDE `createTokenPermanents` before anything —
             // the CR 614 chokepoint included — observes it (CR 707.5: the
@@ -16646,7 +16811,7 @@ export function buildSpellContext(
                 controllerId,
                 1,
                 createdBy,
-                { copyOf: { source, copyOpts: opts } }
+                { copyOf: { source: copySource, copyOpts: opts } }
             );
             if (tokenId === undefined) return undefined;
             // CR 603.10 — bind the creator to its token (both directions) so the
@@ -20057,7 +20222,7 @@ export function createTokenPermanents(
      *  announcement and re-emit it after copying. With the copy applied before
      *  entry there is no placeholder to announce — `finishTokenEntry` emits the
      *  real thing, in the one place every other token announces from. */
-    opts?: { copyOf?: { source: CardInstanceState; copyOpts?: CopyOptions } }
+    opts?: { copyOf?: { source: CopySource; copyOpts?: CopyOptions } }
 ): string[] {
     const owner = getPlayer(state, controllerId);
     const ids: string[] = [];

@@ -20,6 +20,24 @@ import {
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 
+/** Everything a copy SOURCE contributes to a copy effect (CR 707.2). Narrower
+ *  than `CardInstanceState` on purpose: the copiable values are the presented
+ *  definition's, so all `applyCopy` ever reads off the source object is which
+ *  definition it presents, whether it is face down (CR 707.2 — face-down
+ *  status is itself a copiable value) and the "except it's N/N" stamp a
+ *  previous copy effect left on it (CR 707.3, issue #2076).
+ *
+ *  Stated as a type rather than left implicit because a LAST-KNOWN-INFORMATION
+ *  source is not an instance at all: a permanent that has left the battlefield
+ *  no longer exists (CR 400.7), and CR 608.2h / 111.12 still require the copy
+ *  to be made from what it last was (`GameState.lastKnownCopiable`, ADR 0086).
+ *  This type is the contract between the two — widen it and the LKI store owes
+ *  the new field. */
+export type CopySource = Pick<
+    CardInstanceState,
+    "card" | "faceDown" | "copyExcept"
+>;
+
 /** Re-exported alias so engine call sites import copy-option typing from the
  *  copy module alongside the functions that consume it. */
 export type CopyOptions = CopyEffectOptions;
@@ -29,7 +47,7 @@ export type CopyOptions = CopyEffectOptions;
  *  normal permanent it is its own printed id. Use as the source of copiable
  *  values so Clone-of-Clone chains resolve to the deepest copied identity
  *  (CR 707.2 — copiable values are values as modified by other copy effects). */
-export function presentedDefId(card: CardInstanceState): string {
+export function presentedDefId(card: Pick<CardInstanceState, "card">): string {
     return (card.card as { id?: string }).id ?? "";
 }
 
@@ -39,7 +57,7 @@ export function presentedDefId(card: CardInstanceState): string {
  *  re-copy so the anchor always points at the true printed card). */
 export function applyCopy(
     recipient: CardInstanceState,
-    source: CardInstanceState,
+    source: CopySource,
     opts: CopyOptions = {}
 ): void {
     const copyColor = opts.copyColor ?? true;

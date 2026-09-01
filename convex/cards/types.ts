@@ -2893,7 +2893,20 @@ export interface SpellContext {
      *  is identical wherever the object now sits. Left unset — the default,
      *  and every pre-existing caller — a source that has left the battlefield
      *  still fizzles the copy. Hidden zones (hand, library) are never
-     *  searched: CR 400.2, no rules story copies a card nobody can see. */
+     *  searched: CR 400.2, no rules story copies a card nobody can see.
+     *
+     *  `lastKnownCopiable` (CR 608.2h / 111.12, ADR 0086) widens the lookup a
+     *  second, different way — to the LAST KNOWN COPIABLE VALUES of a source
+     *  that has left the battlefield (`GameState.lastKnownCopiable`). Set it
+     *  when the effect NAMES its source rather than targeting it ("when this
+     *  creature dies, create a token that's a copy of it"): CR 608.2h makes
+     *  such an effect read the object's last known information, and CR 111.12
+     *  exempts exactly that case from "no token is created". Leave it unset
+     *  for an announced TARGET — an absent target is illegal under CR 608.2b
+     *  and the copy fizzles (Dance of Many), which is a different rule and the
+     *  default. Consulted BEFORE `lastKnownFromGraveyardOrExile`: a Clone that
+     *  died sits in the graveyard as its PRINTED self, and the LKI entry is
+     *  what it had actually become. */
     createTokenCopyOf: (
         sourceCreatureId: string,
         controllerId: string,
@@ -2902,6 +2915,7 @@ export interface SpellContext {
             entersTapped?: boolean;
             entersAttacking?: boolean;
             lastKnownFromGraveyardOrExile?: boolean;
+            lastKnownCopiable?: boolean;
         }
     ) => string | undefined;
     // --- Primitives ---

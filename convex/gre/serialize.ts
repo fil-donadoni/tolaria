@@ -1882,6 +1882,13 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // change has already happened and may even have been reverted), so dropping
     // it across a write would silently widen what may be sacrificed.
     "controlChangedThisTurn",
+    // CR 608.2h / 111.12 (ADR 0086) — last known copiable values of recently
+    // departed permanents. Listed here so the drift guard is satisfied and the
+    // generic loop carries it, but the value it stores raw is OVERWRITTEN
+    // below by a compacted form: the entry's definition id goes through the v2
+    // cardId string table (issue #1780) rather than embedding a raw uuid per
+    // departure in the hottest row in the system.
+    "lastKnownCopiable",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never
@@ -1962,6 +1969,28 @@ export function compactState(state: GameState): Record<string, unknown> {
                       },
         }));
     }
+    // CR 608.2h / 111.12 (ADR 0086) — the LKI copiable-values store. The
+    // generic optional-key loop above wrote it raw; overwrite with the
+    // compacted form so each entry's definition id is a cardPool INDEX, not a
+    // repeated uuid (issue #1780). Every departure this turn and last writes
+    // one entry into the row every mutation rewrites, so the per-entry cost is
+    // the whole point: `{ d: 12, t: 7 }` rather than a 36-char id.
+    //
+    // A token's id is a long content-derived `token:...` string, which is
+    // exactly what `internCardIdForCompact` interns to a short handle first —
+    // so the token case, the one the CR 704.5d sweep makes this store
+    // necessary for, is also the one that compacts best.
+    if (state.lastKnownCopiable && !isPlainEmpty(state.lastKnownCopiable)) {
+        const packed: Record<string, unknown> = {};
+        for (const [id, entry] of Object.entries(state.lastKnownCopiable)) {
+            packed[id] = {
+                d: internCardIdForCompact(ctx, entry.defId),
+                t: entry.turn,
+                ...(entry.copyExcept ? { e: entry.copyExcept } : {}),
+            };
+        }
+        out.lastKnownCopiable = packed;
+    }
     // Layers 4/5 (issue #1780) — every card compacted above ran through
     // `ctx`, so `ctx.pool`/`ctx.tokens` are now fully populated. `v: 2` is
     // the version marker `expandState` branches on; `tokenSpecs` is omitted
@@ -2007,6 +2036,31 @@ export function expandState(data: Record<string, unknown>): GameState {
         const v = data[k];
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;
+    }
+    // CR 608.2h / 111.12 (ADR 0086) — mirror of `compactState`: the generic
+    // loop above installed the COMPACT form (pooled definition indices), so
+    // rebuild the real entries. A legacy row that predates this key simply has
+    // nothing here.
+    const compactLki = data.lastKnownCopiable as
+        | Record<
+              string,
+              {
+                  d: unknown;
+                  t: number;
+                  e?: { basePower?: number; baseToughness?: number };
+              }
+          >
+        | undefined;
+    if (compactLki) {
+        const unpacked: NonNullable<GameState["lastKnownCopiable"]> = {};
+        for (const [id, entry] of Object.entries(compactLki)) {
+            unpacked[id] = {
+                defId: resolveCardId(entry.d, ctx),
+                turn: entry.t,
+                ...(entry.e ? { copyExcept: entry.e } : {}),
+            };
+        }
+        result.lastKnownCopiable = unpacked;
     }
     // CR 702.26 — rehydrate phased-out bundle permanents from their slim form
     // (mirror of `compactState`). Phased permanents are logically still

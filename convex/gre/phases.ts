@@ -2617,6 +2617,28 @@ export function finalizeCleanup(state: GameState): void {
         }
     }
 
+    // CR 514 / 608.2h (ADR 0086) — prune the last-known copiable-values store
+    // on a TWO-TURN window. The longest-lived referent the engine can produce
+    // is a delayed trigger: "at the beginning of the next end step" fires by
+    // turn N+1 and "at the beginning of your next upkeep" by turn N+2's
+    // upkeep, both strictly BEFORE this cleanup — so an entry stamped on turn
+    // N is safe to drop once the turn counter has moved two past it, and row
+    // growth is bounded by two turns of departures instead of by the game
+    // (row size is the Convex cost driver, PRD #1776).
+    //
+    // A repeatable CR 514.2-shaped sweep, not once-per-turn bookkeeping: it
+    // filters by an absolute turn number, so the extra cleanup step CR 514.3a
+    // can start re-runs it as a fixpoint (see this function's doc).
+    if (state.lastKnownCopiable) {
+        for (const [id, entry] of Object.entries(state.lastKnownCopiable)) {
+            if (entry.turn <= state.turn - 2) {
+                delete state.lastKnownCopiable[id];
+            }
+        }
+        if (Object.keys(state.lastKnownCopiable).length === 0) {
+            state.lastKnownCopiable = undefined;
+        }
+    }
     // CR 514.2 / 608.2g — a turn-scoped "play that card from exile this turn"
     // impulse grant (Headliner Scarlett, Expressive Iteration) expires at the
     // cleanup step: the card stays exiled but is no longer playable. Revoke it
