@@ -228,6 +228,7 @@ import {
     type CopyOptions,
     type CopySource,
 } from "./copy";
+import type { ContinuousEffect } from "./continuousEffects";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -4586,6 +4587,24 @@ export type GameState = {
      *  contract by `assertExpectedInput` (#799) before its action-specific
      *  validation. See {@link ExpectedInput}. */
     expectedInput?: ExpectedInput;
+    /** The Continuous Effects Registry (ADR 0082, PRD #2064) — every
+     *  CHARACTERISTIC-CHANGING continuous effect (CR 613) as one ordered list,
+     *  whatever generated it. Provenance survives only as
+     *  `ContinuousEffectExpiry`, which is what makes a uniform per-read
+     *  recompute expressible: an effect a resolved spell left behind
+     *  (CR 611.2a) has no permanent to walk, so it cannot be rebuilt by
+     *  scanning the battlefield.
+     *
+     *  Read through `continuousEffectsInLayer` (`gre/continuousEffects.ts`) —
+     *  the single CR 613.7 ordering authority. Never sort by `timestamp`
+     *  inline.
+     *
+     *  EMPTY IN PRODUCTION as of slice S1 (#3002): the structure and its
+     *  ordering contract ship first, and each layer migrates onto it in turn
+     *  (S2 #3003 layer 7, S3 #3004 layer 6, S4 #3005 layers 2-5). Until then
+     *  the materialised model in `applySourceStaticEffects` and friends stays
+     *  authoritative. */
+    continuousEffects?: ContinuousEffect[];
 };
 
 /** Authoritative discriminated union describing what input the game is
@@ -7748,6 +7767,17 @@ function allocStaticTimestamp(state: GameState): number {
     const bump = (seq: number | undefined) => {
         if (seq !== undefined && seq > max) max = seq;
     };
+    // ADR 0082 / PRD #2064 — the Continuous Effects Registry shares THIS
+    // sequence (its entries' `timestamp` is a CR 613.7 layer timestamp, not a
+    // second counter). A registry entry is the third sourceless record shape,
+    // exactly like `grantActivatedAbilityPermanent`'s grant and the
+    // `"indefinite"` subtype writers documented above: it is stamped from here
+    // but has no battlefield permanent to hang a `staticSeq` on. Unscanned, the
+    // next caller would mint a TIE with a live registry entry instead of
+    // outranking it — the ordering bug this function exists to prevent. The
+    // registry is empty until S2 (#3003), so this scan is a no-op today and a
+    // precondition afterwards.
+    for (const entry of state.continuousEffects ?? []) bump(entry.timestamp);
     for (const player of state.players) {
         for (const card of player.battlefield) {
             bump(card.staticSeq);
