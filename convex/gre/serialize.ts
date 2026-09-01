@@ -1901,6 +1901,18 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // cardId string table (issue #1780) rather than embedding a raw uuid per
     // departure in the hottest row in the system.
     "lastKnownCopiable",
+    // ADR 0082 / PRD #2064 — the Continuous Effects Registry. PERSISTED, and
+    // the choice is forced rather than conventional: an entry whose expiry is
+    // `duration` or `indefinite` is the residue of a spell that has already
+    // resolved and left (CR 611.2a), so there is NO source on any zone from
+    // which a load could rebuild it. Dropping the key across a write would
+    // silently end every until-end-of-turn pump and every "loses all
+    // abilities" the game had in effect. A plain-data array by construction —
+    // payloads reference a card definition's `staticEffects[]` by
+    // `(sourceCardId, effectIndex)` and never embed a closure
+    // (`gre/continuousEffects.ts`) — so it round-trips through the generic
+    // optional-key loop with no per-field compaction.
+    "continuousEffects",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

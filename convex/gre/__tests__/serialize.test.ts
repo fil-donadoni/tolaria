@@ -25,6 +25,7 @@ import {
     tundra,
 } from "../../cards/sets/lea";
 import { bloodMoon } from "../../cards/sets/drk/red";
+import { crusade } from "../../cards/sets/lea/white";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
@@ -1642,6 +1643,18 @@ describe("schema drift guard", () => {
         state.monarchReturnWatch = [
             { sourceId: "jailer-1", controllerId: "p1" },
         ];
+        // ADR 0082 / PRD #2064 — the Continuous Effects Registry.
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 6,
+                timestamp: 1,
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                affected: { kind: "instances", instanceIds: ["c1"] },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+                characteristicDefining: false,
+            },
+        ];
 
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
@@ -1701,6 +1714,77 @@ describe("optional field round-trip smoke tests", () => {
             choiceKind: "may-pay",
         };
         expect(roundTrip(state).expectedInput).toEqual(state.expectedInput);
+    });
+
+    // ADR 0082 / PRD #2064 — the Continuous Effects Registry. One entry of
+    // EVERY expiry provenance: the `duration` and `indefinite` ones are the
+    // reason the key is persisted rather than transient (CR 611.2a — the spell
+    // that generated them has resolved and left, so no load can rebuild them
+    // by walking any zone).
+    //
+    // Asserted through `JSON.parse(JSON.stringify(...))`, NOT through
+    // `roundTrip` alone: the generic optional-key loop writes `out[k] = v`
+    // without copying, so a plain `toEqual` after an in-memory round trip
+    // compares the array with itself and would pass for a payload carrying a
+    // closure — exactly the risk ADR 0082 flags and this test exists to
+    // retire. The JSON hop is what the Convex write actually does.
+    it("continuousEffects (every expiry provenance, JSON-safe)", () => {
+        const state = freshState();
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 6,
+                timestamp: 1,
+                expiry: { kind: "source", sourceId: "aura-1" },
+                affected: { kind: "predicate" },
+                payload: {
+                    kind: "template",
+                    sourceCardId: crusade.id,
+                    effectIndex: 0,
+                },
+                characteristicDefining: false,
+            },
+            {
+                id: "ce-2",
+                layer: 6,
+                timestamp: 2,
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn", playerId: "p1" },
+                    controllerId: "p1",
+                },
+                affected: { kind: "instances", instanceIds: ["c1", "c2"] },
+                payload: { kind: "keyword-grant", keyword: "trample" },
+                characteristicDefining: false,
+            },
+            {
+                id: "ce-3",
+                layer: 6,
+                timestamp: 3,
+                expiry: {
+                    kind: "counter",
+                    permanentId: "c1",
+                    counterType: "flying",
+                },
+                affected: { kind: "instances", instanceIds: ["c1"] },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+                characteristicDefining: false,
+            },
+            {
+                id: "ce-4",
+                layer: 7,
+                sublayer: "7a",
+                timestamp: 4,
+                expiry: { kind: "indefinite", controllerId: "p2" },
+                affected: { kind: "instances", instanceIds: ["c2"] },
+                payload: { kind: "pt-set", power: 0, toughness: 0 },
+                characteristicDefining: true,
+            },
+        ];
+        const throughDb = expandState(
+            JSON.parse(JSON.stringify(compactState(state)))
+        );
+        expect(throughDb.continuousEffects).toEqual(state.continuousEffects);
     });
 
     it("pendingActivation", () => {
