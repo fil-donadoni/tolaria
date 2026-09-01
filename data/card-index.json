@@ -7902,6 +7902,14 @@
         "firstPrintSet": "mh2"
     },
     {
+        "name": "Enduring Innocence",
+        "scryfallId": "08f79439-b8f8-418f-9772-26d81844749e",
+        "oracleId": "98a389f4-2905-47f3-b60e-3d4afb3e5cb0",
+        "firstSet": "dsk",
+        "firstPrintId": "08f79439-b8f8-418f-9772-26d81844749e",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Enduring Renewal",
         "scryfallId": "be77edac-9a8b-4b7f-a859-27df76b10aa6",
         "oracleId": "47a080c4-ff04-4f52-aca0-2b8e4f4d931e",

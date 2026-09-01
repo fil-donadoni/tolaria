@@ -3493,6 +3493,11 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     supertypes: "adapter-only",
     // `power`/`toughness` are always populated.
     powerAtLeast: "adapter-only",
+    // The upper-bound twin (issue #2084, Enduring Innocence's "with power 2 or
+    // less") rides the SAME populated `power` field, so it has exactly
+    // `powerAtLeast`'s support: the engine-matcher path matches it,
+    // `ClientPermanentFilter` has no P/T field to mirror it into.
+    powerAtMost: "adapter-only",
     toughnessAtLeast: "adapter-only",
     // `isAttacking`/`isBlocking` are always populated.
     isAttacking: "adapter-only",
@@ -3573,6 +3578,7 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     isBlocking: "populated",
     createdBy: "populated",
     powerAtLeast: "populated",
+    powerAtMost: "populated",
     toughnessAtLeast: "populated",
     // `id` is always populated, so both instance-id filters already work.
     instanceIds: "populated",
