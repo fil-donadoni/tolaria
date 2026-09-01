@@ -563,7 +563,7 @@ export const nemataGroveGuardian: CardDefinition = {
 // Planeswalker's Scorn (`pls/black.ts`, the cycle's black member, issue
 // #1950) — tracked by the SAME shared issue, which explicitly lists this
 // slice (#1952) among its siblings. Left as a stub rather than a
-// card-shaped `resolve()`. tracked-by: #2004
+// card-shaped `resolve()`. tracked-by: #2003
 // export const planeswalkersFavor: CardDefinition = {
 //     id: "b3387540-93bf-451e-8e7a-fc78caab42b0", // PLS 86
 //     name: "Planeswalker's Favor",

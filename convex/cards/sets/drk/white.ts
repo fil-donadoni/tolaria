@@ -410,7 +410,10 @@ export const martyrsCry: CardDefinition = {
     // and cannot name the controller of a `forEach` `$each` member, so
     // "for each creature exiled this way, ITS controller draws a card" has no
     // declarative form. Stays resolve() until `controllerOf` accepts an object
-    // ref. tracked-by: #1438
+    // ref. The 2026-09-01 audit of #1438 retired "Op-blocked -> 0" as a goal,
+    // so no issue schedules the `controllerOf` widening: the card behaves
+    // correctly today and only its authoring mode stays imperative, which
+    // puts migrating this closure out of scope.
     resolve: (ctx: SpellContext) => {
         // Snapshot per-controller white creatures first (CR 608.2g — the count
         // is fixed by what is exiled, not by post-exile board state).
