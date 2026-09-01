@@ -695,3 +695,205 @@ describe("unseenRemainder — what the decklist still admits (issue #2789)", () 
         expect(a).toEqual(b);
     });
 });
+
+// ── Partial library-order knowledge (issue #1524) ────────────────────────────
+//
+// A scry keep, a Brainstorm put-back and an Impulse/Stock Up bottoming all
+// leave the observer knowing a card AND its position (ADR 0026, `knownTo`).
+// Before #1524 `determinize` reshuffled the observer's WHOLE library on every
+// ISMCTS iteration, so the bot forgot a card it had scryed to the top one
+// action ago. The known runs must now survive at their exact indices while the
+// unknown middle is still re-dealt.
+
+/** A longer library so "the unknown middle is still shuffled" is a claim with
+ *  room to be false. Ten distinct positions, ids `p{n}-lib-{i}`. */
+function knowledgeState(): GameState {
+    const ids = [
+        BOLT,
+        BEARS,
+        GIANT,
+        MOUNTAIN,
+        BEARS,
+        GIANT,
+        MOUNTAIN,
+        BOLT,
+        BEARS,
+        GIANT,
+    ];
+    const lib = (owner: string) =>
+        ids.map((cardId, i) =>
+            makeInstance(cardId, {
+                controllerId: owner,
+                ownerId: owner,
+                id: `${owner}-lib-${i}`,
+                zone: "library",
+            })
+        );
+    return makeState({
+        players: [
+            makePlayer("p1", { library: lib("p1") }),
+            makePlayer("p2", {
+                library: lib("p2"),
+                hand: [BEARS, GIANT, MOUNTAIN].map((cardId, i) =>
+                    makeInstance(cardId, {
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        id: `p2-hand-${i}`,
+                        zone: "hand",
+                    })
+                ),
+            }),
+        ],
+    });
+}
+
+/** Stamp ADR 0026 knowledge onto library positions, exactly as `grantKnowledge`
+ *  does when a scry/surveil/Brainstorm submit path resolves. */
+function know(
+    state: GameState,
+    playerId: string,
+    indices: number[],
+    knowerId: string
+): void {
+    const player = state.players.find((p) => p.id === playerId)!;
+    for (const i of indices) {
+        const card = player.library[i];
+        card.knownTo = [...(card.knownTo ?? []), knowerId];
+    }
+}
+
+const SEEDS = [1, 2, 3, 7, 11, 42, 1337];
+
+describe("determinize — known library runs are pinned (issue #1524)", () => {
+    it("keeps the observer's known TOP run at its exact indices, every seed", () => {
+        const state = knowledgeState();
+        know(state, "p1", [0, 1, 2], "p1");
+        const expected = state.players[0].library.slice(0, 3).map((c) => c.id);
+
+        for (const seed of SEEDS) {
+            const out = determinize(state, "p1", makeRng(seed));
+            expect(out.players[0].library.slice(0, 3).map((c) => c.id)).toEqual(
+                expected
+            );
+            expect(out.players[0].library).toHaveLength(10);
+        }
+    });
+
+    it("keeps the observer's known BOTTOM run at its exact indices, every seed", () => {
+        const state = knowledgeState();
+        know(state, "p1", [8, 9], "p1");
+        const expected = state.players[0].library.slice(8).map((c) => c.id);
+
+        for (const seed of SEEDS) {
+            const out = determinize(state, "p1", makeRng(seed));
+            expect(out.players[0].library.slice(8).map((c) => c.id)).toEqual(
+                expected
+            );
+            expect(out.players[0].library).toHaveLength(10);
+        }
+    });
+
+    it("re-deals every position OUTSIDE the known runs — no leak of unknown order", () => {
+        const state = knowledgeState();
+        know(state, "p1", [0, 9], "p1");
+        // Each unknown slot must be seen holding at least two different cards
+        // across the seed sweep, or the shuffle is not reaching it.
+        const seen = new Map<number, Set<string>>();
+        for (const seed of SEEDS) {
+            const out = determinize(state, "p1", makeRng(seed));
+            out.players[0].library.forEach((c, i) => {
+                if (!seen.has(i)) seen.set(i, new Set());
+                seen.get(i)!.add(c.id);
+            });
+        }
+        for (let i = 1; i <= 8; i++) {
+            expect(seen.get(i)!.size).toBeGreaterThan(1);
+        }
+        // …and the pinned ends never moved.
+        expect(seen.get(0)!.size).toBe(1);
+        expect(seen.get(9)!.size).toBe(1);
+    });
+
+    it("does NOT pin a known card the projection would not grant — one buried between unknowns", () => {
+        // ADR 0026: position certainty is lost the moment an unknown card
+        // straddles a known one, so index 5 is contiguous with neither end and
+        // the wire never emits it. Pinning it would hand the search a position
+        // the viewer was never shown.
+        const state = knowledgeState();
+        know(state, "p1", [5], "p1");
+        const buried = state.players[0].library[5].id;
+        const seen = new Set<string>();
+        for (const seed of SEEDS) {
+            seen.add(
+                determinize(state, "p1", makeRng(seed)).players[0].library[5].id
+            );
+        }
+        expect(seen.size).toBeGreaterThan(1);
+        expect(seen).toContain(buried);
+    });
+
+    it("ignores knowledge held by the OTHER player — the observer's own gate", () => {
+        const state = knowledgeState();
+        know(state, "p1", [0, 1], "p2");
+        const seen = new Set<string>();
+        for (const seed of SEEDS) {
+            seen.add(
+                determinize(state, "p1", makeRng(seed)).players[0].library[0].id
+            );
+        }
+        expect(seen.size).toBeGreaterThan(1);
+    });
+
+    it("pins an OPPONENT library card the observer knows, and withholds it from the hand", () => {
+        // A fateseal / an opponent-aimed surveil: the observer was shown the
+        // top of p2's library. It stays where it is, and — as with a CR 401.5
+        // revealed top — it can never turn up in p2's hand.
+        const state = knowledgeState();
+        know(state, "p2", [0], "p1");
+        const known = state.players[1].library[0].id;
+
+        for (const seed of SEEDS) {
+            const out = determinize(state, "p1", makeRng(seed));
+            const p2 = out.players[1];
+            expect(p2.library[0].id).toBe(known);
+            expect(p2.hand.map((c) => c.id)).not.toContain(known);
+            expect(p2.hand).toHaveLength(3);
+            expect(p2.library).toHaveLength(10);
+            // Every other position is still pooled with the hand and re-dealt.
+            expect(p2.library.slice(1)).toHaveLength(9);
+        }
+    });
+
+    it("pins an INFORMED opponent's known library card at its own index, not at the front", () => {
+        // The #2789 path kept a `knownTo` library card but collapsed every one
+        // of them to the front of the sampled library — a position the observer
+        // was never shown. It now stays exactly where the projection says.
+        const state = knowledgeState();
+        know(state, "p2", [9], "p1");
+        const known = state.players[1].library[9].id;
+        const deck: string[] = Array.from({ length: 13 }, () => MOUNTAIN);
+
+        for (const seed of SEEDS) {
+            const out = determinize(state, "p1", makeRng(seed), [
+                { playerId: "p2", cardIds: deck },
+            ]);
+            const p2 = out.players[1];
+            expect(p2.library[9].id).toBe(known);
+            expect(p2.hand.map((c) => c.id)).not.toContain(known);
+            expect(p2.library).toHaveLength(10);
+            expect(p2.hand).toHaveLength(3);
+        }
+    });
+
+    it("stays pure and seed-reproducible with runs pinned", () => {
+        const state = knowledgeState();
+        know(state, "p1", [0, 1], "p1");
+        know(state, "p2", [0], "p1");
+        const before = JSON.stringify(state);
+
+        const a = determinize(state, "p1", makeRng(5));
+        const b = determinize(state, "p1", makeRng(5));
+        expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
+        expect(JSON.stringify(state)).toEqual(before);
+    });
+});

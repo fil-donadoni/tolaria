@@ -68,8 +68,10 @@ let seatDeck:
 // where a real decklist either becomes real card identities or is thrown away
 // for placeholders (issue #1509, generalised per-seat by #2788).
 const adapterCalls: {
-    /** 2 only for the SEARCH rehydration (`handleBrainRequest` passes
-     *  `deckKnowledge`); the driver's own `shouldThink` gate and `bot-view`
+    /** 3 only for the SEARCH rehydration — `handleBrainRequest` passes
+     *  `deckKnowledge` AND the viewer whose projection it is (`botId`, issue
+     *  #1524, so `library.known[]` can be restored as `knownTo` and survive
+     *  determinization); the driver's own `shouldThink` gate and `bot-view`
      *  call the adapter with the state alone, and those calls are not this
      *  seam. */
     argCount: number;
@@ -78,7 +80,7 @@ const adapterCalls: {
 }[] = [];
 /** The adapter calls made by the SEARCH — see `argCount` above. */
 function searchAdapterCalls() {
-    return adapterCalls.filter((c) => c.argCount === 2);
+    return adapterCalls.filter((c) => c.argCount === 3);
 }
 // When active, every mutation returns a promise that only settles once
 // `heldMutation.release()` is called (issue #1209).

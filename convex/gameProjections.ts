@@ -27,6 +27,7 @@ import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
 } from "./gre/libraryReveal";
+import { knownLibraryIndices } from "./gre/libraryKnownRuns";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import { hasRetrace } from "./gre/retrace";
@@ -433,31 +434,24 @@ function projectLibrary(
      *  positional parameter here. */
     topAffordance?: Omit<SlimLibraryCard, keyof SlimCardInstance>
 ): PublicLibrary {
-    // CR 401.5 — the continuous reveal is viewer-INDEPENDENT and covers exactly
-    // index 0; every other position stays gated by per-viewer `knownTo`.
-    const knows = (card: CardInstanceState, index: number) =>
-        (topRevealed && index === 0) ||
-        (card.knownTo?.includes(viewerId) ?? false);
-    const known: KnownLibraryCard[] = [];
-    // Top run: [0, topEnd).
-    let topEnd = 0;
-    while (topEnd < library.length && knows(library[topEnd], topEnd)) {
-        const slim = slimCard(library[topEnd]);
-        known.push({
-            index: topEnd,
+    // The two contiguous runs (and the CR 401.5 index-0 carve-out) are derived
+    // by `knownLibraryIndices` — ONE authority, shared with `determinize`, so
+    // the bot's search can never pin a position this projection did not grant
+    // (issue #1524).
+    const known: KnownLibraryCard[] = knownLibraryIndices(
+        library,
+        viewerId,
+        topRevealed
+    ).map((index) => {
+        const slim = slimCard(library[index]);
+        return {
+            index,
             card:
-                topEnd === 0 && topAffordance !== undefined
+                index === 0 && topAffordance !== undefined
                     ? { ...slim, ...topAffordance }
                     : slim,
-        });
-        topEnd++;
-    }
-    // Bottom run: (bottomStart, length), scanning up but never crossing topEnd
-    // so an all-known library is not double-counted.
-    for (let index = library.length - 1; index >= topEnd; index--) {
-        if (!knows(library[index], index)) break;
-        known.push({ index, card: slimCard(library[index]) });
-    }
+        };
+    });
     return { count: library.length, known };
 }
 
