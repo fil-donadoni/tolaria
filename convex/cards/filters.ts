@@ -149,6 +149,13 @@ export interface PermanentFilter {
     /** Inclusive lower bound on effective power (CR 613 layer 7c). Matches
      *  only if `card.power !== undefined` and `card.power >= powerAtLeast`. */
     powerAtLeast?: number;
+    /** Inclusive UPPER bound on effective power (CR 613 layer 7c) — "with power
+     *  2 or less" (Enduring Innocence). Mirror of `powerAtLeast`, including its
+     *  FAIL-CLOSED treatment of a missing power: a caller that cannot supply
+     *  `card.power` (a noncreature permanent, or an event payload predating the
+     *  field) does not match, so an unpopulated reader can never widen a
+     *  restriction. */
+    powerAtMost?: number;
     /** Inclusive lower bound on effective toughness. Matches only if
      *  `card.toughness !== undefined` and `card.toughness >= toughnessAtLeast`. */
     toughnessAtLeast?: number;
@@ -457,6 +464,10 @@ export function matchesPermanentFilter(
     if (filter.powerAtLeast !== undefined) {
         if (card.power === undefined) return false;
         if (card.power < filter.powerAtLeast) return false;
+    }
+    if (filter.powerAtMost !== undefined) {
+        if (card.power === undefined) return false;
+        if (card.power > filter.powerAtMost) return false;
     }
     if (filter.toughnessAtLeast !== undefined) {
         if (card.toughness === undefined) return false;

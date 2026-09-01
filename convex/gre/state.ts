@@ -10341,6 +10341,20 @@ export function removePermanentTo(
     revertTransform(creature);
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature);
+    } else {
+        // CR 400.7 (issue #2084) — graveyard / exile deliberately PRESERVE the
+        // instance's history (the counters snapshot, the damage record a death
+        // trigger reads), but never its characteristics: the card that lands
+        // there is a new object showing its PRINTED type line. Only the type
+        // half of the reset is owed here, so it goes through the extracted
+        // `revertTypeLine` rather than the whole helper.
+        //
+        // NOT covered by the `applyZoneCharacteristics` call further down,
+        // despite what that call's comment used to claim: it early-returns for
+        // any card that does not itself DECLARE off-battlefield
+        // characteristics (CR 113.6c, Grist), which is every card but a
+        // handful.
+        revertTypeLine(creature);
     }
     // CR 122.2 / 400.7 — counters on a permanent cease to exist the moment it
     // leaves the battlefield; the card in the graveyard/exile is a NEW object
@@ -10374,10 +10388,10 @@ export function removePermanentTo(
     // CR 113.6c — the battlefield-departure twin of the `moveCard` call: a
     // static ability that functions only OUTSIDE the battlefield switches on
     // the moment the permanent lands in a hidden/public non-battlefield zone.
-    // Recomputed from the printed definition, so it also clears whatever
-    // layer-4 `type-add` was live on the battlefield — `removePermanentTo`
-    // only resets `types` via `resetBattlefieldTransientState` for the
-    // hand/library destinations, never for graveyard/exile.
+    // Recomputed from the printed definition — but ONLY for a card that
+    // declares off-battlefield characteristics of its own; it early-returns
+    // for every other card, so it is NOT what clears a layer-4 type mutation.
+    // That is `revertTypeLine`'s job, called on both departure branches above.
     applyZoneCharacteristics(creature);
     // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
     // knowledge: every player watched it sit on the battlefield and watched it
@@ -11869,6 +11883,50 @@ export function revertTypeProvenance(card: CardInstanceState): void {
     }
 }
 
+/** CR 400.7 / 205 — restores a departing permanent's PRINTED type line: the
+ *  two layer-4 SUBTYPE reverts (an indefinite `setSubtype`, a duration-scoped
+ *  `setSubtypeUntil`) and their card-TYPE sibling `revertTypeProvenance`.
+ *
+ *  Extracted from `resetBattlefieldTransientState` (issue #2084) because the
+ *  type line is the one part of that reset EVERY departure owes, including the
+ *  graveyard / exile destinations the rest of the helper deliberately skips.
+ *  Those two zones preserve the instance's history on purpose — the counters
+ *  snapshot, the damage record a death trigger reads — but CR 400.7 admits no
+ *  such exception for characteristics: the card in a graveyard is a NEW object
+ *  and shows what it PRINTS.
+ *
+ *  Reachable the moment a card both LOSES a type indefinitely and can reach a
+ *  graveyard, which Enduring Innocence (`sets/dsk/white.ts`) is the first
+ *  shipped card to do — it returns from its own death as an Enchantment, and
+ *  when THAT is later destroyed the card must sit in the graveyard as the
+ *  Enchantment Creature — Sheep Glimmer card it prints. Otherwise every
+ *  instance-typed graveyard reader disagrees with the rules: `getLegalTargets`
+ *  / `selectTarget` (`gre/rules.ts` — "return target creature card from your
+ *  graveyard" cannot see it), `isCreature` / `isLand` at the ~20 hidden-zone
+ *  call sites, and the client mirrors fed by `projectPublicState`. The
+ *  divergence is RESTRICTIVE (a legal target vanishes), which is why no
+ *  existing card noticed: `setCardTypes`' only prior caller (Oko, #2361) ADDS
+ *  Creature, and a granted type merely lingering reads as permissive noise.
+ *
+ *  Idempotent: the reanimation ENTRY path runs the full
+ *  `resetBattlefieldTransientState`, so reverting on the way out and again on
+ *  the way in is a no-op the second time. */
+export function revertTypeLine(card: CardInstanceState): void {
+    if (card.indefiniteSubtypeSet) {
+        card.subtypes = [...card.indefiniteSubtypeSet.restoreSubtypes];
+        delete card.indefiniteSubtypeSet;
+    }
+    if (card.temporarySubtypeChange) {
+        card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
+        delete card.temporarySubtypeChange;
+    }
+    // `grantedTypes` / `suppressedTypes` are keyed by the SOURCE but mutate the
+    // TARGET's `types` in place, so the source-driven reversal never fires when
+    // the TARGET is the one leaving (issue #2086). Restores the printed type
+    // line BEFORE the records are dropped; see the helper's own doc.
+    revertTypeProvenance(card);
+}
+
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
  *  non-exile zone (hand, library), it becomes a new object with no memory of
  *  its previous existence. Strips battlefield-only transient fields so the
@@ -11994,20 +12052,7 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // recorded printed value BEFORE the record is dropped — the instance's
     // `subtypes` were overwritten in place.
     delete card.temporaryPTSet;
-    if (card.indefiniteSubtypeSet) {
-        card.subtypes = [...card.indefiniteSubtypeSet.restoreSubtypes];
-        delete card.indefiniteSubtypeSet;
-    }
-    if (card.temporarySubtypeChange) {
-        card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
-        delete card.temporarySubtypeChange;
-    }
-    // CR 400.7 / 205 (issue #2086) — the layer-4 card-TYPE siblings of the two
-    // subtype reverts above. `grantedTypes` / `suppressedTypes` are keyed by
-    // the SOURCE but mutate the TARGET's `types` in place, so the source-driven
-    // reversal never fires when the TARGET is the one leaving. Restores the
-    // printed type line BEFORE the records are dropped; see the helper's doc.
-    revertTypeProvenance(card);
+    revertTypeLine(card);
     delete card.sourceTappedPTMods;
     delete card.untapLockedBy;
     delete card.skipNextUntap;

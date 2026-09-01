@@ -124,6 +124,23 @@ export interface EnteredTriggerArgs {
      *  body lives on the modes — and forwarded verbatim onto the built
      *  `TriggeredAbility`. */
     modes?: AbilityMode[];
+    /** CR 603.3b — "whenever ONE OR MORE ... enter" (Enduring Innocence). A
+     *  single game action can put several permanents onto the battlefield at
+     *  once, emitting one `PERMANENT_ENTERED` per permanent in the SAME
+     *  `collectTriggers` batch; with this set the ability triggers ONCE for
+     *  that batch instead of once per event. Opt-in and rare — a plain
+     *  "whenever a creature enters" (Soul Warden) must keep firing per event.
+     *  Forwarded verbatim onto the built `TriggeredAbility`, where
+     *  `gre/triggers.ts` enforces it. */
+    oncePerEventBatch?: boolean;
+    /** CR 603.2 per-turn TRIGGER cap — "This ability triggers only once each
+     *  turn" (Enduring Innocence). Bounds how many times the ability may
+     *  TRIGGER, per SOURCE OBJECT; past the cap no stack item is created at
+     *  all. Forwarded verbatim onto the built `TriggeredAbility`, where
+     *  `gre/triggers.ts` enforces it against
+     *  `CardInstanceState.triggersThisTurn`. Mirrors `attacksTrigger`'s own
+     *  passthrough. */
+    maxTriggersPerTurn?: number;
     /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
      *  #1519) — never executed, only walked by `OP_VALUERS` so the value model
      *  can see what an imperative ETB trigger does. Passed straight through to
@@ -157,6 +174,18 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                     subtypes: [],
                     staticAbilities: [],
                     controllerId: event.controllerId,
+                    // CR 603.2 / 613.4 — the entering permanent's EFFECTIVE
+                    // power/toughness, snapshotted by `emitPermanentEntered`
+                    // with continuous effects already applied (an anthem, a
+                    // +1/+1 counter it entered with). Present only for a
+                    // creature; a `powerAtMost`/`powerAtLeast` filter against
+                    // an absent value fails CLOSED (`matchesPermanentFilter`),
+                    // which is what an older serialized event without the
+                    // field must do. Mirrors `diedTrigger`'s own subject,
+                    // which has carried the `CREATURE_DIED` P/T LKI since it
+                    // shipped.
+                    power: event.power,
+                    toughness: event.toughness,
                 };
                 if (
                     !matchesPermanentFilter(subject, args.filter, {
@@ -221,6 +250,12 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     }
     if (args.aiEffects !== undefined) {
         ability.aiEffects = args.aiEffects;
+    }
+    if (args.oncePerEventBatch) {
+        ability.oncePerEventBatch = true;
+    }
+    if (args.maxTriggersPerTurn !== undefined) {
+        ability.maxTriggersPerTurn = args.maxTriggersPerTurn;
     }
     if (args.interveningIf !== undefined) {
         const userInterveningIf = args.interveningIf;

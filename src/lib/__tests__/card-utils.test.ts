@@ -4107,6 +4107,21 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: false,
             },
         ],
+        // issue #2084 — Enduring Innocence's "creatures you control with power
+        // 2 or less". The upper bound is INCLUSIVE (CR has no "fewer than"
+        // reading of "2 or less"), so power exactly 2 matches.
+        powerAtMost: [
+            {
+                card: makeCardInstance({ types: ["Creature"], power: 2 }),
+                filter: { powerAtMost: 2 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ types: ["Creature"], power: 3 }),
+                filter: { powerAtMost: 2 },
+                expected: false,
+            },
+        ],
         toughnessAtLeast: [
             {
                 card: makeCardInstance({
