@@ -3678,6 +3678,97 @@ describe("validateEffectScript — { opponentOf } wraps a { ref } at the SAME ke
     });
 });
 
+// issue #2993 — the moveZone ENTRY TYPE LINE: "return it to the battlefield.
+// It's an enchantment." The field is consumed by the `target`-shape's
+// reanimation branch and by nothing else, and BOTH halves are required — the
+// engine has no subtype → card-type classifier (ADR 0087 § Amendment), so an
+// omitted `subtypes` would fail open and leave the creature subtypes behind.
+describe("validateEffectScript — moveZone entersAs (issue #2993)", () => {
+    it("accepts a well-formed entry type line on a reanimating target shape", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        entersAs: { types: ["Enchantment"], subtypes: [] },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it('rejects "entersAs" with a non-battlefield destination', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "hand",
+                        entersAs: { types: ["Enchantment"], subtypes: [] },
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain('field "entersAs" is only valid');
+    });
+
+    it('rejects "entersAs" on the "cards" shape (its battlefield branch does not carry it)', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        cards: { ref: "$picked" },
+                        player: "controller",
+                        from: "graveyard",
+                        to: "battlefield",
+                        entersAs: { types: ["Enchantment"], subtypes: [] },
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain('field "entersAs" is only valid');
+    });
+
+    it("rejects an entry type line with no subtypes half — the fail-open shape", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        entersAs: { types: ["Enchantment"] },
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain("entersAs");
+    });
+
+    it("rejects an empty types array and an unknown card type", () => {
+        for (const types of [[], ["Sheep"]]) {
+            const errors = validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                            entersAs: { types, subtypes: [] },
+                        } as unknown as EffectOp,
+                    ],
+                })
+            );
+            expect(errors.join("\n")).toContain("entersAs");
+        }
+    });
+});
+
 // issue #1726 — the moveZone POSITIONAL LIBRARY INSERT: a battlefield
 // permanent target → library at a 1-based position from the top (Teferi,
 // Hero of Dominaria's −3 "third from the top"). Permanent schema coverage

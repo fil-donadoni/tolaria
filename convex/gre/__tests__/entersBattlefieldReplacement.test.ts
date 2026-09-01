@@ -160,6 +160,65 @@ describe("enters-battlefield replacement (CR 614, issue #1148)", () => {
         expect(p1.exile.some((c) => c.id === "victim")).toBe(true);
     });
 
+    it("a REDIRECTED entry discards its pending entry type line — no stale stamp rides into exile (issue #2993, PR #3023 review B1)", () => {
+        // CR 614 + CR 611.2c — the permanent never entered, so the "It's an
+        // enchantment" continuous effect never began and its pending stamp
+        // expires with the attempt. The stamp is PERSISTED and
+        // `applyEntryTypeLine` is the only thing that consumes one, so a stamp
+        // left on the exiled card would be applied by a completely unrelated
+        // entry an arbitrary number of turns later (CR 400.7: a different
+        // object), which is the failure this asserts against.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [victimInGraveyard("victim", "p1")],
+                    battlefield: [redirector("src1", "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const stackItem = pushSpell(state, REDIRECTOR_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+
+        const entered = ctx.returnToBattlefield(
+            "p1",
+            "victim",
+            "graveyard",
+            undefined,
+            { entersAs: { types: ["Enchantment"], subtypes: [] } }
+        );
+
+        expect(entered).toBe(false);
+        const exiled = state.players[0].exile.find((c) => c.id === "victim")!;
+        expect(exiled).toBeDefined();
+        // Nothing was applied — the card in exile shows its printed line.
+        expect(exiled.types).toEqual(["Creature"]);
+        expect(exiled.subtypes).toEqual(["Bear"]);
+        // …and nothing is still pending on it.
+        expect(exiled.entersAsTypeLine).toBeUndefined();
+
+        // The consequence, spelled out: a LATER, unrelated return of that same
+        // card must enter it as the Bear it prints, not as the enchantment an
+        // expired intent asked for. (The redirector is gone by then, so this
+        // entry is not redirected in turn.)
+        state.players[0].battlefield = [];
+        const later = ctx.returnToBattlefield("p1", "victim", "exile");
+        expect(later).toBe(true);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(back.types).toEqual(["Creature"]);
+        expect(back.subtypes).toEqual(["Bear"]);
+        const events = flushPendingEvents(state);
+        const entry = events.find(
+            (e) => e.type === "PERMANENT_ENTERED" && e.instanceId === "victim"
+        );
+        expect(entry).toBeDefined();
+        expect(entry!.type === "PERMANENT_ENTERED" && entry!.types).toEqual([
+            "Creature",
+        ]);
+    });
+
     it("does NOT redirect a normally CAST creature (finalizeSpellResolution, wasCast: true)", () => {
         const state = makeState({
             players: [

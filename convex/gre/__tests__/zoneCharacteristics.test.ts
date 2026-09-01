@@ -35,11 +35,17 @@ import {
 } from "../../cards/__tests__/setup";
 import { applyPlayLand, applyPlayLandFromExile } from "../playLand";
 import { checkStateBasedActions } from "../sba";
+import { buildSpellContext, flushPendingEvents } from "../state";
+import { pushSpell } from "../../cards/__tests__/setup";
 
 // A land that is a 1/1 Insect creature everywhere except the battlefield —
 // Grist's shape transplanted onto a card type that reaches the battlefield
 // through `moveCard` instead of through spell resolution.
 const ZONE_LAND_ID = "00000000-0000-4000-8000-00002391f001";
+// Grist's shape again, on a non-land permanent, so the REANIMATION entry path
+// can reach it — the one path where the entry type line (issue #2993) and
+// `clearZoneCharacteristics` both write `types` in the same breath.
+const ZONE_REANIMATABLE_ID = "00000000-0000-4000-8000-00002391f002";
 
 preloadDefinitions([
     {
@@ -48,6 +54,20 @@ preloadDefinitions([
         rarity: "rare",
         manaCost: {},
         types: ["Land"],
+        offBattlefieldCharacteristics: {
+            addTypes: ["Creature"],
+            addSubtypes: ["Insect"],
+            power: 1,
+            toughness: 1,
+        },
+    } as CardDefinition,
+    {
+        id: ZONE_REANIMATABLE_ID,
+        name: "Synthetic Zone-Conditional Permanent",
+        rarity: "rare",
+        manaCost: { generic: 2 },
+        types: ["Artifact"],
+        subtypes: ["Clue"],
         offBattlefieldCharacteristics: {
             addTypes: ["Creature"],
             addSubtypes: ["Insect"],
@@ -81,6 +101,64 @@ describe("off-battlefield characteristics on battlefield entry (CR 113.6c)", () 
         expect(entered!.subtypes ?? []).not.toContain("Insect");
         expect(entered!.power).toBeUndefined();
         expect(entered!.toughness).toBeUndefined();
+    });
+
+    it("an entry type line SURVIVES the strip — applied after clearZoneCharacteristics, not before (issue #2993, PR #3023 review B2)", () => {
+        // Both writers rewrite `types`/`subtypes` on the way in:
+        // `clearZoneCharacteristics` restores the PRINTED line for a card
+        // declaring `offBattlefieldCharacteristics` (CR 113.6c), and
+        // `applyEntryTypeLine` installs the line the effect says the permanent
+        // enters with (CR 205.1a / 613.1d — "return it to the battlefield.
+        // It's an enchantment."). Ordered the other way round, the entry line
+        // is silently clobbered while its layer-4 provenance records are left
+        // behind, and the ETB event announces the printed line — the exact bug
+        // issue #2993 fixed, resurfacing on this one card shape.
+        const victim = makeInstance(ZONE_REANIMATABLE_ID, {
+            id: "zone-victim",
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [victim] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // In the graveyard the ability functions: it IS a 1/1 Insect creature.
+        checkStateBasedActions(state);
+        expect(victim.types).toContain("Creature");
+
+        const item = pushSpell(state, ZONE_LAND_ID, "p1");
+        const ctx = buildSpellContext(state, item);
+        const entered = ctx.returnToBattlefield(
+            "p1",
+            "zone-victim",
+            "graveyard",
+            undefined,
+            { entersAs: { types: ["Enchantment"], subtypes: [] } }
+        );
+
+        expect(entered).toBe(true);
+        const back = state.players[0].battlefield.find(
+            (c) => c.id === "zone-victim"
+        )!;
+        // The entry line won: not the off-battlefield Creature/Insect, and not
+        // the printed Artifact — Clue either.
+        expect(back.types).toEqual(["Enchantment"]);
+        expect(back.subtypes).toEqual([]);
+        expect(back.power).toBeUndefined();
+        // And the entry EVENT announced it (CR 603.6a) — the whole point.
+        const events = flushPendingEvents(state);
+        const entry = events.find(
+            (e) =>
+                e.type === "PERMANENT_ENTERED" && e.instanceId === "zone-victim"
+        );
+        expect(entry).toBeDefined();
+        expect(entry!.type === "PERMANENT_ENTERED" && entry!.types).toEqual([
+            "Enchantment",
+        ]);
     });
 
     it("strips them when a land is played from an OPPONENT's exile (moveCardAcrossPlayers)", () => {

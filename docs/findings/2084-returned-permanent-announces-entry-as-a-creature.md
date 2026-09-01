@@ -1,10 +1,18 @@
 ---
 title: A permanent returned by "return it… It's an enchantment" announces its entry as a creature, so other ETB triggers see a creature enter
 discoveredBy: 2084
-status: triaged
+status: declined
 issue: 2993
 confidence: high
 ---
+
+**Declined — superseded by issue #2993, which shipped the fix.** The rules
+question this draft raised was settled by the project owner on 2026-09-01 (the
+permanent enters only as an enchantment) and the engine seam landed with issue
+#2993: `moveZone`'s `entersAs` type line, applied inside the entry funnel after
+the CR 400.7 entry-side reset and before `emitPermanentEntered`. Kept for the
+rules reasoning below, which the ADR 0087 amendment now points at; it is no
+longer an open question.
 
 **What is wrong.** Enduring Innocence's dies trigger is three sequential Ops:
 `moveZone` returns the card, then `setCardTypes ["Enchantment"]` strips Creature.

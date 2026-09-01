@@ -372,6 +372,46 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
+    it("preserves a PENDING entry type line on a PARKED staged entry (CR 205.1a / 614.12a, #2993)", () => {
+        // `entersAsTypeLine` is normally stamped and consumed inside one
+        // synchronous entry ("return it to the battlefield. It's an
+        // enchantment."), so the ONLY way it can be alive at a save point is
+        // the CR 614.12a park: a permanent owing "as it enters" choices is held
+        // in `stagedEntries` across a real DB write and re-enters the funnel on
+        // a later mutation (ADR 0100). That is the case under test — a
+        // battlefield card would round-trip through the same `compactCard`
+        // branch without proving the claim the field exists for.
+        const state = freshState();
+        const parked = makeInstance(animateArtifact.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        parked.entersAsTypeLine = { types: ["Enchantment"], subtypes: [] };
+        state.stagedEntries = [
+            {
+                card: parked,
+                controllerId: "p1",
+                origin: "effect",
+                parkedStackItemId: "stack-1",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
+        const expanded = expandState(compactState(state));
+
+        expect(expanded.stagedEntries).toHaveLength(1);
+        expect(expanded.stagedEntries![0].card.entersAsTypeLine).toEqual({
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+        // Absent when no entry is pending — the overwhelmingly common case.
+        const empty = expandState(compactState(freshState()));
+        expect(
+            empty.players[1].battlefield[0].entersAsTypeLine
+        ).toBeUndefined();
+    });
+
     it("an indefinitely-set subtype line reverts on leaving the battlefield ACROSS a save/load (CR 400.7, #2255)", () => {
         // A pure round-trip equality test (above) is not enough on its own —
         // the bug was the ANCHOR being lost, whose only visible symptom is

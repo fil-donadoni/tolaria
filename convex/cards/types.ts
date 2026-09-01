@@ -256,6 +256,24 @@ export type CardType =
     | "Battle"
     | "Kindred";
 
+/** CR 205.1a / 613.1d — a complete layer-4 TYPE LINE (card types + subtypes)
+ *  a permanent must show AS IT ENTERS the battlefield, rather than acquire
+ *  once it is already there ("return it to the battlefield. It's an
+ *  enchantment." — the DSK "Enduring" cycle, issue #2993).
+ *
+ *  BOTH halves are required, deliberately. CR 205.1a's correlated-subtype
+ *  clause ("if an object's card type is removed, the subtypes correlated with
+ *  that card type … are also removed") is answered by the AUTHOR stating the
+ *  surviving subtype line, exactly as the shipped `setCardTypes` + `setSubtype`
+ *  pair does at a normal call site (ADR 0087 § Amendment) — there is no
+ *  subtype → card-type classifier in the engine, and an optional `subtypes`
+ *  would fail OPEN, silently leaving a Sheep Glimmer on a permanent that is no
+ *  longer a creature. */
+export type EntryTypeLine = {
+    types: CardType[];
+    subtypes: string[];
+};
+
 /** The counter kinds that sit on a PLAYER rather than on an object (CR 122.1
  *  — "A counter is a marker placed on an object or player"). Each is a
  *  DEDICATED scalar on `PlayerState` (ADR 0032 — never an entry in a generic
@@ -3447,12 +3465,21 @@ export interface SpellContext {
      *  Pass a distinct `controllerId` to reanimate a card from any player's
      *  graveyard/exile under a DIFFERENT player's control (CR 400.7 / 800.4a —
      *  owner stays the pile's owner, controller becomes `controllerId`). Used by
-     *  Hymn of Rebirth ("from a graveyard ... under your control"). */
+     *  Hymn of Rebirth ("from a graveyard ... under your control").
+     *
+     *  `opts.entersAs` (CR 205.1a / 613.1d, issue #2993) makes the permanent
+     *  ENTER with that type line instead of its printed one — "return it to the
+     *  battlefield. It's an enchantment." The line is stamped on the instance
+     *  here and consumed inside the entry funnel, after the CR 400.7 entry-side
+     *  reset and before the ETB notification, so the PERMANENT_ENTERED event
+     *  announces what actually entered. See the `moveZone` Op's own `entersAs`
+     *  doc for why a trailing `setCardTypes` cannot do this. */
     returnToBattlefield: (
         playerId: string,
         cardInstanceId: string,
         fromZone: "graveyard" | "exile",
-        controllerId?: string
+        controllerId?: string,
+        opts?: { entersAs?: EntryTypeLine }
     ) => boolean;
     /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
      *  `returnToBattlefield`: returns a whole set of graveyard cards to the
@@ -12254,6 +12281,35 @@ export type EffectOp =
            *  "generalize, don't add" parametrization of this EXISTING
            *  announced-target shape rather than a new Op. */
           linkToSource?: boolean;
+          /** CR 205.1a / 613.1d / 611.2c (issue #2993) — the returning
+           *  permanent ENTERS with this type line, rather than entering with
+           *  its printed one and losing the difference afterwards: "return it
+           *  to the battlefield. It's an enchantment. (It's not a creature.)"
+           *  (the DSK "Enduring" cycle). Valid only with `to: "battlefield"`
+           *  (validator-enforced).
+           *
+           *  A trailing `setCardTypes` + `setSubtype` pair CANNOT express this.
+           *  The type line is applied at the ONE instant the entry funnel makes
+           *  available — after the CR 400.7 entry-side reset
+           *  (`resetBattlefieldTransientState`, which wipes every layer-4
+           *  provenance record and so undoes anything set BEFORE the move) and
+           *  before `emitPermanentEntered` — so the PERMANENT_ENTERED event
+           *  announces what actually entered. Set afterwards, the event carried
+           *  `types: ["Enchantment", "Creature"]` and a `power`, and every
+           *  "whenever a creature enters" watcher fired off a permanent that is
+           *  not a creature (CR 603.6a — the newcomer is checked against the
+           *  battlefield state the entry produced).
+           *
+           *  Mechanically an ENTRY STAMP on the instance
+           *  (`CardInstanceState.entersAsTypeLine`), mirroring
+           *  `stampBackFaceForEntry`'s "mutate the object between the departure
+           *  and the entry" seam (`gre/transform.ts`, issue #2380) rather than
+           *  inventing a second entry-mutation model. The stamp writes the SAME
+           *  `grantedTypes` / `suppressedTypes` / `indefiniteSubtypeSet` records
+           *  the `setCardTypes` / `setSubtype` Ops write, through the SAME
+           *  helpers, so CR 400.7 still restores the PRINTED type line when the
+           *  permanent later leaves. */
+          entersAs?: EntryTypeLine;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.

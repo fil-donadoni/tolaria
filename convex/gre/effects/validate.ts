@@ -2082,6 +2082,29 @@ function isMoveZoneTarget(value: unknown): boolean {
     );
 }
 
+/** `moveZone`'s `entersAs` field (issue #2993) — the complete layer-4 type
+ *  line a returning permanent ENTERS with (CR 205.1a / 613.1d): a non-empty
+ *  `types` array over the shared card-type vocabulary plus a `subtypes` array,
+ *  and NOTHING else.
+ *
+ *  BOTH keys are REQUIRED, and that is the fail-closed half of this predicate.
+ *  There is no subtype → card-type classifier in the engine (ADR 0087 §
+ *  Amendment: CR 205.1a's correlated-subtype clause is answered by the author
+ *  stating the surviving line), so an optional `subtypes` would let "It's an
+ *  enchantment" silently leave a Sheep Glimmer on a permanent that is no longer
+ *  a creature. An empty array is the legal, explicit way to say "no subtypes
+ *  survive". */
+function isEntryTypeLine(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const line = value as Record<string, unknown>;
+    if (!("types" in line) || !("subtypes" in line)) return false;
+    if (!isNonEmptyStringArray(line.types, TOKEN_CARD_TYPES)) return false;
+    if (!isStringArray(line.subtypes)) return false;
+    return Object.keys(line).every((k) => k === "types" || k === "subtypes");
+}
+
 /** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
  *  integers; `X` is a non-negative integer or the variable marker `"X"`. */
 const MANA_PIP_KEYS = new Set([
@@ -3339,6 +3362,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // (the "cards" shape's own search-and-exile sweep), valid only
             // alongside `to: "exile"` (Skyship Weatherlight).
             linkToSource: isBoolean,
+            // issue #2993 — the type line the returning permanent ENTERS with
+            // ("return it to the battlefield. It's an enchantment."), valid
+            // only on the `target` shape with `to: "battlefield"`.
+            entersAs: isEntryTypeLine,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -3508,6 +3535,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             if ("position" in entry && !hasTarget) {
                 errors.push(
                     'field "position" is only valid on the "target" shape (issue #1726)'
+                );
+            }
+            // issue #2993 — `entersAs` is consumed by the reanimation branch of
+            // the `target`-shape executor (`returnToBattlefield`'s entry stamp)
+            // and by nothing else. Rejected everywhere else so a script that
+            // asks for a type line the runtime would silently drop fails at
+            // authoring time — the `cards` shape's own battlefield branch and
+            // the `forEach { simultaneous }` batch primitive do NOT carry it.
+            if (
+                "entersAs" in entry &&
+                (!hasTarget || entry.to !== "battlefield")
+            ) {
+                errors.push(
+                    'field "entersAs" is only valid with "target" and to: "battlefield" (issue #2993)'
                 );
             }
             // issue #1279 — the whole-zone bulk shape: required `player`/

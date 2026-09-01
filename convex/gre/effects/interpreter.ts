@@ -3002,11 +3002,22 @@ export const OP_EXECUTORS: {
                     ? resolvePlayerRef(ctx, op.controller)
                     : undefined;
                 if (op.controller && controllerId === undefined) return;
+                // CR 205.1a / 613.1d / 603.6a (issue #2993) — `entersAs` makes
+                // the permanent ENTER with that type line ("return it to the
+                // battlefield. It's an enchantment. (It's not a creature.)").
+                // Handed to the primitive rather than applied by a trailing
+                // `setCardTypes`: the entry-side CR 400.7 reset wipes a line
+                // set before the move, and a line set AFTER it arrives too late
+                // for `emitPermanentEntered` — the event then announced a
+                // creature that was never on the battlefield as one.
                 const entered = ctx.returnToBattlefield(
                     owner,
                     target.id,
                     recoveredZone,
-                    controllerId
+                    controllerId,
+                    "entersAs" in op && op.entersAs
+                        ? { entersAs: op.entersAs }
+                        : undefined
                 );
                 // CR 110.5a (issue #1469) — enter tapped. Mirrors the
                 // `cards`-shape's own `tapped` handling: a direct `tap`

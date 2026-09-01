@@ -21,6 +21,7 @@ import {
     type EffectCardFilter,
     type EffectOp,
     type EnchantRestriction,
+    type EntryTypeLine,
     type FlashbackCost,
     type EmblemInstance,
     type GameEvent,
@@ -804,6 +805,28 @@ export type CardInstanceState = {
      *  restore when the permanent leaves the battlefield and becomes a new
      *  object. Written ONCE — a staged respec replaces the subtypes repeatedly
      *  and only the first value is the printed one. */
+    /** CR 205.1a / 613.1d / 611.2c (issue #2993) — a PENDING layer-4 type line
+     *  the card must show AS IT ENTERS the battlefield ("return it to the
+     *  battlefield. It's an enchantment." — the DSK "Enduring" cycle). Stamped
+     *  by `SpellContext.returnToBattlefield`'s `entersAs` option while the card
+     *  sits in the graveyard / exile, and CONSUMED (deleted) by
+     *  `applyEntryTypeLine` inside `stageReanimatedOnBattlefield`, after the
+     *  CR 400.7 entry-side reset and before the permanent is on the battlefield
+     *  — the one window in which the type line can be in place by the time
+     *  `emitPermanentEntered` announces the entry (CR 603.6a).
+     *
+     *  A pending stamp rather than a call parameter because the entry funnel
+     *  can PARK the card mid-flight: a permanent owing "as it enters" choices
+     *  (CR 614.12a, ADR 0100) is held in `stagedEntries` across a real save
+     *  point and re-enters the funnel on a later mutation, so the type line has
+     *  to ride the instance. It is therefore persisted, not transient.
+     *
+     *  Never observable on a permanent already on the battlefield: the entry
+     *  path deletes it as it applies it, and the CR 614 redirect branches
+     *  (Worms of the Earth, Containment Priest) never enter and never consume
+     *  it — the card lands in its new zone with its PRINTED line, which is
+     *  correct: nothing entered, so no continuous effect began (CR 611.2c). */
+    entersAsTypeLine?: EntryTypeLine;
     indefiniteSubtypeSet?: {
         restoreSubtypes: string[];
         /** The subtype line the effect SET, verbatim as passed to
@@ -11918,6 +11941,166 @@ export function revertTypeProvenance(card: CardInstanceState): void {
     }
 }
 
+/** CR 205.1a layer 4 (CR 613.1d) — SET `card`'s card types on the INSTANCE,
+ *  replacing every type it currently has, INDEFINITELY (CR 611.2a — a
+ *  continuous effect from a resolving ability that states no duration "lasts
+ *  until the end of the game"; CR 611.2c is the sibling rule fixing WHICH
+ *  objects it affects, and both apply here).
+ *
+ *  The card-level body of `SpellContext.setCardTypes`, extracted (issue #2993)
+ *  so the ENTRY-time application (`applyEntryTypeLine`) writes the SAME
+ *  provenance records through the SAME code rather than a second, subtly
+ *  different assignment: the entry site acts on a card that is not on the
+ *  battlefield yet, so it cannot go through the battlefield-scoped
+ *  `TargetSelection` primitive. ONE execution path (ADR 0045).
+ *
+ *  Writes the `grantedTypes` / `suppressedTypes` markers the aura-style
+ *  `type-add` / `type-remove` static effects write, keyed to the `"indefinite"`
+ *  sentinel source id, so `revertTypeProvenance` restores the printed line on a
+ *  later zone change (CR 400.7). Supertypes and subtypes are untouched — the
+ *  CR 205.1a correlated-subtype clause belongs to the paired subtype primitive
+ *  below (ADR 0087 § Amendment). */
+export function applyCardTypeSet(
+    card: CardInstanceState,
+    types: CardType[]
+): void {
+    if (types.length === 0) return;
+    const next = [...new Set(types)];
+    const added = next.filter((t) => !card.types.includes(t));
+    const dropped = card.types.filter((t) => !next.includes(t));
+    if (added.length > 0) {
+        const origins = card.grantedTypes ?? [];
+        for (const type of added) {
+            const already = origins.some(
+                (o) => o.auraId === "indefinite" && o.type === type
+            );
+            if (!already) origins.push({ type, auraId: "indefinite" });
+        }
+        card.grantedTypes = origins;
+    }
+    if (dropped.length > 0) {
+        const suppressed = card.suppressedTypes ?? [];
+        for (const type of dropped) {
+            const already = suppressed.some(
+                (o) => o.sourceId === "indefinite" && o.type === type
+            );
+            if (!already) {
+                suppressed.push({ type, sourceId: "indefinite" });
+            }
+        }
+        card.suppressedTypes = suppressed;
+    }
+    card.types = next;
+}
+
+/** CR 205.1a / 400.7 layer 4 — REPLACE `card`'s subtype line on the INSTANCE,
+ *  indefinitely (CR 611.2a — no duration stated, so it lasts until the end of
+ *  the game). The card-level body of
+ *  `SpellContext.setSubtypes`, extracted alongside `applyCardTypeSet` above and
+ *  for the same reason (issue #2993): the entry-time application acts on a card
+ *  that is not on the battlefield yet.
+ *
+ *  Records the pre-change line ONCE in `indefiniteSubtypeSet` (a staged respec
+ *  — Figure of Destiny — applies this repeatedly and only the FIRST value is
+ *  the printed one) so `resetBattlefieldTransientState` can restore it (issue
+ *  #1746), and narrows to the CR 305.7 land-type replacement on a LAND. */
+export function applyIndefiniteSubtypeSet(
+    card: CardInstanceState,
+    subtypes: string[]
+): void {
+    if (!card.indefiniteSubtypeSet) {
+        card.indefiniteSubtypeSet = {
+            restoreSubtypes: [...card.subtypes],
+            // Issue #1705 — the effect VALUE beside the anchor, so an identity
+            // swap can replay the set over the new face.
+            subtypes: [...subtypes],
+        };
+    } else {
+        // A staged respec (Figure of Destiny) keeps the FIRST anchor but the
+        // LATEST set value — that is what is live.
+        card.indefiniteSubtypeSet = {
+            ...card.indefiniteSubtypeSet,
+            subtypes: [...subtypes],
+        };
+    }
+    // CR 305.7 (issue #1883) — on a LAND this replaces only the old land types,
+    // keeping a subtype belonging to a different card type (Saga, …). A
+    // non-land target (Figure of Destiny) has no CR 305.7 analogue and keeps
+    // the prior full wholesale replace.
+    card.subtypes = card.types.includes("Land")
+        ? applyLandTypeReplacement(card.subtypes, subtypes)
+        : [...subtypes];
+    card.grantedSubtypes = undefined;
+    card.printedSubtypes = undefined;
+}
+
+/** CR 205.1a / 613.1d / 603.6a (issue #2993) — consumes a pending
+ *  `entersAsTypeLine` stamp: the permanent ENTERS showing that type line
+ *  instead of its printed one ("return it to the battlefield. It's an
+ *  enchantment. (It's not a creature.)" — the DSK "Enduring" cycle).
+ *
+ *  Called from `stageReanimatedOnBattlefield` at the ONE point that works:
+ *  AFTER `resetBattlefieldTransientState` (which reverts the whole layer-4
+ *  provenance wholesale, CR 400.7 — so a line applied before the move is wiped
+ *  by the entry, which is exactly why the shipped composition ran the Ops after
+ *  it) and BEFORE the card is pushed onto the battlefield, so every entry-time
+ *  reader — the CR 611.2 grant passes, the CR 614.1c Kismet tap check, and
+ *  above all `emitPermanentEntered` (CR 603.6a: the newcomer is checked against
+ *  the state the entry produced) — sees the enchantment that actually entered
+ *  rather than the creature card that left the graveyard. Applied after the
+ *  set, the PERMANENT_ENTERED event announced `types: ["Enchantment",
+ *  "Creature"]` plus a `power`, and every "whenever a creature enters" watcher
+ *  fired on a permanent that is not a creature.
+ *
+ *  Both halves go through the shared `applyCardTypeSet` /
+ *  `applyIndefiniteSubtypeSet` helpers above, so the CR 400.7 revert on the
+ *  permanent's NEXT departure is the one `revertTypeLine` already performs —
+ *  the entry stamp leaves no storage of its own behind.
+ *
+ *  DOCUMENTED BOUNDARY: the CR 614 entry-replacement check
+ *  (`enterBattlefieldDestinationFor` — Containment Priest's "if a nontoken
+ *  CREATURE would enter and it wasn't cast, exile it instead") runs earlier in
+ *  the funnel and still reads the printed line. Moving the stamp above it would
+ *  mutate a card on the branches where nothing enters at all. Drafted in
+ *  `docs/findings/2993-entry-type-line-is-invisible-to-the-cr-614-check.md`. */
+export function applyEntryTypeLine(card: CardInstanceState): void {
+    const line = card.entersAsTypeLine;
+    if (!line) return;
+    delete card.entersAsTypeLine;
+    // An empty `types` is unreachable from the DSL — `isEntryTypeLine` requires
+    // a NON-empty array — but `SpellContext.returnToBattlefield` is a public
+    // primitive a `resolve()` card can call unvalidated, and `applyCardTypeSet`
+    // no-ops on `[]` while `applyIndefiniteSubtypeSet` would still blank the
+    // subtype line. Half a type line is worse than none: bail on both halves
+    // together (PR #3023 review, N2).
+    if (line.types.length === 0) return;
+    applyCardTypeSet(card, line.types);
+    applyIndefiniteSubtypeSet(card, line.subtypes);
+}
+
+/** The DISCARD half of `applyEntryTypeLine` (PR #3023 review, B1) — drops a
+ *  pending entry stamp from a card that is NOT going to enter after all.
+ *
+ *  Called on every branch where a stamped card leaves the entry funnel for some
+ *  zone other than the battlefield: the CR 614 land block (Worms of the Earth),
+ *  the CR 614 entry redirect (Containment Priest), the CR 303.4g hostless Aura,
+ *  and the CR 614.12a as-enters abort. `resetBattlefieldTransientState`
+ *  deliberately does NOT clear the field — it also runs on the real-entry path,
+ *  immediately BEFORE the stamp is consumed — so each abort owes this call.
+ *
+ *  Why it matters even though the landing zone is already correct (nothing
+ *  applied the line, so the card shows its PRINTED characteristics): the stamp
+ *  is PERSISTED, and `applyEntryTypeLine` is the only thing that ever consumes
+ *  one. A Containment Priest exiling a dying Enduring Innocence would otherwise
+ *  leave the card in exile carrying a live stamp, and the NEXT effect to put
+ *  that card onto the battlefield — an ordinary reanimation, an arbitrary
+ *  number of turns later — would enter it as a bare Enchantment with no
+ *  subtypes and no `power` on its entry event, off an intent that expired long
+ *  ago (CR 400.7: that is a different object). */
+export function discardEntryTypeLine(card: CardInstanceState): void {
+    delete card.entersAsTypeLine;
+}
+
 /** CR 400.7 / 205 — restores a departing permanent's PRINTED type line: the
  *  two layer-4 SUBTYPE reverts (an indefinite `setSubtype`, a duration-scoped
  *  `setSubtypeUntil`) and their card-TYPE sibling `revertTypeProvenance`.
@@ -12243,6 +12426,9 @@ function stageReanimatedOnBattlefield(
     // reanimation / search-to-battlefield path that funnels through this helper.
     if (!canLandEnterBattlefield(state, card.types)) {
         resetBattlefieldTransientState(card);
+        // CR 614 — it never entered, so the entry type line never began
+        // (CR 611.2c). Drop the stamp with it (PR #3023 review, B1).
+        discardEntryTypeLine(card);
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
@@ -12269,6 +12455,9 @@ function stageReanimatedOnBattlefield(
     );
     if (enterDestination === "exile") {
         resetBattlefieldTransientState(card);
+        // CR 614 — same as the land block above: nothing entered, so nothing
+        // may carry the pending line into exile (PR #3023 review, B1).
+        discardEntryTypeLine(card);
         card.zone = "exile";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).exile.push(card);
@@ -12307,6 +12496,20 @@ function stageReanimatedOnBattlefield(
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.
     clearZoneCharacteristics(card);
+    // CR 205.1a / 613.1d / 603.6a (issue #2993) — "return it to the
+    // battlefield. It's an enchantment." The permanent ENTERS with that type
+    // line, so the stamp is consumed HERE, in the one window that works: after
+    // the CR 400.7 reset above (which reverts the whole layer-4 provenance, so
+    // a line applied BEFORE the move is wiped by the entry) and after
+    // `clearZoneCharacteristics`, which unconditionally rewrites `types` /
+    // `subtypes` / `power` / `toughness` from the printed definition for a card
+    // declaring `offBattlefieldCharacteristics` (Grist, the Hunger Tide) and
+    // would otherwise silently clobber the line while leaving its provenance
+    // records behind (PR #3023 review, B2). Still ahead of everything that must
+    // read the entered line: the entry counters, the CR 614.1c Kismet tap
+    // check, the CR 611.2 grant passes, and `emitPermanentEntered` itself
+    // (CR 603.6a). No-op for every other entry — the stamp is absent.
+    applyEntryTypeLine(card);
     card.controllerId = controllerId;
     card.attachedTo = undefined;
     // CR 302.6 — start the control-continuity clock for every reanimated /
@@ -12531,6 +12734,9 @@ export function putReanimatedSetOnBattlefield(
             // never enters, it remains in its owner's graveyard. The caller
             // already spliced it OUT of that graveyard to make the set-wide
             // move atomic, so put it back rather than leaving it in limbo.
+            // It never entered, so a pending entry type line expires with the
+            // attempt (PR #3023 review, B1).
+            discardEntryTypeLine(card);
             card.zone = "graveyard";
             card.attachedTo = undefined;
             getPlayer(state, card.ownerId).graveyard.push(card);
@@ -13258,6 +13464,9 @@ function abortStagedEntryTo(
         return;
     }
     const card = entry.card;
+    // CR 614.12a — the staged permanent is being abandoned, not entered, so a
+    // pending entry type line never begins (PR #3023 review, B1).
+    discardEntryTypeLine(card);
     card.zone = destination;
     getPlayer(state, card.ownerId)[destination].push(card);
 }
@@ -14912,35 +15121,12 @@ export function buildSpellContext(
             if (!found) return;
             // CR 400.7 (issue #1746) — this REPLACES the instance's subtypes in
             // place with no duration to tick it out, so the permanent would
-            // still carry them after a bounce, when it is a NEW object. Record
-            // the pre-change line ONCE (a staged respec applies this repeatedly
-            // — Figure of Destiny — and only the FIRST value is the printed
-            // one) so `resetBattlefieldTransientState` can restore it. Mirrors
-            // the indefinite-animation fix (#1470).
-            if (!found.card.indefiniteSubtypeSet) {
-                found.card.indefiniteSubtypeSet = {
-                    restoreSubtypes: [...found.card.subtypes],
-                    // Issue #1705 — the effect VALUE beside the anchor, so an
-                    // identity swap can replay the set over the new face.
-                    subtypes: [...subtypes],
-                };
-            } else {
-                // A staged respec (Figure of Destiny) keeps the FIRST anchor
-                // but the LATEST set value — that is what is live.
-                found.card.indefiniteSubtypeSet = {
-                    ...found.card.indefiniteSubtypeSet,
-                    subtypes: [...subtypes],
-                };
-            }
-            // CR 305.7 (issue #1883) — on a LAND this replaces only the old
-            // land types, keeping a subtype belonging to a different card
-            // type (Saga, …). A non-land target (Figure of Destiny) has no
-            // CR 305.7 analogue and keeps the prior full wholesale replace.
-            found.card.subtypes = found.card.types.includes("Land")
-                ? applyLandTypeReplacement(found.card.subtypes, subtypes)
-                : [...subtypes];
-            found.card.grantedSubtypes = undefined;
-            found.card.printedSubtypes = undefined;
+            // still carry them after a bounce, when it is a NEW object; the
+            // shared helper records the pre-change line so
+            // `resetBattlefieldTransientState` can restore it. Extracted to a
+            // card-level helper in #2993 so the battlefield-entry stamp
+            // (`applyEntryTypeLine`) applies the identical write.
+            applyIndefiniteSubtypeSet(found.card, subtypes);
         },
         // CR 305.7 / 611.2 — timed subtype change ("becomes a Swamp until its
         // controller's next untap step", Orcish Farmer). Overwrites `subtypes`
@@ -15064,38 +15250,18 @@ export function buildSpellContext(
         // (CR 400.7). Supertypes and subtypes are untouched — see the
         // SpellContext doc comment for why the CR 205.1a correlated-subtype
         // clause belongs to the paired subtype primitive.
+        //
+        // Extracted to the card-level `applyCardTypeSet` helper in issue #2993
+        // so the battlefield-ENTRY application (`applyEntryTypeLine` — "return
+        // it to the battlefield. It's an enchantment.") writes the identical
+        // provenance through the identical code; this primitive stays the
+        // after-the-fact form, for a permanent ALREADY on the battlefield
+        // (Oko's `+1`).
         setCardTypes(target: TargetSelection, types: CardType[]): void {
             if (target.type !== "permanent") return;
-            if (types.length === 0) return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            const card = found.card;
-            const next = [...new Set(types)];
-            const added = next.filter((t) => !card.types.includes(t));
-            const dropped = card.types.filter((t) => !next.includes(t));
-            if (added.length > 0) {
-                const origins = card.grantedTypes ?? [];
-                for (const type of added) {
-                    const already = origins.some(
-                        (o) => o.auraId === "indefinite" && o.type === type
-                    );
-                    if (!already) origins.push({ type, auraId: "indefinite" });
-                }
-                card.grantedTypes = origins;
-            }
-            if (dropped.length > 0) {
-                const suppressed = card.suppressedTypes ?? [];
-                for (const type of dropped) {
-                    const already = suppressed.some(
-                        (o) => o.sourceId === "indefinite" && o.type === type
-                    );
-                    if (!already) {
-                        suppressed.push({ type, sourceId: "indefinite" });
-                    }
-                }
-                card.suppressedTypes = suppressed;
-            }
-            card.types = next;
+            applyCardTypeSet(found.card, types);
         },
         // CR 613.1f layer 6 (issue #2361) — a target permanent LOSES ALL
         // ABILITIES indefinitely, from a RESOLVING one-shot ability (CR
@@ -15320,7 +15486,8 @@ export function buildSpellContext(
             playerId: string,
             cardInstanceId: string,
             fromZone: "graveyard" | "exile",
-            controllerId?: string
+            controllerId?: string,
+            opts?: { entersAs?: EntryTypeLine }
         ): boolean {
             const player = getPlayer(state, playerId);
             const pile =
@@ -15337,6 +15504,22 @@ export function buildSpellContext(
             // through, so no caller has to remember it.
             if (pile[idx].isToken) return false;
             const [card] = pile.splice(idx, 1);
+            // CR 205.1a / 613.1d (issue #2993) — "return it to the battlefield.
+            // It's an enchantment." Stamped on the instance NOW, between the
+            // departure from the pile and the entry, mirroring
+            // `stampBackFaceForEntry`'s own seam (`gre/transform.ts`, #2380):
+            // the entry funnel consumes it (`applyEntryTypeLine`) at the one
+            // point where the line survives the CR 400.7 entry reset AND is in
+            // place before `emitPermanentEntered` announces the entry. A stamp
+            // rather than a call argument because the funnel can PARK the card
+            // across a save point (CR 614.12a as-enters choices, ADR 0100) —
+            // the type line has to ride the instance to reach the resumed tail.
+            if (opts?.entersAs) {
+                card.entersAsTypeLine = {
+                    types: [...opts.entersAs.types],
+                    subtypes: [...opts.entersAs.subtypes],
+                };
+            }
             // CR 400.7 / 800.4a — owner stays the source pile's owner; the new
             // controller defaults to that owner (Resurrection) but may differ
             // (Hymn of Rebirth: "from a graveyard ... under your control").
