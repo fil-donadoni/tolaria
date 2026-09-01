@@ -1,7 +1,8 @@
 ---
 title: targetLegalityGate compacts item.targets, shifting every later slot index
 discoveredBy: 2287
-status: draft
+status: triaged
+issue: 2985
 confidence: high
 ---
 
@@ -31,15 +32,25 @@ now reads index 0 — **the object that was announced for the destroy**. It take
 the damage AND is destroyed; the correct outcome is that the damage clause is
 skipped (CR 608.2b) and only the destroy happens.
 
-Shipped multi-target cards were checked: Oko, Thief of Crowns −5
-(`convex/cards/sets/eld/multicolor.ts`) degrades to a double no-op rather than
-acting wrongly, and Plague Spores / Barrin's Spite name both slots in Ops that
-are themselves skipped. So this is currently latent, not observed.
+**Every** multi-target script in the catalogue was then scanned for a card
+where slot 0 and slot 1 fall under DIFFERENT Ops — the only shape where the
+shift is observable. There are none: Plague Spores, Fumarole, Reckless Spite,
+Restock, Garruk's +1, Tribute to Hunger's up-to-three destroys and the rest all
+apply the SAME Op to each slot, so a shifted reference acts on an object that
+was going to be acted on anyway. Oko −5 mutates via `gainControl`, which never
+removes the object. So this is latent, not observed — a trap for the next
+heterogeneous multi-target card, sprung silently.
 
-**Why it may not deserve its own issue.** No shipped card is known to produce
-the wrong-object outcome today, and the fix is not free: keeping the array
-sparse (`null` in the fizzled slot) touches every positional consumer including
-the serializer, while the alternative — tagging targets with their announced
-index — changes the wire shape of `StackItem.targets`. It may be better folded
-into whichever ticket next adds a multi-target script whose Ops act on
-different slots, where the correctness is observable rather than argued.
+**Adjacent, same lines.** The pruning cites `CR 608.2c`, which is about
+following a spell's instructions in the order written and says nothing about
+illegal targets. The governing rule is CR 608.2b, and it does not ask for
+removal at all: illegal targets "won't be affected by parts of a resolving
+spell's effect for which they're illegal" — the target keeps its position and
+the parts naming it are skipped. Its own Plague Spores example turns on the
+target staying put. So the compaction is a mismodelling, not just a shifted
+index.
+
+**Triaged → #2985** (P0). The fix is not free — keeping the position occupied
+touches every positional consumer including the serializer, and the alternative
+of tagging targets with their announced index changes the wire shape of
+`StackItem.targets` — which is why the issue asks for a census before a choice.
