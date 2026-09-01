@@ -990,6 +990,26 @@ const revealTopAndRoute: Valuer<"revealTopAndRoute"> = (op, ctx) => {
     };
 };
 
+// CR 701.44 (issue #2376) — Explore. A TWO-BRANCH effect whose branch is
+// decided by a card the valuer cannot see (the top of a hidden library), so it
+// gets ONE scalar rather than a guess at which branch fires. That is honest
+// here precisely because the two branches are worth almost the same in this
+// basis:
+//   land    → the card goes to hand                       CARD_SELECTION_VALUE 30
+//   nonland → a +1/+1 counter, i.e. 2 stats               2 * PUMP_PER_STAT    18
+//             + a keep-or-bin Surveil 1 (CR 701.25)       SCRY_PER_CARD_VALUE  10  = 28
+// Tagged on BOTH features it can produce — the counter is `pump`, the card
+// selection is `cardAdvantage` — since neither is conditional on anything the
+// valuer knows. Never `board-scaling`: the Op takes no `EffectValue`, so there
+// is no amount that could scale with the board.
+const EXPLORE_VALUE = 29;
+const explore: Valuer<"explore"> = (op) => ({
+    points: EXPLORE_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["pump", "cardAdvantage", "targeted"]
+        : ["pump", "cardAdvantage"],
+});
+
 const nameCard: Valuer<"nameCard"> = () => ZERO_OP_VALUE;
 
 const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
@@ -1369,6 +1389,7 @@ export const OP_VALUERS: {
     libraryLook,
     mill,
     revealTopAndRoute,
+    explore,
     nameCard,
     preventDamage,
     markAssignsNoCombatDamage,
@@ -1553,6 +1574,13 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     lookDistribute: "beneficial",
     hideaway: "beneficial",
     digMatchingToHand: "beneficial",
+    // CR 701.44 (issue #2376) — every branch of Explore hands the exploring
+    // permanent's CONTROLLER something: a land into their hand, or a +1/+1
+    // counter plus a look at their own next draw. Never a downside, so never
+    // left to the `?? "neutral"` fallback — "target creature you control
+    // explores" pointed at an opponent's board is a gift, the Wild Growth
+    // shape `gre/ai/beneficence.ts` exists to catch.
+    explore: "beneficial",
     winGame: "beneficial",
     // ── Attacks on the recipient ──────────────────────────────────────────
     dealDamage: "harmful",

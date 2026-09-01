@@ -690,6 +690,16 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "effects",
         "manaChoices",
         "manaProduced",
+        // CR 111.10 / 601.2c / 602.3b (issue #2376) — the Map token's "{1},
+        // {T}, Sacrifice this token: TARGET CREATURE YOU CONTROL explores.
+        // ACTIVATE ONLY AS A SORCERY." Both fields are plain data (a
+        // `TargetRequirement` literal, a boolean), so both survive the DB
+        // round-trip; neither existed on this surface before because no shipped
+        // token's own ability targeted or carried a timing restriction. Same
+        // earn-it-card-by-card discipline as `TokenTriggeredEventKind`: this
+        // allowlist grows only when a real token needs the field.
+        "targetRequirement",
+        "sorcerySpeedOnly",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -728,6 +738,27 @@ function isTokenActivatedAbility(value: unknown): boolean {
     ) {
         return false;
     }
+    // CR 601.2c (issue #2376) — a token ability's own announced targets. Shape-
+    // checked by the SAME `isInlineTargetRequirement` the `reflexiveTrigger` Op
+    // uses; `tsc` enforces the field vocabulary against `TargetRequirement`
+    // itself at authoring time, and this adds what tsc cannot — that the
+    // requirement is pure JSON. Reusing that checker also inherits its
+    // rejection of the CR 601.2c "up to X" object form (`count: {min, max:
+    // "X"}`), which is the RIGHT default on this deliberately-restricted
+    // surface even though the activated-ability announcement path could in
+    // principle serve it: a token needing a variable target count is
+    // stop-and-open-an-issue, not a shape to author blind.
+    if (
+        "targetRequirement" in a &&
+        !isInlineTargetRequirement(a.targetRequirement)
+    ) {
+        return false;
+    }
+    // CR 602.3b via 307.5 (issue #2376) — "Activate only as a sorcery." A bare
+    // boolean; `false` is rejected alongside a non-boolean because an explicit
+    // `false` is the shape that reads as "I considered the restriction" while
+    // encoding its absence — omit the field instead.
+    if ("sorcerySpeedOnly" in a && a.sorcerySpeedOnly !== true) return false;
     return true;
 }
 
@@ -4065,6 +4096,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: {
             count: isEffectValue,
+        },
+    },
+    // CR 701.44 (issue #2376) — the Explore keyword action. ONE field: the
+    // exploring permanent (`target`), an object selector like `counters`'
+    // — an announced slot (the Map token's "target creature you control"),
+    // `$source`, or a forEach `$each`. Everything else about the process is
+    // fixed by the rule itself (top card, its controller's library, one
+    // +1/+1 counter, a graveyard-or-top choice), so there is nothing else to
+    // parameterise: no `player` (CR 701.44a reads the controller OFF the
+    // permanent), no `count`, no `destination`.
+    explore: {
+        required: {
+            target: isObjectSelector,
         },
     },
     // CR 401.4 (issue #984, extended #1101, `keepTo` #2070) — look at the top
