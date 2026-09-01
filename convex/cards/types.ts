@@ -3899,6 +3899,21 @@ export interface SpellContext {
              *  THIS card's cast; omitted (the default) leaves the card payable
              *  only in its own colours. */
             manaSubstitution?: ManaSubstitutionBreadth;
+            /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
+             *  this one grant: "A spell cast this way costs {2} more to cast"
+             *  (Elite Spellbinder). Stamps
+             *  `CardInstanceState.castFromExileCostIncrease` alongside the
+             *  permission flag, so the tax is a property of the EXILED CARD
+             *  rather than of a battlefield source — it therefore survives the
+             *  granting permanent leaving the battlefield, which a
+             *  `StaticCostModifier` (`kind: "cost-modifier"`, scanned off the
+             *  battlefield every time a cost is computed) cannot express. Read
+             *  back by `getCostModifiers` (`gre/state.ts`), the ONE collector
+             *  every cost site already folds through, so the payment path, the
+             *  `getLegalActions` affordance and the Bot's tap planner all price
+             *  the taxed cast identically. Omitted (the default) is the
+             *  historical untaxed grant (Ice Cauldron, Robber of the Rich). */
+            costIncrease?: ManaCost;
         }
     ) => void;
     /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
@@ -11821,6 +11836,15 @@ export type EffectOp =
           window?: "this-turn" | "while-exiled";
           withoutPayingManaCost?: boolean;
           includesLand?: boolean;
+          /** CR 601.2f (issue #2383) — an object-scoped cost increase the
+           *  granted cast owes on top of whatever it would otherwise pay
+           *  ("A spell cast this way costs {2} more to cast" — Elite
+           *  Spellbinder). Rides the grant on the CARD, so it outlives the
+           *  granting permanent (see `SpellContext.grantCastFromExile`'s
+           *  own `costIncrease` doc). Meaningless together with
+           *  `withoutPayingManaCost` (no cost to increase) — the validator
+           *  rejects the pair. */
+          costIncrease?: ManaCost;
       }
     /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
@@ -13810,6 +13834,25 @@ export type EffectOp =
      *  hand → no-op (CR 608.2b). */
     | {
           op: "lookRandomHand";
+          player: EffectPlayerRef;
+          looker?: EffectPlayerRef;
+      }
+    /** CR 400.2 look (issue #2383, Elite Spellbinder) — "look at target
+     *  opponent's hand": a PRIVATE look at `player`'s WHOLE hand, shown only
+     *  to `looker` (default the resolving controller, CR 113.7). The
+     *  whole-hand sibling of `lookRandomHand`, and the private counterpart of
+     *  the public `reveal` Op (CR 701.20, `markKnownToAll` — every player):
+     *  every card currently in that hand is stamped known to the looker ALONE
+     *  (`SpellContext.markKnown`, ADR 0026) and a transient look dialog is
+     *  enqueued for the looker (`notifyReveal` kind "look"). The knowledge is
+     *  what makes a following `choice(zone: "hand", zoneOwnerId: …)` pickable
+     *  — the wire projection nulls a hand card the viewer does not know, so a
+     *  "look, then take one" script that skipped this Op would ask the looker
+     *  to choose blind. A hand is a HIDDEN zone (CR 400.2), so the grant is to
+     *  one player only; it persists until an uncertainty event clears it, per
+     *  ADR 0026's knowledge model. Empty hand → no-op (CR 608.2b). */
+    | {
+          op: "lookHand";
           player: EffectPlayerRef;
           looker?: EffectPlayerRef;
       }

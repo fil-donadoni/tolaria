@@ -2673,6 +2673,9 @@ export function finalizeCleanup(state: GameState): void {
                 // color/type" marker rides the SAME permission window; consumed
                 // together, so a stale one can never outlive its grant.
                 delete card.castFromExileManaSubstitution;
+                // CR 601.2f (issue #2383) — the object-scoped cost tax rides
+                // the SAME permission window; expires together.
+                delete card.castFromExileCostIncrease;
             }
         }
     }

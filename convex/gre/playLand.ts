@@ -275,6 +275,10 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // color/type" marker rides the SAME permission window; consumed
     // together, so a stale one can never outlive its grant.
     delete card.castFromExileManaSubstitution;
+    // CR 601.2f (issue #2383) — the object-scoped cost tax rides the same
+    // permission window; a land is never cast so it has no tax to pay, but
+    // drop the stale marker for hygiene like every sibling above.
+    delete card.castFromExileCostIncrease;
 }
 
 /** CR 305 / 305.1-analog — play a LAND from the GRAVEYARD under an

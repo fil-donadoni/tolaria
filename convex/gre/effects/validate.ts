@@ -3063,6 +3063,36 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
             // "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,
+            // CR 601.2f (issue #2383) — an object-scoped cost increase riding
+            // this one grant ("A spell cast this way costs {2} more to cast"
+            // — Elite Spellbinder). A real pip-bearing cost: `{}` would tax
+            // nothing, and `X` is meaningless in an increase (the caster
+            // announces X, an increase can't reopen it).
+            costIncrease: (v: unknown) =>
+                isManaCost(v) &&
+                hasManaCostPip(v) &&
+                // CR 107.3 — a VARIABLE X (`{ X: "X" }`) is meaningless in an
+                // increase: X is locked in at announcement (CR 601.2b) and a
+                // cost increase applies afterwards, with nothing to read it
+                // from. A NUMERIC `X` is this engine's generic-mana key
+                // (`{ X: 2 }` is {2}, Elite Spellbinder's own tax) and is the
+                // expected shape.
+                (v as { X?: unknown }).X !== "X",
+        },
+        check: (entry) => {
+            // CR 601.3e / 601.2f — a waived cost has nothing to increase, so
+            // the pair is authored nonsense rather than a silently-ignored
+            // field. Rejected at validation, where every other impossible
+            // combination in this table is caught.
+            if (
+                entry.withoutPayingManaCost === true &&
+                "costIncrease" in entry
+            ) {
+                return [
+                    '"costIncrease" is meaningless with "withoutPayingManaCost" (no cost to increase)',
+                ];
+            }
+            return [];
         },
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+
@@ -4253,6 +4283,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // `player`'s hand". `looker` (optional) names the private looker; defaults
     // to the resolving controller (CR 113.7).
     lookRandomHand: {
+        required: { player: isPlayerRef },
+        optional: { looker: isPlayerRef },
+    },
+    // CR 400.2 look (issue #2383, Elite Spellbinder) — private "look at
+    // `player`'s WHOLE hand". `looker` (optional) names the private looker;
+    // defaults to the resolving controller (CR 113.7). Same field shape as
+    // `lookRandomHand` above — the two differ only in how much of the hand the
+    // look covers.
+    lookHand: {
         required: { player: isPlayerRef },
         optional: { looker: isPlayerRef },
     },
