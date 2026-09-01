@@ -1143,9 +1143,21 @@ carte inerti.
 
 **Migrazione `resolve()` → `effects[]`**
 
-Circa 440 usi residui di `resolve()`. Due gate: drenare il bucket "free" del
-classificatore (#1435) e completare il backlog di Op che blocca il resto (#1438).
-Lo strumento è `scripts/migration-classifier.mjs`; la procedura sta in
+474 closure `resolve()`/`resolveSteps` residue: 320 nel bucket FREE del
+classificatore, 15 X-only, 139 Op-blocked. **Il numero FREE del sommario è un
+limite SUPERIORE**: conta anche le carte già valutate e marcate
+`NOT-DSL-migratable` (245 su 320, perché il clause-mapper legge il corpo della
+closure ma non la factory che la costruisce). La worklist davvero selezionabile
+è `migration-classifier.mjs --free`, che quelle carte le nasconde — oggi 75
+closure, non 320.
+
+Il gate #1435 è stato ritirato proprio per questo: la sua condizione di uscita
+("il sommario riporta FREE = 0") leggeva il numero sbagliato ed era
+irraggiungibile per costruzione, dato che ogni carta correttamente marcata resta
+nel conteggio per sempre. Il drenaggio del bucket FREE è passato al compilatore
+Oracle (#2703, PRD #2693), che ricompila le closure dal testo Oracle e ritira
+quelle provate equivalenti; resta aperto #1438 per il backlog di Op. Lo
+strumento è `scripts/migration-classifier.mjs`; la procedura sta in
 `docs/agents/effect-script-migration.md`.
 
 > Trappola nota: aggiungere una carta `resolve()` sposta il baseline del

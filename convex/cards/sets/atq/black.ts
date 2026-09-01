@@ -225,13 +225,13 @@ export const hauntingWind: CardDefinition = {
             // PERMANENT_ENTERED.controllerId pattern). PERMANENT_TAPPED has NO
             // registry row today (only ATTACKERS_DECLARED, BLOCKERS_CONFIRMED,
             // DAMAGE_DEALT, PHASE_BEGIN, PERMANENT_ENTERED are censused).
-            // Additionally, the `tappedTrigger` factory's own `TappedTriggerArgs`
-            // (abilities/triggers/tappedTrigger.ts) exposes only `resolve`, no
-            // `effects` passthrough. Blocked on: a
+            // The `tappedTrigger` factory is no longer a second blocker here —
+            // it gained its `effects?: EffectOp[]` param in 85d5c1075 — so the
+            // event-field read above is the ONLY thing left. Blocked on: a
             // `PERMANENT_TAPPED: { controllerId: { family: "player", resolve } }`
             // EVENT_FIELD_REGISTRY row (mirrors the PERMANENT_ENTERED row
-            // exactly) + wiring `effects` through the factory. Planned-
-            // migratable — worth an issue if more Cluster B-style cards need it.
+            // exactly). Planned-migratable — worth an issue if more Cluster
+            // B-style cards need it.
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
             },
@@ -284,14 +284,14 @@ export const artifactPossession: CardDefinition = {
                 !!self.attachedTo && event.permanentId === self.attachedTo,
             // NOT DSL-migratable (ADR 0045/0049): same blocker as Haunting
             // Wind above — `tapped.controllerId` is PERMANENT_TAPPED event
-            // payload, uncensused in EVENT_FIELD_REGISTRY, and `tappedTrigger`'s
-            // args expose no `effects` passthrough. The Aura's own attach
-            // target (`{ target: 0 }`) names the ENCHANTED ARTIFACT, not its
-            // controller, so an object selector doesn't substitute here either
-            // — the ability needs the artifact's CURRENT controller, read off
-            // the tap event exactly like Haunting Wind. Blocked on: the same
-            // `PERMANENT_TAPPED.controllerId` registry row + factory wiring.
-            // Planned-migratable.
+            // payload, uncensused in EVENT_FIELD_REGISTRY. (`tappedTrigger`
+            // itself no longer blocks: it gained `effects?` in 85d5c1075.) The
+            // Aura's own attach target (`{ target: 0 }`) names the ENCHANTED
+            // ARTIFACT, not its controller, so an object selector doesn't
+            // substitute here either — the ability needs the artifact's
+            // CURRENT controller, read off the tap event exactly like Haunting
+            // Wind. Blocked on: the same `PERMANENT_TAPPED.controllerId`
+            // registry row. Planned-migratable.
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 2);
             },
