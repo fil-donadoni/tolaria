@@ -44,6 +44,7 @@ import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     discardToGraveyard,
     emitPermanentEntered,
+    grantKnowledge,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../state";
@@ -535,6 +536,35 @@ function applyCast(
     }
 }
 
+/** ADR 0026 (issue #1524) — grant a seat knowledge of a library's top cards
+ *  through the engine's own `grantKnowledge`, the primitive every scry /
+ *  surveil / Brainstorm keep resolves into. Throws when the library is shorter
+ *  than the requested run, so a scenario cannot quietly grant nothing and then
+ *  assert on a pin that was never there. */
+function applyKnowLibraryTop(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "know-library-top" }>
+): void {
+    const ownerId = seatPlayerId(state, step.of ?? "me");
+    const knowerId = seatPlayerId(state, step.knower ?? step.of ?? "me");
+    const count = step.count ?? 1;
+    const library = state.players.find((p) => p.id === ownerId)!.library;
+    if (library.length < count) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `library of seat "${step.of ?? "me"}" holds ${library.length} card(s), fewer than the ${count} the step grants knowledge of`
+        );
+    }
+    grantKnowledge(
+        state,
+        ownerId,
+        library.slice(0, count).map((c) => c.id),
+        knowerId
+    );
+}
+
 /**
  * Apply a scenario's `setup` sequence to a freshly built state, in order.
  * A no-op when the entry declares none. Mutates `state` in place and returns
@@ -584,6 +614,9 @@ export function applyBladeSetup(
                     (detail) =>
                         new BladeSetupError(scenario.label, step, detail)
                 );
+                break;
+            case "know-library-top":
+                applyKnowLibraryTop(state, scenario.label, step);
                 break;
             case "extra-combat":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.

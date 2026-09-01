@@ -3876,6 +3876,73 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "madness-decline" }] },
         note: "Issue #2983, the discriminating twin of `madness-cast-when-affordable`. The generator must FAIL CLOSED: with the madness cost unaffordable it emits the decline ALONE, never a cast the `announceCast` mutation would reject. Its twin proves the same generator does offer the cast when the mana is there — one entry alone would pass for a bot that hardcodes either answer.",
     },
+    {
+        label: "known top: digs with a cantrip because it knows the Bolt is there",
+        spec: {
+            // Island + Mountain is EXACTLY {U} + {R}: Thought Scour and then
+            // the Bolt it draws, or the Robber, never both. The two lines
+            // compete for the same two mana, which is what makes this a
+            // decision rather than a sequencing question.
+            cards: [
+                { name: "Thought Scour", owner: "me", zone: "hand" },
+                { name: "Robber of the Rich", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                // Index 0 of the bot's library — the card the `setup` step
+                // makes it know, exactly as a scry keep would.
+                {
+                    name: "Lightning Bolt",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // Opponent at 3: the Bolt the cantrip finds is exactly lethal, and
+            // `evaluate` is banded so a win dominates every material term.
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            // Filler basics, so a blind dig is worth a 1-in-21 shot at the
+            // Bolt — which is what the line WAS worth before the pin.
+            libraryCount: 20,
+        },
+        setup: [{ kind: "know-library-top" }],
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Thought Scour" }] },
+        note: "Issue #1524, half 1. The bot has scryed a Lightning Bolt to the top and the opponent is at 3: the cantrip draws it and the Mountain burns them out this turn. Before #1524 `determinize` reshuffled the whole library on EVERY ISMCTS iteration, so the search never saw the Bolt on top — the dig was worth a 1-in-21 blind draw and the 2/2 haste body won the comparison, which is exactly what the twin below still asserts.",
+    },
+    {
+        label: "known top: plays the creature instead when the known top is a blank",
+        spec: {
+            // The SAME board, ONE card changed: a Swamp on top instead of the
+            // Bolt. The dig now finds nothing, and the 2/2 haste is the play.
+            cards: [
+                { name: "Thought Scour", owner: "me", zone: "hand" },
+                { name: "Robber of the Rich", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "library", position: 1 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "know-library-top" }],
+        bot: "me",
+        budget: { iterations: 1200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Robber of the Rich" }],
+        },
+        note: "Issue #1524, half 2 — the discriminating twin. The pin is what makes half 1 pass, so this half proves the pin is carrying INFORMATION rather than just biasing the bot towards its cantrip: swap the pinned card and the preference flips. A pin that leaked identity, or a search that had simply learned to like Thought Scour, would pass one of these two and not the other.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

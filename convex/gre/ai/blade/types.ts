@@ -286,7 +286,28 @@ export type BladeSetupStep =
      *  to 2, resolves the stack, and hands priority back to the active player
      *  (CR 117.3b) — the post-resolution window a sorcery-grant board (Channel,
      *  issue #2903) needs to hand the active player their grant-based decision. */
-    | { kind: "pass"; seat?: BladeSeat };
+    | { kind: "pass"; seat?: BladeSeat }
+    /** ADR 0026 (issue #1524) — grant a seat persistent knowledge of the top
+     *  `count` cards of a library, through the engine's OWN primitive
+     *  (`grantKnowledge`, `gre/state.ts` — the exact function the scry /
+     *  surveil / Brainstorm submit paths call when the chooser KEEPS a card on
+     *  top). It reaches the position a scry-keep leaves behind, which no
+     *  `ScenarioSpec` can describe: the spec has no `knownTo` vocabulary at
+     *  all, and walking a real scry would mean deciding its `pendingChoice`
+     *  inside `setup` — a decision, not a board, and therefore the search's
+     *  job rather than the fixture's.
+     *
+     *  `of` is the library's owner (default `me`), `knower` the seat that is
+     *  shown the cards (default: the same seat — a player scrying their own
+     *  library; name the other seat for a fateseal). Throws when the library
+     *  holds fewer than `count` cards, so a position that silently granted
+     *  nothing cannot pass for one that granted something. */
+    | {
+          kind: "know-library-top";
+          count?: number;
+          of?: BladeSeat;
+          knower?: BladeSeat;
+      };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

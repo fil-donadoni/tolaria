@@ -780,3 +780,77 @@ describe("blade setup — the modal-choice charter entry (issue #1490)", () => {
         expect(casts.length).toBeGreaterThanOrEqual(2);
     });
 });
+
+describe("blade setup — `know-library-top` grants ADR 0026 knowledge (issue #1524)", () => {
+    /** The position a scry KEEP leaves behind: the top card known to its own
+     *  controller, everything below it not. */
+    const board = (): ScenarioSpec => ({
+        cards: [
+            {
+                name: "Lightning Bolt",
+                owner: "me",
+                zone: "library",
+                position: 1,
+            },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        libraryCount: 20,
+    });
+
+    it("stamps `knownTo` on exactly the requested run, through the real primitive", () => {
+        const state = build(board());
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "know-library-top", count: 2 }],
+        });
+        const library = state.players[0].library;
+        expect(library[0].knownTo).toEqual([state.players[0].id]);
+        expect(library[1].knownTo).toEqual([state.players[0].id]);
+        // …and nothing below the run.
+        expect(library[2].knownTo).toBeUndefined();
+        // The library itself is untouched (a knowledge grant moves no card).
+        expect(String(library[0].card.id)).toBe(
+            getCardByName("Lightning Bolt").id
+        );
+    });
+
+    it("defaults to one card, and to the library's own owner as the knower", () => {
+        const state = build(board());
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "know-library-top" }],
+        });
+        expect(state.players[0].library[0].knownTo).toEqual([
+            state.players[0].id,
+        ]);
+        expect(state.players[0].library[1].knownTo).toBeUndefined();
+    });
+
+    it("`of` + `knower` express a FATESEAL — the opponent's top, known to me", () => {
+        const state = build(board());
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "know-library-top", of: "opp", knower: "me" }],
+        });
+        expect(state.players[1].library[0].knownTo).toEqual([
+            state.players[0].id,
+        ]);
+        // The bot's OWN top is untouched — the step named the other library.
+        expect(state.players[0].library[0].knownTo).toBeUndefined();
+    });
+
+    it("THROWS when the library is shorter than the run, rather than granting nothing", () => {
+        const state = build({
+            cards: [{ name: "Mountain", owner: "me", zone: "battlefield" }],
+            phase: "PRECOMBAT_MAIN",
+            libraryCount: 1,
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "know-library-top", count: 3 }],
+            })
+        ).toThrow(BladeSetupError);
+    });
+});
