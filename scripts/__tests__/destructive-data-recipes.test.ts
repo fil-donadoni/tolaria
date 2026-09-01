@@ -18,8 +18,17 @@
 //    reproduces the committed pin and verifies its sha256.
 //
 // The scan targets the files that TELL a human or an agent what to run — guard
-// hints and skills — not prose that discusses the hazard. A line is exempt when
-// it is warning against the recipe, which is exactly what the replacements do.
+// hints and skills — not prose that discusses the hazard.
+//
+// A line that names a recipe IN ORDER TO FORBID IT must say so with the literal
+// marker below. The first version of this guard tried to infer that from the
+// prose ("does the line contain never/do not?") and review broke it in one
+// line: `… if this never happened before, don't overthink it — run: printf
+// '[]\n' > data/card-index.json …` instructs the banned recipe and exempts
+// itself, because hedging words sit next to instructions constantly and a
+// regex has no way to tell which clause they negate. The marker has no such
+// ambiguity — it is opt-out by assertion, not by wording, and it costs the one
+// line in the repo that legitimately cites a recipe to ban it.
 
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -31,21 +40,28 @@ const ROOT = resolve(__dirname, "..", "..");
 /** Tracked files that instruct rather than narrate: the guards that print a fix
  *  command, and the skills an agent follows step by step. */
 function instructionFiles(): string[] {
+    // `scripts/*.ts` matches only DIRECT children, so it would miss a hint added
+    // to a `scripts/lib/**` or `scripts/ui-gate/**` helper — `**` covers both.
     const out = execFileSync(
         "git",
-        ["ls-files", "scripts/*.ts", ".claude/skills/**/*.md"],
+        [
+            "ls-files",
+            "scripts/**/*.ts",
+            "scripts/*.ts",
+            ".claude/skills/**/*.md",
+        ],
         { cwd: ROOT, encoding: "utf8" }
     );
-    return out
-        .split("\n")
-        .filter(Boolean)
-        .filter((f) => !f.includes("__tests__"));
+    return [...new Set(out.split("\n").filter(Boolean))].filter(
+        (f) => !f.includes("__tests__")
+    );
 }
 
-/** A line that WARNS against a recipe names it in order to forbid it. Detecting
- *  that by wording keeps the guard honest without letting a bare command slip
- *  through: the exemption needs an explicit negative on the same line. */
-const FORBIDS = /\b(never|do not|don't|NEVER|do NOT)\b/;
+/** The one way to name a banned recipe without being flagged: say, in the same
+ *  line, that the mention IS the ban. Deliberately an unnatural literal — prose
+ *  cannot drift into it by accident, which is exactly what the wording-based
+ *  predicate it replaced allowed. */
+const CITED_TO_FORBID = "banned-recipe: cited-to-forbid";
 
 function offendingLines(pattern: RegExp): string[] {
     const hits: string[] = [];
@@ -53,7 +69,7 @@ function offendingLines(pattern: RegExp): string[] {
         const text = readFileSync(join(ROOT, file), "utf8");
         text.split("\n").forEach((line, i) => {
             if (!pattern.test(line)) return;
-            if (FORBIDS.test(line)) return;
+            if (line.includes(CITED_TO_FORBID)) return;
             hits.push(`${file}:${i + 1}: ${line.trim()}`);
         });
     }

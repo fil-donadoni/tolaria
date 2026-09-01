@@ -39,7 +39,8 @@
  * is what removes an `extra`, using this file's own `isPollutionEntry` so the
  * two can never disagree.
  *
- * NEVER `printf '[]\n' > data/card-index.json` first. It does clear pollution,
+ * NEVER do this (banned-recipe: cited-to-forbid): `printf '[]\n' > data/card-index.json`
+ * before the backfill. It does clear pollution,
  * but it also destroys the ~1400 `source: "compiled"` rows, which the backfill
  * cannot regenerate — they come from `oracle-index-backfill.ts` and its own
  * Scryfall pass. This hint used to say exactly that and cost a session a
@@ -143,37 +144,46 @@ if (unversioned.length) {
     );
 }
 
-console.error(
-    `✗ card-index: lockfile out of sync with the registry ` +
-        `(${missing.length} missing, ${extra.length} extra)\n`
-);
-if (missing.length) {
-    console.error(`MISSING from lockfile (implemented but not indexed):`);
-    for (const c of missing.slice(0, 30))
-        console.error(`  - ${c.name} (${c.id})`);
-    if (missing.length > 30)
-        console.error(`  … and ${missing.length - 30} more`);
-    console.error("");
-}
-if (extra.length) {
+// `reprinted` and `unversioned` each printed their own targeted remedy above,
+// and neither is an id-set mismatch: with only those firing, "0 missing, 0
+// extra" plus a backfill hint is noise at best and misleading at worst — the
+// backfill would find nothing to fetch, print "Lockfile already complete", and
+// leave the check failing identically on the next run.
+const outOfSync = missing.length > 0 || extra.length > 0;
+if (outOfSync) {
     console.error(
-        `EXTRA in lockfile (indexed but NOT implemented — pollution):`
+        `✗ card-index: lockfile out of sync with the registry ` +
+            `(${missing.length} missing, ${extra.length} extra)\n`
     );
-    for (const e of extra.slice(0, 30))
-        console.error(`  - ${e.name} (${e.scryfallId})`);
-    if (extra.length > 30) console.error(`  … and ${extra.length - 30} more`);
-    console.error("");
+    if (missing.length) {
+        console.error(`MISSING from lockfile (implemented but not indexed):`);
+        for (const c of missing.slice(0, 30))
+            console.error(`  - ${c.name} (${c.id})`);
+        if (missing.length > 30)
+            console.error(`  … and ${missing.length - 30} more`);
+        console.error("");
+    }
+    if (extra.length) {
+        console.error(
+            `EXTRA in lockfile (indexed but NOT implemented — pollution):`
+        );
+        for (const e of extra.slice(0, 30))
+            console.error(`  - ${e.name} (${e.scryfallId})`);
+        if (extra.length > 30)
+            console.error(`  … and ${extra.length - 30} more`);
+        console.error("");
+    }
+    // The fix depends on WHICH way the lockfile is out of sync. A plain backfill
+    // only appends, so it cannot clear an `extra`; `--prune` clears exactly the
+    // rows reported above. Resetting the file to `[]` first would clear them too —
+    // and destroy every `source: "compiled"` row with them, which nothing here can
+    // rebuild — so it is never the instruction.
+    console.error(
+        extra.length
+            ? "Top up the lockfile and drop the pollution rows:\n" +
+                  "  bun run scripts/backfill-card-index.ts --prune"
+            : "Top up the lockfile from the registry:\n" +
+                  "  bun run scripts/backfill-card-index.ts"
+    );
 }
-// The fix depends on WHICH way the lockfile is out of sync. A plain backfill
-// only appends, so it cannot clear an `extra`; `--prune` clears exactly the
-// rows reported above. Resetting the file to `[]` first would clear them too —
-// and destroy every `source: "compiled"` row with them, which nothing here can
-// rebuild — so it is never the instruction.
-console.error(
-    extra.length
-        ? "Top up the lockfile and drop the pollution rows:\n" +
-              "  bun run scripts/backfill-card-index.ts --prune"
-        : "Top up the lockfile from the registry:\n" +
-              "  bun run scripts/backfill-card-index.ts"
-);
 process.exit(1);
