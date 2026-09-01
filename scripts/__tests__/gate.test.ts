@@ -54,6 +54,51 @@ function run(
     });
 }
 
+/** A shell command that burns real CPU for `seconds` — the only kind of hold
+ *  the heartbeat is allowed to vouch for since issue #2999. `sleep` is its
+ *  opposite: alive, zero CPU, indistinguishable from the hung vitest that
+ *  blocked three sessions for 2h13m. */
+function burnCpu(seconds: number) {
+    return `end=$(( $(date +%s) + ${seconds} )); while [ $(date +%s) -lt $end ]; do :; done`;
+}
+
+/** Resolve once the spawned holder has actually written owner.json: `spawn`
+ *  returns before bun has even started, so a waiter launched immediately would
+ *  win the lock and test nothing. */
+async function waitForLock(timeoutMs = 5000) {
+    const f = join(lockRoot, "gate.lock", "owner.json");
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (existsSync(f)) return;
+        await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error("holder never took the lock");
+}
+
+/** A hold shaped like every real one: a heavy PARALLEL phase whose children
+ *  then exit, followed by a lighter single-process phase that keeps working.
+ *  The full suite is three sequential vitest invocations, each tearing down a
+ *  worker pool; `check:all:inner` walks a chain of separate tools. The live
+ *  CPU snapshot COLLAPSES at each turnover, so a progress signal that is not
+ *  monotonic reads this healthy command as frozen. */
+function burstThenSteady(
+    parallel: number,
+    burstSeconds: number,
+    tailSeconds: number
+) {
+    const burn = (n: number) =>
+        `end=$(( $(date +%s) + ${n} )); while [ $(date +%s) -lt $end ]; do :; done`;
+    return (
+        `for i in $(seq 1 ${parallel}); do ( ${burn(burstSeconds)} ) & done; wait; ` +
+        `${burn(tailSeconds)}; echo PHASES-DONE`
+    );
+}
+
+function readOwnerTs(): number {
+    const f = join(lockRoot, "gate.lock", "owner.json");
+    return (JSON.parse(readFileSync(f, "utf8")) as { ts: number }).ts;
+}
+
 beforeEach(() => {
     lockRoot = mkdtempSync(join(tmpdir(), "tolaria-gate-test-"));
 });
@@ -123,23 +168,29 @@ describe("gate.ts — machine-wide mutex", () => {
         expect(bStart).toBeGreaterThan(aOut);
     }, 20_000);
 
-    it("heartbeats the owner stamp while holding — a long hold never reads stale (issue #1924)", async () => {
-        const child = spawn("bun", [GATE, "heavy", "sleep 2"], {
+    it("heartbeats the owner stamp while the held command BURNS CPU — a long hold never reads stale (issue #1924)", async () => {
+        const child = spawn("bun", [GATE, "heavy", burnCpu(3)], {
             cwd: lockRoot,
-            env: env({ TOLARIA_GATE_HEARTBEAT_MS: "200" }),
+            env: env({
+                TOLARIA_GATE_HEARTBEAT_MS: "150",
+                TOLARIA_GATE_STALL_BEATS: "2",
+            }),
+            stdio: ["ignore", "ignore", "pipe"],
         } as never);
-        const ownerFile = join(lockRoot, "gate.lock", "owner.json");
-        const readTs = () =>
-            (JSON.parse(readFileSync(ownerFile, "utf8")) as { ts: number }).ts;
-        await new Promise((r) => setTimeout(r, 700));
-        const t1 = readTs();
-        await new Promise((r) => setTimeout(r, 800));
-        const t2 = readTs();
+        let err = "";
+        child.stderr!.on("data", (d) => (err += d));
+        await new Promise((r) => setTimeout(r, 900));
+        const t1 = readOwnerTs();
+        await new Promise((r) => setTimeout(r, 900));
+        const t2 = readOwnerTs();
         await new Promise<void>((r) => child.on("exit", () => r()));
         // The stamp must advance while the command runs: waiters measure
         // staleness from it, so a refreshed stamp is what protects a
-        // multi-hour ladder hold from the 45-min prune.
+        // multi-hour ladder hold from the 45-min prune. The command has to
+        // burn real CPU for that — the stamp attests to the SUBTREE making
+        // progress, not to the gate process existing (issue #2999).
         expect(t2).toBeGreaterThan(t1);
+        expect(err).not.toContain("STALLED");
     }, 20_000);
 
     it("prunes a lock whose holder is dead instead of waiting for it", () => {
@@ -149,6 +200,181 @@ describe("gate.ts — machine-wide mutex", () => {
         const r = run(["heavy", "echo acquired"]);
         expect(r.status).toBe(0);
         expect(r.stdout).toContain("acquired");
+    }, 20_000);
+});
+
+describe("gate.ts — liveness (issue #2999)", () => {
+    /**
+     * The incident this suite exists for: a `health:main` whose vitest hung at
+     * startup burned 16.86 s of CPU in 2h13m and kept heartbeating the whole
+     * time, because the heartbeat attested to the GATE process being alive
+     * rather than to the wrapped command making progress. `alive(pid)` was
+     * true and the stamp was never stale, so no waiter could reclaim it.
+     * `sleep` reproduces exactly that shape in milliseconds: a live subtree
+     * burning no CPU at all.
+     */
+    const stallEnv = (extra: Record<string, string> = {}) =>
+        env({
+            TOLARIA_GATE_HEARTBEAT_MS: "150",
+            TOLARIA_GATE_STALL_BEATS: "2",
+            ...extra,
+        });
+
+    it("stops heartbeating once the held subtree makes no progress", async () => {
+        const child = spawn("bun", [GATE, "heavy", "sleep 5"], {
+            cwd: lockRoot,
+            env: stallEnv(),
+            stdio: ["ignore", "ignore", "pipe"],
+        } as never);
+        let err = "";
+        child.stderr!.on("data", (d) => (err += d));
+        await new Promise((r) => setTimeout(r, 1200));
+        const t1 = readOwnerTs();
+        await new Promise((r) => setTimeout(r, 1200));
+        const t2 = readOwnerTs();
+        child.kill("SIGKILL");
+        await new Promise<void>((r) => child.on("exit", () => r()));
+        // Frozen subtree ⇒ frozen stamp ⇒ the existing STALE_MS path can fire.
+        expect(t2).toBe(t1);
+        expect(err).toContain("STALLED");
+    }, 20_000);
+
+    it("a waiter reclaims a stalled holder's lock through the STALE_MS path", async () => {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
+            cwd: lockRoot,
+            env: stallEnv(),
+            stdio: ["ignore", "ignore", "pipe"],
+        } as never);
+        // Let it beat, go silent, and then age past the (shortened) staleness
+        // threshold — the reclaim itself is the UNCHANGED 45-min path, only
+        // fed an honest input.
+        await new Promise((r) => setTimeout(r, 1500));
+
+        // Bounded on purpose: if the holder never goes silent, this call
+        // blocks forever in acquire()'s poll loop, and a spawnSync that hangs
+        // takes the vitest worker with it instead of reporting red.
+        const waiter = spawnSync("bun", [GATE, "heavy", "echo RECLAIMED"], {
+            encoding: "utf8",
+            cwd: lockRoot,
+            env: env({ TOLARIA_GATE_STALE_MS: "600" }),
+            timeout: 8000,
+        });
+        holder.kill("SIGKILL");
+        await new Promise<void>((r) => holder.on("exit", () => r()));
+
+        expect(waiter.status, waiter.stdout + waiter.stderr).toBe(0);
+        expect(waiter.stdout).toContain("RECLAIMED");
+        // Loud enough to tell a reclaimed-because-stalled lock apart from a
+        // normally released one (which logs nothing at all) and from a dead
+        // holder's orphan.
+        expect(waiter.stderr).toContain("reclaiming the heavy mutex");
+        expect(waiter.stderr).toContain("STALLED holder");
+    }, 25_000);
+
+    it("never reclaims a holder that IS making progress, however long it runs (issue #1924)", async () => {
+        const holder = spawn("bun", [GATE, "heavy", burnCpu(6)], {
+            cwd: lockRoot,
+            env: stallEnv(),
+            stdio: "ignore",
+        } as never);
+        await waitForLock();
+        // Staleness at 10x the heartbeat period and a bound at 2x staleness:
+        // a holder still attesting cannot age out inside the bound, while one
+        // that stopped attesting goes stale at ~1.7s and would be reclaimed
+        // well before it — so this bound discriminates instead of merely
+        // running out. A false reclaim here is the issue #1924 ladder
+        // regression and nothing else.
+        const waiter = spawnSync(
+            "bun",
+            [GATE, "heavy", "echo SHOULD-NOT-RUN"],
+            {
+                encoding: "utf8",
+                cwd: lockRoot,
+                env: env({ TOLARIA_GATE_STALE_MS: "1500" }),
+                timeout: 3000,
+            }
+        );
+        holder.kill("SIGKILL");
+
+        // Still blocked when the bound fired ⇒ the lock was never taken from
+        // a live, working holder.
+        expect(waiter.signal).toBe("SIGTERM");
+        expect(waiter.stdout).not.toContain("SHOULD-NOT-RUN");
+        expect(waiter.stderr).not.toContain("reclaiming");
+    }, 20_000);
+
+    it("survives a phase turnover — a heavy parallel phase exiting is not a stall", async () => {
+        // Without a monotonic total this is a FALSE reclaim: the four burners
+        // push the live snapshot to ~8 CPU-seconds, they exit, and the single
+        // tail process cannot climb back past that peak within its lifetime —
+        // so every remaining beat reads "no progress" on a command that is
+        // working and will exit 0.
+        // A slower beat than the other liveness tests on purpose: `ps` reports
+        // CPU at 10ms granularity, so under a loaded machine a 150ms beat can
+        // legitimately see no measurable change on a starved process. 3 beats
+        // of 400ms needs 1.2s of ZERO measurable CPU to trip — unreachable for
+        // a spinning process at any share of a core, while still firing well
+        // inside the 5s tail if the total is not monotonic.
+        const child = spawn("bun", [GATE, "heavy", burstThenSteady(4, 2, 5)], {
+            cwd: lockRoot,
+            env: env({
+                TOLARIA_GATE_HEARTBEAT_MS: "400",
+                TOLARIA_GATE_STALL_BEATS: "3",
+            }),
+            stdio: ["ignore", "pipe", "pipe"],
+        } as never);
+        let out = "";
+        let err = "";
+        child.stdout!.on("data", (d) => (out += d));
+        child.stderr!.on("data", (d) => (err += d));
+        const code = await new Promise<number>((r) =>
+            child.on("exit", (c) => r(c ?? 1))
+        );
+
+        expect(code, err).toBe(0);
+        expect(out).toContain("PHASES-DONE");
+        expect(err).not.toContain("STALLED");
+    }, 30_000);
+
+    it("a waiter's first line names the holder — pid, cwd, label and held-for", async () => {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: "ignore",
+        } as never);
+        await waitForLock();
+        const waiter = spawnSync("bun", [GATE, "heavy", "echo NOPE"], {
+            encoding: "utf8",
+            cwd: lockRoot,
+            env: env(),
+            timeout: 3000,
+        });
+        holder.kill("SIGKILL");
+
+        // Three sessions sat blocked for two hours with no way to tell who
+        // held the mutex; every field below was already in owner.json.
+        expect(waiter.stderr).toMatch(
+            /\[gate\] waiting \S+ for the heavy mutex — pid \d+ · held \S+ · last progress \S+ ago · \S+ · sleep 10/
+        );
+    }, 20_000);
+
+    it("`who` reports the holder plus its descendant CPU, or says the mutex is free", async () => {
+        expect(run(["who"]).stdout).toContain("heavy mutex is free");
+
+        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: "ignore",
+        } as never);
+        await waitForLock();
+        // `sh -c "sleep 10"` burns a few ms at startup, so the descendant
+        // total is small but present — the point is that it is MEASURED.
+        await new Promise((r) => setTimeout(r, 300));
+        const out = run(["who"]).stdout;
+        holder.kill("SIGKILL");
+
+        expect(out).toMatch(/pid \d+ · held \S+ · last progress \S+ ago/);
+        expect(out).toMatch(/holder pid alive · subtree CPU \d+\.\d\ds/);
     }, 20_000);
 });
 

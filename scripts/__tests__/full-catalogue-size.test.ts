@@ -97,10 +97,16 @@ describe("Full Catalogue data integrity", () => {
     // dashes in `rehydrate` — see `src/lib/scryfallId.ts` — because every other
     // id in the project, and every Scryfall image path, is the dashed form.
     it("all printIds are dashless UUIDs", () => {
-        for (const id of readArtifact().printIds) {
-            expect(id).not.toMatch(/-/);
-            expect(id).toHaveLength(32);
-        }
+        // Scanned in plain JS, asserted ONCE. Two `expect()` calls per id over
+        // 32k ids is ~65k assertion objects, which blew this test's 5s budget
+        // whenever the machine was busy — a false red on a shared machine that
+        // several sessions gate on by design (see scripts/gate.ts). A single
+        // assertion is also a better failure: it names the offenders instead of
+        // stopping at the first.
+        const bad = readArtifact().printIds.filter(
+            (id) => id.length !== 32 || id.includes("-")
+        );
+        expect(bad.slice(0, 5)).toEqual([]);
     });
 
     it("all arrays have consistent length", () => {
