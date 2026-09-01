@@ -231,8 +231,14 @@ describe("gate.ts — liveness (issue #2999)", () => {
         // fed an honest input.
         await new Promise((r) => setTimeout(r, 1500));
 
-        const waiter = run(["heavy", "echo RECLAIMED"], {
+        // Bounded on purpose: if the holder never goes silent, this call
+        // blocks forever in acquire()'s poll loop, and a spawnSync that hangs
+        // takes the vitest worker with it instead of reporting red.
+        const waiter = spawnSync("bun", [GATE, "heavy", "echo RECLAIMED"], {
+            encoding: "utf8",
+            cwd: lockRoot,
             env: env({ TOLARIA_GATE_STALE_MS: "600" }),
+            timeout: 8000,
         });
         holder.kill("SIGKILL");
         await new Promise<void>((r) => holder.on("exit", () => r()));
@@ -246,24 +252,27 @@ describe("gate.ts — liveness (issue #2999)", () => {
         expect(waiter.stderr).toContain("STALLED holder");
     }, 25_000);
 
-    it("never reclaims a holder that IS making progress, however long it runs", async () => {
-        const holder = spawn("bun", [GATE, "heavy", burnCpu(5)], {
+    it("never reclaims a holder that IS making progress, however long it runs (issue #1924)", async () => {
+        const holder = spawn("bun", [GATE, "heavy", burnCpu(6)], {
             cwd: lockRoot,
             env: stallEnv(),
             stdio: "ignore",
         } as never);
         await waitForLock();
-        // A staleness threshold 20x the heartbeat period: only a holder that
-        // genuinely stopped attesting can trip it, so a false reclaim here is
-        // the #1924 ladder regression and nothing else.
+        // Staleness at 10x the heartbeat period and a bound at 2x staleness:
+        // a holder still attesting cannot age out inside the bound, while one
+        // that stopped attesting goes stale at ~1.7s and would be reclaimed
+        // well before it — so this bound discriminates instead of merely
+        // running out. A false reclaim here is the issue #1924 ladder
+        // regression and nothing else.
         const waiter = spawnSync(
             "bun",
             [GATE, "heavy", "echo SHOULD-NOT-RUN"],
             {
                 encoding: "utf8",
                 cwd: lockRoot,
-                env: env({ TOLARIA_GATE_STALE_MS: "3000" }),
-                timeout: 2500,
+                env: env({ TOLARIA_GATE_STALE_MS: "1500" }),
+                timeout: 3000,
             }
         );
         holder.kill("SIGKILL");
