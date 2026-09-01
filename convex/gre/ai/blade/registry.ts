@@ -3699,7 +3699,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: false,
                 },
-                // TWO defenders: Bombardiers has menace (CR 702.110a), so a
+                // TWO defenders: Bombardiers has menace (CR 702.111a), so a
                 // single creature could not legally block it and the engine
                 // would never open the DECLARE_BLOCKERS window the
                 // `declare-blockers` step needs.

@@ -3,12 +3,13 @@
 //
 // Broadside Bombardiers (issue #2375) is the card that shipped Boast
 // (CR 702.142). Its two halves are tested where each actually lives:
-//   * the KEYWORD's activation-timing rule (CR 702.142a) on the two surfaces
-//     that live on this side of the project boundary — the server's hard throw
-//     and the bot's move enumerator. The CLIENT surface (`getStackAbilities`
-//     over a real `projectPublicState`) is asserted in
-//     `src/lib/__tests__/boastActivationAffordance.test.ts`, because a file in
-//     the convex project may not import `src/**`;
+//   * the KEYWORD's activation-timing rule (CR 702.142a) on the server's
+//     authoritative throw. Its two other surfaces are asserted where their
+//     suites live: the BOT enumerator in `red.bot.test.ts` (importing
+//     `gre/moves` from a plain `*.test.ts` puts a bot-only module in the app
+//     suite — `bot-suite-boundary.test.ts`), and the CLIENT affordance in
+//     `src/lib/__tests__/boastActivationAffordance.test.ts` (a file in the
+//     convex project may not import `src/**`);
 //   * the DAMAGE amount, which reads the cost-sacrificed permanent's mana value
 //     as last known information (CR 608.2h) off the stack item's
 //     `additionalSacrificeSnapshot`, driven through the REAL cost-payment path
@@ -24,7 +25,6 @@ import { hillGiant } from "../../lea/red";
 import { blackLotus } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { assertActivationTimingLegal } from "../../../../game";
-import { enumerateMoves } from "../../../../gre/moves";
 import { applyActivationCostsForSearch } from "../../../../gre/applyMove";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import { resolveTopOfStack } from "../../../../gre/state";
@@ -100,27 +100,6 @@ describe("Broadside Bombardiers — Boast (CR 702.142a) activation timing, issue
         expect(() =>
             assertActivationTimingLegal(state, source, boast)
         ).not.toThrow();
-    });
-
-    // Bot visibility (`.claude/rules/bot-development.md`): the gate is a
-    // DECLARATIVE field precisely so `enumerateAbilityMoves` can read it — a
-    // `canActivate` closure is skipped wholesale by that enumerator, which would
-    // make Boast structurally invisible to the bot rather than merely gated.
-    it("enumerateMoves offers the boast activation only after the source has attacked", () => {
-        const { state, source } = board();
-        const boastMoves = (s: GameState) =>
-            enumerateMoves(s, "p1").filter(
-                (m) => m.kind === "activate-ability" && m.abilityId === BOAST_ID
-            );
-
-        expect(boastMoves(state)).toHaveLength(0);
-
-        source.hasAttackedThisTurn = true;
-        expect(boastMoves(state).length).toBeGreaterThan(0);
-
-        // CR 602.5b — and never a second time in the same turn.
-        source.activationsThisTurn = { [BOAST_ID]: 1 };
-        expect(boastMoves(state)).toHaveLength(0);
     });
 });
 
