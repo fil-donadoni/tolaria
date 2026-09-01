@@ -1,7 +1,8 @@
 ---
 title: The whole order-top choice family (Scry / Surveil / Explore) is never an in-tree bot decision
 discoveredBy: 2376
-status: draft
+status: triaged
+issue: 2996
 confidence: high
 ---
 
@@ -27,6 +28,14 @@ an `order-top` submission needs BOTH the kept ids and `secondZoneIds`
 (`convex/gre/pendingChoiceSubmit.ts:1038`). That is a Move-union widening, which
 by the bot-slice seam table drags in `applyMove.ts`, `src/lib/ai/executor.ts`,
 `describeMove.ts` and `botActionRealisation` in `src/hooks/useVsAiDriver.ts`.
+
+**Triaged 2026-09-01 → #2996**, a sub-issue of the bot map #1892, blocked by
+#1524: `determinize` reshuffles the observer's library every ISMCTS iteration,
+so until the known top run is pinned the search cannot see any value in what
+was left on top and this decision's better branch is invisible to it. Nothing
+tracked the order-top family before — #1524 is the adjacent, complementary gap
+(the bot FORGETS what it knows about its top), not this one (the bot never
+DECIDES what to put there).
 
 **Why it may not deserve its own issue.** It is not an Explore regression — it
 is the shipped, documented behaviour of a family that predates this work, and
