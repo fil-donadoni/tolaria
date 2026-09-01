@@ -3448,6 +3448,88 @@ export const OP_EXECUTORS: {
             }
         }
     },
+    // CR 701.44 (issue #2376) — the Explore keyword action. A thin declarative
+    // skin composed of primitives that already exist, ONE execution path (ADR
+    // 0045): `peekLibraryTop` + `getLibraryCards` name and read the revealed
+    // card, `markKnownToAll` + `notifyReveal` make it public (the SAME pair
+    // `revealTopAndRoute` above uses), `moveCardById` sends a land to hand,
+    // `addCounter` puts the +1/+1 counter on the exploring permanent, and the
+    // "may put the revealed card into their graveyard" tail is `orderTop` at
+    // `n: 1, destination: "graveyard"` — the Surveil 1 drag picker (CR 701.25),
+    // which is exactly what that clause is. No new SpellContext primitive.
+    //
+    // SUSPENDS on the nonland branch, so this executor runs TWICE (CR 608.3 —
+    // the interpreter checkpoints at this Op and re-enters HERE, not at
+    // position 0). Everything that must happen EXACTLY ONCE — the reveal
+    // dialog and the +1/+1 counter — is fenced behind a `noteChoice` latch
+    // keyed by this Op's own checkpoint index, so two `explore` Ops in one
+    // script never share it (`recallChoice` scans every step for the id).
+    // The counter is placed BEFORE the graveyard-or-top choice is raised, the
+    // order CR 701.44a states.
+    explore(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return; // CR 608.2b — the exploring permanent is gone
+        // CR 701.44a — the library, the hand and the graveyard are all THAT
+        // PERMANENT's controller's, never the ability's controller's.
+        const controllerId = ctx.getController(target);
+        // `pos` is `runOpList`'s pre-order cursor position, committed by
+        // `setScriptCheckpoint` immediately before dispatch, so it is THIS
+        // Op's own position. It is what makes the latch unique per Op
+        // INSTANCE: two `explore` Ops in one script never share a latch, and
+        // `recallChoice`'s `key.endsWith(":" + id)` scan is anchored on the
+        // colon, so `pos: 1` cannot collide with `pos: 11`. (`explore` inside
+        // a `forEach` body is rejected outright by the validator — CR 701.44c/d
+        // — so the iteration-scoping `scopedContext` applies to `$`-prefixed
+        // ids is not relied on here.)
+        const pos = ctx.getScriptCheckpoint() ?? 0;
+        const latchId = `explore-done-${pos}`;
+        const orderChoiceId = `explore-top-${pos}`;
+        const resumed = ctx.recallChoice(latchId) !== undefined;
+        const topIds = ctx.peekLibraryTop(controllerId, 1);
+        // CR 608.2b — an empty library reveals nothing; the permanent has still
+        // explored (CR 701.44b), which is unobservable without an explore
+        // trigger in the pool.
+        if (topIds.length === 0) return;
+        const revealedId = topIds[0];
+        const card = ctx
+            .getLibraryCards(controllerId)
+            .find((c) => c.id === revealedId);
+        if (card === undefined) return; // CR 608.2b — no longer there
+        if (!resumed) {
+            // CR 701.44a — the reveal is public and happens BEFORE the branch:
+            // `markKnownToAll` is the persistent grant (a card revealed on its
+            // way to hand stays visible to the opponent), `notifyReveal` the
+            // transient dialog.
+            ctx.markKnownToAll(controllerId, [revealedId]);
+            ctx.notifyReveal(
+                [...ctx.allPlayerIds],
+                [revealedId],
+                ctx.sourceCardId,
+                "reveal"
+            );
+        }
+        // CR 701.44a — "If a land card is revealed this way, that player puts
+        // that card into their hand." No counter, no choice, no suspension.
+        // Matched through the shared `matchesCardFilter`, like every other
+        // hidden-zone read in this module.
+        if (matchesCardFilter(ctx, card, { type: "Land" })) {
+            ctx.moveCardById(controllerId, revealedId, "library", "hand");
+            return;
+        }
+        // CR 701.44a — "Otherwise, that player puts a +1/+1 counter on the
+        // exploring permanent and may put the revealed card into their
+        // graveyard." The counter first, then the choice.
+        if (!resumed) {
+            ctx.addCounter(target, "+1/+1", 1);
+            ctx.noteChoice(latchId, ["1"]);
+        }
+        const applied = ctx.orderTop(controllerId, 1, {
+            destination: "graveyard",
+            prompt: "Explore — keep the revealed card on top of your library, or put it into your graveyard.",
+            choiceId: orderChoiceId,
+        });
+        if (!applied) return "suspend"; // enqueued the order-top choice — wait
+    },
     // CR 401.4 (issue #984, extended #1101, renamed + `keepTo` #2070) — look
     // at the top `look` cards, put `take` (default 1) to `keepTo` (HAND or
     // the LIBRARY TOP — Thassa's Oracle), the rest to `destination` (the

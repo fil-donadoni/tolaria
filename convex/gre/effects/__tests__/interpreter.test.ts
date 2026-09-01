@@ -27463,6 +27463,339 @@ describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
     });
 });
 
+// --- explore Op: the CR 701.44 keyword action -------------------------------
+// Reveal the top card of the EXPLORING PERMANENT's controller's library; a
+// land goes to their hand; anything else puts a +1/+1 counter on the exploring
+// permanent and offers "may put the revealed card into their graveyard" — the
+// Surveil 1 (CR 701.25) drag picker, so the Op SUSPENDS on that branch and its
+// executor runs twice (CR 608.3). Both properties the double-run can break are
+// asserted here: the counter is placed EXACTLY once, and the reveal is not
+// re-popped.
+describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
+    const EXPLORE_SCRIPT: EffectOp[] = [
+        { op: "explore", target: { target: 0 } },
+    ];
+
+    const libOf = (owner: "p1" | "p2", entries: [string, string][]) =>
+        entries.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const explorer = (id: string, controllerId: "p1" | "p2" = "p1") =>
+        makeInstance(BEAR_ID, { id, controllerId, ownerId: controllerId });
+
+    it("CR 701.44a — a revealed LAND goes to hand, with NO counter and no suspension", () => {
+        const id = registerScript("test-op-explore-land", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [
+                        ["top", LAND_ID],
+                        ["next", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        expect(resolveTopOfStack(state)).not.toBeNull(); // resolved, not suspended
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("top");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBeUndefined();
+    });
+
+    it("CR 701.44a — the reveal is PUBLIC: the land survives into the opponent's projected view (wire format)", () => {
+        const id = registerScript("test-op-explore-reveal", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [["top", LAND_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        resolveTopOfStack(state);
+        // The card rode into p1's HAND, a zone the projection nulls out for the
+        // opponent — unless the CR 701.44a reveal stamped it known-to-all.
+        const oppView = projectPublicState(state, 1, "p2");
+        const revealed = oppView.players[0].hand.find(
+            (c) => c !== null && c.id === "top"
+        );
+        expect(revealed).toBeDefined();
+        expect(revealed!.card.id).toBe(LAND_ID);
+    });
+
+    it("CR 701.44a — a revealed NONLAND places ONE +1/+1 counter and raises the keep-or-bin choice", () => {
+        const id = registerScript("test-op-explore-nonland", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [
+                        ["top", BEAR_ID],
+                        ["next", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("order-top");
+        expect(head.playerId).toBe("p1");
+        expect(head.candidateIds).toEqual(["top"]);
+        // The counter is placed BEFORE the choice is raised — CR 701.44a's own
+        // order ("puts a +1/+1 counter … and may put the revealed card …").
+        const midScout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(midScout.counters?.["+1/+1"]).toBe(1);
+        // The revealed card is still on top while the choice is pending.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "top",
+            "next",
+        ]);
+        // CR 701.44a — the reveal fired on THIS pass, so the player sees what
+        // they are deciding about. The engine is suspended here, which is a
+        // stable point, so this is the state the client actually renders.
+        expect(state.pendingReveals ?? []).toHaveLength(1);
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["top"]
+        );
+    });
+
+    it("CR 701.44a — KEEPING the card on top leaves the library untouched and the counter at exactly one", () => {
+        const id = registerScript("test-op-explore-keep", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [
+                        ["top", BEAR_ID],
+                        ["next", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["top"], // kept on top
+            secondZoneIds: [],
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "top",
+            "next",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "top"
+        );
+        // THE OTHER HALF OF THE LATCH. `resolveTopOfStack` clears
+        // `pendingReveals` at the START of every pass, so the resumed pass
+        // wipes the dialog the player already saw and answered. If the
+        // executor re-fired `notifyReveal` on that pass it would push a
+        // SECOND, stale dialog for a card already decided about — so "empty
+        // after the resume" is exactly the assertion that catches a missing
+        // latch on the reveal half.
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        // THE DOUBLE-RUN ASSERTION. The executor re-ran on resume (CR 608.3);
+        // without the `noteChoice` latch it would place a SECOND counter here.
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBe(1);
+        // Wire format: the counter-driven P/T is what the client reads.
+        // BEAR_ID is a 2/5, so one +1/+1 counter = 3/6.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(6);
+    });
+
+    it("CR 701.44a — BINNING the card sends it to the graveyard, counter still exactly one", () => {
+        const id = registerScript("test-op-explore-bin", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [
+                        ["top", BEAR_ID],
+                        ["next", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [], // nothing kept …
+            secondZoneIds: ["top"], // … so it goes to the graveyard
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("top");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+        // No stale second dialog after the resume (see the keep test).
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBe(1);
+    });
+
+    it("CR 701.44a — the LIBRARY read follows the exploring permanent's controller, not the ability's", () => {
+        // p1 controls the spell; the exploring creature is p2's, so the card
+        // comes off p2's library and lands in p2's hand.
+        const id = registerScript("test-op-explore-controller", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", [["mine", BEAR_ID]]) }),
+                makePlayer("p2", {
+                    battlefield: [explorer("theirs", "p2")],
+                    library: libOf("p2", [["top", LAND_ID]]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "theirs" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.map((c) => c.id)).toContain("top");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["mine"]);
+    });
+
+    it("CR 608.2b — an EMPTY library is a no-op: no counter, no choice, no crash", () => {
+        const id = registerScript("test-op-explore-empty", EXPLORE_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [explorer("scout")] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBeUndefined();
+    });
+
+    it("CR 608.2b — an unresolvable `$bound` ref skips the whole Op", () => {
+        // The reachable shape for the executor's own `if (!target) return`.
+        // An announced-slot target CANNOT reach it: the engine counters a
+        // single-illegal-target spell before the script runs (CR 608.2b), and
+        // `ctx.targets` is compacted, so a departed permanent never sits in a
+        // slot. A ref whose binding was never captured does reach it.
+        const id = registerScript("test-op-explore-unbound", [
+            { op: "explore", target: { ref: "$never" } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [["top", BEAR_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices ?? []).toEqual([]);
+        // Nothing was revealed and nothing moved.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["top"]);
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("top");
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBeUndefined();
+    });
+
+    it("two `explore` Ops in ONE script each place their own counter (the latch is per-Op)", () => {
+        // The latch key is derived from each Op's own checkpoint index, so the
+        // SECOND explore must not read the FIRST one's note and skip its
+        // counter. Both cards revealed are nonlands, so both branches suspend.
+        const id = registerScript("test-op-explore-twice", [
+            { op: "explore", target: { target: 0 } },
+            { op: "explore", target: { target: 0 } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("scout")],
+                    library: libOf("p1", [
+                        ["a", BEAR_ID],
+                        ["b", BEAR_ID],
+                        ["c", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "scout" }]);
+        // First explore: bin "a".
+        resolveTopOfStack(state);
+        const first = state.pendingChoices![0];
+        expect(first.candidateIds).toEqual(["a"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: first.stackItemId,
+            step: first.step,
+            choiceId: first.choiceId,
+            cardInstanceIds: [],
+            secondZoneIds: ["a"],
+        });
+        // Second explore: keep "b" on top.
+        const second = state.pendingChoices![0];
+        expect(second.candidateIds).toEqual(["b"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: second.stackItemId,
+            step: second.step,
+            choiceId: second.choiceId,
+            cardInstanceIds: ["b"],
+            secondZoneIds: [],
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBe(2);
+        // "a" was binned, "b" was kept — the resolved sorcery is in the
+        // graveyard too, so assert membership rather than the whole zone.
+        const graveyard = state.players[0].graveyard.map((c) => c.id);
+        expect(graveyard).toContain("a");
+        expect(graveyard).not.toContain("b");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["b", "c"]);
+    });
+});
+
 // --- hideaway Op: look at top N, exile ONE face down (linked to the source),
 // bottom the rest in a random order (CR 702.75a, issue #783) -----------------
 // Structurally `lookDistribute` with the kept card routed to FACE-DOWN, source-LINKED

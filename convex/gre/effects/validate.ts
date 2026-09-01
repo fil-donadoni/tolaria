@@ -690,6 +690,16 @@ function isTokenActivatedAbility(value: unknown): boolean {
         "effects",
         "manaChoices",
         "manaProduced",
+        // CR 111.10 / 601.2c / 602.3b (issue #2376) — the Map token's "{1},
+        // {T}, Sacrifice this token: TARGET CREATURE YOU CONTROL explores.
+        // ACTIVATE ONLY AS A SORCERY." Both fields are plain data (a
+        // `TargetRequirement` literal, a boolean), so both survive the DB
+        // round-trip; neither existed on this surface before because no shipped
+        // token's own ability targeted or carried a timing restriction. Same
+        // earn-it-card-by-card discipline as `TokenTriggeredEventKind`: this
+        // allowlist grows only when a real token needs the field.
+        "targetRequirement",
+        "sorcerySpeedOnly",
     ]);
     if (!Object.keys(a).every((k) => allowed.has(k))) return false;
     if (typeof a.id !== "string" || a.id.length === 0) return false;
@@ -728,6 +738,27 @@ function isTokenActivatedAbility(value: unknown): boolean {
     ) {
         return false;
     }
+    // CR 601.2c (issue #2376) — a token ability's own announced targets. Shape-
+    // checked by the SAME `isInlineTargetRequirement` the `reflexiveTrigger` Op
+    // uses; `tsc` enforces the field vocabulary against `TargetRequirement`
+    // itself at authoring time, and this adds what tsc cannot — that the
+    // requirement is pure JSON. Reusing that checker also inherits its
+    // rejection of the CR 601.2c "up to X" object form (`count: {min, max:
+    // "X"}`), which is the RIGHT default on this deliberately-restricted
+    // surface even though the activated-ability announcement path could in
+    // principle serve it: a token needing a variable target count is
+    // stop-and-open-an-issue, not a shape to author blind.
+    if (
+        "targetRequirement" in a &&
+        !isInlineTargetRequirement(a.targetRequirement)
+    ) {
+        return false;
+    }
+    // CR 602.3b via 307.5 (issue #2376) — "Activate only as a sorcery." A bare
+    // boolean; `false` is rejected alongside a non-boolean because an explicit
+    // `false` is the shape that reads as "I considered the restriction" while
+    // encoding its absence — omit the field instead.
+    if ("sorcerySpeedOnly" in a && a.sorcerySpeedOnly !== true) return false;
     return true;
 }
 
@@ -4067,6 +4098,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
     },
+    // CR 701.44 (issue #2376) — the Explore keyword action. ONE field: the
+    // exploring permanent (`target`), an object selector like `counters`'
+    // — an announced slot (the Map token's "target creature you control"),
+    // `$source`, or a forEach `$each`. Everything else about the process is
+    // fixed by the rule itself (top card, its controller's library, one
+    // +1/+1 counter, a graveyard-or-top choice), so there is nothing else to
+    // parameterise: no `player` (CR 701.44a reads the controller OFF the
+    // permanent), no `count`, no `destination`.
+    explore: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 401.4 (issue #984, extended #1101, `keepTo` #2070) — look at the top
     // `look` cards, put `take` (default 1) to `keepTo` (hand, or the library
     // top — Thassa's Oracle), the rest to `destination` (library bottom by
@@ -6202,6 +6246,55 @@ function findOpsWithNames(
     for (const v of Object.values(obj)) findOpsWithNames(v, names, out);
 }
 
+/** The HIGHEST announced target slot (`{ target: n }`) referenced anywhere in
+ *  an Op subtree, or -1 when none is. Deliberately structural, like
+ *  `findOpsWithNames` above: it matches the `{ target: <int> }` selector shape
+ *  wherever it appears — a top-level Op, an `if` branch, a `forEach` body, a
+ *  predicate — without knowing which Ops carry selectors. */
+function maxAnnouncedTargetSlot(value: unknown): number {
+    if (value === null || typeof value !== "object") return -1;
+    if (Array.isArray(value)) {
+        return value.reduce<number>(
+            (max, v) => Math.max(max, maxAnnouncedTargetSlot(v)),
+            -1
+        );
+    }
+    const obj = value as Record<string, unknown>;
+    let max = -1;
+    if (
+        typeof obj.target === "number" &&
+        Number.isInteger(obj.target) &&
+        obj.target >= 0
+    ) {
+        max = obj.target;
+    }
+    for (const v of Object.values(obj)) {
+        max = Math.max(max, maxAnnouncedTargetSlot(v));
+    }
+    return max;
+}
+
+/** How many targets a `TargetRequirement`-shaped literal GUARANTEES will be
+ *  announced (CR 601.2c). A plain integer count is that count; a `{ min }`
+ *  range guarantees only `min`; an `"X"` count guarantees nothing (X may be
+ *  0). Undefined for an absent/unreadable requirement — the caller treats that
+ *  as "guarantees nothing", which is the fail-CLOSED reading. */
+function guaranteedTargetCount(requirement: unknown): number {
+    if (typeof requirement !== "object" || requirement === null) return 0;
+    const count = (requirement as Record<string, unknown>).count;
+    if (typeof count === "number" && Number.isInteger(count) && count >= 0) {
+        return count;
+    }
+    if (typeof count === "object" && count !== null) {
+        const min = (count as Record<string, unknown>).min;
+        if (typeof min === "number" && Number.isInteger(min) && min >= 0) {
+            return min;
+        }
+    }
+    // `"X"` (or anything unreadable) guarantees no slot at all.
+    return 0;
+}
+
 /** `exileSelf` / `shuffleSelfIntoLibrary` (CR 608.2, issues #898 / #1097) both
  *  redirect the RESOLVING SPELL's own post-resolution destination — but only
  *  `finalizeSpellResolution`'s NON-permanent branch (`gre/state.ts`) ever
@@ -6245,6 +6338,34 @@ function validateEffectOpList(
     // branches, #865 $event refs).
     checkRefUses(effects, label, errors, implicit, triggerEventType);
 
+    // 5b — CR 701.44c/d (issue #2376) — `explore` inside a `forEach` body is
+    // rejected, because that is the ONE shape that makes the two subrules the
+    // Op does not implement reachable, and it would reach them WRONGLY:
+    //  * 701.44d gives the controller of several simultaneously-exploring
+    //    permanents the CHOICE of which explores first; `execForEach` iterates
+    //    a frozen set in fixed order with no such choice.
+    //  * 701.44c requires a permanent that has already LEFT the battlefield to
+    //    explore off last known information; a frozen `forEach` member that
+    //    left leaves `$each` uncaptured, so the Op skips ENTIRELY — no reveal,
+    //    no land to hand.
+    // Failing closed here is what makes the Op's own "explores exactly one
+    // permanent" scope TRUE rather than aspirational: a future "each creature
+    // you control explores" card gets a hard error and the 701.44d ordering
+    // work it actually needs, instead of a functional-looking wrong answer.
+    // Per `.claude/rules/gre-development.md` a mechanic ships WHOLE, so this
+    // is deliberately an error and not a tracked divergence marker.
+    const forEachOps: Record<string, unknown>[] = [];
+    findOpsWithNames(effects, FOR_EACH_OP, forEachOps);
+    for (const forEachOp of forEachOps) {
+        const nestedExplores: Record<string, unknown>[] = [];
+        findOpsWithNames(forEachOp.effects, EXPLORE_OP, nestedExplores);
+        if (nestedExplores.length > 0) {
+            errors.push(
+                `${label}: "explore" appears inside a forEach body — the Op implements CR 701.44a for exactly ONE permanent; several permanents exploring at once needs 701.44d's controller-ordered choice (and 701.44c's last-known-information explore for a member that has left), neither of which a frozen forEach walk provides`
+            );
+        }
+    }
+
     // 4 — JSON purity (ADR 0046).
     const impurity = findImpurity(effects, `${label}: effects`);
     if (impurity) errors.push(impurity);
@@ -6274,6 +6395,28 @@ function validateEffectOpList(
                     errors,
                     undefined
                 );
+                // CR 601.2c (issue #2376) — a token ability may now DECLARE
+                // targets (`targetRequirement` joined the allowlist for the Map
+                // token), so for the first time its body's `{ target: n }`
+                // slots mean something and can be WRONG. Nothing else relates
+                // the two: `validateEffectOpList` above validates the body in
+                // isolation and never sees the requirement. Unchecked, an
+                // ability whose body reads slot 0 with no requirement (or a
+                // count that guarantees no slot) validates clean and then
+                // silently does NOTHING at runtime — `resolveObjectRef`
+                // returns undefined and the Op skips — which is precisely the
+                // "ships functional-looking but is inert" class this
+                // restricted surface exists to prevent. Fail CLOSED: an
+                // unreadable or absent requirement guarantees zero slots.
+                const maxSlot = maxAnnouncedTargetSlot(ability.effects);
+                const guaranteed = guaranteedTargetCount(
+                    (raw as { targetRequirement?: unknown }).targetRequirement
+                );
+                if (maxSlot >= guaranteed) {
+                    errors.push(
+                        `${abilityLabel}: body references announced target slot ${maxSlot} but the ability's targetRequirement guarantees only ${guaranteed} target(s) — the slot would resolve to undefined and the Op would silently skip (CR 601.2c / 608.2b)`
+                    );
+                }
             }
         });
     });
@@ -6362,6 +6505,10 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
 
 /** No implicit bindings — a spell site provides no `$source` (its source is
  *  the resolving stack item, not a battlefield permanent). */
+/** Op-name singletons for the CR 701.44c/d nesting gate above (issue #2376). */
+const FOR_EACH_OP: ReadonlySet<string> = new Set(["forEach"]);
+const EXPLORE_OP: ReadonlySet<string> = new Set(["explore"]);
+
 const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
 /** The bindings an ability site provides for free: `$source` (issue #803) and
  *  `$host` (issue #1341 — the permanent the source is attached to, CR 701.3).

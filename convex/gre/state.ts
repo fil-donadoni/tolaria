@@ -5896,9 +5896,14 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // Reveal dialog (one-shot): a prior resolution's reveal notifications have
     // already ridden a stable snapshot to the client (which dedups + auto-
     // dismisses), so clear them before this resolution so `notifyReveal` starts
-    // a fresh batch. Safe because `notifyReveal` is opt-in on pure look/reveal
-    // cards that resolve in a single pass (never mid-choice), so a resumed
-    // resolution never loses a reveal produced before a suspension.
+    // a fresh batch. A reveal produced by a pass that then SUSPENDS is not
+    // lost: the suspension is a stable point, so that snapshot is persisted
+    // and the client renders the dialog before the answer comes back. What
+    // this clear does for a suspending reveal is stop the already-answered
+    // dialog from riding the resumed pass a second time (`explore`, CR
+    // 701.44a, issue #2376 — the first reveal site that notifies and THEN
+    // suspends; its own `noteChoice` latch is what keeps the resumed pass
+    // from re-notifying).
     state.pendingReveals = undefined;
 
     const top = state.stack[state.stack.length - 1];

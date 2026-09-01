@@ -13002,6 +13002,75 @@ export type EffectOp =
           }[];
           fallback: RevealRouteDestination;
       }
+    /** CR 701.44 (issue #2376) — the Explore keyword action: "Target creature
+     *  you control explores." A thin declarative skin composed of primitives
+     *  that already exist, one execution path (ADR 0045):
+     *  `peekLibraryTop` + `getLibraryCards` name and read the revealed card,
+     *  `markKnownToAll` + `notifyReveal` make it public (the SAME pair
+     *  `revealTopAndRoute` uses), `moveCardById` sends a land to hand,
+     *  `addCounter` puts the +1/+1 counter on the exploring permanent, and the
+     *  "may put it into your graveyard" tail is the ALREADY-exercised
+     *  `orderTop` primitive at `n: 1, destination: "graveyard"` — the Surveil 1
+     *  drag picker (CR 701.25), which is exactly what CR 701.44a's last clause
+     *  is. No new SpellContext primitive.
+     *
+     *  Why an Op and not a composition (`.claude/rules/gre-development.md`
+     *  § Primitive reuse): the closest existing Op, `revealTopAndRoute`, routes
+     *  a revealed card by WHAT IT IS with nothing to decide and deliberately
+     *  never suspends — it cannot put a counter on a second object, nor raise
+     *  the graveyard-or-top choice. Widening it with a per-route effects body
+     *  would turn the one deterministic reveal Op into a suspending one and
+     *  make it card-shaped. A `bind` + `if` composition cannot start either:
+     *  no construct binds the top LIBRARY card's characteristics before it
+     *  moves. Explore is also a named CR 701 keyword action many cards
+     *  reference by name, so it earns the vocabulary entry.
+     *
+     *  It is the first Op that MUTATES the board (the +1/+1 counter) and then
+     *  SUSPENDS in the same call. That is worth knowing before nesting it in
+     *  an `if`: the construct re-walks only the taken branch, so a predicate
+     *  reading what the counter changed can evaluate differently on the
+     *  resumed pass ("no creature with power >= 4", with a 3/4 explorer),
+     *  shifting every downstream Op position. A pre-existing property of `if`
+     *  rather than of this Op, but this Op is the first to make it reachable.
+     *
+     *  SUSPENDS on the nonland branch (`orderTop` raises an `order-top`
+     *  PendingChoice), so — unlike `revealTopAndRoute` — this executor runs
+     *  TWICE (CR 608.3: the interpreter checkpoints at this Op and re-enters
+     *  HERE, not at position 0). The reveal dialog and the +1/+1 counter are
+     *  therefore fenced behind a `noteChoice` latch keyed by this Op's own
+     *  checkpoint index, so a resumed pass never re-pops the dialog nor places
+     *  a second counter.
+     *
+     *  `target` names the exploring PERMANENT (an announced target slot — the
+     *  Map token's "target creature you control"; the resolving source; or a
+     *  `forEach` member). The card is revealed from, and returned to, THAT
+     *  permanent's controller's library (CR 701.44a — "that permanent's
+     *  controller"), not the ability's controller.
+     *
+     *  Every clause of CR 701.44a — the whole observable process — ships here
+     *  whole. The other three subrules are scoped OUT, and the scope is
+     *  enforced rather than asserted:
+     *  - 701.44b ("explores even if those actions were impossible") is
+     *    observable only through a "whenever a permanent you control explores"
+     *    trigger. No such card is in the pool, there is no `EXPLORED`
+     *    GameEventType, and this Op emits none.
+     *  - 701.44c (last known information for a permanent that already left)
+     *    and 701.44d (the controller's CHOICE of which of several
+     *    simultaneously-exploring permanents goes first) are reachable only by
+     *    exploring more than one permanent at once — i.e. an `explore` inside a
+     *    `forEach` body, which `validateEffectOpList` REJECTS outright
+     *    (`gre/effects/validate.ts`). A frozen forEach walk would answer both
+     *    subrules wrongly: fixed iteration order in place of 701.44d's choice,
+     *    and a skipped explore (uncaptured `$each`) in place of 701.44c's
+     *    last-known-information explore. Failing closed is what keeps "exactly
+     *    one permanent" true rather than aspirational — a future "each creature
+     *    you control explores" card gets a hard error and the 701.44d work it
+     *    needs, per `.claude/rules/gre-development.md` (a mechanic ships WHOLE,
+     *    never partially behind a marker). */
+    | {
+          op: "explore";
+          target: EffectObjectSelector;
+      }
     /** CR 401.4 (issue #984, extended #1101, renamed + `keepTo` #2070) — look
      *  at the top `look` cards of a library, put `take` of them (default 1)
      *  to `keepTo` (hand, or the library top — Thassa's Oracle), and put the

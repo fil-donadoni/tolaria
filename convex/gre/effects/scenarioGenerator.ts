@@ -1405,6 +1405,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Library's hand-written per-card tests.
             req.skip ??= `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`;
             return;
+        case "explore":
+            // CR 701.44 (issue #2376) — Explore reveals the top card of the
+            // exploring permanent's controller's library and branches on
+            // whether it is a LAND. The canned generator seeds only a minimal
+            // filler library and cannot provision a KNOWN top card, so which
+            // branch runs is unpredictable from here (the same reason
+            // `revealTopAndRoute` skips); and the nonland branch additionally
+            // SUSPENDS for a live order-top keep-or-bin answer no canned
+            // single-resolution scenario can submit (the same reason
+            // `scryReorder` skips). Explicit skip; execution coverage is the
+            // Op's own interpreter tests, which drive both branches and the
+            // empty-library no-op.
+            req.skip ??= `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -2275,6 +2289,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // coverage guard; both the matching route and the fallback are covered by
     // the Op's own interpreter tests.
     revealTopAndRoute() {
+        return null;
+    },
+    // `explore` (CR 701.44, issue #2376) — never reached: `analyseOp` skips
+    // every script with an explore Op (the canned generator cannot provision a
+    // known top card, so it cannot predict the land-vs-nonland branch, and the
+    // nonland branch suspends on a live keep-or-bin choice). Kept for the 1:1
+    // coverage guard; both branches are covered by the Op's own interpreter
+    // tests.
+    explore() {
         return null;
     },
     // `discardAtRandom` (CR 701.9a, PRD #795) — never reached: `analyseOp`

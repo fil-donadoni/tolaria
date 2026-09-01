@@ -3,13 +3,14 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(issue #676 stub — Get Lost's destroy clause is DSL-clean, but its
-// controller creates two Map tokens whose own activated ability is "{1},
-// {T}, Sacrifice this token: target creature you control explores" — Explore,
-// CR 701.44, is `planned` in mechanicsRegistry.ts, so the token would carry a
-// non-functional ability text. Shipping a Map token that silently does
-// nothing misrepresents the card. Stop-and-issue per gre-development.md;
-// tracked stub.
+// TODO(issue #676 stub — the Explore blocker is GONE: CR 701.44 shipped as
+// the `explore` Effect Op and the Map token as `MAP_TOKEN_SPEC`
+// (abilities/tokens/mapToken.ts) in issue #2376, which deliberately scoped
+// itself to Sentinel of the Nameless City. What is left is the CARD, not the
+// mechanic: verify the printed cost against Scryfall (the line below is an
+// unverified stub) and author "Destroy target creature, planeswalker, or
+// battle. Its controller creates two Map tokens." as `destroy` +
+// `createMapTokenOp({ controllerOf: { target: 0 } }, 2)`. Tracked stub.
 // export const getLost: CardDefinition = {
 //     id: "522aa72b-2b8c-484c-872b-f082101cee35",
 //     name: "Get Lost",
