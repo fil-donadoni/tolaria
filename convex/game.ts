@@ -110,7 +110,11 @@ import {
     findFlashbackCastable,
     getFlashbackAdditionalCost,
 } from "./gre/flashback";
-import { countDistinctCardTypes, findEscapeCastable } from "./gre/escape";
+import {
+    countDistinctCardTypes,
+    findEscapeCastable,
+    hasEscape,
+} from "./gre/escape";
 import { findRetraceCastable, RETRACE_COST_LEGS } from "./gre/retrace";
 import {
     applyGenericOffset,
@@ -7399,7 +7403,13 @@ export function buildCastSacrificeSelection(
     // caster's explicit choice through the unified sacrificeChoice layer (never
     // auto-picked); exactly one is owed. Not snapshot-flagged (the flashback
     // resolve reads no sacrificed-permanent data).
-    if (castFromZone === "graveyard") {
+    // Gated on `hasEscape` as well as the zone, in the SAME precedence
+    // `castRawManaCost` / `graveyardCastStackFlags` / `graveyardCastMechanism`
+    // use (CR 702.138 escape beats CR 702.34 flashback): Underworld Breach
+    // grants escape to every nonland card in its controller's graveyard, Lava
+    // Dart included, and that cast pays the ESCAPE cost — never the flashback
+    // one on top of it (issue #2980).
+    if (castFromZone === "graveyard" && !hasEscape(state, announced)) {
         const fbSacrifice = getFlashbackAdditionalCost(announced)?.sacrifice;
         if (fbSacrifice) {
             specs.push({ filter: fbSacrifice, count: 1 });

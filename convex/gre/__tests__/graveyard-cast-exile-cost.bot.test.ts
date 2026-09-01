@@ -25,6 +25,7 @@ import { applyMoveInSearch } from "../search";
 import { cloneGameState } from "../clone";
 import type { CardInstanceState, GameState } from "../state";
 import { buildCastExileCostChoice } from "../castCost";
+import { getLegalActions } from "../rules";
 import { recordCastExileCostPick } from "../../game";
 import {
     makeInstance,
@@ -320,6 +321,87 @@ describe("non-mana flashback cast enumeration (CR 702.34a / 118.5)", () => {
             expect.arrayContaining(["blue-0", "blue-1"])
         );
         expect(after.players[0].graveyard.map((c) => c.id)).toEqual(["blue-2"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Escape BEATS flashback when a card has both (CR 702.138 over CR 702.34)
+// ---------------------------------------------------------------------------
+
+describe("a card with both escape and flashback pays the ESCAPE cost only", () => {
+    /** Underworld Breach grants escape to EVERY nonland card in its
+     *  controller's graveyard — Lava Dart included, which already has a
+     *  flashback cost of its own ("Sacrifice a Mountain"). Every cost site
+     *  resolves that collision the same way: `castRawManaCost`,
+     *  `graveyardCastStackFlags` and `graveyardCastMechanism` all check escape
+     *  FIRST. The castability gate and the sacrifice selection did not, so the
+     *  Bot enumerated a cast that tapped the one Mountain for the escape's {R}
+     *  AND sacrificed that same Mountain for a flashback cost the cast never
+     *  owed — a Move the server cannot execute. */
+    function lavaDartUnderBreach() {
+        const dart = makeInstance(lavaDart.id, {
+            id: "dart",
+            controllerId: ME,
+            ownerId: ME,
+            zone: "graveyard",
+        });
+        const state = stateWith({
+            battlefield: [
+                untapped(underworldBreach.id, "breach"),
+                untapped(mountain.id, "mtn"),
+            ],
+            graveyard: [dart, ...filler(3, forest.id)],
+        });
+        return { state, dart };
+    }
+
+    it("taps the Mountain for the escape cost and does NOT also sacrifice it", () => {
+        const { state } = lavaDartUnderBreach();
+        const cast = castsOf(state, "dart")[0];
+        expect(cast).toBeDefined();
+        // The ESCAPE cost: Lava Dart's own {R} plus three other graveyard
+        // cards — not the flashback cost, which pays no mana at all.
+        expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+            { cardInstanceId: "mtn" },
+        ]);
+        expect(
+            cast.kind === "cast-spell" && cast.castCostPicks?.exileCostCardIds
+        ).toHaveLength(3);
+
+        const after = applyMoveForSearch(state, ME, cast);
+        // The Mountain is still on the battlefield: tapped for mana, never
+        // sacrificed. Charging both costs put it in the graveyard.
+        expect(after.players[0].battlefield.map((c) => c.id)).toContain("mtn");
+        expect(after.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "mtn"
+        );
+    });
+
+    it("is still castable with no Mountain to sacrifice", () => {
+        // The flashback-first gate refused the cast outright here, because it
+        // demanded a flashback cost this escape cast does not owe. A Forest
+        // cannot pay {R}, so the position also pins that the gate prices the
+        // ESCAPE mana cost: with only Forests the cast is correctly absent.
+        const dart = makeInstance(lavaDart.id, {
+            id: "dart",
+            controllerId: ME,
+            ownerId: ME,
+            zone: "graveyard",
+        });
+        const withMountainOnly = stateWith({
+            battlefield: [
+                untapped(underworldBreach.id, "breach"),
+                untapped(mountain.id, "mtn"),
+            ],
+            graveyard: [dart, ...filler(3, forest.id)],
+        });
+        expect(
+            getLegalActions(
+                withMountainOnly,
+                withMountainOnly.players[0],
+                withMountainOnly.players[0].graveyard[0]
+            )
+        ).toContain("cast");
     });
 });
 

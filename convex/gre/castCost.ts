@@ -456,9 +456,22 @@ export function buildCastExileCostChoice(
     opts?: { additionalCosts?: AdditionalCostSpec; chosenX?: number }
 ): CastExileCostBuild | undefined {
     if (zone !== "graveyard") return undefined;
-    // CR 702.34a / 118.5 — Flash of Insight. X = the announced `chosenX`; a
+    // CR 702.138 / 702.34 — WHICH mechanism this cast uses decides which cost
+    // it owes, and escape beats flashback, exactly as `castRawManaCost`,
+    // `graveyardCastStackFlags` and `graveyardCastMechanism` all order them. A
+    // card can carry both: Underworld Breach grants escape to EVERY nonland
+    // card in its controller's graveyard, flashback cards included. Reading the
+    // zone alone made a Breach-granted escape cast of Flash of Insight pay the
+    // FLASHBACK exile ("X blue cards") instead of the escape one — and at
+    // `chosenX: 0` pay nothing at all, while escape stamps no `exileOnResolve`
+    // so the card returns to the graveyard: the unbounded-recast shape this
+    // whole cost exists to bound (issue #2980 review, F2).
+    const escaping = hasEscape(state, card);
+    // CR 702.34a / 118.8 — Flash of Insight. X = the announced `chosenX`; a
     // zero-X flashback cast looks at 0 cards and owes no exile cost.
-    const fbExileSpec = opts?.additionalCosts?.flashbackExileFromGraveyard;
+    const fbExileSpec = escaping
+        ? undefined
+        : opts?.additionalCosts?.flashbackExileFromGraveyard;
     const chosenX = opts?.chosenX;
     if (fbExileSpec && chosenX !== undefined && chosenX > 0) {
         if (
@@ -480,9 +493,12 @@ export function buildCastExileCostChoice(
             },
         };
     }
-    // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
-    // HAND" cost. Exactly one card, from the caster's own hand.
-    const fbHandSpec = getFlashbackAdditionalCost(card)?.exileFromHand;
+    // CR 702.34a / 118.8 — the flashback-only "Exile a <colour> card from your
+    // HAND" cost. Exactly one card, from the caster's own hand. Suppressed on an
+    // escape cast for the same reason as the leg above.
+    const fbHandSpec = escaping
+        ? undefined
+        : getFlashbackAdditionalCost(card)?.exileFromHand;
     if (fbHandSpec) {
         const eligible = player.hand.filter((c) =>
             isExileCostEligible(c, "", fbHandSpec.color)

@@ -48,6 +48,7 @@ import {
 } from "./paymentPicks";
 import { buildCastExileCostChoice, type CastFromZone } from "./castCost";
 import { getFlashbackAdditionalCost } from "./flashback";
+import { hasEscape } from "./escape";
 import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
 import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
@@ -137,10 +138,19 @@ export function buildCastCostSelection(
         });
     }
     // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost (Lava
-    // Dart), owed ONLY on a flashback cast. Exactly one permanent, and NOT
+    // Dart), owed ONLY on a FLASHBACK cast. Exactly one permanent, and NOT
     // snapshot-flagged: the flashback resolution reads no sacrificed-permanent
     // data. Mirrors `buildCastSacrificeSelection`'s own branch exactly.
-    if (castFromZone === "graveyard") {
+    //
+    // The zone alone does not decide it — `hasEscape` does, in the SAME
+    // precedence `castRawManaCost` and `graveyardCastStackFlags` use (CR
+    // 702.138 escape beats CR 702.34 flashback). Underworld Breach grants
+    // escape to EVERY nonland card in its controller's graveyard, Lava Dart
+    // included, and a Breach-granted escape cast of Lava Dart owes the escape
+    // cost — never the flashback one. Charging both made the search tap a
+    // Mountain for the escape's {R} and sacrifice that same Mountain in the
+    // same move (measured, issue #2980).
+    if (castFromZone === "graveyard" && !hasEscape(state, card)) {
         const fbSacrifice = getFlashbackAdditionalCost(card)?.sacrifice;
         if (fbSacrifice) specs.push({ filter: fbSacrifice, count: 1 });
     }
