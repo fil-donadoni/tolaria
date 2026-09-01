@@ -27162,6 +27162,37 @@ describe("Effect Script player ref: { controllerOf } on a departed object (CR 60
         expect(state.players[0].life).toBe(21); // script completed
     });
 
+    it("binding a slot an earlier Op already removed leaves the binding UNCAPTURED — every ref to it skips, the script still completes", () => {
+        // The other half of the same lookup: `bind` snapshots a permanent's
+        // controller/power/owner, all battlefield-scoped, so binding a slot
+        // that is already gone read through the same raising lookup. The
+        // frozen-set `forEach` guard has always left such a member
+        // uncaptured (CR 608.2b); an announced slot now behaves identically.
+        const id = registerScript(
+            "test-controllerof-bind-departed",
+            [
+                { op: "destroy", target: { target: 0 } },
+                // Same slot, now gone — the bind has nothing to snapshot.
+                { op: "exile", target: { target: 0 }, bind: "$gone" },
+                {
+                    op: "gainLife",
+                    player: { ref: "$gone.controller" },
+                    amount: 5,
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const state = boardWithP2Bear("bind-departed-bear");
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bind-departed-bear" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].life).toBe(20); // uncaptured ⇒ Op skipped
+        expect(state.players[0].life).toBe(21); // script completed
+    });
+
     it("survives projection (wire format) — the completed resolution is what the client sees", () => {
         const id = registerScript(
             "test-controllerof-departed-wire",
