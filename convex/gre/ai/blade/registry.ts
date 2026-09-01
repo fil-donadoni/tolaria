@@ -3941,7 +3941,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Robber of the Rich" }],
         },
-        note: "Issue #1524, half 2 — the discriminating twin. The pin is what makes half 1 pass, so this half proves the pin is carrying INFORMATION rather than just biasing the bot towards its cantrip: swap the pinned card and the preference flips. A pin that leaked identity, or a search that had simply learned to like Thought Scour, would pass one of these two and not the other.",
+        note: 'Issue #1524, half 2 — the discriminating twin of "known top: digs with a cantrip because it knows the Bolt is there"; the two are only evidence together, so neither may be deleted alone. The pin is what makes half 1 pass, so this half proves the pin is carrying INFORMATION rather than just biasing the bot towards its cantrip: swap the pinned card and the preference flips. A pin that leaked identity, or a search that had simply learned to like Thought Scour, would pass one of these two and not the other.',
     },
 ];
 

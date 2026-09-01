@@ -854,3 +854,21 @@ describe("blade setup — `know-library-top` grants ADR 0026 knowledge (issue #1
         ).toThrow(BladeSetupError);
     });
 });
+
+describe("blade setup — `know-library-top` rejects a run it cannot grant", () => {
+    it("THROWS on count < 1 rather than granting nothing quietly", () => {
+        for (const count of [0, -1]) {
+            const state = build({
+                cards: [{ name: "Mountain", owner: "me", zone: "battlefield" }],
+                phase: "PRECOMBAT_MAIN",
+                libraryCount: 20,
+            });
+            expect(() =>
+                applyBladeSetup(state, {
+                    label: "t",
+                    setup: [{ kind: "know-library-top", count }],
+                })
+            ).toThrow(BladeSetupError);
+        }
+    });
+});

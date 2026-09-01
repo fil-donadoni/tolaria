@@ -550,6 +550,15 @@ function applyKnowLibraryTop(
     const knowerId = seatPlayerId(state, step.knower ?? step.of ?? "me");
     const count = step.count ?? 1;
     const library = state.players.find((p) => p.id === ownerId)!.library;
+    if (count < 1) {
+        // `count: 0` would grant nothing and `count: -1` an all-but-last
+        // prefix — both "no purchase in the real engine", both silent.
+        throw new BladeSetupError(
+            label,
+            step,
+            `count must be at least 1, got ${count}`
+        );
+    }
     if (library.length < count) {
         throw new BladeSetupError(
             label,

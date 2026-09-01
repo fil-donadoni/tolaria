@@ -195,6 +195,15 @@ function placeAtPinned(
     held: Map<number, CardInstanceState>,
     fill: CardInstanceState[]
 ): CardInstanceState[] {
+    if (fill.length !== length - held.size) {
+        // Fail LOUD. A short `fill` would leave `undefined` in a library slot
+        // rather than throw, and a hole there is a corrupt world the search
+        // would happily keep expanding — the deck-out SBA (CR 704.5b) still
+        // counts the slot, so nothing downstream notices.
+        throw new Error(
+            `determinize: ${fill.length} card(s) to fill ${length - held.size} unpinned library slot(s)`
+        );
+    }
     const out: CardInstanceState[] = [];
     let next = 0;
     for (let index = 0; index < length; index++) {
@@ -243,6 +252,15 @@ function determinizeOpponent(
     pinned: ReadonlySet<number>
 ): void {
     const handSize = player.hand.length;
+    if (pinned.size === 0) {
+        // The production norm — opponent library knowledge is rare, and this
+        // runs once per seat per ISMCTS iteration. Same short-circuit
+        // `determinizeObserver` takes.
+        const pool = shuffleWithRng([...player.hand, ...player.library], rng);
+        player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
+        player.library = pool.slice(handSize).map((c) => inZone(c, "library"));
+        return;
+    }
     const { held, unpinned } = splitPinned(player.library, pinned);
     const pool = shuffleWithRng([...player.hand, ...unpinned], rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
@@ -346,6 +364,18 @@ function determinizeInformedOpponent(
     // For the LIBRARY that fact now includes the card's POSITION, so the kept
     // cards come from the pinned-index split rather than a `filter` that
     // collapsed them all to the front.
+    //
+    // THE TRADE that split makes (issue #1524). A known card BURIED between
+    // unknowns is contiguous with neither end, so ADR 0026 does not grant its
+    // position and it is no longer kept: its id goes back in the pool and can
+    // be re-dealt into the hand, i.e. the observer loses "X is in the LIBRARY"
+    // as well as "X is 4th". That is a smaller false belief than the one it
+    // replaces — the old filter FABRICATED a near-top position for it, which
+    // the bot would then value its next draw against — and it makes this path
+    // agree with the blind `determinizeOpponent`, which has always pooled such
+    // cards with the hand. Keeping the zone while re-sampling the position is
+    // a third behaviour NEITHER path has; it belongs to both at once, not
+    // here.
     const { held, unpinned } = splitPinned(player.library, pinned);
     const keptHand = player.hand.filter(
         (c) => c.knownTo?.includes(observerId) === true
