@@ -18,6 +18,7 @@
 import { describe, it, expect } from "vitest";
 import {
     createTokenPermanents,
+    emitPermanentEntered,
     getPlayer,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -52,14 +53,24 @@ const GOBLIN: TokenSpec = {
 };
 
 /** "Whenever another creature enters, you gain 1 life." — Essence Warden, as
- *  the compiler emits it. */
+ *  the compiler emits it.
+ *
+ *  A CREATURE on purpose. On an enchantment the `filter: { types: ["Creature"] }`
+ *  alone already excludes the source, so NO board setup could tell `any-other`
+ *  from `any` — the scope would be untested and the test would look like it
+ *  covered it (review of PR #3024 caught exactly that). A creature source can
+ *  enter and match its own filter, so the scope is the only thing standing
+ *  between "fires on itself" and "does not". */
 const WARDEN_ID = "test-2698-warden";
 registerTokenDefinition({
     id: WARDEN_ID,
     name: "Test Warden",
     rarity: "common",
     manaCost: { W: 1 },
-    types: ["Enchantment"],
+    types: ["Creature"],
+    subtypes: ["Cleric"],
+    power: 1,
+    toughness: 1,
     compiledTriggeredAbilities: [
         {
             id: "test-2698-warden-trigger",
@@ -83,7 +94,10 @@ registerTokenDefinition({
     name: "Test Conditional Warden",
     rarity: "common",
     manaCost: { W: 1 },
-    types: ["Enchantment"],
+    types: ["Creature"],
+    subtypes: ["Cleric"],
+    power: 1,
+    toughness: 1,
     compiledTriggeredAbilities: [
         {
             id: "test-2698-conditional-trigger",
@@ -160,12 +174,33 @@ describe("a compiled ETB trigger fires and resolves (CR 603.6a)", () => {
 
     it("does not fire on the source's OWN entry (scope another/any-other)", () => {
         // `any-other` is the whole difference between Essence Warden and a
-        // card that gains life off itself; a scope collapsed to `any` passes
-        // every other assertion in this file.
-        const state = boardWith([]);
-        createTokenPermanents(state, BEAR, "p1", 1);
+        // card that gains life off itself, and NOTHING else in the codebase
+        // covers it: the gold harness renders `matches` as the `"[closure]"`
+        // sentinel, so a compiled trigger and its hand-written twin compare
+        // equal whatever their scope. The warden is a creature and passes its
+        // OWN filter, so this event is a genuine candidate that only the scope
+        // rejects.
+        const state = boardWith([WARDEN_ID]);
+        const warden = state.players[0]!.battlefield[0]!;
+        emitPermanentEntered(state, {
+            id: warden.id,
+            controllerId: "p1",
+            types: ["Creature"],
+            card: { id: WARDEN_ID },
+        });
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(0);
+    });
+
+    it("DOES fire on another creature's entry, from the same board", () => {
+        // The discriminating half of the pair: same fixture, same board, an
+        // entry that differs only in WHOSE it is.
+        const state = boardWith([WARDEN_ID]);
+        createTokenPermanents(state, BEAR, "p1", 1);
+        processPendingActionTriggers(state);
+        expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
+            "test-2698-warden-trigger",
+        ]);
     });
 });
 

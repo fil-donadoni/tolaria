@@ -84,7 +84,7 @@ export type TriggerHeadIR =
  * symmetric ability one-sided, which is the shape of bug that survives a whole
  * playtest. It is spelled out as `each` below rather than left to a default.
  */
-const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
+export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     string,
     TriggerHeadIR
 >([
@@ -158,7 +158,7 @@ const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */
-const SELF_HEADS: readonly {
+export const SELF_HEADS: readonly {
     readonly opener: string;
     readonly tail: string;
     readonly ir: TriggerHeadIR;
@@ -178,30 +178,44 @@ const SELF_HEADS: readonly {
 ];
 
 /**
+ * The SELF-subject branch, on its own, so the disjointness claim below is
+ * testable rather than asserted in prose (review of PR #3024).
+ *
+ * Returns the head when the span is `<opener><self phrase><tail>`, else null.
+ */
+export function matchSelfHead(span: string): TriggerHeadIR | null {
+    const probe = span.toLowerCase();
+    for (const head of SELF_HEADS) {
+        if (!probe.startsWith(head.opener)) continue;
+        if (!probe.endsWith(head.tail)) continue;
+        const subject = span.slice(
+            head.opener.length,
+            span.length - head.tail.length
+        );
+        if (!isSelfPhrase(subject)) continue;
+        return head.ir;
+    }
+    return null;
+}
+
+/**
  * The head of a triggered ability, consumed whole.
  *
  * The self branch is tried first and returns immediately, but that is NOT a
  * priority ladder: the two tables are disjoint by construction — every
  * `OTHER_HEADS` key names a subject `isSelfPhrase` rejects ("a creature",
  * "another creature you control"), and every `SELF_HEADS` match requires a
- * subject it accepts. `grammar.test.ts` asserts the disjointness rather than
- * leaving it to the reading order.
+ * subject it accepts. `__tests__/triggered.test.ts` sweeps BOTH tables against
+ * the other branch and asserts no phrase is read by both, so an overlap
+ * introduced later reds the suite instead of silently making the reading order
+ * load-bearing.
  */
 export const triggerHeadRule: Rule<TriggerHeadIR> = rule(
     TRIGGER_HEAD,
     (span) => {
-        const probe = span.toLowerCase();
-        for (const head of SELF_HEADS) {
-            if (!probe.startsWith(head.opener)) continue;
-            if (!probe.endsWith(head.tail)) continue;
-            const subject = span.slice(
-                head.opener.length,
-                span.length - head.tail.length
-            );
-            if (!isSelfPhrase(subject)) continue;
-            return ok(head.ir);
-        }
-        const other = OTHER_HEADS.get(probe);
+        const self = matchSelfHead(span);
+        if (self !== null) return ok(self);
+        const other = OTHER_HEADS.get(span.toLowerCase());
         if (other !== undefined) return ok(other);
         return fail("not a trigger head this grammar knows", span);
     }

@@ -20,7 +20,12 @@ import { describe, it, expect } from "vitest";
 import { compileCard } from "../compile";
 import { runGates } from "../gates";
 import { conditionRule } from "../grammar/shared/condition";
-import { triggerHeadRule } from "../grammar/shared/triggerHead";
+import {
+    matchSelfHead,
+    OTHER_HEADS,
+    SELF_HEADS,
+    triggerHeadRule,
+} from "../grammar/shared/triggerHead";
 import { triggeredSlot } from "../grammar/slots/triggered";
 import { oracleCard, parseContext } from "./fixtures";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
@@ -134,22 +139,29 @@ describe("trigger heads (CR 603.2 / 603.6a)", () => {
         }
     });
 
-    it("keeps the two head tables DISJOINT", () => {
+    it("keeps the two head tables DISJOINT — swept, not asserted in prose", () => {
         // The self branch is read first. That must not be load-bearing: a
         // phrase both tables accepted would make the answer depend on reading
         // order, which is the property `oneOf` and the router exist to deny.
-        const selfPhrases = [
-            "When this creature enters",
-            "When {self} dies",
-            "Whenever this artifact attacks",
-        ];
-        const otherPhrases = [
-            "Whenever another creature enters",
-            "Whenever a creature dies",
-            "At the beginning of your upkeep",
-        ];
-        for (const phrase of [...selfPhrases, ...otherPhrases]) {
-            expect(triggerHeadRule.run(phrase, ctx).ok).toBe(true);
+        // So sweep BOTH tables against the OTHER branch — an overlap
+        // introduced later reds here rather than silently picking a winner.
+        for (const phrase of OTHER_HEADS.keys()) {
+            expect(`${phrase} -> self branch`).toBe(
+                `${phrase} -> ${matchSelfHead(phrase) === null ? "self branch" : "OVERLAP"}`
+            );
+        }
+        for (const head of SELF_HEADS) {
+            for (const noun of ["this creature", "this artifact", "{self}"]) {
+                const phrase = `${head.opener}${noun}${head.tail}`;
+                expect(matchSelfHead(phrase)).not.toBeNull();
+                expect(`${phrase} -> other table`).toBe(
+                    `${phrase} -> ${
+                        OTHER_HEADS.has(phrase.toLowerCase())
+                            ? "OVERLAP"
+                            : "other table"
+                    }`
+                );
+            }
         }
         // "this creature" and "another creature" differ by one word and by the
         // whole scope; neither table may read the other's subject.
@@ -323,5 +335,55 @@ describe("the ready gates read the REBUILT ability, not the descriptor", () => {
             },
         });
         expect(result.reasons).toEqual([]);
+    });
+});
+
+describe("the condition refuses what it cannot DECIDE", () => {
+    // CR 205.4a — a supertype clause reads a value the live
+    // `TriggerStateView` row does not carry, so `matchesPermanentFilter` would
+    // fall through to `[]` and the condition would match nothing. The card
+    // would compile `ready` and then never fire: playable-looking, plays
+    // wrong. Refusing is the whole contract (ADR 0105).
+    it("refuses a supertype condition rather than compiling one that never fires", () => {
+        expect(
+            conditionRule.run("if you control a legendary creature", ctx).ok
+        ).toBe(false);
+        expect(
+            refusalReason(
+                "At the beginning of your upkeep, if you control a legendary creature, draw a card."
+            )
+        ).toMatch(/no slot consumed the line/);
+    });
+
+    it("still reads the subtype condition it CAN decide", () => {
+        const r = conditionRule.run("if you control a Goblin", ctx);
+        expect(r.ok).toBe(true);
+    });
+});
+
+describe("the gates judge only what the COMPILER emitted", () => {
+    // Regression guard for the review finding on PR #3024. An earlier revision
+    // ran the gates over `expandDefinition(...)`, so the smoke gate also
+    // smoke-tested the abilities the ADR 0054 KEYWORD expanders inject —
+    // exalted's `pump $source`, which the canned generator cannot model. That
+    // quarantined 41 correctly-compiled keyword-line cards (Aven Squire,
+    // Qasali Pridemage, …) for a fixture limitation in a hand-written engine
+    // script, each with an `opsUsed: []` row contradicting its own reason.
+    it("does not quarantine a keyword card for the script its keyword expander injects", () => {
+        const result = runGates({
+            oracleId: "test-2698-exalted",
+            plannedMechanics: [],
+            definition: {
+                name: "Test Exalted Squire",
+                types: ["Creature"],
+                subtypes: ["Bird", "Soldier"],
+                power: 1,
+                toughness: 1,
+                staticAbilities: ["exalted"],
+            },
+        });
+        expect(result.reasons).toEqual([]);
+        // …and the Op that expander injects is not attributed to the card.
+        expect(result.opsUsed).toEqual([]);
     });
 });

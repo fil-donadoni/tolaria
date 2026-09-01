@@ -44,6 +44,24 @@ export type ConditionIR = {
 const ARTICLES: readonly string[] = ["a ", "an "];
 
 /**
+ * Filter clauses the CONDITION cannot decide, and therefore must not compile.
+ *
+ * `conditionHolds` (`cards/compiledTriggers.ts`) evaluates the filter against
+ * the `TriggerStateView` battlefield rows, whose `supertypes` is OPTIONAL: a
+ * live `CardInstanceState` carries no bare `supertypes` field (CR 205.4a
+ * supertypes are printed-plus-mutations, which is why the cost path injects a
+ * `supertypesOf` resolver), so `matchesPermanentFilter` falls through to `[]`
+ * and a supertype clause matches NOTHING. "If you control a legendary
+ * creature" would compile `ready` and then never fire — a row that is
+ * playable-looking and plays wrong, which is precisely the class ADR 0105
+ * exists to deny. Refused here until the condition can read the live value.
+ */
+const UNEVALUABLE_FILTER_KEYS = [
+    "supertypes",
+    "excludeSupertypes",
+] as const satisfies readonly (keyof PermanentFilter)[];
+
+/**
  * `"if you control a Goblin"` (CR 603.4 / 109.5 — "you" is the ability's
  * controller).
  *
@@ -71,5 +89,13 @@ export const conditionRule: Rule<ConditionIR> = rule(CONDITION, (span, ctx) => {
         return fail('"a" introduces a singular descriptor', span);
     const filter = permanentFilterFromDescriptor(descriptor.value);
     if (!filter.ok) return filter;
+    const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
+        (key) => filter.value[key] !== undefined
+    );
+    if (unevaluable !== undefined)
+        return fail(
+            `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
+            span
+        );
     return ok({ kind: "controls" as const, filter: filter.value, atLeast: 1 });
 });
