@@ -638,7 +638,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
     });
 
     it("a face-down SPELL put on its owner's LIBRARY by Subtlety is revealed as it goes (CR 708.9)", () => {
-        // `putSpellOnLibrary` is the fourth stack-departure path and is NOT a
+        // `moveSpellFromStack` is the fourth stack-departure path and is NOT a
         // counter (CR 113.6g does not shield against it), so it never reaches
         // `counter` or `sendStackItemToGraveyard`. Same hidden-zone identity
         // loss if the card stays face down.

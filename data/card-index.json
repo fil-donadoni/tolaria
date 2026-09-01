@@ -20918,6 +20918,14 @@
         "firstPrintSet": "uds"
     },
     {
+        "name": "Reprieve",
+        "scryfallId": "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
+        "oracleId": "f0449cbd-855c-4c20-a1f5-f76a395d8d39",
+        "firstSet": "ltr",
+        "firstPrintId": "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Repulse",
         "scryfallId": "9a04e9be-48be-440e-9825-cfffd4c2b1a4",
         "oracleId": "6f7ef1d1-c441-41ba-b7d6-6b7727ffcf04",

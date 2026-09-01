@@ -29573,3 +29573,187 @@ describe("Effect Script Op: grantCastFromExile — the object-scoped costIncreas
         expect(card.castFromExileCostIncrease).toBeUndefined();
     });
 });
+
+describe("Effect Script Op: moveSpellFromStack (CR 400.7, issue #2605)", () => {
+    /** Puts a victim spell on the stack under `castById`, then a mover script
+     *  targeting it on top. Resolving the top runs the mover against it. */
+    function withVictim(
+        effects: EffectOp[],
+        scriptId: string,
+        victimCardId: string = BLACK_CARD_ID,
+        victimCastBy: string = "p2"
+    ) {
+        const id = registerScript(scriptId, effects);
+        // p2's library is SEEDED with two distinguishable cards: with an empty
+        // library, "top" and "bottom" both land at index 0 and a swapped
+        // implementation would pass either assertion.
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "lib-top",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            id: "lib-bottom",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const victim = pushSpell(state, victimCardId, victimCastBy);
+        pushSpell(state, id, "p1", [{ type: "spell", id: victim.id }]);
+        return { state, victim };
+    }
+
+    it("returns the target spell to its OWNER's hand and survives projection (wire format)", () => {
+        const { state, victim } = withVictim(
+            [
+                {
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination: "hand",
+                },
+            ],
+            "test-op-move-spell-hand"
+        );
+        resolveTopOfStack(state);
+
+        // The spell left the stack for its owner's hand — not the resolving
+        // controller's (CR 108.3).
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
+        expect(state.players[1].hand.map((c) => c.id)).toContain(victim.id);
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain(victim.id);
+        // NOT a counter: nothing reached the graveyard (CR 701.6a's default).
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            victim.id
+        );
+
+        // Wire format: the returned card must be in the owner's projected hand,
+        // carrying the ADR 0026 eye icon — it was a public object on the stack,
+        // so the opponent legitimately still knows it (`grantKnowledgeToAll`).
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].hand.find(
+            (c) => c?.id === victim.id
+        )!;
+        expect(slim).toBeDefined();
+        expect(slim.seenByOpponent).toBe(true);
+    });
+
+    it("sends the card to its OWNER's hand even when another player controls the spell (CR 108.3)", () => {
+        const { state, victim } = withVictim(
+            [
+                {
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination: "hand",
+                },
+            ],
+            "test-op-move-spell-foreign-owner"
+        );
+        // p2 CONTROLS the spell (cast it) but p1 OWNS the card — the
+        // cast-from-an-opponent's-zone shape.
+        victim.ownerId = "p1";
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand.map((c) => c.id)).toContain(victim.id);
+        expect(state.players[1].hand.map((c) => c.id)).not.toContain(victim.id);
+    });
+
+    it("returns a spell that CAN'T BE COUNTERED, which `counter` cannot touch (CR 113.6g)", () => {
+        const counterId = registerScript("test-op-move-spell-counter-half", [
+            { op: "counter", target: { target: 0 } },
+        ]);
+        const moveId = registerScript("test-op-move-spell-move-half", [
+            {
+                op: "moveSpellFromStack",
+                target: { target: 0 },
+                destination: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const victim = pushSpell(state, UNCOUNTERABLE_ID, "p2");
+
+        // The counter half fizzles against the shield — the spell stays put.
+        pushSpell(state, counterId, "p1", [{ type: "spell", id: victim.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(true);
+
+        // The non-counter half is not a counter, so the shield does not apply.
+        pushSpell(state, moveId, "p1", [{ type: "spell", id: victim.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
+        expect(state.players[1].hand.map((c) => c.id)).toContain(victim.id);
+    });
+
+    it("a COPY of a spell ceases to exist instead of reaching a hand (CR 707.10a)", () => {
+        const { state, victim } = withVictim(
+            [
+                {
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination: "hand",
+                },
+            ],
+            "test-op-move-spell-copy"
+        );
+        victim.isCopy = true;
+        resolveTopOfStack(state);
+
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
+        for (const player of state.players) {
+            expect(player.hand.map((c) => c.id)).not.toContain(victim.id);
+            expect(player.library.map((c) => c.id)).not.toContain(victim.id);
+            expect(player.graveyard.map((c) => c.id)).not.toContain(victim.id);
+        }
+    });
+
+    it("puts the spell on the TOP of its owner's library (`library-top`)", () => {
+        const { state, victim } = withVictim(
+            [
+                {
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination: "library-top",
+                },
+            ],
+            "test-op-move-spell-lib-top"
+        );
+        resolveTopOfStack(state);
+
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            victim.id,
+            "lib-top",
+            "lib-bottom",
+        ]);
+    });
+
+    it("puts the spell on the BOTTOM of its owner's library (`library-bottom`)", () => {
+        const { state, victim } = withVictim(
+            [
+                {
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination: "library-bottom",
+                },
+            ],
+            "test-op-move-spell-lib-bottom"
+        );
+        resolveTopOfStack(state);
+
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "lib-top",
+            "lib-bottom",
+            victim.id,
+        ]);
+    });
+});

@@ -32,7 +32,7 @@ All three construction sites unconditionally pair their field with
 `delayedTriggerId`. Every call site `resetStackTransientState` reaches is
 gated against `delayedTriggerId` before it can arrive: `counter()`
 (`convex/gre/state.ts`, the `if (item.abilityId || item.triggeredAbilityId ||
-item.delayedTriggerId) return;` guard) and `putSpellOnLibrary()` (identical
+item.delayedTriggerId) return;` guard) and `moveSpellFromStack()` (identical
 guard) both return early for any item with `delayedTriggerId` set, before
 reaching a `resetStackTransientState`/exit-clear call; `finalizeSpellResolution`
 and `sendStackItemToGraveyard` only ever run for a stack item that resolved or
@@ -46,7 +46,7 @@ be dead code, not a fix.
 
 **Why it may not deserve any further action.** All three construction sites
 were read in full and unconditionally pair the field with `delayedTriggerId`,
-and both guard sites (`counter()`, `putSpellOnLibrary()`) return early on that
+and both guard sites (`counter()`, `moveSpellFromStack()`) return early on that
 same field before reaching a clear call — the reasoning above is a complete
 audit, not a probabilistic guess. Recorded so a future re-audit of this field
 list doesn't redo the same investigation; likely a straight `declined` on

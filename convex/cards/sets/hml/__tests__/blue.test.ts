@@ -6,7 +6,7 @@
 // card go to a known position in a hidden zone; CR 400.2's concealment of a
 // hidden zone does not retroactively un-reveal what the players already saw.
 // The engine models that as ADR 0026 persistent per-viewer knowledge
-// (`knownTo`) — the SAME mechanism `putSpellOnLibrary` (Subtlety) already
+// (`knownTo`) — the SAME mechanism `moveSpellFromStack` (Subtlety) already
 // uses, not a parallel marker. Issue #1696.
 import { describe, it, expect } from "vitest";
 import { memoryLapse } from "../blue";

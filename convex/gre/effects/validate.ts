@@ -1587,6 +1587,20 @@ function isCounterDestination(value: unknown): boolean {
     );
 }
 
+/** The JSON-pure `destination` discriminator of a `moveSpellFromStack` Op
+ *  (issue #2605, `SpellStackDestination`) — which of its OWNER's zones a spell
+ *  moved off the stack without being countered ends up in. No `"graveyard"` /
+ *  `"exile"` member: those are `counter`'s destinations, and admitting them
+ *  here would validate a shape no card wording asks for and no executor branch
+ *  is tested against. */
+function isSpellStackDestination(value: unknown): boolean {
+    return (
+        value === "hand" ||
+        value === "library-top" ||
+        value === "library-bottom"
+    );
+}
+
 /** The action of a `libraryLook` Op (issue #844, CR 701.24). Only `"shuffle"`
  *  is folded; peek/reorder are the `scryReorder` Op (issue #885). */
 function isLibraryLookAction(value: unknown): boolean {
@@ -4450,6 +4464,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     counter: {
         required: { target: isTargetRef },
         optional: { destination: isCounterDestination },
+    },
+    // CR 701.6-adjacent (issue #2605) — move the target spell off the stack
+    // into a zone of its OWNER's WITHOUT countering it (Reprieve's "return
+    // target spell to its owner's hand"). `destination` is REQUIRED: unlike
+    // `counter`'s graveyard default there is no zone a non-counter move
+    // silently belongs in, so an omitted destination is a rejection, not a
+    // default.
+    moveSpellFromStack: {
+        required: {
+            target: isTargetRef,
+            destination: isSpellStackDestination,
+        },
     },
     // CR 117.3a / 118.4 (issue #806, #680) — optional "you may pay {cost}",
     // or a bare cost-free "you may …" decision when `cost` is omitted (issue

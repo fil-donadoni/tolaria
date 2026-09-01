@@ -379,6 +379,33 @@ const counter: Valuer<"counter"> = () => ({
     tags: ["disruption", "targeted"],
 });
 
+// CR 400.7 (issue #2605) — a non-counter stack departure. Same disruption
+// FAMILY as `counter`, priced by what the victim keeps, which is the only axis
+// the destination changes:
+//   - `library-bottom` — the spell is un-cast and the card is buried a whole
+//     library away, which in practice reads as "answered" for the rest of the
+//     game, so it prices AT `counter`. (Strictly it is LESS gone than a
+//     graveyard — it is still drawable, and a graveyard is recursion territory
+//     in either direction — but neither difference is one this valuer can see
+//     from the Op alone.)
+//   - `library-top` — the card survives but eats the owner's next draw, a
+//     tempo-plus-card-selection tax that lands just under a clean answer;
+//   - `hand` — pure TEMPO: the spell is un-cast, the mana is wasted, and the
+//     card comes straight back (Reprieve). Materially it is half an answer,
+//     and pricing it AT `counter` would have the bot trade a real counterspell
+//     for a bounce it should keep in reserve.
+const SPELL_TO_LIBRARY_TOP_VALUE = 110;
+const SPELL_TO_HAND_VALUE = 65;
+const moveSpellFromStack: Valuer<"moveSpellFromStack"> = (op) => ({
+    points:
+        op.destination === "library-bottom"
+            ? COUNTER_VALUE
+            : op.destination === "library-top"
+              ? SPELL_TO_LIBRARY_TOP_VALUE
+              : SPELL_TO_HAND_VALUE,
+    tags: ["disruption", "targeted"],
+});
+
 const mayPay: Valuer<"mayPay"> = () => {
     // A "you may pay …" / "unless its controller pays …" decision carries no
     // intrinsic material of its own — its consequence is the `if` branch that
@@ -1300,6 +1327,7 @@ export const OP_VALUERS: {
     captureBinding,
     recallCapturedBinding,
     counter,
+    moveSpellFromStack,
     mayPay,
     sacrifice,
     moveZone,
@@ -1534,6 +1562,12 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     exile: "harmful",
     exileWithAttachments: "harmful",
     counter: "harmful",
+    // CR 400.7 (issue #2605) — un-casting someone's spell is an attack on them
+    // whatever zone it lands in, exactly like `counter`. Listed explicitly
+    // rather than left to the `?? "neutral"` fallback: "return target spell to
+    // its owner's HAND" reads superficially like a gift, and a neutral sign is
+    // how the bot ends up handing an effect to the opponent.
+    moveSpellFromStack: "harmful",
     discard: "harmful",
     discardAtRandom: "harmful",
     mill: "harmful",

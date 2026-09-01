@@ -2903,6 +2903,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Effect Script Op for the CR 701 keyword action "Counter" — removes the target spell from the stack into its owner\'s graveyard by default. The consequence half of the counter/punisher pattern ("Counter target spell unless its controller pays {N}", issue #806). An optional `destination` (issue #683) redirects a COUNTERED SPELL to exile / the top of its owner\'s library / its owner\'s hand instead — "if that spell is countered this way, exile it / put it on top of its owner\'s library / put it into its owner\'s hand instead" (No More Lies, Memory Lapse, Remand).',
     },
     {
+        op: "moveSpellFromStack",
+        status: "implemented",
+        cr: "400.7",
+        binding: "SpellContext.moveSpellFromStack",
+        note: 'Effect Script Op for the non-counter stack departure (issue #1205 Subtlety, issue #2605 Reprieve) — moves the target SPELL off the stack into a zone of its OWNER\'s ("return target spell to its owner\'s hand", "put target spell on the top or bottom of its owner\'s library") without countering it. Deliberately NOT a `counter` destination: a counter is shut out by "can\'t be countered" (CR 113.6g) and this is not, and nothing watching for a countered spell sees it. `destination` is REQUIRED ("hand" / "library-top" / "library-bottom") — there is no zone a non-counter move silently belongs in, unlike CR 701.6a\'s graveyard default for a counter. An ability on the stack has no card and simply vanishes (CR 113.7a); a COPY of a spell ceases to exist rather than reaching a zone (CR 707.10a). Subtlety itself stays `resolve()`: its destination is an option pick raised to a FOREIGN player mid-resolution, which no literal `destination` can express.',
+    },
+    {
         op: "mayPay",
         status: "implemented",
         cr: "117.3a",

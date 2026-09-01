@@ -297,6 +297,54 @@ describe("validateEffectScript — bind + ref + count constructs (#802)", () => 
         ).toEqual([]);
     });
 
+    // Issue #2605 — `moveSpellFromStack`'s `destination` is REQUIRED (unlike
+    // `counter`'s, which defaults to CR 701.6a's graveyard): there is no zone a
+    // non-counter stack departure silently belongs in, so an omitted or
+    // counter-only destination is a rejection, not a default.
+    it("accepts every moveSpellFromStack destination and rejects the rest", () => {
+        for (const destination of [
+            "hand",
+            "library-top",
+            "library-bottom",
+        ] as const) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [
+                            {
+                                op: "moveSpellFromStack",
+                                target: { target: 0 },
+                                destination,
+                            },
+                        ],
+                    })
+                ),
+                destination
+            ).toEqual([]);
+        }
+        for (const bad of [
+            { op: "moveSpellFromStack", target: { target: 0 } }, // no destination
+            {
+                op: "moveSpellFromStack",
+                target: { target: 0 },
+                destination: "graveyard", // a `counter` destination, not one of ours
+            },
+            {
+                op: "moveSpellFromStack",
+                target: { target: 0 },
+                destination: "exile",
+            },
+            {
+                op: "moveSpellFromStack",
+                target: { target: 0 },
+                destination: "top", // the pre-#2605 primitive's vocabulary
+            },
+        ] as never[]) {
+            const errors = validateEffectScript(host({ effects: [bad] }));
+            expect(errors.length, JSON.stringify(bad)).toBeGreaterThan(0);
+        }
+    });
+
     it("rejects a malformed counters value (missing/empty type, unknown key, non-object of)", () => {
         for (const bad of [
             { op: "gainLife", player: "controller", amount: { counters: {} } },

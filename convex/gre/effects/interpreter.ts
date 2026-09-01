@@ -4896,6 +4896,17 @@ export const OP_EXECUTORS: {
         if (target && target.type === "spell")
             ctx.counter(target, op.destination);
     },
+    // CR 701.6-adjacent (issue #2605) — move the announced target spell off the
+    // stack into a zone of its OWNER's WITHOUT countering it (Reprieve: "return
+    // target spell to its owner's hand"). A silent no-op when the target
+    // already left the stack (CR 608.2b), exactly like `counter`; unlike
+    // `counter` it is not shut out by "can't be countered" (CR 113.6g), which
+    // is the whole reason it is a separate Op.
+    moveSpellFromStack(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (target && target.type === "spell")
+            ctx.moveSpellFromStack(target, op.destination);
+    },
     // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
     // predefined predicate and runs the matching branch through `runOpList`,
     // passing the SHARED cursor so each branch Op gets its own pre-order
