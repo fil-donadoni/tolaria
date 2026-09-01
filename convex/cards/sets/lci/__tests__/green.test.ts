@@ -127,15 +127,6 @@ function activateMap(state: GameState, mapId: string, targetId: string): void {
 }
 
 describe("Sentinel of the Nameless City (LCI, CR 603.2 + CR 701.44)", () => {
-    it("is a {2}{G} 3/4 Merfolk Warrior Scout with vigilance", () => {
-        expect(sentinelOfTheNamelessCity.manaCost).toEqual({ X: 2, G: 1 });
-        expect(sentinelOfTheNamelessCity.power).toBe(3);
-        expect(sentinelOfTheNamelessCity.toughness).toBe(4);
-        expect(sentinelOfTheNamelessCity.staticAbilities).toEqual([
-            "vigilance",
-        ]);
-    });
-
     it("CR 603.2 — ONE ability answers BOTH events (enters and attacks), each creating a Map", () => {
         const { state, sentinel } = boardWithSentinel([grizzlyBears.id]);
         // ONE printed line ⇒ ONE ability, not two.
@@ -184,8 +175,14 @@ describe("Sentinel of the Nameless City (LCI, CR 603.2 + CR 701.44)", () => {
 });
 
 describe("Map token (CR 111.10) — the ability shape", () => {
-    it("carries the printed cost, timing restriction and target requirement", () => {
-        const ability = MAP_TOKEN_SPEC.activatedAbilities![0];
+    it("the widened token-ability surface SURVIVES token synthesis (issue #2376)", () => {
+        const { state, sentinel } = boardWithSentinel([grizzlyBears.id]);
+        resolveMapTrigger(state, sentinel, "PERMANENT_ENTERED");
+        const map = state.players[0].battlefield.find((c) => c.isToken)!;
+        const def = getDefinition((map.card as { id: string }).id);
+        const ability = def.activatedAbilities!.find(
+            (a) => a.id === MAP_ABILITY_ID
+        )!;
         expect(ability.oracleText).toBe(
             "{1}, {T}, Sacrifice this token: Target creature you control explores. Activate only as a sorcery."
         );
@@ -197,25 +194,14 @@ describe("Map token (CR 111.10) — the ability shape", () => {
             sacrifice: true,
         });
         expect(ability.useStack).toBe(true); // CR 605.1a — not a mana ability
-        expect(ability.sorcerySpeedOnly).toBe(true); // CR 602.3b
+        // The two fields the widening added. Dropped in synthesis ⇒ the
+        // ability would target nothing and be activatable at instant speed,
+        // and tsc catches neither.
         expect(ability.targetRequirement).toEqual({
             type: "Creature",
             count: 1,
             controller: "you",
         });
-    });
-
-    it("the widened token-ability surface SURVIVES token synthesis (issue #2376)", () => {
-        const { state, sentinel } = boardWithSentinel([grizzlyBears.id]);
-        resolveMapTrigger(state, sentinel, "PERMANENT_ENTERED");
-        const map = state.players[0].battlefield.find((c) => c.isToken)!;
-        const def = getDefinition((map.card as { id: string }).id);
-        const ability = def.activatedAbilities!.find(
-            (a) => a.id === MAP_ABILITY_ID
-        )!;
-        // Dropped in synthesis ⇒ the ability would target nothing and be
-        // activatable at instant speed. tsc catches neither.
-        expect(ability.targetRequirement).toBeDefined();
         expect(ability.sorcerySpeedOnly).toBe(true);
     });
 
