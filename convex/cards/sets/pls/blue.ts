@@ -249,7 +249,7 @@ export const huntingDrake: CardDefinition = {
 // "reveal a card at random from hand" has no Op skin — only the PRIVATE
 // sibling `lookRandomHand` (a single-knower look) is wired into the
 // interpreter; `SpellContext.revealRandomHandCard` (the public primitive
-// this card needs) has no DSL wrapper. tracked-by: #2004 (opened for
+// this card needs) has no DSL wrapper. tracked-by: #2003 (opened for
 // Planeswalker's Scorn, the black member of this same "Planeswalker's ___"
 // cycle — the Op this card needs is the identical gap). The exile →
 // grant-cast → conditional-return sequence composes `revealRandomHandCard` +

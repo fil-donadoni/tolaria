@@ -317,8 +317,11 @@ export const mirrorUniverse: CardDefinition = {
             // TERMINAL operands only — a positive-int literal or a `count`
             // (i.e. a zone cardinality). A life total is neither, so the delta
             // here is still unexpressible. Blocked on: a life-exchange
-            // primitive/Op + a life-total operand for `difference`.
-            // tracked-by: #1438
+            // primitive/Op + a life-total operand for `difference`. Migrating
+            // this closure is not scheduled: the 2026-09-01 audit of #1438
+            // retired "Op-blocked -> 0" as a goal. The card behaves correctly
+            // today and only its authoring mode stays imperative, which puts
+            // the migration out of scope.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "player") return;

@@ -752,7 +752,7 @@ export const phyrexianScuta: CardDefinition = {
 // picked card's mana value back afterward regardless. Left as a stub
 // rather than a card-shaped `resolve()` ("the Op I need doesn't exist yet"
 // is explicitly not a valid `resolve()` justification).
-// tracked-by: #2004
+// tracked-by: #2003
 // export const planeswalkersScorn: CardDefinition = {
 //     id: "8ed08376-836f-4313-83d0-481895ead9da", // PLS 52
 //     name: "Planeswalker's Scorn",
