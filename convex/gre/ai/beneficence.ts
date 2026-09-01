@@ -284,11 +284,13 @@ function definitionOfInstance(
 /** Per-slot sign function for `move`'s announcement, or `undefined` when the
  *  move announces no targets or its source script can't be read. ONE seam for
  *  both announcement sites — a cast (CR 601.2c) and an activation (CR 602.2b) —
- *  so a caller never has to know which kind it holds. */
+ *  so a caller never has to know which kind it holds. Takes no `botId`: since
+ *  issue #2971 BOTH branches resolve the card through `definitionOfInstance`,
+ *  which scans every player's zones — a cross-player exile grant means the
+ *  card the bot is casting may not sit in any zone of its own. */
 function slotSignerFor(
     state: GameState,
-    move: Move,
-    botId: string
+    move: Move
 ): ((slot: number) => Beneficence) | undefined {
     if (move.kind === "cast-spell") {
         if (move.targets.length === 0) return undefined;
@@ -335,7 +337,7 @@ export function misdirectedTargetCount(
     move: Move,
     botId: string
 ): number {
-    const signOf = slotSignerFor(state, move, botId);
+    const signOf = slotSignerFor(state, move);
     if (!signOf) return 0;
     const targets =
         move.kind === "cast-spell" || move.kind === "activate-ability"

@@ -371,7 +371,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
             id: "lurrus",
             controllerId: "p1",
             ownerId: "p1",
-            summoningSick: false,
+            isSummoningSick: false,
         });
         const gy = [0, 1].map((i) =>
             makeInstance(grizzlyBears.id, {
@@ -655,7 +655,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             id: "myBear",
             controllerId: "p1",
             ownerId: "p1",
-            summoningSick: false,
+            isSummoningSick: false,
         });
         const state = makeState({
             players: [
