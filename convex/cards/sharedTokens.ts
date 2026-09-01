@@ -225,7 +225,7 @@ export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
 };
 
 /** Rebel token (CR 707.2, issue #2610) — the "2/2 red Rebel creature token"
- *  For Mirrodin! (CR 702.163a) creates: Glimmer Lens (`onc/colorless.ts`).
+ *  For Mirrodin! (CR 702.163a) creates: Glimmer Lens (`onc/white.ts`).
  *  Vanilla, the `PHYREXIAN_GERM_TOKEN` shape shared by the generalized
  *  `equipmentAttachTokenTrigger` factory (`abilities/equipment.ts`).
  *
