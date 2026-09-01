@@ -341,10 +341,16 @@ export function planCastCostPicks(
         // null (`castExileViewFor` only nulls on an absent picker).
         const view = castExileViewFor(player, exileBuild.choice)!;
         const ids = chooseCastExileCost(view);
-        // `chooseCastExileCost` CLAMPS to what is available, so a short board
-        // yields fewer ids than the picker demands rather than an illegal
-        // submission — the same unpayable position reached one step later.
-        if (ids.length < view.required) return null;
+        // CR 702.138a — the VARIABLE escape cost (Nethergoyf) is satisfied by
+        // COVERAGE, not by count: `view.required` is the whole candidate list
+        // for that shape, while the answer is a minimal type-covering subset,
+        // so a count comparison would reject every legal payment. The build
+        // above already refused an unpayable board (`unpayable`), and
+        // `chooseCastExileCost` falls back to the full list when no subset
+        // reaches the threshold.
+        if (view.typeCover === undefined && ids.length < view.required) {
+            return null;
+        }
         picks.exileCostCardIds = ids;
     }
 

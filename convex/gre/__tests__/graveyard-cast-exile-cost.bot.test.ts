@@ -37,6 +37,9 @@ import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { lavaDart } from "../../cards/sets/ons/red";
 import { flashOfInsight } from "../../cards/sets/jud/blue";
 import { treasureCruise } from "../../cards/sets/ktk/blue";
+import { nethergoyf } from "../../cards/sets/mh3/black";
+import { countDistinctCardTypes } from "../escape";
+import { blackLotus } from "../../cards/sets/lea/colorless";
 import {
     grizzlyBears,
     island,
@@ -403,6 +406,107 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
                 withMountainOnly.players[0].graveyard[0]
             )
         ).toContain("cast");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The VARIABLE escape exile (CR 702.138a — Nethergoyf)
+// ---------------------------------------------------------------------------
+
+describe("the variable escape cost pays a MINIMAL covering set", () => {
+    it("exiles just enough cards to reach the card-type threshold", () => {
+        // Nethergoyf's escape is "exile any number of other cards from your
+        // graveyard with N or more card types among them". Paying everything is
+        // legal but self-defeating: Nethergoyf's own power and toughness count
+        // the card types left in the graveyard it just emptied, so the maximal
+        // payment is the worst one and the search would never choose it —
+        // reachable but frozen.
+        const goyf = makeInstance(nethergoyf.id, {
+            id: "goyf",
+            controllerId: ME,
+            ownerId: ME,
+            zone: "graveyard",
+        });
+        // Eight other cards spanning FOUR card types — Nethergoyf's threshold
+        // — two of each, so a covering set is half the candidate list.
+        const others = [
+            makeInstance(forest.id, {
+                id: "gy-land-a",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(island.id, {
+                id: "gy-land-b",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(grizzlyBears.id, {
+                id: "gy-crea-a",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(grizzlyBears.id, {
+                id: "gy-crea-b",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(lavaDart.id, {
+                id: "gy-inst-a",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(flashOfInsight.id, {
+                id: "gy-inst-b",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(blackLotus.id, {
+                id: "gy-arti-a",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+            makeInstance(blackLotus.id, {
+                id: "gy-arti-b",
+                controllerId: ME,
+                ownerId: ME,
+                zone: "graveyard",
+            }),
+        ];
+        const state = stateWith({
+            // Escape—{2}{B}: one Swamp plus two more lands.
+            battlefield: [
+                untapped(swamp.id, "s1"),
+                untapped(forest.id, "f1"),
+                untapped(forest.id, "f2"),
+            ],
+            graveyard: [goyf, ...others],
+        });
+        const cast = castsOf(state, "goyf")[0];
+        expect(cast).toBeDefined();
+        const picks =
+            cast.kind === "cast-spell"
+                ? (cast.castCostPicks?.exileCostCardIds ?? [])
+                : [];
+        // Strictly fewer than every candidate — the whole point of the fix.
+        expect(picks.length).toBeGreaterThan(0);
+        expect(picks.length).toBeLessThan(others.length);
+        // And it really covers the threshold, through the engine's own counter.
+        const paid = others.filter((c) => picks.includes(c.id));
+        expect(countDistinctCardTypes(paid)).toBeGreaterThanOrEqual(
+            (nethergoyf.escape!.exile as { minCardTypes: number }).minCardTypes
+        );
+        // Charged: exactly those cards leave the graveyard.
+        const after = applyMoveForSearch(state, ME, cast);
+        for (const id of picks) {
+            expect(after.players[0].exile.map((c) => c.id)).toContain(id);
+        }
     });
 });
 
