@@ -220,8 +220,9 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
 }
 
 /** CR 601.2g / 702.66 — the deterministic answer to a parked graveyard-exile
- *  cast cost: exile exactly the number REQUIRED (`required`), taking them from
- *  the front of the payer's own graveyard. For delve (`required` = the forced
+ *  cast cost: exile exactly the number REQUIRED (`required`), CHEAPEST FIRST
+ *  out of the payer's own graveyard (`castExileViewFor` orders the candidates;
+ *  issue #2980 — it used to be raw zone order). For delve (`required` = the forced
  *  `offsetGeneric.min`) that is precisely the amount the move enumerator already
  *  discounted from the tap plan, so the taps and the exiles cover the cost
  *  between them; delving further would burn graveyard resources the mana did not
@@ -229,7 +230,7 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
  *  the picker demands. Clamped to what is actually available so an
  *  under-supplied view can never emit an illegal submission (issue #1336). */
 export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
-    // CR 702.138a (Nethergoyf) — "exile any number of other cards … with N or
+    // CR 702.138a escape (Nethergoyf) — "exile any number of other cards …
     // more card types among them". The cheapest legal payment is a MINIMAL
     // covering set, not the whole graveyard: paying everything is legal but
     // strictly worse, and for Nethergoyf specifically it is self-defeating —

@@ -1648,7 +1648,7 @@ function enumerateCastMovesFromZone(
     // here IS the #2283/#2284 bot-freeze class: a Move the server refuses.
     // Derived from the two costs rather than from `lifeInsteadOfMana`, which
     // named only the library-top instance of the same shape.
-    // CR 601.2b / 118.5 (issue #2980) — ONE shape escapes that lock: a
+    // CR 601.2b / 118.8 (issue #2980) — ONE shape escapes that lock: a
     // flashback cost whose own NON-MANA leg carries the variable ("Flashback—
     // {1}{U}, Exile X blue cards from your graveyard", Flash of Insight). CR
     // 601.2b makes the caster announce "the value of that variable" for any
@@ -1677,7 +1677,7 @@ function enumerateCastMovesFromZone(
         !hasX &&
         typeof getInstanceManaCost(card)?.X === "string" &&
         flashbackExileX === undefined;
-    // CR 118.5 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
+    // CR 118.8 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
     // rather than mana, the eligible fodder is the ceiling: `maxAffordableX`
     // prices X against untapped mana and would answer 0 for a flashback cast
     // that has already spent every land on its fixed `{1}{U}`, which is
@@ -1780,7 +1780,7 @@ function enumerateCastMovesFromZone(
         // black spell under Drought with no Swamp), which the castability gate
         // does not check for static sacrifices; fail closed rather than emit a
         // move the executor cannot pay.
-        // CR 702.34a / 118.5 (issue #2980) — ONE leg is X-dependent: Flash of
+        // CR 702.34a / 118.8 (issue #2980) — ONE leg is X-dependent: Flash of
         // Insight's `flashbackExileFromGraveyard` exiles exactly the announced
         // X cards. For that card, and only that card, the plan is recomputed
         // per candidate X inside the loop below; every other cast keeps the

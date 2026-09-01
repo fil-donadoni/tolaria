@@ -6971,7 +6971,7 @@ export function finalizeTargetSelection(
         cardInstanceId,
         castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
     );
-    // CR 702.34a / 702.138a / 118.5 — the graveyard cast's own "exile N cards"
+    // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N cards"
     // additional cost: Flash of Insight's `flashbackExileFromGraveyard`, the
     // flashback-only "Exile a <colour> card from your HAND" leg (Lava Dart's
     // sibling shape, `zone: "hand"`), or the ESCAPE exile (a Lightning Bolt
@@ -8719,7 +8719,7 @@ export const announceCast = mutation({
             args.cardInstanceId,
             castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
         );
-        // CR 702.34a / 702.138a / 118.5 — the graveyard cast's own "exile N
+        // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N
         // cards" additional cost, in the ONE builder both commit sites read
         // (`gre/castCost.ts`, issue #2980): Flash of Insight's
         // `flashbackExileFromGraveyard` (X = the announced `chosenX`; a zero-X

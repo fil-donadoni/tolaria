@@ -417,14 +417,14 @@ export type CastExileCostBuild =
     | { choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> }
     | { unpayable: string };
 
-/** CR 702.34a / 702.138a / 118.5 (issue #2980) — the "exile N cards" additional
+/** CR 702.34a / 702.138a escape / 118.8 (issue #2980) — the "exile N cards" additional
  *  cost a cast from the GRAVEYARD owes, as the `PendingCast` picker every
  *  commit path parks on, or `undefined` when this cast owes none.
  *
  *  Three independent legs share the one picker slot (no shipped card carries
  *  more than one), checked in the precedence `announceCast` has always used:
  *
- *   1. `additionalCosts.flashbackExileFromGraveyard` (CR 702.34a / 118.5 —
+ *   1. `additionalCosts.flashbackExileFromGraveyard` (CR 702.34a / 118.8 —
  *      Flash of Insight's "Exile X blue cards from your graveyard"). Lives on
  *      the DEFINITION, not on the flashback object, and is X-DEPENDENT: a
  *      zero-X flashback cast owes nothing.
@@ -554,7 +554,7 @@ export function buildCastExileCostChoice(
     };
 }
 
-/** CR 601.3 / 400.7 (issue #2980) — the card a `cast-spell` Move is about to
+/** CR 601.3 (issue #2980) — the card a `cast-spell` Move is about to
  *  cast, looked up in the zone the Move DECLARES, for the two search sandboxes'
  *  pre-removal cost block.
  *
@@ -565,9 +565,10 @@ export function buildCastExileCostChoice(
  *  spell went onto the stack for free. A hand cast resolves exactly as before —
  *  the declared zone is `"hand"` for every one of them.
  *
- *  Exile is the ONE zone whose owner may not be the caster (CR 400.7, a
- *  cross-player grant), mirroring {@link castSourceForSearch}; every other zone
- *  is the caster's own. `undefined` when no such zone holds the card — a stale
+ *  Exile is the ONE zone whose owner may not be the caster — a cross-player
+ *  cast permission (CR 601.3, Dauthi Voidwalker's opponent-exile free cast)
+ *  leaves the card in its OWNER's exile while another player holds the grant.
+ *  Mirrors {@link castSourceForSearch}; every other zone is the caster's own. `undefined` when no such zone holds the card — a stale
  *  Move, which each caller already handles. */
 export function findCastSourceCard(
     state: GameState,
@@ -592,7 +593,7 @@ export function findCastSourceCard(
     return held.find((c) => c.id === cardInstanceId);
 }
 
-/** CR 702.66 / 702.138a / 702.34a (issue #2980) — does this cast's own exile
+/** CR 702.66 / 702.138a escape / 702.34a (issue #2980) — does this cast's own exile
  *  ADDITIONAL cost already occupy the one `PendingCast.exileFromGraveyardChoice`
  *  slot, leaving no room for Delve's `payWith` offset to ride it?
  *

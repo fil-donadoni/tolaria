@@ -3,7 +3,7 @@
 // Issue #2971 gave the enumerator a candidate set for every cast-from-a-
 // non-hand-zone permission the engine ships, with two deliberate exclusions
 // that failed CLOSED: escape (CR 702.138a — "exile N other cards from your
-// graveyard") and a flashback cost with a non-mana leg (CR 702.34a / 118.5 —
+// graveyard") and a flashback cost with a non-mana leg (CR 702.34a / 118.8 —
 // Lava Dart's "Sacrifice a Mountain", Flash of Insight's
 // `flashbackExileFromGraveyard`). The `cast-spell` Move had no field to carry
 // either cost, so an enumerated escape cast would have been priced as if the
@@ -227,10 +227,10 @@ describe("escape cast enumeration (CR 702.138a)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Flashback with a non-mana cost (CR 702.34a / 118.5)
+// Flashback with a non-mana cost (CR 702.34a / 118.8)
 // ---------------------------------------------------------------------------
 
-describe("non-mana flashback cast enumeration (CR 702.34a / 118.5)", () => {
+describe("non-mana flashback cast enumeration (CR 702.34a / 118.8)", () => {
     it("enumerates Lava Dart's flashback and carries the sacrificed Mountain", () => {
         // Lava Dart's flashback pays NO mana — only "Sacrifice a Mountain".
         const dart = makeInstance(lavaDart.id, {

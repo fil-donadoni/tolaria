@@ -80,7 +80,7 @@ export type CastCostPicks = {
     /** CR 701.13 / 118.8 — the single permanent exiled to pay `additionalCosts
      *  .exileFilter` (Soul Exchange). */
     additionalCostCardId?: string;
-    /** CR 702.138a / 702.34a / 118.5 (issue #2980) — the cards exiled to pay a
+    /** CR 702.138a escape / 702.34a flashback / 118.8 — the cards exiled to pay a
      *  GRAVEYARD cast's non-mana exile cost: escape's "exile N other cards from
      *  your graveyard" (Uro, Phlage, and everything Underworld Breach grants
      *  escape to), Flash of Insight's `flashbackExileFromGraveyard`, or the
@@ -102,9 +102,9 @@ export type CastCostPicks = {
  *  cast's filtered-sacrifice selection — the card's OWN `additionalCosts
  *  .sacrificeFilter` (after the caster-chosen `oneOf` leg is flattened, CR
  *  601.2b), the flashback-only "Sacrifice a <filter>" cost on a GRAVEYARD cast
- *  (CR 702.34a / 118.5 — Lava Dart's "Sacrifice a Mountain"), and every
- *  board-wide static additional sacrifice (Drought, CR 118.8) — plus its exile
- *  additional-cost filter. This lives in the GRE because `game.ts` is the
+ *  (CR 702.34a flashback / 118.8 — Lava Dart's "Sacrifice a Mountain"), and
+ *  every board-wide static additional sacrifice (Drought, CR 118.8) — plus its
+ *  exile additional-cost filter. This lives in the GRE because `game.ts` is the
  *  mutation SURFACE (ADR 0074), not a library the engine's own move-generation
  *  and search sandboxes depend on.
  *
@@ -243,7 +243,7 @@ export function applyCastSacrificeVictims(
  *
  *  For the escape / flashback exile leg this `null` is DEFENCE IN DEPTH, not
  *  the only gate: `getLegalActions` already refuses "cast" for a graveyard too
- *  thin to pay (`hasPayableEscapeExileCost` / `hasPayableFlashbackNonManaCost`,
+ *  thin to pay (`hasPayableEscapeExileCost` / `hasPayableFlashbackAdditionalCost`,
  *  `gre/rules.ts`), and breaking either one alone leaves the Move correctly
  *  suppressed — it takes breaking BOTH to make the enumerator offer a cast the
  *  announcement throws on (measured, issue #2980 proof-of-failure). The one
@@ -318,7 +318,7 @@ export function planCastCostPicks(
         picks.additionalCostCardId = pick.id;
     }
 
-    // CR 702.138a / 702.34a / 118.5 — the graveyard cast's exile cost, through
+    // CR 702.138a escape / 702.34a flashback / 118.8 — the graveyard cast's
     // the SAME builder the announcement parks on (`buildCastExileCostChoice`,
     // `gre/castCost.ts`) and the SAME deterministic answer the live reactive
     // fallback submits for that park (`chooseCastExileCost` over

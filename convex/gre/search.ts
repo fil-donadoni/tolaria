@@ -1026,7 +1026,7 @@ export function applyMoveInSearch(
                     }
                 );
             }
-            // CR 702.138a (issue #2980) — the exile cost could not be
+            // CR 702.138a escape (issue #2980) — the exile cost could not be
             // paid from the zone the Move named: a STALE Move (the
             // graveyard changed between enumeration and application).
             // Skip it rather than put the spell on the stack for free —

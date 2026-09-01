@@ -155,7 +155,7 @@ export type MoveMutations = {
     selectActivationCost: (
         a: GP & { cardInstanceId: string }
     ) => Promise<unknown>;
-    /** CR 702.138a / 702.34a / 118.5 — names the cards exiled to pay a GRAVEYARD
+    /** CR 702.138a escape / 702.34a flashback / 118.8 — names the cards exiled
      *  cast's non-mana exile cost: escape's "exile N other cards from your
      *  graveyard" (Uro, Phlage, everything Underworld Breach grants escape to),
      *  Flash of Insight's `flashbackExileFromGraveyard`, or the flashback-only

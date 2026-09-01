@@ -260,7 +260,7 @@ export function useVsAiDriver(
         // the pick travels on the `cast-spell` Move (`castCostPicks`), so it
         // belongs in `MoveMutations` and is submitted by `executeMove`.
         selectAdditionalCost: useMutation(api.game.selectAdditionalCost),
-        // CR 702.138a / 702.34a (issue #2980) — the graveyard cast's exile
+        // CR 702.138a escape / 702.34a flashback — the graveyard cast's exile
         // cost. It hangs off `pendingCast` like the pickers below, but it is
         // ALSO Move-realised now: an escape / non-mana-flashback cast carries
         // its picked ids on the Move, so the executor submits them itself

@@ -383,14 +383,19 @@ export function applyCastCostPicksForSearch(
     const castFromZone = opts?.castFromZone ?? "hand";
     const player = getPlayer(state, playerId);
     const spec = resolveAdditionalCosts(cardDef?.additionalCosts, chosenLegId);
-    // CR 702.138a / 702.34a / 118.5 — VALIDATED FIRST, applied last: every id
+    // CR 702.138a / 702.34a / 118.8 — VALIDATED FIRST, applied last: every id
     // the Move named must still be in the zone it was picked from, or this Move
     // is stale and the caller must skip it rather than put the spell on the
     // stack for free. That matters far more here than for the sacrifice legs,
     // because escape (unlike flashback) exiles nothing on resolution: an
     // uncharged escape cast is recastable from the graveyard forever, the
     // unbounded-recast shape the retrace land discard exists to bound. Checked
-    // before any mutation so a refusal leaves the sandbox state untouched.
+    // before THIS function mutates anything, so a refusal never leaves a
+    // half-paid cost behind here. It is NOT a whole-move rollback: by the time
+    // this runs the caller has already applied the tap plan, the life payment,
+    // the chosen additional-cost leg and the Kicker permanent leg, and the
+    // caller's bail keeps those — the same shape the pre-existing
+    // `castSource === null` bail below already has.
     const exileIds = picks.exileCostCardIds ?? [];
     const exileZone =
         exileIds.length > 0
@@ -453,7 +458,7 @@ export function applyCastCostPicksForSearch(
         }
         removePermanentTo(state, picks.additionalCostCardId, "exile");
     }
-    // CR 702.138a / 702.34a / 118.5 — the exile cost itself: the named cards
+    // CR 702.138a escape / 702.34a / 118.8 — the exile cost itself: the named cards
     // move graveyard (or hand) → exile, exactly as `tryCommitCast` moves them
     // once `selectCastExileCost` has recorded the same ids.
     if (exileIds.length > 0 && exileZone) {
@@ -468,7 +473,7 @@ export function applyCastCostPicksForSearch(
     return true;
 }
 
-/** CR 702.34a / 702.138a — which of the caster's OWN zones a cast's exile cost
+/** CR 702.34a / 702.138a escape — which of the caster's OWN zones a cast's exile cost
  *  is paid from: `"hand"` for the flashback exile-from-hand leg, `"graveyard"`
  *  for every other shape. Re-derived from the ONE builder the announcement and
  *  the enumerator both read (`buildCastExileCostChoice`) rather than stored on
@@ -1194,9 +1199,11 @@ export function applyMoveForSearch(
             // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
             // PERMANENT leg (sacrifice/return) before the spell leaves its
             // zone, the same ordering `applyAdditionalCostLegForSearch` above
-            // uses for the same reason: no shipped Kicker card combines this
-            // leg with a cast from anywhere but hand, so `preCastSpell` (found
-            // above, before removal) is always the right lookup.
+            // uses for the same reason. `preCastSpell` (found above, before
+            // removal) is looked up in the zone the Move DECLARES since issue
+            // #2980, so this no longer rests on "no shipped Kicker card is cast
+            // from anywhere but hand" — it is right for whichever zone the cast
+            // actually leaves.
             if (move.kickerPayments && preCastSpell) {
                 const kickerCardDef = tryGetDefinition(
                     (preCastSpell.card as { id?: string }).id ?? ""
@@ -1237,7 +1244,7 @@ export function applyMoveForSearch(
                     }
                 );
             }
-            // CR 702.138a (issue #2980) — the exile cost could not be
+            // CR 702.138a escape (issue #2980) — the exile cost could not be
             // paid from the zone the Move named: a STALE Move (the
             // graveyard changed between enumeration and application).
             // Skip it rather than put the spell on the stack for free —
