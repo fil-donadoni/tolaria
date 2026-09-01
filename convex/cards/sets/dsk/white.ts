@@ -12,8 +12,10 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // one-shot layer-4 card-type SET.
 // ─────────────────────────────────────────────────────────────────────────
 //
-// "When this creature dies, if it was a creature, return it to the battlefield
-//  under its owner's control. It's an enchantment. (It's not a creature.)"
+// "When Enduring Innocence dies, if it was a creature, return it to the
+//  battlefield under its owner's control. It's an enchantment. (It's not a
+//  creature.)" — quoted from the Scryfall oracle (ADR 0004), which names the
+//  card rather than using the "this creature" shorthand.
 //
 // The card is `layout: normal` on Scryfall — single-faced, nothing transforms
 // (CR 712). What the trigger creates is a continuous type-changing effect
@@ -129,7 +131,7 @@ export const enduringInnocence: CardDefinition = {
         diedTrigger({
             id: "enduring-innocence-return",
             oracleText:
-                "When Enduring Innocence dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment.",
+                "When Enduring Innocence dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.)",
             scope: "self",
             interveningIf: (event) => event.creatureTypes.includes("Creature"),
             effects: enduringInnocenceReturnAsEnchantment,

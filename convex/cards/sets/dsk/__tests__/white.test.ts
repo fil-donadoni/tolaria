@@ -32,6 +32,7 @@ import {
     putReanimatedSetOnBattlefield,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { withTemporaryDefinition } from "../../../registry";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { CardDefinition, TriggeredAbility } from "../../../types";
@@ -169,6 +170,36 @@ describe("Enduring Innocence — dies trigger returns it as an enchantment (CR 2
             state.players[0].graveyard.some((c) => c.id === "innocence")
         ).toBe(true);
         expect(findOnBattlefield(state, "innocence")).toBeUndefined();
+    });
+
+    it("CR 400.7 — after the SECOND death the graveyard card shows its PRINTED type line again, so creature-card retrieval can still target it", () => {
+        const { state } = boardWith();
+        killAndResolve(state, "innocence");
+        // Kill the enchantment it came back as.
+        removePermanentTo(state, "innocence", "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        resolveTriggerOrder(state);
+
+        // The card in the graveyard is a NEW object (CR 400.7) — the layer-4
+        // set ended when the permanent left, so what sits there is the
+        // Enchantment Creature — Sheep Glimmer card it PRINTS, not the
+        // enchantment the battlefield object had become.
+        const inYard = state.players[0].graveyard.find(
+            (c) => c.id === "innocence"
+        )!;
+        expect(inYard.types).toEqual(["Enchantment", "Creature"]);
+        expect(inYard.subtypes).toEqual(["Sheep", "Glimmer"]);
+
+        // The consequence that makes it a rules bug rather than bookkeeping:
+        // the graveyard target scan reads the INSTANCE's types, so "return
+        // target creature card from your graveyard" must still see it.
+        const legal = getLegalTargets(
+            state,
+            { type: "Creature", zone: "graveyard", count: 1 },
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).toContain("innocence");
     });
 
     it("CR 400.7 — bounced to hand and put back, it is a 2/1 Sheep Glimmer creature again", () => {
@@ -380,19 +411,34 @@ describe("Enduring Innocence — the once-each-turn draw trigger (CR 603.2 / 603
         expect(state.players[0].hand).toHaveLength(1);
     });
 
-    it("power 3 or more does not trigger it (the CR 613.4 effective-power read)", () => {
-        const { state } = stateWithLibrary(4);
+    it("power 3 or more does not trigger it, while power 2 does — the CR 613.4 effective-power read, asserted BOTH ways", () => {
+        // Two-sided on purpose: a one-sided "the big creature draws nothing"
+        // assertion passes just as well when the trigger is entirely dead, and
+        // a one-sided "the small creature draws" assertion passes when the
+        // filter is missing altogether. Only the pair pins the bound.
+        const big = stateWithLibrary(4);
         // Serra Angel is a 4/4 — above the "power 2 or less" bound.
-        const angel = makeInstance(serraAngel.id, {
-            id: "angel",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
+        enterAndResolve(big.state, [
+            makeInstance(serraAngel.id, {
+                id: "angel",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }),
+        ]);
+        expect(big.state.players[0].hand).toHaveLength(0);
 
-        enterAndResolve(state, [angel]);
-
-        expect(state.players[0].hand).toHaveLength(0);
+        const small = stateWithLibrary(4);
+        // Grizzly Bears is a 2/2 — exactly ON the bound, which is inclusive.
+        enterAndResolve(small.state, [
+            makeInstance(grizzlyBears.id, {
+                id: "bear",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }),
+        ]);
+        expect(small.state.players[0].hand).toHaveLength(1);
     });
 
     it("does not fire on ITS OWN entry — the trigger says OTHER creatures (CR 109.2)", () => {
