@@ -27568,6 +27568,13 @@ describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
             "top",
             "next",
         ]);
+        // CR 701.44a — the reveal fired on THIS pass, so the player sees what
+        // they are deciding about. The engine is suspended here, which is a
+        // stable point, so this is the state the client actually renders.
+        expect(state.pendingReveals ?? []).toHaveLength(1);
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["top"]
+        );
     });
 
     it("CR 701.44a — KEEPING the card on top leaves the library untouched and the counter at exactly one", () => {
@@ -27603,6 +27610,14 @@ describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
         expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
             "top"
         );
+        // THE OTHER HALF OF THE LATCH. `resolveTopOfStack` clears
+        // `pendingReveals` at the START of every pass, so the resumed pass
+        // wipes the dialog the player already saw and answered. If the
+        // executor re-fired `notifyReveal` on that pass it would push a
+        // SECOND, stale dialog for a card already decided about — so "empty
+        // after the resume" is exactly the assertion that catches a missing
+        // latch on the reveal half.
+        expect(state.pendingReveals ?? []).toHaveLength(0);
         // THE DOUBLE-RUN ASSERTION. The executor re-ran on resume (CR 608.3);
         // without the `noteChoice` latch it would place a SECOND counter here.
         const scout = state.players[0].battlefield.find(
@@ -27647,6 +27662,8 @@ describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
         expect(state.pendingChoices ?? []).toEqual([]);
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("top");
         expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+        // No stale second dialog after the resume (see the keep test).
+        expect(state.pendingReveals ?? []).toHaveLength(0);
         const scout = state.players[0].battlefield.find(
             (c) => c.id === "scout"
         )!;
@@ -27689,122 +27706,35 @@ describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
         expect(scout.counters?.["+1/+1"]).toBeUndefined();
     });
 
-    it("CR 608.2b — a target that left the battlefield skips the whole Op", () => {
-        const id = registerScript("test-op-explore-gone", EXPLORE_SCRIPT);
+    it("CR 608.2b — an unresolvable `$bound` ref skips the whole Op", () => {
+        // The reachable shape for the executor's own `if (!target) return`.
+        // An announced-slot target CANNOT reach it: the engine counters a
+        // single-illegal-target spell before the script runs (CR 608.2b), and
+        // `ctx.targets` is compacted, so a departed permanent never sits in a
+        // slot. A ref whose binding was never captured does reach it.
+        const id = registerScript("test-op-explore-unbound", [
+            { op: "explore", target: { ref: "$never" } },
+        ]);
         const state = makeState({
             players: [
                 makePlayer("p1", {
+                    battlefield: [explorer("scout")],
                     library: libOf("p1", [["top", BEAR_ID]]),
                 }),
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, id, "p1", [{ type: "permanent", id: "vanished" }]);
+        pushSpell(state, id, "p1");
         expect(() => resolveTopOfStack(state)).not.toThrow();
         expect(state.pendingChoices ?? []).toEqual([]);
         // Nothing was revealed and nothing moved.
         expect(state.players[0].library.map((c) => c.id)).toEqual(["top"]);
         expect(state.players[0].hand.map((c) => c.id)).not.toContain("top");
-    });
-
-    it("a forEach body explores EACH member — the latch is iteration-scoped, not shared", () => {
-        // `scopedContext` (interpreter.ts) iteration-scopes only ids starting
-        // with `$`. A latch keyed on the Op position alone is written UNSCOPED,
-        // so iteration 1 would recall iteration 0's latch, skip its own reveal
-        // and place NO counter — silently, with a green suite.
-        const id = registerScript("test-op-explore-foreach", [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    controller: "controller",
-                    filter: { type: "Creature" },
-                },
-                effects: [{ op: "explore", target: { ref: "$each" } }],
-            },
-        ]);
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [explorer("a"), explorer("b")],
-                    // Two lands on top: BOTH branches are the deterministic
-                    // land leg, so neither iteration suspends and the whole
-                    // forEach completes in one resolution.
-                    library: libOf("p1", [
-                        ["l1", LAND_ID],
-                        ["l2", LAND_ID],
-                        ["rest", BEAR_ID],
-                    ]),
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        // Each creature explored ⇒ BOTH lands reached hand.
-        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
-            "l1",
-            "l2",
-        ]);
-        expect(state.players[0].library.map((c) => c.id)).toEqual(["rest"]);
-    });
-
-    it("a forEach body places a counter for EVERY member on the nonland branch", () => {
-        const id = registerScript("test-op-explore-foreach-counter", [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    controller: "controller",
-                    filter: { type: "Creature" },
-                },
-                effects: [{ op: "explore", target: { ref: "$each" } }],
-            },
-        ]);
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [explorer("a"), explorer("b")],
-                    library: libOf("p1", [
-                        ["n1", BEAR_ID],
-                        ["n2", BEAR_ID],
-                        ["rest", LAND_ID],
-                    ]),
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, id, "p1");
-        // Iteration 0 suspends on its keep-or-bin choice; keep, then the
-        // second iteration must raise its OWN choice under its OWN id.
-        resolveTopOfStack(state);
-        const first = state.pendingChoices![0];
-        expect(first.candidateIds).toEqual(["n1"]);
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: first.stackItemId,
-            step: first.step,
-            choiceId: first.choiceId,
-            cardInstanceIds: ["n1"],
-            secondZoneIds: [],
-        });
-        const second = state.pendingChoices![0];
-        expect(second.candidateIds).toEqual(["n1"]); // still the live top
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: second.stackItemId,
-            step: second.step,
-            choiceId: second.choiceId,
-            cardInstanceIds: ["n1"],
-            secondZoneIds: [],
-        });
-        expect(state.pendingChoices ?? []).toEqual([]);
-        // BOTH creatures explored ⇒ both carry a counter.
-        const bf = state.players[0].battlefield;
-        expect(bf.find((c) => c.id === "a")!.counters?.["+1/+1"]).toBe(1);
-        expect(bf.find((c) => c.id === "b")!.counters?.["+1/+1"]).toBe(1);
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+        const scout = state.players[0].battlefield.find(
+            (c) => c.id === "scout"
+        )!;
+        expect(scout.counters?.["+1/+1"]).toBeUndefined();
     });
 
     it("two `explore` Ops in ONE script each place their own counter (the latch is per-Op)", () => {

@@ -33,6 +33,156 @@ const validScript: EffectOp[] = [
     { op: "exile", target: { target: 2 } },
 ];
 
+describe("explore nesting + token-ability target arity (CR 701.44, issue #2376)", () => {
+    const exploreInForEach: EffectOp[] = [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Creature" },
+            },
+            effects: [{ op: "explore", target: { ref: "$each" } }],
+        },
+    ];
+
+    it("rejects `explore` inside a forEach body (CR 701.44c/d are not implemented)", () => {
+        const errors = validateEffectScript(
+            host({ effects: exploreInForEach })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/"explore" appears inside a forEach body/);
+        expect(errors[0]).toMatch(/701\.44d/);
+    });
+
+    it("accepts a bare `explore` — the single-permanent shape the Op implements", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [{ op: "explore", target: { target: 0 } }] })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a token ability whose body reads a target slot its requirement does not guarantee", () => {
+        // The fail-open the `targetRequirement` allowlist widening opened: the
+        // body would resolve slot 0 to undefined and silently skip.
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        controller: "controller",
+                        token: {
+                            name: "Test Map",
+                            types: ["Artifact"],
+                            activatedAbilities: [
+                                {
+                                    id: "t-explore",
+                                    oracleText:
+                                        "Sacrifice this token: explore.",
+                                    cost: { sacrifice: true },
+                                    useStack: true,
+                                    effects: [
+                                        {
+                                            op: "explore",
+                                            target: { target: 0 },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /references announced target slot 0 but the ability's targetRequirement guarantees only 0/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("accepts the same token ability once it declares the target it reads", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        controller: "controller",
+                        token: {
+                            name: "Test Map",
+                            types: ["Artifact"],
+                            activatedAbilities: [
+                                {
+                                    id: "t-explore",
+                                    oracleText:
+                                        "Sacrifice this token: explore.",
+                                    cost: { sacrifice: true },
+                                    useStack: true,
+                                    targetRequirement: {
+                                        type: "Creature",
+                                        count: 1,
+                                        controller: "you",
+                                    },
+                                    effects: [
+                                        {
+                                            op: "explore",
+                                            target: { target: 0 },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("an `X` count guarantees no slot — the fail-CLOSED reading (CR 601.2c)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        controller: "controller",
+                        token: {
+                            name: "Test Map",
+                            types: ["Artifact"],
+                            activatedAbilities: [
+                                {
+                                    id: "t-explore",
+                                    oracleText:
+                                        "Sacrifice this token: explore.",
+                                    cost: { sacrifice: true },
+                                    useStack: true,
+                                    targetRequirement: {
+                                        type: "Creature",
+                                        count: "X",
+                                    },
+                                    effects: [
+                                        {
+                                            op: "explore",
+                                            target: { target: 0 },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /guarantees only 0 target/.test(e))).toBe(
+            true
+        );
+    });
+});
+
 describe("validateEffectScript — schema + vocabulary (ADR 0045)", () => {
     it("accepts a well-formed flat script using every Op", () => {
         expect(validateEffectScript(host({ effects: validScript }))).toEqual(

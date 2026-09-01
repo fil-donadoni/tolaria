@@ -13025,6 +13025,14 @@ export type EffectOp =
      *  moves. Explore is also a named CR 701 keyword action many cards
      *  reference by name, so it earns the vocabulary entry.
      *
+     *  It is the first Op that MUTATES the board (the +1/+1 counter) and then
+     *  SUSPENDS in the same call. That is worth knowing before nesting it in
+     *  an `if`: the construct re-walks only the taken branch, so a predicate
+     *  reading what the counter changed can evaluate differently on the
+     *  resumed pass ("no creature with power >= 4", with a 3/4 explorer),
+     *  shifting every downstream Op position. A pre-existing property of `if`
+     *  rather than of this Op, but this Op is the first to make it reachable.
+     *
      *  SUSPENDS on the nonland branch (`orderTop` raises an `order-top`
      *  PendingChoice), so — unlike `revealTopAndRoute` — this executor runs
      *  TWICE (CR 608.3: the interpreter checkpoints at this Op and re-enters
@@ -13039,16 +13047,26 @@ export type EffectOp =
      *  permanent's controller's library (CR 701.44a — "that permanent's
      *  controller"), not the ability's controller.
      *
-     *  Deliberately NOT covered: CR 701.44b's "explores even if those actions
-     *  were impossible" is only observable through a "whenever a permanent you
-     *  control explores" trigger, and no such card is in the pool — there is no
-     *  `EXPLORED` GameEventType and this Op emits none. CR 701.44c (last known
-     *  information for a permanent that already left) and CR 701.44d (APNAP
-     *  ordering of SIMULTANEOUS explores) are likewise unreachable from this
-     *  shape: the Op explores exactly one permanent, and a single-target
-     *  ability whose only target is gone is countered on resolution
-     *  (CR 608.2b) before the Op ever runs. Every clause of CR 701.44a — the
-     *  whole observable process — ships here whole. */
+     *  Every clause of CR 701.44a — the whole observable process — ships here
+     *  whole. The other three subrules are scoped OUT, and the scope is
+     *  enforced rather than asserted:
+     *  - 701.44b ("explores even if those actions were impossible") is
+     *    observable only through a "whenever a permanent you control explores"
+     *    trigger. No such card is in the pool, there is no `EXPLORED`
+     *    GameEventType, and this Op emits none.
+     *  - 701.44c (last known information for a permanent that already left)
+     *    and 701.44d (the controller's CHOICE of which of several
+     *    simultaneously-exploring permanents goes first) are reachable only by
+     *    exploring more than one permanent at once — i.e. an `explore` inside a
+     *    `forEach` body, which `validateEffectOpList` REJECTS outright
+     *    (`gre/effects/validate.ts`). A frozen forEach walk would answer both
+     *    subrules wrongly: fixed iteration order in place of 701.44d's choice,
+     *    and a skipped explore (uncaptured `$each`) in place of 701.44c's
+     *    last-known-information explore. Failing closed is what keeps "exactly
+     *    one permanent" true rather than aspirational — a future "each creature
+     *    you control explores" card gets a hard error and the 701.44d work it
+     *    needs, per `.claude/rules/gre-development.md` (a mechanic ships WHOLE,
+     *    never partially behind a marker). */
     | {
           op: "explore";
           target: EffectObjectSelector;

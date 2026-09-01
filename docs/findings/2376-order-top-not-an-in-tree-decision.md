@@ -15,11 +15,13 @@ Smart 'bottom the dead cards' scrying is deferred"). For Explore this is
 visible as a concrete wrong play: a dead card revealed off a nonland explore is
 always left on top, so the controller draws it next turn.
 
-**Evidence.** `convex/gre/ai/choiceCandidates.ts` registers generators for
-`may-pay`, `land-entry-tapped`, `draw-replacement`, `option-pick` and
-`search-library` only — `hasChoiceCandidateGenerator("order-top")` is false, so
-the choice never becomes an ISMCTS decision node and `brain.ts`'s default is the
-whole policy. Promoting it is **not** a valuer change: the `resolution-choice`
+**Evidence.** `CHOICE_CANDIDATE_GENERATORS`
+(`convex/gre/ai/choiceCandidates.ts:687-703`) registers eight kinds —
+`may-pay`, `land-entry-tapped`, `draw-replacement`, `option-pick`,
+`trigger-mode`, `search-library`, `random-reveal` and `choose-hand-card` — and
+`order-top` is not among them, so `hasChoiceCandidateGenerator("order-top")` is
+false, the choice never becomes an ISMCTS decision node, and `brain.ts`'s
+default is the whole policy. Promoting it is **not** a valuer change: the `resolution-choice`
 Move (`convex/gre/moves.ts:192`) carries a single `cardInstanceIds` list, while
 an `order-top` submission needs BOTH the kept ids and `secondZoneIds`
 (`convex/gre/pendingChoiceSubmit.ts:1038`). That is a Move-union widening, which
