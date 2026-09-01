@@ -1772,11 +1772,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // NOT-DSL-migratable). FREE (only `createToken`, a covered Op) with a
         // per-card test. Net: total 473->474, FREE 318->319, AFK-ready
         // 309->310; X-only and Op-blocked unchanged. Partition: 319+15+140=474.
+        //
+        // Issue #2605 adds NO closure — it RECLASSIFIES one. Subtlety
+        // (mh2/blue.ts) was Op-blocked on `putSpellOnLibrary`, a primitive no
+        // Op exposed; that primitive is now `moveSpellFromStack`, which the
+        // `moveSpellFromStack` Op covers, so the clause-mapper sees only
+        // covered primitives (`requestOptionChoice` was already covered) and
+        // the closure moves Op-blocked -> FREE. It carries a per-card test, so
+        // AFK-ready follows. NOTE the census is a PRIMITIVE-gap heuristic, not
+        // a migration verdict: Subtlety stays `resolve()` because its
+        // destination is read from a foreign player's live option pick, which
+        // the Op's literal `destination` cannot express. Net: total unchanged
+        // at 474, Op-blocked 140->139, FREE 319->320, AFK-ready 310->311.
+        // Partition: 320+15+139=474.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(320);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(311);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(139);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
