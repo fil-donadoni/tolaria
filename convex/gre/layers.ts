@@ -1,5 +1,8 @@
-// Minimal continuous-effect layer system (CR 611, 613).
-// Scope: P/T buffs (layer 7c) only. Computed at read time — never mutate card state.
+// Continuous-effect layer system (CR 611, 613).
+// Scope: layer 7 (power/toughness). Every layer-7 effect — a static ability's,
+// a counter's, a resolved spell's residue — is read as a Continuous Effects
+// Registry entry (`gre/continuousEffects.ts`, ADR 0082, PRD #2064 S2).
+// Computed at read time — never mutate card state.
 //
 // Static effects are expressed via an `applies` predicate plus a small
 // `StaticEffectContext` of pure helpers (getColors, isCreature, hasSubtype).
@@ -10,6 +13,11 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
+import { compareContinuousEffects } from "./continuousEffects";
+import type {
+    ContinuousEffect,
+    ContinuousEffectSublayer,
+} from "./continuousEffects";
 import type {
     CardType,
     Color,
@@ -24,9 +32,17 @@ export type PTBuff = { power: number; toughness: number };
 
 const ZERO: PTBuff = { power: 0, toughness: 0 };
 
-/** Re-exported for engine callers; the canonical definition lives in types.ts
- *  so static-effect predicates can reference it without a cycle. */
-export type LayerStateView = StaticEffectStateView;
+/** The view the layer system reads. `StaticEffectStateView` (canonical in
+ *  `cards/types.ts`, so static-effect predicates can reference it without a
+ *  cycle) plus the Continuous Effects Registry, which layer 7 is defined
+ *  against (ADR 0082, PRD #2064). The registry rides here rather than on
+ *  `StaticEffectStateView` itself to keep `cards/types.ts` a dependency-free
+ *  leaf; it is optional because a caller that constructs the view by hand
+ *  (`gre/constants.ts`'s `manaLayerView`, `src/lib/effective-stats.ts`'s
+ *  `toLayerState`) has no registry to pass until S5 puts one on the wire. */
+export type LayerStateView = StaticEffectStateView & {
+    readonly continuousEffects?: readonly ContinuousEffect[];
+};
 
 /** CR 114 — a source-less synthetic `PermanentView` standing in for a
  *  command-zone emblem, so its owner-scoped continuous static effects flow
@@ -178,196 +194,8 @@ export function countDevotion(
     return total;
 }
 
-/**
- * Layer 7d static P/T buffs: sum of `pt-buff` static effects applied to
- * `target` by all permanents on the battlefield (CR 613.4d, 611.2). These are
- * +N/+N deltas (Crusade, Bad Moon, Castle) applied on top of the base / CDA /
- * set / counter stack. `pt-cda` is NOT summed here — it is layer 7a, see
- * `getCDAContribution`.
- */
-export function getStaticPTBuff(
-    state: LayerStateView,
-    target: PermanentView
-): PTBuff {
-    let power = 0;
-    let toughness = 0;
-
-    // Fast path: P/T buffs are only meaningful on creatures (CR 208.2).
-    if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
-
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
-            for (const effect of getStaticEffects(source)) {
-                if (effect.kind !== "pt-buff") continue;
-                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                // CR 611.2c source-level gate ("as long as ..."): evaluated
-                // once per source against the whole board (Jihad). Skips the
-                // buff entirely when the condition is currently false.
-                if (
-                    effect.condition &&
-                    !effect.condition(source, state, STATIC_EFFECT_CTX)
-                ) {
-                    continue;
-                }
-                power += effect.power;
-                toughness += effect.toughness;
-            }
-        }
-    }
-
-    // CR 114 (issue #1221) — command-zone emblems contribute source-less,
-    // owner-scoped `pt-buff` statics (Sorin, Lord of Innistrad's "Creatures you
-    // control get +1/+0" emblem). Same predicate walk as a battlefield source,
-    // with a synthetic emblem source whose controller is the emblem's owner.
-    for (const emblem of state.emblems ?? []) {
-        const source = emblemAsStaticSource(emblem);
-        for (const effect of getEmblemStaticEffects(emblem)) {
-            if (effect.kind !== "pt-buff") continue;
-            if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
-            if (
-                effect.condition &&
-                !effect.condition(source, state, STATIC_EFFECT_CTX)
-            ) {
-                continue;
-            }
-            power += effect.power;
-            toughness += effect.toughness;
-        }
-    }
-
-    if (power === 0 && toughness === 0) return ZERO;
-    return { power, toughness };
-}
-
-/**
- * Layer 7a/7b characteristic-defining contribution (CR 613.4a self-CDA,
- * 613.4b external "set to a value" effects — Animate Artifact / Titania's
- * Song / Opalescence). `pt-cda` conflates both: a self-targeting CDA only
- * ever matches its own source (one contributor per target, so overwrite vs
- * sum is moot), but an EXTERNAL set-style effect can have several sources
- * targeting the same permanent at once (two Opalescences on the battlefield
- * both matching the same enchantment). CR 613.4b/613.7 is explicit these
- * don't stack: multiple such effects resolve in timestamp order and the
- * latest one OVERWRITES every earlier one entirely — never summed (official
- * Opalescence ruling: duplicate Opalescences don't compound a target's P/T).
- * Timestamp isn't tracked per effect; battlefield array order (append order
- * = entry order) is used as the ordering proxy, mirroring the "array order
- * is the timestamp" convention `temporaryPTSet` already relies on. The
- * result is set on top of the printed base P/T to form the starting value of
- * the pipeline; a layer 7b `temporaryPTSet` (from a spell/ability, not a
- * continuous static effect) may still override it afterward (ADR 0017).
- */
-function getCDAContribution(
-    state: LayerStateView,
-    target: PermanentView
-): PTBuff {
-    if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
-    let matched = false;
-    let power = 0;
-    let toughness = 0;
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
-            for (const effect of getStaticEffects(source)) {
-                if (effect.kind !== "pt-cda") continue;
-                if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                const pt = effect.compute(
-                    source,
-                    state,
-                    STATIC_EFFECT_CTX,
-                    target
-                );
-                // Overwrite, don't accumulate — the latest matching source
-                // (by battlefield/timestamp order) wins outright.
-                power = pt.power;
-                toughness = pt.toughness;
-                matched = true;
-            }
-        }
-    }
-    if (!matched) return ZERO;
-    return { power, toughness };
-}
-
-/**
- * Layer 7b set-P/T override (CR 613.4b). Reads the timestamped `temporaryPTSet`
- * entries on the target and returns the latest value per characteristic
- * (CR 613.7 — array order is the timestamp, latest entry wins; consistent with
- * `controlChanges` / text-change stacks). `power`/`toughness` are independently
- * optional: "base power 0" sets power and leaves toughness to the 7a value.
- */
-function getSetPT(target: PermanentView): {
-    power?: number;
-    toughness?: number;
-} {
-    const sets = target.temporaryPTSet;
-    if (!sets?.length) return {};
-    let power: number | undefined;
-    let toughness: number | undefined;
-    for (const entry of sets) {
-        if (entry.power !== undefined) power = entry.power;
-        if (entry.toughness !== undefined) toughness = entry.toughness;
-    }
-    return { power, toughness };
-}
-
-/** Sum of one-shot temporary P/T modifications stored on `target`
- *  (CR 611.1, 611.2). Independent from static effects: these mods live on
- *  the permanent itself and are purged by phase-boundary cleanup. */
-function getTemporaryPTBuff(target: PermanentView): PTBuff {
-    const mods = target.temporaryPTMods;
-    if (!mods?.length) return ZERO;
-    let power = 0;
-    let toughness = 0;
-    for (const m of mods) {
-        power += m.power;
-        toughness += m.toughness;
-    }
-    if (power === 0 && toughness === 0) return ZERO;
-    return { power, toughness };
-}
-
-/** Sum of conditional P/T modifications held "for as long as [the source]
- *  remains tapped" (CR 611.2; ATQ Ashnod's Battle Gear, Tawnos's Weaponry).
- *  Read live: an entry contributes only while its `sourceId` permanent is on
- *  the battlefield AND tapped, so the buff disappears the instant the source
- *  untaps even before the `checkSourceTappedEffects` SBA splices the stale
- *  entry out. Independent from `temporaryPTMods` (phase-boundary one-shots). */
-function getSourceTappedPTBuff(
-    state: LayerStateView,
-    target: PermanentView
-): PTBuff {
-    const mods = target.sourceTappedPTMods;
-    if (!mods?.length) return ZERO;
-    let power = 0;
-    let toughness = 0;
-    for (const m of mods) {
-        if (!isSourceTappedLive(state, m.sourceId)) continue;
-        power += m.power;
-        toughness += m.toughness;
-    }
-    if (power === 0 && toughness === 0) return ZERO;
-    return { power, toughness };
-}
-
-/** True while `sourceId` is a permanent on some battlefield that is tapped
- *  (CR 611.2 state-tied duration). A source that has left the battlefield
- *  fails (the effect ends with its source). */
-export function isSourceTappedLive(
-    state: LayerStateView,
-    sourceId: string
-): boolean {
-    for (const player of state.players) {
-        const src = player.battlefield.find((c) => c.id === sourceId);
-        if (src) return Boolean((src as PermanentView).isTapped);
-    }
-    return false;
-}
-
-/** Per-counter-type contribution to layer 7d (CR 613.4d, 122.1d). Only the
+/** Per-counter-type contribution to layer 7c (CR 613.4c — "effects AND
+ *  COUNTERS that modify power and/or toughness"; CR 122.1a). Only the
  *  P/T-modifying built-in types are recognized here; other types (corpse,
  *  mire, charge, vitality) are inert to the layer system and are read by
  *  card-specific abilities directly. */
@@ -391,63 +219,368 @@ const COUNTER_PT_CONTRIBUTION: Record<string, PTBuff> = {
     "-2/-2": { power: -2, toughness: -2 },
 };
 
-/** Sum of P/T contributions from counters on `target` (layer 7d). Reads from
- *  `target.counters` and folds in only types with a non-zero P/T effect. */
-function getCounterPTBuff(target: PermanentView): PTBuff {
-    const counters = target.counters;
-    if (!counters) return ZERO;
+/** True while `sourceId` is a permanent on some battlefield that is tapped
+ *  (CR 611.2b state-tied duration). A source that has left the battlefield
+ *  fails (the effect ends with its source). */
+export function isSourceTappedLive(
+    state: LayerStateView,
+    sourceId: string
+): boolean {
+    for (const player of state.players) {
+        const src = player.battlefield.find((c) => c.id === sourceId);
+        if (src) return Boolean((src as PermanentView).isTapped);
+    }
+    return false;
+}
+
+/** CR 613.4 — the layer-7 sublayers, applied in this order. */
+const LAYER_7_SUBLAYERS: readonly ContinuousEffectSublayer[] = [
+    "7a",
+    "7b",
+    "7c",
+    "7d",
+];
+
+/** Timestamp floor for entries this module DERIVES per read rather than reads
+ *  out of `state.continuousEffects` (PRD #2064 S2).
+ *
+ *  A derived entry has no real CR 613.7 timestamp to carry: the engine mints
+ *  one only when a grant happens (`allocStaticTimestamp`), and gives a
+ *  permanent no object timestamp at all (CR 613.7d), so board walk order is the
+ *  only ordering proxy available — exactly the proxy the pre-migration
+ *  `getCDAContribution` and `temporaryPTSet` readers already used ("array order
+ *  is the timestamp"). Starting the derived sequence far below every minted
+ *  stamp keeps that proxy from silently interleaving with real ones: a stored
+ *  entry, which is residue of a spell that resolved at a known moment, sorts
+ *  after every derived entry instead of landing at an arbitrary point inside
+ *  the board walk. `allocStaticTimestamp` counts grants, so it cannot approach
+ *  this floor within a game.
+ *
+ *  It disappears with the proxy: once S6's producers write these entries, they
+ *  carry the minted timestamp and this constant goes with the derivation. */
+const DERIVED_TIMESTAMP_BASE = -1_000_000_000;
+
+/** The live source and `StaticEffect` a DERIVED template entry was built from,
+ *  kept beside the entry so the resolver never has to look either up again —
+ *  and so an emblem's effect, which no card-registry lookup can reach, resolves
+ *  by the same path as a permanent's. */
+type DerivedTemplate = { source: PermanentView; effect: StaticEffect };
+
+/** The layer-7 registry entries applying to `target`, in CR 613.7 order, paired
+ *  with the live source each source-provenance entry was derived from.
+ *
+ *  This is the ONE place layer 7 reads a `staticEffects[]` declaration or a
+ *  P/T field off a card instance; every consumer below reads `ContinuousEffect`
+ *  entries and nothing else. Two provenances are DERIVED per read rather than
+ *  stored, and both are derivable precisely because they have something live to
+ *  read (ADR 0082's own argument for why the other provenances need a registry
+ *  at all):
+ *
+ *  - a permanent's or emblem's `pt-buff` / `pt-cda` static ability — expiry
+ *    `source`, re-evaluated against the live board at every read, so phasing,
+ *    a control change and a leave-the-battlefield need no purge site and
+ *    cannot drift (CR 613.1: characteristics are recomputed every time they
+ *    are checked);
+ *  - counters — expiry `counter`, one entry per counter TYPE because CR 613.7c
+ *    gives every counter of a kind the same timestamp.
+ *
+ *  The three instance-borne families (`temporaryPTSet`, `temporaryPTMods`,
+ *  `sourceTappedPTMods`) are resolution residue with no source to walk. They
+ *  are derived here too while their countdown still lives on the instance
+ *  (expiry `instance-duration` / `while-source-tapped`); PRD #2064 S6 flips
+ *  them to stored entries, which is a producer change this read path already
+ *  accepts — stored layer-7 entries are unioned in below and resolve through
+ *  the same payload resolver.
+ */
+function layer7EffectsFor(
+    state: LayerStateView,
+    target: PermanentView
+): {
+    entries: ContinuousEffect[];
+    templates: ReadonlyMap<string, DerivedTemplate>;
+} {
+    const entries: ContinuousEffect[] = [];
+    const templates = new Map<string, DerivedTemplate>();
+    let ordinal = DERIVED_TIMESTAMP_BASE;
+
+    const pushSourceEffects = (
+        source: PermanentView,
+        effects: readonly StaticEffect[]
+    ): void => {
+        for (let index = 0; index < effects.length; index++) {
+            const effect = effects[index];
+            const cda = effect.kind === "pt-cda";
+            if (!cda && effect.kind !== "pt-buff") continue;
+            if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
+            // CR 611.2c source-level gate ("as long as ..."): evaluated once
+            // per source against the whole board (Jihad). Only `pt-buff`
+            // carries one — a characteristic-defining ability has no such gate
+            // (CR 604.3: it applies in every zone, at all times).
+            if (
+                !cda &&
+                effect.condition &&
+                !effect.condition(source, state, STATIC_EFFECT_CTX)
+            ) {
+                continue;
+            }
+            const id = `ce-src-${source.id}-${index}`;
+            templates.set(id, { source, effect });
+            entries.push({
+                id,
+                layer: 7,
+                // CR 613.4a vs 613.4c — a CDA defines P/T, a buff modifies it.
+                sublayer: cda ? "7a" : "7c",
+                timestamp: ordinal++,
+                expiry: { kind: "source", sourceId: source.id },
+                affected: { kind: "predicate" },
+                payload: {
+                    kind: "template",
+                    sourceCardId: (source.card as { id?: string }).id ?? "",
+                    effectIndex: index,
+                    modeId: (source as { chosenModeId?: string }).chosenModeId,
+                },
+                characteristicDefining: cda,
+            });
+        }
+    };
+
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            pushSourceEffects(source, getStaticEffects(source));
+        }
+    }
+    // CR 114 (issue #1221) — command-zone emblems contribute source-less,
+    // owner-scoped statics (Sorin, Lord of Innistrad's "+1/+0" emblem). Same
+    // predicate walk, with a synthetic source whose controller is the owner.
+    for (const emblem of state.emblems ?? []) {
+        pushSourceEffects(
+            emblemAsStaticSource(emblem),
+            getEmblemStaticEffects(emblem)
+        );
+    }
+
+    // CR 613.4b layer 7b — set P/T. Array order is the timestamp; both halves
+    // are independently optional ("base power 0" leaves toughness alone).
+    const sets = target.temporaryPTSet ?? [];
+    for (let index = 0; index < sets.length; index++) {
+        entries.push({
+            id: `ce-set-${target.id}-${index}`,
+            layer: 7,
+            sublayer: "7b",
+            timestamp: ordinal++,
+            expiry: { kind: "instance-duration" },
+            affected: { kind: "instances", instanceIds: [target.id] },
+            payload: { kind: "pt-set", ...sets[index] },
+            characteristicDefining: false,
+        });
+    }
+
+    // CR 613.4c layer 7c — counters. One entry per TYPE: CR 613.7c gives every
+    // counter of a kind the same timestamp, so they cannot interleave.
+    for (const [counterType, count] of Object.entries(target.counters ?? {})) {
+        const contribution = COUNTER_PT_CONTRIBUTION[counterType];
+        if (!contribution || count === 0) continue;
+        entries.push({
+            id: `ce-counter-${target.id}-${counterType}`,
+            layer: 7,
+            sublayer: "7c",
+            timestamp: ordinal++,
+            expiry: {
+                kind: "counter",
+                permanentId: target.id,
+                counterType,
+            },
+            affected: { kind: "instances", instanceIds: [target.id] },
+            payload: {
+                kind: "pt-modify",
+                power: contribution.power * count,
+                toughness: contribution.toughness * count,
+            },
+            characteristicDefining: false,
+        });
+    }
+
+    // CR 613.4c layer 7c — one-shot pumps scoped to a phase boundary.
+    const mods = target.temporaryPTMods ?? [];
+    for (let index = 0; index < mods.length; index++) {
+        entries.push({
+            id: `ce-mod-${target.id}-${index}`,
+            layer: 7,
+            sublayer: "7c",
+            timestamp: ordinal++,
+            expiry: { kind: "instance-duration" },
+            affected: { kind: "instances", instanceIds: [target.id] },
+            payload: { kind: "pt-modify", ...mods[index] },
+            characteristicDefining: false,
+        });
+    }
+
+    // CR 611.2b layer 7c — "for as long as [the source] remains tapped". The
+    // condition IS the expiry, so a stale entry simply does not exist here:
+    // the buff disappears the instant the source untaps, before the
+    // `checkSourceTappedEffects` SBA splices the instance entry out.
+    for (const mod of target.sourceTappedPTMods ?? []) {
+        if (!isSourceTappedLive(state, mod.sourceId)) continue;
+        entries.push({
+            id: `ce-tapped-${target.id}-${mod.sourceId}-${ordinal}`,
+            layer: 7,
+            sublayer: "7c",
+            timestamp: ordinal++,
+            expiry: { kind: "while-source-tapped", sourceId: mod.sourceId },
+            affected: { kind: "instances", instanceIds: [target.id] },
+            payload: {
+                kind: "pt-modify",
+                power: mod.power,
+                toughness: mod.toughness,
+            },
+            characteristicDefining: false,
+        });
+    }
+
+    // Stored entries (`state.continuousEffects`). Nothing writes a layer-7 one
+    // yet — S6 does — but the read path unions them now so a producer added
+    // later needs no second consumer, and so the registry, not this walk, is
+    // what layer 7 is defined against.
+    for (const stored of state.continuousEffects ?? []) {
+        if (stored.layer !== 7) continue;
+        if (!layer7EntryApplies(stored, target)) continue;
+        entries.push(stored);
+    }
+
+    entries.sort(compareContinuousEffects);
+    return { entries, templates };
+}
+
+/** Whether a STORED entry applies to `target`. A `predicate`-affected entry is
+ *  pinned by its type to `source` expiry and a template payload, so its
+ *  predicate is the template's `applies` — resolved in `resolveLayer7Payload`,
+ *  which returns `undefined` when it does not match. */
+function layer7EntryApplies(
+    entry: ContinuousEffect,
+    target: PermanentView
+): boolean {
+    if (entry.affected.kind === "predicate") return true;
+    return entry.affected.instanceIds.includes(target.id);
+}
+
+/** The P/T contribution of one layer-7 entry, or `undefined` when the entry
+ *  contributes nothing to this target (a template whose predicate does not
+ *  match, or a payload from another layer).
+ *
+ *  A template payload keeps its `applies` / `compute` closures on the card
+ *  definition (they cannot round-trip through the DB), so it is resolved
+ *  against the live source: the one derived here during the board walk, or —
+ *  for a stored entry — the permanent named by its `source` expiry. */
+function resolveLayer7Payload(
+    state: LayerStateView,
+    target: PermanentView,
+    entry: ContinuousEffect,
+    templates: ReadonlyMap<string, DerivedTemplate>
+): { power?: number; toughness?: number } | undefined {
+    const payload = entry.payload;
+    if (payload.kind === "pt-modify" || payload.kind === "pt-set") {
+        return payload;
+    }
+    if (payload.kind !== "template") return undefined;
+    const derived = templates.get(entry.id);
+    // A STORED template entry names its source by id only, so its closures are
+    // re-fetched from the live definition. An emblem is deliberately not
+    // resolvable this way — `getStaticEffects` reads the CARD registry and an
+    // emblem id is not a card id — which is why emblem statics stay derived
+    // (they are, and PRD #2064 S6 keeps them so unless it stores an emblem's
+    // effect list too).
+    const source =
+        derived?.source ??
+        (entry.expiry.kind === "source"
+            ? findPermanent(state, entry.expiry.sourceId)
+            : undefined);
+    if (!source) return undefined;
+    const effect =
+        derived?.effect ?? getStaticEffects(source)[payload.effectIndex];
+    if (!effect) return undefined;
+    if (effect.kind === "pt-buff") {
+        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+            return undefined;
+        return { power: effect.power, toughness: effect.toughness };
+    }
+    if (effect.kind === "pt-cda") {
+        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+            return undefined;
+        return effect.compute(source, state, STATIC_EFFECT_CTX, target);
+    }
+    return undefined;
+}
+
+/** The battlefield permanent with `id`, if any. */
+function findPermanent(
+    state: LayerStateView,
+    id: string
+): PermanentView | undefined {
+    for (const player of state.players) {
+        const found = player.battlefield.find((c) => c.id === id);
+        if (found) return found;
+    }
+    return undefined;
+}
+
+/**
+ * Sum of the layer-7c contributions `target` receives from STATIC ABILITIES of
+ * battlefield sources and command-zone emblems (CR 613.4c, 611.2) — the
+ * +N/+N deltas of Crusade, Bad Moon and Castle. Counters, pumps and set-P/T
+ * effects are other provenances or other sublayers and are excluded, as they
+ * always were.
+ */
+export function getStaticPTBuff(
+    state: LayerStateView,
+    target: PermanentView
+): PTBuff {
+    // Fast path: P/T effects are only meaningful on creatures (CR 208.2).
+    if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
+    const { entries, templates } = layer7EffectsFor(state, target);
     let power = 0;
     let toughness = 0;
-    for (const [type, count] of Object.entries(counters)) {
-        const contribution = COUNTER_PT_CONTRIBUTION[type];
-        if (!contribution || count === 0) continue;
-        power += contribution.power * count;
-        toughness += contribution.toughness * count;
+    for (const entry of entries) {
+        if (entry.sublayer !== "7c") continue;
+        if (entry.expiry.kind !== "source") continue;
+        const value = resolveLayer7Payload(state, target, entry, templates);
+        if (!value) continue;
+        power += value.power ?? 0;
+        toughness += value.toughness ?? 0;
     }
     if (power === 0 && toughness === 0) return ZERO;
     return { power, toughness };
 }
 
 /**
- * Evaluates the CR 613.4 P/T sublayers in order (ADR 0017), per characteristic:
+ * Applies the CR 613.4 sublayers to `target`, in order, reading ONLY registry
+ * entries (ADR 0082, PRD #2064 S2):
  *
- *   7a CDA      → starting value = printed base + pt-cda (latest source wins,
- *                 never summed across sources — see `getCDAContribution`)
- *   7b set      → if a `temporaryPTSet` overrides this characteristic, replace
- *   7c counters → += counter contribution
- *   7d modifier → += static pt-buff + temporaryPTMods (pump, anthems)
- *   7e switch   → power/toughness swap — no card in scope; intentionally
- *                 absent (the first switch card lands the 7e body + its test).
+ *   7a CDA      → starting value = printed base + the latest matching
+ *                 characteristic-defining effect (CR 613.4a; overwrite, never
+ *                 summed across sources — ADR 0017, and the official
+ *                 Opalescence ruling that duplicates do not compound)
+ *   7b set      → an effect setting this characteristic replaces the value
+ *                 (CR 613.4b); latest timestamp wins, halves independent
+ *   7c modify   → += every modifying effect AND counter (CR 613.4c puts both
+ *                 in one sublayer; the pre-registry pipeline split them across
+ *                 two steps, which was order-equivalent since both are sums)
+ *   7d switch   → power and toughness swap (CR 613.4d). No card in scope emits
+ *                 a `pt-switch` entry yet, so the loop is empty in practice.
  *
- * Computed at read time, never mutating card state — same discipline as the
- * previous flat sum, but ordered so a 7b set wins over the 7a base/CDA and
- * counters/modifiers stack on top of the set value.
+ * Computed at read time, never mutating card state.
  */
-function evaluateLayer(
-    base: number,
-    cda: number,
-    set: number | undefined,
-    counter: number,
-    modifier: number
-): number {
-    let value = base + cda; // 7a
-    if (set !== undefined) value = set; // 7b override
-    value += counter; // 7c
-    value += modifier; // 7d
-    return value; // 7e: no-op (no switch card in scope)
-}
-
 function computeEffectivePT(
     state: LayerStateView,
     target: PermanentView,
     opts: { includeTemporary?: boolean } = {}
 ): PTBuff {
-    // When false, the until-boundary (until-end-of-turn / -combat) P/T layers are
-    // dropped: the timestamped `temporaryPTSet` (7b) and the one-shot
-    // `temporaryPTMods` (7d temp), both purged at the next phase boundary. The
-    // persistent layers (CDA, counters, static buffs) are unaffected. Used only
-    // by the bot evaluation, so a combat trick's temporary buff is not scored as
-    // permanent material (ADR 0020 §2).
+    // When false, the until-boundary P/T entries are dropped — the ones whose
+    // countdown is held on the instance (`temporaryPTSet` 7b, `temporaryPTMods`
+    // 7c), which is exactly the `instance-duration` expiry. The persistent
+    // provenances (CDA, static buffs, counters, and the source-tapped effects
+    // of Ashnod's Battle Gear, which are state-tied rather than boundary-tied)
+    // are unaffected. Used only by the bot evaluation, so a combat trick's
+    // temporary buff is not scored as permanent material (ADR 0020 §2).
     const includeTemporary = opts.includeTemporary ?? true;
     const basePower = target.power ?? 0;
     const baseToughness = target.toughness ?? 0;
@@ -455,31 +588,50 @@ function computeEffectivePT(
     if (!STATIC_EFFECT_CTX.isCreature(target)) {
         return { power: basePower, toughness: baseToughness };
     }
-    const cda = getCDAContribution(state, target); // 7a
-    const set = includeTemporary ? getSetPT(target) : {}; // 7b (temporary)
-    const counter = getCounterPTBuff(target); // 7c
-    const buff = getStaticPTBuff(state, target); // 7d static
-    const temp = includeTemporary ? getTemporaryPTBuff(target) : ZERO; // 7d temp
-    // 7d source-tapped: held while the source stays tapped (Ashnod's Battle
-    // Gear, Tawnos's Weaponry). Persistent, not phase-bounded, so it survives
-    // `includeTemporary === false` (bot eval scores it as real material).
-    const tapped = getSourceTappedPTBuff(state, target); // 7d source-tapped
-    return {
-        power: evaluateLayer(
-            basePower,
-            cda.power,
-            set.power,
-            counter.power,
-            buff.power + temp.power + tapped.power
-        ),
-        toughness: evaluateLayer(
-            baseToughness,
-            cda.toughness,
-            set.toughness,
-            counter.toughness,
-            buff.toughness + temp.toughness + tapped.toughness
-        ),
-    };
+    const { entries, templates } = layer7EffectsFor(state, target);
+
+    let power = basePower;
+    let toughness = baseToughness;
+    for (const sublayer of LAYER_7_SUBLAYERS) {
+        // CR 613.4a — the latest CDA overwrites every earlier one outright, so
+        // 7a resolves to a single delta applied to the printed base.
+        let cdaPower: number | undefined;
+        let cdaToughness: number | undefined;
+        for (const entry of entries) {
+            if (entry.sublayer !== sublayer) continue;
+            if (
+                !includeTemporary &&
+                entry.expiry.kind === "instance-duration"
+            ) {
+                continue;
+            }
+            if (sublayer === "7d") {
+                // CR 613.4d — the switch takes no value from its payload.
+                const swapped = power;
+                power = toughness;
+                toughness = swapped;
+                continue;
+            }
+            const value = resolveLayer7Payload(state, target, entry, templates);
+            if (!value) continue;
+            if (sublayer === "7a") {
+                if (value.power !== undefined) cdaPower = value.power;
+                if (value.toughness !== undefined)
+                    cdaToughness = value.toughness;
+            } else if (sublayer === "7b") {
+                if (value.power !== undefined) power = value.power;
+                if (value.toughness !== undefined) toughness = value.toughness;
+            } else {
+                power += value.power ?? 0;
+                toughness += value.toughness ?? 0;
+            }
+        }
+        if (sublayer === "7a") {
+            power = basePower + (cdaPower ?? 0);
+            toughness = baseToughness + (cdaToughness ?? 0);
+        }
+    }
+    return { power, toughness };
 }
 
 /** Effective power after the CR 613.4 layer pipeline. Not floored (combat

@@ -1,0 +1,286 @@
+// Layer 7 reads the Continuous Effects Registry (ADR 0082, PRD #2064 S2).
+//
+// `layers.test.ts` is the behavioural baseline and stays untouched — it proves
+// the migration changed no outcome. This file proves the things the migration
+// ADDED, none of which the baseline can reach: a STORED registry entry
+// participates in the pipeline, the CR 613.4 sublayers order it correctly
+// (including the 7d switch, which the pre-registry pipeline had no body for),
+// and the ADR 0020 §2 bot-eval filter now keys off an entry's expiry instead of
+// which instance field it came from.
+
+import { describe, expect, it } from "vitest";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    getPermanentEffectivePower,
+    getPermanentEffectiveToughness,
+} from "../layers";
+import type { ContinuousEffect } from "../continuousEffects";
+import type { CardInstanceState, GameState } from "../state";
+import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { crusade } from "../../cards/sets/lea";
+
+/** A vanilla creature with no registry entry — every effect in this file
+ *  arrives as a registry entry, so no card definition is needed. */
+function creature(
+    id: string,
+    power: number,
+    toughness: number,
+    overrides: Partial<CardInstanceState> = {}
+): CardInstanceState {
+    return {
+        id,
+        card: { id: `synth-${id}` },
+        types: ["Creature"],
+        subtypes: [],
+        power,
+        toughness,
+        staticAbilities: [],
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+        ...overrides,
+    };
+}
+
+/** A layer-7 registry entry affecting `instanceIds`. Every field an assertion
+ *  cares about is passed in, so the defaults never carry meaning. */
+function entry(
+    id: string,
+    timestamp: number,
+    sublayer: "7a" | "7b" | "7c" | "7d",
+    payload: ContinuousEffect["payload"],
+    overrides: Partial<ContinuousEffect> = {}
+): ContinuousEffect {
+    return {
+        id,
+        layer: 7,
+        sublayer,
+        timestamp,
+        expiry: { kind: "indefinite", controllerId: "p1" },
+        affected: { kind: "instances", instanceIds: ["bear"] },
+        payload,
+        characteristicDefining: sublayer === "7a",
+        ...overrides,
+    } as ContinuousEffect;
+}
+
+function stateWith(
+    battlefield: CardInstanceState[],
+    entries: ContinuousEffect[]
+): GameState {
+    return makeState({
+        players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        continuousEffects: entries,
+    });
+}
+
+describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", () => {
+    it("applies a stored 7c modifier to the instance it names (CR 613.4c)", () => {
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-1", 10, "7c", {
+                    kind: "pt-modify",
+                    power: 3,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(5);
+        expect(getEffectiveToughness(state, bear)).toBe(3);
+    });
+
+    it("ignores a stored entry that names a different instance (CR 611.2c)", () => {
+        const bear = creature("bear", 2, 2);
+        const ox = creature("ox", 2, 4);
+        const state = stateWith(
+            [bear, ox],
+            [
+                entry("ce-1", 10, "7c", {
+                    kind: "pt-modify",
+                    power: 3,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, ox)).toBe(2);
+        expect(getEffectiveToughness(state, ox)).toBe(4);
+    });
+
+    it("lets the latest 7b set win, per characteristic (CR 613.4b, 613.7)", () => {
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-late", 20, "7b", { kind: "pt-set", power: 7 }),
+                entry("ce-early", 10, "7b", {
+                    kind: "pt-set",
+                    power: 0,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        // Power: the later entry (timestamp 20) overwrites the earlier 0.
+        // Toughness: only the earlier entry sets it, so 1 stands.
+        expect(getEffectivePower(state, bear)).toBe(7);
+        expect(getEffectiveToughness(state, bear)).toBe(1);
+    });
+
+    it("applies a 7c modifier on top of a 7b set, never under it (CR 613.4b/c)", () => {
+        const bear = creature("bear", 5, 5);
+        const state = stateWith(
+            [bear],
+            [
+                // Deliberately the LATER timestamp: sublayer order beats
+                // timestamp order across sublayers (CR 613.4).
+                entry("ce-mod", 30, "7c", {
+                    kind: "pt-modify",
+                    power: 2,
+                    toughness: 2,
+                }),
+                entry("ce-set", 10, "7b", {
+                    kind: "pt-set",
+                    power: 0,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+        expect(getEffectiveToughness(state, bear)).toBe(3);
+    });
+
+    it("switches power and toughness in 7d, after every modifier (CR 613.4d)", () => {
+        // The CR 613.4d example verbatim: a 1/3 creature is given +0/+1, then
+        // another effect switches its power and toughness — it becomes 4/1.
+        const bear = creature("bear", 1, 3);
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-switch", 10, "7d", { kind: "pt-switch" }),
+                entry("ce-pump", 20, "7c", {
+                    kind: "pt-modify",
+                    power: 0,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(4);
+        expect(getEffectiveToughness(state, bear)).toBe(1);
+    });
+
+    it("puts counters and modifying effects in ONE sublayer (CR 613.4c)", () => {
+        const bear = creature("bear", 2, 2, { counters: { "+1/+1": 2 } });
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-1", 10, "7c", {
+                    kind: "pt-modify",
+                    power: 1,
+                    toughness: 0,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(5);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
+    });
+
+    it("derives a 7a CDA below a 7b set, whatever their timestamps (CR 613.4a/b)", () => {
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-cda", 40, "7a", {
+                    kind: "pt-modify",
+                    power: 4,
+                    toughness: 4,
+                }),
+                entry("ce-set", 10, "7b", {
+                    kind: "pt-set",
+                    power: 1,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(1);
+        expect(getEffectiveToughness(state, bear)).toBe(1);
+    });
+});
+
+describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", () => {
+    it("drops instance-duration entries and keeps every other expiry", () => {
+        // `temporaryPTMods` / `temporaryPTSet` derive to `instance-duration`,
+        // so a combat trick is not scored as permanent material. A counter, a
+        // static buff and an indefinite registry entry all are.
+        const anthem = {
+            id: "crusade",
+            card: { id: crusade.id },
+            types: crusade.types,
+            subtypes: [],
+            staticAbilities: [],
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield" as const,
+            isTapped: false,
+        };
+        const bear = creature("bear", 2, 2, {
+            subtypes: [],
+            counters: { "+1/+1": 1 },
+            temporaryPTMods: [{ power: 5, toughness: 5 }],
+            temporaryPTSet: [{ power: 9 }],
+        });
+        // Crusade pumps WHITE creatures; the bear is colourless, so use an
+        // indefinite registry entry for the third, non-boundary contribution.
+        const state = stateWith(
+            [anthem as CardInstanceState, bear],
+            [
+                entry("ce-forever", 10, "7c", {
+                    kind: "pt-modify",
+                    power: 1,
+                    toughness: 1,
+                }),
+            ]
+        );
+
+        // Everything counted: base 2/2, +1/+1 counter, indefinite +1/+1,
+        // temporary +5/+5, and a 7b set of power 9 underneath the modifiers.
+        expect(getEffectivePower(state, bear)).toBe(16);
+        expect(getEffectiveToughness(state, bear)).toBe(9);
+
+        // Permanent material only: the 7b set and the +5/+5 pump are gone,
+        // the counter and the indefinite entry remain.
+        expect(getPermanentEffectivePower(state, bear)).toBe(4);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(4);
+    });
+
+    it("keeps a while-source-tapped effect as permanent material (CR 611.2b)", () => {
+        // Ashnod's Battle Gear holds its buff for as long as the Gear stays
+        // tapped — state-tied, not boundary-tied, so ADR 0020 §2 counts it.
+        const gear = creature("gear", 0, 0, {
+            types: ["Artifact"],
+            isTapped: true,
+        });
+        const bear = creature("bear", 2, 4, {
+            sourceTappedPTMods: [{ power: 2, toughness: -2, sourceId: "gear" }],
+        });
+        const state = stateWith([gear, bear], []);
+
+        expect(getPermanentEffectivePower(state, bear)).toBe(4);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(2);
+
+        // Untap the source: the entry stops existing, so the buff is gone at
+        // the next read — no purge pass in between.
+        gear.isTapped = false;
+        expect(getPermanentEffectivePower(state, bear)).toBe(2);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(4);
+    });
+});
