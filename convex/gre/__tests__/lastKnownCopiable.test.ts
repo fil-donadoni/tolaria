@@ -462,7 +462,7 @@ function selfCopyTriggerOnStack(
 }
 
 describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () => {
-    it("still creates the token when the trigger's own source was destroyed in response", () => {
+    it("still creates the token when the trigger's own source was removed in response", () => {
         const self = makeInstance(SELF_COPY_CREATURE_ID, {
             id: "self1",
             controllerId: "p1",
@@ -476,7 +476,10 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
         });
         selfCopyTriggerOnStack(state, self);
         // Removal resolves first — the source is gone before its own trigger.
-        removePermanentTo(state, "self1", "graveyard");
+        // Bounced rather than destroyed on purpose: a card in the HAND is in a
+        // hidden zone (CR 400.2) that no copy lookup may search, so the token
+        // can only come from the LKI store.
+        removePermanentTo(state, "self1", "hand");
 
         resolveTopOfStack(state);
 
