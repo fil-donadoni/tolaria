@@ -3804,6 +3804,78 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Firebolt" }] },
         note: "Issue #2971, half 2 — the discriminating twin. Same lethal-shaped board, the Firebolt one zone away. The new graveyard loop gates on `graveyardCastMechanism` before the affordance precisely so the candidate set stays the cards a mechanism actually permits.",
     },
+    // -----------------------------------------------------------------------
+    // The reflexive MADNESS cast window (CR 702.35a) — issue #2983.
+    //
+    // A DISCRIMINATING PAIR: the same card, discarded the same way, differing
+    // only in how many Mountains are untapped. The pair is what makes this a
+    // measurement of the DECISION rather than of a preference — a bot that
+    // hardcodes "cast" passes the first and fails the second, and the
+    // hardcoded "decline" that shipped before this issue fails the first and
+    // passes the second for the wrong reason.
+    // -----------------------------------------------------------------------
+    {
+        label: "madness-cast-when-affordable",
+        spec: {
+            cards: [
+                // Basking Rootwalla, Madness {0}: the cast costs LITERALLY
+                // nothing and yields a 1/1 body, while declining bins the card
+                // (CR 702.35a "or put it into their graveyard"). There is no
+                // trade-off to weigh in either direction, which is what makes
+                // this a `must` rather than a judgement call.
+                { name: "Basking Rootwalla", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "discard", card: "Basking Rootwalla" },
+            // Resolve the reflexive madness trigger — this is what OPENS the
+            // Cast/Decline window the entry measures.
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        // ADR 0070 §3 — a forced line must hold on ANY seed.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Basking Rootwalla" }],
+        },
+        note: "Issue #2983. A free (Madness {0}) creature the bot is about to lose either way: casting strictly dominates, since declining bins it for nothing. Before #2983 the window had no candidate generator, so `enumerateMoves` returned an EMPTY list here and the bot fell to a hardcoded decline — it threw the card away every time.",
+    },
+    {
+        label: "madness-decline-when-unaffordable",
+        spec: {
+            cards: [
+                // Anje's Ravager: printed {2}{R}, Madness {1}{R}. ONE Mountain
+                // cannot pay the madness cost, so the ONLY legal answer is the
+                // decline — forced by the rules, no judgement involved.
+                { name: "Anje's Ravager", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "discard", card: "Anje's Ravager" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "madness-decline" }] },
+        note: "Issue #2983, the discriminating twin of `madness-cast-when-affordable`. The generator must FAIL CLOSED: with the madness cost unaffordable it emits the decline ALONE, never a cast the `announceCast` mutation would reject. Its twin proves the same generator does offer the cast when the mana is there — one entry alone would pass for a bot that hardcodes either answer.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

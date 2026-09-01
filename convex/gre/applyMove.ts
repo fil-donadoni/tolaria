@@ -123,6 +123,11 @@ import {
     graveyardCastStackFlags,
     reboundCastStackFlags,
 } from "./castCost";
+// CR 702.35a / 702.88a-c (issue #2983) — the reflexive cast windows' own pure
+// resolvers, so this sandbox's accept and decline are the EXACT functions the
+// mutations drive, matching `applyMoveInSearch` (search.ts).
+import { consumeMadnessCastChoice, declineMadness } from "./madness";
+import { consumeReboundCastChoice, declineRebound } from "./rebound";
 import { phyrexianPipCount } from "./phyrexian";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
@@ -920,8 +925,6 @@ export function applyMoveForSearch(
         case "draw-replacement":
         case "name-card":
         case "random-reveal-ack":
-        case "madness-decline":
-        case "rebound-decline":
         case "submit-target":
             // issue #2283 — a raised target submission is likewise not a 1-ply
             // material move; the ISMCTS applier (`applyMoveInSearch`,
@@ -929,11 +932,36 @@ export function applyMoveForSearch(
             // authority.
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /
-            // land-entry / random-reveal-ack / madness-decline / rebound-decline
-            // pick's value is not material here (these are brain-resolved and
-            // never reach the search anyway — `enumerateMoves` returns [] while
-            // a choice is pending).
+            // land-entry / random-reveal-ack pick's value is not material here
+            // (these are brain-resolved and never reach the search anyway —
+            // `enumerateMoves` returns [] while a choice is pending).
             return next;
+
+        case "madness-decline":
+        case "rebound-decline": {
+            // CR 702.35a / 702.88c (issue #2983) — these two USED to sit in the
+            // no-op list above, under its "never reach the search anyway"
+            // reasoning. That reasoning is now false: both reflexive cast
+            // windows carry a candidate generator, so `enumerateMoves` really
+            // does return these Moves while the choice is pending, and a no-op
+            // here would leave the choice at the queue head — the position this
+            // leaf then scores is one in which the decision was never made.
+            //
+            // This file's standing rule is that the greedy selector and the
+            // ISMCTS tree must not disagree about what a move does (issue
+            // #2473), so this mirrors `applyMoveInSearch`'s branch exactly:
+            // the same pure resolvers the decline mutations drive, then the
+            // CR 117.3c priority reset back to the ACTIVE player.
+            if (move.kind === "madness-decline") {
+                declineMadness(next);
+            } else {
+                declineRebound(next);
+            }
+            next.priorityPlayerId = next.activePlayerId;
+            next.passCount = 0;
+            checkStateBasedActions(next);
+            return next;
+        }
 
         case "play-land": {
             // Shared canonical play-land core (CR 305 / 302.6) — identical to
@@ -1015,6 +1043,16 @@ export function applyMoveForSearch(
         }
 
         case "cast-spell": {
+            // CR 702.35a / 702.88a (issue #2983) — a cast that ACCEPTS an open
+            // reflexive cast window consumes that window's pending choice, in
+            // the same two calls and the same order `announceCast` makes them
+            // (convex/game.ts) and `applyMoveInSearch` mirrors. Without it this
+            // leaf scores a position with the spell on the stack AND its own
+            // window still open — one the server can never produce. Both are
+            // no-ops unless the head choice is THIS card's window for THIS
+            // player.
+            consumeMadnessCastChoice(next, playerId, move.cardInstanceId);
+            consumeReboundCastChoice(next, playerId, move.cardInstanceId);
             // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
             // the tap plan runs (see `applyDelveExileForSearch`'s doc — its
             // forced-minimum calc needs the caster's mana still untapped) and

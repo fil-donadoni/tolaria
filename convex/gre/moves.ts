@@ -1383,7 +1383,23 @@ export function enumerateRaisedTargetMoves(
     return moves;
 }
 
-function enumerateCastMoves(
+/** Every legal `cast-spell` Move for ONE card out of ONE zone, priced through
+ *  `castRawManaCost` (the single cost authority every real commit site reads).
+ *
+ *  Exported for `gre/ai/choiceCandidates.ts` (issue #2983). Both reflexive
+ *  cast windows are choice NODES: the Madness window (CR 702.35a) and the
+ *  Rebound window (CR 702.88a). Their candidates come from a generator rather
+ *  than from this module's own priority-window walk, and it must offer the SAME
+ *  cast, at the SAME price, this function would. Calling it is what makes that
+ *  true by construction instead of by review; the codebase already carries two
+ *  hand-rolled reimplementations of "build a cast" (issue #2473) and a third
+ *  is exactly what this export exists to avoid.
+ *
+ *  The resulting import cycle (`moves` → `choiceCandidates` → `moves`) is safe:
+ *  this is a hoisted function DECLARATION referenced only from inside a
+ *  function body over there, so neither module reads the other's bindings while
+ *  it initialises. `cast-window-choice.bot.test.ts` covers it. */
+export function enumerateCastMoves(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,

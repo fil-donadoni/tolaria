@@ -203,7 +203,14 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // decision (which arm the trigger becomes), so it is an in-tree node,
         // sharing `option-pick`'s options-shaped generator.
         expect(hasChoiceCandidateGenerator("trigger-mode")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(8);
+        // CR 702.35a / 702.88a (issue #2983) — the two reflexive CAST WINDOWS.
+        // Accepting one is literally casting the exiled card, so their shared
+        // generator emits `cast-spell` candidates beside the dedicated decline;
+        // before this both were answered by a hardcoded decline in `brain.ts`
+        // and the enumerator surfaced NOTHING while either was the head choice.
+        expect(hasChoiceCandidateGenerator("madness-cast")).toBe(true);
+        expect(hasChoiceCandidateGenerator("rebound-cast")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(10);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

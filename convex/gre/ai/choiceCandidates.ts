@@ -32,7 +32,12 @@
 // `search-library` (CR 701.23 fetchlands / tutors, issue #1429). Later tranches
 // register here against this same contract.
 
-import type { CardInstanceState, GameState, PendingChoice } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    PlayerState,
+} from "../state";
 import {
     canPayMayPayCost,
     getMayPayDiscardCandidateIds,
@@ -50,7 +55,19 @@ import {
 import { getEffectivePower } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import type { PendingChoiceKind } from "../types";
-import type { Move } from "../moves";
+// VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
+// #2983). The cycle is deliberate and safe: both bindings are hoisted function
+// DECLARATIONS referenced only at call time — neither module body touches the
+// other's exports while it initialises — and it buys the property that matters
+// far more than an acyclic graph here, namely that a madness / rebound cast
+// candidate is built by the SAME enumerator (and therefore the same
+// `castRawManaCost` authority) every other cast in the tree comes from. The
+// alternative was a THIRD hand-rolled reimplementation of "build a cast from a
+// zone", and the codebase already carries two (issue #2473).
+import { enumerateCastMoves, type Move } from "../moves";
+import { exileCastPermission } from "../castCost";
+import { getLegalActions } from "../rules";
+import { targetKey } from "../state";
 import type { Color } from "../../cards/types";
 import {
     getChoicePriorGeneration,
@@ -681,6 +698,159 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+// ---------------------------------------------------------------------------
+// Reflexive CAST WINDOWS — Madness (CR 702.35a) and Rebound (CR 702.88a)
+// ---------------------------------------------------------------------------
+
+/** Stable identity of ONE cast variant of the same card: every announce-time
+ *  axis `enumerateCastMoves` enumerates a separate Move for.
+ *
+ *  Targets go in by their RAW id, deliberately. Property 2 of this file's
+ *  contract bans a per-world instance id from a tree key, but its rationale is
+ *  hidden zones: `determinize` re-deals what the searcher cannot see, so the
+ *  "same" library or opponent-hand card is a different object each iteration.
+ *  A cast window's targets are not that — they are public objects (battlefield
+ *  permanents, players, stack items) whose ids `determinize` never touches, so
+ *  the raw id IS stable across worlds. `priorityMoveKey` (search.ts) makes the
+ *  same call for the bot's own moves, and for the same reason.
+ *
+ *  This key previously collapsed each target to its CARD NAME, on the claim
+ *  that two permanents sharing a name are interchangeable targets. They are
+ *  not — they differ in controller, damage marked, tapped state, counters and
+ *  attached Auras — and the collapse was not merely a shared statistics key:
+ *  the caller's `seen` set DROPS a colliding candidate outright, so with two
+ *  Grizzly Bears on the board exactly one Ephemerate cast survived and the Bot
+ *  was structurally unable to blink the other (PR #2995 review finding 1). An
+ *  over-collapsed key here deletes decisions; an under-collapsed one at worst
+ *  splits statistics, so raw ids are the fail-safe direction. */
+function castVariantIdentity(move: Move): string {
+    if (move.kind !== "cast-spell") return "";
+    return [
+        move.chosenModeId ?? "",
+        move.alternativeCostId ?? "",
+        move.chosenX === undefined ? "" : `X${move.chosenX}`,
+        // CR 601.2b / 702.33 / 702.27 (PR #2995 review finding 3) — the three
+        // axes this key omitted. `enumerateCastMoves` emits one Move PER
+        // additional-cost leg ("discard a card or pay 3 life"), per Kicker
+        // payment and per Buyback choice, and without them here the second of
+        // any such pair collides and is dropped by the caller's `seen` set.
+        // Unreachable today (no shipped madness/rebound card has one) — which
+        // is exactly why it must go in now rather than be found by the card
+        // that first does.
+        move.additionalCostLegId ?? "",
+        move.kickerPayments ? JSON.stringify(move.kickerPayments) : "",
+        move.buybackPaid ? "buyback" : "",
+        move.targets.map((t) => targetKey(t)).join(","),
+    ].join("/");
+}
+
+/** Shared generator for the two REFLEXIVE CAST WINDOWS (issue #2983) — the
+ *  Madness window (CR 702.35a: "cast it for its madness cost or put it into
+ *  your graveyard") and the Rebound window (CR 702.88a: "you may cast this card
+ *  from exile without paying its mana cost"). One helper, not two, because the
+ *  two choices are structurally the same decision and differ only in which
+ *  decline Move ends them (`.claude/rules` § extract-after-the-second).
+ *
+ *  Both were answered by a HARDCODED decline before this (`brain.ts`, ADR 0016
+ *  minimal-legal policy), and because neither kind had a generator the head
+ *  choice was not a decision node at all: `enumerateMoves` returned an empty
+ *  list while it was open, so the playout simply stopped. The observable result
+ *  was that a Madness card the Bot discarded was a card it threw away, and a
+ *  Rebound spell was a spell it cast exactly once — and the exile-cast candidate
+ *  set issue #2971 added was unreachable for a madness-exiled card, since the
+ *  enumerator never ran while the blocking choice was open.
+ *
+ *  FAIL CLOSED (the issue's own rule): the decline is emitted ALWAYS and FIRST,
+ *  and a cast branch is emitted only when the production enumerator itself
+ *  offers one. An unaffordable madness cost and a rebound recast with no legal
+ *  target both yield `[]` from `enumerateCastMoves`, so this returns the decline
+ *  alone — never a cast the executor could not complete.
+ *
+ *  Self-pruning (property 1): the answer space here is not combinatorial to
+ *  begin with — it is one specific card's own cast variants (modes, `{X}`,
+ *  target groups), which `enumerateCastMoves` already bounds by
+ *  `MAX_COMBINATIONS`, and `CHOICE_TOP_K` caps what actually opens. */
+function castWindowCandidates(
+    state: GameState,
+    choice: PendingChoice,
+    declineMove: Move
+): Omit<ChoiceCandidate, "prior">[] {
+    // The decline leads: it is the branch that is legal unconditionally, so a
+    // node always has at least one answer and the search can never stall on
+    // this window however the cast half resolves.
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        { key: `${choice.kind}:decline`, move: declineMove },
+    ];
+
+    const cardInstanceId = choice.cardInstanceId;
+    if (!cardInstanceId) return out;
+    const caster = state.players.find((p) => p.id === choice.playerId);
+    if (!caster) return out;
+
+    // CR 400.7 — the card sits in its OWNER's exile, which for both mechanisms
+    // is the chooser's own; scanning every player's pile anyway costs nothing
+    // and mirrors the enumerator's own cross-player exile scan (issue #2971).
+    let zoneOwner: PlayerState | undefined;
+    let card: CardInstanceState | undefined;
+    for (const p of state.players) {
+        const found = p.exile.find((c) => c.id === cardInstanceId);
+        if (found) {
+            zoneOwner = p;
+            card = found;
+            break;
+        }
+    }
+    if (!card || !zoneOwner) return out;
+
+    // The SAME two gates the enumerator's exile branch applies (`moves.ts`), in
+    // the same order — this is not a second legality opinion, it is the one the
+    // server would apply to the `announceCast` the executor is about to fire.
+    if (!exileCastPermission(card, caster.id)) return out;
+    if (
+        !getLegalActions(state, zoneOwner, card, false, caster.id).includes(
+            "cast"
+        )
+    ) {
+        return out;
+    }
+
+    const seen = new Set<string>();
+    for (const move of enumerateCastMoves(state, caster, card, {
+        castFromZone: "exile",
+    })) {
+        // Self-pruning (contract property 1), and here it is also what KEEPS
+        // the decline (PR #2995 review finding 2). `choiceCandidates` slices
+        // the node to `CHOICE_TOP_K` by prior, and every cast variant carries
+        // the same prior — strictly above the decline's. So with 8 or more
+        // variants the decline sorted last and was cut, and the tree held no
+        // branch in which the Bot declined at all: for a targeted madness card
+        // with many legal "any target" choices (Fiery Temper), putting the card
+        // in the graveyard — the very decision this issue exists to give it —
+        // became unreachable. Stopping one short of K, with the decline already
+        // in `out`, makes the emitted set survive the slice intact. Same
+        // `out.length >= CHOICE_TOP_K` idiom `handPickCandidates` uses above.
+        if (out.length >= CHOICE_TOP_K) break;
+        const key = `${choice.kind}:cast:${stableCardIdentity(card)}:${castVariantIdentity(move)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ key, move });
+    }
+    return out;
+}
+
+/** CR 702.35a — the Madness cast window. Declining bins the card
+ *  (`declineMadness`, gre/madness.ts), so the decline is a REAL cost here:
+ *  the card is gone either way, the only question is whether it is gone to the
+ *  graveyard or onto the stack. */
+const madnessCastCandidates: ChoiceCandidateGenerator = (state, choice) =>
+    castWindowCandidates(state, choice, { kind: "madness-decline" });
+
+/** CR 702.88a — the Rebound cast window. Declining leaves the card exiled
+ *  (CR 702.88c) with its markers cleared, so the recast is lost for good; the
+ *  cast half costs nothing but the targets it must legally name. */
+const reboundCastCandidates: ChoiceCandidateGenerator = (state, choice) =>
+    castWindowCandidates(state, choice, { kind: "rebound-decline" });
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -700,6 +870,14 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "search-library": searchLibraryCandidates,
     "random-reveal": randomRevealAckCandidates,
     "choose-hand-card": handPickCandidates,
+    // CR 702.35a / 702.88a (issue #2983) — the two reflexive CAST WINDOWS.
+    // Neither needs a `CHOICE_GENERATOR_APPLIES` row: the generator emits the
+    // decline unconditionally, so it never returns `[]` and the kind is always
+    // a real decision node. What varies is whether the CAST half is offered,
+    // and that is the generator's own output — the one authority, never a
+    // state-free restatement that could disagree with it.
+    "madness-cast": madnessCastCandidates,
+    "rebound-cast": reboundCastCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.

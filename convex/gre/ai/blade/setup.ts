@@ -42,6 +42,7 @@ import type { Move } from "../../moves";
 import { applyMoveInSearch } from "../../search";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
+    discardToGraveyard,
     emitPermanentEntered,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -165,6 +166,45 @@ function applyResolveTop(
  *  parks priority on the opponent, and their pass drives the pass cycle to 2,
  *  resolves the stack, and hands priority back to the active player (CR
  *  117.3b). */
+/** CR 701.9 / 702.35c (issue #2983) — discard the named card from a seat's
+ *  hand through the REAL discard chokepoint, then run the engine's own
+ *  post-action trigger scan. Both calls are exactly what a live game makes, so
+ *  a discard replacement (Madness exiles instead of binning) and the reflexive
+ *  trigger it schedules are the production ones, not a fixture's restatement.
+ *
+ *  Leaves the trigger on the stack UNRESOLVED — see the step's doc in
+ *  `types.ts` for why the pairing with `resolve-top` matters. */
+function applyDiscard(
+    state: GameState,
+    step: Extract<BladeSetupStep, { kind: "discard" }>,
+    label: string
+): void {
+    const fail = (detail: string) => new BladeSetupError(label, step, detail);
+    const seat = step.controller ?? "me";
+    const playerId = seatPlayerId(state, seat);
+    const player = state.players.find((p) => p.id === playerId)!;
+    // Scoped to the seat's HAND: `instanceIdsForName` spans the whole state, so
+    // a copy on the battlefield would otherwise read as an ambiguity (or worse,
+    // as the discard target).
+    const named = instanceIdsForName(state, step.card);
+    const matches = player.hand.filter((c) => named.has(c.id));
+    if (matches.length === 0) {
+        throw fail(`seat "${seat}" holds no "${step.card}" in hand.`);
+    }
+    if (matches.length > 1) {
+        throw fail(
+            `seat "${seat}" holds ${matches.length} copies of "${step.card}" in hand — ambiguous.`
+        );
+    }
+    if (!discardToGraveyard(state, playerId, matches[0].id)) {
+        throw fail(`the engine refused to discard "${step.card}".`);
+    }
+    // The engine drains the discard event and scans triggers after every game
+    // action; the discard above happened outside a resolution, so replicate it
+    // (the same line `madness.test.ts`'s own helper carries).
+    processPendingActionTriggers(state);
+}
+
 function applyPass(
     state: GameState,
     label: string,
@@ -523,6 +563,9 @@ export function applyBladeSetup(
                 break;
             case "cast":
                 applyCast(state, scenario.label, step);
+                break;
+            case "discard":
+                applyDiscard(state, step, scenario.label);
                 break;
             case "declare-attackers":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.

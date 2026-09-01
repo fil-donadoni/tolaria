@@ -125,8 +125,8 @@ describe("bot shock-land choice is decided by the search (CR 614.12, issue #1506
     });
 });
 
-describe("bot madness-cast choice reaches the executor, not the Worker (CR 702.35a)", () => {
-    it("the bot declines the reflexive madness choice, executor-realised AND translatable", () => {
+describe("bot madness-cast choice: searched, with an executor-realised fallback (CR 702.35a)", () => {
+    it("routes to the search, and its decline fallback stays executor-realised AND translatable", () => {
         const BOT = "u1-p2";
         const state = makeState({
             players: [makePlayer("u1-p1"), makePlayer(BOT, { life: 20 })],
@@ -153,10 +153,20 @@ describe("bot madness-cast choice reaches the executor, not the Worker (CR 702.3
         const publicState = projectPublicState(state, 1, BOT);
         const view = buildBotView(publicState, BOT);
         const action = decideBotAction(view);
-        expect(action.kind).toBe("madness-decline");
-        // The driver's dispatch gate: must be executor-realised, never the Worker
-        // (which surfaces no move while a choice is pending → stall).
-        expect(botActionRealisation(action.kind)).toBe("executor");
-        expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
+        // `madness-cast` gained a candidate generator in issue #2983, so the
+        // SEARCH now weighs the madness cast against the decline — exactly the
+        // migration `land-entry-tapped` above went through for issue #1506. The
+        // hardcoded decline that stood here was the whole bug: it made a
+        // discarded madness card a card the bot threw away, every game.
+        expect(action.kind).toBe("search-choice");
+        expect(botActionRealisation(action.kind)).toBe("worker");
+        // The decline remains the driver's no-move safety net — and this is the
+        // original regression assertion, unchanged: it must be executor-realised
+        // (never the Worker, which surfaces no move while a choice is pending →
+        // stall) and translatable into a real Move.
+        const fallback = chooseOwedChoiceAction(view.owedChoice!);
+        expect(fallback.kind).toBe("madness-decline");
+        expect(botActionRealisation(fallback.kind)).toBe("executor");
+        expect(botActionToMove(fallback, publicState, BOT)).not.toBeNull();
     });
 });
