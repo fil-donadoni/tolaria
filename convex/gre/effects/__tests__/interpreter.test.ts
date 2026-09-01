@@ -27707,6 +27707,106 @@ describe("Effect Script Op: explore (CR 701.44, issue #2376)", () => {
         expect(state.players[0].hand.map((c) => c.id)).not.toContain("top");
     });
 
+    it("a forEach body explores EACH member — the latch is iteration-scoped, not shared", () => {
+        // `scopedContext` (interpreter.ts) iteration-scopes only ids starting
+        // with `$`. A latch keyed on the Op position alone is written UNSCOPED,
+        // so iteration 1 would recall iteration 0's latch, skip its own reveal
+        // and place NO counter — silently, with a green suite.
+        const id = registerScript("test-op-explore-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [{ op: "explore", target: { ref: "$each" } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("a"), explorer("b")],
+                    // Two lands on top: BOTH branches are the deterministic
+                    // land leg, so neither iteration suspends and the whole
+                    // forEach completes in one resolution.
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["rest", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Each creature explored ⇒ BOTH lands reached hand.
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "l1",
+            "l2",
+        ]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["rest"]);
+    });
+
+    it("a forEach body places a counter for EVERY member on the nonland branch", () => {
+        const id = registerScript("test-op-explore-foreach-counter", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [{ op: "explore", target: { ref: "$each" } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [explorer("a"), explorer("b")],
+                    library: libOf("p1", [
+                        ["n1", BEAR_ID],
+                        ["n2", BEAR_ID],
+                        ["rest", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // Iteration 0 suspends on its keep-or-bin choice; keep, then the
+        // second iteration must raise its OWN choice under its OWN id.
+        resolveTopOfStack(state);
+        const first = state.pendingChoices![0];
+        expect(first.candidateIds).toEqual(["n1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: first.stackItemId,
+            step: first.step,
+            choiceId: first.choiceId,
+            cardInstanceIds: ["n1"],
+            secondZoneIds: [],
+        });
+        const second = state.pendingChoices![0];
+        expect(second.candidateIds).toEqual(["n1"]); // still the live top
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: second.stackItemId,
+            step: second.step,
+            choiceId: second.choiceId,
+            cardInstanceIds: ["n1"],
+            secondZoneIds: [],
+        });
+        expect(state.pendingChoices ?? []).toEqual([]);
+        // BOTH creatures explored ⇒ both carry a counter.
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "a")!.counters?.["+1/+1"]).toBe(1);
+        expect(bf.find((c) => c.id === "b")!.counters?.["+1/+1"]).toBe(1);
+    });
+
     it("two `explore` Ops in ONE script each place their own counter (the latch is per-Op)", () => {
         // The latch key is derived from each Op's own checkpoint index, so the
         // SECOND explore must not read the FIRST one's note and skip its

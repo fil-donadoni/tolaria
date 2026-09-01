@@ -3472,6 +3472,13 @@ export const OP_EXECUTORS: {
         // CR 701.44a — the library, the hand and the graveyard are all THAT
         // PERMANENT's controller's, never the ability's controller's.
         const controllerId = ctx.getController(target);
+        // `pos` is `runOpList`'s pre-order cursor position, which advances
+        // MONOTONICALLY — a `forEach` body is re-walked per member off the
+        // same cursor, so the same source-level Op gets a DIFFERENT position
+        // in each iteration. That is what makes a position-derived latch
+        // iteration-safe without the `$`-prefix `scopedContext` uses for
+        // bindings: iteration 1 cannot recall iteration 0's latch and skip its
+        // own counter. Guarded by the two forEach tests in this Op's block.
         const pos = ctx.getScriptCheckpoint() ?? 0;
         const latchId = `explore-done-${pos}`;
         const orderChoiceId = `explore-top-${pos}`;
