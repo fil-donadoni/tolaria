@@ -115,3 +115,55 @@ Enduring cycle only needs the indefinite form; it is nearly free alongside the
 per-entry revert the composition-safety argument already requires. Note the
 resulting vocabulary asymmetry: `setSubtype` requires a duration and has no
 indefinite form, `animate` accepts both, `setCardType` accepts both.
+
+## Amendment: what actually shipped (#2361 / #2084)
+
+The Op landed in #2361 (Oko, Thief of Crowns) ahead of the cycle it was
+designed for, and diverged from the decision above on three points. Recorded
+here rather than left to be rediscovered — the `mechanicsRegistry.ts` row is
+the authority on the shipped shape; this section is why it differs.
+
+- **The Op is `setCardTypes`, not `setCardType`,** and it has **no
+  `duration`.** "Becomes an artifact creature until end of turn" is `animate`'s
+  template and already carries a revert path; the indefinite form is the only
+  one any shipped card needs. The predicted vocabulary asymmetry therefore came
+  out the other way round: `setSubtype` accepts both, `setCardTypes` is
+  indefinite-only.
+- **Correlated-subtype removal is composed at the call site, not folded into
+  the Op.** CR 205.1a's clause is still honoured in full — every "becomes a
+  [subtype] [type]" line sets both halves — but through the paired
+  `setSubtype`, whose non-land arm already replaces the subtype line wholesale,
+  rather than one Op reaching into the other's storage. Enduring Innocence
+  (#2084) is `setCardTypes ["Enchantment"]` followed by `setSubtype []`.
+- **Consequently there is no subtype → card-type classifier and no catalogue
+  guard for one.** The closed-set table this ADR proposed (artifact 205.3g,
+  enchantment 205.3h, land 205.3i, planeswalker 205.3j, spell 205.3k, battle
+  205.3q, everything else a creature type) was needed only to answer "is this
+  subtype correlated to the type I am removing" _inside_ the Op. With the
+  subtype line replaced explicitly by the author, nothing asks that question,
+  so the fail-open fallback the guard existed to close never exists either. The
+  table becomes worth building the day an Op has to _derive_ the surviving
+  subtypes — most likely at the ADR 0082 / PRD #2064 layer-registry migration,
+  where `animate` folds in too.
+
+**`{ ownerOf: EffectObjectSelector }` was not needed and was not added.** The
+premise — "the default is the effect's controller (CR 110.2)" — is true of
+`EffectPlayerRef` generally but false at the one site the cycle uses:
+`moveZone`'s graveyard → battlefield branch already defaults the new
+controller to the source pile's owner (CR 400.7 / 108.3 — the card was put into
+_its owner's_ graveyard), and an explicit `controller` is what _redirects_ it
+under "**under your** control" (Reanimate). So "under its owner's control" is
+spelled by **omitting** the field; naming `controller: "controller"` there is
+the bug, since a leaves-the-battlefield trigger is controlled by the
+permanent's _last controller_ (CR 603.6d) — precisely the player a stolen
+Enduring Innocence must not go back to. `{ ref: "$x.owner" }` (#1106) remains
+the way to name a bound object's owner where a genuine player ref is wanted.
+
+**What #2084 did add** is unrelated to layer 4 and small: `PermanentFilter.
+powerAtMost` (the upper-bound twin of `powerAtLeast`, same fail-closed
+treatment of an absent power), and three passthroughs on `enteredTrigger` —
+the entering permanent's effective P/T into the filter subject (CR 613.4,
+mirroring `diedTrigger`, which has carried its own death-event P/T since it
+shipped), plus `oncePerEventBatch` (CR 603.3b) and `maxTriggersPerTurn`
+(CR 603.2), both long-shipped `TriggeredAbility` fields the factory simply did
+not forward.
