@@ -302,6 +302,76 @@ The full gate is blocked inside an issue worktree (`feat/issue-N` /
 `fix/issue-N` → exit 1): the merge-train runs it once per landing tree.
 `TOLARIA_ALLOW_FULL_SUITE=1` is the orchestrator-only escape hatch.
 
+### The heartbeat attests to progress, not to being alive (issue #2999)
+
+The owner stamp is a heartbeat rather than an acquisition time because a
+legitimately long hold exists: the bot ladder runs for hours (issue #1924), and
+a fixed 45-minute staleness window would prune it. So the holder refreshes the
+stamp every 5 minutes and only a holder that went silent for 45 minutes is
+reclaimed.
+
+Refreshed _by the gate process_, that heartbeat attested to nothing. Measured
+2026-09-01:
+
+|                                               |                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Holder                                        | `health:main` detached by a land, worktree `tolaria-health-27242`                    |
+| Held for                                      | 2h13m, still heartbeating                                                            |
+| Its `vitest run --project node --project dom` | **16.86 s of CPU in 2h13m**, RSS 45 MB, **zero worker children**                     |
+| Blocked                                       | `docs:ship` (2h07m), a `land` (1h31m), and a third session's land that never started |
+| Self-recovery                                 | none — freed by a manual `kill`                                                      |
+
+`alive(pid)` was true, `Date.now() - owner.ts` never approached `STALE_MS`, and
+so the reclaim branch could not fire. The reclaim machinery was correct; it was
+being fed a tautology.
+
+The fix keeps that machinery untouched and makes its input honest. Each beat
+measures the **cumulative CPU time of the holder's descendants** (`ps -Ao
+pid=,ppid=,time=`, summed over the subtree, the gate process itself excluded so
+it cannot vouch for its own existence). The stamp is refreshed only while that
+total is still advancing; after `STALL_BEATS` consecutive frozen beats (3 ≈
+15 min at the default period) the holder logs loudly, stops refreshing for
+good, and the ordinary staleness path reclaims the lock 45 minutes later.
+
+Three properties are load-bearing:
+
+- **Descendant CPU needs no cooperation from the wrapped command.** Anything
+  the gate wraps — vitest, `tsc`, eslint, a `land` shell pipeline — burns CPU
+  continuously; the only pauses are seconds-long API calls inside `land`, three
+  orders of magnitude under the 15-minute window.
+- **An unmeasurable subtree counts as progress.** If `ps` is missing or its
+  output does not parse, the holder keeps beating: reclaiming a healthy holder
+  is the worse failure, and the fallback is the pre-existing behaviour.
+- **Nothing kills the wrapped command.** The gate only stops vouching for it.
+  A holder that comes back to life still owns its own process; it simply no
+  longer owns the mutex, and `release()` already refuses to delete a lock whose
+  owner pid is not its own.
+
+`TOLARIA_GATE_STALE_MS` and `TOLARIA_GATE_STALL_BEATS` join
+`TOLARIA_GATE_HEARTBEAT_MS` as test-only overrides, which is what makes the
+whole stall → silence → reclaim path observable in milliseconds
+(`scripts/__tests__/gate.test.ts` § liveness) instead of in three quarters of
+an hour.
+
+### A waiter says who is blocking it
+
+The second half of the same incident: three sessions sat blocked with no
+indication of who held the lock, since when, or from which worktree, and the
+diagnosis had to be rebuilt by hand from `owner.json` plus `ps`. Every field
+was already being written and simply never shown.
+
+A waiter now prints one line naming the holder's pid, how long it has held,
+when it last attested to progress, its cwd and its command — immediately, again
+whenever the holder changes, and on every 60-second retry rather than a bare
+"still waiting". `bun run gate:who` prints the same line plus the holder's
+measured descendant CPU and its time-to-reclaim, so the two-hour reconstruction
+above is one command.
+
+Reclaims are loud and typed, in stderr and in `.claude/telemetry/gate-lock.jsonl`:
+a **dead** holder is an orphan, a **stalled** one is a live pid whose command is
+still running and hung. A normal release logs nothing at all, so either reclaim
+line in a log is a signal by itself.
+
 ## Worktree isolation, and the documentation lane
 
 Measured over the 30 days to 2026-08-17: **~40 documentation-only commits

@@ -194,17 +194,12 @@ spawns leaking to the inherited tier over 30 days):
 
 ## Browser verification
 
-**Mandatory for any diff that can change what a user sees** — component, CSS,
-layout, responsive rule, overlay, scroll container — at five viewports, with a
-measured receipt, because happy-dom has no layout and cannot see a collapsed
-or occluded element. Run **`bun run check:ui`** (#2580): it drives headless
-Chrome through the runbook surfaces, probes + axe, and fails on
-`scripts/ui-gate/budgets.json`; its output IS the receipt — paste it
-byte-exact, banner + coverage line included (#2760; `bun run land` enforces
-this — see `.claude/rules/chrome-debug.md`).
-Engine/Convex/script work owes nothing here. Rule:
-`.claude/rules/chrome-debug.md` (auto-loaded); procedure and click sequences:
-`docs/guides/browser-verification.md`, `docs/guides/ui-runbooks.md`.
+**Mandatory for any diff that can change what a user sees**, at five viewports
+with a measured receipt (happy-dom has no layout): **`bun run check:ui`**, its
+output pasted byte-exact, `bun run land` enforcing it. Engine/Convex/script
+work owes nothing here. Rule: `.claude/rules/chrome-debug.md` (resident);
+procedure and click sequences: `docs/guides/browser-verification.md`,
+`docs/guides/ui-runbooks.md`.
 
 ## Automated Development Workflow
 
@@ -316,9 +311,12 @@ machine:
 | **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | machine-wide mutex (`~/.cache/tolaria/gate.lock`), `ncpu - 1` workers |
 | **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at 2 workers (`TOLARIA_VITEST_WORKERS`)        |
 
-A queued heavy gate is not a hang. **The full gate is blocked inside an issue
-worktree** (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1`
-is the orchestrator-only escape hatch.
+A queued heavy gate is not a hang: the waiter names its holder, **`bun run
+gate:who`** prints that plus its CPU, and a holder whose subtree stops burning
+CPU stops heartbeating and is reclaimed (issue #2999).
+**The full gate is blocked inside an issue worktree**
+(`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1` is the
+orchestrator-only escape hatch.
 
 **Worktree isolation — the shared checkout is read-only.** Every file you
 author goes in a worktree, **including one line of markdown** (markdown is
@@ -414,6 +412,8 @@ When a card needs a capability that genuinely isn't built, flag it explicitly
 - **Guides**: `docs/guides/` answers "how do I RUN this?" (AFK loop, …) —
   index at `docs/guides/README.md`. Read on demand, never resident.
 - **Issue tracker**: GitHub Issues, `gh` CLI. See `docs/agents/issue-tracker.md`.
+  In agent output and generated artifacts (terminal, commits, receipts)
+  **qualify every reference: `issue #NNN` / `PR #NNN`.**
 - **Findings drawer**: `docs/findings/` = what a subagent noticed but was not
   asked to fix — draft, never an issue (the loop drains the queue, never
   fills it). Read via `bun run findings`; format in `docs/findings/README.md`.
