@@ -372,22 +372,36 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
-    it("preserves a PENDING entry type line across a save/load (CR 205.1a / 614.12a, #2993)", () => {
+    it("preserves a PENDING entry type line on a PARKED staged entry (CR 205.1a / 614.12a, #2993)", () => {
         // `entersAsTypeLine` is normally stamped and consumed inside one
         // synchronous entry ("return it to the battlefield. It's an
-        // enchantment."), but a permanent owing "as it enters" choices is
-        // parked in `stagedEntries` across a REAL save point (ADR 0100) and
-        // re-enters the funnel on a later mutation. Lost across the round trip,
-        // that permanent enters as its printed self and the entry event
-        // announces a creature.
+        // enchantment."), so the ONLY way it can be alive at a save point is
+        // the CR 614.12a park: a permanent owing "as it enters" choices is held
+        // in `stagedEntries` across a real DB write and re-enters the funnel on
+        // a later mutation (ADR 0100). That is the case under test — a
+        // battlefield card would round-trip through the same `compactCard`
+        // branch without proving the claim the field exists for.
         const state = freshState();
-        const parked = state.players[1].battlefield[0];
-        parked.entersAsTypeLine = {
-            types: ["Enchantment"],
-            subtypes: [],
-        };
+        const parked = makeInstance(animateArtifact.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        parked.entersAsTypeLine = { types: ["Enchantment"], subtypes: [] };
+        state.stagedEntries = [
+            {
+                card: parked,
+                controllerId: "p1",
+                origin: "effect",
+                parkedStackItemId: "stack-1",
+                owed: [{ kind: "aura-host" }],
+            },
+        ];
+
         const expanded = expandState(compactState(state));
-        expect(expanded.players[1].battlefield[0].entersAsTypeLine).toEqual({
+
+        expect(expanded.stagedEntries).toHaveLength(1);
+        expect(expanded.stagedEntries![0].card.entersAsTypeLine).toEqual({
             types: ["Enchantment"],
             subtypes: [],
         });

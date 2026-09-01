@@ -11942,8 +11942,10 @@ export function revertTypeProvenance(card: CardInstanceState): void {
 }
 
 /** CR 205.1a layer 4 (CR 613.1d) — SET `card`'s card types on the INSTANCE,
- *  replacing every type it currently has, INDEFINITELY (CR 611.2c — generated
- *  by a resolving ability, so it never reverts on its own).
+ *  replacing every type it currently has, INDEFINITELY (CR 611.2a — a
+ *  continuous effect from a resolving ability that states no duration "lasts
+ *  until the end of the game"; CR 611.2c is the sibling rule fixing WHICH
+ *  objects it affects, and both apply here).
  *
  *  The card-level body of `SpellContext.setCardTypes`, extracted (issue #2993)
  *  so the ENTRY-time application (`applyEntryTypeLine`) writes the SAME
@@ -11992,7 +11994,8 @@ export function applyCardTypeSet(
 }
 
 /** CR 205.1a / 400.7 layer 4 — REPLACE `card`'s subtype line on the INSTANCE,
- *  indefinitely (CR 611.2b). The card-level body of
+ *  indefinitely (CR 611.2a — no duration stated, so it lasts until the end of
+ *  the game). The card-level body of
  *  `SpellContext.setSubtypes`, extracted alongside `applyCardTypeSet` above and
  *  for the same reason (issue #2993): the entry-time application acts on a card
  *  that is not on the battlefield yet.
@@ -12064,8 +12067,38 @@ export function applyEntryTypeLine(card: CardInstanceState): void {
     const line = card.entersAsTypeLine;
     if (!line) return;
     delete card.entersAsTypeLine;
+    // An empty `types` is unreachable from the DSL — `isEntryTypeLine` requires
+    // a NON-empty array — but `SpellContext.returnToBattlefield` is a public
+    // primitive a `resolve()` card can call unvalidated, and `applyCardTypeSet`
+    // no-ops on `[]` while `applyIndefiniteSubtypeSet` would still blank the
+    // subtype line. Half a type line is worse than none: bail on both halves
+    // together (PR #3023 review, N2).
+    if (line.types.length === 0) return;
     applyCardTypeSet(card, line.types);
     applyIndefiniteSubtypeSet(card, line.subtypes);
+}
+
+/** The DISCARD half of `applyEntryTypeLine` (PR #3023 review, B1) — drops a
+ *  pending entry stamp from a card that is NOT going to enter after all.
+ *
+ *  Called on every branch where a stamped card leaves the entry funnel for some
+ *  zone other than the battlefield: the CR 614 land block (Worms of the Earth),
+ *  the CR 614 entry redirect (Containment Priest), the CR 303.4g hostless Aura,
+ *  and the CR 614.12a as-enters abort. `resetBattlefieldTransientState`
+ *  deliberately does NOT clear the field — it also runs on the real-entry path,
+ *  immediately BEFORE the stamp is consumed — so each abort owes this call.
+ *
+ *  Why it matters even though the landing zone is already correct (nothing
+ *  applied the line, so the card shows its PRINTED characteristics): the stamp
+ *  is PERSISTED, and `applyEntryTypeLine` is the only thing that ever consumes
+ *  one. A Containment Priest exiling a dying Enduring Innocence would otherwise
+ *  leave the card in exile carrying a live stamp, and the NEXT effect to put
+ *  that card onto the battlefield — an ordinary reanimation, an arbitrary
+ *  number of turns later — would enter it as a bare Enchantment with no
+ *  subtypes and no `power` on its entry event, off an intent that expired long
+ *  ago (CR 400.7: that is a different object). */
+export function discardEntryTypeLine(card: CardInstanceState): void {
+    delete card.entersAsTypeLine;
 }
 
 /** CR 400.7 / 205 — restores a departing permanent's PRINTED type line: the
@@ -12393,6 +12426,9 @@ function stageReanimatedOnBattlefield(
     // reanimation / search-to-battlefield path that funnels through this helper.
     if (!canLandEnterBattlefield(state, card.types)) {
         resetBattlefieldTransientState(card);
+        // CR 614 — it never entered, so the entry type line never began
+        // (CR 611.2c). Drop the stamp with it (PR #3023 review, B1).
+        discardEntryTypeLine(card);
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
@@ -12419,6 +12455,9 @@ function stageReanimatedOnBattlefield(
     );
     if (enterDestination === "exile") {
         resetBattlefieldTransientState(card);
+        // CR 614 — same as the land block above: nothing entered, so nothing
+        // may carry the pending line into exile (PR #3023 review, B1).
+        discardEntryTypeLine(card);
         card.zone = "exile";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).exile.push(card);
@@ -12447,13 +12486,6 @@ function stageReanimatedOnBattlefield(
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
     resetBattlefieldTransientState(card);
-    // CR 205.1a / 613.1d / 603.6a (issue #2993) — "return it to the
-    // battlefield. It's an enchantment." The permanent ENTERS with that type
-    // line, so the stamp is consumed HERE: after the reset above (which reverts
-    // the whole layer-4 provenance, so a line applied before the move is wiped)
-    // and before the card reaches the battlefield, the grant passes and the ETB
-    // notification. No-op for every other entry — the stamp is absent.
-    applyEntryTypeLine(card);
     // CR 400.7 / 608.2h (issue #2001) — this id is genuinely entering the
     // battlefield (the land-blocked and exile-redirect branches above return
     // before this point), so any exile link a PREVIOUS incarnation of this
@@ -12464,6 +12496,20 @@ function stageReanimatedOnBattlefield(
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.
     clearZoneCharacteristics(card);
+    // CR 205.1a / 613.1d / 603.6a (issue #2993) — "return it to the
+    // battlefield. It's an enchantment." The permanent ENTERS with that type
+    // line, so the stamp is consumed HERE, in the one window that works: after
+    // the CR 400.7 reset above (which reverts the whole layer-4 provenance, so
+    // a line applied BEFORE the move is wiped by the entry) and after
+    // `clearZoneCharacteristics`, which unconditionally rewrites `types` /
+    // `subtypes` / `power` / `toughness` from the printed definition for a card
+    // declaring `offBattlefieldCharacteristics` (Grist, the Hunger Tide) and
+    // would otherwise silently clobber the line while leaving its provenance
+    // records behind (PR #3023 review, B2). Still ahead of everything that must
+    // read the entered line: the entry counters, the CR 614.1c Kismet tap
+    // check, the CR 611.2 grant passes, and `emitPermanentEntered` itself
+    // (CR 603.6a). No-op for every other entry — the stamp is absent.
+    applyEntryTypeLine(card);
     card.controllerId = controllerId;
     card.attachedTo = undefined;
     // CR 302.6 — start the control-continuity clock for every reanimated /
@@ -12688,6 +12734,9 @@ export function putReanimatedSetOnBattlefield(
             // never enters, it remains in its owner's graveyard. The caller
             // already spliced it OUT of that graveyard to make the set-wide
             // move atomic, so put it back rather than leaving it in limbo.
+            // It never entered, so a pending entry type line expires with the
+            // attempt (PR #3023 review, B1).
+            discardEntryTypeLine(card);
             card.zone = "graveyard";
             card.attachedTo = undefined;
             getPlayer(state, card.ownerId).graveyard.push(card);
@@ -13415,6 +13464,9 @@ function abortStagedEntryTo(
         return;
     }
     const card = entry.card;
+    // CR 614.12a — the staged permanent is being abandoned, not entered, so a
+    // pending entry type line never begins (PR #3023 review, B1).
+    discardEntryTypeLine(card);
     card.zone = destination;
     getPlayer(state, card.ownerId)[destination].push(card);
 }

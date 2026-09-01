@@ -222,10 +222,16 @@ bodies of the two SpellContext primitives — so the records are the ones
 path. A permanent returned as an enchantment and later destroyed still sits in
 the graveyard as the Enchantment Creature — Sheep Glimmer card it prints.
 
-**Known boundary.** The CR 614 entry-REPLACEMENT check
-(`enterBattlefieldDestinationFor` — Containment Priest) runs earlier in the same
-function and still reads the printed type line. No shipped card pair reaches it;
-drafted in
-`docs/findings/2993-entry-type-line-is-invisible-to-the-cr-614-check.md` and a
-line on the ADR 0082 / PRD #2064 migration, where "the characteristics an object
-would have as it enters" gets one authority.
+**Known boundary, and it is REACHABLE today.** The CR 614 entry-REPLACEMENT
+check (`enterBattlefieldDestinationFor`) runs earlier in the same function and
+still reads the printed type line, so a Containment Priest (`c14/white.ts` — it
+ships) exiles a dying Enduring Innocence as a "nontoken creature" even though
+what would enter is an enchantment. Deferred deliberately, not for want of a
+card: moving the stamp above the destination check would mutate a card on the
+branches where nothing enters at all, and the CR 614.12a park would then have to
+re-apply a line the entry-side reset wipes on resume. Drafted in
+`docs/findings/2993-entry-type-line-is-invisible-to-the-cr-614-check.md`; it
+belongs to the ADR 0082 / PRD #2064 migration, where "the characteristics an
+object would have as it enters" gets one authority. What the fix DOES guarantee
+in the meantime is that the redirected card carries nothing away with it — the
+stamp is discarded on every abort branch (`discardEntryTypeLine`).
