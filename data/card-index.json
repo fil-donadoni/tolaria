@@ -7608,6 +7608,14 @@
         "source": "compiled"
     },
     {
+        "name": "Elite Spellbinder",
+        "scryfallId": "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
+        "oracleId": "8c4d7cbc-9cfc-4f0a-8844-e458ab806056",
+        "firstSet": "stx",
+        "firstPrintId": "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
+        "firstPrintSet": "stx"
+    },
+    {
         "name": "Elite Vanguard",
         "scryfallId": "6bda0b4b-ab5a-4d91-9dd1-7a5a145b67f5",
         "oracleId": "b3b9a87d-cb95-435c-90b6-037406cab32e",

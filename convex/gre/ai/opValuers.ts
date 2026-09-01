@@ -1164,6 +1164,13 @@ const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 // A private look at a random hand card grants information, no board material.
 const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
 
+// A private look at a whole hand grants information, no board material —
+// identical valuation to its one-random-card sibling above. (The Bot does not
+// yet model hidden-information advantage; when it does, both look Ops and the
+// public `reveal` above become one family, which is why all three sit on the
+// same ZERO_OP_VALUE rather than each guessing a number.)
+const lookHand: Valuer<"lookHand"> = () => ZERO_OP_VALUE;
+
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     return {
@@ -1352,6 +1359,7 @@ export const OP_VALUERS: {
     setProtectionFromEverything,
     reveal,
     lookRandomHand,
+    lookHand,
     scryReorder,
     setColor,
     setSubtype,
@@ -1569,6 +1577,13 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // binding.
     captureBinding: "neutral",
     recallCapturedBinding: "neutral",
+    // CR 400.2 (issue #2383) — a private look moves no material and names no
+    // beneficiary: the LOOKER gains information, while the Op's recipient (the
+    // hand's owner) is neither helped nor hurt. Listed rather than left to the
+    // `?? "neutral"` fallback so the sign is a RECORDED decision, matching the
+    // pair above; the public `reveal` and `lookRandomHand` predate this
+    // convention and stay unlisted at the same effective sign.
+    lookHand: "neutral",
     // CR 205.1a layer 4 (`setCardTypes`) is deliberately UNLISTED, i.e.
     // "neutral": replacing a permanent's card types is genuinely ambiguous in
     // sign on its own (it can strip Artifact off an opponent's Equipment or

@@ -183,6 +183,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "cantBeBlockedThisTurn",
     "cantBeRegeneratedThisTurn",
     "cantBlockThisTurn",
+    "castFromExileCostIncrease",
     "castFromExileManaSubstitution",
     "castFromExileWithoutPayingManaCost",
     "castFromGraveyardExilesOnResolve",
@@ -581,6 +582,13 @@ function compactCard(
     // uncastable for an off-colour caster.
     if (card.castFromExileManaSubstitution) {
         out.castFromExileManaSubstitution = card.castFromExileManaSubstitution;
+    }
+    // CR 601.2f (issue #2383) — the object-scoped cost tax (Elite Spellbinder)
+    // rides `castableFromExileBy`'s permission window and must survive a
+    // save/load the same way, or a reloaded exiled card becomes castable for
+    // its untaxed printed cost.
+    if (card.castFromExileCostIncrease) {
+        out.castFromExileCostIncrease = card.castFromExileCostIncrease;
     }
     // CR 111 (issue #791) — the per-source exile provenance link (Currency
     // Converter's "exiled with this artifact") must survive a save/load so the
@@ -1016,6 +1024,10 @@ function expandCard(
     if (compact.castFromExileManaSubstitution) {
         result.castFromExileManaSubstitution =
             compact.castFromExileManaSubstitution as ManaSubstitutionBreadth;
+    }
+    if (compact.castFromExileCostIncrease) {
+        result.castFromExileCostIncrease =
+            compact.castFromExileCostIncrease as ManaCost;
     }
     if (compact.exiledBySourceId) {
         result.exiledBySourceId = compact.exiledBySourceId as string;

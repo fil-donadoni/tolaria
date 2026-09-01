@@ -1,7 +1,7 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
 import type { RestrictedMana, AttackManaTaxPayment } from "@convex/gre/state";
-import type { TargetSelection } from "@convex/cards/types";
+import type { ManaCost, TargetSelection } from "@convex/cards/types";
 
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
@@ -413,6 +413,18 @@ export interface CardInstance {
      *  wire via `slimCard`; not read by the client (the projection drops
      *  `castableFromExileBy` once the grant expires), kept for type parity. */
     castableFromExileUntilTurn?: number;
+    /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
+     *  `castableFromExileBy`: "A spell cast this way costs {2} more to cast"
+     *  (Elite Spellbinder). Crosses the wire via `slimCard` (which strips only
+     *  `card`/`knownTo`); not read by the client, which gates its Exile Cast
+     *  button on the projected `legalActions` instead — that flag is computed
+     *  server-side by `getLegalActions`, which folds this tax through
+     *  `getCostModifiers` like every other CR 601.2f increase, so the button is
+     *  already priced correctly with nothing to recompute here. Kept for type
+     *  parity with `CardInstanceState.castFromExileCostIncrease`
+     *  (`convex/gre/state.ts`), exactly like `castableFromExileUntilTurn`
+     *  above. */
+    castFromExileCostIncrease?: ManaCost;
     /** Instance id of the battlefield permanent this exiled card is associated
      *  with (the permanent that exiled / holds it). Mechanism-agnostic — set by
      *  the projection for exile-and-return bundles (Banishing Light / Tawnos's

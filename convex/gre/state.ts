@@ -1271,6 +1271,22 @@ export type CardInstanceState = {
      *  changes. Cleared alongside `castableFromExileBy` wherever that field is
      *  cleared. Persisted so the permission survives a DB round-trip. */
     castFromExileManaSubstitution?: ManaSubstitutionBreadth;
+    /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding {@link
+     *  castableFromExileBy}: "For as long as that card remains exiled, its
+     *  owner may play it. A spell cast this way costs {2} more to cast"
+     *  (Elite Spellbinder). The tax belongs to THIS EXILED CARD, not to the
+     *  permanent that granted it, so it keeps applying after Elite Spellbinder
+     *  dies, is bounced or is exiled — which is exactly what a
+     *  `StaticCostModifier` (`kind: "cost-modifier"`) cannot express: that one
+     *  is re-scanned off the battlefield at every cost computation and stops
+     *  the moment its carrier leaves. Folded in by `getCostModifiers` (below),
+     *  the ONE collector every cost site already runs through, so the real
+     *  payment (`announceCast`, `convex/game.ts`), the "cast" affordance
+     *  (`getLegalActions`, `gre/rules.ts`) and the Bot's tap planner
+     *  (`enumerateCastMoves`, `gre/moves.ts`) all price the taxed cast the
+     *  same way. Cleared alongside `castableFromExileBy` wherever that field
+     *  is cleared. Persisted so the tax survives a DB round-trip. */
+    castFromExileCostIncrease?: ManaCost;
     /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
      *  608.2g). When set, the play permission is an "until end of turn" impulse
      *  window (Headliner Scarlett, Expressive Iteration — "play that card this
@@ -16167,6 +16183,7 @@ export function buildSpellContext(
                  *  permission (Ice Cauldron, Ragavan) — the exiled card is
                  *  paid for in its own colours. */
                 manaSubstitution?: ManaSubstitutionBreadth;
+                costIncrease?: ManaCost;
             }
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
@@ -16225,6 +16242,15 @@ export function buildSpellContext(
                 card.castFromExileManaSubstitution = opts.manaSubstitution;
             } else {
                 delete card.castFromExileManaSubstitution;
+            }
+            // CR 601.2f (issue #2383) — the object-scoped tax half of the
+            // grant ("A spell cast this way costs {2} more to cast" — Elite
+            // Spellbinder). Stamped on the CARD, so it outlives the granting
+            // permanent; cleared with the permission it rides.
+            if (opts?.costIncrease) {
+                card.castFromExileCostIncrease = opts.costIncrease;
+            } else {
+                delete card.castFromExileCostIncrease;
             }
         },
         grantCastFromGraveyard(
@@ -20963,6 +20989,29 @@ export function moveCard(
     // battlefield→graveyard path preserves counters as last-known-information
     // for death triggers and does not route through this primitive.
     if (from === "exile") delete card.counters;
+    // CR 601.3 / 400.7 (issue #2383) — the per-card cast-from-exile GRANT and
+    // its four riders are meaningful only while the card sits in exile. The
+    // cast path clears them in `removeFromZone`, the impulse window in the
+    // CLEANUP sweep (`gre/phases.ts`) and the land play in
+    // `consumeExilePlayGrant` (`gre/playLand.ts`) — but this general
+    // zone-mover is the FOURTH exile departure (exile → hand/library/graveyard
+    // via `SpellContext.moveZone`/`moveCardById`) and cleared none of them, so
+    // a card pulled back out of exile kept a live grant and every rider with
+    // it: `getCostModifiers` (below) would tax a later HAND cast of that same
+    // instance, and `getLegalActions`'s `isFreeExileCast` branch — which has
+    // no zone check either — would read a stale waiver as "free to cast".
+    // Unreachable with the shipped pool (every exile-departure effect is
+    // source-linked or filtered to cards no grant touches), which is exactly
+    // why it must be closed here rather than left to the first card that can
+    // reach it. Mirrors the `exiledBySourceId` clear directly above.
+    if (from === "exile") {
+        delete card.castableFromExileBy;
+        delete card.castableFromExileUntilTurn;
+        delete card.castFromExileWithoutPayingManaCost;
+        delete card.castableFromExileIncludesLand;
+        delete card.castFromExileManaSubstitution;
+        delete card.castFromExileCostIncrease;
+    }
     // CR 122.2 / 608.2h — the departure-time counter memory is scoped to the
     // zone the permanent landed in. Any further zone change makes yet another
     // new object, so the memory does not travel with it.
@@ -21182,6 +21231,10 @@ export function removeFromZone(
     // CR 609.4b (issue #2890) — the "spend mana as though any color/type"
     // marker rides the SAME permission window; consumed together.
     delete card.castFromExileManaSubstitution;
+    // CR 601.2f (issue #2383) — the object-scoped cost tax (Elite Spellbinder)
+    // rides the SAME permission window; consumed together, so the card carries
+    // no stale tax if it is ever exiled again by something else.
+    delete card.castFromExileCostIncrease;
     // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
@@ -22428,10 +22481,31 @@ function resolveCostReductionGeneric(
  *  definition instead, right here at the same 601.2f apply site. */
 export function getCostModifiers(
     state: GameState,
-    card: PermanentView,
+    card: PermanentView &
+        Pick<Partial<CardInstanceState>, "castFromExileCostIncrease">,
     kind: "spell" | "ability"
 ): CostModifiers {
     const increase: Record<string, number> = {};
+    // CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase stamped on the
+    // announced card itself by an exile-cast grant ("A spell cast this way
+    // costs {2} more to cast" — Elite Spellbinder). Folded here, in the same
+    // collector as the battlefield scan below, precisely because it is NOT a
+    // battlefield effect: the tax belongs to the exiled card object and keeps
+    // applying after the granting permanent has left. Spell-only — the field
+    // rides a CAST permission, and an activated ability of a card in exile is
+    // not a thing this engine can reach. No zone check: the field exists only
+    // while the card sits in exile under a live grant, which holds because
+    // ALL FOUR exile departures clear it — `removeFromZone` (the cast),
+    // `moveCard`'s `from === "exile"` block (every other zone move,
+    // issue #2383), the CLEANUP impulse sweep (`gre/phases.ts`) and
+    // `consumeExilePlayGrant` (`gre/playLand.ts`).
+    if (kind === "spell" && card.castFromExileCostIncrease) {
+        for (const [k, v] of Object.entries(
+            normalizeManaCost(card.castFromExileCostIncrease)
+        )) {
+            increase[k] = (increase[k] ?? 0) + v;
+        }
+    }
     let reductionGeneric = 0;
     let minTotalMana = 0;
     for (const player of state.players) {

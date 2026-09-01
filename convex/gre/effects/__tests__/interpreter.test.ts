@@ -28,6 +28,9 @@ import {
 } from "../../../cards/__tests__/setup";
 import {
     resolveTopOfStack,
+    moveCard,
+    removeFromZone,
+    getCostModifiers,
     removePermanentTo,
     exileWithAttachments,
     markEnteredThisTurn,
@@ -61,7 +64,7 @@ import {
     checkStateBasedActions,
 } from "../../sba";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
-import { raiseTriggerTargetSelection } from "../../rules";
+import { getLegalActions, raiseTriggerTargetSelection } from "../../rules";
 import type { Color, TargetSelection } from "../../../cards/types";
 import {
     finalizeTargetSelection,
@@ -29228,5 +29231,345 @@ describe("EffectValue `sacrificed` (CR 601.2f / 608.2h, issue #2375)", () => {
         expect(state.players[1].life).toBe(14);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(14);
+    });
+});
+
+describe("Effect Script Op: lookHand (CR 400.2, issue #2383)", () => {
+    /** A one-Op script: the resolving controller looks at the opponent's hand. */
+    function lookScript(id: string): string {
+        return registerScript(id, [{ op: "lookHand", player: "opponent" }]);
+    }
+
+    function handOf(ids: string[]): CardInstanceState[] {
+        return ids.map((id) =>
+            makeInstance(BEAR_ID, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+    }
+
+    it("stamps the WHOLE hand known to the looker ALONE, and the wire projection shows those cards to the looker and hides them from a third viewer", () => {
+        const id = lookScript("test-op-look-hand");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("abc".split("")) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        // CR 400.2 / ADR 0026 — every hand card knows exactly ONE looker.
+        for (const card of state.players[1].hand) {
+            expect(card.knownTo).toEqual(["p1"]);
+        }
+
+        // SURFACE: the projection is what decides whether the looker actually
+        // sees anything. p1 (the looker) gets identities; p2's own hand is
+        // always visible to p2, so the discriminating viewer is the OWNER's
+        // view of p1 — which must stay untouched — plus the fact that a
+        // non-looker's slots would be null. Here p1 is the only opponent, so
+        // assert the positive half on p1 and the negative half by stripping
+        // the grant.
+        const forLooker = projectPublicState(state, 1, "p1");
+        expect(forLooker.players[1].hand.map((c) => c?.id)).toEqual([
+            "a",
+            "b",
+            "c",
+        ]);
+
+        // The transient look dialog goes to the looker ALONE (kind "look",
+        // never the all-players "reveal"), listing every card looked at.
+        expect(state.pendingReveals).toHaveLength(1);
+        expect(state.pendingReveals![0].kind).toBe("look");
+        expect(state.pendingReveals![0].audience).toEqual(["p1"]);
+        expect(state.pendingReveals![0].cards.map((c) => c.instanceId)).toEqual(
+            ["a", "b", "c"]
+        );
+
+        // Same state with the look never having happened: the opponent's hand
+        // projects as three anonymous backs.
+        const blind = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("abc".split("")) }),
+            ],
+        });
+        const forBlind = projectPublicState(blind, 1, "p1");
+        expect(forBlind.players[1].hand).toEqual([null, null, null]);
+    });
+
+    it("looks even when no follow-up pick can raise — the look is its own game action (CR 608.2b, issue #1698 is only a pick-window exposure)", () => {
+        // Elite Spellbinder's shape against an ALL-LANDS hand: the nonland
+        // choice matches nothing and never suspends, so the #1698
+        // `handPickExposed` window never opens — but the hand has still been
+        // looked at, and the knowledge outlives the resolution.
+        const forestId = "test-op-look-hand-forest";
+        registerTokenDefinition({
+            id: forestId,
+            name: forestId,
+            rarity: "common",
+            types: ["Land"],
+        });
+        const id = registerScript("test-op-look-hand-all-lands", [
+            { op: "lookHand", player: "opponent" },
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zoneOwnerId: "opponent",
+                zone: "hand",
+                filter: { excludeType: "Land" },
+                count: { min: 0, max: 1 },
+                prompt: "You may exile a nonland card.",
+                bind: "$picked",
+            },
+        ]);
+        const land = makeInstance(forestId, {
+            id: "land1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+            types: ["Land"],
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [land] })],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices).toBeUndefined(); // no pick was possible
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
+        expect(projectPublicState(state, 1, "p1").players[1].hand[0]?.id).toBe(
+            "land1"
+        );
+    });
+
+    it("no-ops on an empty hand (CR 608.2b)", () => {
+        const id = lookScript("test-op-look-hand-empty");
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [] })],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.stack).toHaveLength(0);
+        // No look dialog either — `notifyReveal` is reached with no cards.
+        expect(state.pendingReveals ?? []).toHaveLength(0);
+    });
+});
+
+describe("Effect Script Op: grantCastFromExile — the object-scoped costIncrease rider (CR 601.2f, issue #2383)", () => {
+    // Elite Spellbinder's clause, reduced to its Op: exile a card the opponent
+    // owns, let its OWNER cast it while it remains exiled, taxed {2}. The
+    // subject card is the 2-mana BEAR ({1}{G}), so the taxed cast costs 4.
+    function taxScript(id: string, extra: Partial<EffectOp> = {}): string {
+        return registerScript(id, [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zoneOwnerId: "opponent",
+                zone: "hand",
+                filter: { excludeType: "Land" },
+                count: { min: 0, max: 1 },
+                prompt: "You may exile a nonland card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "opponent",
+                from: "hand",
+                to: "exile",
+            },
+            {
+                op: "grantCastFromExile",
+                card: { ref: "$picked" },
+                player: "opponent",
+                window: "while-exiled",
+                costIncrease: { X: 2 },
+                ...extra,
+            } as EffectOp,
+        ]);
+    }
+
+    /** p2 holds one BEAR in hand and `pool` green mana; p1 is about to resolve
+     *  `scriptId`, which exiles the bear and hands it back taxed. */
+    function taxedState(scriptId: string, pool: number): GameState {
+        const id = taxScript(scriptId);
+        const bear = makeInstance(BEAR_ID, {
+            id: "taxed1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "binder",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [bear],
+                    manaPool: {
+                        W: 0,
+                        U: 0,
+                        B: 0,
+                        R: 0,
+                        G: pool,
+                        C: 0,
+                    },
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["taxed1"],
+        });
+        // CR 307.1 — the taxed card is a CREATURE, so the affordance below is
+        // only ever offered inside its caster's own main phase with an empty
+        // stack. Hand the turn to p2 (the grantee) so the ONLY variable left
+        // in these assertions is the cost.
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        return state;
+    }
+
+    function exiledCard(state: GameState): CardInstanceState {
+        return state.players[1].exile.find((c) => c.id === "taxed1")!;
+    }
+
+    it("stamps the tax on the EXILED CARD and prices the granted cast {2} higher at the affordance gate", () => {
+        // 3 mana: enough for the bear's printed {1}{G}, NOT for the taxed
+        // total. The grant is live, so the only thing withholding "cast" is
+        // CR 601.2f.
+        const poor = taxedState("test-op-exile-tax-poor", 3);
+        const poorCard = exiledCard(poor);
+        expect(poorCard.castableFromExileBy).toBe("p2");
+        expect(poorCard.castFromExileCostIncrease).toEqual({ X: 2 });
+        expect(
+            getLegalActions(poor, poor.players[1], poorCard, false, "p2")
+        ).not.toContain("cast");
+
+        // One more mana and the same cast is legal — 4 = {1}{G} + {2}.
+        const rich = taxedState("test-op-exile-tax-rich", 4);
+        expect(
+            getLegalActions(
+                rich,
+                rich.players[1],
+                exiledCard(rich),
+                false,
+                "p2"
+            )
+        ).toContain("cast");
+
+        // The tax reaches the shared collector every cost site folds through.
+        expect(
+            getCostModifiers(rich, exiledCard(rich), "spell").increase
+        ).toEqual({ X: 2 });
+    });
+
+    it("keeps taxing after the GRANTING PERMANENT leaves the battlefield — an object-scoped tax, not a battlefield static", () => {
+        const state = taxedState("test-op-exile-tax-source-gone", 3);
+        // Elite Spellbinder's stand-in dies. A `cost-modifier` static would
+        // stop applying here; this tax rides the exiled card.
+        removePermanentTo(state, "binder", "graveyard");
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "binder")
+        ).toBe(false);
+
+        const card = exiledCard(state);
+        expect(card.castFromExileCostIncrease).toEqual({ X: 2 });
+        expect(
+            getLegalActions(state, state.players[1], card, false, "p2")
+        ).not.toContain("cast");
+
+        // …and the same board with one more mana still affords it, so the
+        // "not castable" above is the TAX and not some side effect of the
+        // permanent leaving.
+        const richer = taxedState("test-op-exile-tax-source-gone-rich", 4);
+        removePermanentTo(richer, "binder", "graveyard");
+        expect(
+            getLegalActions(
+                richer,
+                richer.players[1],
+                exiledCard(richer),
+                false,
+                "p2"
+            )
+        ).toContain("cast");
+    });
+
+    it("taxes ONLY the granted card — another spell the same player casts is unaffected", () => {
+        const state = taxedState("test-op-exile-tax-scoped", 3);
+        // A second bear, in hand, under the same 3 mana: {1}{G} is affordable
+        // because it carries no grant and no tax.
+        const inHand = makeInstance(BEAR_ID, {
+            id: "untaxed1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        state.players[1].hand.push(inHand);
+        expect(inHand.castFromExileCostIncrease).toBeUndefined();
+        expect(getCostModifiers(state, inHand, "spell").increase).toEqual({});
+        expect(
+            getLegalActions(state, state.players[1], inHand, false, "p2")
+        ).toContain("cast");
+    });
+
+    it("survives a DB round-trip alongside the permission it rides", () => {
+        const state = taxedState("test-op-exile-tax-roundtrip", 4);
+        const restored = expandState(compactState(state));
+        const card = restored.players[1].exile.find((c) => c.id === "taxed1")!;
+        expect(card.castableFromExileBy).toBe("p2");
+        expect(card.castFromExileCostIncrease).toEqual({ X: 2 });
+        expect(
+            getLegalActions(restored, restored.players[1], card, false, "p2")
+        ).toContain("cast");
+    });
+
+    it("is cleared by EVERY exile departure, not just the cast — a card pulled back out of exile is not taxed on a later hand cast", () => {
+        // `moveCard` is the general exile→hand/library/graveyard mover
+        // (`SpellContext.moveZone`/`moveCardById`), the fourth departure
+        // alongside `removeFromZone`, the CLEANUP sweep and
+        // `consumeExilePlayGrant`. Before issue #2383 it cleared neither the
+        // grant nor any of its riders, so the same instance kept a live
+        // permission — and this tax — in the caster's HAND.
+        const state = taxedState("test-op-exile-tax-departures", 4);
+        moveCard(state.players[1], "taxed1", "exile", "hand");
+        const back = state.players[1].hand.find((c) => c.id === "taxed1")!;
+        expect(back.castFromExileCostIncrease).toBeUndefined();
+        expect(back.castableFromExileBy).toBeUndefined();
+        expect(getCostModifiers(state, back, "spell").increase).toEqual({});
+        // 4 mana against an untaxed {1}{G}: castable, as an ordinary hand card.
+        expect(
+            getLegalActions(state, state.players[1], back, false, "p2")
+        ).toContain("cast");
+    });
+
+    it("is cleared when the taxed card leaves exile, so a later re-exile carries no stale tax", () => {
+        const state = taxedState("test-op-exile-tax-cleared", 4);
+        const card = exiledCard(state);
+        // The owner casts it: `removeFromZone` (the one exile→stack transition
+        // every cast goes through) consumes the whole grant.
+        removeFromZone(state.players[1], "taxed1", "exile");
+        expect(card.castableFromExileBy).toBeUndefined();
+        expect(card.castFromExileCostIncrease).toBeUndefined();
     });
 });
