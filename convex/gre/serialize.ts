@@ -202,6 +202,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "colorOverride",
     "controlChanges",
     "copiedFrom",
+    "copyExcept",
     "counters",
     "countersAtLeave",
     "capturedBindings",
@@ -502,6 +503,11 @@ function compactCard(
     if (card.textChanges && card.textChanges.length > 0) {
         out.textChanges = card.textChanges;
     }
+    // CR 707.2's "except it's N/N" clause, stamped on this copy so a copy OF
+    // it inherits the exception (CR 707.3, issue #2076). Persisted rather than
+    // transient: it is a copiable value of a permanent that survives across
+    // saves, exactly like the copy anchor below.
+    if (card.copyExcept) out.copyExcept = card.copyExcept;
     // CR 707.2 copy anchor — `card.id` already carries the copied def id; this
     // preserves the printed identity to restore on leave (`revertCopy`).
     if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
@@ -938,6 +944,10 @@ function expandCard(
     if (compact.textChanges) {
         result.textChanges =
             compact.textChanges as CardInstanceState["textChanges"];
+    }
+    if (compact.copyExcept) {
+        result.copyExcept =
+            compact.copyExcept as CardInstanceState["copyExcept"];
     }
     if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
     // CR 707.2 / 202.3 — `{}` is a meaningful override, so test for PRESENCE
