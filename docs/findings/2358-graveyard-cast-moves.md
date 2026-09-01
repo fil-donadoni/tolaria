@@ -1,7 +1,8 @@
 ---
 title: The Bot can never cast a Flashback or Escape card from its graveyard — enumerateMoves has no graveyard cast loop
 discoveredBy: 2358
-status: draft
+status: triaged
+issue: 2971
 confidence: high
 ---
 

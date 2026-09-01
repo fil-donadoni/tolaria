@@ -116,7 +116,13 @@ import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
-import { genericManaShortfall } from "./rules";
+import { genericManaShortfall, markGraveyardPermanentCastUsed } from "./rules";
+import {
+    castSourceForSearch,
+    graveyardCastMechanism,
+    graveyardCastStackFlags,
+    reboundCastStackFlags,
+} from "./castCost";
 import { phyrexianPipCount } from "./phyrexian";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
@@ -1103,24 +1109,49 @@ export function applyMoveForSearch(
                 playerId,
                 move.cardInstanceId
             );
-            // CR 601.3 (issue #2398) — the enumerator offers a cast off
-            // the TOP of the library under a cast-from-top permission (Bolas's
-            // Citadel), so this leaf can no longer assume the hand: hard-coding
-            // `"hand"` threw `Card <id> not found in hand` for exactly those
-            // moves, the same shape `applyPlayLandFromAnyZone` fixed for the
-            // land half. Only index 0 qualifies — the permission is positional
-            // and the rest of the library stays hidden (CR 400.2).
-            const castFromZone =
-                retraceZone ??
-                (player.hand.some((c) => c.id === move.cardInstanceId) ||
-                player.library[0]?.id !== move.cardInstanceId
-                    ? "hand"
-                    : "library");
-            const spellCard = removeFromZone(
+            // CR 601.3 / 400.7 (issue #2971) — the zone this cast leaves and
+            // the player whose zone it is, through the shared resolver. This
+            // leaf used to GUESS (hand, unless the id was the library top),
+            // which throws `Card <id> not found in hand` for every graveyard
+            // and exile cast the enumerator now offers, and cannot express a
+            // cross-player exile grant at all (the card sits in the OPPONENT's
+            // exile). `null` = a stale Move no permitted source still holds:
+            // skip it, leaving the position unchanged, exactly as the
+            // `play-land` leaf does.
+            const castSource = castSourceForSearch(
+                next,
                 player,
+                move.cardInstanceId,
+                move.castFromZone,
+                retraceZone
+            );
+            if (castSource === null) return next;
+            const castFromZone = castSource.zone;
+            // CR 702.139 (issue #1392, Lurrus) — the once-per-turn
+            // permanent-permission cast is CONSUMED at commit by every real
+            // commit site (`markGraveyardPermanentCastUsed`). Read the
+            // mechanism while the card is still IN the graveyard, then charge
+            // it: without this the search recasts the same permanent every turn
+            // for free and prices a line that does not exist.
+            const castMechanism =
+                castFromZone === "graveyard"
+                    ? graveyardCastMechanism(
+                          next,
+                          castSource.owner,
+                          castSource.owner.graveyard.find(
+                              (c) => c.id === move.cardInstanceId
+                          )!,
+                          playerId
+                      )
+                    : undefined;
+            const spellCard = removeFromZone(
+                castSource.owner,
                 move.cardInstanceId,
                 castFromZone
             );
+            if (castMechanism === "permanent-permission") {
+                markGraveyardPermanentCastUsed(next, playerId);
+            }
             const stackItem: StackItem = {
                 ...spellCard,
                 castById: playerId,
@@ -1162,12 +1193,18 @@ export function applyMoveForSearch(
                 ...(wasCastOffSorceryTiming(next, playerId)
                     ? { castOffSorceryTiming: true }
                     : {}),
-                // CR 702.81a (issue #2358) — "cast from a graveyard" is true of
-                // a retrace cast and is read by clauses that care; NO
-                // `exileOnResolve`, so the card goes back to the graveyard as it
-                // finishes resolving (CR 608.2m) and stays retraceable. Mirrors
-                // `graveyardCastStackFlags`'s retrace branch (`convex/game.ts`).
-                ...(retraceZone ? { castFromGraveyard: true } : {}),
+                // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
+                // zone-dependent stack flags, read from the SAME two helpers
+                // every real commit site spreads (`gre/castCost.ts`), rather
+                // than the single hand-written retrace flag this leaf carried
+                // before. That is what makes the census complete by
+                // construction: Flashback's `exileOnResolve`, Escape's
+                // `escaped`, a per-card grant's exile rider, retrace's bare
+                // `castFromGraveyard` and Rebound's `reboundFromHand` all
+                // arrive together, and a new mechanism added to those helpers
+                // reaches the sandbox for free.
+                ...graveyardCastStackFlags(next, spellCard, castFromZone),
+                ...reboundCastStackFlags(spellCard, castFromZone),
             };
             // CR 702.103b (issue #2388) — a BESTOW variant of this move casts
             // the card as an Aura enchantment, not as a creature. The sandbox

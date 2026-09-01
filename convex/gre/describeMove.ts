@@ -143,7 +143,17 @@ export function describeMove(move: Move, state: GameState): string {
                       .join(",")}]`
                 : "";
             const buyback = move.buybackPaid ? " [buyback]" : "";
-            return `cast ${name}${x}${alt}${kicker}${buyback}${withTargets(state, move.targets)}`;
+            // CR 601.3 (issue #2971) — WHERE the cast comes from is a different
+            // decision from what it pays: "cast Firebolt" out of the hand and
+            // "cast Firebolt [from graveyard]" for its flashback cost are two
+            // lines a trace reader has to tell apart, and the graveyard one is
+            // the whole point of the move existing. Omitted for a hand cast, so
+            // every pre-existing trace line is byte-identical.
+            const zone =
+                move.castFromZone && move.castFromZone !== "hand"
+                    ? ` [from ${move.castFromZone}]`
+                    : "";
+            return `cast ${name}${x}${alt}${zone}${kicker}${buyback}${withTargets(state, move.targets)}`;
         }
         case "activate-ability": {
             const name = instanceName(state, move.cardInstanceId);

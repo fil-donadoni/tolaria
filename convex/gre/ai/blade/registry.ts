@@ -26,6 +26,17 @@ import { instanceIdsForName, seatPlayerId } from "./matcher";
 import { getCardByName } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 
+/** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
+ *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
+ *  ONLY difference between them is the zone the Firebolt sits in. Basics rather
+ *  than `landCount` because the flashback cost is coloured. */
+const MOUNTAINS_5 = Array.from({ length: 5 }, () => ({
+    name: "Mountain",
+    owner: "me" as const,
+    zone: "battlefield" as const,
+    tapped: false,
+}));
+
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable
  *  expectation (holding an instant through your own main phase is legitimate
@@ -3734,6 +3745,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             ],
         },
         note: "Half 2 of the Boast pair (issue #2375). The positive direction of the CR 702.142a gate: a boast must be reachable and preferred once the creature has attacked. Measured: reds when the enumerator gate is made to always fire, while half 1 stays green.",
+    },
+
+    // ── Cast from the graveyard (issue #2971) ────────────────────────────
+    // A DISCRIMINATING PAIR. The only difference between the two positions is
+    // the ZONE the Firebolt sits in: the graveyard, where CR 702.34a licenses
+    // a flashback cast, or the library, where nothing does. The enumerator fed
+    // `enumerateCastMoves` from the hand, the retrace loop and the library top
+    // only, so the first position had no winning move in the Bot's move set at
+    // all — `getLegalActions` said "cast", the candidate SET never asked.
+    {
+        label: "graveyard-cast: flashes back Firebolt from the graveyard for lethal",
+        spec: {
+            // Firebolt: {R} Sorcery, "deals 2 damage to any target",
+            // Flashback {4}{R} (CR 702.34). Five Mountains is exactly the
+            // flashback cost, so the line is affordable and unique.
+            cards: [
+                { name: "Firebolt", owner: "me", zone: "graveyard" },
+                ...MOUNTAINS_5,
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // The whole point of the position: two damage is lethal, and
+            // `evaluate` is banded so a win dominates every material term —
+            // no seed can make passing look better.
+            life: { me: 20, opp: 2 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Firebolt" }] },
+        note: "Issue #2971, half 1. The Bot must reach a cast it can only make from the GRAVEYARD. Before the graveyard loop landed, `enumerateMoves` never fed a non-retrace graveyard card to `enumerateCastMoves`, so this lethal was not in the move set and the Bot passed.",
+    },
+    {
+        label: "graveyard-cast: does not reach for a Firebolt sitting in the library",
+        spec: {
+            // The SAME board, one field changed. No cast-from-top permission
+            // is in play, so the library card is unreachable — and the Bot
+            // must not invent a cast for it, which is the failure mode a
+            // zone-blind widening of the affordance would have produced.
+            cards: [
+                { name: "Firebolt", owner: "me", zone: "library" },
+                ...MOUNTAINS_5,
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 2 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Firebolt" }] },
+        note: "Issue #2971, half 2 — the discriminating twin. Same lethal-shaped board, the Firebolt one zone away. The new graveyard loop gates on `graveyardCastMechanism` before the affordance precisely so the candidate set stays the cards a mechanism actually permits.",
     },
 ];
 

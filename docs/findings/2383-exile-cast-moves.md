@@ -1,7 +1,8 @@
 ---
 title: The Bot can never cast a card from EXILE — enumerateMoves has no exile cast loop (the sibling of 2358's graveyard gap)
 discoveredBy: 2383
-status: draft
+status: triaged
+issue: 2971
 confidence: high
 ---
 
