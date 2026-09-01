@@ -1373,11 +1373,12 @@ export type CardInstanceState = {
      *  so `getCardsExiledWith` can enumerate the linked set across any owner's
      *  exile (the card stays in its OWNER's exile per CR 400.7, distinct from
      *  the linking source's controller). Distinct from `castableFromExileBy`
-     *  (a play PERMISSION, CR 601.3) and from `exileHeld` ExileReturnBundles
-     *  (an exile-AND-return arm on the source's LTB, ADR 0028) — this is a bare
-     *  retrievable tag with no play grant and no auto-return. Cleared when the
-     *  card leaves exile (`removeFromZone`). Persisted so the link survives a
-     *  DB round-trip; projected via `exiledByPermanentId` (Arena pinning). */
+     *  (a play PERMISSION, CR 601.3 / 305.1-analog) and from `exileHeld`
+     *  ExileReturnBundles (an exile-AND-return arm on the source's LTB, ADR
+     *  0028) — this is a bare retrievable tag with no play grant and no
+     *  auto-return. Cleared when the card leaves exile (`removeFromZone`).
+     *  Persisted so the link survives a DB round-trip; projected via
+     *  `exiledByPermanentId` (Arena pinning). */
     exiledBySourceId?: string;
     /** CR 702.34 — a Flashback cost granted to this card at the instance level
      *  (Snapcaster Mage: "target instant or sorcery card in your graveyard

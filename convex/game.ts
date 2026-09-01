@@ -16179,10 +16179,11 @@ export const debugSetupScenario = mutation({
                  *  only. */
                 faceDownExile: v.optional(v.boolean()),
                 /** Grant "me" a play-from-exile permission on this exiled card
-                 *  (CR 601.3 / 608.2g, #946): an impulse "you may play that
-                 *  card this turn" window (Headliner Scarlett / Expressive
-                 *  Iteration). Sets `castableFromExileBy` + a this-turn expiry so
-                 *  a Play (land) / Cast (spell) affordance appears, revoked at
+                 *  (CR 601.3 / 305.1-analog / 608.2g, #946): an impulse "you
+                 *  may play that card this turn" window (Headliner Scarlett
+                 *  / Expressive Iteration). Sets `castableFromExileBy` + a
+                 *  this-turn expiry so a Play (land) / Cast (spell) affordance
+                 *  appears, revoked at
                  *  the next cleanup. Exile zone only; combine with
                  *  `faceDownExile` for the true impulse look. */
                 castableFromExile: v.optional(v.boolean()),

@@ -3836,7 +3836,7 @@ export interface SpellContext {
      *  (Jeweled Amulet) or instance-restricted to the noted card (Ice Cauldron).
      *  No-op if the source isn't on the battlefield or has no noted mana. */
     addNotedMana: (cardInstanceId: string, playerId: string) => void;
-    /** Play-from-exile grant (CR 601.3 — Ice Cauldron: "You may cast that card
+    /** Play-from-exile grant (CR 601.3 / 305.1-analog — Ice Cauldron: "You may cast that card
      *  for as long as it remains exiled"). Flags the card `cardInstanceId` as
      *  playable from exile by `playerId`; the play/cast pipeline then accepts it
      *  as a source — casting it if it's a spell, or playing it as a land if it's
@@ -11794,7 +11794,7 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
-    /** CR 601.3 / 117.6 (issue #1156) — grant `player` permission to cast/play
+    /** CR 601.3 / 305.1-analog / 117.6 (issue #1156) — grant `player` permission to cast/play
      *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
      *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
      *  declarative skin over `SpellContext.grantCastFromExile`, one execution

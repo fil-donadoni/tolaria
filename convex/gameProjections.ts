@@ -408,7 +408,7 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  viewer-independent — it is told whether index 0 is known to THIS viewer,
  *  never why.
  *
- *  CR 305.1-analog / 601.3e-analog — `topLegalActions`, when supplied, is attached to the
+ *  CR 305.1-analog / 601.3 — `topLegalActions`, when supplied, is attached to the
  *  index-0 entry as its `legalActions`: the viewer's OWN library top is a
  *  playable land under a play-lands-from-top-of-library permission (Courser of
  *  Kruphix). Computed by the caller (which alone knows whether this library

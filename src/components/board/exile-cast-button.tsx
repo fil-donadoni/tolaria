@@ -2,7 +2,7 @@ import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 
-/** Play-from-exile affordance (CR 601.3 — Ice Cauldron: "You may cast that
+/** Play-from-exile affordance (CR 601.3 / 305.1-analog — Ice Cauldron: "You may cast that
  *  card for as long as it remains exiled"; Headliner Scarlett / Expressive
  *  Iteration: "you may play that card this turn"). Rendered over a card in the
  *  Exile zone whose `castableFromExileBy` matches the viewing player. Routes

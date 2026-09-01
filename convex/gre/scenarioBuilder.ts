@@ -306,12 +306,13 @@ export function buildStateFromScenario(
                         "face-down-exile"
                     );
                 }
-                // #946 (CR 601.3 / 608.2g) — grant "me" a this-turn play-
-                // from-exile permission so a Play (land) / Cast (spell)
-                // affordance appears; the current turn stamps the expiry so
-                // it lapses at cleanup. CR 305.9 (issue #1689) — a cast
-                // permission alone does NOT authorize playing a land (a land
-                // is never cast), so this stamps `castableFromExileIncludesLand`
+                // #946 (CR 601.3 / 305.1-analog / 608.2g) — grant "me" a
+                // this-turn play-from-exile permission so a Play (land) /
+                // Cast (spell) affordance appears; the current turn stamps
+                // the expiry so it lapses at cleanup. CR 305.9 (issue
+                // #1689) — a cast permission alone does NOT authorize playing
+                // a land (a land is never cast), so this stamps
+                // `castableFromExileIncludesLand`
                 // ONLY when the scenario explicitly asks for the LAND-
                 // INCLUSIVE grant shape (Headliner Scarlett / Expressive
                 // Iteration). Defaulting to cast-only (omitted) mirrors the

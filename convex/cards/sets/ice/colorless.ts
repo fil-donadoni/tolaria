@@ -569,13 +569,13 @@ export const crownOfTheAges: CardDefinition = {
     ],
 };
 // Elkin Bottle — "{3}, {T}: Exile the top card of your library. Until the
-// beginning of your next upkeep, you may play that card." (CR 601.3 / 608.2g
+// beginning of your next upkeep, you may play that card." (CR 601.3 / 305.1-analog / 608.2g
 // play-from-exile, the Impulse idiom.) Composes shipped primitives:
 //   - `peekLibraryTop(caster, 1)` reads the top card's instance id (CR 401.1).
 //   - `exileFaceDown(caster, id, "library", caster)` exiles it hidden to the
 //     opponent but known to its controller (CR 406.3), same as Ice Cauldron.
 //   - `grantCastFromExile(id, caster)` marks it castable from exile by the
-//     controller (CR 601.3) — the shipped impulse-play seam (#666).
+//     controller (CR 601.3 / 305.1-analog) — the shipped impulse-play seam (#666).
 // SIMPLIFICATION (tracked-by: #2785) (flagged, CR 608.2g): the "until the beginning of your next
 // upkeep" window END is not auto-revoked on a timer — the play permission
 // persists while the card remains in exile, matching every other shipped
@@ -607,7 +607,7 @@ export const elkinBottle: CardDefinition = {
                 const cardId = top[0];
                 // CR 406.3 — exiled hidden to the opponent, known to controller.
                 ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
-                // CR 601.3 — the controller may play/cast it from exile.
+                // CR 601.3 / 305.1-analog — controller may play/cast from exile.
                 // CR 305.9 (issue #1689) — oracle says "you may play that
                 // card", land-inclusive.
                 ctx.grantCastFromExile(
