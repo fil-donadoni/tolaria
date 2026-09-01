@@ -235,7 +235,13 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         const bear = creature("bear", 2, 2, {
             subtypes: [],
             counters: { "+1/+1": 1 },
-            temporaryPTMods: [{ power: 5, toughness: 5 }],
+            temporaryPTMods: [
+                {
+                    power: 5,
+                    toughness: 5,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
             temporaryPTSet: [{ power: 9 }],
         });
         // Crusade pumps WHITE creatures; the bear is colourless, so use an
