@@ -22,20 +22,34 @@ THIS session's context.
 
 ## 1. Model check (before any work)
 
-Estimate the tier the issue needs, and say it out loud in one line:
+**The `model:*` label is the routing authority — there is no second criterion
+here.** Absence of a label IS the answer: the issue runs on the default tier
+(Sonnet). The full test and its rationale live in ONE place,
+`docs/agents/triage-labels.md` § Model-routing labels — do not restate it, and
+never re-derive a tier from the area an issue touches. Area-based escalation is
+what the 2026-08 audit found had put half the queue on Opus for no measured
+quality gain, and a prose list here that disagrees with the filing skill is how
+this section shipped contradicting `/new-qa-issue` (a bot-search issue with a
+mandatory blade pair is unlabelled BY DESIGN, and was being stopped as
+"opus-class" anyway).
 
-- **opus-class**: touches stack-object identity, LKI, the layer system,
-  replacement effects, priority/timing edge rules, bot search/pricing — or
-  carries the `model:opus` label.
-- **sonnet-class**: everything else — DSL cards on exercised Ops, UI, script,
-  docs, mechanical refactors.
+Say the tier out loud in one line, then:
 
-If the issue is opus-class and this session runs a lower tier: **stop
-here** — tell the user to relaunch (`claude --model opus`) or leave the
-`model:opus` label for a properly-routed session. Do not "try anyway": the
-2026-08 data shows underpowered attempts pay for themselves again in review
-rounds. Conversely, if review later finds a wrong-mental-model defect (not a
-mechanical slip), add `model:opus` to the issue so the NEXT routing is right.
+- **Carries `model:opus` / `model:fable`, session runs a lower tier** → **stop
+  here**: tell the user to relaunch (`claude --model opus`). Do not "try
+  anyway" — the 2026-08 data shows underpowered attempts pay for themselves
+  again in review rounds.
+- **Unlabelled** → proceed on this session's tier, whatever it is. A higher
+  tier than the label asks for is never a reason to stop.
+- **Unlabelled, but reading the issue convinces you it meets the label's
+  criterion** (a wrong mental model no gate catches — not "it touches the
+  engine", not file count): apply the label FIRST —
+  `gh issue edit N --add-label model:opus` — and only then stop or continue.
+  A stop that leaves no label re-derives the same judgment next session and
+  gives the filing criterion no feedback.
+
+Likewise, if review later finds a wrong-mental-model defect (not a mechanical
+slip), add `model:opus` to the issue so the NEXT routing is right.
 
 ## 2. Claim + worktree
 

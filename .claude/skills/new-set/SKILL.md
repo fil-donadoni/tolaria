@@ -419,7 +419,9 @@ Per `.claude/rules/gre-development.md`:
   each cut issue, and `/process-gh-issues` routes that ticket's
   implement-subagent to that tier (**no label ⇒ Sonnet**, which is the right
   default for a DSL card reusing shipped Ops). `model:opus` is for a ticket
-  introducing a new Op/primitive/cross-layer shape later tickets will copy.
+  introducing a new Op/primitive/cross-layer shape later tickets will copy —
+  shorthand for `docs/agents/triage-labels.md` § Model-routing labels, the
+  single authority on the criterion.
   That routing is `to-tickets`' job, not this skill's. The same goes for the
   `area:*` family label (one per ticket — for a set rollout almost always
   `area:cards`, `area:mechanics` for a capability-cluster ticket): stamped at
