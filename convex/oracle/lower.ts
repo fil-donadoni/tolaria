@@ -14,8 +14,10 @@
  */
 
 import type { ActivatedAbility, ManaCost } from "../cards/types";
+import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { lowerActivationCost } from "./grammar/shared/cost";
 import { lowerActivatedAbility } from "./lowerActivated";
+import { lowerTriggeredAbility } from "./lowerTriggered";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
@@ -43,6 +45,7 @@ export function slugify(name: string): string {
 interface Accumulator {
     staticAbilities: string[];
     activatedAbilities: ActivatedAbility[];
+    compiledTriggeredAbilities: CompiledTriggeredAbility[];
     plannedMechanics: string[];
 }
 
@@ -105,6 +108,25 @@ function lowerLine(
             acc.activatedAbilities.push(lowered.ability);
             return null;
         }
+        case "triggered": {
+            const index = acc.compiledTriggeredAbilities.length;
+            const id =
+                index === 0
+                    ? `${slugify(card.name)}-trigger`
+                    : `${slugify(card.name)}-trigger-${index + 1}`;
+            const lowered = lowerTriggeredAbility({
+                id,
+                oracleText: parsed.line,
+                head: ir.head,
+                ...(ir.condition !== undefined
+                    ? { condition: ir.condition }
+                    : {}),
+                effects: ir.effects,
+            });
+            if (!lowered.ok) return lowered.reason;
+            acc.compiledTriggeredAbilities.push(lowered.ability);
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
@@ -132,6 +154,7 @@ export function lowerCard(
     const acc: Accumulator = {
         staticAbilities: [],
         activatedAbilities: [],
+        compiledTriggeredAbilities: [],
         plannedMechanics: [],
     };
     for (const line of lines) {
@@ -186,6 +209,11 @@ export function lowerCard(
         definition.staticAbilities = acc.staticAbilities;
     if (acc.activatedAbilities.length > 0)
         definition.activatedAbilities = acc.activatedAbilities;
+    // CR 113.3c — descriptors, not abilities: the seam rebuilds them
+    // (`cards/compiledTriggers.ts`). Nothing downstream of the compiler ever
+    // sees this field — `expandDefinition` consumes it.
+    if (acc.compiledTriggeredAbilities.length > 0)
+        definition.compiledTriggeredAbilities = acc.compiledTriggeredAbilities;
 
     return { ok: true, definition, plannedMechanics: acc.plannedMechanics };
 }

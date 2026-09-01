@@ -194,6 +194,7 @@ export type GoldBucket =
     | "keyword-only"
     | "mana-ability"
     | "activated"
+    | "triggered"
     | "other";
 
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
@@ -228,6 +229,13 @@ export function goldBucket(definition: CardDefinition): GoldBucket {
     if (keys.length === 0) return "vanilla";
     if (keys.length === 1 && keys[0] === "staticAbilities")
         return "keyword-only";
+    // CR 113.3c — a card whose only behaviour is triggered abilities is the
+    // #2698 shape, measured on its own for the same reason `mana-ability` and
+    // `activated` are: it is produced by its own slot, so a bucket that mixed
+    // it into `other` would hide a trigger regression behind the 1,400-card
+    // bucket the grammar deliberately refuses.
+    if (keys.length === 1 && keys[0] === "triggeredAbilities")
+        return "triggered";
     if (keys.length === 1 && keys[0] === "activatedAbilities") {
         const abilities = definition.activatedAbilities ?? [];
         if (abilities.length === 0) return "other";
@@ -353,6 +361,7 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         "keyword-only": { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         "mana-ability": { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         activated: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        triggered: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         other: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
     };
     const slots: Record<string, GoldBucketStats> = {};

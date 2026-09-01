@@ -50,12 +50,16 @@
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { registerTokenDefinition } from "../cards/registry";
+import { resolveCompiledTrigger } from "../cards/compiledTriggers";
 import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
 } from "../gre/effects/scenarioGenerator";
-import { validateEffectScript } from "../gre/effects/validate";
-import type { EffectOp } from "../cards/types";
+import {
+    validateAbilityEffectScript,
+    validateEffectScript,
+} from "../gre/effects/validate";
+import type { EffectOp, TriggeredAbility } from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
 
 /** Every `op` name anywhere in the definition, sorted and deduplicated. */
@@ -75,14 +79,26 @@ export function collectOps(definition: CompiledDefinition): string[] {
     return [...found].sort();
 }
 
-/** Every `effects[]` script in the definition, wherever it hangs. */
-function collectScripts(definition: CompiledDefinition): EffectOp[][] {
+/**
+ * Every `effects[]` script the COMPILER authored, wherever it hangs.
+ *
+ * The rebuilt triggers are a PARAMETER rather than read off an expanded
+ * definition, so this cannot silently widen to scripts the compiler did not
+ * write — see the narrow-rebuild argument in `runGates`.
+ */
+function collectScripts(
+    definition: CompiledDefinition,
+    rebuiltTriggers: readonly TriggeredAbility[]
+): EffectOp[][] {
     const scripts: EffectOp[][] = [];
     if (definition.effects) scripts.push(definition.effects);
     for (const ability of definition.activatedAbilities ?? []) {
         if (ability.effects) scripts.push(ability.effects);
     }
     for (const ability of definition.triggeredAbilities ?? []) {
+        if (ability.effects) scripts.push(ability.effects);
+    }
+    for (const ability of rebuiltTriggers) {
         if (ability.effects) scripts.push(ability.effects);
     }
     return scripts;
@@ -104,6 +120,41 @@ export function runGates(input: GateInput): GateResult {
     const { definition, plannedMechanics, oracleId } = input;
     const reasons: QuarantineReason[] = [];
     const opsUsed = collectOps(definition);
+    // Issue #2698 — the gates read the compiler's OWN scripts, with its
+    // triggered abilities REBUILT.
+    //
+    // A compiled triggered ability is emitted as a JSON DESCRIPTOR
+    // (`compiledTriggeredAbilities`, `cards/compiledTriggers.ts`) that the
+    // registry seam turns into a real `TriggeredAbility`. Reading the raw
+    // definition alone would therefore never see a trigger's Effect Script at
+    // all — `validateEffectScript` looks at `triggeredAbilities[].effects`,
+    // which does not exist yet — and every trigger card would reach `ready`
+    // with its body unchecked. That is fail-OPEN, in the one module whose
+    // whole contract is to fail closed.
+    //
+    // The rebuild is deliberately NARROW: `resolveCompiledTrigger` per
+    // descriptor, NOT `expandDefinition`. Running the whole ADR 0054 expander
+    // chain here also drags in the abilities the KEYWORD expanders inject
+    // (exalted, prowess, fading N) — scripts this compiler never authored, and
+    // whose `pump $source` body the canned smoke generator cannot model. An
+    // earlier revision of this diff did exactly that and quarantined 41
+    // correctly-compiled keyword-line cards (Aven Squire, Qasali Pridemage, …)
+    // for a fixture limitation in a hand-written engine script, with an
+    // `opsUsed: []` row contradicting its own quarantine reason. A gate may
+    // only judge what the compiler emitted.
+    const rebuiltTriggers: TriggeredAbility[] = [];
+    for (const descriptor of definition.compiledTriggeredAbilities ?? []) {
+        try {
+            rebuiltTriggers.push(resolveCompiledTrigger(descriptor));
+        } catch (error) {
+            // Same no-throw discipline the smoke gate below states: a gate that
+            // throws does not fail one card, it aborts a 35,000-card run.
+            reasons.push({
+                kind: "validate-effect-script",
+                detail: `compiled trigger "${descriptor.id}" could not be rebuilt: ${error instanceof Error ? error.message : String(error)}`,
+            });
+        }
+    }
 
     for (const op of opsUsed) {
         if (!isRegisteredEffectOp(op)) {
@@ -121,7 +172,31 @@ export function runGates(input: GateInput): GateResult {
         });
     }
 
-    const errors = validateEffectScript({ ...definition, id: oracleId });
+    // `validateEffectScript` reads only the CARD-LEVEL spell script (it returns
+    // early on `def.effects === undefined`), so on its own it validated
+    // nothing at all for a card whose whole behaviour is an ability — every
+    // activated card #2697 shipped and every triggered card this ticket ships.
+    // The per-ability validator is the one that walks an ability body, and for
+    // a triggered ability it is also what makes the ADR 0049 `$event.<field>`
+    // census check possible: the check is scoped by the ability's OWN event
+    // type, which only the rebuilt ability carries.
+    const errors = [
+        ...validateEffectScript({ ...definition, id: oracleId }),
+        ...(definition.activatedAbilities ?? []).flatMap((ability) =>
+            validateAbilityEffectScript(ability, definition.name)
+        ),
+        ...rebuiltTriggers.flatMap((ability) =>
+            validateAbilityEffectScript(
+                ability,
+                definition.name,
+                // CR 603.2 — an array-`event` ability spans several event
+                // types, so no single census applies and `$event` is not
+                // legal at that site (ADR 0049); passing undefined is what
+                // says so.
+                typeof ability.event === "string" ? ability.event : undefined
+            )
+        ),
+    ];
     for (const error of errors) {
         reasons.push({ kind: "validate-effect-script", detail: error });
     }
@@ -146,7 +221,7 @@ export function runGates(input: GateInput): GateResult {
         // a missing fixture rather than for anything about the card.
         // `registerTokenDefinition` is idempotent (`cards/registry.ts`).
         registerTokenDefinition(FILLER_CARD_DEFINITION);
-        for (const script of collectScripts(definition)) {
+        for (const script of collectScripts(definition, rebuiltTriggers)) {
             try {
                 const plan = planSmokeTest(script);
                 if (plan.kind === "skip") {

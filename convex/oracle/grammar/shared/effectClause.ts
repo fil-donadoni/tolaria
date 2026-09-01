@@ -166,6 +166,19 @@ export function uncapitalise(span: string): string {
     return span.length === 0 ? span : span[0]!.toLowerCase() + span.slice(1);
 }
 
+/**
+ * The mirror: raise a sentence-initial letter (CR 113.3c).
+ *
+ * A trigger prints its effect clause lowercase ("…, draw a card") where a
+ * spell or activated site prints the same sentence capitalised ("Draw a
+ * card"). Only the sentence-initial letter differs, and only for the FUNCTION
+ * words this grammar dispatches on, so the two casings are one sentence read
+ * through one rule rather than two near-identical pattern tables.
+ */
+export function capitalise(span: string): string {
+    return span.length === 0 ? span : span[0]!.toUpperCase() + span.slice(1);
+}
+
 /** A subject that must be a player (CR 102.1) — "you", "target player". */
 function playerSubject(span: string, ctx: unknown): PlayerRefIR | null {
     const player = playerRefRule.run(span, ctx);

@@ -454,25 +454,36 @@ describe("stubs fail closed", () => {
 
     it("every unimplemented SLOT fails on representative input", () => {
         const cases: [string, string][] = [
-            ["triggered", "When this creature enters, draw a card."],
             ["static", "Creatures you control get +1/+1."],
             ["spell", "Destroy target creature."],
         ];
         const rules = {
-            triggered: triggeredSlot,
             static: staticSlot,
             spell: spellSlot,
         };
         for (const [name, line] of cases) {
             const r = rules[name as keyof typeof rules].run(line, ctx);
             expect(r.ok).toBe(false);
-            if (!r.ok) expect(r.reason).toMatch(/#(2698|2699|2700)/);
+            if (!r.ok) expect(r.reason).toMatch(/#(2699|2700)/);
         }
     });
 
-    it("the CONDITION sub-grammar still fails closed (#2698)", () => {
+    it("the triggered slot no longer fails closed (#2698 shipped it)", () => {
+        const r = triggeredSlot.run(
+            "When this creature enters, draw a card.",
+            ctx
+        );
+        expect(r.ok).toBe(true);
+    });
+
+    it("the CONDITION sub-grammar reads a controls clause (CR 603.4)", () => {
         const r = conditionRule.run("if you control a creature", ctx);
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.reason).toMatch(/#2698/);
+        expect(r.ok).toBe(true);
+        if (r.ok)
+            expect(r.value).toEqual({
+                kind: "controls",
+                filter: { types: ["Creature"] },
+                atLeast: 1,
+            });
     });
 });

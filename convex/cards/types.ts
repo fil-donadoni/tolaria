@@ -1738,6 +1738,21 @@ export interface AnimateSpec {
 import type { PermanentFilter } from "./filters";
 export type { PermanentFilter } from "./filters";
 
+// --- Compiled triggered-ability descriptors (issue #2698) ---
+//
+// Defined in `./compiledTriggers.ts` beside the resolver that rebuilds them,
+// so the descriptor union and its exhaustive factory dispatch cannot drift
+// apart. TYPE-only both ways — the resolver imports the engine types from
+// here, this imports the descriptor shape from there, and neither import
+// survives compilation.
+
+import type { CompiledTriggeredAbility } from "./compiledTriggers";
+export type {
+    CompiledTriggerCondition,
+    CompiledTriggeredAbility,
+    CompiledTriggerHead,
+} from "./compiledTriggers";
+
 /** Where a mana ability's COLOUR options come from when they are derived from
  *  the board instead of printed on the card (CR 605.1a). See
  *  {@link ActivatedAbility.manaColorSource}.
@@ -15410,6 +15425,23 @@ export interface CardDefinition {
      *  template is the value referenced by the grant's `abilityId` field. */
     grantTemplates?: ActivatedAbility[];
     triggeredAbilities?: TriggeredAbility[];
+    /** JSON-pure triggered-ability DESCRIPTORS, rebuilt into real
+     *  `triggeredAbilities` at the `expandDefinition` seam (ADR 0054) by
+     *  `expandCompiledTriggers` (`cards/compiledTriggers.ts`, issue #2698).
+     *
+     *  Exists because `TriggeredAbility.matches` is a required CLOSURE and the
+     *  Oracle compiler emits JSON only (ADR 0105 — `CompiledDefinition` removes
+     *  every function-valued field from the type, and the `not-json` gate fails
+     *  a definition that does not survive a JSON round trip). A compiled card
+     *  therefore holds a descriptor of its trigger and the seam rebuilds the
+     *  ability through the SAME factories a hand-written card calls, which is
+     *  what lets the gold harness compare the two as one object.
+     *
+     *  Written ONLY by the Oracle compiler — a hand-written card calls the
+     *  factory directly and has no reason to go through a descriptor. The
+     *  expander CONSUMES the field: it is absent from the expanded definition
+     *  every engine read sees. */
+    compiledTriggeredAbilities?: CompiledTriggeredAbility[];
     /** Triggered-ability templates GRANTED to other permanents by a
      *  StaticTriggeredGrant on this card's `staticEffects` (CR 113.1, 611).
      *  Kept separate from `triggeredAbilities` so the source itself does not
