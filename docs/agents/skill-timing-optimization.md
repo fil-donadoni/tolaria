@@ -25,10 +25,13 @@ high; suspicion that subagents were not running on cheaper models.
    full pre-PR gates + up to 3 merge-train re-gates ≈ **8 full suites ≈ 19 min**
    of pure test time per batch, plus `check:all` runs. Explains most of the
    perceived slowness.
-4. **`/new-card` Step 8 waste:** skill mandated lockfile reset
+4. **`/new-card` Step 8 waste:** skill mandated a lockfile reset
    (`printf '[]' > data/card-index.json`) + full backfill = online refetch of
    all 1424 indexed cards from Scryfall per new card, even though
-   `backfill-card-index.ts` is idempotent/incremental by design.
+   `backfill-card-index.ts` is idempotent/incremental by design. (That recipe
+   was later found to be destructive as well as slow — it wipes every
+   `source: "compiled"` row — and was replaced everywhere by the incremental
+   backfill plus its `--prune` flag.)
 5. **`/new-set`** is interview-bound (grill, one question per turn, by design)
    — little to cut mechanically. Not touched.
 

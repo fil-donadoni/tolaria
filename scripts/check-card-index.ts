@@ -30,12 +30,20 @@
  * catalogue-wide, still offline.
  *
  * This check is OFFLINE (registry ⇄ lockfile id set comparison) so it can live
- * in `check:all`. The FIX is online — regenerate from the registry:
+ * in `check:all`. The FIX is online — top up the lockfile from the registry:
  *
- *   printf '[]\n' > data/card-index.json && bun run scripts/backfill-card-index.ts
+ *   bun run scripts/backfill-card-index.ts            # missing rows
+ *   bun run scripts/backfill-card-index.ts --prune    # …and drop pollution
  *
- * (backfill is additive/idempotent, so it cannot REMOVE pollution on its own —
- * reset to `[]` first to clear extras, then re-seed.)
+ * The backfill is additive/idempotent, so plain runs only APPEND; `--prune`
+ * is what removes an `extra`, using this file's own `isPollutionEntry` so the
+ * two can never disagree.
+ *
+ * NEVER `printf '[]\n' > data/card-index.json` first. It does clear pollution,
+ * but it also destroys the ~1400 `source: "compiled"` rows, which the backfill
+ * cannot regenerate — they come from `oracle-index-backfill.ts` and its own
+ * Scryfall pass. This hint used to say exactly that and cost a session a
+ * silent 1429-row deletion.
  *
  * Run: bun scripts/check-card-index.ts
  */
@@ -67,7 +75,8 @@ const lockPath = resolve("data/card-index.json");
 if (!existsSync(lockPath)) {
     console.error(
         "✗ card-index: data/card-index.json is missing. Seed it with:\n" +
-            "  printf '[]\\n' > data/card-index.json && bun run scripts/backfill-card-index.ts"
+            "  bun run scripts/backfill-card-index.ts\n" +
+            "(then `bun run oracle:index` to restore the compiled-sourced rows)"
     );
     process.exit(1);
 }
@@ -129,7 +138,8 @@ if (reprinted.length) {
 if (unversioned.length) {
     console.error(
         `✗ card-index: ${unversioned.length} entr(ies) predate the first-printing ` +
-            `field, so ADR 0041 can't be checked for them. Regenerate the lockfile.\n`
+            `field, so ADR 0041 can't be checked for them. Delete just those rows ` +
+            `and re-run the backfill to re-resolve them.\n`
     );
 }
 
@@ -154,8 +164,16 @@ if (extra.length) {
     if (extra.length > 30) console.error(`  … and ${extra.length - 30} more`);
     console.error("");
 }
+// The fix depends on WHICH way the lockfile is out of sync. A plain backfill
+// only appends, so it cannot clear an `extra`; `--prune` clears exactly the
+// rows reported above. Resetting the file to `[]` first would clear them too —
+// and destroy every `source: "compiled"` row with them, which nothing here can
+// rebuild — so it is never the instruction.
 console.error(
-    "Regenerate the lockfile from the registry:\n" +
-        "  printf '[]\\n' > data/card-index.json && bun run scripts/backfill-card-index.ts"
+    extra.length
+        ? "Top up the lockfile and drop the pollution rows:\n" +
+              "  bun run scripts/backfill-card-index.ts --prune"
+        : "Top up the lockfile from the registry:\n" +
+              "  bun run scripts/backfill-card-index.ts"
 );
 process.exit(1);

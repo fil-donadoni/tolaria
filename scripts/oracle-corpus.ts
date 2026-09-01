@@ -5,7 +5,13 @@
  *
  * Usage:
  *   bun scripts/oracle-corpus.ts            # ensure (no-op when a usable cache exists)
- *   bun scripts/oracle-corpus.ts --force    # re-download and re-pin
+ *   bun scripts/oracle-corpus.ts --force    # re-download THE PINNED bulk, verify its sha
+ *   bun scripts/oracle-corpus.ts --repin    # take Scryfall's current bulk and re-pin
+ *
+ * The default reproduces the COMMITTED pin and never touches it. Only
+ * `--repin` bumps `data/oracle-corpus.pin.json` — see `BulkChoice` below for
+ * why that separation matters (a stray re-pin turns a 4-line lockfile diff
+ * into ~50 000 lines of gap-index renumbering).
  *
  * Output:
  *   data/oracle-corpus.json.gz  — the cache. GITIGNORED: it is ~30 MB of
@@ -185,10 +191,38 @@ function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
     return card;
 }
 
-async function download(): Promise<{
-    cards: CorpusCard[];
-    pin: Omit<CorpusPin, "sha256">;
-}> {
+/** Which bulk object to fetch.
+ *
+ *  `pinned` reproduces the COMMITTED `data/oracle-corpus.pin.json` byte for
+ *  byte — it fetches that exact archived URI and never consults Scryfall's
+ *  bulk index, so a rebuild on a machine with no cache produces the corpus the
+ *  lockfile in git was compiled from. That is the default, and it is what makes
+ *  `oracle:compile`'s fix hint safe to follow.
+ *
+ *  `latest` asks the bulk index for today's drop and RE-PINS. It bumps a
+ *  committed file, so it is opt-in (`--repin`).
+ *
+ *  Why the distinction has teeth: Scryfall ships a new oracle bulk most days,
+ *  and the compiler's `gaps` are INDICES into a shared fragment table. One new
+ *  card shifts nearly every index by one, so an unintended re-pin turns a
+ *  4-line lockfile diff into ~50 000 lines of pure renumbering with no semantic
+ *  change — landed once inside an unrelated card PR before this default
+ *  existed. */
+type BulkChoice = "pinned" | "latest";
+
+async function resolveBulk(
+    choice: BulkChoice
+): Promise<{ uri: string; updatedAt: string }> {
+    if (choice === "pinned") {
+        const pin = readPin();
+        if (!pin) {
+            throw new Error(
+                "oracle-corpus: no committed pin (data/oracle-corpus.pin.json) to " +
+                    "reproduce — run with --repin to take Scryfall's current bulk."
+            );
+        }
+        return { uri: pin.downloadUri, updatedAt: pin.updatedAt };
+    }
     const indexRes = await fetch(BULK_INDEX, { headers: HEADERS });
     if (!indexRes.ok) throw new Error(`Scryfall bulk index ${indexRes.status}`);
     const meta = (await indexRes.json()) as Record<string, unknown>;
@@ -197,7 +231,14 @@ async function download(): Promise<{
     // fallback rather than assuming either is present.
     const uri = (meta.jsonl_download_uri ?? meta.download_uri ?? "") as string;
     if (!uri) throw new Error("Scryfall bulk index returned no download uri");
-    const updatedAt = String(meta.updated_at ?? "");
+    return { uri, updatedAt: String(meta.updated_at ?? "") };
+}
+
+async function download(choice: BulkChoice): Promise<{
+    cards: CorpusCard[];
+    pin: Omit<CorpusPin, "sha256">;
+}> {
+    const { uri, updatedAt } = await resolveBulk(choice);
 
     process.stderr.write(`oracle-corpus: downloading ${uri}\n`);
     const res = await fetch(uri, { headers: HEADERS });
@@ -264,22 +305,50 @@ export function corpusIsCached(): boolean {
 }
 
 async function main(): Promise<void> {
-    const force = process.argv.includes("--force");
+    const repin = process.argv.includes("--repin");
+    // `--force` re-downloads; it does NOT decide WHICH bulk (that is `--repin`).
+    const force = process.argv.includes("--force") || repin;
     if (!force && corpusIsCached() && readPin()) {
         process.stderr.write(`oracle-corpus: cache present (${CORPUS_PATH})\n`);
         return;
     }
-    const { cards, pin } = await download();
+    const existingPin = readPin();
+    const { cards, pin } = await download(repin ? "latest" : "pinned");
     const payload = JSON.stringify(cards);
     const sha256 = createHash("sha256").update(payload).digest("hex");
+
+    // Reproducing the pin must actually reproduce it. Scryfall's archived bulk
+    // URIs are immutable, so a mismatch means the reducer changed shape (or the
+    // pin was written by a different version of this script) — either way the
+    // corpus is NOT the one the committed lockfile was compiled from, and
+    // silently compiling against it is how a wrong lockfile gets committed.
+    if (!repin && existingPin && existingPin.sha256 !== sha256) {
+        throw new Error(
+            `oracle-corpus: pinned bulk reproduced a DIFFERENT payload\n` +
+                `  pin:   ${existingPin.sha256} (${existingPin.cardCount} cards)\n` +
+                `  built: ${sha256} (${cards.length} cards)\n` +
+                `The committed lockfile was not compiled from this corpus. If the ` +
+                `reducer changed on purpose, re-pin deliberately: bun run oracle:corpus --repin`
+        );
+    }
+
     mkdirSync(dirname(CORPUS_PATH), { recursive: true });
     writeFileSync(
         CORPUS_PATH,
         gzipSync(Buffer.from(payload, "utf8"), { level: 9 })
     );
-    writeFileSync(PIN_PATH, JSON.stringify({ ...pin, sha256 }, null, 4) + "\n");
+    // Only a deliberate `--repin` rewrites the COMMITTED pin. The default path
+    // has just proved it reproduces the existing one, so rewriting it would be
+    // a no-op that still dirties the working tree.
+    if (repin || !existingPin) {
+        writeFileSync(
+            PIN_PATH,
+            JSON.stringify({ ...pin, sha256 }, null, 4) + "\n"
+        );
+    }
     process.stderr.write(
-        `oracle-corpus: ${cards.length} cards → ${CORPUS_PATH} (updated_at ${pin.updatedAt})\n`
+        `oracle-corpus: ${cards.length} cards → ${CORPUS_PATH} ` +
+            `(updated_at ${pin.updatedAt}${repin ? ", RE-PINNED" : ", pinned"})\n`
     );
 }
 
