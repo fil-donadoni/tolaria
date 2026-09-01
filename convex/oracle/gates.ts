@@ -49,13 +49,13 @@
  */
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
-import { registerTokenDefinition } from "../cards/registry";
+import { expandDefinition, registerTokenDefinition } from "../cards/registry";
 import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
 } from "../gre/effects/scenarioGenerator";
 import { validateEffectScript } from "../gre/effects/validate";
-import type { EffectOp } from "../cards/types";
+import type { CardDefinition, EffectOp } from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
 
 /** Every `op` name anywhere in the definition, sorted and deduplicated. */
@@ -104,6 +104,24 @@ export function runGates(input: GateInput): GateResult {
     const { definition, plannedMechanics, oracleId } = input;
     const reasons: QuarantineReason[] = [];
     const opsUsed = collectOps(definition);
+    // Issue #2698 — gates 2-4 read the EXPANDED definition, gate 5 the raw one.
+    //
+    // A compiled triggered ability is emitted as a JSON DESCRIPTOR
+    // (`compiledTriggeredAbilities`, `cards/compiledTriggers.ts`) that the
+    // registry seam rebuilds into a real `TriggeredAbility`. Validating the raw
+    // definition would therefore never see a trigger's Effect Script at all —
+    // `validateEffectScript` reads `triggeredAbilities[].effects`, which does
+    // not exist yet — and every trigger card would reach `ready` with its body
+    // unchecked. That is fail-OPEN, in the one module whose whole contract is
+    // to fail closed, so the gates run against what the engine will actually
+    // execute. Gate 5 stays on the RAW definition for the mirror-image reason:
+    // the expanded form holds the factories' closures by construction, so a
+    // JSON round trip over it would fail for every trigger card and say
+    // nothing about the row the lockfile stores.
+    const expanded = expandDefinition({
+        ...(definition as CardDefinition),
+        id: oracleId,
+    });
 
     for (const op of opsUsed) {
         if (!isRegisteredEffectOp(op)) {
@@ -121,7 +139,7 @@ export function runGates(input: GateInput): GateResult {
         });
     }
 
-    const errors = validateEffectScript({ ...definition, id: oracleId });
+    const errors = validateEffectScript(expanded);
     for (const error of errors) {
         reasons.push({ kind: "validate-effect-script", detail: error });
     }
@@ -146,7 +164,7 @@ export function runGates(input: GateInput): GateResult {
         // a missing fixture rather than for anything about the card.
         // `registerTokenDefinition` is idempotent (`cards/registry.ts`).
         registerTokenDefinition(FILLER_CARD_DEFINITION);
-        for (const script of collectScripts(definition)) {
+        for (const script of collectScripts(expanded)) {
             try {
                 const plan = planSmokeTest(script);
                 if (plan.kind === "skip") {

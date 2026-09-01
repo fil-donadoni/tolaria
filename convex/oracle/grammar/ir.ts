@@ -13,7 +13,9 @@
 
 import type { Color, ManaCost } from "../../cards/types";
 import type { ActivationCostIR } from "./shared/cost";
+import type { ConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
+import type { TriggerHeadIR } from "./shared/triggerHead";
 
 /** One keyword ability named on a keyword line (CR 702.1). */
 export interface KeywordIR {
@@ -49,6 +51,19 @@ export type SlotIR =
           readonly cost: ActivationCostIR;
           readonly effects: readonly EffectSentenceIR[];
           readonly restrictions: readonly RestrictionIR[];
+      }
+    /**
+     * CR 113.3c — a triggered ability: a trigger EVENT, an optional CR 603.4
+     * intervening-if, and one or more effect sentences. The head is kept in
+     * the sentence's vocabulary (`self-enters`) rather than the engine's
+     * (`PERMANENT_ENTERED` + `scope: "self"`) for the reason this file's
+     * header gives: a lowering bug must not read as a parse bug.
+     */
+    | {
+          readonly kind: "triggered";
+          readonly head: TriggerHeadIR;
+          readonly condition?: ConditionIR;
+          readonly effects: readonly EffectSentenceIR[];
       };
 
 /** A line, the slot that consumed it, and what it means. */

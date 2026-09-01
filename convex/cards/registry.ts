@@ -27,6 +27,7 @@ import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
+import { expandCompiledTriggers } from "./compiledTriggers";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 
@@ -154,10 +155,16 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // Annihilator N (CR 702.86, issue #2295) its declare-attackers
     // "defending player sacrifices N permanents" trigger — one per declared
     // instance of the keyword (CR 702.86b).
+    // Issue #2698 — `expandCompiledTriggers` runs INNERMOST so a compiled
+    // card's rebuilt triggers are visible to every later expander exactly as a
+    // hand-written card's are (a keyword expander must not see a different
+    // ability set depending on where the trigger came from).
     const expanded = expandAnnihilator(
         expandHideaway(
             expandKeywordTriggers(
-                expandFadingVanishing(expandChapterAbilities(base))
+                expandFadingVanishing(
+                    expandChapterAbilities(expandCompiledTriggers(base))
+                )
             )
         )
     );
