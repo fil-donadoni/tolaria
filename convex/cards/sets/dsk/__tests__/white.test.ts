@@ -34,8 +34,13 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { withTemporaryDefinition } from "../../../registry";
+import { enteredTrigger as makeEnteredTrigger } from "../../../abilities/triggers/enteredTrigger";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
-import type { CardDefinition, TriggeredAbility } from "../../../types";
+import type {
+    CardDefinition,
+    PermanentEnteredEvent,
+    TriggeredAbility,
+} from "../../../types";
 
 /** Board with Enduring Innocence on `controllerId`'s battlefield, owned by
  *  `ownerId` (they differ only in the Control-Magic case). */
@@ -244,6 +249,132 @@ describe("Enduring Innocence — dies trigger returns it as an enchantment (CR 2
         expect(card).toBeDefined();
         expect(card!.types).toEqual(["Enchantment"]);
         expect(card!.subtypes).toEqual([]);
+    });
+});
+
+describe("Enduring Innocence — it ENTERS as an enchantment (CR 603.6a, issue #2993)", () => {
+    /** A watcher permanent whose unfiltered entered-trigger `condition` records
+     *  the raw `PermanentEnteredEvent` and then declines to trigger. It is the
+     *  emit site itself under assertion — the payload every "whenever a
+     *  [type] enters" watcher on the battlefield is matched against (CR 603.6a)
+     *  — not a downstream symptom of it. */
+    function watcherRecording(seen: PermanentEnteredEvent[]): CardDefinition {
+        return {
+            id: "test-entry-watcher",
+            name: "Test Entry Watcher",
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Enchantment"],
+            oracleText: "Test only.",
+            triggeredAbilities: [
+                makeEnteredTrigger({
+                    id: "watch",
+                    oracleText: "Test only.",
+                    scope: "any-other",
+                    condition: (event) => {
+                        seen.push(event);
+                        return false;
+                    },
+                    effects: [],
+                }),
+            ],
+        };
+    }
+
+    it("the PERMANENT_ENTERED event announces types: [Enchantment] and NO power/toughness", () => {
+        const seen: PermanentEnteredEvent[] = [];
+        withTemporaryDefinition(watcherRecording(seen), () => {
+            const innocence = makeInstance(enduringInnocence.id, {
+                id: "innocence",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const watcher = makeInstance("test-entry-watcher", {
+                id: "watcher",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [innocence, watcher] }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            killAndResolve(state, "innocence");
+
+            const entry = seen.find((e) => e.instanceId === "innocence");
+            expect(entry).toBeDefined();
+            // CR 205.1a / 613.1d — what ENTERED is an enchantment. Before
+            // issue #2993 this read ["Enchantment", "Creature"]: the type line
+            // was applied by a trailing `setCardTypes`, after the entry event
+            // had already been emitted.
+            expect(entry!.types).toEqual(["Enchantment"]);
+            // `PermanentEnteredEvent.power` is documented as present ONLY when
+            // `types` includes Creature, so it must be absent here — the same
+            // bug, read off the other field.
+            expect(entry!.power).toBeUndefined();
+            expect(entry!.toughness).toBeUndefined();
+        });
+    });
+
+    it('its own sibling\'s "whenever one or more OTHER creatures … enter" does NOT see it — two Innocences, B draws nothing', () => {
+        // The end-to-end board from issue #2993, measured on `main` before the
+        // fix: killing A and resolving its return drew B a card (p1HandSize 1)
+        // even though A came back an Enchantment.
+        const a = makeInstance(enduringInnocence.id, {
+            id: "innocence-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(enduringInnocence.id, {
+            id: "innocence-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const library = [0, 1, 2].map((i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b], library }),
+                makePlayer("p2"),
+            ],
+        });
+
+        killAndResolve(state, "innocence-a");
+
+        // A did come back — the return itself is unchanged.
+        expect(findOnBattlefield(state, "innocence-a")!.types).toEqual([
+            "Enchantment",
+        ]);
+        // …and B, watching for OTHER creatures with power 2 or less entering,
+        // saw no creature enter (CR 603.6a).
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(3);
+    });
+
+    it("CR 400.7 is unaffected: the entry-stamped line still reverts to PRINTED when it later leaves", () => {
+        // The stamp writes the SAME `grantedTypes` / `suppressedTypes` /
+        // `indefiniteSubtypeSet` records the Ops wrote, so the departure-side
+        // `revertTypeLine` needs no knowledge of it. Guards the seam against a
+        // second, stamp-shaped storage that nothing reverts.
+        const { state } = boardWith();
+        killAndResolve(state, "innocence");
+        removePermanentTo(state, "innocence", "graveyard", "destroy");
+
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === "innocence"
+        )!;
+        expect(inGraveyard.types).toEqual(["Enchantment", "Creature"]);
+        expect(inGraveyard.subtypes).toEqual(["Sheep", "Glimmer"]);
+        // And nothing is left holding a pending entry stamp.
+        expect(inGraveyard.entersAsTypeLine).toBeUndefined();
     });
 });
 

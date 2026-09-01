@@ -372,6 +372,32 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
+    it("preserves a PENDING entry type line across a save/load (CR 205.1a / 614.12a, #2993)", () => {
+        // `entersAsTypeLine` is normally stamped and consumed inside one
+        // synchronous entry ("return it to the battlefield. It's an
+        // enchantment."), but a permanent owing "as it enters" choices is
+        // parked in `stagedEntries` across a REAL save point (ADR 0100) and
+        // re-enters the funnel on a later mutation. Lost across the round trip,
+        // that permanent enters as its printed self and the entry event
+        // announces a creature.
+        const state = freshState();
+        const parked = state.players[1].battlefield[0];
+        parked.entersAsTypeLine = {
+            types: ["Enchantment"],
+            subtypes: [],
+        };
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[1].battlefield[0].entersAsTypeLine).toEqual({
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+        // Absent when no entry is pending — the overwhelmingly common case.
+        const empty = expandState(compactState(freshState()));
+        expect(
+            empty.players[1].battlefield[0].entersAsTypeLine
+        ).toBeUndefined();
+    });
+
     it("an indefinitely-set subtype line reverts on leaving the battlefield ACROSS a save/load (CR 400.7, #2255)", () => {
         // A pure round-trip equality test (above) is not enough on its own —
         // the bug was the ANCHOR being lost, whose only visible symptom is

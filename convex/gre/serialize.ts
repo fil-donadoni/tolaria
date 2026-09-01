@@ -236,6 +236,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "grantedTypes",
     "hasAttackedThisTurn",
     "hasBlockedThisTurn",
+    "entersAsTypeLine",
     "imagePrintId",
     "indefiniteSubtypeSet",
     "isAttacking",
@@ -415,6 +416,15 @@ function compactCard(
     // (which IS persisted) survives — the permanent never reverts (#2255).
     if (card.indefiniteSubtypeSet) {
         out.indefiniteSubtypeSet = card.indefiniteSubtypeSet;
+    }
+    // CR 205.1a / 613.1d / 614.12a (issue #2993) — the PENDING entry type line
+    // ("return it to the battlefield. It's an enchantment."). Normally stamped
+    // and consumed inside one synchronous entry, but a permanent owing "as it
+    // enters" choices is PARKED in `stagedEntries` across a real save point
+    // (ADR 0100) and re-enters the funnel on a later mutation, so the stamp
+    // must survive the round trip or that permanent enters as its printed self.
+    if (card.entersAsTypeLine) {
+        out.entersAsTypeLine = card.entersAsTypeLine;
     }
     if (card.temporaryColorOverride) {
         out.temporaryColorOverride = card.temporaryColorOverride;
@@ -866,6 +876,10 @@ function expandCard(
     if (compact.indefiniteSubtypeSet) {
         result.indefiniteSubtypeSet =
             compact.indefiniteSubtypeSet as CardInstanceState["indefiniteSubtypeSet"];
+    }
+    if (compact.entersAsTypeLine) {
+        result.entersAsTypeLine =
+            compact.entersAsTypeLine as CardInstanceState["entersAsTypeLine"];
     }
     if (compact.temporaryColorOverride) {
         result.temporaryColorOverride =
