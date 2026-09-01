@@ -252,12 +252,13 @@ export function resolveCompiledTrigger(
 export function expandCompiledTriggers(base: CardDefinition): CardDefinition {
     const descriptors = base.compiledTriggeredAbilities;
     if (descriptors === undefined || descriptors.length === 0) return base;
-    const { compiledTriggeredAbilities: _consumed, ...rest } = base;
-    return {
-        ...rest,
+    const expanded: CardDefinition = {
+        ...base,
         triggeredAbilities: [
             ...(base.triggeredAbilities ?? []),
             ...descriptors.map(resolveCompiledTrigger),
         ],
     };
+    delete expanded.compiledTriggeredAbilities;
+    return expanded;
 }
