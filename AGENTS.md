@@ -263,7 +263,12 @@ prose is the fallback for judgment, not the home of invariants.
    (upserts by label; row is deployment-local by design). Interactive work:
    Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
    for pure refactors.
-8. **UI verify** — mandatory whenever the diff can change what a user sees
+8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
+   freeze, no silent ignore. Three seams per
+   `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
+   in the PR like a preset scenario. The guards cover valuation only, and the
+   `blade` receipt field fires on `BOT_GLOBS`, which a new card never touches.
+9. **UI verify** — mandatory whenever the diff can change what a user sees
    (`bun run check:ui`, five viewports + probe receipt,
    `.claude/rules/chrome-debug.md`); nothing owed when the diff cannot reach
    the DOM
@@ -448,6 +453,8 @@ You are in the Bot — read `/bot-slice` first; full seam map + doctrine.
   (`Record<keyof EvalTerms, …>`, so `tsc` reds on a missing row). #2686
   shipped `manaDevelopment` and it was invisible in both.
 - Determinism required — fixed `iterations`, never wall-clock (`timeMs`).
+- A NEW CARD owes a Bot reachability walk too, though its diff touches no bot
+  path (`gre-development.md` § Bot reachability).
 
 ## Browser Verification Rules
 
@@ -567,6 +574,18 @@ reducers, and every reducer can silently drop a field. This is the single most
 common recurring bug class. **Walk the reducers before marking done**:
 `projectPublicState`, `buildTriggerStateView`, `getStackAbilities`,
 `matchesTargetRequirement` / `TARGET_LABEL`.
+
+### Bot reachability analysis (mandatory for EVERY new card/mechanic)
+
+Mirror of the above, other side of the engine: a card correct in the GRE can be
+one the **Bot never plays**. Nothing catches that for a new card — the censuses
+cover VALUATION only, and the `blade` receipt field fires on `BOT_GLOBS`, which
+`cards/sets/**` never touches. **Walk three seams**: `enumerateMoves`
+(reachable?), the choice surface (can it answer?), `OP_VALUERS` +
+`OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
+the outcome in the PR like a preset scenario: a `must` blade entry, or one line
+naming the seam that covers it. Walk: `docs/guides/bot-reachability.md`.
+**Ignored and frozen are both unshipped.**
 
 ### Exhaustive target-type matching
 

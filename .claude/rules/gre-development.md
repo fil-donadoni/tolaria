@@ -76,6 +76,18 @@ common recurring bug class. **Walk the reducers before marking done**:
 `projectPublicState`, `buildTriggerStateView`, `getStackAbilities`,
 `matchesTargetRequirement` / `TARGET_LABEL`.
 
+## Bot reachability analysis (mandatory for EVERY new card/mechanic)
+
+Mirror of the above, other side of the engine: a card correct in the GRE can be
+one the **Bot never plays**. Nothing catches that for a new card — the censuses
+cover VALUATION only, and the `blade` receipt field fires on `BOT_GLOBS`, which
+`cards/sets/**` never touches. **Walk three seams**: `enumerateMoves`
+(reachable?), the choice surface (can it answer?), `OP_VALUERS` +
+`OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
+the outcome in the PR like a preset scenario: a `must` blade entry, or one line
+naming the seam that covers it. Walk: `docs/guides/bot-reachability.md`.
+**Ignored and frozen are both unshipped.**
+
 ## Exhaustive target-type matching
 
 Code switching on `TargetRequirement.type` uses an exhaustive helper or lists
