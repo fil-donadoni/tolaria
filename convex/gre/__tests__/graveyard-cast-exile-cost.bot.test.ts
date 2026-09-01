@@ -182,7 +182,7 @@ describe("escape cast enumeration (CR 702.138a)", () => {
 
         // The ISMCTS sandbox mutates in place.
         const tree = cloneGameState(state);
-        applyMoveInSearch(tree, ME, cast, () => 0.5);
+        applyMoveInSearch(tree, ME, cast);
         expect(exileIds(tree)).toEqual([
             "filler-0",
             "filler-1",
@@ -252,7 +252,7 @@ describe("non-mana flashback cast enumeration (CR 702.34a / 118.5)", () => {
         const greedy = applyMoveForSearch(state, ME, cast);
         expect(greedy.players[0].battlefield.map((c) => c.id)).toEqual([]);
         const tree = cloneGameState(state);
-        applyMoveInSearch(tree, ME, cast, () => 0.5);
+        applyMoveInSearch(tree, ME, cast);
         expect(tree.players[0].battlefield.map((c) => c.id)).toEqual([]);
     });
 
