@@ -42,7 +42,6 @@ import {
     castRawManaCost,
     exileCastPermission,
     graveyardCastMechanism,
-    searchCanModelGraveyardCast,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
@@ -1444,11 +1443,11 @@ function enumerateCastMovesFromZone(
     // graveyard grant nothing at all, instead of the printed cost none of them
     // pays. Before this the enumerator had no way to reach those costs at all:
     // the helper lived in `convex/game.ts`, which imports this module.
+    const castFromZone: CastFromZone = opts?.castFromZone ?? "hand";
     const rawCost =
         lifeInsteadOfMana !== undefined
             ? {}
-            : (castRawManaCost(state, card, opts?.castFromZone ?? "hand") ??
-              {});
+            : (castRawManaCost(state, card, castFromZone) ?? {});
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
@@ -1729,10 +1728,30 @@ function enumerateCastMovesFromZone(
         // black spell under Drought with no Swamp), which the castability gate
         // does not check for static sacrifices; fail closed rather than emit a
         // move the executor cannot pay.
-        const castCostPicks = def
-            ? planCastCostPicks(state, player, card, def, additionalCostLegId)
-            : undefined;
-        if (castCostPicks === null) continue;
+        // CR 702.34a / 118.5 (issue #2980) — ONE leg is X-dependent: Flash of
+        // Insight's `flashbackExileFromGraveyard` exiles exactly the announced
+        // X cards. For that card, and only that card, the plan is recomputed
+        // per candidate X inside the loop below; every other cast keeps the
+        // hoist (the plan reads the board and the flattened additional cost,
+        // never the chosen X), so no X spell pays for a battlefield rescan per
+        // candidate X.
+        const exilePlanDependsOnX =
+            castFromZone === "graveyard" &&
+            def?.additionalCosts?.flashbackExileFromGraveyard !== undefined;
+        const hoistedCostPicks =
+            def && !exilePlanDependsOnX
+                ? planCastCostPicks(
+                      state,
+                      player,
+                      card,
+                      def,
+                      additionalCostLegId,
+                      {
+                          castFromZone,
+                      }
+                  )
+                : undefined;
+        if (hoistedCostPicks === null) continue;
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
@@ -1841,6 +1860,21 @@ function enumerateCastMovesFromZone(
                     )
                 );
             }
+            const castCostPicks = exilePlanDependsOnX
+                ? planCastCostPicks(
+                      state,
+                      player,
+                      card,
+                      def,
+                      additionalCostLegId,
+                      { castFromZone, chosenX: x }
+                  )
+                : hoistedCostPicks;
+            // `null` = a leg has no legal payment (a black spell under Drought
+            // with no Swamp; a graveyard too thin to pay an escape exile).
+            // Neither is checked by the castability gate, so fail closed rather
+            // than emit a move the executor announces and cannot pay.
+            if (castCostPicks === null) continue;
             const tapPlan = planManaPayment(state, player, normCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
@@ -2958,11 +2992,17 @@ export function enumerateMoves(
     // fail-closed reason the retrace loop states: the gate's final "cast is for
     // all non-land cards" fallback is zone-blind and would report "cast" for a
     // graveyard card no mechanism permits, which `locateCastSource` then
-    // refuses to locate. `searchCanModelGraveyardCast` then drops the two
-    // mechanisms whose cost the `cast-spell` Move cannot carry — escape's
-    // exile-N-others and a non-mana flashback cost — rather than offering a
-    // cast the executor would announce and fail to pay (the announce-then-abort
-    // bot-freeze shape).
+    // refuses to locate.
+    //
+    // ESCAPE (CR 702.138) and a non-mana FLASHBACK cost used to be dropped here
+    // by a `searchCanModelGraveyardCast` predicate, because the `cast-spell`
+    // Move had no field for "exile N other cards from your graveyard" and an
+    // escape cast priced as if the exile were free would park unpayable at the
+    // real mutation. Both costs now ride on the Move
+    // (`CastCostPicks.exileCostCardIds` / `.sacrificeIds`, issue #2980) and are
+    // charged in both sandboxes, so the predicate is gone: the ONE remaining
+    // fail-closed gate is `planCastCostPicks` returning `null` for a board that
+    // cannot pay a leg, checked inside `enumerateCastMoves`.
     for (const card of player.graveyard) {
         const mechanism = graveyardCastMechanism(
             state,
@@ -2971,7 +3011,6 @@ export function enumerateMoves(
             player.id
         );
         if (mechanism === undefined || mechanism === "retrace") continue;
-        if (!searchCanModelGraveyardCast(card, mechanism)) continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
         moves.push(
             ...enumerateCastMoves(state, player, card, {

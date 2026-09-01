@@ -124,6 +124,7 @@ function engineMutations(state: GameState): MoveMutations {
             selectSacrificeOnState(state, { playerId, cardInstanceId });
         },
         selectAdditionalCost: reject,
+        selectCastExileCost: reject,
         selectActivationCost: reject,
         selectActivationExileCost: reject,
         selectActivationDiscardCost: async ({ playerId, cardInstanceIds }) => {

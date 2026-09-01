@@ -155,6 +155,15 @@ export type MoveMutations = {
     selectActivationCost: (
         a: GP & { cardInstanceId: string }
     ) => Promise<unknown>;
+    /** CR 702.138a / 702.34a / 118.5 — names the cards exiled to pay a GRAVEYARD
+     *  cast's non-mana exile cost: escape's "exile N other cards from your
+     *  graveyard" (Uro, Phlage, everything Underworld Breach grants escape to),
+     *  Flash of Insight's `flashbackExileFromGraveyard`, or the flashback-only
+     *  "exile a card from your hand" leg. One batched call — the server
+     *  validates the whole pick against the parked picker at once. */
+    selectCastExileCost: (
+        a: GP & { cardInstanceIds: string[] }
+    ) => Promise<unknown>;
     /** CR 602.1 / 118.5 — names the cards exiled from ONE graveyard for an
      *  `exileFromGraveyard` activation cost (Grim Lavamancer, Night Soil). */
     selectActivationExileCost: (
@@ -514,6 +523,20 @@ export async function executeMove(
                     await mutations.selectAdditionalCost({
                         ...base,
                         cardInstanceId: castPicks.additionalCostCardId,
+                    });
+                }
+                // CR 702.138a / 702.34a (issue #2980) — the graveyard cast's
+                // exile cost, LAST of the three because that is its place in
+                // the commit gate's canonical park order (`PARK_KINDS`,
+                // `convex/gre/owedPayment.ts`): sacrifice → additional cost →
+                // convoke → exile. One batched call, unlike the per-victim
+                // sacrifice loop above, because `selectCastExileCost` validates
+                // the whole pick (count, colour, card-type threshold) against
+                // the parked picker in one go and rejects a partial one.
+                if (castPicks.exileCostCardIds?.length) {
+                    await mutations.selectCastExileCost({
+                        ...base,
+                        cardInstanceIds: castPicks.exileCostCardIds,
                     });
                 }
             }

@@ -337,8 +337,14 @@ function convokeViewFor(
 }
 
 /** The cast-side exile picker's candidate ids + bounds, read off the payer's own
- *  graveyard/hand (CR 702.34a / 702.66 / 702.138a). */
-function castExileViewFor(
+ *  graveyard/hand (CR 702.34a / 702.66 / 702.138a).
+ *
+ *  Exported for `gre/castCostPicks.ts` (issue #2980): the Bot's move enumerator
+ *  plans an escape / non-mana-flashback exile cost by building the SAME view and
+ *  feeding it to the SAME {@link chooseCastExileCost}, so the ids the search
+ *  charges are byte-identical to the ones this module's live reactive fallback
+ *  would submit for the same park. */
+export function castExileViewFor(
     player: PlayerState,
     ec: NonNullable<GameState["pendingCast"]>["exileFromGraveyardChoice"]
 ): CastExileChoiceView | null {

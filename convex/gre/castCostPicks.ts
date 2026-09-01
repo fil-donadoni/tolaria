@@ -40,7 +40,14 @@ import {
     type SacrificeRequirement,
     type SacrificeSelection,
 } from "./sacrificeChoice";
-import { cheapestFirst, completeSacrificeSelection } from "./paymentPicks";
+import {
+    castExileViewFor,
+    cheapestFirst,
+    chooseCastExileCost,
+    completeSacrificeSelection,
+} from "./paymentPicks";
+import { buildCastExileCostChoice, type CastFromZone } from "./castCost";
+import { getFlashbackAdditionalCost } from "./flashback";
 import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
 import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
@@ -72,25 +79,51 @@ export type CastCostPicks = {
     /** CR 701.13 / 118.8 — the single permanent exiled to pay `additionalCosts
      *  .exileFilter` (Soul Exchange). */
     additionalCostCardId?: string;
+    /** CR 702.138a / 702.34a / 118.5 (issue #2980) — the cards exiled to pay a
+     *  GRAVEYARD cast's non-mana exile cost: escape's "exile N other cards from
+     *  your graveyard" (Uro, Phlage, and everything Underworld Breach grants
+     *  escape to), Flash of Insight's `flashbackExileFromGraveyard`, or the
+     *  flashback-only "exile a card from your HAND" leg. All three park on the
+     *  ONE `PendingCast.exileFromGraveyardChoice` slot and submit through the
+     *  ONE `selectCastExileCost` mutation, so they share one field here; the
+     *  source zone is re-derived from the same builder wherever it matters.
+     *
+     *  Charging this in the search sandboxes is not an accuracy nicety, it is
+     *  what BOUNDS the line: escape (unlike flashback, CR 702.34a) exiles
+     *  nothing on resolution, so an escaped card returns to the graveyard and
+     *  is escapable again — exactly the unbounded-recast shape the retrace land
+     *  discard exists to bound. A sandbox that skipped the exile would model an
+     *  escape creature as infinitely recurring. */
+    exileCostCardIds?: string[];
 };
 
 /** GRE mirror of `game.ts`'s `buildCastSacrificeSelection` (issue #2135): the
  *  cast's filtered-sacrifice selection — the card's OWN `additionalCosts
  *  .sacrificeFilter` (after the caster-chosen `oneOf` leg is flattened, CR
- *  601.2b) plus every board-wide static additional sacrifice (Drought, CR
- *  118.8) — and its exile additional-cost filter. The flashback-only
- *  "Sacrifice a <filter>" cost is deliberately NOT modelled here: the bot
- *  enumerator emits no flashback cast at all
- *  (`docs/findings/2358-graveyard-cast-moves.md`), so no call site can reach a
- *  graveyard cast. This lives in the GRE because `game.ts` is the mutation
- *  SURFACE (ADR 0074), not a library the engine's own move-generation and
- *  search sandboxes depend on. */
+ *  601.2b), the flashback-only "Sacrifice a <filter>" cost on a GRAVEYARD cast
+ *  (CR 702.34a / 118.5 — Lava Dart's "Sacrifice a Mountain"), and every
+ *  board-wide static additional sacrifice (Drought, CR 118.8) — plus its exile
+ *  additional-cost filter. This lives in the GRE because `game.ts` is the
+ *  mutation SURFACE (ADR 0074), not a library the engine's own move-generation
+ *  and search sandboxes depend on.
+ *
+ *  Requirement ORDER matches `buildCastSacrificeSelection` line for line — own
+ *  filter, then the flashback leg, then the statics — because
+ *  `completeSacrificeSelection` walks the requirements in order and takes the
+ *  cheapest still-unused match for each: a different order names different
+ *  victims, and the whole point of the pick riding on the Move is that the
+ *  search charges exactly what the server accepts. */
 export function buildCastCostSelection(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     additionalCosts: AdditionalCostSpec | undefined,
-    reason: string
+    reason: string,
+    /** CR 601.3 / 702.34 — the zone this cast leaves. Only a `"graveyard"` cast
+     *  owes the flashback sacrifice leg, so the cost never leaks onto the hand
+     *  cast of the same card. Defaults to `"hand"`, which is what every
+     *  pre-#2980 caller meant. */
+    castFromZone: CastFromZone = "hand"
 ): {
     selection?: SacrificeSelection;
     exileFilter?: PermanentFilter;
@@ -102,6 +135,14 @@ export function buildCastCostSelection(
             count: 1,
             snapshot: true,
         });
+    }
+    // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost (Lava
+    // Dart), owed ONLY on a flashback cast. Exactly one permanent, and NOT
+    // snapshot-flagged: the flashback resolution reads no sacrificed-permanent
+    // data. Mirrors `buildCastSacrificeSelection`'s own branch exactly.
+    if (castFromZone === "graveyard") {
+        const fbSacrifice = getFlashbackAdditionalCost(card)?.sacrifice;
+        if (fbSacrifice) specs.push({ filter: fbSacrifice, count: 1 });
     }
     // CR 601.2f / 118.5 — the board-wide static additional sacrifice (Drought),
     // per effect, per colour symbol in the PRINTED mana cost.
@@ -153,14 +194,16 @@ export function applyCastSacrificeVictims(
     card: CardInstanceState,
     additionalCosts: AdditionalCostSpec | undefined,
     picks: CastCostPicks | undefined,
-    reason: string
+    reason: string,
+    castFromZone: CastFromZone = "hand"
 ): AdditionalSacrificeSnapshot | undefined {
     const { selection } = buildCastCostSelection(
         state,
         player,
         card,
         additionalCosts,
-        reason
+        reason,
+        castFromZone
     );
     if (!selection) return undefined;
     const submitted = picks?.sacrificeIds ?? [];
@@ -180,34 +223,45 @@ export function applyCastSacrificeVictims(
 }
 
 /** The deterministic (K=1) picks for every mandatory additional-cost park a
- *  cast of `card` owes: the cheapest-first sacrifice victims (CR 701.21) and
- *  the cheapest matching permanent for the exile leg (CR 701.13, Soul
- *  Exchange). `undefined` when the cast owes no such park. `null` when a leg
- *  has no legal payment — the cast is then not a legal move at all, though the
- *  enumerator's gate (`getLegalActions` → `hasPayableAdditionalCost`) already
- *  drops it first.
+ *  cast of `card` owes: the cheapest-first sacrifice victims (CR 701.21 — the
+ *  card's own filter, the flashback "Sacrifice a <filter>" leg on a graveyard
+ *  cast, and Drought's static tax), the cheapest matching permanent for the
+ *  exile leg (CR 701.13, Soul Exchange), and the cards exiled for a graveyard
+ *  cast's non-mana exile cost (CR 702.138a escape / CR 702.34a flashback).
+ *  `undefined` when the cast owes no such park. `null` when a leg has no legal
+ *  payment — the cast is then not a legal move at all, and for the exile leg
+ *  this `null` is the ONLY gate: `getLegalActions` does not check that the
+ *  graveyard holds enough fodder, so without it the enumerator would offer an
+ *  escape cast the announcement throws on.
  *
  *  `chosenLegId` names the caster-chosen `oneOf` leg (`additionalCostLegId`),
  *  flattened through `resolveAdditionalCosts` so a `oneOf` leg carrying a
  *  sacrifice/exile filter is priced exactly as `announceCast` prices it.
  *
  *  The returned ids are exactly what `executor.ts` names to `selectSacrifice` /
- *  `selectAdditionalCost`, and what both search sandboxes remove — so the
- *  search, the greedy sandbox and the live bot can never drift. */
+ *  `selectAdditionalCost` / `selectCastExileCost`, and what both search
+ *  sandboxes remove — so the search, the greedy sandbox and the live bot can
+ *  never drift. */
 export function planCastCostPicks(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     def: CardDefinition | undefined,
-    chosenLegId: string | undefined
+    chosenLegId: string | undefined,
+    /** CR 601.3 (issue #2980) — the zone this cast leaves and, for the
+     *  X-dependent `flashbackExileFromGraveyard` cost, the X it announces.
+     *  Omitted = a hand cast, which owes neither of the graveyard legs. */
+    opts?: { castFromZone?: CastFromZone; chosenX?: number }
 ): CastCostPicks | undefined | null {
+    const castFromZone = opts?.castFromZone ?? "hand";
     const spec = resolveAdditionalCosts(def?.additionalCosts, chosenLegId);
     const { selection, exileFilter } = buildCastCostSelection(
         state,
         player,
         card,
         spec,
-        def?.name ?? "Sacrifice"
+        def?.name ?? "Sacrifice",
+        castFromZone
     );
     const picks: CastCostPicks = {};
     // A sacrifice park the server auto-resolves at announcement (a fungible /
@@ -248,6 +302,42 @@ export function planCastCostPicks(
         picks.additionalCostCardId = pick.id;
     }
 
-    if (!owesSacrifice && !picks.additionalCostCardId) return undefined;
+    // CR 702.138a / 702.34a / 118.5 — the graveyard cast's exile cost, through
+    // the SAME builder the announcement parks on (`buildCastExileCostChoice`,
+    // `gre/castCost.ts`) and the SAME deterministic answer the live reactive
+    // fallback submits for that park (`chooseCastExileCost` over
+    // `castExileViewFor`, `gre/paymentPicks.ts`). Two shared authorities rather
+    // than a third private pick, so the ids the search charges, the ids the
+    // executor names, and the ids `pickForOwedPayment` would have chosen are
+    // one and the same list.
+    const exileBuild = buildCastExileCostChoice(
+        state,
+        player,
+        card,
+        castFromZone,
+        { additionalCosts: spec, chosenX: opts?.chosenX }
+    );
+    if (exileBuild) {
+        // Not enough fodder in the graveyard / hand: the cast is unpayable, so
+        // fail CLOSED rather than offer a Move whose announcement throws.
+        if ("unpayable" in exileBuild) return null;
+        // `exileBuild.choice` is defined here, so the view never comes back
+        // null (`castExileViewFor` only nulls on an absent picker).
+        const view = castExileViewFor(player, exileBuild.choice)!;
+        const ids = chooseCastExileCost(view);
+        // `chooseCastExileCost` CLAMPS to what is available, so a short board
+        // yields fewer ids than the picker demands rather than an illegal
+        // submission — the same unpayable position reached one step later.
+        if (ids.length < view.required) return null;
+        picks.exileCostCardIds = ids;
+    }
+
+    if (
+        !owesSacrifice &&
+        !picks.additionalCostCardId &&
+        !picks.exileCostCardIds
+    ) {
+        return undefined;
+    }
     return picks;
 }

@@ -68,7 +68,7 @@ import {
     additionalCostHandLeg,
     resolveAdditionalCosts,
 } from "./additionalCost";
-import type { CardDefinition } from "../cards/types";
+import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
 import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
 import { completeSacrificeSelection } from "./paymentPicks";
 import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
@@ -118,11 +118,13 @@ import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
 import { genericManaShortfall, markGraveyardPermanentCastUsed } from "./rules";
 import {
+    buildCastExileCostChoice,
     castSourceForSearch,
     graveyardCastMechanism,
     graveyardCastStackFlags,
     reboundCastStackFlags,
 } from "./castCost";
+import type { CastFromZone } from "./castCost";
 // CR 702.35a / 702.88a-c (issue #2983) — the reflexive cast windows' own pure
 // resolvers, so this sandbox's accept and decline are the EXACT functions the
 // mutations drive, matching `applyMoveInSearch` (search.ts).
@@ -357,11 +359,45 @@ export function applyCastCostPicksForSearch(
     picks: CastCostPicks | undefined,
     costOut?: {
         additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
-    }
-): void {
-    if (!picks) return;
+    },
+    /** CR 601.3 / 702.34 (issue #2980) — the zone this cast leaves, and the X
+     *  it announced. Only a `"graveyard"` cast owes the flashback sacrifice leg
+     *  and the escape / flashback EXILE leg, so a hand cast of the same card is
+     *  charged exactly what it was before; `chosenX` sizes the one X-dependent
+     *  leg (`flashbackExileFromGraveyard`). */
+    opts?: { castFromZone?: CastFromZone; chosenX?: number }
+): boolean {
+    if (!picks) return true;
+    const castFromZone = opts?.castFromZone ?? "hand";
     const player = getPlayer(state, playerId);
     const spec = resolveAdditionalCosts(cardDef?.additionalCosts, chosenLegId);
+    // CR 702.138a / 702.34a / 118.5 — VALIDATED FIRST, applied last: every id
+    // the Move named must still be in the zone it was picked from, or this Move
+    // is stale and the caller must skip it rather than put the spell on the
+    // stack for free. That matters far more here than for the sacrifice legs,
+    // because escape (unlike flashback) exiles nothing on resolution: an
+    // uncharged escape cast is recastable from the graveyard forever, the
+    // unbounded-recast shape the retrace land discard exists to bound. Checked
+    // before any mutation so a refusal leaves the sandbox state untouched.
+    const exileIds = picks.exileCostCardIds ?? [];
+    const exileZone =
+        exileIds.length > 0
+            ? castExileSourceZone(
+                  state,
+                  player,
+                  card,
+                  castFromZone,
+                  spec,
+                  opts?.chosenX
+              )
+            : undefined;
+    if (exileIds.length > 0) {
+        if (!exileZone) return false;
+        const held = exileZone === "hand" ? player.hand : player.graveyard;
+        if (!exileIds.every((id) => held.some((c) => c.id === id))) {
+            return false;
+        }
+    }
     // CR 701.21 — the sacrifice victims: the ones the server auto-resolves at
     // announcement (fungible board) PLUS the ones the payer names. Both leave
     // the battlefield; `picks.sacrificeIds` alone is the submission list, not
@@ -378,7 +414,8 @@ export function applyCastCostPicksForSearch(
         card,
         spec,
         picks,
-        cardDef?.name ?? "Sacrifice"
+        cardDef?.name ?? "Sacrifice",
+        castFromZone
     );
     if (costOut && sacSnapshot) {
         costOut.additionalSacrificeSnapshot = sacSnapshot;
@@ -404,6 +441,42 @@ export function applyCastCostPicksForSearch(
         }
         removePermanentTo(state, picks.additionalCostCardId, "exile");
     }
+    // CR 702.138a / 702.34a / 118.5 — the exile cost itself: the named cards
+    // move graveyard (or hand) → exile, exactly as `tryCommitCast` moves them
+    // once `selectCastExileCost` has recorded the same ids.
+    if (exileIds.length > 0 && exileZone) {
+        const source = exileZone === "hand" ? player.hand : player.graveyard;
+        for (const id of exileIds) {
+            const idx = source.findIndex((c) => c.id === id);
+            if (idx === -1) continue;
+            const [moved] = source.splice(idx, 1);
+            player.exile.push(moved);
+        }
+    }
+    return true;
+}
+
+/** CR 702.34a / 702.138a — which of the caster's OWN zones a cast's exile cost
+ *  is paid from: `"hand"` for the flashback exile-from-hand leg, `"graveyard"`
+ *  for every other shape. Re-derived from the ONE builder the announcement and
+ *  the enumerator both read (`buildCastExileCostChoice`) rather than stored on
+ *  the Move, so the sandbox can never disagree with the picker the server parks
+ *  on about where the cards come from. `undefined` when the cast owes no exile
+ *  cost at all — a stale Move, which the caller skips. */
+function castExileSourceZone(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    castFromZone: CastFromZone,
+    spec: AdditionalCostSpec | undefined,
+    chosenX: number | undefined
+): "graveyard" | "hand" | undefined {
+    const build = buildCastExileCostChoice(state, player, card, castFromZone, {
+        additionalCosts: spec,
+        chosenX,
+    });
+    if (!build || "unpayable" in build) return undefined;
+    return build.choice.zone ?? "graveyard";
 }
 
 /** CR 702.81a (issue #2358) — is this `cast-spell` move a RETRACE cast, and if
@@ -1126,8 +1199,9 @@ export function applyMoveForSearch(
             const castCostOut: {
                 additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
             } = {};
+            let castCostsPaid = true;
             if (move.castCostPicks && preCastSpell) {
-                applyCastCostPicksForSearch(
+                castCostsPaid = applyCastCostPicksForSearch(
                     next,
                     playerId,
                     preCastSpell,
@@ -1136,9 +1210,20 @@ export function applyMoveForSearch(
                     ) ?? undefined,
                     move.additionalCostLegId,
                     move.castCostPicks,
-                    castCostOut
+                    castCostOut,
+                    {
+                        castFromZone: move.castFromZone,
+                        chosenX: move.chosenX,
+                    }
                 );
             }
+            // CR 702.138a (issue #2980) — the exile cost could not be
+            // paid from the zone the Move named: a STALE Move (the
+            // graveyard changed between enumeration and application).
+            // Skip it rather than put the spell on the stack for free —
+            // escape exiles nothing on resolution, so an uncharged
+            // escape cast is recastable forever.
+            if (!castCostsPaid) return next;
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD
             // and pays a discarded land on the way. Probed (and charged) before
             // the zone decision below, which knows only hand and library.

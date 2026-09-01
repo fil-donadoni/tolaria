@@ -311,50 +311,6 @@ export function graveyardCastMechanism(
     return undefined;
 }
 
-/** Whether the Bot's search sandboxes can HONESTLY model a graveyard cast made
- *  by `mechanism` — i.e. whether every cost it owes is representable on the
- *  `cast-spell` Move today.
- *
- *  Two mechanisms are not, and both fail CLOSED (never enumerated) rather than
- *  being offered at a price the executor cannot pay — the announce-then-abort
- *  shape (`#2283`/`#2284`) this enumerator exists to avoid:
- *
- *  - **escape** (CR 702.138a) owes "exile N other cards from your graveyard",
- *    built only inside `announceCast` as a `PendingCast.exileFromGraveyardChoice`
- *    park. `planCastCostPicks` (`gre/castCostPicks.ts`) has no branch for it and
- *    the Move has no field to carry the picked ids, so an enumerated escape cast
- *    would be priced as if the exile were free and would park unpayable at the
- *    real mutation.
- *  - **flashback with a non-mana flashback cost** (CR 702.34a / 118.5 — Lava
- *    Dart's "Sacrifice a Mountain", the `flashbackExileFromGraveyard` X cost) is
- *    the same shape: `getFlashbackAdditionalCost` is read only by `announceCast`.
- *    Plain, mana-only flashback owes nothing extra and IS modelled.
- *
- *  Tracked at `docs/findings/2971-escape-and-flashback-cost-not-enumerable.md`.
- *  When either cost becomes representable, delete its branch here — nothing
- *  else in the enumerator needs to change. */
-export function searchCanModelGraveyardCast(
-    card: CardInstanceState,
-    mechanism: GraveyardCastMechanism
-): boolean {
-    if (mechanism === "escape") return false;
-    if (mechanism === "flashback") {
-        // Two INDEPENDENT places a flashback cast can owe a non-mana cost, and
-        // the gate has to read both (issue #2971 review finding 2 — it read
-        // only the first, so Flash of Insight slipped through):
-        //   - the flashback cost object's own `sacrifice` / `exileFromHand`
-        //     legs (Lava Dart), via `getFlashbackAdditionalCost`;
-        //   - `additionalCosts.flashbackExileFromGraveyard` (Flash of Insight,
-        //     `jud/blue.ts`), which lives on the DEFINITION, not on the
-        //     flashback object, and whose park `announceCast` builds as a
-        //     `PendingCast.exileFromGraveyardChoice`.
-        if (getFlashbackAdditionalCost(card) !== undefined) return false;
-        const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-        return def?.additionalCosts?.flashbackExileFromGraveyard === undefined;
-    }
-    return true;
-}
-
 /** CR 601.3 — whether `casterId` currently holds a permission to cast `card`
  *  out of `zoneOwner`'s EXILE. Two shapes, both riding the card object:
  *  the open-ended / turn-scoped grant (`castableFromExileBy` — Ice Cauldron,
