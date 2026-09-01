@@ -373,6 +373,12 @@ export interface CardInstance {
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */
     copiedFrom?: string;
+    /** CR 707.2's "except its base power and toughness are N/N" clause stamped
+     *  on this copy, so a copy OF it inherits the exception (CR 707.3). Mirrors
+     *  `CardInstanceState.copyExcept` in `convex/gre/state.ts`; forwarded by
+     *  `slimCard` because the client-side Brain re-runs the copy path over
+     *  projected state (ADR 0074). */
+    copyExcept?: { basePower?: number; baseToughness?: number };
     /** Noted mana banked on a mana-battery permanent (CR 106.10 — Jeweled
      *  Amulet, Ice Cauldron). Per-colour amounts the artifact will add when its
      *  "remove a charge counter" ability resolves. Forwarded by `slimCard` (the

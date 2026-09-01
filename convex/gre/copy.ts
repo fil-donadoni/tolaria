@@ -56,7 +56,14 @@ export function applyCopy(
     // carries through, and with neither the printed body applies. Recomputed
     // on every application, so a Vesuvan-style re-copy of an unexceptional
     // object drops a stale exception (issue #2076).
-    const inherited = source.copyExcept;
+    // CR 707.2 counts face-down status among the copiable values ("as modified
+    // by other copy effects, BY ITS FACE-DOWN STATUS"), and its own example
+    // makes a Clone of a face-down Grinning Demon a colorless 2/2 — the
+    // sentinel body `turnFaceDown` rebuilt, not whatever the object would
+    // present face up. So a face-down source contributes no exception, even
+    // though the stamp stays on the instance to apply again when it is turned
+    // face up (the copy effect never stopped applying).
+    const inherited = source.faceDown ? undefined : source.copyExcept;
     const basePower = opts.basePower ?? inherited?.basePower;
     const baseToughness = opts.baseToughness ?? inherited?.baseToughness;
     if (basePower !== undefined || baseToughness !== undefined) {

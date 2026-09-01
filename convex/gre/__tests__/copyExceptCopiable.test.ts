@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { applyCopy, revertCopy } from "../copy";
+import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import {
     makeInstance,
@@ -23,7 +24,7 @@ import {
 import { getCardByName } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
-import type { GameState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2
 const OGRE = getCardByName("Hill Giant").id; // a distinct printed body
@@ -113,7 +114,7 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         expect(getEffectiveToughness(state, find(state, "tok"))).toBe(2);
     });
 
-    it("wire format: the override and its copiable stamp survive projectPublicState", () => {
+    it("wire format: a copy made FROM the projected instance is still N/N", () => {
         const state = scenario();
         applyCopy(find(state, "tok"), find(state, "src"), {
             basePower: 1,
@@ -124,18 +125,26 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         const projected = projectPublicState(state, 1, "p1");
         const slim = (id: string) =>
             projected.players[0].battlefield.find((c) => c.id === id)!;
-        // The projection rewrites `card` down to `{ id }`, so a P/T read off
-        // the fat definition would be gone by here.
-        expect(getEffectivePower(projected, slim("tok"))).toBe(1);
-        expect(getEffectiveToughness(projected, slim("tok"))).toBe(1);
-        expect(getEffectivePower(projected, slim("clone"))).toBe(1);
-        // The stamp itself crosses too — the client-side Brain re-runs the
-        // copy path over projected state (ADR 0074) and needs it to simulate
-        // a further copy correctly.
+        // The stamp has to cross, on the inherited copy as well as the first
+        // one: the client-side Brain re-runs the copy path over projected
+        // state (ADR 0074), so a third copy is simulated from THESE objects.
         expect(slim("tok").copyExcept).toEqual({
             basePower: 1,
             baseToughness: 1,
         });
+        expect(slim("clone").copyExcept).toEqual({
+            basePower: 1,
+            baseToughness: 1,
+        });
+        // The load-bearing assertion: copying the PROJECTED instance is the
+        // only shape here that goes red if the stamp fails to cross. Reading
+        // P/T straight off a projected card would not — `power`/`toughness`
+        // are materialised instance fields `slimCard` forwarded long before
+        // this change, so such an assertion passes eitherway.
+        const recipient = { ...slim("src") } as unknown as CardInstanceState;
+        applyCopy(recipient, slim("tok") as unknown as CardInstanceState);
+        expect(getEffectivePower(projected, recipient)).toBe(1);
+        expect(getEffectiveToughness(projected, recipient)).toBe(1);
     });
 
     it("survives a serialize/deserialize round trip", () => {
@@ -148,6 +157,80 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         const round = expandState(compactState(state));
         const token = round.players[0].battlefield.find((c) => c.id === "tok")!;
         expect(token.copyExcept).toEqual({ basePower: 1, baseToughness: 1 });
-        expect(getEffectivePower(round, token)).toBe(1);
+        // `power` round-trips on its own, so re-copying off the restored
+        // instance is what actually proves the STAMP survived the round trip.
+        const recipient = round.players[0].battlefield.find(
+            (c) => c.id === "clone"
+        )!;
+        applyCopy(recipient, token);
+        expect(getEffectivePower(round, recipient)).toBe(1);
+    });
+
+    it("a new clause overrides only the half it names (CR 707.2)", () => {
+        const state = scenario();
+        applyCopy(find(state, "tok"), find(state, "src"), {
+            basePower: 1,
+            baseToughness: 1,
+        });
+        // CR 707.2 — the copy first acquires the source's copiable values
+        // (already 1/1 per CR 707.3), and only then does this effect's own
+        // "except" overwrite the halves it actually names. So power is 7 and
+        // toughness stays the inherited 1, NOT the printed 2.
+        applyCopy(find(state, "clone"), find(state, "tok"), { basePower: 7 });
+
+        expect(getEffectivePower(state, find(state, "clone"))).toBe(7);
+        expect(getEffectiveToughness(state, find(state, "clone"))).toBe(1);
+    });
+
+    it("carries through a three-deep copy chain", () => {
+        const state = scenario();
+        const third = makeInstance(OGRE, { id: "third", controllerId: "p1" });
+        state.players[0].battlefield.push(third);
+
+        applyCopy(find(state, "tok"), find(state, "src"), {
+            basePower: 1,
+            baseToughness: 1,
+        });
+        applyCopy(find(state, "clone"), find(state, "tok"));
+        applyCopy(find(state, "third"), find(state, "clone"));
+
+        expect(getEffectivePower(state, find(state, "third"))).toBe(1);
+        expect(getEffectiveToughness(state, find(state, "third"))).toBe(1);
+    });
+
+    it("a REVERTED source contributes no exception to a later copy", () => {
+        const state = scenario();
+        applyCopy(find(state, "tok"), find(state, "src"), {
+            basePower: 1,
+            baseToughness: 1,
+        });
+        revertCopy(find(state, "tok"));
+        // The copy effect ended, so the object is Hill Giant again and there
+        // is no exception left for a copier to acquire.
+        applyCopy(find(state, "clone"), find(state, "tok"));
+
+        expect(getEffectivePower(state, find(state, "clone"))).toBe(3);
+        expect(getEffectiveToughness(state, find(state, "clone"))).toBe(3);
+    });
+
+    it("a FACE-DOWN source copies as the 2/2 sentinel, not its exception (CR 707.2)", () => {
+        const state = scenario();
+        const token = find(state, "tok");
+        applyCopy(token, find(state, "src"), {
+            basePower: 1,
+            baseToughness: 1,
+        });
+        turnFaceDown(token, "morph");
+        applyCopy(find(state, "clone"), find(state, "tok"));
+
+        // CR 707.2's own example: a Clone of a face-down creature is a 2/2.
+        expect(getEffectivePower(state, find(state, "clone"))).toBe(2);
+        expect(getEffectiveToughness(state, find(state, "clone"))).toBe(2);
+
+        // The copy effect never stopped applying, so turning the source back
+        // face up restores its exception for the NEXT copier.
+        turnFaceUp(find(state, "tok"));
+        applyCopy(find(state, "clone"), find(state, "tok"));
+        expect(getEffectivePower(state, find(state, "clone"))).toBe(1);
     });
 });
