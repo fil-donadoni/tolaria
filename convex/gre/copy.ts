@@ -46,6 +46,35 @@ export function applyCopy(
     const sourceDefId = presentedDefId(source);
     const def = getDefinition(sourceDefId);
 
+    // CR 707.3 — "the copy's copiable values become the copied information.
+    // Objects that copy the object will use the new copiable values." An
+    // "except it's N/N" clause (CR 707.2, Eternalize's 4/4) is a COPIABLE
+    // value, so copying an object that already carries one inherits it: `def`
+    // above is the COPIED CARD's definition and holds the printed body only.
+    // THIS copy effect's own clause wins when it names one (a copy effect
+    // states its own exceptions outright); otherwise the source's stamp
+    // carries through, and with neither the printed body applies. Recomputed
+    // on every application, so a Vesuvan-style re-copy of an unexceptional
+    // object drops a stale exception (issue #2076).
+    // CR 707.2 counts face-down status among the copiable values ("as modified
+    // by other copy effects, BY ITS FACE-DOWN STATUS"), and its own example
+    // makes a Clone of a face-down Grinning Demon a colorless 2/2 — the
+    // sentinel body `turnFaceDown` rebuilt, not whatever the object would
+    // present face up. So a face-down source contributes no exception, even
+    // though the stamp stays on the instance to apply again when it is turned
+    // face up (the copy effect never stopped applying).
+    const inherited = source.faceDown ? undefined : source.copyExcept;
+    const basePower = opts.basePower ?? inherited?.basePower;
+    const baseToughness = opts.baseToughness ?? inherited?.baseToughness;
+    if (basePower !== undefined || baseToughness !== undefined) {
+        recipient.copyExcept = {
+            ...(basePower !== undefined ? { basePower } : {}),
+            ...(baseToughness !== undefined ? { baseToughness } : {}),
+        };
+    } else {
+        delete recipient.copyExcept;
+    }
+
     // Preserve the recipient's original printed id the first time it becomes
     // a copy; keep it stable across subsequent re-copies (Vesuvan).
     const printedId = recipient.copiedFrom ?? presentedDefId(recipient);
@@ -62,8 +91,8 @@ export function applyCopy(
         // CR 702.129a). The exception replaces a COPIABLE value, so it is the
         // base the layer system starts from — 7b-7e overlays (anthems,
         // +1/+1 counters) still stack on top, replayed by the rebuild below.
-        power: opts.basePower ?? def.power,
-        toughness: opts.baseToughness ?? def.toughness,
+        power: basePower ?? def.power,
+        toughness: baseToughness ?? def.toughness,
         // CR 707.2 "except it has haste" (Fable of the Mirror-Breaker's back
         // face, issue #2399) — appended to the COPIABLE keyword set, the same
         // shape `additionalSubtypes` uses above, so the keyword survives a
@@ -144,6 +173,12 @@ export function revertCopy(card: CardInstanceState): void {
     const printedId = card.copiedFrom;
     const def = tryGetDefinition(printedId);
     card.card = { ...(card.card as object), id: printedId };
+    // CR 707.2 — the copy effect ends, and with it the "except it's N/N"
+    // exception it stamped (issue #2076). The printed body below is restored
+    // from the recipient's OWN definition, so leaving the stamp behind would
+    // make the next copy effect inherit an exception no copy effect is
+    // applying any more.
+    delete card.copyExcept;
     if (def) {
         rebuildCopiableValuesAndReplayOverlays(card, {
             types: [...def.types],

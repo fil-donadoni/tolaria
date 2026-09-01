@@ -2655,18 +2655,32 @@ export interface CopyEffectOptions {
      *  `staticAbilities` inside `applyCopy`'s copiable-value rebuild, exactly
      *  the way `additionalSubtypes` is appended to its subtypes — so the
      *  keyword is a COPIABLE VALUE of the copy (CR 707.2), not a layer-6
-     *  grant. That distinction is observable: copy the copy and the second
-     *  token has haste too, which a `grantAbility` Op after the fact would not
-     *  give. Fully recomputed from `opts` on every application (a re-copy
-     *  without the option leaves no stale keyword behind), same idempotency
-     *  shape as `additionalTypes`/`additionalSubtypes`. */
+     *  grant. That distinction is observable: the keyword survives an
+     *  ability-stripping effect that removes GRANTED abilities, which a
+     *  `grantAbility` Op after the fact would not.
+     *
+     *  It is NOT yet inherited by a copy OF the copy the way
+     *  `basePower`/`baseToughness` are (CR 707.3): this list is rebuilt from
+     *  the COPIED CARD's definition on every application, so a second copy
+     *  loses the keyword — tracked by #2963. Fully recomputed from `opts` on
+     *  every application (a re-copy without the option leaves no stale keyword
+     *  behind), same idempotency shape as
+     *  `additionalTypes`/`additionalSubtypes`. */
     additionalStaticAbilities?: string[];
     /** CR 707.2 "except its base power and toughness are N/N" — the copy's
      *  BASE P/T (layer 7a) replaces the copied object's printed values.
      *  Eternalize (CR 702.129a) makes a 4/4; Embalm (CR 702.128a) omits it and
      *  keeps the printed body. A copiable value, so every later layer (7b–7e
      *  anthems, counters) still applies on top. Both halves are independent so
-     *  a future "except its base power is 1" clause needs no new field. */
+     *  a future "except its base power is 1" clause needs no new field.
+     *
+     *  Being copiable, it is also INHERITED by a copy of the copy (CR 707.3 —
+     *  a Clone of an Eternalize token is 4/4). `applyCopy` cannot read that
+     *  back off the copied card's definition, which holds the printed body, so
+     *  it stamps the clause on the copy as `CardInstanceState.copyExcept` and
+     *  re-reads it from the SOURCE instance on the next application; a clause
+     *  named by the new copy effect itself wins over the inherited one
+     *  (issue #2076). */
     basePower?: number;
     baseToughness?: number;
     /** CR 707.2 "except it's [colour]" — an explicit colour SET on the copy

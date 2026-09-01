@@ -748,6 +748,46 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             expect(v.tags).toContain("board-scaling");
             expect(v.tags).not.toContain("targeted"); // a `ref` source, not an announced target
         });
+
+        // CR 707.2's "except its base power and toughness are N/N" (issue
+        // #2076) makes the copied BODY known at authoring time, so the
+        // representative 2/2 stand-in — which exists only because a runtime
+        // source's P/T is unknowable — must not be used. Both directions are
+        // pinned: the clause has to be able to move the number DOWN as well as
+        // up, which is the whole point for a 1/1 offspring token.
+        it("prices a declared `except` body exactly, not through the representative stat", () => {
+            const big: EffectOp = {
+                op: "createTokenCopy",
+                source: { ref: "$source" },
+                controller: "controller",
+                except: { basePower: 4, baseToughness: 4 },
+            };
+            // 0.85 × creatureValueRaw(4,4,0,[]) = 0.85 × (100+60+56) = 183.6.
+            expect(valueOp(big, cf).points).toBeCloseTo(183.6, 1);
+
+            const small: EffectOp = {
+                op: "createTokenCopy",
+                source: { ref: "$source" },
+                controller: "controller",
+                except: { basePower: 1, baseToughness: 1 },
+            };
+            // 0.85 × (100+15+14) = 109.65 — BELOW the 134.3 the representative
+            // 2/2 would have scored, so the bot stops overvaluing a small
+            // copy token by roughly a quarter.
+            expect(valueOp(small, cf).points).toBeCloseTo(109.65, 1);
+            expect(valueOp(small, cf).points).toBeLessThan(134.3);
+        });
+
+        it("falls back to the representative stat when the clause names no body", () => {
+            const op: EffectOp = {
+                op: "createTokenCopy",
+                source: { ref: "$source" },
+                controller: "controller",
+                // A colour-only exception (Embalm keeps the printed body).
+                except: { colors: ["W"] },
+            };
+            expect(valueOp(op, cf).points).toBeCloseTo(134.3, 1);
+        });
     });
 
     // Issue #1945 — the SAME `$each` / bound-ref trap `dealDamage` guards

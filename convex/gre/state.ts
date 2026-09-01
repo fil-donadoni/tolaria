@@ -1172,6 +1172,28 @@ export type CardInstanceState = {
      *  the battlefield (`revertCopy`). Its presence marks the instance as an
      *  active copy and survives Vesuvan's upkeep re-copy unchanged. */
     copiedFrom?: string;
+    /** CR 707.2's "except its base power and toughness are N/N" clause, as
+     *  stamped on THIS copy (Eternalize's 4/4, issue #2076). Present only
+     *  while the instance is an active copy whose copy effect named the
+     *  exception; `revertCopy` clears it.
+     *
+     *  It exists because the exception is a COPIABLE value, not a layer-7
+     *  continuous effect: CR 707.3 — "the copy's copiable values become the
+     *  copied information. Objects that copy the object will use the new
+     *  copiable values." `applyCopy` derives the copiable base from the COPIED
+     *  CARD's definition (`getDefinition(presentedDefId)`), which knows nothing
+     *  about an exception a previous copy effect applied, so a Clone copying an
+     *  Eternalize token would hand back the printed body without this stamp.
+     *
+     *  Deliberately NOT read off the materialised `power`/`toughness`: those
+     *  carry non-copiable layer overlays too (an animated Chimeric Staff is
+     *  5/5 on the instance, and CR 707.2's own example says a Clone of it is
+     *  not). Isolating the exception is what keeps the two apart.
+     *
+     *  Named for the CR's own word so the remaining exception shapes — colour,
+     *  added subtypes, granted keywords, "no mana cost", none of which survive
+     *  a copy-of-the-copy today either — widen it purely additively. */
+    copyExcept?: { basePower?: number; baseToughness?: number };
     /** Token provenance link (CR 111, 707.1). Instance id of the permanent
      *  that created this token via `createToken(..., createdBy)`. Lets a
      *  source later identify the tokens it made — Tetravus exiles "tokens
