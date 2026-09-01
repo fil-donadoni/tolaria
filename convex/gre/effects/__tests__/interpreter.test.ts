@@ -26999,6 +26999,234 @@ describe("Effect Script player ref: { opponentOf } (issue #1568)", () => {
     });
 });
 
+// --- { controllerOf } after the object has LEFT (issue #2287) --------------
+// The Oracle order "Destroy target artifact… THAT PLAYER may search their
+// library" (Boseiju, Who Endures) / "Exile target nonland permanent. Each
+// player other than ITS controller…" (Fractured Identity) names the
+// controller of an object an EARLIER Op in the same script has already
+// removed.
+//
+// What these tests pin is a DELIBERATE DIVERGENCE, not the CR outcome. Such
+// an object was a perfectly legal target — CR 608.2b, which governs targets
+// already ILLEGAL at the legality check, does not reach it. CR 608.2h does,
+// and it says the effect "uses the object's last known information": the
+// clause should HAPPEN, against the controller the object had when it left.
+// The bare ref reads a live zone and the engine keeps no last-known-controller
+// table, so it cannot deliver that and degrades to a skip — chosen over the
+// raise it shipped until issue #2287, because inside a Convex mutation a
+// raise is a rolled-back transaction and a stuck game rather than a missing
+// clause. These tests therefore assert "does not hang, does not act on a
+// wrong player", NOT "the CR is satisfied".
+//
+// The CR-correct expression of "that player" IS in the DSL, and is what a
+// card must use: the SNAPSHOT idiom — bind before the removal, read
+// `{ ref: "$x.controller" }` after — which is exactly CR 608.2h. It is
+// asserted here beside the skip, because the two together are the choice a
+// card author is actually making.
+describe("Effect Script player ref: { controllerOf } on a departed object (CR 608.2h divergence, issue #2287)", () => {
+    /** p1 casts; p2 controls the announced permanent. */
+    function boardWithP2Bear(instanceId: string): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: instanceId,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    // The removal Ops a real Oracle line puts in front of "that player":
+    // destroy (Boseiju), exile (Fractured Identity), bounce (moveZone to
+    // hand). Each is the SAME hazard, so each is asserted rather than trusting
+    // one to stand for the family.
+    const REMOVALS: { label: string; op: EffectOp }[] = [
+        { label: "destroy", op: { op: "destroy", target: { target: 0 } } },
+        { label: "exile", op: { op: "exile", target: { target: 0 } } },
+        {
+            label: "moveZone → hand (bounce)",
+            op: { op: "moveZone", target: { target: 0 }, to: "hand" },
+        },
+    ];
+
+    for (const { label, op } of REMOVALS) {
+        it(`${label} then { controllerOf } — the script completes, the naming Op is SKIPPED, later Ops still run`, () => {
+            const id = registerScript(
+                `test-controllerof-departed-${label.replace(/\W+/g, "-")}`,
+                [
+                    op,
+                    // "…that player gains 5 life" — the clause whose subject
+                    // the bare ref can no longer name (CR 608.2h wants it to
+                    // land on the last known controller; see the note above).
+                    {
+                        op: "gainLife",
+                        player: { controllerOf: { target: 0 } },
+                        amount: 5,
+                    },
+                    // A trailing Op proves the script CONTINUES past the skip
+                    // rather than aborting the whole resolution.
+                    { op: "gainLife", player: "controller", amount: 1 },
+                ],
+                { targetRequirement: { type: "Creature", count: 1 } }
+            );
+            const state = boardWithP2Bear(`departed-${label}`);
+            pushSpell(state, id, "p1", [
+                { type: "permanent", id: `departed-${label}` },
+            ]);
+            expect(() => resolveTopOfStack(state)).not.toThrow();
+            // The removal itself happened.
+            expect(state.players[1].battlefield).toHaveLength(0);
+            // The Op that needed the departed object's controller did NOT run
+            // — and did not run against a WRONG or defaulted player either,
+            // which is the failure mode a `?? controller` fallback would have.
+            expect(state.players[1].life).toBe(20);
+            // The trailing Op ran: the script completed.
+            expect(state.players[0].life).toBe(21);
+        });
+    }
+
+    it("a target still ON the battlefield is unaffected — { controllerOf } names its controller as before", () => {
+        const id = registerScript(
+            "test-controllerof-still-present",
+            [
+                {
+                    op: "gainLife",
+                    player: { controllerOf: { target: 0 } },
+                    amount: 5,
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const state = boardWithP2Bear("present-bear");
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "present-bear" }]);
+        resolveTopOfStack(state);
+        // p2 controls the target, so p2 gains — the discriminating half: this
+        // is the seat plain "opponent" (relative to caster p1) also names, so
+        // the departed case above is what proves the ref is really read.
+        expect(state.players[1].life).toBe(25);
+        expect(state.players[0].life).toBe(21);
+        expect(state.players[1].battlefield).toHaveLength(1);
+    });
+
+    it("the SNAPSHOT idiom names the departed object's LAST KNOWN controller (CR 608.2h) — the fix a card that needs 'that player' uses", () => {
+        const id = registerScript(
+            "test-controllerof-snapshot-lki",
+            [
+                // bind BEFORE the zone change — `destroy`'s own snapshot hook.
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    bind: "$destroyed",
+                },
+                // "…that player gains 5 life", read off the snapshot.
+                {
+                    op: "gainLife",
+                    player: { ref: "$destroyed.controller" },
+                    amount: 5,
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const state = boardWithP2Bear("snapshot-bear");
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "snapshot-bear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        // p2 — the controller the permanent HAD when it was destroyed. This is
+        // the assertion that separates the two idioms: the same board, the
+        // same Oracle order, and here the life IS gained.
+        expect(state.players[1].life).toBe(25);
+    });
+
+    it("a countered SPELL target is the same skip — { controllerOf } on a spell that has left the stack (Force Spike ordering)", () => {
+        const id = registerScript(
+            "test-controllerof-departed-spell",
+            [
+                { op: "counter", target: { target: 0 } },
+                {
+                    op: "gainLife",
+                    player: { controllerOf: { target: 0 } },
+                    amount: 5,
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const victim = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: victim.id }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.stack.find((s) => s.id === victim.id)).toBeUndefined();
+        expect(state.players[1].life).toBe(20); // skipped, not defaulted
+        expect(state.players[0].life).toBe(21); // script completed
+    });
+
+    it("binding a slot an earlier Op already removed leaves the binding UNCAPTURED — every ref to it skips, the script still completes", () => {
+        // The other half of the same lookup: `bind` snapshots a permanent's
+        // controller/power/owner, all battlefield-scoped, so binding a slot
+        // that is already gone read through the same raising lookup. The
+        // frozen-set `forEach` guard has always left such a member
+        // uncaptured; an announced slot now behaves identically, under the
+        // same divergence noted above rather than a raise.
+        const id = registerScript(
+            "test-controllerof-bind-departed",
+            [
+                { op: "destroy", target: { target: 0 } },
+                // Same slot, now gone — the bind has nothing to snapshot.
+                { op: "exile", target: { target: 0 }, bind: "$gone" },
+                {
+                    op: "gainLife",
+                    player: { ref: "$gone.controller" },
+                    amount: 5,
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const state = boardWithP2Bear("bind-departed-bear");
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bind-departed-bear" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].life).toBe(20); // uncaptured ⇒ Op skipped
+        expect(state.players[0].life).toBe(21); // script completed
+    });
+
+    it("survives projection (wire format) — the completed resolution is what the client sees", () => {
+        const id = registerScript(
+            "test-controllerof-departed-wire",
+            [
+                { op: "destroy", target: { target: 0 } },
+                {
+                    op: "gainLife",
+                    player: { controllerOf: { target: 0 } },
+                    amount: 5,
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const state = boardWithP2Bear("departed-wire-bear");
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "departed-wire-bear" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(21);
+        expect(projected.players[1].life).toBe(20);
+        expect(projected.players[1].battlefield).toHaveLength(0);
+    });
+});
+
 // --- revealTopAndRoute Op: reveal the top of a library, route each card by
 // what it IS (CR 701.20a reveal + CR 400.7 zone change) ----------------------
 // Deterministic: the destination is dictated by the revealed card's own

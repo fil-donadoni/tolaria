@@ -3199,6 +3199,29 @@ export interface SpellContext {
      *  Scavenging Ghoul's end-step "for each creature that died this turn". */
     getDeathsThisTurn: () => number;
     getController: (target: TargetSelection) => string;
+    /** The controller of `target`, or **undefined** when the object is no
+     *  longer in the zone the lookup reads (a permanent that left the
+     *  battlefield, a spell that left the stack). The non-throwing sibling of
+     *  `getController`, which is derived from it and still raises for the
+     *  imperative `resolve()` call sites where a missing permanent is a
+     *  programming error rather than a game state.
+     *
+     *  Effect Scripts read the controller through THIS one, so that naming
+     *  the controller of an object an EARLIER Op in the same script destroyed,
+     *  exiled or bounced skips the Op that wanted the information instead of
+     *  raising — inside a Convex mutation a raise is a rolled-back transaction
+     *  and a stuck game (issue #2287).
+     *
+     *  That skip is a deliberate DIVERGENCE, not what the rules ask for: an
+     *  object removed by the resolving effect's own earlier clause was never
+     *  an illegal target, so CR 608.2h governs it and says the effect "uses
+     *  the object's last known information" — the clause should HAPPEN. The
+     *  engine keeps no last-known-controller table for a live lookup to fall
+     *  back on, so a card that needs "that player" expresses it with the
+     *  snapshot idiom instead (`bind` before the removal, then
+     *  `{ ref: "$x.controller" }`), which IS CR 608.2h, or — for a spell slot,
+     *  which is not bindable — by ordering the read before the removal. */
+    findController: (target: TargetSelection) => string | undefined;
     /** The owner of a permanent (CR 108.3 — immutable, never changed by
      *  control-magic effects). Returns undefined if the id is not on the
      *  battlefield. Distinct from `getController`: ownership decides which

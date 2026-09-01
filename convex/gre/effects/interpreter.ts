@@ -1331,10 +1331,32 @@ function resolvePlayerRef(
     }
     // `{ controllerOf: { target: n } }` (issue #806) — the controller of the
     // object in slot n (a spell's caster or a permanent's controller, CR
-    // 109.5). Skipped when the slot is missing (CR 608.2b).
+    // 109.5). Skipped when the slot is missing at resolution (CR 608.2b —
+    // the target was already illegal at the legality check).
+    //
+    // DELIBERATE DIVERGENCE, issue #2287. The slot can also be PRESENT while
+    // the object it names has left the zone this lookup reads, because an
+    // EARLIER Op in this same script destroyed, exiled or bounced it
+    // ("Destroy target artifact… THAT PLAYER may search…"). That object was
+    // never an illegal target, so CR 608.2b does not govern it: CR 608.2h
+    // does, and it says the effect "uses the object's last known
+    // information" — i.e. the clause SHOULD happen, against the controller
+    // the object had when it left (see also CR 113.7a). This ref cannot do
+    // that: it reads a live zone and the engine keeps no last-known-controller
+    // table to fall back on, so it degrades to a skip.
+    //
+    // A skip is the LESSER of the two available wrongs — the alternative,
+    // shipped until #2287, was to raise, and inside a Convex mutation a raise
+    // is a rolled-back transaction and a stuck game rather than a missing
+    // clause. The CR-correct expression of "that player" IS available in the
+    // DSL and is what a card must use: the snapshot idiom, `bind` the object
+    // before the removal and read `{ ref: "$x.controller" }`, which is exactly
+    // CR 608.2h last known information. For a SPELL slot, which is not
+    // bindable, the equivalent is to order the reading Op before the removing
+    // one (Undermine, `sets/inv/multicolor.ts`).
     if ("controllerOf" in ref) {
         const target = ctx.targets[ref.controllerOf.target];
-        return target ? ctx.getController(target) : undefined;
+        return target ? ctx.findController(target) : undefined;
     }
     const target = ctx.targets[ref.target];
     return target && target.type === "player" ? target.id : undefined;
@@ -1633,6 +1655,14 @@ function bindSnapshot(
     target: TargetSelection
 ): void {
     const isPermanent = target.type === "permanent";
+    // CR 608.2b (issue #2287) — every permanent slot below is battlefield-
+    // scoped, so a permanent that has ALREADY left has nothing to snapshot:
+    // leave the binding uncaptured and let every ref to it skip its Op, the
+    // same contract the forEach member guard uses one screen down. Reachable
+    // when an earlier Op in the same script removed the announced target and
+    // a later Op binds the same slot. This can only turn a raise into a skip:
+    // when the object IS present, nothing here changes.
+    if (isPermanent && ctx.getOwnerId(target.id) === undefined) return;
     const chars = ctx.getCharacteristics(target);
     ctx.noteChoice(name, [
         String(isPermanent ? ctx.getPower(target) : 0),
