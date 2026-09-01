@@ -983,7 +983,7 @@ export function applyMoveInSearch(
                 // (`applyMove.ts`) and the real commit paths
                 // (`PendingCast.kickerPayments` / `.buybackPaid` →
                 // `StackItem`), so a resolving Kicker/Buyback spell reads
-                // `wasKicked` / `{ kickerPaid }` / the Buyback return-to-hand
+                // `wasKicked` / `{ additionalCostPaid }` / the Buyback return-to-hand
                 // redirect correctly on THIS, the chokepoint every rollout and
                 // all self-play route through.
                 ...(move.kickerPayments

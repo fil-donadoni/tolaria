@@ -133,7 +133,7 @@ export function contextFreeGrounding(): GroundingContext {
                 scaling: inner.scaling,
             };
         }
-        // counters / manaValue / domain / kickerCount / kickerPaid / escaped /
+        // counters / manaValue / domain / kickerCount / additionalCostPaid / escaped /
         // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
         // runtime state.
         if ("escaped" in v || "abilityResolutionCount" in v)

@@ -7,7 +7,7 @@
 // Every sweep that walks "all of a card's scripts" needs the SAME list, and a
 // hand-rolled second walker is how a site silently stops being covered: the
 // Kicker declaration guard (issue #1937) shipped omitting `modes[].effects` and
-// `aiEffects`, so a `{ kickerPaid: "<id>" }` inside a modal card's mode script
+// `aiEffects`, so a `{ additionalCostPaid: "<id>" }` inside a modal card's mode script
 // escaped the fail-closed trap that guard exists to be. Adding a new site kind
 // here covers every sweep at once.
 

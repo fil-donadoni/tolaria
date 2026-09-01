@@ -965,7 +965,7 @@ describe("Stormscape Battlemage (Kicker {A} and/or {B}, two independent conditio
         ).toBe(false);
     });
 
-    // MAJOR 3 (PR #2010 review): `selfKickerPaid` (blue.ts) reads a
+    // MAJOR 3 (PR #2010 review): `selfAdditionalCostPaid` (blue.ts) reads a
     // currently-UNTYPED, unserialized stray `kickerPayments` field on the
     // resolving permanent — tracked-by #2014 (sibling PR promoting it to a
     // typed, serialized `CardInstanceState`/`PermanentView` field). This
@@ -1030,7 +1030,7 @@ describe("Stormscape Battlemage (Kicker {A} and/or {B}, two independent conditio
 
         // The white-kicker trigger's own gain-life effect is enough to prove
         // this test's actual point (kickerPayments surviving the round-trip
-        // all the way to the `{ kickerPaid }` read): it needs no target, so
+        // all the way to the `{ additionalCostPaid }` read): it needs no target, so
         // it is unaffected by the separate real-target-selection plumbing
         // (`applyOneTargetSelection`) the black-kicker trigger's OWN
         // "target nonblack creature" additionally goes through once
@@ -1041,7 +1041,7 @@ describe("Stormscape Battlemage (Kicker {A} and/or {B}, two independent conditio
 
 // CR 603.4 per-Kicker check-time gate (issue #2015). The `pushTrigger`-based
 // rows above force each ability onto the stack and therefore only exercise the
-// RESOLUTION-time `{ kickerPaid }` gate. These rows go through the REAL cast
+// RESOLUTION-time `{ additionalCostPaid }` gate. These rows go through the REAL cast
 // path — push the creature SPELL, let it enter, let `collectTriggers` decide —
 // which is the only place the check-time gate is observable. Stormscape
 // Battlemage originally shipped with NO check-time gate at all, so a

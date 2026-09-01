@@ -25,7 +25,7 @@ import { protectionColorModes } from "../../abilities";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1524,13 +1524,13 @@ export const viciousKavu: CardDefinition = {
 // `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`) —
 // see that card's comment for the full precedent chain. Uses the same
 // Waterspout Elemental (`pls/blue.ts`) template: `conditionOnSelf:
-// kickerPaidCondition("kicker")` at check time, `if { kickerPaid: "kicker" }`
+// additionalCostPaidCondition("kicker")` at check time, `if { additionalCostPaid: "kicker" }`
 // inside `effects[]` at resolution time — no `interveningIf`. The
 // resolution-time branch reads the RESOLVING STACK ITEM's own
 // `kickerPayments`, which is what still gates an ability COPY put on the
 // stack without re-running `matches` (CR 707.10) — an `interveningIf` would
 // not, and that, not blink safety, is why the pair is the template (see
-// `kickerPaidCondition` in `cards/abilities/triggers/shared.ts`).
+// `additionalCostPaidCondition` in `cards/abilities/triggers/shared.ts`).
 //
 // `excludeColors: "B"` on the target requirement expresses "nonblack" (Dark
 // Banishing precedent, `ice/black.ts`; Annihilate, `inv/black.ts` — same
@@ -1561,7 +1561,7 @@ export const shivanEmissary: CardDefinition = {
                 "When this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.",
             scope: "self",
             // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker"),
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
             targetRequirement: {
                 type: "Creature",
                 count: 1,
@@ -1571,7 +1571,7 @@ export const shivanEmissary: CardDefinition = {
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker" },
+                        left: { additionalCostPaid: "kicker" },
                         op: "ge",
                         right: 1,
                     },

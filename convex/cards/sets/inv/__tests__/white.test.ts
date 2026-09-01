@@ -1017,8 +1017,8 @@ describe("Fight or Flight (CR 603.6a combat-begin trigger / 508.1a attack restri
 // `.claude/rules/gre-development.md` this hand-written suite is the required
 // proof obligation, not optional per-Op coverage. Uses the Waterspout
 // Elemental (`pls/blue.ts`) / Thunderscape Battlemage (`pls/red.ts`)
-// template: `conditionOnSelf: kickerPaidCondition` at CR 603.4 check time
-// (exercised via the REAL cast path below), `if { kickerPaid }` inside
+// template: `conditionOnSelf: additionalCostPaidCondition` at CR 603.4 check time
+// (exercised via the REAL cast path below), `if { additionalCostPaid }` inside
 // `effects[]` at resolution time (exercised via `resolveTrigger`, which
 // bypasses CR 603.3d target ANNOUNCEMENT itself — a separate,
 // already-tested engine concern, same precedent comment as
@@ -1092,7 +1092,7 @@ describe("Benalish Emissary (single Kicker ETB — destroy target land, issue #1
 
     // Defense in depth (CR 707.10 — an ability copy could reach the stack
     // without re-running `matches`): even manually forced onto the stack
-    // without a paid kicker, the resolution-time `if { kickerPaid }` branch
+    // without a paid kicker, the resolution-time `if { additionalCostPaid }` branch
     // inside `effects[]` still blocks the destroy. Same precedent as
     // Thunderscape Battlemage's "unkicked: neither trigger does anything
     // even though both still announce a target" (`pls/__tests__/red.test.ts`).

@@ -2,7 +2,7 @@
 // F4 free tranche). Per the per-Op regime (ADR 0045/0046), most cards in this
 // slice reuse only already-exercised Ops (dealDamage, destroy, draw,
 // setSubtype, setColor, pump, grantAbility, choice/discard, the kicker
-// `if { kickerCount }` / `if { kickerPaid }` branch idiom) and need no
+// `if { kickerCount }` / `if { additionalCostPaid }` branch idiom) and need no
 // hand-written test — the catalogue-wide static sweep
 // (`effectScripts.test.ts`) and the auto-generated canned-scenario smoke test
 // (`effectScriptSmoke.test.ts`) cover them for free.
@@ -14,7 +14,7 @@
 //     CONSTRUCT COMBINATIONS worth a confirming test — a Kicker with a
 //     non-mana PERMANENT (sacrifice) leg widening the target COUNT, and the
 //     first catalogue card with TWO independently payable Kickers gated by
-//     `{ kickerPaid: "<id>" }` respectively.
+//     `{ additionalCostPaid: "<id>" }` respectively.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -65,7 +65,7 @@ import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applyOneTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
-import { kickerPaidCondition } from "../../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../../abilities/triggers/shared";
 import { getEffectiveColors } from "../../../effectiveColors";
 import type { PermanentView } from "../../../types";
 
@@ -397,8 +397,8 @@ describe("Magma Burst — sacrifice-two-lands Kicker widens the target count (CR
 
 // Thunderscape Battlemage — the catalogue's first TWO-Kicker "and/or" card
 // (ADR 0079/#1937). Each ETB trigger is gated per-Kicker at CHECK time
-// (`kickerPaidCondition`, CR 603.4) and again at RESOLUTION time by the
-// `if { kickerPaid: "<id>" }` branch inside its own `effects[]` (already
+// (`additionalCostPaidCondition`, CR 603.4) and again at RESOLUTION time by the
+// `if { additionalCostPaid: "<id>" }` branch inside its own `effects[]` (already
 // exercised generically by `interpreter.test.ts`), but this is the first CARD
 // exercising two INDEPENDENT Kickers gating two INDEPENDENT triggers on one
 // creature — worth a confirming test per the project's "genuinely new
@@ -640,7 +640,7 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
     // reproduces (verified: all 29 tests in this file still pass with it
     // re-added — the re-check now reads the snapshot, so both seams agree).
     // What this test guards is the RESOLUTION-time seam these cards actually
-    // use: `{ kickerPaid }` → `SpellContext.getKickerPaidCount` →
+    // use: `{ additionalCostPaid }` → `SpellContext.getKickerPaidCount` →
     // `item.kickerPayments`, the resolving stack item's OWN record from
     // `buildTriggerItem`'s `...self` spread. Verified load-bearing by making
     // `getKickerPaidCount` (`gre/state.ts`) read the live battlefield
@@ -921,10 +921,14 @@ describe("Thunderscape Battlemage — CR 603.4 per-Kicker check-time gate (issue
             (c) => c.card.id === thunderscapeBattlemage.id
         )!;
         expect(
-            kickerPaidCondition("kicker-g")(bm as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-g")(
+                bm as unknown as PermanentView
+            )
         ).toBe(true);
         expect(
-            kickerPaidCondition("kicker-b")(bm as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-b")(
+                bm as unknown as PermanentView
+            )
         ).toBe(false);
 
         // `projectPublicState` strips `card.card` to `{ id }` and reshapes the
@@ -935,10 +939,14 @@ describe("Thunderscape Battlemage — CR 603.4 per-Kicker check-time gate (issue
             (c) => c.id === bm.id
         )!;
         expect(
-            kickerPaidCondition("kicker-g")(slim as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-g")(
+                slim as unknown as PermanentView
+            )
         ).toBe(true);
         expect(
-            kickerPaidCondition("kicker-b")(slim as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-b")(
+                slim as unknown as PermanentView
+            )
         ).toBe(false);
     });
 });

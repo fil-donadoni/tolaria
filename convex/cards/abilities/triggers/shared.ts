@@ -19,7 +19,7 @@
 //      event they gate on (CR 120.3 / 603.10).
 //   4. Check-time gate marking (`withTriggerGate`) — the one place a factory
 //      records that its ability is CONDITIONAL (CR 603.4), plus the per-Kicker
-//      check-time predicate (`kickerPaidCondition`) that the Battlemage
+//      check-time predicate (`additionalCostPaidCondition`) that the Battlemage
 //      cycle's "if it was kicked with its {A} kicker" triggers are gated on
 //      (CR 702.33, ADR 0079, issue #2015).
 //
@@ -429,8 +429,11 @@ export function withTriggerGate<T extends TriggeredAbility>(
  *  module is imported — transitively — by every card file in the catalogue, so
  *  that edge would drag the whole engine into every card module's init graph.
  *  The two are pinned to identical behaviour by an agreement test
- *  (`__tests__/kickerPaidCondition.test.ts`). */
-function kickerPaidTimes(self: PermanentView, kickerId: string): number {
+ *  (`__tests__/additionalCostPaidCondition.test.ts`). */
+function additionalCostPaidTimes(
+    self: PermanentView,
+    kickerId: string
+): number {
     const n = self.kickerPayments?.[kickerId];
     return typeof n === "number" && n > 0 ? n : 0;
 }
@@ -451,7 +454,7 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  can stamp a DECIDED gate the bot's value model can evaluate, instead of
  *  `UNDECIDABLE_TRIGGER_GATE` (issue #1936).
  *
- *  ALWAYS pair it with an `if { kickerPaid: "<id>" }` branch inside the
+ *  ALWAYS pair it with an `if { additionalCostPaid: "<id>" }` branch inside the
  *  ability's own `effects[]` — that branch, not an `interveningIf`, is the
  *  load-bearing resolution-time gate. It reads the RESOLVING STACK ITEM's own
  *  payment record (`buildTriggerItem`'s `...self` spread, `gre/triggers.ts`),
@@ -482,8 +485,8 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  The mirror-image bug — a one-shot fact `resetBattlefieldTransientState`
  *  fails to clear, so the new object INHERITS it (`echoPending`,
  *  `startedTurnUntapped`, …) — is a separate gap, #2223. */
-export function kickerPaidCondition(
+export function additionalCostPaidCondition(
     kickerId: string
 ): (self: PermanentView) => boolean {
-    return (self) => kickerPaidTimes(self, kickerId) >= 1;
+    return (self) => additionalCostPaidTimes(self, kickerId) >= 1;
 }

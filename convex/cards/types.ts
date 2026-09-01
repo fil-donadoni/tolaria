@@ -216,8 +216,8 @@ export interface EscapeCost {
  *  INDEPENDENTLY payable Kickers on one spell, each with its own intervening-if
  *  ETB trigger. How many times each was paid is recorded per `id` on the
  *  resulting stack item (`StackItem.kickerPayments`); DSL scripts read the
- *  per-Kicker answer with `{ kickerPaid: "<id>" }`
- *  ({@link EffectKickerPaidValue}) and the total with `{ kickerCount: true }`
+ *  per-Kicker answer with `{ additionalCostPaid: "<id>" }`
+ *  ({@link EffectAdditionalCostPaidValue}) and the total with `{ kickerCount: true }`
  *  ({@link EffectKickerCountValue}). Kicker is a cost-system / keyword-cast
  *  capability (engine infra), NOT an Effect Script Op.
  *
@@ -230,7 +230,7 @@ export interface EscapeCost {
  *    the card. */
 export type KickerCost = CostLegs & {
     /** Stable id for this Kicker, unique within the card. Keys the per-Kicker
-     *  payment record (`StackItem.kickerPayments`) and the `{ kickerPaid }`
+     *  payment record (`StackItem.kickerPayments`) and the `{ additionalCostPaid }`
      *  Effect Script value. A single-Kicker card conventionally uses `"kicker"`;
      *  a two-Kicker card names them for the cost being paid (`"kicker-u"` /
      *  `"kicker-r"` on a Battlemage). */
@@ -3896,7 +3896,7 @@ export interface SpellContext {
      *  cast (0 = that Kicker was not paid). The per-Kicker read a two-Kicker
      *  card's intervening-ifs need ("if it was kicked with its {2}{U} kicker",
      *  the Planeshift Battlemage cycle) — `getKickerCount` cannot distinguish
-     *  which of two was paid. Read in DSL via `{ kickerPaid: "<id>" }`. */
+     *  which of two was paid. Read in DSL via `{ additionalCostPaid: "<id>" }`. */
     getKickerPaidCount: (kickerId: string) => number;
     /** Mana value of a target (CR 202.3 / 202.3b). For a permanent target,
      *  returns the printed cost's mana value — X in the cost counts as 0
@@ -8424,7 +8424,7 @@ export interface SpellCastEvent {
 /** "A player kicks a spell" (CR 702.33d, issue #1097) — emitted as part of
  *  CASTING a spell for which at least one Kicker cost was paid. Backs
  *  "whenever a player kicks a spell" triggers (Saproling Infestation,
- *  `inv/green.ts`); distinct from the `wasKicked` / `{ kickerPaid }` STATE
+ *  `inv/green.ts`); distinct from the `wasKicked` / `{ additionalCostPaid }` STATE
  *  reads (`gre/kicker.ts`), which answer "is this spell kicked" at resolution
  *  rather than "did someone just kick one".
  *
@@ -10745,7 +10745,7 @@ export type EffectCountersValue = {
  *  `"kicker"`, not this value). */
 export type EffectKickerCountValue = { kickerCount: true };
 
-/** kickerPaid — how many times the NAMED Kicker of the resolving spell was paid
+/** additionalCostPaid — how many times the NAMED Kicker of the resolving spell was paid
  *  as it was cast (CR 702.33 / 702.33e), a thin JSON-pure skin over
  *  `SpellContext.getKickerPaidCount`. The PER-KICKER sibling of
  *  {@link EffectKickerCountValue}: a card with two independently payable Kickers
@@ -10760,7 +10760,7 @@ export type EffectKickerCountValue = { kickerCount: true };
  *  the card; a name matching no declared Kicker reads 0 (fail-closed — the
  *  clause simply does not fire), and `validateEffectScript` rejects an empty
  *  id at authoring time. */
-export type EffectKickerPaidValue = { kickerPaid: string };
+export type EffectAdditionalCostPaidValue = { additionalCostPaid: string };
 
 /** manaValue — the mana value (CR 202.3) of a selected object, a thin JSON-pure
  *  skin over `SpellContext.getManaValue`. An eighth `EffectValue` grammar
@@ -10998,7 +10998,7 @@ export type EffectValue =
     | EffectXValue
     | EffectCountersValue
     | EffectKickerCountValue
-    | EffectKickerPaidValue
+    | EffectAdditionalCostPaidValue
     | EffectManaValueValue
     | EffectDomainValue
     | EffectDevotionValue

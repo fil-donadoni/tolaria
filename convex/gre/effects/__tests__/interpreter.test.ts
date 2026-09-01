@@ -20379,7 +20379,7 @@ describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
     });
 });
 
-// --- kickerPaid (CR 702.33 / 702.33e, ADR 0079) ------------------------------
+// --- additionalCostPaid (CR 702.33 / 702.33e, ADR 0079) ------------------------------
 //
 // The PER-KICKER value member: a card with two independently payable Kickers
 // ("Kicker {A} and/or {B}", the Planeshift Battlemage cycle) has one
@@ -20388,13 +20388,13 @@ describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
 // through the REAL resolution path + a wire-format assertion once through
 // projectPublicState); every later two-Kicker card reuses it free.
 
-describe("Effect Script value: kickerPaid (CR 702.33 / 702.33e)", () => {
+describe("Effect Script value: additionalCostPaid (CR 702.33 / 702.33e)", () => {
     const scriptId = "test-val-kicker-paid-gate";
     const twoKickerScript = [
         {
             op: "if" as const,
             predicate: {
-                left: { kickerPaid: "kicker-u" },
+                left: { additionalCostPaid: "kicker-u" },
                 op: "ge" as const,
                 right: 1,
             },
@@ -20409,7 +20409,7 @@ describe("Effect Script value: kickerPaid (CR 702.33 / 702.33e)", () => {
         {
             op: "if" as const,
             predicate: {
-                left: { kickerPaid: "kicker-r" },
+                left: { additionalCostPaid: "kicker-r" },
                 op: "ge" as const,
                 right: 1,
             },
@@ -20454,7 +20454,7 @@ describe("Effect Script value: kickerPaid (CR 702.33 / 702.33e)", () => {
         const id = registerScript("test-val-kicker-paid-count", [
             {
                 op: "dealDamage",
-                amount: { kickerPaid: "kicker-x" },
+                amount: { additionalCostPaid: "kicker-x" },
                 to: { player: "opponent" },
             },
         ]);
@@ -20471,7 +20471,7 @@ describe("Effect Script value: kickerPaid (CR 702.33 / 702.33e)", () => {
             {
                 op: "if",
                 predicate: {
-                    left: { kickerPaid: "no-such-kicker" },
+                    left: { additionalCostPaid: "no-such-kicker" },
                     op: "ge",
                     right: 1,
                 },

@@ -56,7 +56,7 @@ import {
 import { getLegalActions } from "../../../../gre/rules";
 import { applyOneTargetSelection } from "../../../../game";
 import { registerTokenDefinition } from "../../..";
-import { kickerPaidCondition } from "../../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../../abilities/triggers/shared";
 import type { TargetSelection, PermanentView } from "../../../types";
 
 /** Pushes a triggered ability directly onto the stack (bypassing the real
@@ -1560,10 +1560,14 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
             (c) => c.card.id === thornscapeBattlemage.id
         )!;
         expect(
-            kickerPaidCondition("kicker-w")(bm as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-w")(
+                bm as unknown as PermanentView
+            )
         ).toBe(true);
         expect(
-            kickerPaidCondition("kicker-r")(bm as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-r")(
+                bm as unknown as PermanentView
+            )
         ).toBe(false);
 
         // `projectPublicState` strips `card.card` to `{ id }` and reshapes
@@ -1575,10 +1579,14 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
             (c) => c.id === bm.id
         )!;
         expect(
-            kickerPaidCondition("kicker-w")(slim as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-w")(
+                slim as unknown as PermanentView
+            )
         ).toBe(true);
         expect(
-            kickerPaidCondition("kicker-r")(slim as unknown as PermanentView)
+            additionalCostPaidCondition("kicker-r")(
+                slim as unknown as PermanentView
+            )
         ).toBe(false);
     });
 });

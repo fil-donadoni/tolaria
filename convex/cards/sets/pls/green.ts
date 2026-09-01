@@ -17,7 +17,7 @@ import {
     LANDWALK_KEYWORD_BY_BASIC_TYPE,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
@@ -885,9 +885,9 @@ export const stoneKavu: CardDefinition = {
 // (`pls/blue.ts`), Thunderscape Battlemage (`pls/red.ts`), Nightscape
 // Battlemage (`pls/black.ts`). Two independently-payable Kickers, two
 // `enteredTrigger`s each gated PER KICKER at CHECK time (CR 603.4) by
-// `conditionOnSelf: kickerPaidCondition("<id>")` — the shared predicate over
+// `conditionOnSelf: additionalCostPaidCondition("<id>")` — the shared predicate over
 // the permanent's own per-Kicker payment record — and again at RESOLUTION
-// time by the `{ op: "if", predicate: { left: { kickerPaid: "<id>" }, op:
+// time by the `{ op: "if", predicate: { left: { additionalCostPaid: "<id>" }, op:
 // "ge", right: 1 } }` branch inside each `effects[]`. Thornscape shipped
 // (PR #2040) with NO check-time gate — the exact bug #2039 fixed for its
 // three siblings while this card was in flight — so an unkicked-for-{R}
@@ -898,7 +898,7 @@ export const stoneKavu: CardDefinition = {
 // (`pls/red.ts`). The CR 400.7 blink hazard that once made that actively wrong
 // is fixed engine-side (issue #2042: a departure-time `StackItem.sourceLki`
 // snapshot `resolveTopOfStackInner` prefers over the live permanent, CR
-// 608.2h); what survives is that only the `if { kickerPaid }` branch inside
+// 608.2h); what survives is that only the `if { additionalCostPaid }` branch inside
 // `effects[]` also gates a CR 707.10 ability copy.
 export const thornscapeBattlemage: CardDefinition = {
     id: "13f24f89-3996-4740-a6c9-d26b8869554b", // PLS 94
@@ -922,13 +922,13 @@ export const thornscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-r"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-r"),
             targetRequirement: { type: "any", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-r" },
+                        left: { additionalCostPaid: "kicker-r" },
                         op: "ge",
                         right: 1,
                     },
@@ -948,13 +948,13 @@ export const thornscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {W} kicker, destroy target artifact.",
             scope: "self",
             // CR 603.4 per-Kicker check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker-w"),
+            conditionOnSelf: additionalCostPaidCondition("kicker-w"),
             targetRequirement: { type: "Artifact", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker-w" },
+                        left: { additionalCostPaid: "kicker-w" },
                         op: "ge",
                         right: 1,
                     },

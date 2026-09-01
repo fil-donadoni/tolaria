@@ -261,11 +261,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads the spell's kicker count — the canned generator casts unkicked`;
         return;
     }
-    // kickerPaid (CR 702.33, ADR 0079): the amount reads whether ONE named
+    // additionalCostPaid (CR 702.33, ADR 0079): the amount reads whether ONE named
     // Kicker was paid — the same cast-time decision `kickerCount` reads, so the
     // canned generator (which casts unkicked) can't reproduce it either.
-    if ("kickerPaid" in value) {
-        req.skip ??= `amount reads whether the "${value.kickerPaid}" kicker was paid — the canned generator casts unkicked`;
+    if ("additionalCostPaid" in value) {
+        req.skip ??= `amount reads whether the "${value.additionalCostPaid}" kicker was paid — the canned generator casts unkicked`;
         return;
     }
     // manaValue (CR 202.3): the amount reads a selected object's mana value. The

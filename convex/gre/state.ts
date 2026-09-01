@@ -1879,7 +1879,7 @@ export type StackItem = CardInstanceState & {
      *  the two can never drift: `SpellContext.getKickerCount()`, the
      *  `{ kickerCount: true }` value and `entersWith.counters` count `"kicker"`
      *  all read the derived sum; `SpellContext.getKickerPaidCount(id)` and
-     *  `{ kickerPaid: "<id>" }` read one entry. Undefined for spells without a
+     *  `{ additionalCostPaid: "<id>" }` read one entry. Undefined for spells without a
      *  Kicker cost / cast unkicked. */
     kickerPayments?: KickerPayments;
     /** CR 702.27a — whether this spell's Buyback cost was paid as it was cast

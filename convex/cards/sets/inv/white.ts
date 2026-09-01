@@ -37,7 +37,7 @@ import {
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
-import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Cost-modifier static effect (CR 601.2f, layer-agnostic — scanned at cast
@@ -925,8 +925,8 @@ export const teferisCare: CardDefinition = {
 // Gate shape: a SINGLE Kicker (not the Battlemage cycle's "and/or" pair), so
 // this uses the Waterspout Elemental template (`pls/blue.ts`) rather than
 // Jacked Rabbit's `condition`/`interveningIf` pair — `conditionOnSelf:
-// kickerPaidCondition("kicker")` at CR 603.4 check time, and the matching
-// `if { kickerPaid: "kicker" }` branch inside `effects[]` at resolution
+// additionalCostPaidCondition("kicker")` at CR 603.4 check time, and the matching
+// `if { additionalCostPaid: "kicker" }` branch inside `effects[]` at resolution
 // time, reading the resolving TRIGGER stack item's own `kickerPayments`
 // record (CR 608.2h last known information) rather than an `interveningIf`
 // re-evaluated against the LIVE permanent.
@@ -940,7 +940,7 @@ export const teferisCare: CardDefinition = {
 // survives is CR 707.10: an ability COPY is put on the stack without
 // re-running `matches`, so a check-time predicate never sees it and only the
 // resolution-time `if` branch still gates it. Authority for the whole rule is
-// `kickerPaidCondition`'s doc block (`cards/abilities/triggers/shared.ts`).
+// `additionalCostPaidCondition`'s doc block (`cards/abilities/triggers/shared.ts`).
 export const benalishEmissary: CardDefinition = {
     id: "6b82d56e-80d7-4be9-ac22-de3257efc458", // INV 5
     rarity: "uncommon",
@@ -966,13 +966,13 @@ export const benalishEmissary: CardDefinition = {
                 "When this creature enters, if it was kicked, destroy target land.",
             scope: "self",
             // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: kickerPaidCondition("kicker"),
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
             targetRequirement: { type: "Land", count: 1 },
             effects: [
                 {
                     op: "if",
                     predicate: {
-                        left: { kickerPaid: "kicker" },
+                        left: { additionalCostPaid: "kicker" },
                         op: "ge",
                         right: 1,
                     },

@@ -1,6 +1,6 @@
 // Per-Kicker CHECK-TIME predicate (CR 702.33 / CR 603.4, issue #2015).
 //
-// `kickerPaidCondition(id)` is the gate that decides whether a Battlemage's
+// `additionalCostPaidCondition(id)` is the gate that decides whether a Battlemage's
 // "if it was kicked with its {A} kicker" ETB trigger is EVER PUT ON THE STACK.
 // That makes its failure mode asymmetric: a false negative loses an ability,
 // but a false POSITIVE announces a target and emits a real `BECAME_TARGET`
@@ -10,7 +10,7 @@
 // fail-CLOSED rows below carry the weight of this file: every shape that is not
 // an unambiguous "this exact Kicker was paid at least once" must read false.
 import { describe, expect, it } from "vitest";
-import { kickerPaidCondition } from "../shared";
+import { additionalCostPaidCondition } from "../shared";
 import { kickerPaidCount } from "../../../../gre/kicker";
 import type { CardType, PermanentView } from "../../../types";
 
@@ -27,27 +27,27 @@ function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
     };
 }
 
-describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, issue #2015)", () => {
+describe("additionalCostPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, issue #2015)", () => {
     it("true only for the NAMED Kicker when a two-Kicker card was partially kicked", () => {
         const self = makeSelf({ kickerPayments: { "kicker-g": 1 } });
-        expect(kickerPaidCondition("kicker-g")(self)).toBe(true);
+        expect(additionalCostPaidCondition("kicker-g")(self)).toBe(true);
         // The whole point of the issue: the OTHER Kicker's trigger must not
         // fire. `wasKicked` would be true here ("kicked with something"), which
         // is exactly why the aggregate flag is not a usable per-Kicker gate.
-        expect(kickerPaidCondition("kicker-b")(self)).toBe(false);
+        expect(additionalCostPaidCondition("kicker-b")(self)).toBe(false);
     });
 
     it("true for both when both Kickers were paid", () => {
         const self = makeSelf({
             kickerPayments: { "kicker-b": 1, "kicker-g": 1 },
         });
-        expect(kickerPaidCondition("kicker-b")(self)).toBe(true);
-        expect(kickerPaidCondition("kicker-g")(self)).toBe(true);
+        expect(additionalCostPaidCondition("kicker-b")(self)).toBe(true);
+        expect(additionalCostPaidCondition("kicker-g")(self)).toBe(true);
     });
 
     it("true for a Multikicker paid more than once (CR 702.33e)", () => {
         const self = makeSelf({ kickerPayments: { kicker: 3 } });
-        expect(kickerPaidCondition("kicker")(self)).toBe(true);
+        expect(additionalCostPaidCondition("kicker")(self)).toBe(true);
     });
 
     // ── fail-closed rows ───────────────────────────────────────────────────
@@ -85,14 +85,16 @@ describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, iss
 
     for (const row of failClosed) {
         it(`fails CLOSED: ${row.label}`, () => {
-            expect(kickerPaidCondition("kicker-b")(row.self)).toBe(false);
+            expect(additionalCostPaidCondition("kicker-b")(row.self)).toBe(
+                false
+            );
         });
     }
 
     it("fails CLOSED on an inherited Object.prototype key (no spurious true from `toString`)", () => {
         const self = makeSelf({ kickerPayments: {} });
-        expect(kickerPaidCondition("toString")(self)).toBe(false);
-        expect(kickerPaidCondition("constructor")(self)).toBe(false);
+        expect(additionalCostPaidCondition("toString")(self)).toBe(false);
+        expect(additionalCostPaidCondition("constructor")(self)).toBe(false);
     });
 
     it("agrees with `gre/kicker.ts`'s resolution-time authority on every shape", () => {
@@ -112,7 +114,9 @@ describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, iss
         for (const rec of records) {
             for (const id of ["kicker-b", "kicker-g", "nope"]) {
                 expect(
-                    kickerPaidCondition(id)(makeSelf({ kickerPayments: rec }))
+                    additionalCostPaidCondition(id)(
+                        makeSelf({ kickerPayments: rec })
+                    )
                 ).toBe(kickerPaidCount(rec, id) >= 1);
             }
         }
@@ -130,7 +134,9 @@ describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, iss
     it("exposes no `interveningIf` variant for card authors to wire up", async () => {
         const shared = await import("../shared");
         expect(
-            Object.keys(shared).filter((k) => k.startsWith("kickerPaid"))
-        ).toEqual(["kickerPaidCondition"]);
+            Object.keys(shared).filter((k) =>
+                k.startsWith("additionalCostPaid")
+            )
+        ).toEqual(["additionalCostPaidCondition"]);
     });
 });
