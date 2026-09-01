@@ -772,14 +772,26 @@ export function getLegalActions(
     }
 
     // CR 702.34 — a card in the player's OWN graveyard that currently has a
-    // Flashback cost (printed or granted) is castable from there for that cost.
-    // A graveyard card is never castable any other way, so this branch fully
-    // owns the "cast" decision for it: same timing/phase gates as a hand cast,
-    // but affordability is checked against the flashback cost.
+    // Flashback cost (printed or granted) is castable from there for that cost:
+    // same timing/phase gates as a hand cast, but affordability is checked
+    // against the flashback cost.
+    //
+    // `!hasEscape` is what orders this against the ESCAPE branch below, in the
+    // SAME precedence `castRawManaCost` / `graveyardCastStackFlags` /
+    // `graveyardCastMechanism` use (CR 702.138 escape beats CR 702.34
+    // flashback). A card can carry BOTH — Underworld Breach grants escape to
+    // every nonland card in its controller's graveyard, Lava Dart included —
+    // and without this the gate priced a Breach-granted escape cast against the
+    // FLASHBACK cost and demanded the flashback's "Sacrifice a Mountain", while
+    // every cost site downstream priced the escape cost. That refused the cast
+    // outright on a board with no Mountain, and mispriced it on one with (issue
+    // #2980). The old comment here claimed "a graveyard card is never castable
+    // any other way", which the escape branch below already contradicted.
     const isFlashbackCast =
         !types.includes("Land") &&
         player.graveyard.some((c) => c.id === card.id) &&
-        hasFlashback(card);
+        hasFlashback(card) &&
+        !hasEscape(state, card);
     if (isFlashbackCast) {
         const baseLegal = castTimingBaseLegal(state, caster.id, card);
         // CR 702.34a — the mana portion may be absent (Lava Dart pays only a

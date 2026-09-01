@@ -39,14 +39,17 @@ import {
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
+    castExileCostOccupiesPayWithSlot,
     castRawManaCost,
     exileCastPermission,
     graveyardCastMechanism,
-    searchCanModelGraveyardCast,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
-import { payableAdditionalCostLegs } from "./additionalCost";
+import {
+    payableAdditionalCostLegs,
+    resolveAdditionalCosts,
+} from "./additionalCost";
 import {
     enumerateKickerVariants,
     foldBuybackCost,
@@ -135,6 +138,8 @@ import {
     turnableFaceUpPermanents,
 } from "./morph";
 import { hasRetrace } from "./retrace";
+import { flashbackExileEligibleCount } from "./flashback";
+import { hasEscape } from "./escape";
 import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
@@ -1444,11 +1449,11 @@ function enumerateCastMovesFromZone(
     // graveyard grant nothing at all, instead of the printed cost none of them
     // pays. Before this the enumerator had no way to reach those costs at all:
     // the helper lived in `convex/game.ts`, which imports this module.
+    const castFromZone: CastFromZone = opts?.castFromZone ?? "hand";
     const rawCost =
         lifeInsteadOfMana !== undefined
             ? {}
-            : (castRawManaCost(state, card, opts?.castFromZone ?? "hand") ??
-              {});
+            : (castRawManaCost(state, card, castFromZone) ?? {});
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
@@ -1643,18 +1648,64 @@ function enumerateCastMovesFromZone(
     // here IS the #2283/#2284 bot-freeze class: a Move the server refuses.
     // Derived from the two costs rather than from `lifeInsteadOfMana`, which
     // named only the library-top instance of the same shape.
+    // CR 601.2b / 118.8 (issue #2980) — ONE shape escapes that lock: a
+    // flashback cost whose own NON-MANA leg carries the variable ("Flashback—
+    // {1}{U}, Exile X blue cards from your graveyard", Flash of Insight). CR
+    // 601.2b makes the caster announce "the value of that variable" for any
+    // variable cost paid as the spell is cast, not only one in the MANA cost,
+    // and `announceCast` agrees: its own lock fires solely for the library-top
+    // mana-cost replacement (`libraryTopPayment`), so it accepts any X ≥ 0
+    // here and sizes the exile picker to it. The enumerator was strictly
+    // STRICTER than the server, which made the whole flashback half of that
+    // card unreachable for the Bot at any X but 0 — i.e. useless.
+    // Gated on `!hasEscape` for the same reason `buildCastExileCostChoice` is
+    // (CR 702.138 escape beats CR 702.34 flashback): under Underworld Breach an
+    // escape cast of Flash of Insight pays `{X}{1}{U}` in MANA, so its ceiling
+    // is `maxAffordableX` — not the count of blue cards in the graveyard, which
+    // is what the flashback cost spends (issue #2980 review, F6).
+    //
+    // Read off the RAW `additionalCosts` rather than the leg-resolved spec:
+    // `xValues` is computed once for the whole card, above the `announceVariants`
+    // cross-product where `additionalCostLegId` is chosen. Inert today — Flash
+    // of Insight declares the field top-level and no card carries it inside a
+    // `oneOf` leg — but a card that did would keep this ceiling for every leg.
+    const flashbackExileX =
+        castFromZone === "graveyard" && !hasEscape(state, card)
+            ? def?.additionalCosts?.flashbackExileFromGraveyard
+            : undefined;
     const xLockedToZero =
-        !hasX && typeof getInstanceManaCost(card)?.X === "string";
+        !hasX &&
+        typeof getInstanceManaCost(card)?.X === "string" &&
+        flashbackExileX === undefined;
+    // CR 118.8 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
+    // rather than mana, the eligible fodder is the ceiling: `maxAffordableX`
+    // prices X against untapped mana and would answer 0 for a flashback cast
+    // that has already spent every land on its fixed `{1}{U}`, which is
+    // precisely the position Flash of Insight is cast from. The per-X
+    // `planCastCostPicks` below re-checks payability and drops any X this
+    // ceiling over-counts, so the two can only ever under-offer.
     const xCeiling =
-        def?.castXUpperBound === "snow-lands"
-            ? Math.min(
-                  maxAffordableX(player, card, state),
-                  countSnowLands(player.battlefield)
+        flashbackExileX !== undefined
+            ? flashbackExileEligibleCount(
+                  player,
+                  flashbackExileX.color,
+                  card.id
               )
-            : maxAffordableX(player, card, state);
+            : def?.castXUpperBound === "snow-lands"
+              ? Math.min(
+                    maxAffordableX(player, card, state),
+                    countSnowLands(player.battlefield)
+                )
+              : maxAffordableX(player, card, state);
+    // CR 601.2b — a cast announces an X whenever a variable cost is paid as it
+    // is cast: an `{X}` in the cost the ZONE charges (`hasX`), or — issue #2980
+    // — a flashback cost whose non-mana leg carries the variable instead
+    // (Flash of Insight). The second shape adds NOTHING to `normCost`
+    // (`normalizeManaCost` folds an X the cost does not have as 0), so each
+    // variant differs only in the exile cost `planCastCostPicks` prices below.
     const xValues: (number | undefined)[] = xLockedToZero
         ? [0]
-        : hasX
+        : hasX || flashbackExileX !== undefined
           ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
           : [undefined];
 
@@ -1729,10 +1780,30 @@ function enumerateCastMovesFromZone(
         // black spell under Drought with no Swamp), which the castability gate
         // does not check for static sacrifices; fail closed rather than emit a
         // move the executor cannot pay.
-        const castCostPicks = def
-            ? planCastCostPicks(state, player, card, def, additionalCostLegId)
-            : undefined;
-        if (castCostPicks === null) continue;
+        // CR 702.34a / 118.8 (issue #2980) — ONE leg is X-dependent: Flash of
+        // Insight's `flashbackExileFromGraveyard` exiles exactly the announced
+        // X cards. For that card, and only that card, the plan is recomputed
+        // per candidate X inside the loop below; every other cast keeps the
+        // hoist (the plan reads the board and the flattened additional cost,
+        // never the chosen X), so no X spell pays for a battlefield rescan per
+        // candidate X.
+        const exilePlanDependsOnX =
+            castFromZone === "graveyard" &&
+            def?.additionalCosts?.flashbackExileFromGraveyard !== undefined;
+        const hoistedCostPicks =
+            def && !exilePlanDependsOnX
+                ? planCastCostPicks(
+                      state,
+                      player,
+                      card,
+                      def,
+                      additionalCostLegId,
+                      {
+                          castFromZone,
+                      }
+                  )
+                : undefined;
+        if (hoistedCostPicks === null) continue;
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 702.33a / 601.2f (issue #2081) — a paid Kicker's MANA leg
@@ -1822,9 +1893,30 @@ function enumerateCastMovesFromZone(
             // the cost between them with nothing left over and nothing missing.
             // Without this the enumerator drops the cast entirely and the Bot
             // never casts a delve spell off a short board.
-            const delveFuel = spellHasDelve(card)
-                ? delveEligibleCards(player, card.id).length
-                : 0;
+            // CR 702.66 / 601.2g — Delve rides the cast's ONE exile-picker
+            // slot, so it is unavailable when this cast's own exile additional
+            // cost has already claimed it (an escape cast, a non-mana flashback
+            // cast). `announceCast` gates the delve picker the same way; an
+            // enumerator that discounted the cost anyway would build a tap plan
+            // short of what the server charges and park the announcement
+            // unpayable (issue #2980 review, F1).
+            const delveFuel =
+                spellHasDelve(card) &&
+                !castExileCostOccupiesPayWithSlot(
+                    state,
+                    player,
+                    card,
+                    castFromZone,
+                    {
+                        additionalCosts: resolveAdditionalCosts(
+                            def?.additionalCosts,
+                            additionalCostLegId
+                        ),
+                        chosenX: x,
+                    }
+                )
+                    ? delveEligibleCards(player, card.id).length
+                    : 0;
             if (delveFuel > 0) {
                 const shortfall = genericManaShortfall(
                     player,
@@ -1841,6 +1933,23 @@ function enumerateCastMovesFromZone(
                     )
                 );
             }
+            const castCostPicks = exilePlanDependsOnX
+                ? planCastCostPicks(
+                      state,
+                      player,
+                      card,
+                      def,
+                      additionalCostLegId,
+                      { castFromZone, chosenX: x }
+                  )
+                : hoistedCostPicks;
+            // `null` = a leg has no legal payment: a black spell under Drought
+            // with no Swamp (which the castability gate does not check at all),
+            // or an exile cost the graveyard cannot fund at THIS X (which the
+            // gate cannot check, since it runs before an X is announced). Fail
+            // closed rather than emit a move the executor announces and cannot
+            // pay.
+            if (castCostPicks === null) continue;
             const tapPlan = planManaPayment(state, player, normCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
@@ -2958,11 +3067,17 @@ export function enumerateMoves(
     // fail-closed reason the retrace loop states: the gate's final "cast is for
     // all non-land cards" fallback is zone-blind and would report "cast" for a
     // graveyard card no mechanism permits, which `locateCastSource` then
-    // refuses to locate. `searchCanModelGraveyardCast` then drops the two
-    // mechanisms whose cost the `cast-spell` Move cannot carry — escape's
-    // exile-N-others and a non-mana flashback cost — rather than offering a
-    // cast the executor would announce and fail to pay (the announce-then-abort
-    // bot-freeze shape).
+    // refuses to locate.
+    //
+    // ESCAPE (CR 702.138) and a non-mana FLASHBACK cost used to be dropped here
+    // by a `searchCanModelGraveyardCast` predicate, because the `cast-spell`
+    // Move had no field for "exile N other cards from your graveyard" and an
+    // escape cast priced as if the exile were free would park unpayable at the
+    // real mutation. Both costs now ride on the Move
+    // (`CastCostPicks.exileCostCardIds` / `.sacrificeIds`, issue #2980) and are
+    // charged in both sandboxes, so the predicate is gone: the ONE remaining
+    // fail-closed gate is `planCastCostPicks` returning `null` for a board that
+    // cannot pay a leg, checked inside `enumerateCastMoves`.
     for (const card of player.graveyard) {
         const mechanism = graveyardCastMechanism(
             state,
@@ -2971,7 +3086,6 @@ export function enumerateMoves(
             player.id
         );
         if (mechanism === undefined || mechanism === "retrace") continue;
-        if (!searchCanModelGraveyardCast(card, mechanism)) continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
         moves.push(
             ...enumerateCastMoves(state, player, card, {

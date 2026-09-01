@@ -136,7 +136,7 @@ export function completeSacrificeSelection(
 /** The parked graveyard/hand exile CAST cost (CR 601.2g / 702.66 / 702.34a),
  *  reduced to what the deterministic picker needs. */
 export type CastExileChoiceView = {
-    /** Ids the payer may pay with, in zone order (its own graveyard or hand,
+    /** Ids the payer may pay with, cheapest first (its own graveyard or hand,
      *  the cast card itself already excluded). */
     candidateIds: string[];
     /** How many ids MUST be submitted — the exact count for a fixed cost, the
@@ -145,6 +145,17 @@ export type CastExileChoiceView = {
     /** Upper bound on the submission (`offsetGeneric.max` for delve, otherwise
      *  the same as `required`). */
     maximum: number;
+    /** CR 702.138a (Nethergoyf) — the VARIABLE escape exile: "any number of
+     *  other cards … with N or more card types among them". Present only for
+     *  that shape, and it changes the question from "how many" to "which": the
+     *  submission must COVER `minCardTypes` distinct card types, and any set
+     *  that does is legal. `typesById` carries each candidate's card types so
+     *  the picker can find a small covering set instead of paying everything.
+     *  Absent for every fixed-count cost and for delve. */
+    typeCover?: {
+        minCardTypes: number;
+        typesById: Record<string, readonly string[]>;
+    };
 };
 
 /** The parked generic-mana spend choice (CR 601.2g, #1444/#1446), reduced to
@@ -209,8 +220,9 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
 }
 
 /** CR 601.2g / 702.66 — the deterministic answer to a parked graveyard-exile
- *  cast cost: exile exactly the number REQUIRED (`required`), taking them from
- *  the front of the payer's own graveyard. For delve (`required` = the forced
+ *  cast cost: exile exactly the number REQUIRED (`required`), CHEAPEST FIRST
+ *  out of the payer's own graveyard (`castExileViewFor` orders the candidates;
+ *  issue #2980 — it used to be raw zone order). For delve (`required` = the forced
  *  `offsetGeneric.min`) that is precisely the amount the move enumerator already
  *  discounted from the tap plan, so the taps and the exiles cover the cost
  *  between them; delving further would burn graveyard resources the mana did not
@@ -218,6 +230,46 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
  *  the picker demands. Clamped to what is actually available so an
  *  under-supplied view can never emit an illegal submission (issue #1336). */
 export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
+    // CR 702.138a escape (Nethergoyf) — "exile any number of other cards …
+    // more card types among them". The cheapest legal payment is a MINIMAL
+    // covering set, not the whole graveyard: paying everything is legal but
+    // strictly worse, and for Nethergoyf specifically it is self-defeating —
+    // its power and toughness count the card types in the graveyard it would
+    // have just emptied, so the only escape the Bot could enumerate was
+    // guaranteed to be the worst one and would never be chosen (issue #2980
+    // review, F4). Greedy set cover over a cheapest-first candidate list: take
+    // the card contributing the most NEW types, ties going to the cheaper one,
+    // until the threshold is met. Deterministic — the candidate order is
+    // already stable and the scan is left-to-right.
+    if (choice.typeCover) {
+        const { minCardTypes, typesById } = choice.typeCover;
+        const covered = new Set<string>();
+        const picked: string[] = [];
+        const remaining = [...choice.candidateIds];
+        while (covered.size < minCardTypes && remaining.length > 0) {
+            let bestIdx = -1;
+            let bestGain = 0;
+            for (let i = 0; i < remaining.length; i++) {
+                const gain = (typesById[remaining[i]] ?? []).filter(
+                    (t) => !covered.has(t)
+                ).length;
+                if (gain > bestGain) {
+                    bestGain = gain;
+                    bestIdx = i;
+                }
+            }
+            // No remaining card adds a new type: the threshold is unreachable.
+            // Fall through with what is picked; `planCastCostPicks` compares
+            // against `required` and drops the Move, and the live fallback's
+            // submission is rejected by the server rather than silently wrong.
+            if (bestIdx === -1) break;
+            const [id] = remaining.splice(bestIdx, 1);
+            for (const t of typesById[id] ?? []) covered.add(t);
+            picked.push(id);
+        }
+        if (covered.size >= minCardTypes) return picked;
+        return [...choice.candidateIds];
+    }
     const n = Math.min(
         choice.required,
         choice.maximum,
@@ -337,17 +389,36 @@ function convokeViewFor(
 }
 
 /** The cast-side exile picker's candidate ids + bounds, read off the payer's own
- *  graveyard/hand (CR 702.34a / 702.66 / 702.138a). */
-function castExileViewFor(
+ *  graveyard/hand (CR 702.34a / 702.66 / 702.138a).
+ *
+ *  Exported for `gre/castCostPicks.ts` (issue #2980): the Bot's move enumerator
+ *  plans an escape / non-mana-flashback exile cost by building the SAME view and
+ *  feeding it to the SAME {@link chooseCastExileCost}, so the ids the search
+ *  charges are byte-identical to the ones this module's live reactive fallback
+ *  would submit for the same park. */
+export function castExileViewFor(
     player: PlayerState,
     ec: NonNullable<GameState["pendingCast"]>["exileFromGraveyardChoice"]
 ): CastExileChoiceView | null {
     if (!ec) return null;
     const zone = ec.zone ?? "graveyard";
     const source = zone === "hand" ? player.hand : player.graveyard;
-    const candidateIds = source
-        .filter((c) => isExileCostEligible(c, ec.excludeInstanceId, ec.color))
-        .map((c) => c.id);
+    // CHEAPEST FIRST, not graveyard order (issue #2980) — the same conservative
+    // ordering every other "which of my own cards pays this?" pick already uses
+    // (`cheapestFirst`, above). Zone order is arbitrary: it spends whatever
+    // happens to be at the front, which under Underworld Breach (CR 702.138 —
+    // "each NONLAND card in your graveyard has escape") means the escape cost
+    // routinely exiles the very card the next escape wanted, while a LAND — a
+    // card the grant can never make castable, so pure fodder — sits untouched
+    // behind it. Mana value is the available proxy for that: lands and cheap
+    // spells go first, the expensive cards the graveyard is being kept for go
+    // last. Ties break on instance id, so the order is still stable across runs
+    // (determinism is a hard requirement for the search).
+    const candidateIds = cheapestFirst(
+        source.filter((c) =>
+            isExileCostEligible(c, ec.excludeInstanceId, ec.color)
+        )
+    ).map((c) => c.id);
     // Delve's variable-offset mode is bounded by `offsetGeneric`; the escape
     // card-type mode has no fixed count, so exile everything eligible (the only
     // submission guaranteed to clear any card-type threshold); every other mode
@@ -361,6 +432,22 @@ function castExileViewFor(
         candidateIds,
         required,
         maximum: ec.offsetGeneric ? ec.offsetGeneric.max : required,
+        // CR 702.138a — the variable escape cost carries its own question; see
+        // `typeCover`. `required` above stays the whole candidate list so a
+        // consumer that ignores `typeCover` still emits a legal (if maximal)
+        // submission.
+        ...(ec.offsetGeneric === undefined && ec.minCardTypes !== undefined
+            ? {
+                  typeCover: {
+                      minCardTypes: ec.minCardTypes,
+                      typesById: Object.fromEntries(
+                          source
+                              .filter((c) => candidateIds.includes(c.id))
+                              .map((c) => [c.id, c.types])
+                      ),
+                  },
+              }
+            : {}),
     };
 }
 

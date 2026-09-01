@@ -99,6 +99,7 @@ import {
 import { markGraveyardPermanentCastUsed } from "./rules";
 import {
     castSourceForSearch,
+    findCastSourceCard,
     graveyardCastMechanism,
     graveyardCastStackFlags,
     reboundCastStackFlags,
@@ -935,8 +936,16 @@ export function applyMoveInSearch(
             // real announce-time computation) and before the spell leaves
             // hand, mirroring `tryAutoCommitPendingCast`'s real-path order
             // (`convex/game.ts`).
-            const preCastSpell = player.hand.find(
-                (c) => c.id === move.cardInstanceId
+            // CR 601.3 (issue #2980) — the zone the Move DECLARES, not the
+            // hand: a hand-only lookup skipped this whole pre-cast cost block
+            // for every graveyard and exile cast the enumerator offers, so an
+            // escape cast's exile went uncharged and the spell reached the
+            // stack for free.
+            const preCastSpell = findCastSourceCard(
+                state,
+                player,
+                move.cardInstanceId,
+                move.castFromZone
             );
             if (preCastSpell) {
                 applyDelveExileForSearch(
@@ -999,8 +1008,9 @@ export function applyMoveInSearch(
             const castCostOut: {
                 additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
             } = {};
+            let castCostsPaid = true;
             if (move.castCostPicks && preCastSpell) {
-                applyCastCostPicksForSearch(
+                castCostsPaid = applyCastCostPicksForSearch(
                     state,
                     playerId,
                     preCastSpell,
@@ -1009,9 +1019,20 @@ export function applyMoveInSearch(
                     ) ?? undefined,
                     move.additionalCostLegId,
                     move.castCostPicks,
-                    castCostOut
+                    castCostOut,
+                    {
+                        castFromZone: move.castFromZone,
+                        chosenX: move.chosenX,
+                    }
                 );
             }
+            // CR 702.138a escape (issue #2980) — the exile cost could not be
+            // paid from the zone the Move named: a STALE Move (the
+            // graveyard changed between enumeration and application).
+            // Skip it rather than put the spell on the stack for free —
+            // escape exiles nothing on resolution, so an uncharged
+            // escape cast is recastable forever.
+            if (!castCostsPaid) return;
             // CR 702.81a (issue #2358) — a RETRACE cast leaves the GRAVEYARD,
             // not the hand, and destroys a land card from hand on the way. The
             // discard is what BOUNDS the line: retrace exiles nothing, so the

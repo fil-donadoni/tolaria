@@ -260,6 +260,14 @@ export function useVsAiDriver(
         // the pick travels on the `cast-spell` Move (`castCostPicks`), so it
         // belongs in `MoveMutations` and is submitted by `executeMove`.
         selectAdditionalCost: useMutation(api.game.selectAdditionalCost),
+        // CR 702.138a escape / 702.34a flashback — the graveyard cast's exile
+        // cost. It hangs off `pendingCast` like the pickers below, but it is
+        // ALSO Move-realised now: an escape / non-mana-flashback cast carries
+        // its picked ids on the Move, so the executor submits them itself
+        // instead of waiting for the reactive owed-payment gate to notice the
+        // park. The direct handle below stays — it still answers the DELVE
+        // offset and any park the executor did not pre-pay.
+        selectCastExileCost: useMutation(api.game.selectCastExileCost),
         // CR 602.1 / 118 — the deferred activation-cost pickers. Unlike the
         // attack-tax / mana-spend pickers below these ARE Move-realised: the
         // picks travel on the `activate-ability` Move (`costPicks`), so they

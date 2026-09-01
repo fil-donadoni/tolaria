@@ -37,6 +37,7 @@ import {
     forest,
     plains,
     grizzlyBears,
+    ancestralRecall,
 } from "../../cards/sets/lea";
 import { withTemporaryDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
@@ -439,21 +440,26 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         for (const m of moves) expect(m.chosenX).toBe(0);
     });
 
-    it("does NOT offer a flashback cast whose non-mana cost lives on the DEFINITION (fail closed)", () => {
+    it("offers a flashback cast whose non-mana cost lives on the DEFINITION, carrying the exile pick (issue #2980)", () => {
         // CR 702.34a / 118.5 — Flash of Insight's flashback owes "Exile X blue
         // cards from your graveyard", declared as
         // `additionalCosts.flashbackExileFromGraveyard` rather than on the
-        // flashback object, so a gate reading only `getFlashbackAdditionalCost`
-        // lets it through. Its park is built inside `announceCast` and the Move
-        // has no field for the picked ids.
+        // flashback object. This used to be refused outright: the park was
+        // built inside `announceCast` and the Move had no field for the picked
+        // ids. Issue #2980 moved the builder into `gre/castCost.ts` and gave
+        // the Move `castCostPicks.exileCostCardIds`, so the cast is now offered
+        // — one variant per announceable X, each carrying exactly the blue
+        // cards it will exile.
         const flash = makeInstance(flashOfInsight.id, {
             id: "gyFlash",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
+        // CR 202.2 / 105.2 — real BLUE cards, not Islands: a land has no mana
+        // cost and so no colour, and the cost demands blue CARDS.
         const blueFodder = Array.from({ length: 4 }, (_, i) =>
-            makeInstance(island.id, {
+            makeInstance(ancestralRecall.id, {
                 id: `blue-${i}`,
                 zone: "graveyard",
                 controllerId: "p1",
@@ -469,20 +475,33 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
                 makePlayer("p2"),
             ],
         });
-        // The gate permits it — which is why the candidate set has to decline
-        // it on its own terms.
         expect(getLegalActions(state, getPlayer(state, "p1"), flash)).toContain(
             "cast"
         );
-        expect(castOf(state, "p1", "gyFlash")).toBeUndefined();
+        const flashCast = castOf(state, "p1", "gyFlash");
+        expect(flashCast).toBeDefined();
+        // X = 0 owes no exile (the spell looks at 0 cards); every X above it
+        // names exactly X blue cards, never Flash of Insight itself
+        // (CR 601.2a).
+        const byX = new Map<number | undefined, string[] | undefined>();
+        for (const m of castsOf(state, "p1")) {
+            if (m.cardInstanceId !== "gyFlash") continue;
+            byX.set(m.chosenX, m.castCostPicks?.exileCostCardIds);
+        }
+        expect(byX.get(0)).toBeUndefined();
+        expect(byX.get(2)).toEqual(["blue-0", "blue-1"]);
+        // Four blue cards of fodder, so the announceable range stops there.
+        expect(byX.get(4)).toEqual(["blue-0", "blue-1", "blue-2", "blue-3"]);
+        expect(byX.has(5)).toBe(false);
     });
 
-    it("does NOT offer an ESCAPE cast — its exile-N-others cost is not carriable (fail closed)", () => {
-        // CR 702.138a escape. `planCastCostPicks` has no branch for it, and
-        // the Move has no field for the picked ids, so an enumerated escape cast
-        // would be priced as if the exile were free and park unpayable at the
-        // real mutation. Tracked at
-        // docs/findings/2971-escape-and-flashback-cost-not-enumerable.md.
+    it("offers an ESCAPE cast carrying the cards it exiles (issue #2980)", () => {
+        // CR 702.138a escape. This used to be refused outright: `planCastCostPicks`
+        // had no branch for the "exile N other cards" cost and the Move had no
+        // field for the picked ids, so an enumerated escape cast would have been
+        // priced as if the exile were free and parked unpayable at the real
+        // mutation. Both are now carried, and — the part that BOUNDS the line —
+        // charged in both search sandboxes.
         const uro = makeInstance(uroTitanOfNaturesWrath.id, {
             id: "gyUro",
             zone: "graveyard",
@@ -509,12 +528,22 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
                 makePlayer("p2"),
             ],
         });
-        // The gate DOES permit it — which is exactly why the candidate set has
-        // to decline it on its own terms rather than leaning on legality.
         expect(getLegalActions(state, getPlayer(state, "p1"), uro)).toContain(
             "cast"
         );
-        expect(castOf(state, "p1", "gyUro")).toBeUndefined();
+        const uroCast = castOf(state, "p1", "gyUro");
+        expect(uroCast).toBeDefined();
+        // Uro's escape is "{G}{G}{U}{U}, Exile five other cards": four taps and
+        // five named graveyard cards, none of them Uro itself.
+        expect(uroCast!.tapPlan).toHaveLength(4);
+        expect(uroCast!.castCostPicks?.exileCostCardIds).toEqual([
+            "fodder-0",
+            "fodder-1",
+            "fodder-2",
+            "fodder-3",
+            "fodder-4",
+        ]);
+        expect(uroCast!.castFromZone).toBe("graveyard");
     });
 });
 

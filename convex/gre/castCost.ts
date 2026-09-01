@@ -15,15 +15,27 @@
 // of `GameState` plus the card, which is what makes the move legal to make.
 
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import type { ManaCost } from "../cards/types";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type { AdditionalCostSpec, ManaCost } from "../cards/types";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingCast,
+    PlayerState,
+} from "./state";
 import { getMadnessCost } from "./madness";
-import { hasEscape, getEscapeManaCost } from "./escape";
 import {
+    countDistinctCardTypes,
+    getEscapeExileSpec,
+    hasEscape,
+    getEscapeManaCost,
+} from "./escape";
+import {
+    flashbackExileEligibleCount,
     getFlashbackAdditionalCost,
     getFlashbackCost,
     hasFlashback,
 } from "./flashback";
+import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
 import { hasRebound } from "./rebound";
 import {
@@ -299,50 +311,6 @@ export function graveyardCastMechanism(
     return undefined;
 }
 
-/** Whether the Bot's search sandboxes can HONESTLY model a graveyard cast made
- *  by `mechanism` — i.e. whether every cost it owes is representable on the
- *  `cast-spell` Move today.
- *
- *  Two mechanisms are not, and both fail CLOSED (never enumerated) rather than
- *  being offered at a price the executor cannot pay — the announce-then-abort
- *  shape (`#2283`/`#2284`) this enumerator exists to avoid:
- *
- *  - **escape** (CR 702.138a) owes "exile N other cards from your graveyard",
- *    built only inside `announceCast` as a `PendingCast.exileFromGraveyardChoice`
- *    park. `planCastCostPicks` (`gre/castCostPicks.ts`) has no branch for it and
- *    the Move has no field to carry the picked ids, so an enumerated escape cast
- *    would be priced as if the exile were free and would park unpayable at the
- *    real mutation.
- *  - **flashback with a non-mana flashback cost** (CR 702.34a / 118.5 — Lava
- *    Dart's "Sacrifice a Mountain", the `flashbackExileFromGraveyard` X cost) is
- *    the same shape: `getFlashbackAdditionalCost` is read only by `announceCast`.
- *    Plain, mana-only flashback owes nothing extra and IS modelled.
- *
- *  Tracked at `docs/findings/2971-escape-and-flashback-cost-not-enumerable.md`.
- *  When either cost becomes representable, delete its branch here — nothing
- *  else in the enumerator needs to change. */
-export function searchCanModelGraveyardCast(
-    card: CardInstanceState,
-    mechanism: GraveyardCastMechanism
-): boolean {
-    if (mechanism === "escape") return false;
-    if (mechanism === "flashback") {
-        // Two INDEPENDENT places a flashback cast can owe a non-mana cost, and
-        // the gate has to read both (issue #2971 review finding 2 — it read
-        // only the first, so Flash of Insight slipped through):
-        //   - the flashback cost object's own `sacrifice` / `exileFromHand`
-        //     legs (Lava Dart), via `getFlashbackAdditionalCost`;
-        //   - `additionalCosts.flashbackExileFromGraveyard` (Flash of Insight,
-        //     `jud/blue.ts`), which lives on the DEFINITION, not on the
-        //     flashback object, and whose park `announceCast` builds as a
-        //     `PendingCast.exileFromGraveyardChoice`.
-        if (getFlashbackAdditionalCost(card) !== undefined) return false;
-        const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-        return def?.additionalCosts?.flashbackExileFromGraveyard === undefined;
-    }
-    return true;
-}
-
 /** CR 601.3 — whether `casterId` currently holds a permission to cast `card`
  *  out of `zoneOwner`'s EXILE. Two shapes, both riding the card object:
  *  the open-ended / turn-scoped grant (`castableFromExileBy` — Ice Cauldron,
@@ -431,4 +399,225 @@ export function castSourceForSearch(
                 : owner.library;
     if (!held.some((c) => c.id === cardInstanceId)) return null;
     return { owner, zone };
+}
+
+// ---------------------------------------------------------------------------
+// The NON-MANA leg of a graveyard cast (issue #2980)
+// ---------------------------------------------------------------------------
+
+/** The exile-cost picker a graveyard cast owes, or the reason no legal payment
+ *  exists. `undefined` = this cast owes no exile cost at all.
+ *
+ *  Two shapes rather than a throw, because the two callers need opposite
+ *  things from the same computation: the cast-announcement mutation throws the
+ *  `unpayable` message at the player, while the Bot's move enumerator drops the
+ *  candidate. A builder that threw could only serve the first, which is exactly
+ *  how the cost ended up living inside `announceCast` in the first place. */
+export type CastExileCostBuild =
+    | { choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> }
+    | { unpayable: string };
+
+/** CR 702.34a / 702.138a escape / 118.8 (issue #2980) — the "exile N cards" additional
+ *  cost a cast from the GRAVEYARD owes, as the `PendingCast` picker every
+ *  commit path parks on, or `undefined` when this cast owes none.
+ *
+ *  Three independent legs share the one picker slot (no shipped card carries
+ *  more than one), checked in the precedence `announceCast` has always used:
+ *
+ *   1. `additionalCosts.flashbackExileFromGraveyard` (CR 702.34a / 118.8 —
+ *      Flash of Insight's "Exile X blue cards from your graveyard"). Lives on
+ *      the DEFINITION, not on the flashback object, and is X-DEPENDENT: a
+ *      zero-X flashback cast owes nothing.
+ *   2. `FlashbackCost.exileFromHand` (Lava Dart's sibling shape) — one card
+ *      from the caster's own HAND, so the picker carries `zone: "hand"`.
+ *   3. The ESCAPE exile (CR 702.138a — "exile N OTHER cards from your
+ *      graveyard"), either the fixed `count` (Uro, Phlage, and every card
+ *      Underworld Breach grants escape to) or Nethergoyf's variable
+ *      `minCardTypes` shape.
+ *
+ *  This used to be written out TWICE inside `convex/game.ts` — once in the
+ *  targeted commit (`finalizeTargetSelection`) and once in the untargeted
+ *  announce (`announceCast`) — which is why the Bot's enumerator could not
+ *  price an escape cast at all: `game.ts` imports the enumerator, so the
+ *  enumerator can never import back. Moved down here beside `castRawManaCost`
+ *  for the same reason and by the same route issue #2971 moved the mana leg;
+ *  both mutation sites now call this one copy, so the cost the search charges
+ *  and the cost the server parks on cannot drift.
+ *
+ *  Delve (CR 702.66) and Convoke (CR 702.51) also ride this picker slot and are
+ *  deliberately NOT here: they are `payWith` MANA offsets, not additional
+ *  costs, they apply to a HAND cast as much as a graveyard one, and they are
+ *  built (and ordered against each other) by `announceCast` around this call. */
+export function buildCastExileCostChoice(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    zone: CastFromZone,
+    opts?: { additionalCosts?: AdditionalCostSpec; chosenX?: number }
+): CastExileCostBuild | undefined {
+    if (zone !== "graveyard") return undefined;
+    // CR 702.138 / 702.34 — WHICH mechanism this cast uses decides which cost
+    // it owes, and escape beats flashback, exactly as `castRawManaCost`,
+    // `graveyardCastStackFlags` and `graveyardCastMechanism` all order them. A
+    // card can carry both: Underworld Breach grants escape to EVERY nonland
+    // card in its controller's graveyard, flashback cards included. Reading the
+    // zone alone made a Breach-granted escape cast of Flash of Insight pay the
+    // FLASHBACK exile ("X blue cards") instead of the escape one — and at
+    // `chosenX: 0` pay nothing at all, while escape stamps no `exileOnResolve`
+    // so the card returns to the graveyard: the unbounded-recast shape this
+    // whole cost exists to bound (issue #2980 review, F2).
+    const escaping = hasEscape(state, card);
+    // CR 702.34a / 118.8 — Flash of Insight. X = the announced `chosenX`; a
+    // zero-X flashback cast looks at 0 cards and owes no exile cost.
+    const fbExileSpec = escaping
+        ? undefined
+        : opts?.additionalCosts?.flashbackExileFromGraveyard;
+    const chosenX = opts?.chosenX;
+    if (fbExileSpec && chosenX !== undefined && chosenX > 0) {
+        if (
+            flashbackExileEligibleCount(player, fbExileSpec.color, card.id) <
+            chosenX
+        ) {
+            return {
+                unpayable:
+                    "Not enough matching cards in your graveyard to pay the flashback cost",
+            };
+        }
+        return {
+            choice: {
+                count: chosenX,
+                ...(fbExileSpec.color !== undefined
+                    ? { color: fbExileSpec.color }
+                    : {}),
+                excludeInstanceId: card.id,
+            },
+        };
+    }
+    // CR 702.34a / 118.8 — the flashback-only "Exile a <colour> card from your
+    // HAND" cost. Exactly one card, from the caster's own hand. Suppressed on an
+    // escape cast for the same reason as the leg above.
+    const fbHandSpec = escaping
+        ? undefined
+        : getFlashbackAdditionalCost(card)?.exileFromHand;
+    if (fbHandSpec) {
+        const eligible = player.hand.filter((c) =>
+            isExileCostEligible(c, "", fbHandSpec.color)
+        );
+        if (eligible.length < 1) {
+            return {
+                unpayable:
+                    "No matching card in your hand to pay the flashback cost",
+            };
+        }
+        return {
+            choice: {
+                count: 1,
+                ...(fbHandSpec.color !== undefined
+                    ? { color: fbHandSpec.color }
+                    : {}),
+                excludeInstanceId: card.id,
+                zone: "hand",
+            },
+        };
+    }
+    // CR 702.138a — the ESCAPE exile. "OTHER cards", so the escaping card is
+    // never eligible for its own cost (CR 601.2a).
+    const escExileSpec = getEscapeExileSpec(state, card);
+    if (!escExileSpec) return undefined;
+    const others = player.graveyard.filter((c) => c.id !== card.id);
+    if ("minCardTypes" in escExileSpec) {
+        if (countDistinctCardTypes(others) < escExileSpec.minCardTypes) {
+            return {
+                unpayable:
+                    "Not enough card types in your graveyard to pay the escape cost",
+            };
+        }
+        return {
+            choice: {
+                count: 1,
+                minCardTypes: escExileSpec.minCardTypes,
+                excludeInstanceId: card.id,
+            },
+        };
+    }
+    if (others.length < escExileSpec.count) {
+        return {
+            unpayable:
+                "Not enough other cards in your graveyard to pay the escape cost",
+        };
+    }
+    return {
+        choice: {
+            count: escExileSpec.count,
+            excludeInstanceId: card.id,
+        },
+    };
+}
+
+/** CR 601.3 (issue #2980) — the card a `cast-spell` Move is about to
+ *  cast, looked up in the zone the Move DECLARES, for the two search sandboxes'
+ *  pre-removal cost block.
+ *
+ *  Both sandboxes used to look it up in the caster's HAND and nowhere else, so
+ *  every graveyard and exile cast the enumerator offers silently skipped its
+ *  whole pre-cast cost block: the escape / flashback exile went uncharged (the
+ *  unbounded-recast shape), the flashback sacrifice leg went uncharged, and the
+ *  spell went onto the stack for free. A hand cast resolves exactly as before —
+ *  the declared zone is `"hand"` for every one of them.
+ *
+ *  Exile is the ONE zone whose owner may not be the caster — a cross-player
+ *  cast permission (CR 601.3, Dauthi Voidwalker's opponent-exile free cast)
+ *  leaves the card in its OWNER's exile while another player holds the grant.
+ *  Mirrors {@link castSourceForSearch}; every other zone is the caster's own. `undefined` when no such zone holds the card — a stale
+ *  Move, which each caller already handles. */
+export function findCastSourceCard(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    declaredZone: CastFromZone | undefined
+): CardInstanceState | undefined {
+    const zone = declaredZone ?? "hand";
+    if (zone === "exile") {
+        for (const p of state.players) {
+            const found = p.exile.find((c) => c.id === cardInstanceId);
+            if (found) return found;
+        }
+        return undefined;
+    }
+    const held =
+        zone === "hand"
+            ? player.hand
+            : zone === "graveyard"
+              ? player.graveyard
+              : player.library;
+    return held.find((c) => c.id === cardInstanceId);
+}
+
+/** CR 702.66 / 702.138a escape / 702.34a (issue #2980) — does this cast's own exile
+ *  ADDITIONAL cost already occupy the one `PendingCast.exileFromGraveyardChoice`
+ *  slot, leaving no room for Delve's `payWith` offset to ride it?
+ *
+ *  `announceCast` decides exactly this, with `if (!castExileChoice &&
+ *  !castConvokeChoice)` — the delve picker is built only when the slot is free.
+ *  Its comment claimed "no delve card in the pool also carries one of those
+ *  exile costs", which Underworld Breach falsifies for every nonland card in
+ *  the graveyard: a Treasure Cruise given escape owes "exile three other cards"
+ *  AND wants to delve, and only one of them fits.
+ *
+ *  The enumerator must agree, or it discounts the generic cost by a delve the
+ *  server will never charge: the tap plan then covers less than the real cost,
+ *  the announcement parks unpayable, and the cast can never commit — the
+ *  announce-then-abort freeze (issue #2980 review, F1). Answering `true` makes
+ *  the enumerator price the FULL cost, which simply drops the Move when the
+ *  mana is short: fail closed, same as the server. */
+export function castExileCostOccupiesPayWithSlot(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    zone: CastFromZone,
+    opts?: { additionalCosts?: AdditionalCostSpec; chosenX?: number }
+): boolean {
+    return (
+        buildCastExileCostChoice(state, player, card, zone, opts) !== undefined
+    );
 }

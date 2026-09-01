@@ -3804,6 +3804,70 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Firebolt" }] },
         note: "Issue #2971, half 2 — the discriminating twin. Same lethal-shaped board, the Firebolt one zone away. The new graveyard loop gates on `graveyardCastMechanism` before the affordance precisely so the candidate set stays the cards a mechanism actually permits.",
     },
+    // ── The ESCAPE cast (CR 702.138a) — issue #2980 ──────────────────────
+    // A DISCRIMINATING PAIR. The only difference between the two positions is
+    // how much FODDER the graveyard holds: enough to pay "exile three other
+    // cards" or one short of it. Escape (and a non-mana flashback cost) used to
+    // be excluded from the enumerator outright — the `cast-spell` Move had no
+    // field for the exile, so the Bot never once escaped a card, silently.
+    //
+    // Underworld Breach rather than a printed-escape card on purpose: its grant
+    // is the zone-wide one (CR 702.138 — "each nonland card in your graveyard
+    // has escape"), so the position also pins that a GRANTED cost is priced and
+    // charged like a printed one. Lightning Bolt's own {R} is the escape mana
+    // cost under the grant, and the single Mountain is exactly that.
+    {
+        label: "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
+        spec: {
+            cards: [
+                { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                // Three OTHER cards — exactly the granted escape cost. Lands,
+                // which the grant can never make castable, so nothing here is a
+                // rival play.
+                { name: "Forest", owner: "me", zone: "graveyard", count: 3 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // Three damage is lethal, and `evaluate` is banded so a win
+            // dominates every material term — no seed can prefer passing.
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
+        note: "Issue #2980, half 1. The lethal is only reachable through an ESCAPE cast, which `searchCanModelGraveyardCast` refused to enumerate until the exile cost could ride on the Move. Measured: reds when the escape branch of the enumerator's graveyard loop is skipped.",
+    },
+    {
+        label: "escape: does not reach for it when the graveyard cannot pay the exile cost",
+        spec: {
+            cards: [
+                { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                // TWO other cards where the granted cost demands three. The
+                // ONLY field that differs from half 1.
+                { name: "Forest", owner: "me", zone: "graveyard", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 3 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Lightning Bolt" }] },
+        note: "Issue #2980, half 2 — the discriminating twin. Same lethal-shaped board, one fewer card of fodder. Two independent gates suppress the cast — `hasPayableEscapeExileCost` (gre/rules.ts) and `planCastCostPicks` returning null — and either alone is sufficient, so the measured proof reds this entry only with BOTH removed; a cast offered past them is the announce-then-abort freeze shape.",
+    },
+
     // -----------------------------------------------------------------------
     // The reflexive MADNESS cast window (CR 702.35a) — issue #2983.
     //
