@@ -16007,8 +16007,9 @@ export function buildSpellContext(
             // CR 701.6-adjacent (issue #1205 Subtlety, issue #2605 Reprieve) —
             // "put target spell on the top or bottom of its owner's library" /
             // "return target spell to its owner's hand." NOT a counter: it
-            // ignores `cantBeCountered` (CR 113.6g shields only against counter
-            // effects). Mirrors `counter`'s stack-splice + ability-vanish.
+            // ignores `cantBeCountered`, an ability that functions on the stack
+            // (CR 113.6g) but answers only countering (CR 701.6a). Mirrors
+            // `counter`'s stack-splice + ability-vanish.
             if (target.type !== "spell") {
                 throw new Error("moveSpellFromStack() requires a spell target");
             }

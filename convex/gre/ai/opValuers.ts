@@ -382,8 +382,12 @@ const counter: Valuer<"counter"> = () => ({
 // CR 400.7 (issue #2605) — a non-counter stack departure. Same disruption
 // FAMILY as `counter`, priced by what the victim keeps, which is the only axis
 // the destination changes:
-//   - `library-bottom` — the card is gone for the rest of the game exactly as
-//     a counter's graveyard is, so it prices AT `counter`;
+//   - `library-bottom` — the spell is un-cast and the card is buried a whole
+//     library away, which in practice reads as "answered" for the rest of the
+//     game, so it prices AT `counter`. (Strictly it is LESS gone than a
+//     graveyard — it is still drawable, and a graveyard is recursion territory
+//     in either direction — but neither difference is one this valuer can see
+//     from the Op alone.)
 //   - `library-top` — the card survives but eats the owner's next draw, a
 //     tempo-plus-card-selection tax that lands just under a clean answer;
 //   - `hand` — pure TEMPO: the spell is un-cast, the mana is wasted, and the

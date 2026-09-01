@@ -858,9 +858,9 @@ export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
  *  #1205 Subtlety, issue #2605 Reprieve). Distinct from `CounterDestination`
  *  on both axes, which is why it is its own union rather than a reuse:
  *
- *  - it is NOT a counter, so it ignores "can't be countered" (CR 113.6g
- *    shields only against COUNTER effects) and no counter-watching effect
- *    sees it;
+ *  - it is NOT a counter, so a "can't be countered" ability (which functions
+ *    on the stack, CR 113.6g) does not answer it — that ability speaks only
+ *    to countering, CR 701.6a — and no counter-watching effect sees it;
  *  - "put on the BOTTOM of its owner's library" is expressible here
  *    (Subtlety) and not there, while `"graveyard"`/`"exile"` have no
  *    non-counter card wording asking for them yet — an unused member would
@@ -3790,8 +3790,9 @@ export interface SpellContext {
      *  "return target spell to its owner's hand").
      *
      *  Distinct from `counter(target, …)`: this is not a counter, so it
-     *  ignores `cantBeCountered` (CR 113.6g shields only against COUNTER
-     *  effects) and nothing watching for a countered spell can see it. Target
+     *  ignores `cantBeCountered`: that ability functions on the stack (CR
+     *  113.6g) but answers only countering (CR 701.6a), and nothing watching
+     *  for a countered spell can see this either. Target
      *  must be a `type: "spell"` TargetSelection; no-op if it has left the
      *  stack (CR 608.2b). An ability on the stack (no card) just vanishes,
      *  mirroring `counter`; a COPY of a spell ceases to exist rather than

@@ -371,6 +371,31 @@ describe("Buyback — moveSpellFromStack (Subtlety) strips buybackPaid (CR 701.6
             undefined
         );
     });
+
+    // Issue #2605 — the HAND destination is the third branch of the same
+    // primitive (Reprieve's "return target spell to its owner's hand"), and it
+    // is the one where a surviving `buybackPaid` bites HARDEST: the card is
+    // back in hand, castable this turn, and an UNPAID recast would return to
+    // hand for free. The two library cases above cannot catch a reset moved
+    // into the library branch.
+    it("hand — a paid-buyback spell returned to its owner's hand carries no buybackPaid", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        const reprieveSource = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, reprieveSource);
+        ctx.moveSpellFromStack({ type: "spell", id: probe.id }, "hand");
+
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c) => c.id === probe.id
+        );
+        expect(inHand).toBeDefined();
+        expect((inHand as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
 });
 
 describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (issue #2137, proven to fail against pre-fix code)", () => {

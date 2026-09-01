@@ -114,9 +114,10 @@ describe("Eagles of the North (LTR — ETB team pump, CR 603.6a / 611.2c)", () =
 
 // Reprieve — "Return target spell to its owner's hand. Draw a card." (Issue
 // #2605.) Exercises the `moveSpellFromStack` Op through a real card's
-// resolution: the ORDER of the two Ops is what makes the drawn card provably
-// not the returned one, and CR 608.2b governs the whole spell when its only
-// target is gone.
+// resolution: the return lands in the OPPONENT's hand while the draw lands in
+// the caster's, and CR 608.2b governs the whole spell when its only target is
+// gone. (The two Ops' ORDER is not what these assertions rest on — the two
+// zones are different players' hands either way.)
 describe("Reprieve — return target spell to its owner's hand (CR 400.7 / 608.2b)", () => {
     function setupReprieve(): {
         state: GameState;

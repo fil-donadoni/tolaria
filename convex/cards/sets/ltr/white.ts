@@ -72,10 +72,11 @@ export const eaglesOfTheNorth: CardDefinition = {
 // Reprieve — "Return target spell to its owner's hand. Draw a card." (Issue
 // #2605.) Two declarative clauses, one Op each:
 //  - CR 400.7 stack departure: `moveSpellFromStack` with `destination: "hand"`
-//    — NOT a counter, so a spell with "can't be countered" (CR 113.6g) is
-//    returned all the same, and no counter-watching effect sees it. The
-//    returned card is a new object with no memory of the cast: its targets,
-//    modes and the mana spent on it are all simply gone.
+//    — NOT a counter, so a spell whose "can't be countered" ability functions
+//    on the stack (CR 113.6g) is returned all the same: that ability answers
+//    only countering (CR 701.6a). The returned card is a new object with no
+//    memory of the cast: its targets, modes and the mana spent on it are all
+//    simply gone.
 //  - CR 121.1 draw: the cantrip half, ordered AFTER the return so the drawn
 //    card cannot be the returned one.
 // The whole spell is subject to CR 608.2b like any single-target spell: with
@@ -88,8 +89,10 @@ export const reprieve: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     oracleText: "Return target spell to its owner's hand.\nDraw a card.",
-    // CR 113 — "target spell": a spell on the stack, never an ability (the
-    // default `spellStackKind`).
+    // CR 112.1 — "A spell is a card on the stack": "target spell" targets a
+    // spell, never an ability (the default `spellStackKind`). A COPY of a
+    // spell is also a spell (CR 112.1a), so it is a legal target here — and
+    // ceases to exist rather than reaching a hand (CR 707.10a).
     targetRequirement: { type: "spell", count: 1 },
     effects: [
         {

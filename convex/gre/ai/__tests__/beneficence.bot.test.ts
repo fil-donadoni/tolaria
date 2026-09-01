@@ -95,6 +95,29 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
         ).toBe("neutral");
     });
 
+    // Issue #2605 — `OP_BENEFICENCE` is the ONE table `/new-op` flags as
+    // unguarded: a missing row falls through `?? "neutral"` silently, and the
+    // bot loses the who-does-this-help axis on that Op. `moveSpellFromStack`
+    // is the shape most likely to be dropped or mis-signed, because "return
+    // target spell to its owner's HAND" reads superficially like a gift — it
+    // is an attack (CR 400.7: the spell is un-cast and the mana wasted),
+    // whichever of the three zones it names.
+    it("signs every `moveSpellFromStack` destination as an attack, not a gift", () => {
+        for (const destination of [
+            "hand",
+            "library-top",
+            "library-bottom",
+        ] as const) {
+            expect(
+                opBeneficence({
+                    op: "moveSpellFromStack",
+                    target: { target: 0 },
+                    destination,
+                })
+            ).toBe("harmful");
+        }
+    });
+
     it("reads the SIGN off the parametrized Ops, not their name", () => {
         // CR 613 layer 7c / CR 122 — the same Op is a buff or a shrink.
         expect(
