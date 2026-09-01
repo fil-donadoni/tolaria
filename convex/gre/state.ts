@@ -15114,12 +15114,27 @@ export function buildSpellContext(
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
         },
+        // CR 109.5 / 608.2b — the controller of an object, or undefined when
+        // the lookup misses because the object has left the zone this reads
+        // (the battlefield for a permanent, the stack for a spell). The
+        // single implementation; `getController` below is the raising
+        // projection of it (issue #2287).
+        findController(target: TargetSelection): string | undefined {
+            if (target.type === "player") return target.id;
+            if (target.type === "spell") {
+                return state.stack.find((s) => s.id === target.id)?.castById;
+            }
+            return findOnBattlefield(state, target.id)?.card.controllerId;
+        },
         getController(target: TargetSelection): string {
             if (target.type === "player") return target.id;
             if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);
                 if (si) return si.castById;
             }
+            // Unchanged failure mode for the imperative `resolve()` call
+            // sites: a permanent that isn't there is a bug in the card, not a
+            // CR 608.2b skip. Effect Scripts call `findController` instead.
             return requirePermanent(target).controllerId;
         },
         // CR 108.3 — ownership is immutable. Returns undefined if the id is no

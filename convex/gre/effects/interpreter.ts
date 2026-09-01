@@ -1331,10 +1331,22 @@ function resolvePlayerRef(
     }
     // `{ controllerOf: { target: n } }` (issue #806) — the controller of the
     // object in slot n (a spell's caster or a permanent's controller, CR
-    // 109.5). Skipped when the slot is missing (CR 608.2b).
+    // 109.5). Skipped when the slot is missing (CR 608.2b) — and equally when
+    // the slot is present but the object has since LEFT the zone the lookup
+    // reads, because an EARLIER Op in this same script destroyed, exiled or
+    // bounced it ("Destroy target artifact… that player may search…"). CR
+    // 608.2b: "If part of the effect requires information about an illegal
+    // target, it fails to determine any such information. Any part of the
+    // effect that requires that information won't happen." So this is a skip,
+    // exactly like every other unresolvable referent in the DSL — never a
+    // raise, which inside a Convex mutation is a rolled-back transaction and
+    // a stuck game (issue #2287). A script that genuinely needs the departed
+    // object's controller uses the snapshot idiom instead: `bind` it before
+    // the removal, then `{ ref: "$x.controller" }` — last known information,
+    // CR 608.2h.
     if ("controllerOf" in ref) {
         const target = ctx.targets[ref.controllerOf.target];
-        return target ? ctx.getController(target) : undefined;
+        return target ? ctx.findController(target) : undefined;
     }
     const target = ctx.targets[ref.target];
     return target && target.type === "player" ? target.id : undefined;
@@ -1633,6 +1645,14 @@ function bindSnapshot(
     target: TargetSelection
 ): void {
     const isPermanent = target.type === "permanent";
+    // CR 608.2b (issue #2287) — every permanent slot below is battlefield-
+    // scoped, so a permanent that has ALREADY left has nothing to snapshot:
+    // leave the binding uncaptured and let every ref to it skip its Op, the
+    // same contract the forEach member guard uses one screen down. Reachable
+    // when an earlier Op in the same script removed the announced target and
+    // a later Op binds the same slot. This can only turn a raise into a skip:
+    // when the object IS present, nothing here changes.
+    if (isPermanent && ctx.getOwnerId(target.id) === undefined) return;
     const chars = ctx.getCharacteristics(target);
     ctx.noteChoice(name, [
         String(isPermanent ? ctx.getPower(target) : 0),

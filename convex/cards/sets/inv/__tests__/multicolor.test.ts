@@ -71,6 +71,7 @@ import {
     aetherRift,
     shivanEmissary,
     duelingGrounds,
+    undermine,
 } from "../multicolor";
 import { lobotomy } from "../../tmp/multicolor";
 import { simoon } from "../../vis/multicolor";
@@ -503,16 +504,49 @@ describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)",
 // staticEffects[] keyword-grant (Sleeper's Robe), two board-visible
 // activatedAbilities[] (Stalking Assassin), a staticEffects[]
 // attack-requirement (Urborg Drake), and a triggered-grant continuous effect
-// (Vile Consumption). Spinal Embrace / Undermine / Slinking Serpent /
+// (Vile Consumption). Spinal Embrace / Slinking Serpent /
 // Vodalian Zombie are plain `effects[]`/keyword cards reusing
 // already-exercised Ops and ride the per-Op regime (catalogue
 // `effectScripts.test.ts` static sweep + `effectScriptSmoke.test.ts`
-// canned-scenario smoke test) with no hand-written test required. Recoil
+// canned-scenario smoke test) with no hand-written test required. Undermine
+// was in that list and should not have been (issue #2287): its two Ops are
+// individually exercised, but their ORDER is the whole behaviour, and the
+// smoke sweep cannot reach it — `{ controllerOf }` is classified
+// runtime-dependent by the scenario generator, so no canned scenario ever
+// resolved this card. It earns its own describe below. Recoil
 // gets its own describe below: its `$bounced.owner` ref (issue #1106) is a
 // NEW construct usage (the interpreter's `.owner` snapshot property has its
 // own permanent test in `interpreter.test.ts`, but the per-Op regime still
 // wants the CARD-level owner/controller divergence exercised here).
 // ─────────────────────────────────────────────────────────────────────────
+
+// Undermine — "Counter target spell. Its controller loses 3 life."
+// (CR 701.6a / CR 119.3.) The card is a two-Op script whose ORDER is the
+// behaviour: `counter` takes the spell off the stack, and the life loss names
+// its controller through `{ controllerOf: { target: 0 } }`, which reads the
+// live stack item. Both clauses must land on a real cast (issue #2287).
+describe("Undermine (counter + controller loses 3 life, CR 701.6a / 119.3)", () => {
+    it("counters the target spell AND its controller loses 3 life", () => {
+        const state = makeState();
+        const victim = pushSpell(state, grizzlyBears.id, "p2");
+        pushSpell(state, undermine.id, "p1", [
+            { type: "spell", id: victim.id },
+        ]);
+        // Both clauses in one resolution: the pre-#2287 script read the
+        // countered spell's controller AFTER the counter had spliced it off
+        // the stack, which raised out of the resolution entirely — inside a
+        // Convex mutation, a rolled-back transaction and a stuck game.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.stack.find((s) => s.id === victim.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === victim.id)).toBe(
+            true
+        );
+        // The half that was unreachable: the spell's controller, not the
+        // caster, pays the 3 life.
+        expect(state.players[1].life).toBe(17);
+        expect(state.players[0].life).toBe(20);
+    });
+});
 
 describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 510.4)", () => {
     it("grants fear to the host when the Aura resolves onto it", () => {

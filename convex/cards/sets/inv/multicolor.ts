@@ -843,6 +843,21 @@ export const stalkingAssassin: CardDefinition = {
 // sequence, exact precedent shape Absorb (this same file) with `loseLife`
 // in place of `gainLife` and `{ controllerOf }` in place of the resolving
 // controller.
+//
+// The life loss is written FIRST although the Oracle prints it second
+// (issue #2287). `counter` removes the spell from the stack, and
+// `{ controllerOf: { target: 0 } }` reads the caster off the live stack
+// item — so with the printed order the ref has nothing left to name and the
+// life loss is skipped (CR 608.2b: "if part of the effect requires
+// information about an illegal target, it fails to determine any such
+// information"). No priority is gained and no trigger can intervene between
+// the two clauses (CR 608.2 — a resolution is atomic), so the observable
+// result of the swap is exactly the printed card, and this is the shipped
+// idiom for every spell-slot `controllerOf` in the catalogue (Word of
+// Blasting, Death Bomb: read the doomed object, THEN remove it). The
+// battlefield-slot alternative — bind a snapshot before the removal and read
+// `{ ref: "$x.controller" }`, CR 608.2h — is not available here: a spell on
+// the stack is not a bindable permanent.
 export const undermine: CardDefinition = {
     id: "2334bc71-5f85-47ff-b393-601a1e746a4e",
     rarity: "rare",
@@ -852,12 +867,12 @@ export const undermine: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
     effects: [
-        { op: "counter", target: { target: 0 } },
         {
             op: "loseLife",
             player: { controllerOf: { target: 0 } },
             amount: 3,
         },
+        { op: "counter", target: { target: 0 } },
     ],
 };
 
