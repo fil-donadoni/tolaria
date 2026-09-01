@@ -1,7 +1,8 @@
 ---
 title: three citation families adjacent to the cast permission still read CR 601.3e, CR 117.6 or nothing that fits — left untouched by the #2972 pass
 discoveredBy: 2972
-status: draft
+status: triaged
+issue: 2982
 confidence: high
 ---
 

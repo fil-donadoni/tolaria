@@ -1,7 +1,8 @@
 ---
 title: the Bot cannot enumerate an Escape cast, or a Flashback cast with a non-mana cost — their cost park is built only inside announceCast and the cast-spell Move has no field to carry it
 discoveredBy: 2971
-status: draft
+status: triaged
+issue: 2980
 confidence: high
 ---
 

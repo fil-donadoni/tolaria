@@ -1,7 +1,8 @@
 ---
 title: The player-scoped flash grant is documented as CR 601.3e, which is a different rule
 discoveredBy: 2392
-status: draft
+status: triaged
+issue: 2982
 confidence: high
 ---
 

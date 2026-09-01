@@ -1,7 +1,8 @@
 ---
 title: the free-exile cast gate probes an unmodified {} while announceCast folds cost modifiers onto it — a cost increase makes the offered cast park unpayable
 discoveredBy: 2970
-status: draft
+status: triaged
+issue: 2981
 confidence: high
 ---
 
