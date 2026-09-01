@@ -15,7 +15,8 @@
 // counter through `projectPublicState`.
 
 import { describe, it, expect } from "vitest";
-import { staffOfTheStoryteller } from "../white";
+import { staffOfTheStoryteller, glimmerLens } from "../white";
+import { grizzlyBears } from "../../lea/green";
 import {
     getPlayer,
     getOpponentId,
@@ -24,6 +25,7 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
     payRemoveCounterCost,
+    type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -35,6 +37,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
+import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 
 /** Mirrors game.ts `activateAbility`'s immediate-commit branch for a stack
  *  ability: pay the non-mana cost (tap / removeCounter), push the ability on
@@ -252,5 +255,178 @@ describe("Staff of the Storyteller (CR 111/707.2 createToken, issue #1345 tokenC
             (c) => c.id === "staff4"
         );
         expect(slim?.counters?.story).toBe(2);
+    });
+});
+
+// Glimmer Lens (ONC #6, For Mirrodin! — issue #2610). The keyword itself
+// introduces no new engine capability (`createToken` + `bind` + the generic
+// `attach` Op, the exact `forMirrodin()` factory Batterskull's Living Weapon
+// already exercises), so the first block only re-confirms the token-shape
+// end-to-end per the card testing convention; the second block is the
+// GENUINELY new piece — the "equipped creature AND at least one other
+// creature attack" printed trigger, which no catalogue card exercised
+// before this one.
+function setupGlimmerLens(): { state: GameState; lens: CardInstanceState } {
+    const lens = makeInstance(glimmerLens.id, {
+        id: "lens1",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [makePlayer("p1", { battlefield: [lens] }), makePlayer("p2")],
+    });
+    return { state, lens: state.players[0].battlefield[0] };
+}
+
+/** Puts Glimmer Lens's For Mirrodin! ETB trigger on the stack (CR 603.6a)
+ *  and resolves it, returning the created Rebel token. */
+function fireForMirrodin(
+    state: GameState,
+    lens: CardInstanceState
+): CardInstanceState {
+    state.stack.push({
+        ...lens,
+        zone: "stack",
+        castById: lens.controllerId,
+        triggeredAbilityId: "glimmer-lens-for-mirrodin",
+        triggerSourceId: lens.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: lens.id,
+            controllerId: lens.controllerId,
+            types: lens.types,
+        },
+        targets: undefined,
+    } as StackItem);
+    resolveTopOfStack(state);
+    return state.players[0].battlefield.find(
+        (c) => c.isToken && c.subtypes?.includes("Rebel")
+    )!;
+}
+
+describe("Glimmer Lens (ONC #6, For Mirrodin! CR 702.163a — issue #2610)", () => {
+    it("resolves its own printed Rebel token art", () => {
+        expect(tokenPrintIdFor(glimmerLens.id, "Rebel")).toBe(
+            "a41eb9df-d8b4-4697-a759-886faf16754d"
+        );
+    });
+
+    it("For Mirrodin! creates a 2/2 red Rebel and attaches to it (GRE and wire format)", () => {
+        const { state, lens } = setupGlimmerLens();
+        const rebel = fireForMirrodin(state, lens);
+
+        expect(rebel).toBeDefined();
+        expect(rebel.power).toBe(2);
+        expect(rebel.toughness).toBe(2);
+        expect(rebel.subtypes).toEqual(["Rebel"]);
+        expect(rebel.controllerId).toBe("p1");
+
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "lens1")!
+                .attachedTo
+        ).toBe(rebel.id);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimRebel = projected.players[0].battlefield.find(
+            (c) => c.id === rebel.id
+        )!;
+        expect(slimRebel.power).toBe(2);
+        expect(slimRebel.toughness).toBe(2);
+    });
+
+    it("draws a card when the equipped creature and at least one other creature attack together", () => {
+        const { state, lens } = setupGlimmerLens();
+        const rebel = fireForMirrodin(state, lens);
+        const other = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+        const lensOnBoard = state.players[0].battlefield.find(
+            (c) => c.id === "lens1"
+        )!;
+        const ability = glimmerLens.triggeredAbilities!.find(
+            (a) => a.id === "glimmer-lens-attack-draw"
+        )!;
+
+        // The equipped Rebel attacking ALONE does not fire it (need at
+        // least one OTHER attacker too).
+        expect(
+            ability.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: [rebel.id],
+                },
+                lensOnBoard,
+                state
+            )
+        ).toBe(false);
+
+        // Only the OTHER creature attacking (equipped creature stays home)
+        // does not fire it either.
+        expect(
+            ability.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: [other.id],
+                },
+                lensOnBoard,
+                state
+            )
+        ).toBe(false);
+
+        // The equipped Rebel AND the other creature attacking together
+        // fires it, and resolving draws exactly one card.
+        const bothEvent = {
+            type: "ATTACKERS_DECLARED" as const,
+            attackingPlayerId: "p1",
+            attackerIds: [rebel.id, other.id],
+        };
+        expect(ability.matches(bothEvent, lensOnBoard, state)).toBe(true);
+
+        const libCard = makeInstance(glimmerLens.id, {
+            id: "lib1",
+            zone: "library",
+        });
+        state.players[0].library.push(libCard);
+        state.stack.push({
+            ...lensOnBoard,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "glimmer-lens-attack-draw",
+            triggerSourceId: "lens1",
+            triggerEvent: bothEvent,
+            targets: undefined,
+        } as StackItem);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("lib1");
+    });
+
+    it("still fires exactly once with a THIRD attacker in the batch — one draw, not two", () => {
+        const { state, lens } = setupGlimmerLens();
+        const rebel = fireForMirrodin(state, lens);
+        const lensOnBoard = state.players[0].battlefield.find(
+            (c) => c.id === "lens1"
+        )!;
+        const ability = glimmerLens.triggeredAbilities!.find(
+            (a) => a.id === "glimmer-lens-attack-draw"
+        )!;
+        // ATTACKERS_DECLARED already batches the WHOLE combat as ONE event
+        // (CR 508.1) — a third attacker changes nothing about how many
+        // times `matches` is asked, only its own boolean answer.
+        expect(
+            ability.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackingPlayerId: "p1",
+                    attackerIds: [rebel.id, "bear1", "bear2"],
+                },
+                lensOnBoard,
+                state
+            )
+        ).toBe(true);
     });
 });

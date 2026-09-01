@@ -224,6 +224,37 @@ export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
     colors: ["B"],
 };
 
+/** Rebel token (CR 707.2, issue #2610) — the "2/2 red Rebel creature token"
+ *  For Mirrodin! (CR 702.163a) creates: Glimmer Lens (`onc/white.ts`).
+ *  Vanilla, the `PHYREXIAN_GERM_TOKEN` shape shared by the generalized
+ *  `equipmentAttachTokenTrigger` factory (`abilities/equipment.ts`).
+ *
+ *  Deliberately NO pinned `imagePrintId` — the `RABBIT_TOKEN`/`SKELETON_TOKEN`
+ *  treatment: `SpellContext.createToken` auto-resolves the art per PRODUCING
+ *  card from `generated/token-prints.json` (`tokenPrintIdFor`). */
+export const REBEL_TOKEN: EffectTokenSpec = {
+    name: "Rebel",
+    types: ["Creature"],
+    subtypes: ["Rebel"],
+    power: 2,
+    toughness: 2,
+    colors: ["R"],
+};
+
+/** Hero token (CR 707.2, issue #2610) — the "1/1 colorless Hero creature
+ *  token" Job select (CR 702.182a) creates: Astrologian's Planisphere
+ *  (`fin/blue.ts`). Vanilla; `colors` omitted = colorless (CR 105.2/110.5).
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `REBEL_TOKEN` treatment above —
+ *  art resolves per producer from `generated/token-prints.json`. */
+export const HERO_TOKEN: EffectTokenSpec = {
+    name: "Hero",
+    types: ["Creature"],
+    subtypes: ["Hero"],
+    power: 1,
+    toughness: 1,
+};
+
 /** Skeleton token (CR 111 / 707.2, issue #2373). "4/1 black Skeleton creature
  *  token with menace" — created today by Gut, True Soul Zealot's attack
  *  trigger (`sets/clb/red.ts`). Vanilla apart from the keyword, the

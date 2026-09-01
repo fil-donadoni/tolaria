@@ -427,10 +427,22 @@
             "name": "Goblin"
         }
     ],
+    "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6": [
+        {
+            "scryfallId": "17fa0c1f-6737-487c-9101-0bec2e586795",
+            "name": "Hero"
+        }
+    ],
     "c30be387-280d-49bd-a3d1-c1636ee931ce": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "c9262000-e6f3-4da1-ad1c-038f65d3bef6": [
+        {
+            "scryfallId": "a41eb9df-d8b4-4697-a759-886faf16754d",
+            "name": "Rebel"
         }
     ],
     "ca6f13a2-9243-4ce9-9f71-bed74355b781": [

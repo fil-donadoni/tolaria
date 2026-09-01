@@ -1664,6 +1664,14 @@
         "source": "compiled"
     },
     {
+        "name": "Astrologian's Planisphere",
+        "scryfallId": "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6",
+        "oracleId": "4dcd0583-cee0-46a6-ba43-93bca5eb0428",
+        "firstSet": "fin",
+        "firstPrintId": "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6",
+        "firstPrintSet": "fin"
+    },
+    {
         "name": "Atog",
         "scryfallId": "2249fc40-4412-48fd-800a-7ea3678aee3f",
         "oracleId": "3095f2cf-05c3-4381-929f-c526b6fc30a7",
@@ -10282,6 +10290,14 @@
         "firstSet": "lea",
         "firstPrintId": "cafc2350-5d64-4379-9198-79a114654d45",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Glimmer Lens",
+        "scryfallId": "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
+        "oracleId": "bb7cebb7-a979-4879-b834-deab13f2a22c",
+        "firstSet": "onc",
+        "firstPrintId": "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
+        "firstPrintSet": "onc"
     },
     {
         "name": "Glimmering Angel",
