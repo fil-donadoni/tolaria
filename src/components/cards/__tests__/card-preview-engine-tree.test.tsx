@@ -126,6 +126,63 @@ describe("CardPreviewEngineTree (issue #2704)", () => {
         expect(container.textContent).not.toContain("declarative");
     });
 
+    // --- The three gaps PR #3034's review found, each pinned by the card that
+    // --- proved it. All three were the same disease: the tree rendered only
+    // --- what it had a named builder for, and everything else vanished with no
+    // --- trace. The fixes are structural, so these tests guard the CLASS.
+
+    it("renders the card's own rules riders, not just its abilities", () => {
+        // Multiversal Passage carries `entersTappedUnlessPay: { life: 2 }` —
+        // the CR 614.12 shock-land choice that IS the card's decision. Before
+        // the fix the tree showed a `subtype-set` and a trigger and nothing
+        // else: no node, no chip, no trace in the report text either.
+        const { getByText, container } = renderTree(
+            realDefinition("Multiversal Passage")
+        );
+        getByText("card");
+        expect(container.textContent).toContain("entersTappedUnlessPay");
+        expect(container.textContent).toContain("life: 2");
+    });
+
+    it("renders a modal option's own continuous effects", () => {
+        // Phantasmal Terrain: a five-mode modal Aura whose ENTIRE effect is one
+        // `staticEffects` entry per mode. `staticEffects` sat in the structural
+        // skip set on the theory it was rendered elsewhere, and at the MODE
+        // site nothing rendered it — five completely bare `MOD` nodes for a
+        // card whose whole function is those five effects.
+        const { getAllByText, container } = renderTree(
+            realDefinition("Phantasmal Terrain")
+        );
+        // Twice: the `MOD` node's label, and the `subtypes:` chip on the
+        // `STA` node underneath it. Before the fix the chip did not exist.
+        expect(getAllByText("Island").length).toBe(2);
+        // The mode's effect is the mode's CHILD, not a sibling: a flat list
+        // would read as a card that sets every basic land type at once.
+        const modes = Array.from(container.querySelectorAll("li")).filter(
+            (li) => li.querySelector("span")?.textContent === "MOD"
+        );
+        expect(modes.length).toBe(5);
+        for (const mode of modes) {
+            expect(mode.querySelectorAll("li").length).toBe(1);
+            expect(mode.textContent).toContain("subtype-set");
+        }
+    });
+
+    it("recurses into EVERY nested Op body, not a hand-listed set of keys", () => {
+        // Bend or Break: `divideIntoPiles` carries its two branches under
+        // `chosenEffect` / `otherEffect`, which the key-list version of the
+        // walk did not know about — they collapsed into one 400-character chip
+        // whose real Ops read `[1]`. The rule is now structural (an Op-shaped
+        // value is a body, anything else is a parameter), so a nesting key
+        // added to the DSL tomorrow is covered on the day it lands.
+        const { container } = renderTree(realDefinition("Bend or Break"));
+        expect(container.textContent).toContain("chosenEffect");
+        expect(container.textContent).toContain("otherEffect");
+        // The Ops INSIDE those branches, which is what was actually lost.
+        expect(container.textContent).toContain("destroy");
+        expect(container.textContent).toContain("tapUntap");
+    });
+
     it("the report action links to a pre-filled draft carrying name, id, game and tree", () => {
         const def = realDefinition("Lightning Bolt");
         const { container } = renderTree(def, "game-abc123");

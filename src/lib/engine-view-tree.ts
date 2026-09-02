@@ -64,7 +64,13 @@ export type EngineNodeKind =
      *  only node the tree cannot look inside. */
     | "RES"
     /** The back face of a double-faced card (CR 712). */
-    | "FACE";
+    | "FACE"
+    /** The card's own rules-bearing fields that are not an ability and not a
+     *  body — cast and ETB riders (`entersTapped*`, `additionalCosts`,
+     *  `alternativeCosts`, `evoke`, `dash`, `bestow`, `entersWith`,
+     *  `replacementEffects`, `selfCostReduction`, `cantBeCountered`, …). One
+     *  node carrying them as chips. */
+    | "CARD";
 
 /** One `key: value` parameter chip under a node's heading. `value` is already
  *  rendered to a string — see {@link formatChipValue}. */
@@ -230,6 +236,30 @@ function isHandWritten(site: BodySite): boolean {
  *  than a second, independently-drifting census of the same definition. */
 type Coverage = { declarative: number; total: number };
 
+/** An Effect Script Op, structurally: a `{ op: "<name>", … }` object. The
+ *  discriminant is the whole test — every Op in the union carries it and
+ *  nothing else in a definition does (ADR 0045/0046). */
+function isOpShaped(value: unknown): boolean {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value) &&
+        typeof (value as { op?: unknown }).op === "string"
+    );
+}
+
+/** The Ops carried by one field value, or `null` when the value is a plain
+ *  parameter. Accepts BOTH shapes the DSL uses for a nested body: a list
+ *  (`effects`, `then`, `else`) and a single Op (`divideIntoPiles`'s
+ *  `chosenEffect` / `otherEffect`). An EMPTY array is a parameter, not a body
+ *  — `[]` says nothing and reads better as a chip than as an empty branch. */
+function opListOf(value: unknown): EffectOp[] | null {
+    if (isOpShaped(value)) return [value as EffectOp];
+    if (Array.isArray(value) && value.length > 0 && value.every(isOpShaped))
+        return value as EffectOp[];
+    return null;
+}
+
 /** Effect Script Ops as nodes, recursing into every nesting shape the DSL
  *  admits (ADR 0045/0046): a plain list, `if`'s `then`/`else` branches, a
  *  `choice`/modal Op's `modes[]`, and the inline bodies of `forEach` /
@@ -244,28 +274,44 @@ function opNodes(
 ): EngineNode[] {
     if (!effects) return [];
     return effects.map((op, i) => {
+        const here = `${path}.${i}`;
         const nested = op as unknown as {
             op?: string;
-            effects?: EffectOp[];
-            then?: EffectOp[];
-            else?: EffectOp[];
             modes?: { label?: string; effects?: EffectOp[] }[];
         };
-        const here = `${path}.${i}`;
-        const children: EngineNode[] = [
-            ...opNodes(nested.effects, `${here}.eff`),
-        ];
-        for (const branch of ["then", "else"] as const) {
-            const ops = nested[branch];
-            if (!ops?.length) continue;
-            children.push({
-                path: `${here}.${branch}`,
-                kind: "EFF",
-                label: branch,
-                chips: [],
-                children: opNodes(ops, `${here}.${branch}`),
-            });
+        const children: EngineNode[] = [];
+        const chips: EngineChip[] = [];
+
+        // ONE pass over the Op's own keys, and the value decides which side it
+        // lands on: an Op-shaped value (or a list of them) is a nested BODY and
+        // becomes a named group node; anything else is a parameter and becomes
+        // a chip. Structural, not a key list — `effects` / `then` / `else` are
+        // not special-cased, and neither is any nesting key added later. The
+        // key-list version of this shipped with `divideIntoPiles`'s
+        // `chosenEffect` / `otherEffect` (Bend or Break, `sets/inv/red.ts`)
+        // flattened into one 400-character chip whose real Ops read `[1]`.
+        for (const [key, value] of Object.entries(
+            op as Record<string, unknown>
+        )) {
+            if (key === "op" || key === "modes" || value === undefined)
+                continue;
+            const list = opListOf(value);
+            if (list) {
+                children.push({
+                    path: `${here}.${key}`,
+                    kind: "EFF",
+                    label: key,
+                    chips: [],
+                    children: opNodes(list, `${here}.${key}`),
+                });
+            } else {
+                chips.push({ key, value: truncate(formatChipValue(value)) });
+            }
         }
+
+        // `modes[]` on a `choice`/modal Op is the one nesting shape that is NOT
+        // Op-shaped — each entry is `{ label?, effects }` — so it keeps its own
+        // branch.
         (nested.modes ?? []).forEach((mode, m) => {
             children.push({
                 path: `${here}.mode.${m}`,
@@ -275,14 +321,38 @@ function opNodes(
                 children: opNodes(mode.effects, `${here}.mode.${m}`),
             });
         });
+
         return {
             path: here,
             kind: "EFF",
             label: nested.op ?? "op",
-            chips: chipsFrom(op),
+            chips,
             children,
         } satisfies EngineNode;
     });
+}
+
+/** The structured continuous effects declared at one site — the card itself,
+ *  a modal option, or an ability (`staticEffects[]`, applied by the layer
+ *  system, CR 611/613).
+ *
+ *  Shared because `staticEffects` is in {@link STRUCTURAL_KEYS}, and a key
+ *  skipped as a chip that no builder renders as a node is worse than an
+ *  unlisted one: it is silently dropped at exactly the sites nobody checked.
+ *  That is what happened to `SpellMode.staticEffects` — Phantasmal Terrain
+ *  (`sets/lea/blue.ts`), a five-mode modal Aura whose ENTIRE effect is one
+ *  `subtype-set` per mode, rendered as five completely bare `MOD` nodes. */
+function staticEffectNodes(
+    site: { staticEffects?: readonly { kind: string }[] },
+    path: string
+): EngineNode[] {
+    return (site.staticEffects ?? []).map((effect, i) => ({
+        path: `${path}.sta.${i}`,
+        kind: "STA" as const,
+        label: effect.kind,
+        chips: chipsFrom(effect),
+        children: [],
+    }));
 }
 
 /** The target requirements announced by one site (CR 601.2c) — the primary one
@@ -334,6 +404,7 @@ function bodyNodes(site: BodySite, path: string, cov: Coverage): EngineNode[] {
             chips: chipsFrom(mode, ["label"]),
             children: [
                 ...targetNodes(mode, `${path}.mode.${i}`),
+                ...staticEffectNodes(mode, `${path}.mode.${i}`),
                 ...bodyNodes(mode, `${path}.mode.${i}`, cov),
             ],
         }));
@@ -401,9 +472,64 @@ function abilityNode(
         chips: chipsFrom(ability),
         children: [
             ...targetNodes(ability, path),
+            // No `staticEffectNodes` here on purpose: neither `TriggeredAbility`
+            // nor `ActivatedAbility` declares `staticEffects` (`types.ts`) — an
+            // ability that grants a continuous effect does it through an Op, and
+            // `tsc` reds if that ever stops being true.
             ...bodyNodes(ability as BodySite, path, cov),
         ],
     };
+}
+
+/** Card-level keys the SURROUNDING preview already renders, so a chip for them
+ *  would print the card's name next to its own name. Deliberately a list of
+ *  what the UI shows elsewhere, not a list of the rules fields worth showing:
+ *  its staleness mode is benign — a field added to `CardDefinition` shows up as
+ *  one extra chip (noise, visible, fixable) rather than vanishing (silent, and
+ *  the exact failure this whole module is built to avoid).
+ *
+ *  `aiValue` / `aiCombatHint` / `aiEffects` are excluded for a different
+ *  reason, the same one `engine-view-badge.catalogue.test.ts` excludes them
+ *  for: they are AI-only annotations that are NEVER executed (ADR 0018,
+ *  PRD #1423), so they say nothing about how the engine reads the card. */
+const CARD_PRESENTATION_KEYS: ReadonlySet<string> = new Set([
+    "name",
+    "rarity",
+    "types",
+    "subtypes",
+    "supertypes",
+    "manaCost",
+    "power",
+    "toughness",
+    "loyalty",
+    "colors",
+    "imagePrintId",
+    "aiValue",
+    "aiCombatHint",
+    "aiEffects",
+]);
+
+/** The card's own rules-bearing riders as ONE node, or nothing when it has
+ *  none.
+ *
+ *  Without this the tree read only what it had a builder for — keywords, static
+ *  effects, targets, bodies, abilities — and every other rules field on the
+ *  card was invisible with no trace anywhere. Multiversal Passage
+ *  (`sets/spm/colorless.ts`) carries `entersTappedUnlessPay: { life: 2 }`, the
+ *  CR 614.12 shock-land choice that IS the card's decision, and the tree
+ *  rendered a `subtype-set` and a trigger and nothing else. */
+function cardRiderNode(def: CardDefinition): EngineNode[] {
+    const chips = chipsFrom(def, [...CARD_PRESENTATION_KEYS]);
+    if (chips.length === 0) return [];
+    return [
+        {
+            path: "card.riders",
+            kind: "CARD",
+            label: "card",
+            chips,
+            children: [],
+        },
+    ];
 }
 
 /**
@@ -423,6 +549,8 @@ export function buildEngineViewTree(def: CardDefinition): EngineViewTree {
     const cov: Coverage = { declarative: 0, total: 0 };
     const nodes: EngineNode[] = [];
 
+    nodes.push(...cardRiderNode(def));
+
     (def.staticAbilities ?? []).forEach((keyword, i) => {
         nodes.push({
             path: `kw.${i}`,
@@ -433,15 +561,7 @@ export function buildEngineViewTree(def: CardDefinition): EngineViewTree {
         });
     });
 
-    (def.staticEffects ?? []).forEach((effect, i) => {
-        nodes.push({
-            path: `sta.${i}`,
-            kind: "STA",
-            label: effect.kind,
-            chips: chipsFrom(effect),
-            children: [],
-        });
-    });
+    nodes.push(...staticEffectNodes(def, "card"));
 
     nodes.push(...targetNodes(def, "card"));
     nodes.push(...bodyNodes(def as BodySite, "card", cov));

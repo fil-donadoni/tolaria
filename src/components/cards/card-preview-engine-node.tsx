@@ -27,6 +27,7 @@ const KIND_TONE: Record<EngineNodeKind, string> = {
     ACT: "bg-accent/15 text-accent-strong",
     FACE: "bg-accent/15 text-accent-strong",
     RES: "bg-signal-pending/15 text-signal-pending-strong",
+    CARD: "bg-signal-self/15 text-signal-self-strong",
 };
 
 export default function CardPreviewEngineNode({ node }: { node: EngineNode }) {
