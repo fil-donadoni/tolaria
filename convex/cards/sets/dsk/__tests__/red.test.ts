@@ -10,7 +10,7 @@
 // PERMANENT_ENTERED event on every entry path, not only a cast.
 
 import { describe, it, expect } from "vitest";
-import { fearOfMissingOut } from "..";
+import { enduringCourage, fearOfMissingOut } from "..";
 import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
@@ -20,6 +20,7 @@ import {
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
+    processPendingActionTriggers,
     putReanimatedSetOnBattlefield,
     exileWithAttachments,
     returnExiledForSource,
@@ -28,6 +29,10 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getCardByName } from "../../../index";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
@@ -367,5 +372,83 @@ describe("Fear of Missing Out — delirium attack trigger (CR 508.1m / 603.4 / 5
                 },
             ])
         ).toHaveLength(0);
+    });
+});
+
+// --- Enduring Courage — entry-triggered pump + haste (issue #2085) ----------
+//
+// A pure DSL card on already-exercised Ops (`pump`, `grantAbility`), so the
+// catalogue sweep and the generated smoke test cover its BODY. What they cannot
+// see is that the two Ops land on the TRIGGERING permanent — the censused
+// `$event.instanceId` object ref (ADR 0049) — rather than on the source or on
+// nothing at all, which is exactly the failure mode a passing static sweep
+// hides. Driven through the real cast → entry → trigger-scan → resolve path.
+
+describe("Enduring Courage — whenever another creature you control enters (CR 603.6a, issue #2085)", () => {
+    function boardWithCourage(): GameState {
+        const courage = makeInstance(enduringCourage.id, {
+            id: "courage",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [courage] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** Casts `cardId` for `playerId` and runs the resulting entry trigger to
+     *  resolution — the production path, not a synthetic event. */
+    function castAndResolve(
+        state: GameState,
+        cardId: string,
+        playerId: string
+    ): CardInstanceState {
+        pushSpell(state, cardId, playerId);
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const player = state.players.find((p) => p.id === playerId)!;
+        return player.battlefield.find(
+            (c) =>
+                (c.card as { id?: string }).id === cardId && c.id !== "courage"
+        )!;
+    }
+
+    it("gives the ENTERING creature +2/+0 and haste until end of turn", () => {
+        const state = boardWithCourage();
+
+        const bears = castAndResolve(state, grizzlyBears.id, "p1");
+
+        // CR 613.4c layer 7c — a 2/2 becomes a 4/2, toughness untouched.
+        expect(getEffectivePower(state, bears)).toBe(4);
+        expect(getEffectiveToughness(state, bears)).toBe(2);
+        // CR 613.1f layer 6 / 702.10a — haste on the creature that entered.
+        expect(bears.staticAbilities).toContain("haste");
+    });
+
+    it("does not pump Enduring Courage itself — 'ANOTHER creature you control'", () => {
+        const state = boardWithCourage();
+
+        castAndResolve(state, grizzlyBears.id, "p1");
+
+        const courage = state.players[0].battlefield.find(
+            (c) => c.id === "courage"
+        )!;
+        expect(getEffectivePower(state, courage)).toBe(3);
+        expect(courage.staticAbilities).not.toContain("haste");
+    });
+
+    it("does not fire for an opponent's creature (CR 109.4 — 'you control')", () => {
+        const state = boardWithCourage();
+
+        const theirs = castAndResolve(state, grizzlyBears.id, "p2");
+
+        expect(getEffectivePower(state, theirs)).toBe(2);
+        expect(theirs.staticAbilities).not.toContain("haste");
+        expect(state.stack).toHaveLength(0);
     });
 });
