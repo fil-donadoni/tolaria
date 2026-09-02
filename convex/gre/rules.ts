@@ -30,6 +30,7 @@ import {
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
     manaValue,
+    normalizedHybridPips,
     pendingSourceIsSpell,
     pureGenericManaSubCost,
     resolvePendingTargetKind,
@@ -1845,10 +1846,27 @@ function coloredCostLeftover(
     const spellSupertypes =
         tryGetDefinition((card.card as { id?: string }).id ?? "")?.supertypes ??
         [];
-    // CR 202.1a — guild-hybrid pips are read off the printed cost and matched by
-    // the shared greedy below (a real source or a convoke creature of either
+    // CR 202.1a — guild-hybrid pips are read off the COST BEING PAID and matched
+    // by the shared greedy below (a real source or a convoke creature of either
     // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
-    const hybridPips = getInstanceManaCost(card)?.hybrid ?? [];
+    //
+    // The cost, not the card's PRINTED cost (issue #2981). `normalizeManaCost`
+    // folds each hybrid pip into the normalized record under its composite
+    // `"R/W"` key, and every payment-side reader takes them back out of the
+    // cost with this same helper (`isManaCostCovered`, `payHybridPips`,
+    // `assignHybridPips`'s callers — all in `gre/state.ts`). This probe was the
+    // one site reading the printed cost instead, which only stayed invisible
+    // while a cost SUBSTITUTION could never reach here: a waived cast probed
+    // `{}`, whose `totalRequired` is 0, so `canPotentiallyPayCost` returned
+    // early and never called this function. Once cost modifiers fold onto that
+    // empty cost, an increase makes `totalRequired` positive, this probe runs,
+    // and reading the PRINTED cost demanded the guild-hybrid pips the waiver
+    // had just zeroed — pips no payment site charges. The gate then refused the
+    // cast outright (`assertLegalAction` consults it too), so the Cast button
+    // vanished and the mutation threw. Reading the passed cost also retires the
+    // same mismatch for a flashback / escape / madness override cost on a
+    // hybrid-printed card, where the override replaces the printed pips.
+    const hybridPips = normalizedHybridPips(cost as Record<string, number>);
     // See `opts.state` doc above: only built when the caller passed a full
     // `GameState`, and always spans EVERY player, never just `player`. Shared
     // with moves.ts / game.ts via `manaGateBattlefields` (issue #1754 finding
@@ -2368,8 +2386,15 @@ function canPotentiallyPayCost(
  *  target-legality gate ({@link hasEnoughLegalTargets}) so a spell like Dominate
  *  ({X}{1}{U}{U}, "target creature with mana value X or less") is judged
  *  castable whenever ANY reachable X exposes a legal target — not only X = 0.
- *  Cost reductions are not modeled here (mirroring `canPotentiallyPayCost`),
- *  which only ever under-estimates X, never over-offers a cast.
+ *  Cost modifiers are not folded here, and since issue #2981
+ *  `canPotentiallyPayCost` folds them on every branch, so the two deliberately
+ *  differ. A REDUCTION makes this under-estimate the ceiling, which is safe: a
+ *  narrower X range never offers a cast the probe would refuse. An INCREASE
+ *  makes it over-estimate, so a high X can widen the target-legality gate past
+ *  what the caster could announce — harmless today, because the probe still
+ *  has the final say on whether "cast" is offered at all, and the announcement
+ *  re-prices the chosen X. Folding here would need the per-X fold the Bot's
+ *  enumerator already does (`moves.ts`), not a hoisted one.
  *
  *  `state`, when passed, is forwarded into `coloredCostLeftover` (issue #1751
  *  finding 5) so a board-dependent mana ability contributes to the X ceiling.

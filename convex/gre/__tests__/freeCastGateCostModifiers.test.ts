@@ -34,9 +34,16 @@
 import { describe, it, expect } from "vitest";
 import { announceCast } from "../../game";
 import { getLegalActions } from "../rules";
+import { castRawManaCost } from "../castCost";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+} from "../state";
 import { getPlayer, type CardInstanceState, type GameState } from "../state";
 import { mountain } from "../../cards/sets/lea";
 import { gush } from "../../cards/sets/mmq/blue";
+import { figureOfDestiny } from "../../cards/sets/eve/multicolor";
 import { firebolt } from "../../cards/sets/ody/red";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
 import {
@@ -178,6 +185,92 @@ describe("the free-exile cast gate folds cost modifiers (CR 118.6a / 118.9d, iss
         // and the increase survived onto the empty cost. This is the assertion
         // the pre-fix gate could not reach: it offered the cast at zero.
         expect(getPlayer(after, "p1").manaPool.U).toBe(0);
+    });
+});
+
+describe("a waived cast owes the increase but NOT the printed pips it waived (CR 202.1a / 118.6a, issue #2981 review)", () => {
+    // Regression found reviewing the fold above. `coloredCostLeftover` read its
+    // guild-hybrid pips off the card's PRINTED cost rather than off the cost
+    // being paid — invisible while a waived cast probed a bare `{}`, whose
+    // `totalRequired` is 0, so `canPotentiallyPayCost` returned early and never
+    // reached that code. Folding an increase onto the empty cost makes
+    // `totalRequired` positive, the probe runs, and it demanded the {R/W} the
+    // waiver had just zeroed — pips no payment site charges. That is worse than
+    // the bug this issue set out to fix: `assertLegalAction` reads the same
+    // gate, so the cast became impossible rather than merely parked.
+    //
+    // Figure of Destiny ({R/W}) is the discriminating card: printed pip, waived
+    // away, under an increase, with exactly enough mana for the increase alone.
+    function board(taxed: boolean): GameState {
+        const exiled = makeInstance(figureOfDestiny.id, {
+            id: "waivedFigure",
+            zone: "exile",
+            controllerId: "p2",
+            ownerId: "p2",
+            castableFromExileBy: "p1",
+            castFromExileWithoutPayingManaCost: true,
+            // The object-scoped exile-cast tax (Elite Spellbinder's shape,
+            // issue #2383) rather than Thalia: it reaches a CREATURE spell,
+            // which "Noncreature spells cost {1} more" does not.
+            ...(taxed ? { castFromExileCostIncrease: { X: 1 } } : {}),
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(mountain.id, {
+                            id: "mtnH",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { exile: [exiled] }),
+            ],
+        });
+    }
+
+    const figureIn = (state: GameState) =>
+        getPlayer(state, "p2").exile.find((c) => c.id === "waivedFigure")!;
+
+    it("offers the waived cast of a guild-hybrid card under an increase one land can pay", () => {
+        // ONE Mountain. The increase is {1}; the printed {R/W} is waived. If the
+        // probe re-charged the printed pip the total would be two and this would
+        // read "not castable" — and `assertLegalAction` would then throw on the
+        // cast the payment path prices at {1}.
+        const taxed = board(true);
+        expect(
+            getLegalActions(
+                taxed,
+                getPlayer(taxed, "p2"),
+                figureIn(taxed),
+                false,
+                "p1"
+            )
+        ).toContain("cast");
+
+        // And the payment agrees on that same {1}: the two calls `announceCast`
+        // makes, in its order, on this board.
+        const paid = normalizeManaCost(
+            castRawManaCost(taxed, figureIn(taxed), "exile") ?? {}
+        );
+        applyCostModifiers(
+            paid,
+            getCostModifiers(taxed, figureIn(taxed), "spell")
+        );
+        expect(paid).toEqual({ X: 1 });
+
+        // Untaxed, the waiver is free and no mana is owed at all.
+        const free = board(false);
+        expect(
+            getLegalActions(
+                free,
+                getPlayer(free, "p2"),
+                figureIn(free),
+                false,
+                "p1"
+            )
+        ).toContain("cast");
     });
 });
 

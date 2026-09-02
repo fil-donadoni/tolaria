@@ -871,9 +871,17 @@ describe("cast affordability — an escape cast folds cost modifiers (CR 601.2f 
         // judged here is purely the mana half.)
         expect(getLegalActions(state, player, goyf)).toContain("cast");
 
-        // PAYMENT half — the two calls `announceCast` makes, verbatim, on the
-        // same board: the cost authority for the zone, then the collector
-        // folded onto it. They must land on the SAME {B} the gate just offered.
+        // PAYMENT half, at the HELPER level — the two calls `announceCast`
+        // makes, in its order, on the same board: the cost authority for the
+        // zone, then the collector folded onto it. They must land on the SAME
+        // {B} the gate just offered. This asserts the two helpers compose to
+        // {B}, NOT that the mutation calls them in that order; escape's
+        // "four or more card types among them" exile cost is a variable picker
+        // that parks a choice, so driving `announceCast` here would assert the
+        // picker, not the mana. The end-to-end proof for the same disagreement
+        // runs through the real mutation on the free-exile branch
+        // (`freeCastGateCostModifiers.test.ts`), whose waived cast takes no
+        // picker.
         const paid = normalizeManaCost(
             castRawManaCost(state, goyf, "graveyard") ?? {}
         );
