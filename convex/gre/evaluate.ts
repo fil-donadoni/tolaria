@@ -52,6 +52,11 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { isDeferrableStackAbility } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import {
+    hasGraveyardRecursionAccess,
+    isSelfReachableInGraveyard,
+    latentGraveyardValue,
+} from "./ai/graveyardReach";
+import {
     getInstanceManaCost,
     getInstanceAiValue,
     tryGetDefinition,
@@ -255,6 +260,12 @@ export type EvalTerms = {
      *  permanent they control makes that graveyard castable. Zero (exactly)
      *  with no such engine on the battlefield. See `graveyardEngineTerm`. */
     graveyard: number;
+    /** Issue #3042 — worth of the cards in this player's graveyard that the
+     *  player can actually REACH: recover with recursion they hold, or use
+     *  from the graveyard itself. Exactly zero for a graveyard with no
+     *  reachable payoff, which is every ordinary one. See
+     *  `graveyardReachTerm` and `ai/graveyardReach.ts`. */
+    graveyardReach: number;
 };
 
 /** Untapped mana sources + floating mana available to `player` this turn — the
@@ -746,6 +757,68 @@ function graveyardEngineTerm(
     );
 }
 
+/** Issue #3042 — a graveyard is worth something only to a player who can
+ *  REACH it. Without this term a card put into a graveyard was worth exactly
+ *  zero, so a correct Entomb (bury the fatty, reanimation already in hand)
+ *  evaluated as a strict loss — the hand term dropped by the tutor and nothing
+ *  came back — and the whole line ranked below doing nothing past the rollout
+ *  horizon.
+ *
+ *  THE GATE IS THE TERM (`ai/graveyardReach.ts`). Credit is conditional on a
+ *  reachable payoff: recursion the player holds or controls, or the card being
+ *  usable out of the graveyard on its own. With none reachable the term is
+ *  EXACTLY zero — a graveyard is a dead zone by default and must evaluate as
+ *  one — so every position that has no payoff scores byte-identically to
+ *  before the term existed (ADR 0070 §5 narrow support). The gate is per
+ *  player and symmetric: the opponent's graveyard is credited to the OPPONENT
+ *  under the OPPONENT's own reach, never assumed hostile or harmless.
+ *
+ *  IT MUST NOT MAKE A TRADE A WASH. A creature dying already moves its full
+ *  realized worth out of `creatures` (plus `permanentWeight`); returning a
+ *  large slice of it here would have the bot chump-blocking and trading for
+ *  free. Only `graveyardReachFraction` of each card's LATENT worth comes back,
+ *  best-first and capped at `graveyardReachCap` — the payoff can be used a
+ *  bounded number of times, and this term models neither the mana nor the
+ *  cards that would pay for it.
+ *
+ *  NO DOUBLE COUNT with the hand term: `hand` prices cards in HAND, and a
+ *  graveyard card is not one. Nor with `graveyardEngineTerm`: that term prices
+ *  the pile's escape THROUGHPUT (how many casts the fodder supports) under a
+ *  battlefield grant, and this one skips any card whose only reach is exactly
+ *  that grant. */
+function graveyardReachTerm(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    const cap = weights.graveyardReachCap;
+    if (player.graveyard.length === 0 || cap <= 0) return 0;
+    // Cheapest gate first: with recursion access every graveyard card is a
+    // candidate, so the per-card castability walk is skipped entirely.
+    const recursion = hasGraveyardRecursionAccess(player);
+    // Bounded top-K rather than value-everything-then-sort: the cap is small
+    // (2 in production) and this runs per ISMCTS leaf, per player, so an
+    // insertion into a `cap`-sized best list is cheaper than an array the size
+    // of the graveyard plus an O(n log n) sort of it.
+    const best: number[] = [];
+    for (const card of player.graveyard) {
+        if (!recursion && !isSelfReachableInGraveyard(state, player, card)) {
+            continue;
+        }
+        const value = latentGraveyardValue(card);
+        if (best.length === cap && value <= best[cap - 1]) continue;
+        let i = best.length < cap ? best.length : cap - 1;
+        while (i > 0 && best[i - 1] < value) {
+            best[i] = best[i - 1];
+            i -= 1;
+        }
+        best[i] = value;
+    }
+    let credited = 0;
+    for (const v of best) credited += v;
+    return credited * weights.graveyardReachFraction;
+}
+
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 function playerTerms(
@@ -766,6 +839,7 @@ function playerTerms(
         flexibility: 0,
         library: libraryTerm(state, player, weights),
         graveyard: graveyardEngineTerm(player, weights),
+        graveyardReach: graveyardReachTerm(state, player, weights),
     };
 
     for (const perm of player.battlefield) {
@@ -826,7 +900,8 @@ function sumTerms(t: EvalTerms): number {
         t.manaDevelopment +
         t.flexibility +
         t.library +
-        t.graveyard
+        t.graveyard +
+        t.graveyardReach
     );
 }
 
@@ -1595,6 +1670,7 @@ export function evaluateBreakdown(
         flexibility: 0,
         library: 0,
         graveyard: 0,
+        graveyardReach: 0,
     };
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };

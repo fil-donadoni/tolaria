@@ -41,6 +41,12 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             // permanent declares `grantsEscapeToOwnGraveyard`.
             graveyardEngineWeight: 60,
             graveyardEngineCap: 5,
+            // Issue #3042 — the graveyard-REACH pair, added with the
+            // `graveyardReach` eval term. Exactly zero unless the owner can
+            // recur the card or use it from the graveyard; the fraction is
+            // well below 1 so a creature trade never reads as a wash.
+            graveyardReachFraction: 0.15,
+            graveyardReachCap: 2,
             permanentWeight: 5,
             manaWeight: 12,
             manaDevWeight: 12,

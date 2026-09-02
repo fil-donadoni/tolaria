@@ -280,6 +280,25 @@ export function graveyardCastMechanism(
     casterId: string
 ): GraveyardCastMechanism | undefined {
     if (!player.graveyard.some((c) => c.id === card.id)) return undefined;
+    return graveyardCastMechanismForMember(state, player, card, casterId);
+}
+
+/** `graveyardCastMechanism` for a card the caller has ALREADY established is in
+ *  `player.graveyard` — the whole body, minus the membership scan.
+ *
+ *  Split out for a caller that is itself iterating the graveyard, where that
+ *  scan makes the loop O(n²): the leaf evaluator's graveyard-reach term
+ *  (`gre/ai/graveyardReach.ts`) runs per ISMCTS leaf, once per graveyard card,
+ *  per player. It is a SPLIT, never a second copy — the checked entry point
+ *  above delegates here, so there is exactly one implementation of the
+ *  precedence and no way for the two to drift. Do NOT call this with a card
+ *  whose zone you have not established; that is what the public one is for. */
+export function graveyardCastMechanismForMember(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    casterId: string
+): GraveyardCastMechanism | undefined {
     // CR 702.138 — escape wins over everything: a card never has both escape
     // and flashback, and `castRawManaCost` checks it first.
     if (hasEscape(state, card)) return "escape";
