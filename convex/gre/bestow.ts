@@ -43,7 +43,6 @@
 import type {
     AlternativeCost,
     CardDefinition,
-    CardType,
     EnchantRestriction,
     TargetRequirement,
 } from "../cards/types";
