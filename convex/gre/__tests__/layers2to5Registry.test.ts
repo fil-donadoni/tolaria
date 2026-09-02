@@ -26,11 +26,16 @@ import {
     clearLayers2to5Base,
     deriveLayers2to5,
     syncLayers2to5,
+    LAYER_2_5_STATIC_EFFECT_KINDS,
 } from "../layers2to5";
 import { checkStateBasedActions } from "../sba";
 import { applyIndefiniteSupertypeMutation, hasSupertypeLive } from "../snow";
 import { evilPresence } from "../../cards/sets/lea/black";
-import type { PermanentView } from "../../cards/types";
+import type {
+    CardDefinition,
+    PermanentView,
+    StaticEffect,
+} from "../../cards/types";
 import type { LayerStateView } from "../layers";
 import {
     makeInstance,
@@ -40,7 +45,10 @@ import {
 } from "../../cards/__tests__/setup";
 import { finalizeCleanup } from "../phases";
 import { projectPublicState } from "../../gameProjections";
-import { withTemporaryDefinition } from "../../cards/registry";
+import {
+    declaresLayer2to5StaticEffect,
+    withTemporaryDefinition,
+} from "../../cards/registry";
 import { getDefinition } from "../../cards";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { mountain } from "../../cards/sets/lea/colorless";
@@ -589,5 +597,30 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         clearLayers2to5Base(land);
         syncLayers2to5(state);
         expect(land.subtypes).toEqual(["Mountain", "Shapeshifter"]);
+    });
+});
+
+describe("the registry precheck names exactly the kinds the derivation owns", () => {
+    it("`declaresLayer2to5StaticEffect` and `LAYER_2_5_STATIC_EFFECT_KINDS` agree", () => {
+        // `cards/registry.ts` duplicates the kind list — it cannot import from
+        // `gre/**`, which imports IT — and a precheck that names FEWER kinds
+        // than the derivation would skip a source silently: the effect would
+        // simply never apply, with no test of its own to red. So the two tables
+        // are pinned to each other here, by CONSTRUCTION rather than by eye: a
+        // definition declaring each kind must be recognised.
+        for (const kind of Object.keys(LAYER_2_5_STATIC_EFFECT_KINDS)) {
+            const id = `s4-precheck-${kind}`;
+            const probe: CardDefinition = {
+                ...getDefinition(blackLotus.id),
+                id,
+                name: `Precheck ${kind}`,
+                staticEffects: [
+                    { kind, applies: () => true } as unknown as StaticEffect,
+                ],
+            };
+            withTemporaryDefinition(probe, () => {
+                expect(declaresLayer2to5StaticEffect(id)).toBe(true);
+            });
+        }
     });
 });

@@ -91,7 +91,7 @@ import type { CardInstanceState, GameState } from "./state";
  *  text change in the engine is left behind by a resolving spell
  *  (`SpellContext.addTextChange` — Magical Hack, Sleight of Mind), which is a
  *  ledger provenance, not a source one. */
-const LAYER_2_5_STATIC_EFFECT_KINDS: Record<string, 2 | 4 | 5> = {
+export const LAYER_2_5_STATIC_EFFECT_KINDS: Record<string, 2 | 4 | 5> = {
     "control-change": 2,
     "type-add": 4,
     "type-remove": 4,
