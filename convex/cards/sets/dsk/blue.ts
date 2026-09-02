@@ -20,8 +20,9 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // widened:
 //
 //   `source: "yours"` + `sourceFilter: { types: "Creature" }` — the damage
-//   SOURCE is any creature its controller controls (CR 109.4), not the
-//   enchantment itself. Enduring Curiosity is a creature you control, so its
+//   SOURCE is any creature its controller controls (CR 109.5 — "you" on an
+//   object refers to that object's controller), not the enchantment itself.
+//   Enduring Curiosity is a creature you control, so its
 //   OWN combat damage fires this too (the Oracle says "a creature", not
 //   "another creature"); once it has returned as an enchantment it no longer
 //   matches its own filter, but it still watches every other creature.
@@ -37,10 +38,11 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
 // either half of this card yet, so the fragments are named here for the
 // corpus backlog PRD #2693 ranks the next grammar rule by. The shared
-// dies-trigger line is the cycle's; Enduring Innocence carries it in the
+// dies-trigger fragment is the cycle's, quoted as printed for THIS card;
+// Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever a creature you control deals combat damage to a player, draw a card. (#2693)
-// compiler-gap: When {self} dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (#2693)
+// compiler-gap: When Enduring Curiosity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringCuriosity: CardDefinition = {
     id: "8616629e-08f9-41ad-bfec-f86c8096f1cb",
     name: "Enduring Curiosity",

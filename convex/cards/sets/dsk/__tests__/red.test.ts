@@ -442,7 +442,7 @@ describe("Enduring Courage — whenever another creature you control enters (CR 
         expect(courage.staticAbilities).not.toContain("haste");
     });
 
-    it("does not fire for an opponent's creature (CR 109.4 — 'you control')", () => {
+    it("does not fire for an opponent's creature (CR 109.5 — 'you control')", () => {
         const state = boardWithCourage();
 
         const theirs = castAndResolve(state, grizzlyBears.id, "p2");

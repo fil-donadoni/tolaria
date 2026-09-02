@@ -79,6 +79,25 @@ describe("Enduring Tenacity — whenever you gain life, target opponent loses th
         expect(state.stack).toHaveLength(0);
     });
 
+    it("two lifegains in flight each drain their OWN amount (CR 603.10 per-trigger snapshot)", () => {
+        const state = board();
+
+        // Both trigger before either resolves, so the second cannot be reading
+        // the first's amount: each StackItem carries its own firing event.
+        gainLifeEmitting(state, "p1", 2);
+        gainLifeEmitting(state, "p1", 5);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(2);
+        raiseTriggerTargetSelection(state);
+        while (state.stack.length > 0) {
+            resolveTopOfStack(state);
+            raiseTriggerTargetSelection(state);
+        }
+
+        expect(state.players[0].life).toBe(27);
+        expect(state.players[1].life).toBe(13);
+    });
+
     it("announces its target on reaching the stack, before it resolves (CR 603.3d)", () => {
         const state = board();
 

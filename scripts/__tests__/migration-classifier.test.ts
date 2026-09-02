@@ -1807,14 +1807,14 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // `$event` field row (`EVENT_FIELD_REGISTRY` censuses object/player
         // families only, ADR 0049), the same gap that keeps El-Hajjâj and
         // Horned Cheetah imperative. The clause-mapper sees only `loseLife`, a
-        // COVERED Op, so the closure is FREE; the card carries no per-card test
-        // (the per-Op regime covers its DSL siblings), so it lands in "need
-        // test first", not AFK-ready. Net: total 474->475, FREE 319->320,
-        // need-test 9->10; AFK-ready, X-only and Op-blocked unchanged.
-        // Partition: 320+15+140=475.
+        // COVERED Op, so the closure is FREE, and the card ships its own
+        // `describe("Enduring Tenacity …")` block (`dsk/__tests__/black.test.ts`)
+        // — which is exactly what `hasPerCardTest` looks for — so it lands in
+        // AFK-ready. Net: total 474->475, FREE 319->320, AFK-ready 310->311;
+        // need-test, X-only and Op-blocked unchanged. Partition: 320+15+140=475.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(475);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(320);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(311);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });

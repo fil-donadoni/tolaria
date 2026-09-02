@@ -72,8 +72,15 @@ import { diedTrigger } from "./triggers/diedTrigger";
 /** The cycle's shared Effect Script (ADR 0045). Card-agnostic by
  *  construction: `$source` names whichever Glimmer just died, and the type
  *  line it enters with is the printed clause's own "It's an enchantment",
- *  not the card's printed types. */
-const RETURN_AS_ENCHANTMENT: EffectOp[] = [
+ *  not the card's printed types.
+ *
+ *  Built FRESH per call rather than shared as one module-level array across
+ *  five definitions — the discipline every other factory in
+ *  `abilities/index.ts` already follows. Nothing writes through a
+ *  `TriggeredAbility.effects` reference today, so a shared array would be safe
+ *  right now; five definitions aliasing one mutable object is a bug class
+ *  worth not having rather than a bug worth finding. */
+const returnAsEnchantment = (): EffectOp[] => [
     {
         op: "moveZone",
         target: { ref: "$source" },
@@ -108,6 +115,6 @@ export function enduringReturnTrigger(
         // Re-checked at resolution (CR 603.4); the event snapshot is immutable,
         // so a trigger that fired legally never fizzles here.
         interveningIf: (event) => event.creatureTypes.includes("Creature"),
-        effects: RETURN_AS_ENCHANTMENT,
+        effects: returnAsEnchantment(),
     });
 }

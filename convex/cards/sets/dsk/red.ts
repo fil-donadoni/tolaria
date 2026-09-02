@@ -164,10 +164,11 @@ export const fearOfMissingOut: CardDefinition = {
 // Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
 // either half of this card yet, so the fragments are named here for the
 // corpus backlog PRD #2693 ranks the next grammar rule by. The shared
-// dies-trigger line is the cycle's; Enduring Innocence carries it in the
+// dies-trigger fragment is the cycle's, quoted as printed for THIS card;
+// Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn. (#2693)
-// compiler-gap: When {self} dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (#2693)
+// compiler-gap: When Enduring Courage dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringCourage: CardDefinition = {
     id: "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
     name: "Enduring Courage",

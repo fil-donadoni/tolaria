@@ -47,10 +47,11 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
 // either half of this card yet, so the fragments are named here for the
 // corpus backlog PRD #2693 ranks the next grammar rule by. The shared
-// dies-trigger line is the cycle's; Enduring Innocence carries it in the
+// dies-trigger fragment is the cycle's, quoted as printed for THIS card;
+// Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Creatures you control have "{T}: Add one mana of any color." (#2693)
-// compiler-gap: When {self} dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (#2693)
+// compiler-gap: When Enduring Vitality dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringVitality: CardDefinition = {
     id: "9d76a30c-0431-4334-892a-9822dda9671a",
     name: "Enduring Vitality",

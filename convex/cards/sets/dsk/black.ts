@@ -46,7 +46,9 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // CR 603.3d — "target opponent" is announced as the trigger goes on the stack,
 // not at resolution, so it is a `targetRequirement` on the ability rather than
 // a choice inside the body. With no legal opponent (hexproof from black, an
-// opponent already gone) the trigger is simply never put on the stack.
+// opponent already gone) the ability is put on the stack and then "simply
+// removed from the stack" — the printed wording, and not the same thing as
+// never triggering: anything watching triggers FIRE still sees it.
 //
 // resolve() justification (ADR 0045 DSL-first): the drained amount is
 // `event.amount`, a runtime NUMBER off the firing event. The `EffectValue`
@@ -62,10 +64,11 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
 // either half of this card yet, so the fragments are named here for the
 // corpus backlog PRD #2693 ranks the next grammar rule by. The shared
-// dies-trigger line is the cycle's; Enduring Innocence carries it in the
+// dies-trigger fragment is the cycle's, quoted as printed for THIS card;
+// Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever you gain life, target opponent loses that much life. (#2693)
-// compiler-gap: When {self} dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (#2693)
+// compiler-gap: When Enduring Tenacity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
 export const enduringTenacity: CardDefinition = {
     id: "d5756d4b-3068-412c-8643-880d3459151e",
     name: "Enduring Tenacity",

@@ -20,8 +20,12 @@ import { getActivatedManaAbility } from "../../../../gre/constants";
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import {
     applySourceStaticEffects,
+    processPendingActionTriggers,
     removePermanentTo,
+    resolveTopOfStack,
 } from "../../../../gre/state";
+import { tapSourceIntoPayment } from "../../../../game";
+import { resolveTriggerOrder } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 
@@ -47,6 +51,14 @@ function board(): { state: GameState } {
         ownerId: "p1",
         isSummoningSick: false,
     });
+    // Summoning-sick on purpose: the CR 302.6 gate on the granted {T} needs a
+    // creature that HAS the grant and still cannot pay for it.
+    const sick = makeInstance(grizzlyBears.id, {
+        id: "sick",
+        controllerId: "p1",
+        ownerId: "p1",
+        isSummoningSick: true,
+    });
     const theirs = makeInstance(grizzlyBears.id, {
         id: "theirs",
         controllerId: "p2",
@@ -55,7 +67,7 @@ function board(): { state: GameState } {
     });
     const state = makeState({
         players: [
-            makePlayer("p1", { battlefield: [vitality, mine] }),
+            makePlayer("p1", { battlefield: [vitality, mine, sick] }),
             makePlayer("p2", { battlefield: [theirs] }),
         ],
     });
@@ -111,7 +123,7 @@ describe("Enduring Vitality — group activated-grant (CR 611.2a / 613.1f, issue
         ).toBe("enduring-vitality-any-color");
     });
 
-    it("does NOT grant it to an opponent's creature (CR 109.4 — 'you control')", () => {
+    it("does NOT grant it to an opponent's creature (CR 109.5 — 'you control')", () => {
         const { state } = board();
 
         expect(getActivatedManaAbility(find(state, "theirs")!, state)).toBe(
@@ -132,6 +144,59 @@ describe("Enduring Vitality — group activated-grant (CR 611.2a / 613.1f, issue
         removePermanentTo(state, "vitality", "exile");
 
         expect(getActivatedManaAbility(find(state, "mine")!, state)).toBe(null);
+    });
+
+    it("actually PRODUCES mana — the granted ability taps for the colour picked (CR 605.1a)", () => {
+        const { state } = board();
+        const player = state.players[0];
+        const mine = find(state, "mine")!;
+
+        // The production payment entry point, not a hand-rolled addMana: it
+        // re-derives the ability through `getActivatedManaAbility`, applies the
+        // CR 302.6 / tapped gates, and resolves the colour pick against the
+        // unified option list. Index 3 is {R} in `manaChoices` order (WUBRG).
+        const tapped: string[] = [];
+        tapSourceIntoPayment(state, player, mine, 3, tapped);
+
+        expect(player.manaPool.R).toBe(1);
+        expect(find(state, "mine")!.isTapped).toBe(true);
+    });
+
+    it("a summoning-sick creature cannot use the granted {T} ability (CR 302.6)", () => {
+        const { state } = board();
+        const player = state.players[0];
+        const sick = find(state, "sick")!;
+        // It really does hold the grant — the refusal below is the CR 302.6
+        // gate, not a missing ability.
+        expect(getActivatedManaAbility(sick, state)?.id).toBe(
+            "enduring-vitality-any-color"
+        );
+
+        // CR 302.6 gates an activated ability whose cost contains {T}; the
+        // grant does not opt out of it.
+        expect(() => tapSourceIntoPayment(state, player, sick, 3, [])).toThrow(
+            /summoning sickness/i
+        );
+        expect(player.manaPool.R).toBe(0);
+    });
+
+    it("keeps granting to the board after it dies and returns as an enchantment, but drops ITSELF", () => {
+        const { state } = board();
+
+        // The cycle's dies-trigger sets its card types to Enchantment only
+        // (CR 205.1a), so it stops matching its OWN `types.includes("Creature")`
+        // predicate while every other creature keeps the ability.
+        removePermanentTo(state, "vitality", "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        resolveTriggerOrder(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        const back = find(state, "vitality")!;
+        expect(back.types).toEqual(["Enchantment"]);
+        expect(getActivatedManaAbility(back, state)).toBe(null);
+        expect(getActivatedManaAbility(find(state, "mine")!, state)?.id).toBe(
+            "enduring-vitality-any-color"
+        );
     });
 
     it("wire format — the projection carries the grant, so the client sees the mana ability too", () => {
