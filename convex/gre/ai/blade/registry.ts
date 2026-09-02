@@ -3986,9 +3986,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the search itself must now reach.
         setup: [
             { kind: "cast", card: "Mons's Goblin Raiders" },
-            // CR 117.3b — the cast parks priority on the opponent; their pass
-            // advances the cycle, resolves the Raiders and hands the decision
-            // back to the active player, which is the position measured.
+            // CR 117.3b — the cast leaves priority with the caster, who
+            // auto-passes it to the opponent; the opponent's pass completes the
+            // cycle, resolves the Raiders and hands the decision back to the
+            // active player, which is the position measured.
             { kind: "pass", seat: "opp" },
         ],
         bot: "me",

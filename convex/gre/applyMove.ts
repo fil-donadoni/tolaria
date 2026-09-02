@@ -34,6 +34,17 @@
 //     its payoff and its price are scored together (issue #1920). Anything
 //     that revives the greedy selector owes this leg the same push.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
+//   * A cast trigger whose PLACEMENT suspends is dropped (issue #3026). Since
+//     the `cast-spell` leaf started announcing through the real choke point,
+//     `processPendingActionTriggers` can park a `pendingTarget` for a TARGETING
+//     cast trigger, or stash two-or-more orderable ones off-stack in
+//     `pendingTriggerBatch` (`gre/triggers.ts`). This sandbox answers only
+//     `land-entry-tapped` choices, so such a batch never lands and the leaf
+//     keeps an unanswered `pendingChoice`. Storm itself is exempt
+//     (`sliceNeedsOrdering` skips engine-internal triggers) and the ISMCTS
+//     sandbox is unaffected (the search enumerates `submit-target` /
+//     `resolution-choice` as real decisions), so this rides the same
+//     "greedy selector has no live caller" exemption as the note above.
 
 import type {
     CardInstanceState,
@@ -1447,10 +1458,33 @@ export function applyMoveForSearch(
             // Bounded, and it stops on the first pass that makes no progress so
             // a `resolveTopOfStack` suspended on a PendingChoice cannot spin.
             for (let step = 0; step < MAX_CAST_RESOLUTION_STEPS; step++) {
-                if (next.stack.length <= stackDepthBeforeCast) break;
+                // Depth alone is the wrong bound: a cast trigger can REMOVE an
+                // item that was on the stack before the cast (a storm copy of a
+                // counterspell, a "whenever you cast, counter target spell"),
+                // which drops the depth back to its pre-cast value while the
+                // cast spell itself is still sitting there unresolved — the
+                // very leaf shape this drain exists to prevent. So the cast
+                // item's own presence is part of the condition.
+                const castItemStillOnStack = next.stack.some(
+                    (i) => i.id === stackItem.id
+                );
+                if (
+                    next.stack.length <= stackDepthBeforeCast &&
+                    !castItemStillOnStack
+                ) {
+                    break;
+                }
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
+                // CR 704.3 — state-based actions are checked whenever a player
+                // WOULD receive priority, which is between two resolutions, not
+                // only at the end of the segment. `resolveTopOfStack` does not
+                // run them itself, so without this a storm-copied pinger sees
+                // its target survive every copy: the creature is still a legal
+                // target for copy three when the first two already killed it
+                // (CR 608.2b).
+                checkStateBasedActions(next);
                 // CR 614.12 / ADR 0051 — a spell that puts a shock land onto
                 // the battlefield (tutor / reanimation) enqueues a stackless
                 // `land-entry-tapped` pay-choice; drain it so the search leaf
