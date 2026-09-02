@@ -828,6 +828,20 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     // rule as a duration-scoped grant.
     "baseStaticAbilities",
     "abilityLossHolds",
+    // Same class again, PRD #2064 S4, for layers 2-5: `baseControllerId`,
+    // `baseTypes` and `baseSubtypes` are the pre-layer bases, re-captured from
+    // the reloaded `controllerId` / `types` / `subtypes` at the first
+    // `syncLayers2to5`; `printedSubtypes` is now that base's derived twin, kept
+    // only for the pre-split consult sites. All four are rebuild behaviour, not
+    // spec-keyed data. The layer-2-to-5 LEDGERS are deliberately NOT here —
+    // `textChangeHolds`, `typeLineHolds`, `subtypeAddHolds` and
+    // `supertypeHolds` hold effects nothing on the board can re-derive, so a
+    // spec that drops one has genuinely dropped state and the generic scan
+    // must keep reporting it.
+    "baseControllerId",
+    "baseTypes",
+    "baseSubtypes",
+    "printedSubtypes",
     // Privacy field — never present on a real read (`slimCard` deletes it
     // even in the full debug projection); read separately (raw states only)
     // to derive `faceDownExile`.
