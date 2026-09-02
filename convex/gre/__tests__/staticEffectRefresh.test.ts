@@ -29,7 +29,6 @@ import {
     unapplySourceStaticEffects,
     refreshCounterGatedStatics,
 } from "../state";
-import { syncLayers2to5 } from "../layers2to5";
 import type { GameState, CardInstanceState } from "../state";
 import {
     makeInstance,
@@ -457,13 +456,18 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // production always does next. Leaving the permanent on the
             // battlefield would leave its effect applying, correctly.
             const leave = (source: (typeof sources)[number]) => {
+                // `unapplySourceStaticEffects` is the moment the source STOPS
+                // applying, and it syncs with `stoppedSourceIds` — the assertion
+                // below runs against THAT answer, in the window before the array
+                // catches up, which is the contract's whole point. The splice
+                // then makes the departure real for the NEXT source's sync.
                 unapplySourceStaticEffects(state, source);
+                expect(state.players[0].battlefield).toContainEqual(source);
                 for (const player of state.players) {
                     player.battlefield = player.battlefield.filter(
                         (c) => c.id !== source.id
                     );
                 }
-                syncLayers2to5(state);
             };
             leave(yavimaya);
             expect(land.subtypes).toEqual(["Swamp"]);

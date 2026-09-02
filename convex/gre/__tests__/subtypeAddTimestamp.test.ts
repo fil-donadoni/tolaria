@@ -2,9 +2,13 @@
 // (a resolving-ability, one-shot INDEFINITE subtype-add) must stamp a real
 // layer timestamp, the same way every other layer-4 writer in
 // `applySourceStaticEffects` does. Before this fix it wrote no `seq` at all,
-// and `composeMaterializedSubtypes` (`gre/constants.ts`) reads a missing
-// `seq` as `0` — the earliest possible value — so a genuinely LATER add lost
-// to any live `subtype-set`, of any age, on the next recompose.
+// a missing `seq` reads as the EARLIEST possible value, so a genuinely LATER
+// add lost to any live `subtype-set`, of any age, on the next recompose.
+//
+// PRD #2064 S4 — the recompose is `deriveLayers2to5` (`gre/layers2to5.ts`) and
+// its answer IS `land.subtypes`, which every layer-4 write now refreshes. The
+// ordering property under test is unchanged; only where the answer is read
+// from has moved.
 import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
@@ -13,7 +17,6 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
-import { composeMaterializedSubtypes } from "../constants";
 import {
     makeInstance,
     makePlayer,
@@ -57,20 +60,14 @@ describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 
         // types" resolving effect, CR 611.2c) — must mint a seq LATER than
         // Blood Moon's.
         ctx.addSubtype({ type: "permanent", id: "land-add-1" }, "Forest");
-        expect(land.grantedSubtypesAdd).toEqual([
-            { subtype: "Forest", auraId: "indefinite", seq: 2 },
-        ]);
+        // The LEDGER row carries the minted stamp; `grantedSubtypesAdd` is the
+        // derivation's output shape for it.
+        expect(land.subtypeAddHolds).toEqual([{ subtype: "Forest", seq: 2 }]);
 
-        // The direct push in `addSubtype` makes it LOOK survived immediately…
+        // Unstamped, this is exactly where issue #1750's bug showed: the add
+        // sorted as the earliest possible record, lost to Blood Moon's seq 1,
+        // and vanished. Stamped, it applies after the set.
         expect(land.subtypes).toEqual(["Mountain", "Forest"]);
-
-        // …but the real proof is the NEXT recompose (any later layer-4 write
-        // replays the WHOLE materialized record from `grantedSubtypes` +
-        // `grantedSubtypesAdd`, ignoring the ad-hoc direct push). Unstamped,
-        // this is exactly where issue #1750's bug showed: the add sorted as
-        // seq 0, tied-loses to Blood Moon's seq 1, and vanished.
-        const recomposed = composeMaterializedSubtypes(land);
-        expect(recomposed).toEqual(["Mountain", "Forest"]);
     });
 
     it("an add still loses to a subtype-set that resolves AFTER it (CR 613.7 ordering, not blanket survival)", () => {
@@ -85,7 +82,6 @@ describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 
         ctx.addSubtype({ type: "permanent", id: "land-add-2" }, "Forest");
         applySourceStaticEffects(state, moon);
 
-        const recomposed = composeMaterializedSubtypes(land);
-        expect(recomposed).toEqual(["Mountain"]);
+        expect(land.subtypes).toEqual(["Mountain"]);
     });
 });

@@ -848,13 +848,11 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // was not printed on either face. Under a derivation "leaving" means
         // actually leaving the battlefield array, which is what production does
         // immediately after `unapplySourceStaticEffects` announces the stop.
+        // `unapplySourceStaticEffects` syncs with `stoppedSourceIds`, so the
+        // effect is gone from that instant — while the source is still IN the
+        // battlefield array, which is the window the contract exists for.
         unapplySourceStaticEffects(state, adder);
-        for (const player of state.players) {
-            player.battlefield = player.battlefield.filter(
-                (c) => c.id !== adder.id
-            );
-        }
-        syncLayers2to5(state);
+        expect(state.players[0].battlefield).toContainEqual(adder);
         expect(card.types).not.toContain("Artifact");
     });
 

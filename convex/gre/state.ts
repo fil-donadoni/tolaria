@@ -207,7 +207,6 @@ import {
     normalizedHybridPips,
     substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
-    applyLandTypeReplacement,
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import { revertBestow } from "./bestow";
@@ -7894,11 +7893,6 @@ export function applySourceStaticEffects(
  *  aura cast. Behaves identically to `applySourceStaticEffects`. */
 export const applyAuraStaticEffects = applySourceStaticEffects;
 
-// `composeMaterializedSubtypes` (CR 613 layer-4 composition, issue #1715)
-// lives in `gre/constants.ts` — the identity-swap replay (`gre/identitySwap.ts`,
-// issue #1705) reuses the SAME composer and cannot import it from here without
-// an import cycle (`state.ts` -> `copy.ts` -> `identitySwap.ts`).
-
 /** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
  *  splices out every grant whose `auraId` matches `source.id`. Call before
  *  the source transitions off the battlefield (destroy, exile, SBA detach,
@@ -7974,48 +7968,24 @@ export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
  *  Kept under its old name because ~a dozen call sites and card comments name
  *  it as the recomputation tick; PRD #2064 S6 renames it with the rest. */
 export function refreshCounterGatedStatics(state: GameState): void {
-    // Layers 2-5 are still MATERIALISED (PRD #2064 S4 migrates them), so their
-    // counter- and condition-gated sources still need the old unapply /
-    // re-apply round trip. It is narrowed to the kinds this slice did NOT take
-    // over: a layer-6 kind is derived and must not be swept, or the sweep would
-    // re-mint work the derivation already did.
+    // PRD #2064 S4 — the tick is now BOTH derivations and nothing else.
     //
-    // CR 613.7 (issue #1715) — `preserveTimestamp` keeps the source's ordering
-    // position across an arbitrary number of SBA passes: a counter-gated
-    // RE-evaluation is not a new application (only an Aura becoming attached is,
-    // CR 613.7d), and re-stamping would make the winning subtype depend on how
-    // many passes had run.
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
-            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            const needsRefresh = effects.some(
-                (e) =>
-                    !LAYER_6_KINDS.has(e.kind) &&
-                    (e.dependsOnCounters === true ||
-                        (e as { condition?: unknown }).condition !== undefined)
-            );
-            if (!needsRefresh) continue;
-            unapplySourceStaticEffects(state, source);
-            applySourceStaticEffects(state, source, {
-                preserveTimestamp: true,
-            });
-        }
-    }
+    // What was here until this slice: a sweep that found every source whose
+    // effects declare `dependsOnCounters` or carry a `condition`, tore it down
+    // with `unapplySourceStaticEffects` and re-applied it with
+    // `preserveTimestamp`. That round trip existed because layers 2-5 were
+    // MATERIALISED and a gate that flipped had no other way to be noticed.
+    // Both halves are derivations now, so the round trip is a no-op that costs
+    // two board-wide recomputes PER GATED SOURCE per SBA pass — and every
+    // recompute is O(board x sources), which the ISMCTS search pays on every
+    // node it expands.
+    //
+    // The staleness class it used to carry goes with it: every gate, of every
+    // kind, on every source, is re-evaluated against the live board here,
+    // instead of only the kinds someone remembered to list.
     syncLayers2to5(state);
     syncLayer6(state);
 }
-
-/** CR 613.1f — the `StaticEffect` kinds `gre/layer6.ts` owns. Named here so the
- *  layers-2-5 sweep above can exclude them without re-listing them by hand. */
-const LAYER_6_KINDS = new Set<string>([
-    "keyword-grant",
-    "keyword-remove",
-    "ability-loss",
-    "activated-grant",
-    "triggered-grant",
-]);
 
 /** CR 613 (PRD #2064 S2/S3/S4) — recomputes every layer for the whole board
  *  after `newPermanent` arrives.
@@ -8378,6 +8348,20 @@ export function applyControlChange(
     const stack = (found.card.controlChanges ?? []).filter(
         (e) => e.auraId !== sourceId
     );
+    // Gaining control of a permanent you ALREADY control changes nothing, and
+    // a row for it is not inert: a `tapOnLoss` rider (Magus of the Unseen,
+    // CR 701.26a) would tap the permanent at the row's boundary. Measured
+    // against the same board the derivation will read, i.e. after the prior row
+    // from this source is dropped.
+    const wouldControl =
+        stack.length > 0
+            ? stack[stack.length - 1].controllerId
+            : (found.card.baseControllerId ?? found.card.controllerId);
+    if (wouldControl === newControllerId) {
+        found.card.controlChanges = stack.length > 0 ? stack : undefined;
+        syncLayers2to5(state);
+        return;
+    }
     stack.push({
         auraId: sourceId,
         // CR 108.3 — retained for the pre-S4 readers and for the chain
@@ -14381,19 +14365,22 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            ensureLayer4Base(found.card);
             // Restore against the ORIGINAL printed subtypes even if a prior
             // timed change is still active (CR 305.7 — the most recent change
-            // wins, and only one is held at a time).
+            // wins, and only one is held at a time). Legacy record only: the
+            // derivation restores by DROPPING the row, not by replaying this.
             const restoreSubtypes =
                 found.card.temporarySubtypeChange?.restoreSubtypes ??
                 found.card.subtypes;
-            // CR 305.7 (issue #1883) — same land-type-only narrowing as
-            // `setSubtypes` above; `restoreSubtypes` itself stays the FULL
-            // pre-change snapshot so expiry (phases.ts tickAllDurations)
-            // restores every subtype, land and non-land alike.
-            found.card.subtypes = found.card.types.includes("Land")
-                ? applyLandTypeReplacement(restoreSubtypes, subtypes)
-                : [...subtypes];
+            // PRD #2064 S4 — the ledger row and nothing else. `subtypes` is
+            // `syncLayers2to5`'s derived output and the CR 305.7 land-type
+            // narrowing happens there, against the running line; writing it
+            // here too would be a second channel, and — because the row is
+            // ordered by its own stamp — the direct write is what used to hide
+            // the missing one. WITHOUT `seq` the row derives below every minted
+            // stamp, so a live `subtype-set` aura stamped earlier would win the
+            // CR 613.7 race against an effect that resolved later.
             found.card.temporarySubtypeChange = {
                 subtypes: [...subtypes],
                 restoreSubtypes: [...restoreSubtypes],
@@ -14402,7 +14389,9 @@ export function buildSpellContext(
                     found.card.controllerId,
                     state
                 ),
+                seq: allocStaticTimestamp(state),
             };
+            syncLayers2to5(state);
         },
         // CR 205.4a — indefinite supertype mutation (Arcum's Weathervane).
         // Writes the same source-keyed markers as the `supertype-set` static

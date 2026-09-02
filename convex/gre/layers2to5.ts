@@ -36,9 +36,16 @@
 // and the pre-layer bases — `baseControllerId` (layer 2), `baseTypes` /
 // `baseSubtypes` (layer 4) — are the twins of `baseStaticAbilities` (layer 6)
 // and `printedSubtypes` (which they supersede): captured lazily at the first
-// derivation, when the output field still holds nothing but the base, and
-// cleared by every path that rewrites the copiable values from below
-// (`gre/copy.ts`, `gre/faceDown.ts`, `gre/transform.ts`, `gre/identitySwap.ts`).
+// derivation, when the output field still holds nothing but the base.
+//
+// Two things re-seat a base. An IDENTITY SWAP (copy / face-down / transform)
+// routes through `rebuildCopiableValuesAndReplayOverlays`
+// (`gre/identitySwap.ts`), which assigns the layer-4 bases from the new face
+// directly — `baseControllerId` is deliberately untouched there, because a
+// controller is not a copiable value (CR 613.1a). A rewrite of the object's OWN
+// printed characteristics from below the layer system (a CR 614.12c body
+// choice) calls `clearLayers2to5Base`, which drops them so the next derivation
+// re-captures.
 //
 // LAYER ORDER (CR 613.7). The four layers are applied 2 → 3 → 4 → 5 in ONE
 // walk, so each sees what the earlier ones produced:
@@ -107,6 +114,12 @@ const DERIVED_TIMESTAMP_BASE = -1_000_000_000;
  *  clear of the ordinal band so it cannot interleave with an instance ledger's
  *  rows. */
 const UNSTAMPED_SOURCE_TIMESTAMP = DERIVED_TIMESTAMP_BASE - 1_000_000;
+
+/** CR 613.7 — where a ledger row PROMOTED from a pre-S4 snapshot sorts. Below
+ *  every minted stamp (the effect is older than anything this session mints)
+ *  but above `UNSTAMPED_SOURCE_TIMESTAMP`, so a promoted row still outranks a
+ *  source that has not begun applying. */
+const LEGACY_LEDGER_TIMESTAMP_BASE = DERIVED_TIMESTAMP_BASE - 500_000;
 
 /** The sentinel source id every non-source-bound mutation is keyed to — the
  *  `"indefinite"` string `SpellContext.setSupertype` / `applyCardTypeSet` have
@@ -184,6 +197,21 @@ export function layer4SubtypeBase(card: CardInstanceState): string[] {
  *  is only correct while the output fields still hold nothing but the base, and
  *  that is true exactly once. */
 export function ensureLayers2to5Base(card: CardInstanceState): void {
+    // A card the engine has NEVER derived for carries no base at all. That is
+    // the only state in which the pre-S4 migration below is correct — and it
+    // must be computed BEFORE the captures, which are what stop it being true.
+    //
+    // The gate is load-bearing, not defensive: the derived output the migration
+    // reads (`grantedSubtypesAdd`, `grantedTypes`, `textChanges`, the supertype
+    // markers) is written by THIS engine's own sync, with `"indefinite"`
+    // attribution for every ledger-borne effect. Run it a second time and each
+    // of those rows is promoted into a ledger of its own — the effect applies
+    // twice, forever, and an identity swap (which re-seats the layer-4 bases
+    // and re-derives) is enough to trigger it.
+    const legacy =
+        card.baseControllerId === undefined &&
+        card.baseTypes === undefined &&
+        card.baseSubtypes === undefined;
     ensureLayer4Base(card);
     if (card.baseControllerId === undefined) {
         // A control change already materialised into `controllerId` (a state
@@ -210,6 +238,99 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
                     ? stack[i + 1].previousControllerId
                     : card.controllerId),
         }));
+    }
+    if (legacy) migrateLegacyLayer3To5Ledgers(card);
+}
+
+/** One-shot migration for a `game_state` snapshot persisted BEFORE PRD #2064
+ *  S4, where three of the four layer-2-to-5 ledgers did not exist and their
+ *  effects lived in what are now DERIVED OUTPUT fields.
+ *
+ *  `game_state` is a live per-game snapshot, so a deploy lands mid-game. Every
+ *  output field is overwritten at the first `syncLayers2to5`; without this the
+ *  overwrite is not a no-op, it is a DELETION — a Magical Hack rewrite, an Oko
+ *  `+1` type line and an Arcum's Weathervane snow toggle would each simply
+ *  vanish from a game in progress.
+ *
+ *  Runs at the same moment as the base capture, and for the same reason: it is
+ *  only correct while the output fields still hold what the pre-S4 engine put
+ *  there, and that is true exactly once.
+ *
+ *  What is deliberately NOT migrated: an aura-sourced row (`auraId` naming a
+ *  live permanent). Those are re-derived from the board on the first sync, so
+ *  promoting them to a ledger would apply them twice, permanently. Only the
+ *  `"indefinite"` sentinel rows — the ones no board walk can reproduce — are
+ *  promoted. */
+function migrateLegacyLayer3To5Ledgers(card: CardInstanceState): void {
+    // CR 612 layer 3 — `textChanges` was the ledger AND the output.
+    if (card.textChangeHolds === undefined && card.textChanges?.length) {
+        card.textChangeHolds = card.textChanges.map((change, index) => ({
+            change,
+            // Array order WAS the CR 612.6 timestamp before S4 (the field's own
+            // doc said so), so it is preserved as one, below every minted stamp.
+            seq: LEGACY_LEDGER_TIMESTAMP_BASE + index,
+        }));
+    }
+    // CR 205.1a layer 4 (issue #2084) — a one-shot card-type SET was recorded
+    // as `"indefinite"`-keyed granted / suppressed rows. The SET's value is
+    // recoverable: it is exactly the live `types`, which is what it set.
+    if (
+        card.typeLineHolds === undefined &&
+        ((card.grantedTypes ?? []).some(
+            (g) => g.auraId === INDEFINITE_SOURCE_ID
+        ) ||
+            (card.suppressedTypes ?? []).some(
+                (s) => s.sourceId === INDEFINITE_SOURCE_ID
+            ))
+    ) {
+        card.typeLineHolds = [
+            { types: [...card.types], seq: LEGACY_LEDGER_TIMESTAMP_BASE },
+        ];
+    }
+    // CR 205.4a layer 4 — an indefinite supertype mutation was recorded as
+    // `"indefinite"`-keyed granted / removed markers.
+    if (card.supertypeHolds === undefined) {
+        const added = (card.grantedSupertypes ?? []).filter(
+            (g) => g.sourceId === INDEFINITE_SOURCE_ID
+        );
+        const removed = (card.removedSupertypes ?? []).filter(
+            (r) => r.sourceId === INDEFINITE_SOURCE_ID
+        );
+        if (added.length > 0 || removed.length > 0) {
+            card.supertypeHolds = [
+                {
+                    ...(added.length > 0
+                        ? {
+                              add: added.map(
+                                  (a) => a.supertype as CardSupertype
+                              ),
+                          }
+                        : {}),
+                    ...(removed.length > 0
+                        ? {
+                              remove: removed.map(
+                                  (r) => r.supertype as CardSupertype
+                              ),
+                          }
+                        : {}),
+                    seq: LEGACY_LEDGER_TIMESTAMP_BASE,
+                },
+            ];
+        }
+    }
+    // CR 305.7 layer 4 — an indefinite subtype ADD was recorded as an
+    // `"indefinite"`-keyed `grantedSubtypesAdd` row, which DID carry a real
+    // minted stamp (issue #1750), so the stamp survives the promotion.
+    if (card.subtypeAddHolds === undefined) {
+        const adds = (card.grantedSubtypesAdd ?? []).filter(
+            (a) => a.auraId === INDEFINITE_SOURCE_ID
+        );
+        if (adds.length > 0) {
+            card.subtypeAddHolds = adds.map((a) => ({
+                subtype: a.subtype,
+                seq: a.seq ?? LEGACY_LEDGER_TIMESTAMP_BASE,
+            }));
+        }
     }
 }
 
@@ -254,8 +375,28 @@ export function ensureLayer4Base(card: CardInstanceState): void {
         card.baseTypes = base;
     }
     if (card.baseSubtypes === undefined) {
-        card.baseSubtypes = [...(card.printedSubtypes ?? card.subtypes)];
+        card.baseSubtypes = captureSubtypeBase(card);
     }
+}
+
+/** CR 613.1d — the layer-4 subtype base for a card that has none captured yet.
+ *
+ *  Carries the #1715 guard verbatim from the `capturePrintedSubtypes` this
+ *  replaces: a subtype that is only present because a live `subtype-add` put it
+ *  there is EXCLUDED. The derivation replays those adds from their own records,
+ *  so a base that already contained one would make the add immortal — it would
+ *  survive its own source leaving play. A subtype the card is actually PRINTED
+ *  with is kept even when an add duplicates it. */
+function captureSubtypeBase(card: CardInstanceState): string[] {
+    const base = [...(card.printedSubtypes ?? card.subtypes)];
+    const adds = [
+        ...(card.grantedSubtypesAdd ?? []).map((a) => a.subtype),
+        ...(card.subtypeAddHolds ?? []).map((a) => a.subtype),
+    ];
+    if (adds.length === 0) return base;
+    const cardId = (card.card as { id?: string }).id;
+    const printed = cardId ? (tryGetDefinition(cardId)?.subtypes ?? []) : [];
+    return base.filter((s) => printed.includes(s) || !adds.includes(s));
 }
 
 /** The static effects a source contributes, resolved through the card registry
@@ -892,13 +1033,29 @@ export function deriveLayers2to5(
             }
             case "supertype-change": {
                 const attribution = attributionOf(entry);
+                // CR 205.4a / 613.7 — LAST TIMESTAMP WINS, and the walk is
+                // already ordered, so an entry's contribution cancels every
+                // earlier OPPOSITE one for the same supertype before recording
+                // its own. Without the cancel both lists end up holding the
+                // supertype at once and `hasSupertypeLive` (`cards/snowReads.ts`)
+                // — which checks GRANTED first — answers `true` forever: Arcum's
+                // Weathervane could turn a land snow but never turn it back.
+                // The pre-migration `applyIndefiniteSupertypeMutation` did this
+                // by dropping the opposite marker at write time; a derivation
+                // does it by ordering.
                 for (const supertype of action.remove ?? []) {
+                    result.grantedSupertypes = result.grantedSupertypes.filter(
+                        (g) => g.supertype !== supertype
+                    );
                     result.removedSupertypes.push({
                         supertype,
                         sourceId: attribution,
                     });
                 }
                 for (const supertype of action.add ?? []) {
+                    result.removedSupertypes = result.removedSupertypes.filter(
+                        (r) => r.supertype !== supertype
+                    );
                     result.grantedSupertypes.push({
                         supertype,
                         sourceId: attribution,
@@ -1118,4 +1275,9 @@ export function recomposeLayers2to5ForInstance(card: CardInstanceState): void {
 export function clearLayers2to5Base(card: CardInstanceState): void {
     card.baseTypes = undefined;
     card.baseSubtypes = undefined;
+    // `printedSubtypes` is the pre-split name for the same base and
+    // `layer4SubtypeBase` falls back to it FIRST, so leaving it behind would
+    // let a stale value outrank the recapture this call exists to force — the
+    // rewrite from below would be silently undone at the next sync.
+    card.printedSubtypes = undefined;
 }

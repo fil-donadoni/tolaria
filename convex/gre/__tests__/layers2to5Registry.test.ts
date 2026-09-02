@@ -375,6 +375,9 @@ describe("CR 611.2b — the phase boundary re-derives layers 2-5 (PRD #2064 S4)"
                 characteristicDefining: false,
             },
         ];
+        // Written the way `SpellContext.setSubtypesUntil` writes it: a CR
+        // 613.7 stamp LATER than the indefinite set above, so the timed change
+        // wins while it lasts.
         mtn.temporarySubtypeChange = {
             subtypes: ["Swamp"],
             restoreSubtypes: ["Mountain"],
