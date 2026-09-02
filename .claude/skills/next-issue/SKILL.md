@@ -111,6 +111,13 @@ wrong-mental-model defect, see §1's escalation note.
 - PR body: what changed, tests + proof-of-failure line, `{ label, spec }`
   scenario for any new card/gameplay feature (ADR 0044), UI receipt only if
   the diff can reach the DOM (`bun run check:ui`).
+- **The scenario is a ```json fence under a `## Preset scenario` heading**, and
+  `land` refuses the merge without one whenever the diff touches
+  `convex/cards/sets/**` or `convex/gre/**`. Say "none owed" in that section
+  when it genuinely isn't. You do NOT run the insert — `land` seeds it after
+  the merge. (Between ADR 0110 retiring the orchestrator and this being wired,
+  every emitted spec was silently dropped: 33 were recovered by
+  `bun run seed:backlog`.)
 - `bun run land <PR#>` — it rebases, runs the lane gate under the machine
   mutex, merges, fast-forwards the primary checkout's local `main` onto the
   merged tip, tears down the worktree and both branch refs, and detaches

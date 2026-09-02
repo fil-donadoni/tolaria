@@ -85,6 +85,11 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    classifyScenarioSection,
+    owesScenario,
+    scenarioRefusal,
+} from "./lib/scenario-block";
 import { changedPaths, classifyLane, type Lane } from "./check-lane";
 import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
 
@@ -146,9 +151,40 @@ export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
     }
 }
 
+/**
+ * The preset-scenario refusal (ADR 0044), computed the same tolerant way
+ * `safeSkinReceiptInvalid` is: a diff-classification failure must not crash
+ * `land` before any refusal check runs, so it degrades to "allow" and says so.
+ *
+ * WHY THIS IS A GATE AT ALL. CLAUDE.md § Development cycle step 7 has always
+ * required one scenario per new card/gameplay feature, and routed the insert
+ * to "the orchestrator, post-merge". ADR 0110 retired the orchestrator and
+ * `/next-issue` never inherited the step, so the requirement survived only as
+ * prose — and prose is not where invariants live (CLAUDE.md § Skills). Over
+ * the 200 merged PRs before this landed, 42 carried a spec that was never
+ * registered anywhere and 17 shipped a gameplay diff with no block and no
+ * decline. Both halves are what this refusal and `seed:scenario` close.
+ */
+export function safeScenarioRefusal(
+    cwd: string,
+    prBody: string
+): string | null {
+    const verdict = classifyScenarioSection(prBody);
+    let owes = false;
+    try {
+        owes = owesScenario(changedPaths("origin/main", cwd, true));
+    } catch (err) {
+        console.warn(
+            `land: could not classify the landing diff to check the preset scenario (${(err as Error).message}) — only a malformed block can refuse`
+        );
+    }
+    return scenarioRefusal(verdict, owes);
+}
+
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
+const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -209,6 +245,13 @@ export interface LandFacts {
      * verified clean — `land` owes this check nothing in either case.
      */
     skinReceiptInvalid: boolean;
+    /**
+     * Refusal string from `safeScenarioRefusal` (ADR 0044), or null. Set when
+     * the landing diff owes a preset scenario and the PR body carries none,
+     * or when it carries one that does not load. See that function for why
+     * this is a gate rather than a line of prose.
+     */
+    scenarioRefusal: string | null;
 }
 
 /**
@@ -237,6 +280,9 @@ export function refusalReason(facts: LandFacts): string | null {
             "landing diff is `skin` and its pasted check:ui receipt failed verification " +
             "— re-run `bun run verify:ui-receipt <PR#>` for the mismatch, and paste a real full-lane receipt"
         );
+    }
+    if (facts.scenarioRefusal) {
+        return facts.scenarioRefusal;
     }
     return null;
 }
@@ -436,6 +482,18 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         steps.push(
             `((cd ${shQuote(opts.primaryCheckout)} && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun ${shQuote(HEALTH_MAIN)} >> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
         );
+        // Register the PR's preset scenario in the local Convex deployment
+        // (ADR 0044) — the step ADR 0110 dropped when it retired the
+        // orchestrator CLAUDE.md § step 7 still names. Post-merge, in the
+        // PRIMARY checkout (a linked worktree has no `.env.local`, so no
+        // `CONVEX_DEPLOYMENT`), and NON-GATING like the rest of the
+        // housekeeping: no local deployment, a stopped `convex dev` or a spec
+        // naming a since-renamed card must never turn a merged PR into a
+        // reported failure. The pre-merge `scenarioRefusal` is what actually
+        // enforces that a spec EXISTS and loads; this only writes it.
+        steps.push(
+            `(cd ${shQuote(opts.primaryCheckout)} && bun ${shQuote(SEED_SCENARIO)} ${opts.pr} || true)`
+        );
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
@@ -539,6 +597,9 @@ function main(): void {
     // tolerates a diff-classification failure (finding 6) instead of
     // crashing `land` before any refusal check runs.
     const skinReceiptInvalid = safeSkinReceiptInvalid(cwd, prBody);
+    // ADR 0044 — the preset scenario, the other thing a PR body carries that
+    // nothing else in the toolchain reads. Same tolerant shape.
+    const scenarioProblem = safeScenarioRefusal(cwd, prBody);
 
     const reason = refusalReason({
         branch,
@@ -546,6 +607,7 @@ function main(): void {
         prState,
         prHeadRefName,
         skinReceiptInvalid,
+        scenarioRefusal: scenarioProblem,
     });
     if (reason) fail(`refusing — ${reason}`);
 

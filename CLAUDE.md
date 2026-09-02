@@ -255,12 +255,17 @@ exactly when it is needed and costs nothing when it is not.
 6. **Validate** — full gate once before done: `bun run check:all` +
    `bun run test`, both zero-error
 7. **Preset scenario** — for any new card/gameplay feature (ADR 0044; DB is
-   the single source of truth, #770/#1455). Headless agents do NOT insert it:
-   emit one `{ label, spec }` in the PR receipt; the orchestrator registers
-   it post-merge via `npx convex run debugScenarios:seedScenarioDirect`
-   (upserts by label; row is deployment-local by design). Interactive work:
-   Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
-   for pure refactors.
+   the single source of truth, #770/#1455). **Put a ```json fenced
+`{ "label": …, "spec": { "cards": [ … ] } }`under a`## Preset scenario`heading in the PR body —`land` refuses the merge without it** when the
+   diff touches `convex/cards/sets/**` or `convex/gre/**`, and seeds it into
+   the local deployment after the merge (`bun run seed:scenario`,
+   upsert-by-label; the row is deployment-local by design). Nothing is owed
+   for a refactor or an engine capability no card exposes yet — say so in that
+   section and the refusal lifts. `owner` is `"me"` / `"opp"` and nothing
+   else: `normalizeScenarioSpec` silently maps anything else to `"me"`, which
+   is how 12 shipped specs ended up describing a one-sided board. Interactive
+   work can still use Debug panel → Scenarios → "Save scenario". Sweep the
+   history with `bun run seed:backlog`.
 8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
    freeze, no silent ignore. Three seams per
    `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
