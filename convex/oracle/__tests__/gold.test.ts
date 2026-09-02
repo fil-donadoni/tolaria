@@ -125,19 +125,27 @@ describe("gold round-trip — precision", () => {
         // A hand-written `resolve()` closure and a compiled Effect Script are
         // not comparable in either direction — see `GoldIncomparable`. Counted
         // separately and bounded so the hole cannot grow unnoticed.
-        // Raised from 10 in #2699 (4 -> 9). Five newly-accepted gold spells
-        // (Disenchant, Ice Storm, Shatter, Sinkhole, Stone Rain) author their
-        // behaviour with the pre-ADR-0045 `effect: "destroy-target"`
-        // shorthand — a closure reached by name
-        // (`cards/effectRegistry.ts`), which `CLOSURE_VALUED_KEYS` in
-        // `gold.ts` renders as one. Their sixth sibling, Desert Twister, is a
-        // MISMATCH rather than incomparable, because the exemption is
-        // per-BODY-KEY: see `BODY_KEYS`. The bound is still a bound and not a
-        // ratio — growth has to be explained, and this growth is.
+        //
+        // 4 (#2697) -> 9 (#2699) -> 1 (#2703). The behavioural gold harness
+        // (`bun run oracle:behavioural`) is what drains this bucket: it proves
+        // a closure card's twin by running the card's own tests against it,
+        // which is the evidence the structural comparison cannot produce, and
+        // a card so proven has its closure retired to the `effects[]` the
+        // compiler emitted. Eight of the nine went that way here (Disenchant,
+        // Fissure, Goblin Grenade, Ice Storm, Royal Assassin, Shatter,
+        // Sinkhole, Stone Rain — the five `effect: "destroy-target"` shorthand
+        // spells plus three `resolve()` closures), and they now round-trip as
+        // `equal`. Desert Twister stayed a MISMATCH throughout: its
+        // hand-written `type: "any"` is narrower than the six permanent types
+        // the compiler reads, so its behavioural green proves only the case
+        // its own test covers. Onulet is the survivor.
+        //
+        // The bound is still a bound and not a ratio — growth has to be
+        // explained. So does emptiness: the `toContain` below is the vacuity
+        // guard, and if Onulet is ever retired too it must be replaced by the
+        // next survivor, not deleted.
         expect(REPORT.incomparable.length).toBeLessThan(15);
-        expect(REPORT.incomparable.map((i) => i.name)).toContain(
-            "Royal Assassin"
-        );
+        expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
         }

@@ -490,7 +490,7 @@ export const disenchant: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
-    effect: "destroy-target",
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 // Farmstead — "Enchant land\nEnchanted land has \"At the beginning of your

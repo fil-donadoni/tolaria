@@ -348,11 +348,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
-        cardId: "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
-        name: "Fissure",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
         cardId: "fb01dd39-a957-4c1a-86cf-f31a699a154a",
         name: "Forgotten Lore",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
@@ -385,11 +380,6 @@ const AI_EFFECTS_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         cardId: "ba1384e5-d140-4074-9548-250af09cb413",
         name: "Glyph of Life",
-        note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
-    },
-    {
-        cardId: "8837eaba-9602-4f63-9897-85583fcdcf51",
-        name: "Goblin Grenade",
         note: "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436",
     },
     {
@@ -701,16 +691,6 @@ const EFFECT_SHORTHAND_ALLOWLIST: readonly AllowlistEntry[] = [
         note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
     },
     {
-        cardId: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
-        name: "Disenchant",
-        note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
-    },
-    {
-        cardId: "9914836e-2fa6-4390-94b2-431427848a54",
-        name: "Ice Storm",
-        note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
-    },
-    {
         cardId: "c4104546-abd9-4bfb-a65e-5928cdd4522f",
         name: "Morale",
         note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
@@ -718,21 +698,6 @@ const EFFECT_SHORTHAND_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         cardId: "f649c571-d7ec-4ebc-9e18-b0657cab495b",
         name: "Piety",
-        note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
-    },
-    {
-        cardId: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
-        name: "Shatter",
-        note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
-    },
-    {
-        cardId: "04b31611-9053-4eaf-b392-21bb644fef5f",
-        name: "Sinkhole",
-        note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
-    },
-    {
-        cardId: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
-        name: "Stone Rain",
         note: "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519",
     },
 ];
@@ -2465,12 +2430,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "0ecbe097-ba51-42e5-957c-382eb66c08f0",
         name: "Robber of the Rich",
         abilityId: "robber-of-the-rich-attack",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "59590768-fa96-4869-8763-9d5ab6ac22ad",
-        name: "Royal Assassin",
-        abilityId: "royal-assassin-destroy",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

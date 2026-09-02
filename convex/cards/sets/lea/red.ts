@@ -1106,7 +1106,7 @@ export const shatter: CardDefinition = {
     manaCost: { X: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Artifact", count: 1 },
-    effect: "destroy-target",
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 // Shivan Dragon — flying + "{R}: This creature gets +1/+0 until end of turn."
@@ -1260,7 +1260,7 @@ export const stoneRain: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
-    effect: "destroy-target",
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 // Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype

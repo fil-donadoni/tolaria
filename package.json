@@ -43,6 +43,7 @@
         "loop:scorecard": "bun scripts/loop-scorecard.ts",
         "loop:status": "bun scripts/loop-status.ts",
         "markers:lint": "bun scripts/check-marker-liveness.ts",
+        "oracle:behavioural": "bun scripts/oracle-behavioural.ts",
         "oracle:compile": "bun scripts/oracle-compile.ts",
         "oracle:corpus": "bun scripts/oracle-corpus.ts",
         "oracle:index": "bun scripts/oracle-index-backfill.ts",

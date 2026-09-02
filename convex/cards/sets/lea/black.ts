@@ -1225,16 +1225,15 @@ export const royalAssassin: CardDefinition = {
                 count: 1,
                 tappedFilter: "tapped",
             },
-            // NOT DSL-migratable (ADR 0045): the resolution-time re-check that
-            // the target is still tapped (CR 608.2b — an in-response untap
-            // fizzles this) is load-bearing and has no `destroy`-Op predicate
-            // form. Blocked on: an `if` predicate over a target's tap state.
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target) return;
-                if (!ctx.getIsTapped(target)) return;
-                ctx.destroy(target);
-            },
+            // CR 608.2b — an in-response untap fizzles this, and the ENGINE
+            // enforces that: target legality is re-checked against
+            // `targetRequirement` on resolution, so the `tappedFilter` above is
+            // the whole rider. The marker that stood here claimed the re-check
+            // was load-bearing card logic blocked on an `if` predicate over tap
+            // state; the behavioural gold harness (issue #2703) disproved it —
+            // this card's own CR 608.2b fizzle test passes against the compiled
+            // script below, which does no re-check of its own.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -1417,7 +1416,7 @@ export const sinkhole: CardDefinition = {
     manaCost: { B: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
-    effect: "destroy-target",
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 // Unholy Strength — "Enchanted creature gets +2/+1." Mirror of Holy Strength.

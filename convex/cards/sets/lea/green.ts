@@ -540,7 +540,7 @@ export const iceStorm: CardDefinition = {
     manaCost: { X: 2, G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
-    effect: "destroy-target",
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 // Instill Energy — "Enchant creature. Enchanted creature can attack as
