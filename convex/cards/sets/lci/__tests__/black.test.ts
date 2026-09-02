@@ -143,7 +143,7 @@ describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returne
         expect(state.stack).toHaveLength(0);
     });
 
-    it('declining the "may" exiles nothing, and the later leave is a clean no-op (CR 601.2c / 608.2b)', () => {
+    it('declining the "may" exiles nothing, and the later leave is a clean no-op (CR 608.2b)', () => {
         const { state } = setup([handCard(grizzlyBears, "bears")]);
         etbTriggerOnStack(state, state.players[0].battlefield[0]);
         resolveTopOfStack(state);

@@ -66,7 +66,9 @@ export const bitterTriumph: CardDefinition = {
 //     `reveal` (CR 701.20a): the hand is a hidden zone (CR 400.2) and the
 //     grant is per-viewer (`markKnown`, ADR 0026).
 //   - `choice` `choose-hand-card` — "You MAY exile" is an OPTIONAL pick,
-//     `count: { min: 0, max: 1 }` (CR 601.2c), chooser the controller and
+//     `count: { min: 0, max: 1 }` — the Elite Spellbinder encoding, which
+//     cites no rule for it either; the optionality is the Op's own `count`
+//     range, not a CR clause. Chooser is the controller and
 //     zone owner the announced opponent (`zoneOwnerId`).
 //   - `moveZone` `cards` shape, `from: "hand"` -> `to: "exile"`, with
 //     `linkToSource: true` (issue #1947) stamping `exiledBySourceId` = this
