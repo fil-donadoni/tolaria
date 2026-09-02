@@ -567,6 +567,20 @@ describe("review findings — the shapes a materialise-to-derive migration loses
                 makePlayer("p2"),
             ],
         });
+        // A live layer-5 entry, so this permanent genuinely derives (a board
+        // with nothing applying takes the sync's fast path, where the answer is
+        // the base and no output is written — which would make this vacuous).
+        state.continuousEffects = [
+            {
+                id: "ce-colour",
+                layer: 5,
+                timestamp: 1,
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                affected: { kind: "instances", instanceIds: ["land"] },
+                payload: { kind: "color-change", add: ["B"] },
+                characteristicDefining: false,
+            },
+        ];
         syncLayers2to5(state);
         expect(land.printedSubtypes).toEqual(["Mountain"]);
 

@@ -461,14 +461,88 @@ function sourceStaticEffects(
  */
 function layers2to5EffectsFor(
     state: LayerStateView,
-    target: PermanentView
+    target: PermanentView,
+    /** The board's source-provenance entries, collected ONCE per sync by
+     *  `collectSourceEntries`. They are target-INDEPENDENT — a template entry
+     *  carries a `predicate` affected-set, and the predicate is evaluated later,
+     *  in `resolveAction`, against the running view — so recollecting them per
+     *  target is pure waste: it costs one card-registry lookup per (target,
+     *  source) pair, which is quadratic in the board and is paid on every node
+     *  the ISMCTS search expands. */
+    collected?: SourceEntries
 ): {
     entries: ContinuousEffect[];
     templates: ReadonlyMap<string, DerivedTemplate>;
 } {
+    const board = collected ?? collectSourceEntries(state);
+    const instance = target as unknown as CardInstanceState;
+    // A permanent that contributes NO entries of its own reads the board's
+    // list in place: it is already in CR 613.7 order and it is the same list
+    // for every target, so copying and re-sorting it per target is allocation
+    // with no answer attached.
+    if (!carriesLayer2to5State(instance) && !hasStoredLayer2to5Entry(state)) {
+        return {
+            entries: board.entries as ContinuousEffect[],
+            templates: board.templates,
+        };
+    }
+    return finishEffectsFor(
+        state,
+        target,
+        instance,
+        [...board.entries],
+        new Map(board.templates)
+    );
+}
+
+/** The board's source-provenance entries and the live source each was derived
+ *  from — everything about a sync that does not depend on WHICH permanent is
+ *  being derived. */
+type SourceEntries = {
+    entries: readonly ContinuousEffect[];
+    templates: ReadonlyMap<string, DerivedTemplate>;
+};
+
+/** True when any STORED registry entry belongs to layers 2-5. Cheap and
+ *  board-wide, so the fast paths can ask it once. */
+function hasStoredLayer2to5Entry(state: LayerStateView): boolean {
+    const stored = state.continuousEffects;
+    if (!stored?.length) return false;
+    for (const entry of stored) {
+        if (entry.layer >= 2 && entry.layer <= 5) return true;
+    }
+    return false;
+}
+
+/** True when the permanent carries ANY layer-2-to-5 state: a ledger row this
+ *  derivation would read, or an output row a PREVIOUS one wrote and this one
+ *  might have to clear. Either way it owes a real derivation. */
+function carriesLayer2to5State(card: CardInstanceState): boolean {
+    return (
+        card.controlChanges !== undefined ||
+        card.textChangeHolds !== undefined ||
+        card.textChanges !== undefined ||
+        card.typeLineHolds !== undefined ||
+        card.subtypeAddHolds !== undefined ||
+        card.supertypeHolds !== undefined ||
+        card.animation !== undefined ||
+        card.indefiniteSubtypeSet !== undefined ||
+        card.temporarySubtypeChange !== undefined ||
+        card.grantedTypes !== undefined ||
+        card.suppressedTypes !== undefined ||
+        card.grantedSubtypes !== undefined ||
+        card.grantedSubtypesAdd !== undefined ||
+        card.grantedSupertypes !== undefined ||
+        card.removedSupertypes !== undefined ||
+        card.grantedColors !== undefined
+    );
+}
+
+/** Walks the battlefield and the command zone once, building one template entry
+ *  per layer-2-to-5 static effect each object declares. */
+function collectSourceEntries(state: LayerStateView): SourceEntries {
     const entries: ContinuousEffect[] = [];
     const templates = new Map<string, DerivedTemplate>();
-    const instance = target as unknown as CardInstanceState;
 
     const pushSourceEffects = (
         source: PermanentView,
@@ -533,10 +607,8 @@ function layers2to5EffectsFor(
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            pushSourceEffects(
-                source as unknown as PermanentView,
-                sourceStaticEffects(source as unknown as PermanentView)
-            );
+            const view = source as unknown as PermanentView;
+            pushSourceEffects(view, sourceStaticEffects(view));
         }
     }
     // CR 114 — command-zone emblems generate continuous effects like any other
@@ -550,7 +622,25 @@ function layers2to5EffectsFor(
             emblemOrdinal++
         );
     }
+    // CR 613.7 — sorted ONCE here, not once per target: the board's own order
+    // does not depend on which permanent is being derived.
+    entries.sort((a, b) => a.layer - b.layer || compareContinuousEffects(a, b));
+    return { entries, templates };
+}
 
+/** The per-TARGET half: the instance's own ledger rows, plus the stored
+ *  registry entries that name it, unioned with the board's entries and sorted
+ *  into CR 613.7 order. */
+function finishEffectsFor(
+    state: LayerStateView,
+    target: PermanentView,
+    instance: CardInstanceState,
+    entries: ContinuousEffect[],
+    templates: Map<string, DerivedTemplate>
+): {
+    entries: ContinuousEffect[];
+    templates: ReadonlyMap<string, DerivedTemplate>;
+} {
     // --- Instance-borne ledgers (CR 611.2a residue of a resolved spell) -----
     //
     // Ordinals below the minted-stamp floor, in the order the CR 613.7 proxy
@@ -924,10 +1014,16 @@ function attributionOf(entry: ContinuousEffect): string {
  *  same read") true by construction rather than by call ordering. */
 export function deriveLayers2to5(
     state: LayerStateView,
-    target: PermanentView
+    target: PermanentView,
+    /** The board scan, collected once per sync (see `layers2to5EffectsFor`). */
+    collected?: SourceEntries
 ): Layers2to5Derivation {
     const instance = target as unknown as CardInstanceState;
-    const { entries, templates } = layers2to5EffectsFor(state, target);
+    const { entries, templates } = layers2to5EffectsFor(
+        state,
+        target,
+        collected
+    );
 
     const result: Layers2to5Derivation = {
         controllerId: layer2Base(instance),
@@ -1180,14 +1276,31 @@ export function syncLayers2to5(
 
     const derived: { card: CardInstanceState; result: Layers2to5Derivation }[] =
         [];
+    // ONE board scan for the whole sync (CR 613.1 — one recompute, one board),
+    // rather than one per permanent.
+    const collected = collectSourceEntries(view);
+    const noSourceEffects =
+        collected.entries.length === 0 && !hasStoredLayer2to5Entry(view);
     for (const player of state.players) {
         for (const card of player.battlefield) {
             ensureLayers2to5Base(card);
+            // FAST PATH — nothing anywhere can change this permanent's layers
+            // 2-5, and nothing did last time either, so its derived answer IS
+            // its base and the fields already hold it: `deriveLayers2to5` on an
+            // empty entry list returns exactly the base. Skipping is therefore
+            // not an approximation of the answer, it is the answer.
+            //
+            // Load-bearing for the ISMCTS search, which syncs at every apply
+            // site on every node it expands. Most boards declare no layer-2-5
+            // static effect at all, and without this each of those pays a full
+            // per-permanent derivation.
+            if (noSourceEffects && !carriesLayer2to5State(card)) continue;
             derived.push({
                 card,
                 result: deriveLayers2to5(
                     view,
-                    card as unknown as PermanentView
+                    card as unknown as PermanentView,
+                    collected
                 ),
             });
         }
