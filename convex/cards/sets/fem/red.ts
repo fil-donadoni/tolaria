@@ -93,20 +93,13 @@ export const goblinGrenade: CardDefinition = {
     types: ["Sorcery"],
     additionalCosts: { sacrificeFilter: { subtypes: ["Goblin"] } },
     targetRequirement: { type: "any", count: 1 },
-    // MIGRATION DEFERRED (tracked-by: #2785) (ADR 0045): the effect is a trivial
-    // `[{ op: "dealDamage", amount: 5, to: { target: 0 } }]`, but the
-    // auto-generated smoke sweep (scenarioGenerator) asserts the damaged target
-    // SURVIVES with `damageMarked`, using a toughness-5 filler creature. 5 damage
-    // is lethal to that filler, so the generated assertion fails. Blocked on a
-    // generator skip for amount ≥ filler-toughness (shared test infra, out of the
-    // light-lane migration file scope). Behaviour is unchanged and covered by the
-    // Goblin Grenade per-card test.
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "permanent" || target?.type === "player") {
-            ctx.dealDamage(target, 5);
-        }
-    },
+    // CR 119.3 — 5 damage to any target. The marker that stood here deferred
+    // this migration (issue #2785) because the generated smoke sweep asserts
+    // the damaged target SURVIVES and the filler creature was toughness 5, so
+    // 5 damage killed it. `FILLER_CARD_DEFINITION` has been toughness 8 since
+    // issue #690: the sweep now genuinely covers this script rather than
+    // failing on it. Retired by the behavioural gold harness (issue #2703).
+    effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
 export const goblinGrenadeFemB: CardPrint = {

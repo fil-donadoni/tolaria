@@ -363,12 +363,14 @@ export const fissure: CardDefinition = {
     manaCost: { X: 3, R: 2 },
     types: ["Instant"],
     targetRequirement: { type: ["Creature", "Land"], count: 1 },
-    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
-    // destroy option the `destroy` Op does not carry. Stays resolve().
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target) ctx.destroy(target, { cantBeRegenerated: true });
-    },
+    // CR 701.8 / CR 701.19c — the rider is a `destroy` Op field. The marker
+    // that stood here ("a destroy option the `destroy` Op does not carry")
+    // outlived the Op that grew it; the behavioural gold harness (issue #2703)
+    // compiled this card's own Oracle text to exactly the script below and ran
+    // its per-card tests against the result.
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
 };
 
 // Goblin Caves — Aura. "Enchant land\nAs long as enchanted land is a basic
