@@ -64,6 +64,7 @@
 // shipped too; dependency detection is tracked by #2068.
 
 import { tryGetDefinition } from "../cards";
+import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { applyLandTypeReplacement } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
@@ -634,6 +635,13 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
+            // The registry-derived precheck (`cards/registry.ts`) answers
+            // "declares nothing here" from a `Set.has` on the id, so the
+            // overwhelming majority of permanents cost no lookup at all. See
+            // `declaresLayer2to5StaticEffect` for why this scan is worth
+            // prechecking.
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId || !declaresLayer2to5StaticEffect(cardId)) continue;
             const view = source as unknown as PermanentView;
             pushSourceEffects(view, sourceStaticEffects(view));
         }
