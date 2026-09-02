@@ -31,9 +31,20 @@ export interface ChangedRetiredRow {
      *  both sides do and they differ, the NEW side wins — that is the claim the
      *  merge would ship. */
     readonly marker: RetirementMarker;
-    /** true when the row exists only on the `-` side: the marked row is being
-     *  DELETED, the loudest case this gate has. */
-    readonly removed: boolean;
+    /**
+     * What the diff does to the row, distinguished because the refusal names
+     * it and a reviewer acts on that name:
+     *
+     * - `changed` — the row is rewritten and still marked (the ordinary case,
+     *   and the case a retirement PR itself produces);
+     * - `marker-removed` — the row survives but loses its `retired` field. An
+     *   UN-retirement, or a marker lost to a bad merge. Reporting this as a
+     *   deletion (which is what it looks like, seen only from the `-` side)
+     *   sent a reviewer looking for a row that is sitting right there;
+     * - `row-removed` — the row is gone from the file entirely. The loudest
+     *   case this gate has.
+     */
+    readonly change: "changed" | "marker-removed" | "row-removed";
 }
 
 /** The row shape this scanner needs — a structural subset of `CardRow`, so the
@@ -73,6 +84,9 @@ function asMarker(value: unknown): RetirementMarker | null {
 export function changedRetiredRows(diff: string): ChangedRetiredRow[] {
     const added = new Map<string, ChangedRetiredRow>();
     const removed = new Map<string, ChangedRetiredRow>();
+    /** Every oracle id on the `+` side, MARKED OR NOT — what tells a row that
+     *  merely lost its marker from a row that is actually gone. */
+    const survives = new Set<string>();
     for (const line of diff.split("\n")) {
         const sign = line[0];
         if (sign !== "+" && sign !== "-") continue;
@@ -89,23 +103,33 @@ export function changedRetiredRows(diff: string): ChangedRetiredRow[] {
         if (typeof row.oracleId !== "string" || typeof row.name !== "string") {
             continue;
         }
+        if (sign === "+") survives.add(row.oracleId);
         const marker = asMarker(row.retired);
         if (marker === null) continue;
         (sign === "+" ? added : removed).set(row.oracleId, {
             oracleId: row.oracleId,
             name: row.name,
             marker,
-            removed: false,
+            change: "changed",
         });
     }
     const out: ChangedRetiredRow[] = [];
     for (const row of added.values()) out.push(row);
     for (const [oracleId, row] of removed) {
         if (added.has(oracleId)) continue;
-        out.push({ ...row, removed: true });
+        out.push({
+            ...row,
+            change: survives.has(oracleId) ? "marker-removed" : "row-removed",
+        });
     }
     return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
+
+const CHANGE_LABEL: Record<ChangedRetiredRow["change"], string> = {
+    changed: "",
+    "marker-removed": " (its retirement MARKER is removed — the row stays)",
+    "row-removed": " (the ROW is removed from the lockfile)",
+};
 
 const HEADING = /^(#{1,6})[ \t]*(.+?)[ \t]*$/;
 const RETIRED_HEADING = /\bretired\b.*\brows?\b|\bretirement\b/i;
@@ -136,6 +160,46 @@ export function retirementSection(prBody: string): string | null {
 }
 
 /**
+ * The card names a `## Retired rows` section acknowledges: one per LINE, as
+ * that line's leading subject.
+ *
+ * NOT a substring search over the section (what shipped first, and what review
+ * of this branch caught). `haystack.includes("fog")` is satisfied by a line
+ * about Fog Bank, by "an unrelated fog-of-war glitch", and by any of the many
+ * one-word real card names — Fog, Terror, Shock, Balance, Clone, Anger — that
+ * sit inside ordinary English or inside a longer card name. That is a
+ * fail-OPEN on the exact mechanism this gate is: the author acknowledges one
+ * card and the gate silently passes a second card they never mentioned.
+ *
+ * A line's subject is what comes before its first separator, with list markers
+ * and emphasis stripped: `- **Fog Bank** — quarantined by a grammar
+ * regression` has the subject `Fog Bank`, and does not acknowledge Fog. A card
+ * is acknowledged only when some line's subject IS its name.
+ *
+ * Deliberately a FORMAT rather than a fuzzy match. The looser rule cannot be
+ * made safe — "does this prose mention this card" has no answer that is both
+ * substring-proof and prose-friendly — and the strict rule fails closed, with
+ * a refusal that prints the format. One line per card is also what makes the
+ * section readable by the next person, which is the entire point of it.
+ */
+export function acknowledgedNames(section: string): Set<string> {
+    const out = new Set<string>();
+    for (const raw of section.split("\n")) {
+        const line = raw
+            .trim()
+            // list marker: `-`, `*`, `+`, `1.`
+            .replace(/^(?:[-*+]|\d+\.)\s+/, "")
+            // emphasis and code fences around the name
+            .replace(/[*_`]/g, "")
+            .trim();
+        if (line === "") continue;
+        const subject = line.split(/\s+[\u2014\u2013]\s*|\s+-\s+|:/)[0].trim();
+        if (subject !== "") out.add(subject.toLowerCase());
+    }
+    return out;
+}
+
+/**
  * `land`'s verdict on the retired rows a landing diff touches, or null to
  * allow.
  *
@@ -156,15 +220,16 @@ export function retirementRefusal(
 ): string | null {
     if (changed.length === 0) return null;
     const section = retirementSection(prBody);
-    const haystack = (section ?? "").toLowerCase();
+    const acknowledged =
+        section === null ? new Set<string>() : acknowledgedNames(section);
     const unacknowledged = changed.filter(
-        (row) => !haystack.includes(row.name.toLowerCase())
+        (row) => !acknowledged.has(row.name.toLowerCase())
     );
     if (unacknowledged.length === 0) return null;
     const listed = unacknowledged
         .map(
             (row) =>
-                `      - ${row.name}${row.removed ? " (row REMOVED)" : ""} — retired ${row.marker.at} under issue #${row.marker.issue}`
+                `      - ${row.name}${CHANGE_LABEL[row.change]} — retired ${row.marker.at} under issue #${row.marker.issue}`
         )
         .join("\n");
     return (
@@ -174,6 +239,7 @@ export function retirementRefusal(
         `    change with nothing to fall back on — a regression here is silent, because nobody reads a file ` +
         `that no longer exists.\n` +
         listed +
-        `\n    Add a \`## Retired rows\` section to the PR body naming each card and what changed about its row.`
+        `\n    Add a \`## Retired rows\` section to the PR body with ONE LINE PER CARD, the card's exact name first:\n` +
+        `      - <card name> — what changed about its row and why it is still correct`
     );
 }

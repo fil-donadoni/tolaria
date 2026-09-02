@@ -24,6 +24,7 @@ import {
     type RetirementLedger,
 } from "../lib/oracle-retirements";
 import {
+    acknowledgedNames,
     changedRetiredRows,
     retirementRefusal,
     retirementSection,
@@ -265,9 +266,26 @@ describe("changedRetiredRows", () => {
             "Ashnod's Altar",
             "Northern Paladin",
         ]);
-        expect(changed[0].removed).toBe(false);
-        // Present only on the `-` side: the marked row is being DELETED.
-        expect(changed[1].removed).toBe(true);
+        expect(changed[0].change).toBe("changed");
+        // Present only on the `-` side, and no `+` line carries the row at
+        // all: the row is gone from the file.
+        expect(changed[1].change).toBe("row-removed");
+    });
+
+    it("tells a row that LOST its marker from a row that is gone", () => {
+        // Both sides carry the row; only the `-` side carries the marker. The
+        // row survives — calling that a deletion sent a reviewer looking for a
+        // row that is sitting right there (review of this branch, finding 2).
+        const unmarked = MARKED_A.replace(
+            ',"retired":{"at":"2026-09-02","issue":2703}',
+            ""
+        );
+        const changed = changedRetiredRows(
+            [`-        ${MARKED_A},`, `+        ${unmarked},`].join("\n")
+        );
+        expect(changed).toHaveLength(1);
+        expect(changed[0].change).toBe("marker-removed");
+        expect(retirementRefusal(changed, "")).toMatch(/MARKER is removed/);
     });
 
     it("reports a row rewritten on both sides once, as a change not a removal", () => {
@@ -277,7 +295,7 @@ describe("changedRetiredRows", () => {
         ].join("\n");
         const changed = changedRetiredRows(diff);
         expect(changed).toHaveLength(1);
-        expect(changed[0].removed).toBe(false);
+        expect(changed[0].change).toBe("changed");
     });
 
     it("tolerates the serializer's trailing comma and skips non-row lines", () => {
@@ -318,6 +336,55 @@ describe("retirementRefusal", () => {
         expect(
             retirementRefusal(changed, "## Retired rows\n\nNone.\n")
         ).toMatch(/Ashnod's Altar/);
+    });
+
+    // ── The two fail-OPEN shapes a substring match let through (review of
+    //    this branch, finding 1). Both are the worst outcome this gate has:
+    //    it passes exactly when it should red.
+    it("does not let a LONGER card's line acknowledge a shorter card", () => {
+        const fog = `{"oracleId":"${ID_A}","name":"Fog","state":"ready","retired":{"at":"2026-09-02","issue":2703}}`;
+        const fogBank = `{"oracleId":"${ID_B}","name":"Fog Bank","state":"ready","retired":{"at":"2026-09-02","issue":2703}}`;
+        const both = changedRetiredRows(
+            [`+        ${fog},`, `+        ${fogBank},`].join("\n")
+        );
+        const refusal = retirementRefusal(
+            both,
+            "## Retired rows\n\n- Fog Bank — quarantined by a grammar regression.\n"
+        );
+        expect(refusal).toMatch(/Fog\b/);
+        expect(refusal).toMatch(/changes 1 retired/);
+        // …and naming both cards allows it.
+        expect(
+            retirementRefusal(
+                both,
+                "## Retired rows\n\n- Fog Bank — quarantined.\n- Fog — row unchanged apart from the marker.\n"
+            )
+        ).toBeNull();
+    });
+
+    it("does not let ordinary prose acknowledge a one-word card name", () => {
+        const fog = changedRetiredRows(
+            `+        {"oracleId":"${ID_A}","name":"Fog","state":"ready","retired":{"at":"2026-09-02","issue":2703}},`
+        );
+        expect(
+            retirementRefusal(
+                fog,
+                "## Retired rows\n\nNo retirements here; fixed an unrelated fog-of-war rendering glitch.\n"
+            )
+        ).toMatch(/Fog/);
+    });
+
+    it("reads a line's SUBJECT, not its prose", () => {
+        const names = acknowledgedNames(
+            "- **Fog Bank** — quarantined\n1. Storm Crow: state unchanged\n* Ashnod's Altar\nprose about fog and crows\n"
+        );
+        expect([...names].sort()).toEqual([
+            "ashnod's altar",
+            "fog bank",
+            "prose about fog and crows",
+            "storm crow",
+        ]);
+        expect(names.has("fog")).toBe(false);
     });
 
     it("reads the section level-aware, up to the next same-or-shallower heading", () => {
