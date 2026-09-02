@@ -1143,14 +1143,26 @@ carte inerti.
 
 **Migrazione `resolve()` → `effects[]`**
 
-474 closure `resolve()` residue: 320 FREE, 15 X-only, 139 Op-blocked. Un solo
-gate resta, drenare il bucket "free" del classificatore (#1435). Il secondo,
+474 closure `resolve()`/`resolveSteps` residue: 320 nel bucket FREE del
+classificatore, 15 X-only, 139 Op-blocked. **Il numero FREE del sommario è un
+limite SUPERIORE**: conta anche le carte già valutate e marcate
+`NOT-DSL-migratable` (245 su 320, perché il clause-mapper legge il corpo della
+closure ma non la factory che la costruisce). La worklist davvero selezionabile
+è `migration-classifier.mjs --free`, che quelle carte le nasconde — oggi 75
+closure, non 320. Un solo gate resta, drenare il bucket "free" del classificatore (#1435). Il secondo,
 "Op-blocked → 0" (#1438), è stato **ritirato** dall'audit del 2026-09-01: 78 Op
 per 139 closure, 37 dei quali bloccano una carta sola, l'85% in ice/lea/drk/leg/
 atq/arn/fem — nessun cluster con leva. Ne sono sopravvissute tre slice mirate:
 #3010 (il classifier sovrastima `Op-blocked`), #3011 (spostamento di zona intera
-a livello giocatore) e #3012 (`revealHand`). Lo strumento è
-`scripts/migration-classifier.mjs`; la procedura sta in
+a livello giocatore) e #3012 (`revealHand`).
+
+Il gate #1435 è stato ritirato proprio per questo: la sua condizione di uscita
+("il sommario riporta FREE = 0") leggeva il numero sbagliato ed era
+irraggiungibile per costruzione, dato che ogni carta correttamente marcata resta
+nel conteggio per sempre. Il drenaggio del bucket FREE è passato al compilatore
+Oracle (#2703, PRD #2693), che ricompila le closure dal testo Oracle e ritira
+quelle provate equivalenti; resta aperto #1438 per il backlog di Op. Lo
+strumento è `scripts/migration-classifier.mjs`; la procedura sta in
 `docs/agents/effect-script-migration.md`.
 
 > Trappola nota: aggiungere una carta `resolve()` sposta il baseline del
