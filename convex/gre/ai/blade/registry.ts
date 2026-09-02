@@ -3940,6 +3940,100 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "madness-decline" }] },
         note: "Issue #2983, the discriminating twin of `madness-cast-when-affordable`. The generator must FAIL CLOSED: with the madness cost unaffordable it emits the decline ALONE, never a cast the `announceCast` mutation would reject. Its twin proves the same generator does offer the cast when the mana is there — one entry alone would pass for a bot that hardcodes either answer.",
     },
+    // -----------------------------------------------------------------------
+    // STORM counts inside the search tree (CR 702.40a, ADR 0052) — issue #3026.
+    //
+    // A DISCRIMINATING PAIR whose two halves differ in ONE thing: whether a
+    // spell has already been cast this turn. Both hand-built search sandboxes
+    // pushed their StackItem without ever calling `emitSpellCastEvent`, so
+    // `spellsCastThisTurn` stayed 0 for the whole tree and every storm spell
+    // copied zero times — half 1 was unwinnable to a bot that cannot count its
+    // own casts, and half 2 passed for the wrong reason (it never counted
+    // them there either).
+    //
+    // Cast off Mountains with the spells in HAND: no alternative mana source
+    // and no graveyard mechanic, so the pair measures the storm count alone and
+    // stays independent of the one-source-one-mana sibling issue.
+    // -----------------------------------------------------------------------
+    {
+        label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
+        spec: {
+            cards: [
+                // Three Mountains: the setup cast below taps one, leaving
+                // exactly Grapeshot's {1}{R}.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                    tapped: false,
+                },
+                { name: "Grapeshot", owner: "me", zone: "hand" },
+                { name: "Mons's Goblin Raiders", owner: "me", zone: "hand" },
+                { name: "Ironclaw Orcs", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // Two life: Grapeshot's own 1 damage is NOT lethal; the one storm
+            // copy the prior cast buys makes it exactly lethal, and `evaluate`
+            // is banded so a win dominates every material term.
+            life: { me: 20, opp: 2 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The prior cast the storm count is made of — through the REAL move
+        // pipeline, so `spellsCastThisTurn` is raised by the same choke point
+        // the search itself must now reach.
+        setup: [
+            { kind: "cast", card: "Mons's Goblin Raiders" },
+            // CR 117.3b — the cast parks priority on the opponent; their pass
+            // advances the cycle, resolves the Raiders and hands the decision
+            // back to the active player, which is the position measured.
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Grapeshot", target: "opp" }],
+        },
+        note: "Issue #3026, half 1. Reds when the `cast-spell` leaf of `applyMoveInSearch` does not call `emitSpellCastEvent`: with no cast counted, the storm trigger never exists, Grapeshot is one damage short of lethal in every rollout, and the bot prefers the body.",
+    },
+    {
+        label: "storm: does NOT reach for Grapeshot one prior cast short",
+        spec: {
+            cards: [
+                // TWO Mountains where half 1 has three — the one field that
+                // makes the prior cast unaffordable ALONGSIDE Grapeshot, so
+                // the storm count stays at zero and Grapeshot deals 1 into a
+                // 2-life opponent.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                    tapped: false,
+                },
+                { name: "Grapeshot", owner: "me", zone: "hand" },
+                { name: "Mons's Goblin Raiders", owner: "me", zone: "hand" },
+                { name: "Ironclaw Orcs", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            life: { me: 20, opp: 2 },
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Grapeshot" }],
+        },
+        note: 'Issue #3026, half 2 — the discriminating twin. Same hand, one fewer Mountain, so no prior cast fits alongside Grapeshot and its storm count is 0: one damage into two life wins nothing and spends the turn, while the same two mana buy a 2/2 body. A bot that reads storm as "always at least one copy" passes half 1 and fails here.',
+    },
     {
         label: "known top: digs with a cantrip because it knows the Bolt is there",
         spec: {
