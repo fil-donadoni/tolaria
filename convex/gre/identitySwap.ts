@@ -86,7 +86,7 @@ function reseatLayer6Base(card: CardInstanceState, base: CopiableValues): void {
     card.baseStaticAbilities = [...base.staticAbilities];
     // Derived output of the OLD face: recomputed, never carried across.
     delete card.removedKeywords;
-    delete card.abilityLossSeq;
+    delete card.abilitiesSuppressedBy;
     recomposeLayer6ForInstance(card);
 }
 
