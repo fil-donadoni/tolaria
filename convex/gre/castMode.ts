@@ -61,8 +61,11 @@ export type CastMode = "bestow" | "morph" | "dash" | "evoke";
 
 type CastModeRow = {
     /** The alt-cost id that selects this mode for `def`, or `undefined` when
-     *  the card has no such mode. Reference-free (id equality) exactly as the
-     *  real commit sites discriminate. */
+     *  the card has no such mode. Matched by ID rather than by the object
+     *  identity the real commit sites use (`chosenAltCost === def.evoke`,
+     *  `game.ts`) — a search Move carries only the id, never the resolved
+     *  `AlternativeCost`. The two agree so long as ids are unique per card,
+     *  which `castModeIdsAreUnambiguous` below is what keeps true. */
     idOf: (def: CardDefinition | undefined) => string | undefined;
     /** What the mode stamps on the freshly-built cast stack item. Every stamper
      *  is idempotent, so a re-walked commit path can never double-apply. */
@@ -113,8 +116,20 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
 };
 
 /** The cast mode `alternativeCostId` selects for `def`, or `undefined` for a
- *  printed-cost cast and for an alternative cost that is only a price. */
-export function castModeOf(
+ *  printed-cost cast and for an alternative cost that is only a price.
+ *
+ *  Answers ONE mode, so the order of the scan is load-bearing if a card ever
+ *  declared two mode fields sharing an id — and this order is not the one
+ *  `getAlternativeCost` (`alternativeCost.ts`) scans in, so the two could
+ *  disagree about such a card (PR #3056 review finding 2). No shipped card
+ *  carries two mode fields at all, and `castModeIdsAreUnambiguous` below is
+ *  what keeps that true: it is a catalogue-wide predicate, exercised by
+ *  `castMode.bot.test.ts`, so the day one does the guard reds instead of the
+ *  two scans silently choosing different modes.
+ *
+ *  Internal on purpose — `applyCastModeCharacteristics` is the seam callers
+ *  use; the guard reaches this through the predicate below. */
+function castModeOf(
     def: CardDefinition | undefined,
     alternativeCostId: string | undefined
 ): CastMode | undefined {
@@ -127,6 +142,25 @@ export function castModeOf(
         if (CAST_MODE_CENSUS[mode].idOf(def) === alternativeCostId) return mode;
     }
     return undefined;
+}
+
+/** Whether `def` declares at most one cast mode per alt-cost id — the property
+ *  that makes "which mode is this id?" a question with ONE answer, and so the
+ *  property that lets this module's scan order and `getAlternativeCost`'s
+ *  opposite order agree (see `castModeOf`). False for a card declaring, say,
+ *  `bestow` and `evoke` under the same id, or a morph card whose `dash.id`
+ *  collides with morph's synthesized constant. */
+export function castModeIdsAreUnambiguous(def: CardDefinition): boolean {
+    const ids = (Object.keys(CAST_MODE_CENSUS) as CastMode[])
+        .map((mode) =>
+            mode === "morph"
+                ? def.morph
+                    ? MORPH_CAST_ALT_COST_ID
+                    : undefined
+                : CAST_MODE_CENSUS[mode].idOf(def)
+        )
+        .filter((id): id is string => id !== undefined);
+    return new Set(ids).size === ids.length;
 }
 
 /** Stamp onto `stackItem` the characteristics of the cast mode `move` chose

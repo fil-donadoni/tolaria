@@ -332,11 +332,11 @@ export type Move =
            *  `announceCast.alternativeCostId`. Absent = the ordinary cast.
            *
            *  Bestow (CR 702.103a, issue #2388) is why the field exists at all:
-           *  a plain alternative cost (evoke/Gush/Fireblast) changes only what
-           *  the caster PAYS, so a Bot that never picks one merely plays
-           *  suboptimally, while a Bot that never picks Bestow cannot reach a
-           *  whole class of board state (an Aura on a creature) no other move
-           *  produces. The enumerator emits it today for Bestow, Morph
+           *  a PRICE-ONLY alternative cost (Gush, Fireblast) changes nothing
+           *  but what the caster pays, so a Bot that never picks one merely
+           *  plays suboptimally, while a Bot that never picks Bestow cannot
+           *  reach a whole class of board state (an Aura on a creature) no
+           *  other move produces. The enumerator emits it today for Bestow, Morph
            *  (CR 702.37a, issue #2705) and Dash (CR 702.109a, issue #1964);
            *  every one of those is a cast MODE, and what a mode implies about
            *  the resulting stack item is stamped by the shared census both

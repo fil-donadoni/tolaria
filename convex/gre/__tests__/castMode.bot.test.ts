@@ -20,7 +20,7 @@
 // (`bot-suite-boundary.test.ts` enforces the split).
 
 import { describe, it, expect } from "vitest";
-import { getCardByName } from "../../cards";
+import { getAllCards, getCardByName } from "../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -30,7 +30,11 @@ import { enumerateMoves, type Move } from "../moves";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, policyValue } from "../search";
-import { applyCastModeCharacteristics, type CastMode } from "../castMode";
+import {
+    applyCastModeCharacteristics,
+    castModeIdsAreUnambiguous,
+    type CastMode,
+} from "../castMode";
 import { evaluate } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { cloneGameState } from "../clone";
@@ -42,9 +46,13 @@ const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 
-/** The cast-mode markers a stack item / permanent can carry. Compared as a
- *  whole so a mode that stamps the WRONG thing fails as loudly as one that
- *  stamps nothing. */
+/** Every characteristic a cast mode can change. Deliberately WIDER than the
+ *  boolean markers (PR #3056 review finding 6): `applyBestowCharacteristics`
+ *  also rewrites the subtypes, clears P/T and stamps the enchant restriction,
+ *  so an executor that set `bestowed` and the type line but left the printed
+ *  1/1 on the stack item would pass a marker-only comparison while the search
+ *  valued a phantom body. Compared as a whole, so stamping the WRONG thing
+ *  fails as loudly as stamping nothing. */
 function modeMarkersOf(card: CardInstanceState) {
     return {
         bestowed: card.bestowed === true,
@@ -52,6 +60,10 @@ function modeMarkersOf(card: CardInstanceState) {
         dashed: card.dashed === true,
         evoked: card.evoked === true,
         types: [...(card.types ?? [])].sort(),
+        subtypes: [...(card.subtypes ?? [])].sort(),
+        power: card.power,
+        toughness: card.toughness,
+        enchantRestriction: card.grantedEnchantRestriction,
     };
 }
 
@@ -121,6 +133,13 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
         assertStamped: (m) => {
             expect(m.bestowed).toBe(true);
             expect(m.types).toEqual(["Enchantment"]);
+            expect(m.subtypes).toEqual(["Aura"]);
+            // CR 702.103b — an Aura spell has no power or toughness. Leaving
+            // the printed 1/1 on would have the search valuing a body the
+            // bestow line does not produce.
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+            expect(m.enchantRestriction).toBeDefined();
         },
     },
     // CR 702.37c — a 2/2 face-down creature with no text, name, subtypes or
@@ -246,6 +265,34 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
             fixture.assertStamped(treeMarkers);
         });
     }
+});
+
+describe("cast-mode ids answer ONE mode, catalogue-wide (CR 601.2b)", () => {
+    // PR #3056 review finding 2: `castModeOf` scans morph → bestow → dash →
+    // evoke, while `getAlternativeCost` (`alternativeCost.ts`) scans the
+    // reverse. Both answer "which alternative cost is this id?" and both are
+    // consulted about the same cast — the search through the first, the real
+    // mutation path through the second — so a card declaring two mode fields
+    // under one id would have them stamp DIFFERENT characteristics for the same
+    // announcement. Nothing in either function detects that; this does, over
+    // the whole catalogue, before a card ships it.
+    it("no shipped card declares two cast modes under the same alt-cost id", () => {
+        const offenders = getAllCards()
+            .filter((def) => !castModeIdsAreUnambiguous(def))
+            .map((def) => def.name);
+        expect(offenders).toEqual([]);
+    });
+
+    it("detects a card that does — the sweep above is not vacuous", () => {
+        // A definition is the cheapest possible fixture here: the predicate
+        // reads nothing but the mode fields, and asserting it over a catalogue
+        // that happens to be clean proves only that the catalogue is clean.
+        const colliding = {
+            ...getCardByName("Springheart Nantuko"),
+            dash: { id: "bestow", description: "collides", mana: { X: 1 } },
+        } as CardDefinition;
+        expect(castModeIdsAreUnambiguous(colliding)).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -3020,34 +3020,36 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // BEYOND-BUDGET, cause "branching" (`types.ts`'s own vocabulary: "too
-        // many candidate moves at one decision — the right move is in the
-        // set but never gets enough visits") — REVIEW ROUND 2: an independent
-        // re-sweep (3 seeds each) found FAIL at 400/800/1200/2000, PASS at
-        // 3000-6000, and FAIL AGAIN at 8000. That non-monotone shape settles
-        // the interpretation round 1 left open: this is NOT "needs more
-        // search" (a genuine compute shortfall reads monotone — once enough
-        // visits land on the right line, more search only holds it, never
-        // loses it again) — it is right-by-noise inside a 3000-6000 window.
-        // So the shipped bot, at ANY production budget (`hard`'s ceiling is
-        // 1200), does not reliably make this play; a `must` entry housed a
-        // window that only looks solved from inside it. Demoted to `stretch`
-        // and the declared `budget` brought back to this registry's norm
-        // (every other entry is ≤400 except one 2000 precedent) instead of
-        // living at 5000 — a `must`/blocking budget that size would add
-        // ~35s of real ISMCTS to every `bun run test`, to buy a pass that the
-        // 8000 point already shows is not a real solve. The 3000-6000
-        // plateau is recorded via `beyondBudget.passesAt` below, not
-        // smuggled into the declared budget (ADR 0070 §2 forbids raising the
-        // budget to turn an entry green — the same rule this demotion is
-        // now honoring instead of evading via an unset `beyondBudget` field).
+        // BEYOND-BUDGET, cause "valuation" — RECLASSIFIED by issue #2796,
+        // which invalidated the measurement this entry used to record.
+        //
+        // The earlier sweep found FAIL at 400/800/1200/2000, PASS at 3000-6000,
+        // FAIL AGAIN at 8000, and read that non-monotone shape as
+        // "branching": right-by-noise inside a window. It was taken on a tree
+        // that could not simulate Dash AT ALL — `applyMoveInSearch` stamped no
+        // `dashed`, so `dashTrigger` never fired and the hasty attacker the
+        // whole line depends on did not exist in any rollout. The dash cast and
+        // the hard cast were therefore the SAME position but for the cost, and
+        // the "plateau" was two identical lines trading places on noise.
+        //
+        // Re-swept on the fixed tree, same 3 seeds: FAIL at 400, 1200, 3000,
+        // 5000 and 8000 — 0/3 at every point. Monotone, and with the mode now
+        // fully modelled the verdict is no longer about visits: the search SEES
+        // the hasty Ragavan and still prefers not to dash, i.e. the subtree is
+        // mis-valued rather than under-visited. That is `cause: "valuation"`
+        // (`types.ts`), the one cause that carries NO `passesAt` — there is no
+        // budget to record. Same family as
+        // `project_combat_eval_washed_at_horizon`.
+        //
+        // The declared budget stays at this registry's norm; ADR 0070 §2
+        // forbids raising it to turn an entry green, and there is now no
+        // budget that would.
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
         tier: "stretch",
         beyondBudget: {
-            cause: "branching",
-            passesAt: { iterations: 5000 },
-            note: "A four-attacker combinatorial decision (which of 19 already-attacking power plus a newly-hasty Ragavan crosses lethal) needs enough visits to find the right line, but the visits it gets are noisy: FAIL at 400/800/1200/2000, PASS at 3000-6000, FAIL AGAIN at 8000 (review round 2 re-sweep, 3 seeds each). `passesAt: 5000` sits at the center of the one confirmed stable plateau, not a ceiling the entry monotonically clears — production `hard` (1200 iterations) never reaches even the edge of that plateau, so the bot does not make this play at any budget a real game runs.",
+            cause: "valuation",
+            note: "A four-attacker decision (19 already-attacking power plus a newly-hasty Ragavan crosses the opponent's 20) that the bot declines at every budget measured — FAIL at 400/1200/3000/5000/8000, 0 of 3 seeds each, re-swept for issue #2796 on a tree that models Dash correctly. More search does not help, so this is a missing VALUATION of the pattern (the extra hasty attacker's contribution to lethal), not a visit shortfall. The previous `branching` classification with a 3000-6000 pass plateau was measured before `applyMoveInSearch` stamped `dashed` at all, i.e. on a tree in which the dash line was literally unsimulable — that plateau was noise between two identical positions and no longer exists.",
         },
         expect: {
             predicate: (move) =>
@@ -3057,7 +3059,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "casts Ragavan, Nimble Pilferer via its dash cost (not the plain cast)",
         },
-        note: '19 power already in play + Ragavan hasty = 21, crossing the opponent\'s 20 life; hard-casting caps this turn\'s attack at 19 (summoning sickness, CR 302.6) — one short. BEYOND-BUDGET, cause "branching" (review round 2): the right line is found only inside a 3000-6000 iteration plateau, not at production budgets or above — see `beyondBudget` for the honest, non-monotone shape. (Formerly "half 1" of a discriminating pair — the other half was deleted, review round 2, as vacuous: see the header comment above.)',
+        note: '19 power already in play + Ragavan hasty = 21, crossing the opponent\'s 20 life; hard-casting caps this turn\'s attack at 19 (summoning sickness, CR 302.6) — one short. BEYOND-BUDGET, cause "valuation" (reclassified by issue #2796): the bot declines the dash at every budget measured, on a tree that now models Dash correctly — see `beyondBudget` for the sweep and for why the previous "branching / passes at 3000-6000" reading was an artifact of a tree that could not simulate the line at all. (Formerly "half 1" of a discriminating pair — the other half was deleted, review round 2, as vacuous: see the header comment above.)',
     },
     {
         // Issue #2297 — the reported bug, as a position. The outlet's only
@@ -4257,7 +4259,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         //
         // Half 1 is the POSITIVE half, and it is what makes half 2 mean
         // something: a bot that simply never cast the card would satisfy half
-        // 2's `forbidden` and fail here.
+        // 2's `forbidden` and fail here. The two boards are not identical —
+        // half 2 adds a creature the bot controls, since a choice of HOST is
+        // the decision it exists to pin — so what half 1 rules out is the
+        // never-casting bot in general, not that same bot on half 2's exact
+        // board (PR #3056 review finding 7). Half 1's board is the harder of
+        // the two: it is the one where the bestow line has no correctly-
+        // directed sibling to fall back on.
         label: "cast mode: casts the creature for its printed cost rather than gifting the bestow",
         spec: {
             cards: [
