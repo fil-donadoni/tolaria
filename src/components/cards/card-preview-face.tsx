@@ -67,6 +67,8 @@ export default function CardPreviewFace({
     skipNextUntap,
     milestones,
     engineView,
+    engineTree,
+    engineReportGameId,
     size,
     onImageLoaded,
     imageLoaded = true,
@@ -193,6 +195,8 @@ export default function CardPreviewFace({
                 {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
                 <CardPreviewEngineView
                     badge={engineView}
+                    tree={engineTree}
+                    reportContext={{ gameId: engineReportGameId }}
                     compact={compactEngineView}
                 />
                 {hasPT && (

@@ -25,11 +25,22 @@ import {
 } from "~/lib/graveyard-milestones";
 import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Player } from "~/types/game";
-import type {
-    CardDefinition,
-    EffectOp,
-    EmblemInstance,
-} from "@convex/cards/types";
+import type { EmblemInstance } from "@convex/cards/types";
+import {
+    computeEngineViewBadge,
+    type EngineViewBadge,
+} from "~/lib/engine-view-badge";
+import {
+    buildEngineViewTree,
+    type EngineViewTree,
+} from "~/lib/engine-view-tree";
+
+// Re-exported at the path they were authored against: the badge moved to its
+// own module so `engine-view-tree.ts` could import it without the two files
+// importing each other (issue #2704), and every existing importer —
+// `card-preview-engine-view*.tsx`, the catalogue guard — still names
+// `~/lib/preview-body`.
+export { computeEngineViewBadge, type EngineViewBadge };
 
 // The visual content of one card-preview face — the shape consumed by
 // `CardPreviewFace` and, through it, the three preview surfaces (anchored dock,
@@ -109,148 +120,20 @@ export type PreviewBodyContent = {
      *  nullable) so existing hand-built `PreviewBodyContent` fixtures
      *  predating this field keep compiling unchanged. */
     engineView?: EngineViewBadge | null;
+    /** The full Engine View TREE (issue #2704) — the same `CardDefinition`
+     *  {@link engineView} summarises, read as a tree of keyword / target /
+     *  effect / triggered / activated nodes. Built here rather than in the
+     *  component for the same reason every other field is: a preview face
+     *  computes no visual state of its own (`.claude/rules/frontend-
+     *  components.md`). `null` exactly when {@link engineView} is — there is
+     *  no definition to read. */
+    engineTree?: EngineViewTree | null;
+    /** The game this preview was opened in, forwarded into the Engine View's
+     *  "Report a problem" draft so a maintainer can find the state the misread
+     *  happened in. Absent out of game (deck builder, Draft Lab) and for a
+     *  face with no game context at all. */
+    engineReportGameId?: string | null;
 };
-
-/** How the engine implements a card's effect, read off the real
- *  `CardDefinition` — never a projected/wire field. `tryGetDefinition` is a
- *  client-side registry lookup (`convex/cards/registry.ts`) and
- *  `projectPublicState` never touches `CardDefinition`, so this is safe to
- *  compute purely client-side (ADR 0045/0046, issue #2728). */
-export type EngineViewBadge =
-    /** At least one resolution body on the card is HAND-WRITTEN TypeScript —
-     *  `resolve()`, `resolveSteps[]`, or an ability's mana-ability `effect`
-     *  closure. Wins outright over any Effect Script elsewhere on the same
-     *  card: the badge is a claim about how the engine READS the card, and
-     *  "some of it is imperative" is the honest reading. */
-    | { kind: "protocol" }
-    /** Every resolution body is declarative — an Effect Script (`effects[]`)
-     *  or the registry `effect` shorthand — and there is at least one. */
-    | { kind: "dsl"; opCount: number }
-    /** No resolution body at all: a vanilla/French-vanilla creature, a basic
-     *  land, a pure-`staticEffects[]` anthem. 24.6% of the catalogue. The
-     *  slot still renders (it is #2704's mount point) but shows NO chip —
-     *  a `DSL` chip here would assert a script the card does not have. */
-    | { kind: "none" };
-
-/** One site on a `CardDefinition` that can carry a resolution body. Structural
- *  (not the nominal `SpellMode`/`ActivatedAbility`/… union) because all four
- *  shapes are read identically here, and because `effect` means two different
- *  things depending on the owner — see {@link hasHandWrittenBody}. */
-type ResolutionSite = {
-    resolve?: unknown;
-    resolveSteps?: unknown[];
-    effect?: unknown;
-    effects?: readonly EffectOp[];
-};
-
-/** Every site on `def` that can carry a resolution body — the single census
- *  both the imperative check and the Op count walk, so the two can never
- *  disagree about which producers exist (`convex/cards/types.ts`):
- *
- *  | site                                  | bodies it can carry                      |
- *  | ------------------------------------- | ---------------------------------------- |
- *  | the card itself                       | `resolve`, `resolveSteps`, `effect`(*), `effects` |
- *  | `modes[]` (modal spell, CR 700.2)     | `resolve`, `resolveSteps`, `effects`     |
- *  | `triggeredAbilities[]` + their modes  | `resolve`, `resolveSteps`, `effects`     |
- *  | `activatedAbilities[]` + their modes  | + the mana-ability `effect` CLOSURE      |
- *  | `grantTemplates[]` + their modes      | idem — a granted activated ability       |
- *  | `triggeredGrantTemplates[]` + modes   | idem — a granted triggered ability       |
- *  | `delayedTriggers[]` (CR 603.7a)       | `resolve`, `resolveSteps`, `effects`     |
- *
- *  (*) on the CARD, `effect` is the declarative `EffectShorthand` registry key,
- *  never a closure — see {@link hasHandWrittenBody}.
- *
- *  `chapterAbilities[]` (CR 714) is deliberately absent: `expandDefinition`
- *  (`convex/cards/registry.ts`) desugars it into `triggeredAbilities[]` before
- *  any registry lookup returns, and every path into this module goes through
- *  `tryGetDefinition`, so the chapters are already in the array above. */
-function resolutionSites(def: CardDefinition): ResolutionSite[] {
-    const sites: ResolutionSite[] = [def];
-    for (const mode of def.modes ?? []) sites.push(mode);
-    for (const ability of [
-        ...(def.triggeredAbilities ?? []),
-        ...(def.activatedAbilities ?? []),
-        // Granted abilities (Urza's Saga chapter II, Splinter Twin, Zombie
-        // Master) live in their own template arrays and never appear in the
-        // two above — omitting them read Urza's Saga, whose granted ability
-        // is a documented protocol-like `resolve()`, as `DSL · 5`.
-        ...(def.grantTemplates ?? []),
-        ...(def.triggeredGrantTemplates ?? []),
-    ]) {
-        sites.push(ability);
-        for (const mode of ability.modes ?? []) sites.push(mode);
-    }
-    for (const t of def.delayedTriggers ?? []) sites.push(t);
-    return sites;
-}
-
-/** True when this site's body is hand-written TypeScript rather than data —
- *  the DSL-first escape hatch a card earns only with a recorded justification
- *  (ADR 0045, `.claude/rules/gre-development.md` § DSL-first authoring, which
- *  names all three of `resolve()` / `resolveSteps` / `effect`).
- *
- *  The `typeof === "function"` test on `effect` is load-bearing, because the
- *  field is overloaded: on an `ActivatedAbility` it is the mana-ability
- *  CLOSURE (`(ctx: ActivatedAbilityContext) => void`, `types.ts` — Black
- *  Lotus, Sol Ring, Birds of Paradise, every dual land), while on the
- *  `CardDefinition` it is `EffectShorthand`, a declarative registry key the
- *  engine compiles at lookup time (Disenchant, Stone Rain). Same name,
- *  opposite verdicts. */
-function hasHandWrittenBody(site: ResolutionSite): boolean {
-    return (
-        typeof site.resolve === "function" ||
-        typeof site.effect === "function" ||
-        (Array.isArray(site.resolveSteps) && site.resolveSteps.length > 0)
-    );
-}
-
-/** Counts Effect Script Ops, walking every structural nesting shape the DSL
- *  admits (ADR 0045/0046): a plain list, `if`'s `then`/`else` branches, a
- *  `choice`/modal Op's `modes[]`, and the inline bodies of `forEach` /
- *  `delayedTrigger` / `reflexiveTrigger` — all keyed `effects`
- *  (`convex/cards/types.ts`). A presence count, not the interpreter-coverage
- *  `n/n` the real Engine View tree (#2704) computes. */
-function countEffectOps(effects: readonly EffectOp[] | undefined): number {
-    if (!effects) return 0;
-    let count = 0;
-    for (const op of effects) {
-        count += 1;
-        const nested = op as unknown as {
-            effects?: EffectOp[];
-            then?: EffectOp[];
-            else?: EffectOp[];
-            modes?: { effects?: EffectOp[] }[];
-        };
-        count += countEffectOps(nested.effects);
-        count += countEffectOps(nested.then);
-        count += countEffectOps(nested.else);
-        for (const mode of nested.modes ?? [])
-            count += countEffectOps(mode.effects);
-    }
-    return count;
-}
-
-/** Declarative Ops contributed by ONE site: its Effect Script, plus 1 for the
- *  `EffectShorthand` (a single registered primitive — `effectRegistry.ts`)
- *  when the site carries one. A closure-valued `effect` is never counted here
- *  — {@link hasHandWrittenBody} has already ruled the whole card `protocol`. */
-function countSiteOps(site: ResolutionSite): number {
-    const shorthand =
-        site.effect !== undefined && typeof site.effect !== "function" ? 1 : 0;
-    return shorthand + countEffectOps(site.effects);
-}
-
-/** Reads the DSL/protocol badge straight off the real `CardDefinition` (see
- *  {@link EngineViewBadge}). Protocol wins over DSL when a card carries both
- *  (Mishra's Factory: an imperative mana closure beside two Effect Scripts) —
- *  the fail-safe direction, since the alternative advertises a purity the
- *  card does not have. */
-export function computeEngineViewBadge(def: CardDefinition): EngineViewBadge {
-    const sites = resolutionSites(def);
-    if (sites.some(hasHandWrittenBody)) return { kind: "protocol" };
-    const opCount = sites.reduce((n, site) => n + countSiteOps(site), 0);
-    return opCount > 0 ? { kind: "dsl", opCount } : { kind: "none" };
-}
 
 // Only the fields of the game context that a preview face reads. Accepting a
 // structural subset keeps this pure-ish builder decoupled from the full
@@ -258,6 +141,11 @@ export function computeEngineViewBadge(def: CardDefinition): EngineViewBadge {
 type PreviewGameCtx = {
     allPlayers: Player[];
     playerId: string;
+    /** Structurally forwarded from `GameContext.gameId` — carried into the
+     *  Engine View's "Report a problem" draft (issue #2704) and nothing else.
+     *  Optional so the out-of-game callers that build a minimal context object
+     *  (and the copy/emblem faces that pass none) keep satisfying this subset. */
+    gameId?: string;
     /** CR 114 (issue #1221) — command-zone emblems, so a preview's effective
      *  P/T folds in an owner-scoped emblem anthem. Structurally forwarded from
      *  `GameContext.emblems`. */
@@ -429,6 +317,8 @@ export function buildPreviewBody(
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
         engineView: def ? computeEngineViewBadge(def) : null,
+        engineTree: def ? buildEngineViewTree(def) : null,
+        engineReportGameId: gameCtx?.gameId ?? null,
     };
 }
 
@@ -492,8 +382,11 @@ export function buildFaceDownPreviewBody(
         oracleParagraphs: null,
         milestones: null,
         // The Engine View badge is a claim about how the engine reads a card's
-        // effect; the sentinel's is not the hidden card's, so say nothing.
+        // effect; the sentinel's is not the hidden card's, so say nothing. The
+        // TREE would leak strictly more (issue #2704): the hidden card's whole
+        // ability list, to a viewer not entitled to its identity.
         engineView: null,
+        engineTree: null,
     };
     if (hasSentinelBody) return anonymous;
     return {

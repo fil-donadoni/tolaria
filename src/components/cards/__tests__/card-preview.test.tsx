@@ -818,7 +818,15 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(panel.querySelector("[data-engine-view-tree]")).toBeNull();
     });
 
-    it("the anchored pin renders the FULL slot — eyebrow header + empty tree well for #2704", () => {
+    // The FULL PATH for issue #2704, and the reason this assertion lives here
+    // rather than in `card-preview-engine-view.test.tsx`: nothing between
+    // `CardPreview` and the tree is stubbed. The real registry hands
+    // `buildPreviewBody` Lightning Bolt's real `CardDefinition`, that reducer
+    // derives `engineTree`, `CardPreviewFace` forwards it, and the slot mounts
+    // it. Any link dropping the field — a reducer that forgets to set it, a
+    // face that forgets to spread it — reds here and nowhere else (`.claude/
+    // rules/gre-development.md` § Frontend wiring analysis).
+    it("the anchored pin renders the FULL slot — eyebrow header + the real Engine View tree (#2704)", () => {
         const { container } = renderRealCardOnBoard();
         const root = container.firstElementChild as HTMLElement;
         rightPress(root);
@@ -831,7 +839,19 @@ describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
         expect(panel.querySelector("[data-engine-view-slot]")).not.toBeNull();
         const well = panel.querySelector("[data-engine-view-tree]")!;
         expect(well).not.toBeNull();
-        expect(well.children.length).toBe(0);
+        // Lightning Bolt's real definition: one target group, one `dealDamage`
+        // Op, no hand-written body.
+        expect(well.querySelector("[data-engine-view-nodes]")).not.toBeNull();
+        expect(well.textContent).toContain("target #0");
+        expect(well.textContent).toContain("dealDamage");
+        expect(well.textContent).toContain("1/1 declarative");
+        const report = well.querySelector(
+            "[data-engine-view-report]"
+        ) as HTMLAnchorElement | null;
+        expect(report).not.toBeNull();
+        expect(report!.getAttribute("href")).toContain(
+            encodeURIComponent("Lightning Bolt")
+        );
     });
 
     it("the mobile long-press overlay renders the FULL slot", () => {
