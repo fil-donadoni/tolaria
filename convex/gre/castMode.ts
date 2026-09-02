@@ -41,8 +41,9 @@
  * Hence one table, `Record<CastMode, …>`, in the shape `CAST_KEY_CENSUS`
  * (`owedPayment.ts`) established: a new cast mode cannot compile until it names
  * both how it is IDENTIFIED and what it STAMPS, and both executors then get it
- * for free. Guarded by `castModeParity.bot.test.ts`, which asserts the two
- * executors produce the same characteristics for every mode.
+ * for free. Guarded by
+ * `convex/gre/__tests__/castMode.bot.test.ts`, which asserts the two executors
+ * produce the same characteristics for every mode.
  */
 
 import { tryGetDefinition } from "../cards";
