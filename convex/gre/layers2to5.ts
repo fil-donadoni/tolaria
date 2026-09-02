@@ -184,6 +184,7 @@ export function layer4SubtypeBase(card: CardInstanceState): string[] {
  *  is only correct while the output fields still hold nothing but the base, and
  *  that is true exactly once. */
 export function ensureLayers2to5Base(card: CardInstanceState): void {
+    ensureLayer4Base(card);
     if (card.baseControllerId === undefined) {
         // A control change already materialised into `controllerId` (a state
         // persisted before this slice, or a scenario fixture) is recoverable:
@@ -210,6 +211,19 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
                     : card.controllerId),
         }));
     }
+}
+
+/** CR 613.1d — the layer-4 half of the base capture, on its own.
+ *
+ *  Split out because a producer can run on a card that is NOT on the
+ *  battlefield yet ("return it to the battlefield. It's an enchantment." stamps
+ *  the type line while the card is still mid-flight, `applyEntryTypeLine`), and
+ *  such a card's `controllerId` is not its controller yet — the entry funnel
+ *  assigns that immediately afterwards. Capturing a layer-2 base there would
+ *  freeze the WRONG controller and the next derivation would hand the permanent
+ *  straight back to whoever last controlled it (CR 108.3 / 400.7 — the DSK
+ *  "Enduring" cycle returning under its owner's control, not the thief's). */
+export function ensureLayer4Base(card: CardInstanceState): void {
     if (card.baseTypes === undefined) {
         // A pre-slice state carries the granted / suppressed markers that were
         // materialised into `types`; unwinding them recovers the base. A fresh

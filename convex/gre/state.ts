@@ -64,6 +64,7 @@ import {
 } from "./layer6";
 import {
     clearLayers2to5Base,
+    ensureLayer4Base,
     ensureLayers2to5Base,
     setControlRelocation,
     syncLayers2to5,
@@ -11197,8 +11198,9 @@ export function applyCardTypeSet(
     // PRD #2064 S4 — the effect goes on the LEDGER; `grantedTypes` /
     // `suppressedTypes` are `syncLayers2to5`'s derived output and are no longer
     // written here. The base capture has to happen first: it reads `types`,
-    // which is about to become derived output.
-    ensureLayers2to5Base(card);
+    // which is about to become derived output. LAYER 4 ONLY — this runs on the
+    // entry path too, where the card's controller is not assigned yet.
+    ensureLayer4Base(card);
     const holds = card.typeLineHolds ?? [];
     holds.push({ types: [...new Set(types)], seq });
     card.typeLineHolds = holds;
@@ -11223,7 +11225,8 @@ export function applyIndefiniteSubtypeSet(
      *  that applies, and it applies at the moment it resolved. */
     seq: number
 ): void {
-    ensureLayers2to5Base(card);
+    // Layer 4 only — same entry-path reason as `applyCardTypeSet` above.
+    ensureLayer4Base(card);
     if (!card.indefiniteSubtypeSet) {
         card.indefiniteSubtypeSet = {
             restoreSubtypes: [...card.subtypes],
@@ -16726,6 +16729,11 @@ export function buildSpellContext(
             if (!found) return;
             const card = found.card;
             if (!card.animation) {
+                // PRD #2064 S4 — capture the layer-4 base BEFORE the animation
+                // becomes a derivation input, or the first sync would capture
+                // the ANIMATED line as the base and the animation would outlive
+                // its own revert (CR 400.7).
+                ensureLayers2to5Base(card);
                 // already animated — one at a time (type/P-T shape below is
                 // skipped on a SECOND application; `grantedAbilities` below
                 // still applies, matching Earthbend N re-applied to an
@@ -16758,16 +16766,15 @@ export function buildSpellContext(
                     duration: spec.duration
                         ? resolveDuration(spec.duration, item.castById, state)
                         : undefined,
+                    // CR 613.7 — the layer timestamp of the animation, so its
+                    // layer-4 half orders against a live `type-add` aura.
+                    seq: allocStaticTimestamp(state),
                 };
-                const newTypes = [...card.types];
-                if (addedCreatureType) {
-                    newTypes.push("Creature");
-                }
-                newTypes.push(...addedTypes);
-                card.types = newTypes;
-                if (addedSubtype !== undefined) {
-                    card.subtypes = [...card.subtypes, addedSubtype];
-                }
+                // PRD #2064 S4 — the type / subtype half is DERIVED from the
+                // `animation` record by `syncLayers2to5`; writing it here as
+                // well would be a second channel for one effect, and the two
+                // would disagree the moment anything recomputed.
+                syncLayers2to5(state);
                 card.power = spec.power;
                 card.toughness = spec.toughness;
                 // CR 613.1e layer 5 / CR 105.3 (issue #1872) — "becomes a 3/2

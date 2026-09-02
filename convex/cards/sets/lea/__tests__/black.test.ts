@@ -2950,7 +2950,12 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
 
         unapplySourceStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Mountain"]);
-        expect(mtn.printedSubtypes).toBeUndefined();
+        // PRD #2064 S4 — `printedSubtypes` is no longer a LAZY snapshot taken
+        // when a `subtype-set` first fires and dropped when the last one
+        // leaves: it is the layer-4 BASE (`baseSubtypes`), captured at the
+        // first derivation and true whether or not anything is applying.
+        expect(mtn.printedSubtypes).toEqual(["Mountain"]);
+        expect(mtn.baseSubtypes).toEqual(["Mountain"]);
         expect(getBasicLandMana(mtn)).toBe("R");
     });
 
