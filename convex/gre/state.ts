@@ -16893,6 +16893,28 @@ export function buildSpellContext(
             ];
             syncLayer6(state);
         },
+        // CR 611.2c / 613 — the general form of the two primitives above (ADR
+        // 0082, PRD #2064). See the interface doc in `cards/types.ts` for why
+        // this channel exists and why it has no revoke sibling.
+        addContinuousEffect(entry): void {
+            const existing = state.continuousEffects ?? [];
+            state.continuousEffects = [
+                ...existing,
+                {
+                    ...entry,
+                    // Deterministic (`ce-N`) so a replay of the same event log
+                    // reproduces the same id. Counted off the live list rather
+                    // than a stored counter, exactly as `allocStaticTimestamp`
+                    // derives the timestamp from the board: ordering only ever
+                    // matters among entries that coexist.
+                    id: `ce-${existing.length + 1}`,
+                    // CR 613.7 — the SAME sequence every other layer effect is
+                    // stamped from, never a second counter.
+                    timestamp: allocStaticTimestamp(state),
+                } as ContinuousEffect,
+            ];
+            syncLayer6(state);
+        },
         // CR 113.1 / 611.2a: grants an ACTIVATED ability for a limited
         // duration (Touch of Vitae: "gains '{0}: Untap this creature. Activate
         // only once.' until end of turn"). The template lives on the granting
