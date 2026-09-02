@@ -7902,6 +7902,22 @@
         "firstPrintSet": "mh2"
     },
     {
+        "name": "Enduring Courage",
+        "scryfallId": "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
+        "oracleId": "b3de29cb-7d7d-4566-b5bf-37e571bd5d78",
+        "firstSet": "dsk",
+        "firstPrintId": "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
+        "firstPrintSet": "dsk"
+    },
+    {
+        "name": "Enduring Curiosity",
+        "scryfallId": "8616629e-08f9-41ad-bfec-f86c8096f1cb",
+        "oracleId": "9d2460c3-8eeb-4f35-b6f6-748c478664c7",
+        "firstSet": "dsk",
+        "firstPrintId": "8616629e-08f9-41ad-bfec-f86c8096f1cb",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Enduring Innocence",
         "scryfallId": "08f79439-b8f8-418f-9772-26d81844749e",
         "oracleId": "98a389f4-2905-47f3-b60e-3d4afb3e5cb0",
@@ -7916,6 +7932,22 @@
         "firstSet": "ice",
         "firstPrintId": "be77edac-9a8b-4b7f-a859-27df76b10aa6",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Enduring Tenacity",
+        "scryfallId": "d5756d4b-3068-412c-8643-880d3459151e",
+        "oracleId": "98e698ae-1a69-469c-9cfb-0e3fedeb71d4",
+        "firstSet": "dsk",
+        "firstPrintId": "d5756d4b-3068-412c-8643-880d3459151e",
+        "firstPrintSet": "dsk"
+    },
+    {
+        "name": "Enduring Vitality",
+        "scryfallId": "9d76a30c-0431-4334-892a-9822dda9671a",
+        "oracleId": "3577c47e-76d3-4659-b922-31c4b74be3a0",
+        "firstSet": "dsk",
+        "firstPrintId": "9d76a30c-0431-4334-892a-9822dda9671a",
+        "firstPrintSet": "dsk"
     },
     {
         "name": "Energy Flux",
