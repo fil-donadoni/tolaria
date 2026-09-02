@@ -459,8 +459,12 @@ function withoutBody(projection: Record<string, unknown>): string {
     return JSON.stringify(out);
 }
 
-/** What `sortKeys` renders a function-valued field as (`gates.ts`). */
-const CLOSURE_SENTINEL = '"[closure]"';
+/** What `sortKeys` renders a function-valued field as (`gates.ts`).
+ *  Exported for `scripts/oracle-behavioural.ts`, which selects the closure
+ *  cards by asking the projection rather than walking the object for
+ *  `typeof === "function"` — the walk misses the `effect: "<name>"` shorthand
+ *  that `cards/effectRegistry.ts` resolves to a closure at resolution time. */
+export const CLOSURE_SENTINEL = '"[closure]"';
 
 /**
  * What compiling ONE hand-written card's own Oracle text back against its own
@@ -494,12 +498,49 @@ export interface RoundTrip {
     readonly actual?: string;
 }
 
+/** What `compiledTwin` produced, or why it could not. */
+export type TwinResult =
+    | {
+          readonly ok: true;
+          /** The compiler's own output, id/rarity restored, BEFORE
+           *  `expandDefinition`. This is the object to hand
+           *  `preloadDefinitions`: the registry expands on read, and expanding
+           *  an already-expanded definition would inject an implicit keyword's
+           *  triggers a second time. */
+          readonly raw: CardDefinition;
+          /** `expandDefinition(raw)` — what `getDefinition` will return for
+           *  this card once `raw` is registered, by the expansion memo's
+           *  identity guarantee. */
+          readonly definition: CardDefinition;
+          readonly outcome: CompileOutcome;
+      }
+    | {
+          readonly ok: false;
+          readonly kind: "no-oracle-text" | "unparsed";
+          readonly detail: string;
+          readonly outcome?: CompileOutcome;
+      };
+
 /**
- * Compile one hand-written card's own Oracle text and compare the result to the
- * card itself. THE single comparator: `runGoldHarness` below and Guard C
- * (`convex/cards/__tests__/compilerRoundTrip.test.ts`) both route through it,
- * so a catalogue-wide report and a catalogue-wide gate can never disagree about
- * what "round-trips" means.
+ * A hand-written card's COMPILED TWIN: its own Oracle text run through the
+ * compiler and dressed so the result is interchangeable with the hand-written
+ * definition at the registry seam (ADR 0046).
+ *
+ * Two consumers, one implementation, deliberately. `roundTripCard` below
+ * compares the twin STRUCTURALLY — which is decisive for a DSL card and
+ * impossible for a closure card, whose body is a function nothing can diff
+ * (`GoldIncomparable`). The behavioural harness (issue #2703,
+ * `scripts/oracle-behavioural.ts` + `vitest.setup.node.ts`) serves the twin
+ * FROM the registry for the duration of the card's own tests, so a closure
+ * card's proof is its assertions passing against the compiled body. If the two
+ * built their twin separately, "the compiler accepted this card" and "the card
+ * we then tested" could drift apart and neither report would say so.
+ *
+ * The `id`/`rarity` restore and the `expandDefinition` pass are the dressing.
+ * `getAllCards()` returns EXPANDED definitions, so a bare
+ * `staticAbilities: ["exalted"]` on the gold side already carries its injected
+ * CR 702.83a trigger; a twin that skipped the same seam would read as a dropped
+ * ability in the comparison and would behave differently under test.
  *
  * A card with NO `oracleText` fails rather than being skipped. Compiling `""`
  * does not error — it produces a behaviourless definition, which MATCHES a
@@ -507,39 +548,162 @@ export interface RoundTrip {
  * missing input as an empty one would score a fixture hole as a pass. See
  * `docs/findings/2694-gold-cards-without-oracletext.md`.
  */
-export function roundTripCard(definition: CardDefinition): RoundTrip {
+export function compiledTwin(definition: CardDefinition): TwinResult {
     if (definition.oracleText === undefined) {
         return {
-            verdict: {
-                ok: false,
-                kind: "no-oracle-text",
-                detail: "the definition carries no `oracleText` — the compiler's input is missing, not empty",
-            },
+            ok: false,
+            kind: "no-oracle-text",
+            detail: "the definition carries no `oracleText` — the compiler's input is missing, not empty",
         };
     }
     const outcome = compileCard(goldOracleCard(definition));
     if (outcome.state === "unparsed") {
         return {
-            verdict: {
-                ok: false,
-                kind: "unparsed",
-                detail: outcome.gaps
-                    .map((g) => `"${g.fragment}" (${g.reason})`)
-                    .join("; "),
-            },
+            ok: false,
+            kind: "unparsed",
+            detail: outcome.gaps
+                .map((g) => `"${g.fragment}" (${g.reason})`)
+                .join("; "),
             outcome,
         };
     }
-    // Compare through the REAL registry seam (ADR 0046): `getAllCards()`
-    // returns expanded definitions, so a bare `staticAbilities: ["exalted"]`
-    // on the gold side already carries its injected CR 702.83a trigger. The
-    // compiled side must go through the same expansion or every implicit-
-    // keyword card would read as a dropped ability.
-    const expandedActual = expandDefinition({
+    const raw: CardDefinition = graftAbilityIds(definition, {
         ...(outcome.definition as CardDefinition),
         id: definition.id,
         rarity: definition.rarity,
     });
+    return { ok: true, raw, definition: expandDefinition(raw), outcome };
+}
+
+/**
+ * Carry the HAND-WRITTEN ability ids onto the twin, position by position.
+ *
+ * An ability `id` is an engine handle, not behaviour, and this file already
+ * says so: it sits in `ABILITY_DISPLAY_KEYS`, excluded from the structural
+ * comparison, because no Oracle text produces it — the compiler invents
+ * `<slug>-ability` and the catalogue invents `royal-assassin-destroy`, and
+ * neither is more correct.
+ *
+ * The behavioural harness has to neutralise it for the same reason, or the two
+ * harnesses disagree about what counts as behaviour. Concretely: a per-card
+ * test pushes an ability onto the stack by its literal id
+ * (`abilityId: "royal-assassin-destroy"`), so an un-grafted twin's ability is
+ * never found, nothing resolves, and the test reds — reporting a NAME
+ * difference as a semantic one, on a card whose compiled body is exactly right.
+ * That is the same false signal in the opposite direction from a vacuous green,
+ * and just as wrong.
+ *
+ * Grafted BY POSITION and only when the counts match. A different count means
+ * the compiler read a different NUMBER of abilities out of the card, which IS a
+ * behavioural difference — one the twin must keep so the run reds on it.
+ *
+ * `modes` carries an `id` too, addressed as `chosenModeId`, and is deliberately
+ * not grafted: no modal card is in the behavioural population yet, and a graft
+ * nothing exercises is untested code claiming to be a guarantee. Add it with the
+ * first modal card that needs it. `compiledStaticEffects` needs nothing — a
+ * static effect is never addressed by an id.
+ */
+function graftAbilityIds(
+    handWritten: CardDefinition,
+    compiled: CardDefinition
+): CardDefinition {
+    const patched: CardDefinition = {
+        ...compiled,
+        ...graftIds("activatedAbilities", handWritten, compiled),
+    };
+    return { ...patched, ...graftTriggerIds(handWritten, compiled) };
+}
+
+/** Position-wise id graft over one same-named array on both sides. */
+function graftIds(
+    key: "activatedAbilities",
+    handWritten: CardDefinition,
+    compiled: CardDefinition
+): Partial<CardDefinition> {
+    const gold = handWritten[key];
+    const mine = compiled[key];
+    if (gold === undefined || mine === undefined) return {};
+    if (gold.length !== mine.length) return {};
+    return {
+        [key]: mine.map((ability, i) =>
+            typeof gold[i].id === "string"
+                ? { ...ability, id: gold[i].id }
+                : ability
+        ),
+    };
+}
+
+/**
+ * The trigger graft, which needs its own function because the compiler does not
+ * emit a `TriggeredAbility`.
+ *
+ * `TriggeredAbility.matches` is a required closure and the compiler emits only
+ * JSON, so a compiled trigger travels as a DESCRIPTOR in
+ * `compiledTriggeredAbilities` and `expandCompiledTriggers` rebuilds the real
+ * ability from it at the registry seam (issue #2698). The rebuilt ability takes
+ * its `id` straight from the descriptor, so the graft has to happen on the
+ * descriptor, BEFORE expansion — grafting `triggeredAbilities` on the raw
+ * compiled definition finds nothing there and silently does nothing, which is
+ * how all four of the first run's behavioural reds turned out to be one
+ * un-grafted id (Juzám Djinn, Mogg Sentry, Onulet, Serendib Efreet — every red
+ * a triggered card, and every twin otherwise identical to the hand-written
+ * ability).
+ *
+ * Aligned against the concatenation `expandCompiledTriggers` produces —
+ * `triggeredAbilities` first, then the rebuilt descriptors — so the positions
+ * mean the same thing on both sides.
+ */
+function graftTriggerIds(
+    handWritten: CardDefinition,
+    compiled: CardDefinition
+): Partial<CardDefinition> {
+    const gold = handWritten.triggeredAbilities;
+    if (gold === undefined) return {};
+    const direct = compiled.triggeredAbilities ?? [];
+    const descriptors = compiled.compiledTriggeredAbilities ?? [];
+    if (gold.length !== direct.length + descriptors.length) return {};
+    const idAt = (i: number): string | undefined =>
+        typeof gold[i].id === "string" ? gold[i].id : undefined;
+    return {
+        ...(compiled.triggeredAbilities === undefined
+            ? {}
+            : {
+                  triggeredAbilities: direct.map((ability, i) => {
+                      const id = idAt(i);
+                      return id === undefined ? ability : { ...ability, id };
+                  }),
+              }),
+        ...(compiled.compiledTriggeredAbilities === undefined
+            ? {}
+            : {
+                  compiledTriggeredAbilities: descriptors.map(
+                      (descriptor, i) => {
+                          const id = idAt(direct.length + i);
+                          return id === undefined
+                              ? descriptor
+                              : { ...descriptor, id };
+                      }
+                  ),
+              }),
+    };
+}
+
+/**
+ * Compile one hand-written card's own Oracle text and compare the result to the
+ * card itself. THE single comparator: `runGoldHarness` below and Guard C
+ * (`convex/cards/__tests__/compilerRoundTrip.test.ts`) both route through it,
+ * so a catalogue-wide report and a catalogue-wide gate can never disagree about
+ * what "round-trips" means.
+ */
+export function roundTripCard(definition: CardDefinition): RoundTrip {
+    const twin = compiledTwin(definition);
+    if (!twin.ok) {
+        return {
+            verdict: { ok: false, kind: twin.kind, detail: twin.detail },
+            outcome: twin.outcome,
+        };
+    }
+    const { outcome, definition: expandedActual } = twin;
     const expected = JSON.stringify(behaviouralProjection(definition));
     const actual = JSON.stringify(behaviouralProjection(expandedActual));
     if (expected === actual) {
