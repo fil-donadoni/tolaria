@@ -96,7 +96,7 @@ export type SlotIR =
     | { readonly kind: "static"; readonly clause: StaticClauseIR }
     /**
      * CR 113.3a — the rules text of an instant or sorcery: an instruction
-     * carried out on resolution and then gone (CR 608.2m), with no permanent
+     * carried out on resolution and then gone (CR 608.2n), with no permanent
      * to hang an ability on. Its body is the SAME sentence list an activated
      * or triggered ability's is, which is the whole reason the effect-sentence
      * sub-grammar is shared: "Destroy target creature." means one thing, and

@@ -52,7 +52,7 @@ export interface LoweredSpellBody {
  * One sentence list → an Effect Script plus the target it announced.
  *
  * A spell and a MODE of a spell are the same site in every respect that
- * matters here (CR 700.2d — only the chosen mode's targets are announced), so
+ * matters here (CR 700.2c — only the chosen mode's targets are announced), so
  * both go through this one walk and each gets its own `TargetSlots`: a mode's
  * `{ target: 0 }` indexes that MODE's requirement, never a sibling's.
  */
@@ -147,13 +147,13 @@ export function lowerAdditionalCosts(
     for (const atom of atoms) {
         switch (atom.kind) {
             case "sacrifice-other":
-                // CR 118.5 — `sacrificeFilter` sacrifices exactly one matching
+                // CR 701.21a — `sacrificeFilter` sacrifices exactly one matching
                 // permanent; there is no count beside it, so "sacrifice two
                 // creatures" has no encoding.
                 if (atom.count !== 1)
                     return {
                         ok: false,
-                        reason: "an additional cost sacrificing more than one permanent has no encoding (CR 118.5)",
+                        reason: "an additional cost sacrificing more than one permanent has no encoding (CR 701.21a)",
                     };
                 costs.sacrificeFilter = atom.filter;
                 break;

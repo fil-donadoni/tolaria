@@ -3,7 +3,7 @@
  *
  * The one slot with no permanent behind it. An instant or sorcery has no
  * object on the battlefield to hang an ability on: its whole text is an
- * instruction carried out on resolution and then gone (CR 608.2m). So where
+ * instruction carried out on resolution and then gone (CR 608.2n). So where
  * the activated slot lowers to an `ActivatedAbility` and the triggered slot to
  * a trigger descriptor, this one lowers onto the CARD — `effects[]`,
  * `targetRequirement`, `modes[]`, `additionalCosts`, `flashback`.
@@ -246,8 +246,8 @@ const flashbackLine: Rule<SlotIR> = rule("flashback", (span, ctx) => {
             out.mana = atom.mana;
             continue;
         }
-        // CR 702.34a / 118.5 — `FlashbackCost` carries exactly one non-mana
-        // component, a sacrifice filter. Every other atom the shared cost
+        // CR 702.34a — `FlashbackCost` carries exactly one non-mana component,
+        // a CR 701.21a sacrifice filter. Every other atom the shared cost
         // grammar can read has nowhere to go on the flashback cast path, and
         // an unpaid cost is an unbounded bug (see `shared/cost.ts`).
         if (atom.kind === "sacrifice-other" && atom.count === 1) {

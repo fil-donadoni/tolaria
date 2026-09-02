@@ -173,7 +173,7 @@ describe("spell slot — modal spells (CR 700.2)", () => {
             type: "Land",
             count: 1,
         });
-        // CR 700.2d — each mode's script indexes its OWN requirement, so both
+        // CR 700.2c — each mode's script indexes its OWN requirement, so both
         // are `{ target: 0 }`; a shared counter would make the second mode
         // point at a requirement nothing declares.
         for (const mode of def.modes ?? [])

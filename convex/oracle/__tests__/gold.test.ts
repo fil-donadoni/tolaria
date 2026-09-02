@@ -69,7 +69,7 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // what `matchesTargetRequirement` (src/lib/card-utils.ts) and
     // `getLegalTargets` (gre/rules.ts) both implement. So as shipped these two
     // can destroy a blue PLAYER and cannot destroy a blue artifact. The
-    // compiler emits the six permanent card types (CR 109.1 / 300.1).
+    // compiler emits the six permanent card types (CR 110.4).
     "Active Volcano (spell)",
     "Flash Flood (spell)",
     // Oracle: "Flashback—Sacrifice a Mountain." The hand-written flashback
