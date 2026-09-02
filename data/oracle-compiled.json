@@ -38,28 +38,28 @@
             "ready": 1862,
             "quarantine": 518,
             "unparsed": 20070,
-            "pool": 620
+            "pool": 624
         },
         "legacy": {
             "total": 31672,
             "ready": 2492,
             "quarantine": 780,
             "unparsed": 28400,
-            "pool": 1991
+            "pool": 1995
         },
         "vintage": {
             "total": 31690,
             "ready": 2492,
             "quarantine": 781,
             "unparsed": 28417,
-            "pool": 2009
+            "pool": 2013
         },
         "commander": {
             "total": 31830,
             "ready": 2494,
             "quarantine": 780,
             "unparsed": 28556,
-            "pool": 2022
+            "pool": 2026
         }
     },
     "fragments": [
