@@ -4348,14 +4348,21 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // which is exactly what makes the pair discriminating.
         //
         // HALF 1: an all-creature library. Accepting reveals exactly one card,
-        // puts a free body onto a board where the opponent controls the only
+        // puts a free 6/4 onto a board where the opponent controls the only
         // creatures (which is also what makes Oath's target legal at all,
         // CR 601.2c) and mills NOTHING; declining gets nothing. Twenty copies
-        // rather than one deep fatty on purpose: the observer's own library
-        // ORDER is hidden and re-shuffled per determinization
-        // (`determinize.ts`), so a single seeded card at a known depth is a
-        // position the search cannot actually see — a creature-dense library
-        // makes the reveal depth the same on every determinization.
+        // of ONE fat creature rather than a single deep fatty, on purpose and
+        // for two separate reasons. (a) The observer's own library ORDER is
+        // hidden and re-shuffled per determinization (`determinize.ts`), so a
+        // card seeded at a known depth is a position the search cannot see;
+        // a uniform library makes the reveal identical on every
+        // determinization. (b) The body has to be big enough that the entry
+        // is LOAD-BEARING: proven by routing the match leg to `rest` instead
+        // of the battlefield, which turns accepting into a bare self-mill —
+        // red on all three seeds with a 6/4, still GREEN with a 2/2, because
+        // a 2/2 of material sits inside the outcome epsilon and the pick
+        // falls to a tie-break (ADR 0070 §1 — an entry that passes on a tie
+        // asserts nothing).
         label: "oath: takes the free body when its library is creature-dense",
         spec: {
             cards: [
@@ -4363,7 +4370,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
                 { name: "Hill Giant", owner: "opp", zone: "battlefield" },
                 {
-                    name: "Grizzly Bears",
+                    name: "Craw Wurm",
                     owner: "me",
                     zone: "library",
                     count: 20,
