@@ -1044,8 +1044,17 @@ export function getLegalActions(
     // castable from there for FREE: its printed mana cost is waived entirely,
     // mirroring `castRawManaCost`'s matching branch (`convex/game.ts`) that
     // actually deducts (or rather doesn't) the cost at commit. Same timing /
-    // phase / target / prohibition gates as an ordinary cast — only
-    // affordability is short-circuited (`costOverride: {}`, always payable).
+    // phase / target / prohibition gates as an ordinary cast, and the SAME
+    // affordability probe: `costOverride: {}` is the waived mana cost, NOT a
+    // short-circuit. CR 118.6a names the waiver an alternative cost and CR
+    // 118.9d applies every increase onto an alternative cost, which is exactly
+    // what `announceCast` does — it folds the board's cost modifiers onto the
+    // `{}` `castRawManaCost` returned, and an increase added to an empty cost
+    // is not empty. So a free cast under Thalia owes {1}, and probing an
+    // unmodified `{}` here offered a cast that then parked unpayable in
+    // `pendingCast` with no exit but abort-announce-re-enumerate (issue
+    // #2981). The fold now lives inside `canPotentiallyPayCost` for every
+    // branch, so this call site reads unchanged and is right anyway.
     // This branch fully owns the "cast" decision for the exiled card, exactly
     // like the Madness branch above.
     const isFreeExileCast =
@@ -1082,19 +1091,19 @@ export function getLegalActions(
     if (isLibraryTopCast) {
         const lifeCost = libraryTopCastLifeCost(state, player, card);
         const grant = canCastSpellsFromTopOfLibrary(state, player);
-        // CR 601.2f (ADR 0063) / CR 601.3c (issue #2146) — whichever cost the
-        // permission leaves this cast owing, `announceCast` folds the SAME two
-        // mandatory additions onto it before payment: board-wide cost
-        // modifiers (`applyCostModifiers(getCostModifiers(...))`) and the
-        // conditional-flash surcharge when the cast is only legal inside that
-        // permission. Judging affordability without them (issue #2398 review
-        // round 1, finding 4) offers a cast that then parks unpayable in
+        // CR 601.3c (issue #2146) — the conditional-flash SURCHARGE, when
+        // this cast is only legal inside that permission: `announceCast` folds
+        // it onto whatever cost the permission leaves the cast owing, so
+        // affordability must be judged with it. (The other mandatory addition,
+        // the board's cost modifiers, is folded unconditionally inside
+        // `canPotentiallyPayCost` since issue #2981 and no longer needs a flag
+        // here.) Judging affordability without them (issue #2398 review round
+        // 1, finding 4) offers a cast that then parks unpayable in
         // `pendingCast` the moment a `costIncrease` static (Thorn Elemental's
         // shape — inv/*.ts, fem/black.ts, lea/black.ts, wth/white.ts) is on
         // the board. Shared by BOTH branches below, exactly as the plain
         // hand-cast branch does it.
         const mandatoryCostOpts = {
-            foldCostModifiers: true,
             ...(flashSurchargeRequired(state, player.id, card)
                 ? { extraMana: flashSurchargeOf(card) }
                 : {}),
@@ -1173,13 +1182,13 @@ export function getLegalActions(
             // additional costs, cost increases, and cost reductions that affect
             // that spell are applied to that alternative cost." The alt-cost
             // branch used to pass `state` for the board view alone (issue #1695
-            // fourth-pass fix) and skip the flag, matching the equally
-            // modifier-blind no-target commit path in `announceCast` — gate and
-            // payment agreed on the same WRONG number, so nothing parked
-            // unpayable and the spell was merely undercharged. They move
-            // together or not at all.
+            // fourth-pass fix) and skip the then-opt-in fold, matching the
+            // equally modifier-blind no-target commit path in `announceCast` —
+            // gate and payment agreed on the same WRONG number, so nothing
+            // parked unpayable and the spell was merely undercharged. They move
+            // together or not at all. (Issue #2981 made the fold unconditional
+            // inside `canPotentiallyPayCost`, so no branch opts in any more.)
             (canPotentiallyPayCost(caster, card, undefined, state, {
-                foldCostModifiers: true,
                 // CR 601.3c (issue #2146) — when this cast can only happen
                 // under the conditional-flash permission, its surcharge is
                 // MANDATORY, so affordability must be judged against the
@@ -1214,7 +1223,6 @@ export function getLegalActions(
                         alt.mana ?? {},
                         state,
                         {
-                            foldCostModifiers: true,
                             // CR 601.3c / 601.2f — the surcharge buys the
                             // TIMING, not the spell, so it joins an
                             // alternative cost the same way it joins a
@@ -2236,33 +2244,14 @@ function canPotentiallyPayCost(
      *  call site below** — `state` is already in lexical scope at each one
      *  (`getLegalActions`'s own param), and a mana ability must always be
      *  judged against the real board, never an empty synthesized one.
-     *  Board-threading is INDEPENDENT of `opts.foldCostModifiers` below —
-     *  passing `state` here does not, by itself, fold cost-modifier static
-     *  effects into the cost. */
+     *
+     *  CR 601.2f / 118.9d (issue #2981) — passing `state` ALSO folds the
+     *  board's cost-modifier static effects into the probed cost (see the
+     *  `applyCostModifiers` call below). That used to be a separate opt-in
+     *  flag, and eight of the eleven cast branches forgot it; the fold is
+     *  unconditional now, so a new branch cannot inherit the omission. */
     state?: GameState,
     opts: {
-        /** CR 601.2f (ADR 0063, issue #1337) — when true, the printed/override
-         *  cost is folded through the SAME `getCostModifiers` +
-         *  `applyCostModifiers` the real payment path (`game.ts`) uses before
-         *  the affordability check, so a spell's cast-cost REDUCTION (Mana
-         *  Matrix, Planar Gate, Emry's self-host `selfCostReduction`) is
-         *  reflected in the "cast" legal action instead of gating on the
-         *  unreduced printed cost. Requires `state` to also be passed (a
-         *  no-op otherwise). Opt-in, and set `true` exactly where the real
-         *  payment path folds the same modifiers: the plain hand-cast branch,
-         *  the library-top branch (issue #2398) and — since issue #2970 — the
-         *  ALTERNATIVE-cost branch, which CR 118.9d says takes every increase
-         *  and reduction onto the alternative cost. EVERY OTHER cast branch in
-         *  this function still omits the flag — flashback, escape, madness,
-         *  retrace, the intrinsic-graveyard permission, the per-card graveyard
-         *  grant, the battlefield-permanent permission and the free-exile
-         *  waiver — and so judges affordability against its unmodified
-         *  override cost. Each is its own gate-vs-payment question, not this
-         *  one; the free-exile branch is a live instance of exactly this
-         *  issue's shape in the OTHER direction (the payment DOES fold, so the
-         *  gate over-offers), drafted at
-         *  `docs/findings/2970-free-exile-gate-skips-cost-modifiers.md`. */
-        foldCostModifiers?: boolean;
         /** CR 601.3c / 601.2f (issue #2146) — a MANDATORY additional mana cost
          *  this particular cast owes on top of the printed/override cost. Set
          *  only for the conditional-flash surcharge at the plain hand-cast
@@ -2308,7 +2297,37 @@ function canPotentiallyPayCost(
             cost[sym] = (cost[sym] ?? 0) + amt;
         }
     }
-    if (state && opts.foldCostModifiers) {
+    // CR 601.2f / 118.9d (ADR 0063, issues #1337 / #2970 / #2981) — fold the
+    // board's cost-modifier static effects (Thalia's increase, Mana Matrix /
+    // Planar Gate / Emry's `selfCostReduction`, the object-scoped exile-cast
+    // tax) onto the probed cost, through the SAME `getCostModifiers` +
+    // `applyCostModifiers` pair the real payment path uses — `announceCast`
+    // and `finalizeTargetSelection` (`convex/game.ts`) both fold it onto
+    // whatever cost the cast owes, for EVERY zone and mechanism, with no
+    // carve-out. So this probe has none either: the fold is unconditional
+    // once `state` is in hand, and every `costOverride` a branch hands in
+    // (flashback / escape / madness / retrace / a graveyard-or-exile waiver's
+    // empty cost / a permission's printed cost) is judged against the total
+    // that will actually be charged.
+    //
+    // `bun run cr 118.6a`: "If an alternative cost is applied to an unpayable
+    // cost, including an effect that allows a player to cast a spell without
+    // paying its mana cost, the alternative cost may be paid." `bun run cr
+    // 118.9d`: "If an alternative cost is being paid to cast a spell, any
+    // additional costs, cost increases, and cost reductions that affect that
+    // spell are applied to that alternative cost." A waiver IS an alternative
+    // cost, so an increase applies on top of it — an increase added to an
+    // empty cost is not empty.
+    //
+    // This was an opt-in flag until issue #2981, set on three branches
+    // (hand-cast, library-top, alternative-cost) and forgotten by the other
+    // eight. The free-exile waiver was the live instance: the gate offered a
+    // Dauthi Voidwalker cast at zero under Thalia and the payment then owed
+    // {1}, so the cast parked in `pendingCast` with no exit but
+    // abort-announce-re-enumerate (the bot-freeze shape; for a human, a Cast
+    // button that leads nowhere). Structural, not per-branch, so a new cast
+    // mechanism cannot re-open the hole by omission.
+    if (state) {
         applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
     }
     const totalRequired =

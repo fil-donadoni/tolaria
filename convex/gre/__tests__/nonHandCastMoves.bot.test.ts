@@ -48,6 +48,7 @@ import { flashOfInsight } from "../../cards/sets/jud/blue";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { hogaakArisenNecropolis } from "../../cards/sets/mh1/multicolor";
 import { lurrus } from "../../cards/sets/iko/multicolor";
+import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 
@@ -90,6 +91,9 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
         casterId: string;
         mountains: number;
         extra?: Partial<CardInstanceState>;
+        /** Battlefield permanents for p2 ON TOP of the exile zone — a
+         *  cost-modifier static (Thalia) taxing the cast under test. */
+        p2Battlefield?: CardInstanceState[];
     }): GameState {
         const exiled = makeInstance(firebolt.id, {
             id: "exiledBolt",
@@ -102,9 +106,10 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
         const mk = (id: "p1" | "p2") =>
             makePlayer(id, {
                 ...(opts.zoneOwner === id ? { exile: [exiled] } : {}),
-                ...(id === "p1"
-                    ? { battlefield: lands(mountain, opts.mountains, "p1") }
-                    : {}),
+                battlefield:
+                    id === "p1"
+                        ? lands(mountain, opts.mountains, "p1")
+                        : (opts.p2Battlefield ?? []),
             });
         return makeState({ players: [mk("p1"), mk("p2")] });
     }
@@ -156,6 +161,62 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
         // No mana on the board at all, and the cast is still offered: the
         // enumerator reads `castRawManaCost`, which returns `{}` for the waiver.
         expect(cast!.tapPlan).toEqual([]);
+    });
+
+    it("plans the tap at the INCREASED cost for a WAIVED exile grant too (CR 118.6a / 118.9d, issue #2981)", () => {
+        // `bun run cr 118.6a` names the "without paying its mana cost" waiver
+        // an ALTERNATIVE cost, and `bun run cr 118.9d` applies every cost
+        // increase to an alternative cost — so Thalia ("Noncreature spells cost
+        // {1} more to cast") DOES tax a Dauthi Voidwalker free cast, and
+        // `announceCast` charges it: it folds the collector onto the `{}`
+        // `castRawManaCost` returned, and an increase added to an empty cost is
+        // not empty. The enumerator prices through the same two helpers, so its
+        // tap plan must cover the {1} or the Bot announces a cast it cannot pay
+        // — the announce-then-park shape, whose only exit is `abort-announcement`.
+        const thalia = () =>
+            makeInstance(thaliaGuardianOfThraben.id, {
+                id: "thaliaX",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+        const taxed = exileBoard({
+            zoneOwner: "p2",
+            casterId: "p1",
+            mountains: 1,
+            extra: { castFromExileWithoutPayingManaCost: true },
+            p2Battlefield: [thalia()],
+        });
+        // The affordance agrees on the same board (issue #2981 moved it there).
+        expect(
+            getLegalActions(
+                taxed,
+                getPlayer(taxed, "p2"),
+                getPlayer(taxed, "p2").exile[0],
+                false,
+                "p1"
+            )
+        ).toContain("cast");
+        expect(castOf(taxed, "p1", "exiledBolt")!.tapPlan).toHaveLength(1);
+
+        // …and with no mana at all the taxed free cast is offered by NEITHER
+        // side: the waiver is free, Thalia's {1} is not.
+        const broke = exileBoard({
+            zoneOwner: "p2",
+            casterId: "p1",
+            mountains: 0,
+            extra: { castFromExileWithoutPayingManaCost: true },
+            p2Battlefield: [thalia()],
+        });
+        expect(
+            getLegalActions(
+                broke,
+                getPlayer(broke, "p2"),
+                getPlayer(broke, "p2").exile[0],
+                false,
+                "p1"
+            )
+        ).not.toContain("cast");
+        expect(castOf(broke, "p1", "exiledBolt")).toBeUndefined();
     });
 
     it("plans the tap at the INCREASED cost for a taxed exile grant (issue #2383)", () => {
