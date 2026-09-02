@@ -57,7 +57,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
-import { syncLayer6 } from "./layer6";
+import { ensureLayer6Base, syncLayer6 } from "./layer6";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
 import type { FaceDownProducer } from "./faceDown";
 import {
@@ -7613,6 +7613,7 @@ function applyKeywordCounterGrant(
         (g) => g.counterType === counterType
     );
     if (already) return;
+    ensureLayer6Base(card);
     card.grantedStaticAbilities = [
         ...(card.grantedStaticAbilities ?? []),
         { ability: keyword, counterType, seq: allocStaticTimestamp(state) },
@@ -8174,6 +8175,12 @@ export function unapplySourceStaticEffects(
             }
         }
     }
+    // CR 611.2 (PRD #2064 S3) — recompose layer 6 as of the moment this source
+    // STOPS applying. It is still in the battlefield array (this runs before
+    // the permanent is spliced out, and on a re-attach it never leaves at all),
+    // so the derivation is told to skip it rather than being made to wait for
+    // the array to catch up.
+    syncLayer6(state, { stoppedSourceIds: new Set([source.id]) });
 }
 
 /** Aura-flavored alias kept for back-compat. */
@@ -8199,8 +8206,47 @@ export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
  *  Kept under its old name because ~a dozen call sites and card comments name
  *  it as the recomputation tick; PRD #2064 S6 renames it with the rest. */
 export function refreshCounterGatedStatics(state: GameState): void {
+    // Layers 2-5 are still MATERIALISED (PRD #2064 S4 migrates them), so their
+    // counter- and condition-gated sources still need the old unapply /
+    // re-apply round trip. It is narrowed to the kinds this slice did NOT take
+    // over: a layer-6 kind is derived and must not be swept, or the sweep would
+    // re-mint work the derivation already did.
+    //
+    // CR 613.7 (issue #1715) — `preserveTimestamp` keeps the source's ordering
+    // position across an arbitrary number of SBA passes: a counter-gated
+    // RE-evaluation is not a new application (only an Aura becoming attached is,
+    // CR 613.7d), and re-stamping would make the winning subtype depend on how
+    // many passes had run.
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            const needsRefresh = effects.some(
+                (e) =>
+                    !LAYER_6_KINDS.has(e.kind) &&
+                    (e.dependsOnCounters === true ||
+                        (e as { condition?: unknown }).condition !== undefined)
+            );
+            if (!needsRefresh) continue;
+            unapplySourceStaticEffects(state, source);
+            applySourceStaticEffects(state, source, {
+                preserveTimestamp: true,
+            });
+        }
+    }
     syncLayer6(state);
 }
+
+/** CR 613.1f — the `StaticEffect` kinds `gre/layer6.ts` owns. Named here so the
+ *  layers-2-5 sweep above can exclude them without re-listing them by hand. */
+const LAYER_6_KINDS = new Set<string>([
+    "keyword-grant",
+    "keyword-remove",
+    "ability-loss",
+    "activated-grant",
+    "triggered-grant",
+]);
 
 /** Applies every existing battlefield source's `keyword-grant` static effects
  *  to a newly-arrived permanent. Called from `finalizeSpellResolution` so
@@ -16770,6 +16816,7 @@ export function buildSpellContext(
             // one (CR 611.2a) — without it an until-end-of-turn grant sorted
             // at 0 and was removed by any "loses all abilities" that had ever
             // resolved, however long before.
+            ensureLayer6Base(found.card);
             found.card.grantedStaticAbilities = [
                 ...(found.card.grantedStaticAbilities ?? []),
                 {
@@ -16805,6 +16852,7 @@ export function buildSpellContext(
                 (g) => g.ability === ability && isIndefiniteKeywordGrant(g)
             );
             if (already) return;
+            ensureLayer6Base(found.card);
             found.card.grantedStaticAbilities = [
                 ...(found.card.grantedStaticAbilities ?? []),
                 { ability, seq: allocStaticTimestamp(state) },
@@ -16972,6 +17020,7 @@ export function buildSpellContext(
             // permanent's effective abilities. Each match becomes a registry
             // entry with a `duration` expiry and its own layer timestamp
             // (CR 613.7), so a grant that lands afterwards wins.
+            ensureLayer6Base(found.card);
             const seq = allocStaticTimestamp(state);
             const removedNow = found.card.staticAbilities
                 .filter((kw) => predicate(kw))
@@ -17087,6 +17136,7 @@ export function buildSpellContext(
                             g.ability === ability && isIndefiniteKeywordGrant(g)
                     );
                     if (already) continue;
+                    ensureLayer6Base(card);
                     card.grantedStaticAbilities = [
                         ...(card.grantedStaticAbilities ?? []),
                         { ability, seq: allocStaticTimestamp(state) },
