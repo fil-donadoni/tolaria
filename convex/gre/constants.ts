@@ -1346,6 +1346,67 @@ export function mayHaveNonTapManaAbility(card: CardInstanceState): boolean {
     return false;
 }
 
+/** Cheap prefilter, the `mayHaveNonTapManaAbility` idiom: could paying this
+ *  permanent for mana SACRIFICE it? Reads the PRINTED definition plus any
+ *  granted abilities, so an ordinary board — every land, every Mox, every
+ *  `{T}` rock — answers false with one cached lookup and a short array scan,
+ *  and the caller skips the real resolution entirely.
+ *
+ *  Used by the search's coarse mana model (`applyTapPlan`, `search.ts` and
+ *  `applyMove.ts`), which otherwise leaves a sacrificed source sitting tapped
+ *  on the battlefield forever — see those call sites for what that cost. */
+export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
+    // Same conservative shape as `mayHaveNonTapManaAbility`: the granted list
+    // holds REFERENCES, not abilities, so a card carrying any granted ability
+    // falls through to the real resolution rather than being prefiltered out.
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (!ability.useStack && ability.cost.sacrifice) return true;
+    }
+    return false;
+}
+
+/** Does the mana ability this tap plan entry activates sacrifice its source?
+ *  Resolves the SAME unified option list the tap mutations read
+ *  (`getManaTapOptionsDetailed(..., { requireTap: true })`), so the search's
+ *  model and `tapSourceIntoPayment` (`convex/game.ts`) agree about which
+ *  ability a `manaChoiceIndex` names.
+ *
+ *  Guarded by `mayBeSacrificedForMana` at every call site — this function
+ *  itself does the full scan and must not run on an ordinary board. */
+export function manaTapSacrificesSource(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): boolean {
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
+    // A plan with no index taps a single-option source (`manaTapNeedsChoice`),
+    // so index 0 is the option it names.
+    const opt = detailed[manaChoiceIndex ?? 0];
+    if (!opt || opt.source.kind !== "activated") return false;
+    const abilityId = opt.source.abilityId;
+    return getEffectiveActivatedAbilities(card).some(
+        ({ ability }) => ability.id === abilityId && !!ability.cost.sacrifice
+    );
+}
+
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,
     controllerId?: string,

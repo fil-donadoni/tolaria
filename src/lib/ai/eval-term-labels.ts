@@ -36,6 +36,11 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         name: "Mana development (lands the hand still wants to spend)",
     },
     flexibility: { short: "Fx", name: "Flexibility (options / reach)" },
+    library: { short: "Lb", name: "Library (cards left before decking)" },
+    graveyard: {
+        short: "Gy",
+        name: "Graveyard (spells a play-from-graveyard engine can still cast)",
+    },
 };
 
 /** The keys of `EVAL_TERM_LABELS` in declaration order — what both consumers

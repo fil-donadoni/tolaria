@@ -94,7 +94,13 @@ import { effectiveAbilityOf } from "./ai/abilityTiming";
 // CR 606 (issue #2491) — the shared loyalty authority, so the search pays the
 // signed loyalty leg exactly as the mutation's commit sites do.
 import { loyaltyActivationViolation, payLoyaltyCost } from "./loyalty";
-import { isPlaneswalker, manaGateBattlefields, manaValue } from "./constants";
+import {
+    isPlaneswalker,
+    manaGateBattlefields,
+    manaTapSacrificesSource,
+    manaValue,
+    mayBeSacrificedForMana,
+} from "./constants";
 import {
     activationSacrificePayment,
     planActivationCostPicks,
@@ -907,11 +913,25 @@ function applyTapPlan(
     tapPlan: {
         cardInstanceId: string;
         abilityId?: string;
+        manaChoiceIndex?: number;
         tapOtherIds?: string[];
     }[]
 ): void {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return;
+    // CR 605.1a / 118.3 (Breach probe) — a mana ability paid by SACRIFICING
+    // its source (Black Lotus, Basal Thrull, the Mirage sac-lands, Lion's Eye
+    // Diamond) puts the permanent in the GRAVEYARD; `tapSourceIntoPayment`
+    // (`convex/game.ts`) does exactly that on the real path. This model used
+    // to only set `isTapped`, so inside the tree the source sat tapped on the
+    // battlefield forever and never reached the graveyard — which made every
+    // graveyard-as-resource line structurally invisible to the search at ANY
+    // depth, not merely beyond its horizon: a Black Lotus could never become
+    // Underworld Breach escape fodder, so the Lotus loop that powers storm
+    // could not be assembled. Guarded by the cheap printed-definition
+    // prefilter, so an ordinary board of lands and {T} rocks pays one cached
+    // lookup per tap and nothing else.
+    const sacrificed: string[] = [];
     for (const tap of tapPlan) {
         if (tap.abilityId) {
             for (const otherId of tap.tapOtherIds ?? []) {
@@ -921,7 +941,27 @@ function applyTapPlan(
             continue;
         }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
-        if (src) src.isTapped = true;
+        if (!src) continue;
+        if (
+            mayBeSacrificedForMana(src) &&
+            manaTapSacrificesSource(
+                src,
+                player.id,
+                manaGateBattlefields(state),
+                tap.manaChoiceIndex
+            )
+        ) {
+            sacrificed.push(src.id);
+            continue;
+        }
+        src.isTapped = true;
+    }
+    // Moved after the loop so a plan naming the same source twice cannot make
+    // the second lookup miss (the planner never emits one — see
+    // `manaConverterParity.bot.test.ts` invariant B — but this model must not
+    // depend on that).
+    for (const id of sacrificed) {
+        moveCard(player, id, "battlefield", "graveyard");
     }
 }
 
