@@ -684,6 +684,22 @@ const IGNORED_INSTANCE_KEYS = [
     // ever be proved dominated. Nothing is masked by ignoring it: it is derived
     // from `staticAbilities`, which this comparison still makes in full.
     "baseStaticAbilities",
+    // PRD #2064 S4 — the layer-2-to-5 bases and the one-way "this engine has
+    // derived this instance" marker, all captured LAZILY the first time
+    // `syncLayers2to5` runs for a permanent. Identical argument to
+    // `baseStaticAbilities` above: their mere PRESENCE distinguishes a state the
+    // engine has touched from one it has not, so the probe — which runs the
+    // engine — would differ from the untouched baseline on every card and no
+    // move could ever be proved dominated. (`printedSubtypes` rides along for
+    // the same reason: it is `baseSubtypes`' derived twin, written by the same
+    // first derivation.) Nothing is masked: each is derived from
+    // `controllerId` / `types` / `subtypes`, which this comparison still makes
+    // in full.
+    "baseControllerId",
+    "baseTypes",
+    "baseSubtypes",
+    "printedSubtypes",
+    "layers2to5Derived",
     "activationsThisTurn",
     "triggersThisTurn",
 ] as const;
