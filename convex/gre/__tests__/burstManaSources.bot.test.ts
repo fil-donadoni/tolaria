@@ -41,7 +41,6 @@ import type { CardInstanceState, GameState } from "../state";
 
 const LOTUS = getCardByName("Black Lotus").id; // {T}, Sac: Add three of one color
 const SOL_RING = getCardByName("Sol Ring").id; // {T}: Add {C}{C}
-const ISLAND = getCardByName("Island").id;
 const MOX_SAPPHIRE = getCardByName("Mox Sapphire").id;
 const MOX_JET = getCardByName("Mox Jet").id;
 const URZA = getCardByName("Urza, Lord High Artificer").id;
