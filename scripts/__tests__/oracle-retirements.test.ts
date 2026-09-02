@@ -200,14 +200,23 @@ describe("retirementProblems — every way a marker can be a lie", () => {
         ).toMatch(/no retirement marker/);
     });
 
-    it("reds when the row's marker disagrees with the ledger", () => {
-        expect(
-            retirementProblems(
-                ledgerOf(entry({ issue: 9999 })),
-                { cards: [marked] },
-                new Set()
-            ).join("\n")
-        ).toMatch(/disagrees with the ledger/);
+    it("reds when the row's marker disagrees with the ledger on ANY axis", () => {
+        // One case per field the marker carries: a comparison that folds a
+        // field is a comparison that lets that field drift, and `pr` is the
+        // one a partial check drops (it is the only optional one).
+        for (const divergent of [
+            entry({ issue: 9999 }),
+            entry({ retiredAt: "2020-01-01" }),
+            entry({ pr: 3060 }),
+        ]) {
+            expect(
+                retirementProblems(
+                    ledgerOf(divergent),
+                    { cards: [marked] },
+                    new Set()
+                ).join("\n")
+            ).toMatch(/disagrees with the ledger/);
+        }
     });
 
     it("reds when a marked card STILL has a hand-written definition", () => {
