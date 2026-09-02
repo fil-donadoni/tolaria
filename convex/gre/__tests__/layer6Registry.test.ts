@@ -17,20 +17,22 @@ import {
     applySourceStaticEffects,
     buildSpellContext,
     refreshCounterGatedStatics,
+    payRemoveCounterCost,
     removePermanentTo,
     unapplySourceStaticEffects,
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { deriveLayer6 } from "../layer6";
+import { deriveLayer6, recomposeLayer6ForInstance } from "../layer6";
 import {
     outrankedBy,
     renderKeyword,
     type ContinuousEffect,
 } from "../continuousEffects";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
-import { untapStep } from "../phases";
+import { finalizeCleanup, untapStep } from "../phases";
 import { withTemporaryDefinition } from "../../cards";
+import { registerEmblemDefinition } from "../../cards/emblems";
 import type {
     CardDefinition,
     PermanentView,
@@ -46,6 +48,8 @@ import { projectPublicState } from "../../gameProjections";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { airElemental, flight } from "../../cards/sets/lea/blue";
 import { gravitySphere } from "../../cards/sets/leg/red";
+import { titaniasSong } from "../../cards/sets/atq/green";
+import { ashnodsBattleGear } from "../../cards/sets/atq/colorless";
 import { dreadWight } from "../../cards/sets/ice/black";
 import {
     PHASE_EVENT_EOC,
@@ -449,6 +453,274 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             unapplySourceStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(1);
         });
+    });
+});
+
+describe("review round 1 — the holes the derivation opened (PR #3032)", () => {
+    describe("the base capture is layer 6's INVERSE, not half of it", () => {
+        /** A permanent as a state PERSISTED BEFORE this slice holds it: the
+         *  strip already materialised onto `staticAbilities`, its record on the
+         *  instance, and no `baseStaticAbilities` — the tell for the migration
+         *  window. */
+        function legacyStrippedElemental(
+            record: Partial<CardInstanceState>
+        ): CardInstanceState {
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            elemental.staticAbilities = [];
+            Object.assign(elemental, record);
+            return elemental;
+        }
+
+        it("gives back a keyword a source-keyed removal had taken", () => {
+            // base = staticAbilities + removals - grants. Subtracting the
+            // grants alone captured this Elemental's base as [] and it never
+            // flew again, however long after the Sphere died.
+            const elemental = legacyStrippedElemental({
+                removedKeywords: [
+                    { keyword: "flying", sourceId: "sphere", seq: 1 },
+                ],
+            });
+            const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
+            const state = boardOf(elemental, sphere);
+            applySourceStaticEffects(state, sphere);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(elemental, "flying")).toBe(0);
+            removePermanentTo(state, "sphere", "graveyard");
+            refreshCounterGatedStatics(state);
+            expect(count(elemental, "flying")).toBe(1);
+        });
+
+        it("gives back a keyword a DURATION-scoped removal had taken", () => {
+            const elemental = legacyStrippedElemental({
+                temporaryRemovedKeywords: [
+                    { keyword: "flying", duration: { phase: "end-of-turn" } },
+                ],
+            });
+            const state = boardOf(elemental);
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(elemental, "flying")).toBe(0);
+            state.phase = "CLEANUP";
+            finalizeCleanup(state);
+            expect(count(elemental, "flying")).toBe(1);
+        });
+
+        it("gives back a keyword a continuous ABILITY-LOSS had cleared", () => {
+            // Titania's Song strips NONCREATURE ARTIFACTS (CR 613.1f), so the
+            // subject is one that prints a keyword.
+            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+            gear.staticAbilities = [];
+            gear.removedKeywords = [
+                {
+                    keyword: "may-choose-not-to-untap",
+                    sourceId: "song",
+                    seq: 1,
+                },
+            ];
+            gear.abilitiesSuppressedBy = [{ sourceId: "song", seq: 1 }];
+            const song = makeInstance(titaniasSong.id, { id: "song" });
+            const state = boardOf(gear, song);
+            applySourceStaticEffects(state, song);
+
+            expect(gear.baseStaticAbilities).toEqual([
+                "may-choose-not-to-untap",
+            ]);
+            // Titania's Song is LIVE and declares the `ability-loss`, so the
+            // derivation reproduces the strip on its own — the legacy ledger
+            // must NOT be seeded, or the strip would outlive its own predicate
+            // (the Song makes the Gear a CREATURE, at which point its own
+            // `applies` stops matching).
+            expect(gear.abilityLossHolds).toBeUndefined();
+            expect(count(gear, "may-choose-not-to-untap")).toBe(0);
+
+            removePermanentTo(state, "song", "graveyard");
+            refreshCounterGatedStatics(state);
+            expect(count(gear, "may-choose-not-to-untap")).toBe(1);
+        });
+
+        it("SEEDS the ledger for a hold no live source reproduces", () => {
+            // The resolving arm (CR 611.2b — Tishana's Tidebinder keys its hold
+            // to a permanent that declares no `ability-loss` static ability).
+            // Nothing re-derives it, so the legacy row is the only record and
+            // must survive the migration.
+            const elemental = legacyStrippedElemental({
+                removedKeywords: [
+                    { keyword: "flying", sourceId: "binder", seq: 1 },
+                ],
+                abilitiesSuppressedBy: [{ sourceId: "binder", seq: 1 }],
+            });
+            const binder = makeInstance(grizzlyBears.id, { id: "binder" });
+            const state = boardOf(elemental, binder);
+            applySourceStaticEffects(state, binder);
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.abilityLossHolds).toEqual([
+                { sourceId: "binder", seq: 1 },
+            ]);
+            expect(count(elemental, "flying")).toBe(0);
+        });
+
+        it("survives a base CLEAR while a grant and a strip are both live", () => {
+            // The same arithmetic on a FRESH state: an identity swap or a
+            // CR 614.12c body choice drops the base, and the re-capture reads
+            // this module's own output back the other way.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            const ctx = ctxFor(state);
+            ctx.grantStaticAbilityPermanent(
+                { type: "permanent", id: "ae" },
+                "trample"
+            );
+            ctx.loseAllAbilities({ type: "permanent", id: "ae" });
+            expect(elemental.staticAbilities).toEqual([]);
+
+            delete elemental.baseStaticAbilities;
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+        });
+    });
+
+    it("an identity swap keeps the board's grants and its ability-loss", () => {
+        // `recomposeLayer6ForInstance` runs on a SYNTHETIC one-card board (the
+        // swap sites carry no GameState), so it cannot re-walk to a live
+        // source. It must therefore PRESERVE what it cannot re-derive rather
+        // than clearing it: the window between the swap and the next sync is
+        // one the search's `turn-face-up` leaf and a mana ability's
+        // `payRemoveCounterCost` both read in.
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const aura = makeInstance(flight.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const state = boardOf(bear, aura);
+        applySourceStaticEffects(state, aura);
+        expect(count(bear, "flying")).toBe(1);
+
+        recomposeLayer6ForInstance(bear);
+        expect(count(bear, "flying")).toBe(1);
+        expect(bear.grantedStaticAbilities).toEqual([
+            expect.objectContaining({ ability: "flying", auraId: "aura" }),
+        ]);
+    });
+
+    it("paying a removeCounter COST does not drop the board's grants", () => {
+        // Proven regression: `payRemoveCounterCost` takes no GameState, so it
+        // goes through the instance recompose — which used to clear every
+        // `auraId` row on the way past.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            counters: { fade: 1 },
+        });
+        const aura = makeInstance(flight.id, {
+            id: "aura",
+            attachedTo: "bear",
+        });
+        const state = boardOf(bear, aura);
+        applySourceStaticEffects(state, aura);
+
+        payRemoveCounterCost(bear, { type: "fade", count: 1 });
+        expect(count(bear, "flying")).toBe(1);
+    });
+
+    it("a command-zone emblem's keyword grant applies (CR 114.3)", () => {
+        // An emblem is not a permanent and is minted no `staticSeq`, so the
+        // unstamped-source gate skipped it and every emblem-granted keyword
+        // would have shipped inert with no test red. No catalogue emblem
+        // declares one today, so the guard is a probe definition.
+        const EMBLEM_ID = "layer6-registry-test-emblem";
+        registerEmblemDefinition({
+            id: EMBLEM_ID,
+            name: "Layer 6 Probe Emblem",
+            oracleText: "Creatures you control have flying.",
+            staticEffects: [
+                {
+                    kind: "keyword-grant",
+                    applies: (target: PermanentView, source: PermanentView) =>
+                        target.controllerId === source.controllerId &&
+                        target.types.includes("Creature"),
+                    keyword: "flying",
+                },
+            ],
+        });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = boardOf(bear);
+        state.emblems = [
+            { id: "emblem-1", emblemId: EMBLEM_ID, ownerId: "p1" },
+        ];
+        refreshCounterGatedStatics(state);
+
+        expect(count(bear, "flying")).toBe(1);
+    });
+
+    it("`keywordFor` returning null grants NOTHING, not the fixed keyword", () => {
+        const DECLINING: CardDefinition = {
+            ...grizzlyBears,
+            staticEffects: [
+                {
+                    kind: "keyword-grant",
+                    applies: (target: PermanentView, source: PermanentView) =>
+                        target.id === source.id,
+                    keyword: "flying",
+                    keywordFor: () => null,
+                },
+            ],
+        };
+        withTemporaryDefinition(DECLINING, () => {
+            const bear = makeInstance(DECLINING.id, { id: "bear" });
+            const state = boardOf(bear);
+            applySourceStaticEffects(state, bear);
+            expect(count(bear, "flying")).toBe(0);
+        });
+    });
+
+    it("a duration-scoped registry entry is REFUSED — nothing ticks one yet", () => {
+        // Fail-closed: the phase-boundary purge ticks the instance-borne
+        // records, never `state.continuousEffects`, so an entry created with a
+        // duration expiry would apply for the rest of the game (PRD #2064 S6
+        // moves the countdown in).
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = boardOf(bear);
+        const ctx = ctxFor(state);
+        expect(() =>
+            ctx.addContinuousEffect({
+                layer: 6,
+                affected: { kind: "instances", instanceIds: ["bear"] },
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    controllerId: "p1",
+                },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+                characteristicDefining: false,
+            })
+        ).toThrow(/not ticked yet/);
+    });
+
+    it("entry ids do not collide once an entry is removed", () => {
+        // `ce-N` is the documented removal handle, so a LENGTH-derived suffix
+        // would re-issue a live id and a removal would take the wrong effect.
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = boardOf(bear);
+        const ctx = ctxFor(state);
+        const add = (keyword: string) =>
+            ctx.addContinuousEffect({
+                layer: 6,
+                affected: { kind: "instances", instanceIds: ["bear"] },
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                payload: { kind: "keyword-grant", keyword },
+                characteristicDefining: false,
+            });
+        add("flying");
+        add("trample");
+        // Something removes the FIRST entry (PRD #2064 S6 does this).
+        state.continuousEffects = state.continuousEffects!.slice(1);
+        add("vigilance");
+
+        const ids = (state.continuousEffects ?? []).map((e) => e.id);
+        expect(new Set(ids).size).toBe(ids.length);
     });
 });
 

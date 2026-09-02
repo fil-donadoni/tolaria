@@ -554,7 +554,7 @@ export const demonicConsultation: CardDefinition = {
 //      which is why this trigger stays `resolve()` (see the justification on
 //      the ability).
 //   2. The untap lock is a Continuous Effects Registry entry (ADR 0082, PRD
-//      #2064) granting `does-not-untap` (CR 502.1), with `counter` expiry on
+//      #2064) granting `does-not-untap` (CR 502.3), with `counter` expiry on
 //      that creature's own paralyzation counters. The untap step reads the
 //      keyword off the layer-6 derivation, so no engine branch is needed.
 //   3. The granted "{4}: Remove a paralyzation counter" is a second registry
@@ -698,7 +698,7 @@ export const dreadWight: CardDefinition = {
                         },
                         characteristicDefining: false,
                     };
-                    // CR 502.1 — "doesn't untap during its controller's untap
+                    // CR 502.3 — "doesn't untap during its controller's untap
                     // step". A layer-6 keyword the untap step reads, NOT a CR
                     // 611.3 rules-modifying effect.
                     ctx.addContinuousEffect({
@@ -2259,8 +2259,9 @@ export const minionOfTeveshSzat: CardDefinition = {
     ],
 };
 // Mole Worms — land-locking twin of Phyrexian Gremlins (CR 611.2 untap-lock
-// tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1
-// optional untap). "{T}: Tap target land. It doesn't untap ... for as long as
+// tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.3
+// untap step, whose "effects can keep one or more of a player's permanents
+// from untapping" is the clause this rides). "{T}: Tap target land. It doesn't untap ... for as long as
 // this creature remains tapped."
 export const moleWorms: CardDefinition = {
     id: "4914f6fc-e3e7-426b-8688-12157c7df9e7",

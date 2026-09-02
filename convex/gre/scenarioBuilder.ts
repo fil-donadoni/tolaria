@@ -15,6 +15,7 @@
  */
 
 import { getCardByName, tokenDefinitionId, tryGetDefinition } from "../cards";
+import { INDEFINITE_SOURCE_ID } from "./layer6";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
 import type { Color } from "../cards/types";
@@ -900,11 +901,18 @@ function sourceStillOnBattlefield(state: GameState, sourceId: string): boolean {
 }
 
 /** `removedKeywords`/`abilitiesSuppressedBy` are source-keyed (`sourceId`),
- *  not duration-keyed like the three `granted*` arrays above — CR 613.1a/1f
- *  strippers have no one-shot/`duration` shape of their own (a temporary
- *  one-shot keyword strip lives on `temporaryRemovedKeywords`, a DIFFERENT
- *  field that is NOT in `CARD_STATE_ALLOWLIST` and so is already caught by
- *  the generic scan below). Their rebuild path mirrors a continuous
+ *  not duration-keyed like the three `granted*` arrays above.
+ *
+ *  PRD #2064 S3 — both are now `syncLayer6`'s DERIVED OUTPUT, so a
+ *  reconstructible entry is one whose PRODUCER survives the round trip, and the
+ *  producer of a duration-scoped strip (Shelkin Brownie) is the
+ *  `temporaryRemovedKeywords` row, not a battlefield source. Such an entry is
+ *  stamped with the `INDEFINITE_SOURCE_ID` sentinel — no permanent can bear
+ *  that id, so the dangling test would flag every one of them. They are skipped
+ *  here and caught, as they always were, by the generic scan over
+ *  `temporaryRemovedKeywords` (which is NOT in `CARD_STATE_ALLOWLIST`).
+ *
+ *  Their rebuild path mirrors a continuous
  *  `granted*` entry: `applySourceStaticEffects` re-derives the strip on
  *  every load PROVIDED the stripping source is still a battlefield
  *  permanent for the reload to walk. When `sourceId` names nothing on
@@ -918,7 +926,9 @@ function reportDanglingStripperResidue(
     dropped: string[]
 ): void {
     const danglingRemoved = (card.removedKeywords ?? []).filter(
-        (r) => !sourceStillOnBattlefield(state, r.sourceId)
+        (r) =>
+            r.sourceId !== INDEFINITE_SOURCE_ID &&
+            !sourceStillOnBattlefield(state, r.sourceId)
     );
     if (danglingRemoved.length > 0) {
         dropped.push(
@@ -931,7 +941,9 @@ function reportDanglingStripperResidue(
         );
     }
     const danglingSuppressed = (card.abilitiesSuppressedBy ?? []).filter(
-        (s) => !sourceStillOnBattlefield(state, s.sourceId)
+        (s) =>
+            s.sourceId !== INDEFINITE_SOURCE_ID &&
+            !sourceStillOnBattlefield(state, s.sourceId)
     );
     if (danglingSuppressed.length > 0) {
         dropped.push(

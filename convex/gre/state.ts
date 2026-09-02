@@ -6655,6 +6655,13 @@ export function applyEntersWithCounters(
     // `wasZero` guard.
     for (const type of types) {
         if ((before[type] ?? 0) === 0 && counters[type] > 0) {
+            // `state` is absent only on the ENTERS-WITH probe path (see the
+            // parameter's own doc). The grant still derives from `counters`
+            // either way; what is skipped is the CR 613.7c ledger row that
+            // carries its layer timestamp, so it would read as 0 and lose
+            // every ordering race. The probe never reaches a real board, so
+            // that is correct rather than merely tolerable — a stamp minted
+            // against a throwaway state would be the bug.
             if (state) applyKeywordCounterGrant(state as GameState, card, type);
         }
     }
@@ -7659,6 +7666,29 @@ function unapplyKeywordCounterGrant(
     const kept = grants.filter((g) => g.counterType !== counterType);
     if (kept.length === grants.length) return;
     card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+}
+
+/** The next deterministic `ce-N` suffix for a Continuous Effects Registry entry
+ *  (ADR 0082, PRD #2064).
+ *
+ *  One past the HIGHEST suffix currently in use, mirroring
+ *  `allocStaticTimestamp`'s "derive from what is live" rule for the same
+ *  reason: uniqueness only has to hold among entries that coexist. Counting the
+ *  list's LENGTH instead would re-issue a live id the moment anything removes
+ *  an entry — and the id is the documented handle a removal is addressed by, so
+ *  the collision would take the wrong effect off. A non-`ce-N` id (none exist
+ *  today) contributes 0 and is simply skipped. */
+function nextContinuousEffectOrdinal(
+    existing: readonly ContinuousEffect[]
+): number {
+    let max = 0;
+    for (const entry of existing) {
+        const suffix = /^ce-(\d+)$/.exec(entry.id);
+        if (!suffix) continue;
+        const n = Number(suffix[1]);
+        if (n > max) max = n;
+    }
+    return max + 1;
 }
 
 /** CR 613.7 (issue #1715) — mints the next layer timestamp. Monotonic over
@@ -16897,17 +16927,33 @@ export function buildSpellContext(
         // 0082, PRD #2064). See the interface doc in `cards/types.ts` for why
         // this channel exists and why it has no revoke sibling.
         addContinuousEffect(entry): void {
+            // A `duration` expiry has no countdown yet — nothing ticks or
+            // splices `state.continuousEffects` until PRD #2064 S6 moves the
+            // boundary in — so an entry created with one would apply forever.
+            // Refused rather than silently made indefinite (fail-closed): the
+            // duration-scoped channel a card wants today is
+            // `grantStaticAbility` / `removeStaticAbilities`, which the
+            // phase-boundary purge does tick.
+            if (
+                entry.expiry.kind === "duration" ||
+                entry.expiry.kind === "instance-duration"
+            ) {
+                throw new Error(
+                    "addContinuousEffect: duration-scoped entries are not ticked yet (PRD #2064 S6)"
+                );
+            }
             const existing = state.continuousEffects ?? [];
             state.continuousEffects = [
                 ...existing,
                 {
                     ...entry,
                     // Deterministic (`ce-N`) so a replay of the same event log
-                    // reproduces the same id. Counted off the live list rather
-                    // than a stored counter, exactly as `allocStaticTimestamp`
-                    // derives the timestamp from the board: ordering only ever
-                    // matters among entries that coexist.
-                    id: `ce-${existing.length + 1}`,
+                    // reproduces the same id. Derived from the highest suffix
+                    // in use, not from the LENGTH: an id is the documented
+                    // removal handle, so the moment anything removes an entry
+                    // (PRD #2064 S6) a length-derived suffix would re-issue a
+                    // live one and the removal would take the wrong effect.
+                    id: `ce-${nextContinuousEffectOrdinal(existing)}`,
                     // CR 613.7 — the SAME sequence every other layer effect is
                     // stamped from, never a second counter.
                     timestamp: allocStaticTimestamp(state),
@@ -21330,12 +21376,13 @@ export function payRemoveCounterCost(
     // `removeCounter`/`SpellContext`, so without this call she would keep
     // indestructible after her last indestructible counter is spent).
     if (remaining === 0) unapplyKeywordCounterGrant(card, cost.type);
-    // CR 122.1b (PRD #2064 S3) — recompose this permanent's layer 6 now. A
-    // counter-borne grant is INSTANCE-borne, so the one-card recompose is
-    // exact; the next `syncLayer6` (top of every SBA pass) folds the board's
-    // own effects back in. This helper takes no `GameState` — it is a cost
-    // payment on one card — which is precisely why the instance-scoped
-    // recompose exists.
+    // CR 122.1b (PRD #2064 S3) — recompose this permanent's layer 6 now, so a
+    // cost payment that removed the last keyword counter is visible before the
+    // next SBA pass (a mana ability resolves in place, with no pass in
+    // between). This helper takes no `GameState` — it is a cost payment on one
+    // card — which is why the instance-scoped recompose exists; that recompose
+    // preserves every board-derived record it cannot re-walk to, so an anthem
+    // keyword or a live ability-loss survives the call untouched.
     recomposeLayer6ForInstance(card);
 }
 

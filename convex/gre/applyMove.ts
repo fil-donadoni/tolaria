@@ -1151,6 +1151,16 @@ export function applyMoveForSearch(
                 }
                 turnFaceUp(permanent);
             }
+            // CR 704.3 / 613.1f — SBAs, like every sibling branch (the
+            // `madness-decline` / `play-land` / `activate-ability` arms all run
+            // them). Turning a permanent face up is an identity swap, and an
+            // identity swap re-seats layer 6 from the INSTANCE (`gre/layer6.ts`
+            // — the swap sites carry no `GameState`); the board's own
+            // continuous effects are recomposed by the recompute tick this
+            // call runs. Without it the leaf was scored against a permanent
+            // one sync behind the board (`game.ts` and `search.ts` both call
+            // SBAs after their own `turnFaceUp`; this branch was the outlier).
+            checkStateBasedActions(next);
             return next;
         }
 

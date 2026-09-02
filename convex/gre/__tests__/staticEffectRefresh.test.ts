@@ -75,7 +75,7 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
     describe("defect 1 — keyword-grant may not resurrect a stripped keyword (CR 613.1f)", () => {
         it("keeps the keyword stripped across any number of refreshes", () => {
             // Venarian Gold grants its host `does-not-untap` while the host
-            // carries a sleep counter (counter-gated, CR 502.1); Blood Moon's
+            // carries a sleep counter (counter-gated, CR 502.3); Blood Moon's
             // `ability-loss` strips every ability off a nonbasic land with a
             // LATER timestamp, so the loss wins (CR 613.1f).
             const { state, land, sources } = makeBoard({ sleep: 1 }, [

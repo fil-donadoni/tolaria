@@ -148,50 +148,60 @@ export function layer6Base(card: CardInstanceState): string[] {
     return card.baseStaticAbilities ?? card.staticAbilities;
 }
 
-/** Snapshots the pre-layer-6 base out of a permanent's `staticAbilities` the
- *  first time layer 6 derives for it.
- *
- *  Normally this is just the array: since PRD #2064 S3 nothing materialises a
- *  grant into it, so whatever is there IS the base. The subtraction handles the
- *  one case where that is false — a `GameState` PERSISTED BEFORE this slice,
- *  whose `staticAbilities` still holds base PLUS every grant the old code had
- *  pushed. Capturing that verbatim would make each of those grants permanent
- *  AND re-derive it, doubling the keyword. So one occurrence is taken back per
- *  live grant row, which is the exact inverse of what the old materialisation
- *  pushed (a `suppressed` row pushed nothing and takes nothing back).
- *
- *  Layer 4 has the same shape and the same reason: `capturePrintedSubtypes`
- *  (`gre/state.ts`) filters out subtypes a live `subtype-add` put there. This
- *  goes with the field when S6 deletes it. */
 /** Captures the layer-6 base if it has not been captured yet.
  *
  *  Called at the TOP of every ledger writer (`SpellContext.grantStaticAbility`,
  *  `grantStaticAbilityPermanent`, `removeStaticAbilities`, `animateAsCreature`,
- *  `applyKeywordCounterGrant`) BEFORE it adds its row, so `staticAbilities`
- *  still holds the base alone at that moment. That ordering is what lets
- *  `captureLayer6Base` treat "rows already present at capture time" as proof of
- *  a pre-slice persisted state and subtract them — a row this codebase wrote
- *  can never be present, because the base was captured first. */
+ *  `applyKeywordCounterGrant`) BEFORE it adds its row, and once per permanent
+ *  from `syncLayer6`. */
 export function ensureLayer6Base(card: CardInstanceState): void {
     if (card.baseStaticAbilities !== undefined) return;
     card.baseStaticAbilities = captureLayer6Base(card);
-    // Same one-shot migration window, for the other field that changed sides:
-    // before this slice `abilitiesSuppressedBy` WAS the ledger, so a state
-    // persisted then carries the resolving arm's holds in it and nothing else
-    // records them. Seed the ledger from it, once, while `baseStaticAbilities`
-    // is still the tell that this row predates the slice — afterwards the field
-    // is derived output and re-seeding from it would make every continuous
-    // strip indefinite.
-    if (card.abilitiesSuppressedBy?.length && !card.abilityLossHolds) {
-        card.abilityLossHolds = [...card.abilitiesSuppressedBy];
-    }
 }
 
+/** Snapshots the pre-layer-6 base out of a permanent's `staticAbilities`.
+ *
+ *  Layer 6's own inverse, and it needs BOTH halves:
+ *
+ *      base = staticAbilities + removals - grants
+ *
+ *  `staticAbilities` is the COMPOSED result, so an occurrence a live grant put
+ *  there is not part of the base and comes back off, and an occurrence a live
+ *  removal took away IS part of the base and goes back on. Subtracting the
+ *  grants alone — the first cut of this function — silently ATE the base of any
+ *  permanent captured while a removal was applying: an Air Elemental captured
+ *  under a Gravity Sphere came out as `[]` and never flew again, however long
+ *  after the Sphere died. Same for a Shelkin Brownie strip, and for every
+ *  keyword a continuous `ability-loss` had cleared.
+ *
+ *  Two moments reach it, and the formula is exact at both:
+ *
+ *  - a state PERSISTED BEFORE PRD #2064 S3, whose `staticAbilities` still holds
+ *    the base plus every grant the old materialising path had pushed, with
+ *    `removedKeywords` / `temporaryRemovedKeywords` holding what the strippers
+ *    had spliced out of it;
+ *  - a permanent whose base was CLEARED from below layer 6 (an identity swap, a
+ *    CR 614.12c body / anchor choice) while grants and removals were live. Here
+ *    the records are this module's own derived output, which is the same
+ *    arithmetic read the other way.
+ *
+ *  A `suppressed` grant — a pre-slice row that never reached the multiset — took
+ *  no occurrence and gives none back. Layer 4 has the same shape and the same
+ *  reason: `capturePrintedSubtypes` (`gre/state.ts`) filters out subtypes a live
+ *  `subtype-add` put there. This goes with the field when S6 deletes it. */
 function captureLayer6Base(card: CardInstanceState): string[] {
-    const grants = card.grantedStaticAbilities;
-    if (!grants?.length) return [...card.staticAbilities];
     const base = [...card.staticAbilities];
-    for (const grant of grants) {
+    // Removals first, then grants: a removal and a grant of the SAME keyword
+    // must not cancel each other out of the reconstruction by ordering
+    // accident (the grant's `splice` would otherwise eat the occurrence the
+    // removal just restored, leaving the base one short).
+    for (const removal of card.removedKeywords ?? []) {
+        base.push(removal.keyword);
+    }
+    for (const removal of card.temporaryRemovedKeywords ?? []) {
+        base.push(removal.keyword);
+    }
+    for (const grant of card.grantedStaticAbilities ?? []) {
         if (grant.suppressed) continue;
         const index = base.indexOf(grant.ability);
         if (index !== -1) base.splice(index, 1);
@@ -284,7 +294,17 @@ function layer6EffectsFor(
 
     const pushSourceEffects = (
         source: PermanentView,
-        effects: readonly StaticEffect[]
+        effects: readonly StaticEffect[],
+        /** CR 114.3 — an emblem has abilities like any other object but is not
+         *  a permanent, so the engine mints it no `staticSeq` (`EmblemInstance`
+         *  has no such field). Without a stamp of its own it would be skipped
+         *  by the gate below and every emblem-granted keyword would ship inert,
+         *  with no test to red. Emblems are created by a resolution and never
+         *  leave, so array order IS their timestamp — the same derived-ordinal
+         *  proxy layer 7 uses for the provenances that carry no minted stamp
+         *  (`gre/layers.ts`'s `DERIVED_TIMESTAMP_BASE`). Kept far below every
+         *  minted stamp so an emblem never outranks a real one. */
+        derivedSeq?: number
     ): void => {
         // CR 613.7a — a continuous effect generated by a static ability has the
         // timestamp of the object the ability is on. `staticSeq` is that stamp,
@@ -301,7 +321,7 @@ function layer6EffectsFor(
         // applying at a moment the engine never recorded. In practice this is
         // reachable only from a hand-built fixture; PRD #2064 S6, where the
         // producers write entries with their own stamps, removes the concept.
-        const seq = (source as { staticSeq?: number }).staticSeq;
+        const seq = derivedSeq ?? (source as { staticSeq?: number }).staticSeq;
         if (seq === undefined) return;
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
@@ -361,12 +381,18 @@ function layer6EffectsFor(
     }
     // CR 114 (issue #1221) — command-zone emblems contribute source-less,
     // owner-scoped statics through the same predicate walk.
+    let emblemOrdinal = EMBLEM_TIMESTAMP_BASE;
     for (const emblem of state.emblems ?? []) {
         const synthetic = emblemAsStaticSource(emblem);
-        pushSourceEffects(synthetic, sourceStaticEffects(synthetic));
+        pushSourceEffects(
+            synthetic,
+            sourceStaticEffects(synthetic),
+            emblemOrdinal++
+        );
     }
 
     const instance = target as unknown as CardInstanceState;
+    const granted = instance.grantedStaticAbilities ?? [];
 
     // CR 122.1b — a keyword counter causes the object to gain that keyword. The
     // gate IS the counter: no unapply site is needed, because a count of zero
@@ -397,7 +423,6 @@ function layer6EffectsFor(
     // here: those are the source provenance, re-derived from the live board
     // above, and a persisted state written before this slice can still carry
     // them.
-    const granted = instance.grantedStaticAbilities ?? [];
     for (let index = 0; index < granted.length; index++) {
         const grant = granted[index];
         if (grant.auraId || grant.counterType) continue;
@@ -447,7 +472,68 @@ function layer6EffectsFor(
     // (Titania's Song's `ability-loss` static effect) is derived from the board
     // walk above and is deliberately absent from this ledger, so no strip is
     // counted twice.
-    const holds = instance.abilityLossHolds ?? [];
+    // A `trustLedger` derivation has NO BOARD (see
+    // `recomposeLayer6ForInstance`), so the source-provenance effects it cannot
+    // walk to are read off the DERIVED OUTPUT of the last real sync instead:
+    // the `auraId`-keyed grant rows and `abilitiesSuppressedBy`. That is not
+    // reading input from output — it is last-known information (CR 608.2h's
+    // shape), the only record of a fact the synthetic view cannot see, and it
+    // is exactly what the `replayLayer6Abilities` this module replaced read.
+    // The next `syncLayer6` re-derives all of it from the real board.
+    if (trustLedger) {
+        for (let index = 0; index < granted.length; index++) {
+            const grant = granted[index];
+            if (!grant.auraId) continue;
+            entries.push({
+                id: `ce6-lki-grant-${target.id}-${index}`,
+                layer: 6,
+                timestamp: grant.seq ?? 0,
+                expiry: { kind: "source", sourceId: grant.auraId },
+                affected: { kind: "instances", instanceIds: [target.id] },
+                payload: { kind: "keyword-grant", keyword: grant.ability },
+                characteristicDefining: false,
+            });
+        }
+        // A removal recorded by a BLANKET stripper is already represented by
+        // that stripper's own ability-loss entry below; replaying it as a
+        // targeted removal too would take the occurrence twice.
+        const blanket = new Set(
+            (instance.abilitiesSuppressedBy ?? []).map((s) => s.sourceId)
+        );
+        const removals = instance.removedKeywords ?? [];
+        for (let index = 0; index < removals.length; index++) {
+            const removal = removals[index];
+            if (blanket.has(removal.sourceId)) continue;
+            entries.push({
+                id: `ce6-lki-remove-${target.id}-${index}`,
+                layer: 6,
+                timestamp: removal.seq ?? 0,
+                expiry: { kind: "source", sourceId: removal.sourceId },
+                affected: { kind: "instances", instanceIds: [target.id] },
+                payload: { kind: "keyword-remove", keyword: removal.keyword },
+                characteristicDefining: false,
+            });
+        }
+    }
+
+    // The resolving arm's LEDGER. Under `trustLedger` the derived record of
+    // BOTH arms is unioned in, because a boardless derivation cannot re-walk to
+    // the continuous one; on a synced board that record already contains every
+    // ledger hold, so the union is idempotent (same argument as
+    // `abilityLossTimestamp`'s two reads). Deduped on `sourceId`+`seq`, which
+    // is the identity of a hold — two holds from one source at one timestamp
+    // are one effect (CR 611.2c).
+    const ledger = instance.abilityLossHolds ?? [];
+    let holds = ledger;
+    if (trustLedger) {
+        const seen = new Set(ledger.map((h) => `${h.sourceId}|${h.seq}`));
+        holds = [
+            ...ledger,
+            ...(instance.abilitiesSuppressedBy ?? []).filter(
+                (h) => !seen.has(`${h.sourceId}|${h.seq}`)
+            ),
+        ];
+    }
     for (let index = 0; index < holds.length; index++) {
         const hold = holds[index];
         if (
@@ -517,6 +603,15 @@ function layer6TieRank(entry: ContinuousEffect): number {
     return kind === "keyword-remove" || kind === "ability-loss" ? 0 : 1;
 }
 
+/** CR 613.7 timestamp floor for command-zone emblems, which the engine mints no
+ *  `staticSeq` for (CR 114.3 — an emblem is not a permanent). Far below every
+ *  minted stamp, so an emblem's grant never outranks a real one and can never
+ *  interleave with the board's own ordering; among themselves, emblems order by
+ *  creation (array) order. Twin of `DERIVED_TIMESTAMP_BASE` in `gre/layers.ts`,
+ *  and it goes the same way in PRD #2064 S6, when producers write entries with
+ *  their own stamps. */
+const EMBLEM_TIMESTAMP_BASE = -1_000_000_000;
+
 /** The sentinel `sourceId` a hold generated by a RESOLVING ability carries
  *  (CR 611.2c): no live permanent's instance id can ever match it, so nothing
  *  releases it. Mirrors the constant `gre/state.ts` writes. */
@@ -560,6 +655,13 @@ function layer6ExpiryLive(
         }
         case "duration":
         case "instance-duration":
+            // NOT checked here, and NOT yet ticked either: the phase-boundary
+            // cleanup (`gre/phases.ts`) ticks the instance-borne records, and
+            // nothing splices `state.continuousEffects`. A STORED entry with a
+            // duration expiry would therefore apply forever, which is why
+            // `addContinuousEffect` rejects one (`gre/state.ts`) — PRD #2064 S6
+            // moves the countdown in here and lifts the restriction.
+            return true;
         case "indefinite":
             return true;
     }
@@ -664,18 +766,27 @@ function resolveLayer6Action(
         return undefined;
     }
     switch (effect.kind) {
-        case "keyword-grant":
+        case "keyword-grant": {
             // The parameter is RE-DERIVED here, at read time: `keywordFor`
             // computes the keyword from the live source and target (a
             // protection colour set that follows a board change), while a
             // fixed-output grant returns its declared `keyword` (ADR 0050's
             // fixed / computed pair, as `subtype-set` already has).
-            return {
-                kind: "keyword-grant",
-                keyword:
-                    effect.keywordFor?.(target, source, STATIC_EFFECT_CTX) ??
-                    effect.keyword,
-            };
+            if (!effect.keywordFor) {
+                return { kind: "keyword-grant", keyword: effect.keyword };
+            }
+            // `null` is the computed form's "grant NOTHING this evaluation",
+            // exactly as `subtypesFor` returning null leaves the target
+            // untouched — distinguished from `undefined` (no computed form at
+            // all) so it cannot silently fall back to the fixed keyword.
+            const computed = effect.keywordFor(
+                target,
+                source,
+                STATIC_EFFECT_CTX
+            );
+            if (computed === null) return undefined;
+            return { kind: "keyword-grant", keyword: computed };
+        }
         case "keyword-remove":
             return { kind: "keyword-remove", keyword: effect.keyword };
         case "ability-loss":
@@ -860,20 +971,68 @@ export function recomposeLayer6ForInstance(card: CardInstanceState): void {
         trustInstanceLedger: true,
     });
     card.staticAbilities = result.staticAbilities;
-    card.abilitiesSuppressedBy =
-        result.abilitiesSuppressedBy.length > 0
-            ? result.abilitiesSuppressedBy
-            : undefined;
     card.removedKeywords =
         result.removedKeywords.length > 0 ? result.removedKeywords : undefined;
-    // The synthetic board holds only this permanent, so no source-provenance
-    // grant is derivable here; the residue rows are left exactly as they are
-    // and the next `syncLayer6` rebuilds the source half.
-    const keptStatic = (card.grantedStaticAbilities ?? []).filter(
-        (g) => !g.auraId
+    // `abilitiesSuppressedBy` and the `auraId`-keyed grant rows are NOT
+    // rewritten here: the synthetic board cannot re-derive either, and they are
+    // the only surviving record of what the real board is contributing — the
+    // walk above just read them as such. Clearing them would silently end a
+    // Titania's Song strip and drop every anthem keyword until the next sync,
+    // which is a window two production paths could read in (the search's
+    // `turn-face-up` leaf, and a mana ability's `payRemoveCounterCost`).
+}
+
+/** One-shot migration for a state persisted BEFORE PRD #2064 S3, where
+ *  `abilitiesSuppressedBy` was the LEDGER of every "loses all abilities" hold
+ *  rather than derived output.
+ *
+ *  The two arms have to be told apart, and only the board can do it:
+ *
+ *  - a hold whose source is a live permanent with an `ability-loss` static
+ *    ability (Titania's Song, Blood Moon) is the CONTINUOUS arm. It is
+ *    re-derived from the board at every read, so it must NOT be seeded — a
+ *    ledger row would make it outlive its own `applies` predicate, and the
+ *    Song would keep an artifact blank after it stopped being a creature.
+ *  - every other hold is the RESOLVING arm (CR 611.2c's `"indefinite"`
+ *    sentinel, or CR 611.2b keyed to a resolving permanent that declares no
+ *    such static ability — Tishana's Tidebinder). Nothing re-derives those, so
+ *    the ledger is the only place they can live.
+ *
+ *  Runs exactly once per permanent, in the window where `baseStaticAbilities`
+ *  was still absent: afterwards `abilitiesSuppressedBy` is this module's own
+ *  output and re-seeding from it would make every continuous strip indefinite. */
+function migrateLegacyAbilityLossHolds(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    const holds = card.abilitiesSuppressedBy;
+    if (!holds?.length || card.abilityLossHolds) return;
+    const view = state as unknown as LayerStateView;
+    const resolvingArm = holds.filter(
+        (hold) => !declaresApplyingAbilityLoss(view, hold.sourceId, card)
     );
-    card.grantedStaticAbilities =
-        keptStatic.length > 0 ? keptStatic : undefined;
+    if (resolvingArm.length > 0) card.abilityLossHolds = resolvingArm;
+}
+
+/** Whether `sourceId` names a live battlefield permanent whose `ability-loss`
+ *  static ability currently applies to `target` — i.e. whether the board walk
+ *  reproduces this hold on its own. */
+function declaresApplyingAbilityLoss(
+    state: LayerStateView,
+    sourceId: string,
+    target: CardInstanceState
+): boolean {
+    const source = findPermanent(state, sourceId);
+    if (!source) return false;
+    return sourceStaticEffects(source).some(
+        (effect) =>
+            effect.kind === "ability-loss" &&
+            effect.applies(
+                target as unknown as PermanentView,
+                source,
+                STATIC_EFFECT_CTX
+            )
+    );
 }
 
 /** Writes layer 6's derivation onto every battlefield permanent as DERIVED
@@ -917,9 +1076,13 @@ export function syncLayer6(
     const derived: { card: CardInstanceState; result: Layer6Derivation }[] = [];
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            // Capture the base BEFORE the first write, while `staticAbilities`
-            // still holds it alone (see `layer6Base`).
+            // A card the engine has never derived for is either brand new or
+            // came out of a state PERSISTED BEFORE this slice. Both are
+            // handled here, and only here, because both need the BOARD to be
+            // read correctly (see `migrateLegacyAbilityLossHolds`).
+            const legacy = card.baseStaticAbilities === undefined;
             ensureLayer6Base(card);
+            if (legacy) migrateLegacyAbilityLossHolds(state, card);
             derived.push({
                 card,
                 result: deriveLayer6(view, card as unknown as PermanentView),
