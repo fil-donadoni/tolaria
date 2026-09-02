@@ -646,12 +646,53 @@ function manaDevelopmentTerm(
  *  player who is short: `evaluate` takes my score minus the opponent's, so
  *  milling THEM raises my score and milling MYSELF lowers it, with no
  *  special-casing of who is who. */
-function libraryTerm(player: PlayerState, weights: EvalWeights): number {
+/** Phases in which the ACTIVE player has not yet taken their draw step, so the
+ *  next draw in the game is theirs. Spelled out rather than imported: the phase
+ *  order is a module-local const in `phases.ts`, and this only needs the cut at
+ *  DRAW. CR 103.7a's skipped first draw is deliberately ignored — this is a
+ *  leaf heuristic, and turn one is not a decking endgame. */
+const PHASES_BEFORE_ACTIVE_DRAW: ReadonlySet<string> = new Set([
+    "MULLIGAN",
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+]);
+
+/** Whose draw step comes NEXT (CR 504.1). The whole reason decking is a RACE
+ *  rather than a resource: with both libraries equally short, the player who
+ *  draws first is the one who loses. */
+function playerDrawingNext(state: GameState): string | undefined {
+    const active = state.activePlayerId;
+    if (PHASES_BEFORE_ACTIVE_DRAW.has(state.phase)) return active;
+    return state.players.find((p) => p.id !== active)?.id;
+}
+
+function libraryTerm(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): number {
     const remaining = player.library.length;
-    if (remaining >= weights.deckingHorizon) return 0;
-    const deficit = weights.deckingHorizon - remaining;
+    // Half a draw of handicap to whoever draws FIRST, so two equally short
+    // libraries no longer cancel exactly: the player about to draw is strictly
+    // worse off, which is the truth (CR 104.3c) and is what stops the bot
+    // treating "mill us both out" as neutral.
+    const effective =
+        remaining + (playerDrawingNext(state) === player.id ? 0 : 0.5);
+    if (effective >= weights.deckingHorizon) return 0;
+    const deficit = weights.deckingHorizon - effective;
     return -weights.deckingWeight * deficit * deficit;
 }
+// CALIBRATION. `deckingWeight` is sized so this term's whole range —
+// `deckingHorizon² · deckingWeight` ≈ 216 — stays well inside
+// `weights.materialFull` (500), the cap `materialSignal` (`search.ts`) clips
+// at. At the original 4 the range was 576, so on a WON leaf the opponent's
+// empty-library penalty alone saturated the band: every continuation mapped to
+// the identical reward 1.0 and the search could not tell "keep my own library"
+// from "mill myself too". Measured on a 9/9 Underworld Breach board,
+// `v - winScore` now runs +384.6 → +348.6 → +285.6 → +228.6 → +195.6 as the
+// bot's own library is spent, so the won band orders them and surplus storm
+// copies stop being pointed at their own controller by rollout noise.
 
 /** CR 702.138 — a graveyard is a RESOURCE while something makes it castable.
  *
@@ -723,7 +764,7 @@ function playerTerms(
         mana: 0,
         manaDevelopment: 0,
         flexibility: 0,
-        library: libraryTerm(player, weights),
+        library: libraryTerm(state, player, weights),
         graveyard: graveyardEngineTerm(player, weights),
     };
 
@@ -848,7 +889,7 @@ export function evaluate(
         dangerClock(state, playerId) +
         declaredCombatDelta(state, me.id, weights) +
         lethalUnblockedDelta(state, playerId, weights) +
-        deckOutDelta(me, opp, weights)
+        deckOutDelta(state, me, opp, weights)
     );
 }
 
@@ -870,13 +911,27 @@ export function evaluate(
  *  on whose draw step comes first, which this leaf-level term does not model.
  *  Zero is the honest answer, and the position is vanishingly rare. */
 function deckOutDelta(
+    state: GameState,
     me: PlayerState,
     opp: PlayerState,
     weights: EvalWeights
 ): number {
     const meEmpty = me.library.length === 0;
     const oppEmpty = opp.library.length === 0;
-    if (meEmpty === oppEmpty) return 0;
+    if (!meEmpty && !oppEmpty) return 0;
+    if (meEmpty && oppEmpty) {
+        // BOTH empty is decided by WHOSE DRAW COMES NEXT (CR 504.1), never
+        // treated as neutral. An earlier version returned 0 here, reasoning the
+        // position was vanishingly rare — it is not: it is the exact endgame a
+        // mill deck produces. Returning 0 made the evaluation collapse from the
+        // won band (≈ +1 000 718 on a measured board) to ≈ +298 the moment the
+        // bot milled itself out alongside its opponent, so it won only because
+        // the human happened to draw first, having self-targeted far more storm
+        // copies than the kill needed.
+        const next = playerDrawingNext(state);
+        if (next === undefined) return 0;
+        return next === opp.id ? weights.winScore : -weights.winScore;
+    }
     return oppEmpty ? weights.winScore : -weights.winScore;
 }
 

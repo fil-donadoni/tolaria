@@ -137,7 +137,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     winScore: 1_000_000,
     lifeWeight: 8,
     deckingHorizon: 12,
-    deckingWeight: 4,
+    deckingWeight: 1.5,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
     permanentWeight: 5,

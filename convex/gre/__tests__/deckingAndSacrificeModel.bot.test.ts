@@ -155,18 +155,87 @@ describe("evaluate sees the library (CR 104.3c / 704.5b)", () => {
         expect(evaluate(mirror, meId)).toBeLessThan(-WIN_SCORE / 2);
     });
 
-    it("cancels when BOTH libraries are equally short — the term is a margin, not a bias", () => {
-        const me = seatPlayerId(board([], 20), "me");
-        const scores = [20, 12, 6, 1].map((n) =>
-            evaluate(
-                board(
-                    [{ name: "Black Lotus", owner: "me", zone: "battlefield" }],
-                    n
-                ),
-                me
-            )
-        );
-        for (const s of scores) expect(s).toBe(scores[0]);
+    // Decking is a RACE, not a resource: two equally short libraries must NOT
+    // cancel, because the player who draws first is the one who loses (CR
+    // 504.1 / 104.3c). While they did cancel, milling BOTH players read as
+    // neutral and the bot spent surplus storm copies on itself.
+    it("does not cancel when both libraries are equally short — the player drawing LATER is ahead", () => {
+        const at = (n: number) => {
+            const s = board(
+                [{ name: "Black Lotus", owner: "me", zone: "battlefield" }],
+                n
+            );
+            // The bot is the active player, past its draw step, so the
+            // OPPONENT draws next and the bot is ahead in the race.
+            s.activePlayerId = seatPlayerId(s, "me");
+            return evaluate(s, seatPlayerId(s, "me"));
+        };
+        const scores = [12, 9, 5, 2, 1].map(at);
+        for (let i = 1; i < scores.length; i++) {
+            expect(scores[i]).toBeGreaterThan(scores[i - 1]);
+        }
+    });
+
+    it("decides BOTH libraries empty by whose draw comes next, never as neutral", () => {
+        const bothEmpty = (activeIsMe: boolean) => {
+            const s = board(
+                [{ name: "Black Lotus", owner: "me", zone: "battlefield" }],
+                20
+            );
+            const me = seatPlayerId(s, "me");
+            const opp = s.players.find((p) => p.id !== me)!;
+            s.players.find((p) => p.id === me)!.library = [];
+            opp.library = [];
+            // PRECOMBAT_MAIN is past the active player's draw step, so the
+            // NON-active player draws next and is the one who loses.
+            s.activePlayerId = activeIsMe ? me : opp.id;
+            return evaluate(s, me);
+        };
+        expect(bothEmpty(true)).toBeGreaterThan(WIN_SCORE / 2);
+        expect(bothEmpty(false)).toBeLessThan(-WIN_SCORE / 2);
+    });
+
+    // THE REGRESSION THIS SECTION EXISTS FOR. Once the opponent is decked the
+    // position is won, but two won positions must still be ORDERED by how
+    // safely they win (issue #138) — otherwise `materialSignal` clips them to
+    // the same reward, the search cannot tell "keep my library" from "mill
+    // myself too", and surplus storm copies get pointed at their own
+    // controller by rollout noise. Observed in a real game: the bot emptied
+    // both libraries and won only because the human drew first.
+    //
+    // SCOPE, and it is load-bearing: this board carries NO graveyard engine.
+    // Spending your own library is NOT universally a loss — with a
+    // play-from-graveyard engine out it converts a library card into escape
+    // fodder, which is the whole first half of a Breach line. That direction is
+    // asserted by "self-milling is still PREFERRED..." below; the two together
+    // say what is actually true, and neither may be deleted alone.
+    it("keeps the WON band ordered — on a board with NO graveyard engine, spending my own library is worth less", () => {
+        const w = DEFAULT_EVAL_WEIGHTS;
+        const won = (myLib: number) => {
+            const s = board(
+                [{ name: "Black Lotus", owner: "me", zone: "battlefield" }],
+                20
+            );
+            const me = seatPlayerId(s, "me");
+            const opp = s.players.find((p) => p.id !== me)!;
+            opp.library = [];
+            const mine = s.players.find((p) => p.id === me)!;
+            mine.library = mine.library.slice(0, myLib);
+            s.activePlayerId = me;
+            return evaluate(s, me);
+        };
+        const scores = [9, 6, 3, 1, 0].map(won);
+        // Every one of them is a win...
+        for (const v of scores) expect(v).toBeGreaterThan(WIN_SCORE / 2);
+        // ...strictly ordered, most own library first...
+        for (let i = 1; i < scores.length; i++) {
+            expect(scores[i]).toBeLessThan(scores[i - 1]);
+        }
+        // ...and the whole spread sits INSIDE the band `materialSignal` clips
+        // at, which is what makes the ordering visible to the search at all.
+        for (const v of scores) {
+            expect(Math.abs(v - WIN_SCORE)).toBeLessThan(w.materialFull);
+        }
     });
 });
 
@@ -209,6 +278,60 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         expect(at(3)).toBe(zero);
         expect(at(4)).toBe(zero + w.graveyardEngineWeight);
         expect(at(8)).toBe(zero + 2 * w.graveyardEngineWeight);
+    });
+
+    // THE COUNTERWEIGHT to "spending my own library is worth less". Self-milling
+    // is a COST in cards and a GAIN in fodder, and with an engine out the gain
+    // wins whenever the library is healthy — that is the first half of a real
+    // Underworld Breach line (some Brain Freeze copies at your OWN face, to
+    // fuel the escapes that build the storm count for the copies that kill).
+    //
+    // Measured with a 40-card library: pointing a 3-card mill at MYSELF scores
+    // 178.0 against 118.0 for pointing it at the opponent, because the library
+    // term is exactly zero that far above the horizon while the unlocked escape
+    // pays `graveyardEngineWeight`. This test exists so a future re-calibration
+    // of the decking weights cannot silently make self-milling never worth it.
+    it("self-milling is still PREFERRED to milling the opponent while the library is healthy", () => {
+        const mill = (myLib: number, oppLib: number, gy: number): number => {
+            const s = board(
+                [
+                    { name: "Black Lotus", owner: "me", zone: "battlefield" },
+                    {
+                        name: "Underworld Breach",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                    ...(gy > 0
+                        ? [
+                              {
+                                  name: "Lightning Bolt",
+                                  owner: "me" as const,
+                                  zone: "graveyard" as const,
+                                  count: gy,
+                              },
+                          ]
+                        : []),
+                ],
+                60
+            );
+            const me = seatPlayerId(s, "me");
+            const mine = s.players.find((p) => p.id === me)!;
+            const opp = s.players.find((p) => p.id !== me)!;
+            mine.library = mine.library.slice(0, myLib);
+            opp.library = opp.library.slice(0, oppLib);
+            s.activePlayerId = me;
+            return evaluate(s, me);
+        };
+        // A 3-card mill from a graveyard of 5, both libraries healthy: at
+        // MYSELF the graveyard reaches 8 (a second escape unlocked); at the
+        // OPPONENT their library drops by 3 and my graveyard does not move.
+        const atSelf = mill(37, 40, 8);
+        const atOpponent = mill(40, 37, 5);
+        expect(atSelf).toBeGreaterThan(atOpponent);
+        // And it is the UNLOCKED CAST that pays, not the fodder as such: the
+        // same self-mill into a graveyard of 3 — one short of Breach's
+        // four-cards-per-cast — buys nothing and must not be preferred.
+        expect(mill(37, 40, 3)).toBeLessThanOrEqual(mill(40, 37, 0));
     });
 
     it("is capped, so an enormous graveyard cannot dominate the leaf", () => {

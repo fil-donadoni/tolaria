@@ -35,7 +35,7 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             // `deckingHorizon`, so these move no position that is not near a
             // deck-out.
             deckingHorizon: 12,
-            deckingWeight: 4,
+            deckingWeight: 1.5,
             // CR 702.138 — the graveyard-as-resource pair, added with the
             // `graveyard` eval term. Zero contribution unless a controlled
             // permanent declares `grantsEscapeToOwnGraveyard`.
