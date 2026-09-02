@@ -4,6 +4,8 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 /** Bitter Triumph — {1}{B} Instant. "As an additional cost to cast this spell,
  *  discard a card or pay 3 life. Destroy target creature or planeswalker."
@@ -47,32 +49,129 @@ export const bitterTriumph: CardDefinition = {
     effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
-// TODO(issue #679 stub — Deep-Cavern Bat's leave trigger needs to remember
-// ONE specific card this creature exiled (arbitrarily many turns earlier)
-// and move THAT card to its owner's hand when Deep-Cavern Bat leaves.
-// `SpellContext` has no exile-zone reader (`getHandCards`/`getBattlefieldIds`
-// exist; no `getExileIds`) and no generic per-instance scratch note that
-// stores a card id (only `addCounter`, numeric). The one channel that DOES
-// carry a value from an ETB exile to a later trigger,
-// `exileWithAttachments`/`returnExiledForSource` (ADR 0028), is wired only
-// for a return-to-BATTLEFIELD host (Tawnos's Coffin shape) — not a
-// return-to-hand. `scheduleDelayedTrigger`'s `timing: "leaves-battlefield"`
-// (issue #731/#916) looked promising but is explicitly THIS-TURN-scoped —
-// "every `leaves-battlefield` instance is this-turn scoped... purged at
-// CLEANUP" (convex/gre/phases.ts) — wrong semantics for an "until this
-// leaves the battlefield" duration that must survive across turns. Re-
-// audited under the #1305 residue tranche (parent PRD #620) — the gap still
-// stands (2026-07-18). Stop-and-issue per gre-development.md; tracked-by:
-// #1362.
-// export const deepCavernBat: CardDefinition = {
-//     id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
-//     name: "Deep-Cavern Bat",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bat"],
-//     power: 1,
-//     toughness: 1,
-// };
-
-export {};
+// Deep-Cavern Bat — {1}{B} Creature — Bat, 1/1 (LCI, issue #2523).
+//
+// Elite Spellbinder's script (`stx/white.ts`) minus its `grantCastFromExile`
+// clause, plus the linked-exile round trip Tidehollow Sculler ships
+// (`ala/multicolor.ts`, issue #2522). No new Op, no new `SpellContext`
+// primitive, no `resolve()`:
+//
+//   - `lookHand` (CR 400.2, issue #2383) — the PRIVATE whole-hand look. Not
+//     redundant with the pick below: the look is its OWN game action and
+//     still happens when the pick never raises (an all-lands hand matches the
+//     nonland filter nowhere, so no choice is offered per CR 608.2b and the
+//     Bat has still looked), and the knowledge it grants OUTLIVES the pick
+//     window that `handPickZoneOwner` opens (issue #1698). It is a PRIVATE
+//     look, so it must not become the Thoughtseize template's public
+//     `reveal` (CR 701.20a): the hand is a hidden zone (CR 400.2) and the
+//     grant is per-viewer (`markKnown`, ADR 0026).
+//   - `choice` `choose-hand-card` — "You MAY exile" is an OPTIONAL pick,
+//     `count: { min: 0, max: 1 }` (CR 601.2c), chooser the controller and
+//     zone owner the announced opponent (`zoneOwnerId`).
+//   - `moveZone` `cards` shape, `from: "hand"` -> `to: "exile"`, with
+//     `linkToSource: true` (issue #1947) stamping `exiledBySourceId` = this
+//     creature's own instance (CR 607 linked abilities).
+//   - `leftTrigger` running the sixth `moveZone` shape,
+//     `target: { exiledWithSource: true }` -> `to: "hand"` (issue #1323),
+//     which routes the card out of the OWNER's exile pile into the OWNER's
+//     hand (CR 400.7) — the exiled card belongs to the opponent, not to the
+//     Bat's controller.
+//
+// "Target opponent" is a REAL target announced when the ETB trigger goes on
+// the stack (CR 603.3d, the issue #1193 machinery), not a resolution-time
+// choice.
+//
+// DOCUMENTED CR DIVERGENCE (a general mechanism for it is out of scope here,
+// see the last paragraph) — the return is modelled as a leaves-the-
+// battlefield TRIGGER, and strictly it is not one. CR 610.3: "Some one-shot
+// effects cause an object to change zones 'until' a specified event occurs. A
+// second one-shot effect is created immediately after the specified event.
+// This second one-shot effect returns the object to its previous zone." A
+// one-shot effect created that way is not an ability, so it never uses the
+// stack and cannot be responded to; modelling it as a trigger puts it on the
+// stack, where it can be. This repo
+// already models the identical "until this ~ leaves the battlefield" wording
+// that way — Banishing Light (`jou/white.ts`) — so following the established
+// precedent is the right call for this card rather than inventing a second
+// mechanism. A general untriggered CR 610.3 "until" return is out of scope
+// for this card — it is a foundation, not a card-sized change. (Contrast
+// Tidehollow Sculler, which prints two real triggered abilities and so has no
+// divergence at all.)
+//
+// No `condition` on the leave trigger: the pick is optional, so the Bat
+// routinely leaves with nothing linked, and the return is then a clean CR
+// 608.2b no-op. Banishing Light's `holdsExileBundle` gate reads the
+// `exileHeld` bundle store, which this card never populates.
+//
+// Visibility: entering exile clears `knownTo` (ADR 0026 public-zone rule), so
+// the exiled card is face up to BOTH players — correct per CR 406.3, since
+// the Bat's text never says "face down". The private look must not leak into
+// that projection, and the hand cards that were NOT exiled stay known to the
+// looker alone.
+//
+// The Oracle compiler has no grammar for either printed line yet, so Guard C
+// is satisfied by declaring the fragments rather than by a round trip
+// (PRD #2693).
+// compiler-gap: When this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield. (#2693)
+// compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
+export const deepCavernBat: CardDefinition = {
+    id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
+    name: "Deep-Cavern Bat",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\nWhen this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield.",
+    manaCost: { generic: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Bat"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "deep-cavern-bat-exile",
+            oracleText:
+                "When this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield.",
+            scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                { op: "lookHand", player: { target: 0 } },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeType: "Land" },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may exile a nonland card from that player's hand.",
+                    bind: "$taken",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$taken" },
+                    player: { target: 0 },
+                    from: "hand",
+                    to: "exile",
+                    linkToSource: true,
+                },
+            ],
+        }),
+        leftTrigger({
+            id: "deep-cavern-bat-return",
+            oracleText:
+                "When this creature leaves the battlefield, return the exiled card to its owner's hand.",
+            scope: "self",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    to: "hand",
+                },
+            ],
+        }),
+    ],
+};
