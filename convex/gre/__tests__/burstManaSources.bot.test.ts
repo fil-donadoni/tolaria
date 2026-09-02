@@ -49,6 +49,7 @@ const ANCESTRAL = getCardByName("Ancestral Recall").id; // {U}
 const BRAIN_FREEZE = getCardByName("Brain Freeze").id; // {1}{U}
 const COUNTERSPELL = getCardByName("Counterspell").id; // {U}{U}
 const LORD_OF_ATLANTIS = getCardByName("Lord of Atlantis").id; // {U}{U}, no targets
+const CITY_OF_BRASS = getCardByName("City of Brass").id; // {T}: Add one of any color
 const FIREBALL = getCardByName("Fireball").id; // {X}{R}
 
 function permanent(defId: string, id: string): CardInstanceState {
@@ -148,16 +149,20 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
         expect(planManaPayment(state, state.players[0], { X: 3 })).toBeNull();
     });
 
-    // The greedy must not sacrifice a Lotus for a pip a land already covers:
-    // the (rank, colour-count, YIELD) tie-break. On a board of one-mana
-    // sources every yield is 1, so ordinary selection is unchanged.
-    it("spends the Island, not the Lotus, for a single {U}", () => {
+    // The greedy must not sacrifice a Lotus for a pip a cheaper source covers.
+    // The colour-count tie-break alone does not decide this: City of Brass and
+    // Black Lotus both advertise all five colours, so before the YIELD term was
+    // added to the (rank, colour-count, yield) key the pick fell to "first
+    // index wins" and the Lotus went first in the declaration order below. On a
+    // board of one-mana sources every yield is 1, so the new term never fires
+    // and ordinary selection is byte-identical.
+    it("spends the one-mana source, not the Lotus, when both offer the colour", () => {
         const state = position([
             permanent(LOTUS, "lotus"),
-            permanent(ISLAND, "island"),
+            permanent(CITY_OF_BRASS, "city"),
         ]);
         expect(planManaPayment(state, state.players[0], { U: 1 })).toEqual([
-            { cardInstanceId: "island" },
+            { cardInstanceId: "city", manaChoiceIndex: 1 },
         ]);
     });
 
@@ -175,13 +180,14 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
                 permanent(defId, `perm${i}`)
             );
             const state = position(battlefield);
-            for (const cost of [
+            const costs: Record<string, number>[] = [
                 { U: 2 },
                 { U: 3 },
                 { U: 4 },
                 { U: 1, X: 3 },
                 { X: 5 },
-            ]) {
+            ];
+            for (const cost of costs) {
                 const plan = planManaPayment(state, state.players[0], cost);
                 if (plan === null) continue;
                 const tapped = tappedPermanentIds(plan);

@@ -4179,7 +4179,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Incinerate" }],
         },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "burst mana: kills with a two-mana spell off a single Black Lotus". Neither half is meaningful alone (ADR 0070 §1: a `forbidden` entry a never-casting bot also satisfies asserts nothing by itself). One untapped Mox Ruby makes exactly one mana, so {1}{R} cannot be paid and the cast must stay unenumerated.',
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "burst mana: kills with a two-mana spell off a single Black Lotus". Neither half is meaningful alone (ADR 0070 §1: a `forbidden` entry a never-casting bot also satisfies asserts nothing by itself). One untapped Mox Ruby makes exactly one mana, so {1}{R} cannot be paid and the cast must stay unenumerated. Measured under a deliberate break that made the planner floating pool unbounded (issue #3027 proof-of-failure): this half stayed GREEN, because the census (`canPotentiallyPayCost`) refuses the cast before the planner is ever consulted. So what this half pins is that the difference between the two halves is the SOURCE and not an appetite for Incinerate; the PLANNER upper bound is pinned instead by the unit tests in `burstManaSources.bot.test.ts` ("cannot pay a FOURTH pip", "Sol Ring pays {2} off one tap and stops at {3}"), both proven red under that same break.',
     },
 ];
 
