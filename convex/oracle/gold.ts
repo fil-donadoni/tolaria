@@ -550,13 +550,29 @@ export function roundTripCard(definition: CardDefinition): RoundTrip {
             actual,
         };
     }
+    // A closure on the gold side makes the card's BODY incomparable and
+    // nothing else — see `BODY_KEYS`. Testing the sentinel against the WHOLE
+    // serialised projection exempted the entire card, which is how Desert
+    // Twister's `type: "any"` for "target permanent" went unseen: its body is
+    // the `effect: "destroy-target"` shorthand, so the sentinel was present
+    // and every other field rode along under it. The verdict is therefore
+    // taken on the card MINUS its body, unless the sentinel SURVIVES that
+    // strip — a closure nested inside an ability, which this projection cannot
+    // separate from that ability's comparable fields.
     if (expected.includes(CLOSURE_SENTINEL)) {
-        return {
-            verdict: { ok: true, kind: "incomparable" },
-            outcome,
-            expected,
-            actual,
-        };
+        const bodilessExpected = withoutBody(behaviouralProjection(definition));
+        if (
+            bodilessExpected.includes(CLOSURE_SENTINEL) ||
+            bodilessExpected ===
+                withoutBody(behaviouralProjection(expandedActual))
+        ) {
+            return {
+                verdict: { ok: true, kind: "incomparable" },
+                outcome,
+                expected,
+                actual,
+            };
+        }
     }
     return {
         verdict: {
@@ -605,39 +621,10 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         slots[slotKey].total += 1;
         slots[slotKey].accepted += 1;
 
-<<<<<<< HEAD
         if (verdict.kind === "equal") {
-||||||| parent of 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
-        const expected = JSON.stringify(behaviouralProjection(definition));
-        const actual = JSON.stringify(behaviouralProjection(expandedActual));
-        if (expected === actual) {
-=======
-        const expectedProjection = behaviouralProjection(definition);
-        const actualProjection = behaviouralProjection(expandedActual);
-        const expected = JSON.stringify(expectedProjection);
-        const actual = JSON.stringify(actualProjection);
-        // A closure on the gold side makes the BODY incomparable and nothing
-        // else, so the verdict is taken on the card MINUS its body — unless
-        // the sentinel survives that strip, which means the closure is nested
-        // inside an ability and this harness cannot separate it from the
-        // ability's comparable fields.
-        const bodilessExpected = withoutBody(expectedProjection);
-        const closureIsNested = bodilessExpected.includes(CLOSURE_SENTINEL);
-        const incomparableBody =
-            expected.includes(CLOSURE_SENTINEL) &&
-            (closureIsNested ||
-                bodilessExpected === withoutBody(actualProjection));
-        if (expected === actual) {
->>>>>>> 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
             buckets[bucket].equal += 1;
             slots[slotKey].equal += 1;
-<<<<<<< HEAD
         } else if (verdict.kind === "incomparable") {
-||||||| parent of 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
-        } else if (expected.includes(CLOSURE_SENTINEL)) {
-=======
-        } else if (incomparableBody) {
->>>>>>> 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
             buckets[bucket].incomparable += 1;
             slots[slotKey].incomparable += 1;
             incomparable.push({
