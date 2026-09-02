@@ -49,6 +49,27 @@
  * is no behavioural evidence to gather, and the card is reported as `no-test`
  * so the hole is visible rather than absent.
  *
+ * ── What a green does NOT prove ────────────────────────────────────────────
+ *
+ * Green means the card's own tests pass against the twin. Those tests were
+ * written against the HAND-WRITTEN card, so they cover what the hand-written
+ * card could do — and a twin that is BROADER than the hand-written card passes
+ * them all while behaving differently in cases nobody wrote a test for.
+ *
+ * Desert Twister is the standing example and the reason this paragraph exists.
+ * Its Oracle text is "Destroy target permanent"; the hand-written definition
+ * writes `targetRequirement.type: "any"`, which per CR 115.4 is a creature,
+ * planeswalker, battle or PLAYER, while the compiler emits the six permanent
+ * types (CR 110.4). The twin is therefore both wider (artifacts, enchantments)
+ * and narrower (no players) — and its per-card test, which destroys a creature,
+ * is green either way. So it is reported green here and is NOT retirable.
+ *
+ * The check that catches this is structural, and it already exists: a card that
+ * differs structurally is a `mismatch` in the gold harness
+ * (`KNOWN_DIVERGENCES` in `gold.test.ts`). **Retire on green here AND
+ * `equal`/`incomparable` there** — behavioural evidence closes the gap
+ * structural comparison cannot reach, it does not overrule it.
+ *
  * Usage:
  *   bun scripts/oracle-behavioural.ts              # full report
  *   bun scripts/oracle-behavioural.ts --only "Royal Assassin,Onulet"

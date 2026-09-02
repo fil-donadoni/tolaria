@@ -1810,11 +1810,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // COVERED Op, so the closure is FREE, and the card ships its own
         // `describe("Enduring Tenacity …")` block (`dsk/__tests__/black.test.ts`)
         // — which is exactly what `hasPerCardTest` looks for — so it lands in
-        // AFK-ready. Net: total 474->475, FREE 319->320, AFK-ready 310->311;
-        // need-test, X-only and Op-blocked unchanged. Partition: 320+15+140=475.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(475);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(320);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(311);
+        // AFK-ready. Net: total 474->475, FREE 319->320, AFK-ready 310->311.
+        //
+        // Issue #2703 then REMOVES three, the first closures this census has
+        // lost to the tool rather than to a hand migration. The behavioural
+        // gold harness (`bun run oracle:behavioural`) compiled Fissure, Goblin
+        // Grenade and Royal Assassin from their own Oracle text and ran each
+        // card's own tests against the result; all green, so the closure was a
+        // duplicate of the compiler's Effect Script and was replaced by it.
+        // All three carried a per-card test, so AFK-ready falls with FREE.
+        // (The same change retired five `effect: "destroy-target"` shorthand
+        // cards, which this census never counted — it parses
+        // `resolve()`/`resolveSteps()` bodies only.) Net: total 475->472,
+        // FREE 320->317, AFK-ready 311->308, Op-blocked unchanged at 140.
+        // Partition: 317+15+140=472.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
