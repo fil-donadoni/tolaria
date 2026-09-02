@@ -57,6 +57,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
+import { syncLayer6 } from "./layer6";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
 import type { FaceDownProducer } from "./faceDown";
 import {
@@ -6645,7 +6646,7 @@ export function applyEntersWithCounters(
     // `wasZero` guard.
     for (const type of types) {
         if ((before[type] ?? 0) === 0 && counters[type] > 0) {
-            applyKeywordCounterGrant(card, type);
+            if (state) applyKeywordCounterGrant(state as GameState, card, type);
         }
     }
     return delta;
@@ -7591,18 +7592,18 @@ function unapplySupertypeSetGrant(
     }
 }
 
-/** CR 122.1c / 613.4d (issue #1194) — grants `counterType`'s matching keyword
- *  (if it names one) onto `card`, mirroring `grantStaticAbility`'s mutation-
- *  sync discipline: push the keyword onto `staticAbilities` (so every
- *  existing combat/rules read site sees it with zero changes) and record
- *  provenance on `grantedStaticAbilities` so `unapplyKeywordCounterGrant` can
- *  splice exactly this grant back out when the counter runs out. Idempotent —
- *  a card can never carry two live grants for the same counter type
- *  (`addCounter` only calls this on the 0 → present transition), but the
- *  guard is kept defensive in case a future caller invokes it directly. No-op
- *  when `counterType` doesn't name an implemented keyword (the vast majority
- *  of counter types). */
+/** CR 122.1b / 613.7c (issue #1194, PRD #2064 S3) — records the LEDGER ROW for
+ *  a keyword counter's grant. It no longer grants anything: `deriveLayer6`
+ *  (`gre/layer6.ts`) produces the grant from `card.counters` at every read,
+ *  gated on the counter still being there, so removing the last counter needs
+ *  no unapply and the grant survives its source by construction.
+ *
+ *  The row exists only to carry the ONE thing the counter itself does not
+ *  record: the CR 613.7c layer timestamp of the moment the counter was put on,
+ *  which decides whether the granted keyword survives a "loses all abilities"
+ *  that resolved before it. */
 function applyKeywordCounterGrant(
+    state: GameState,
     card: CardInstanceState,
     counterType: string
 ): void {
@@ -7612,10 +7613,9 @@ function applyKeywordCounterGrant(
         (g) => g.counterType === counterType
     );
     if (already) return;
-    card.staticAbilities = [...card.staticAbilities, keyword];
     card.grantedStaticAbilities = [
         ...(card.grantedStaticAbilities ?? []),
-        { ability: keyword, counterType },
+        { ability: keyword, counterType, seq: allocStaticTimestamp(state) },
     ];
 }
 
@@ -7634,162 +7634,21 @@ function isIndefiniteKeywordGrant(grant: {
     return !grant.duration && !grant.auraId && !grant.counterType;
 }
 
-/** CR 113.1 / 613.1f (issue #1706) — the single release primitive behind
- *  EVERY `grantedStaticAbilities` teardown (counter grant, duration purge,
- *  aura/source unapply, leave-the-battlefield clear).
- *
- *  **Occurrence-ownership model.** `staticAbilities` is a MULTISET of keyword
- *  strings and the entries are indistinguishable, so "which index gets
- *  spliced" is never the question — the question is whether the *count* stays
- *  right. It does exactly when every record that ever added a keyword owns
- *  precisely ONE occurrence and gives back precisely that one:
- *
- *    - a GRANT pushes its own occurrence on apply — it never piggybacks on an
- *      occurrence some other source (or the printed card) already put there,
- *      so its idempotence guard keys on its OWN `grantedStaticAbilities`
- *      record, never on `staticAbilities.includes(...)`;
- *    - a `suppressed` grant (CR 613.1f — outranked by a strictly later
- *      stripper at apply time) owns ZERO occurrences and releases nothing;
- *    - a STRIPPER (`removedKeywords` from a `keyword-remove`/`ability-loss`
- *      static effect, `temporaryRemovedKeywords` from the duration-scoped
- *      `removeStaticAbilities`) TAKES one occurrence and holds it until it
- *      restores it.
- *
- *  Hence this function: release the one occurrence the grant owns, *wherever
- *  it currently is*. If it is live on `staticAbilities`, splice one. If it is
- *  not, a stripper is holding it — cancel exactly one matching hold, so the
- *  stripper's later restore does not resurrect an occurrence whose owner is
- *  gone (a flying counter removed while a "loses flying" effect is live must
- *  NOT leave the creature flying once that effect ends). Continuous
- *  (`removedKeywords`) holds are cancelled before duration
- *  (`temporaryRemovedKeywords`) ones, oldest first — an arbitrary but
- *  deterministic order, and observationally irrelevant since the entries a
- *  given keyword produces are interchangeable.
- *
- *  Fail-closed by construction: a future grant producer that forgets the
- *  model still cannot over-splice through here, because the "no live
- *  occurrence" branch consumes a stripper hold instead of a stranger's
- *  keyword.
- *
- *  **A `suppressed` grant is NOT a true zero, though (issue #1750, part b).**
- *  It owns no LIVE occurrence, but the `removedKeywords` entry that outranked
- *  it at apply time (CR 613.1f) is still on record, and that entry's own
- *  later unapply unconditionally hands ONE occurrence back
- *  (`unapplySourceStaticEffects`'s `removedKeywords` block) — it does so
- *  whether or not it can still find a suppressed grant to credit, because the
- *  hold itself is proof an occurrence was taken from the multiset and is
- *  owed back. If THIS grant's source leaves first, its `suppressed` entry
- *  simply disappears (dropped by the `auraId === source.id` filter above this
- *  function's call site) with nothing cancelling the debt on the other side —
- *  so the stripper's later unapply hands the occurrence to nobody, which
- *  reads exactly like the printed card had gained it. A FINAL (non-transient)
- *  release of a suppressed grant must therefore cancel the specific
- *  outranking hold — the same comparison `applySourceStaticEffects` used to
- *  mark it suppressed (`r.seq > grant.seq`, lowest qualifying `r.seq` when
- *  several holds match, mirroring the restore-site pick in
- *  `unapplySourceStaticEffects`) — instead of restoring the occurrence at
- *  all. A TRANSIENT release must still leave the hold untouched: it is one
- *  half of a `refreshCounterGatedStatics` round trip and the immediate
- *  re-apply needs the hold on record to re-decide suppression. */
-export function releaseGrantedKeywordOccurrence(
-    card: CardInstanceState,
-    grant: {
-        ability: string;
-        suppressed?: boolean;
-        seq?: number;
-        auraId?: string;
-    },
-    options: { transient?: boolean } = {}
-): void {
-    const keyword = grant.ability;
-    if (grant.suppressed) {
-        if (options.transient) return;
-        const removed = card.removedKeywords;
-        if (removed?.length) {
-            let bestIdx = -1;
-            for (let i = 0; i < removed.length; i++) {
-                const r = removed[i];
-                if (r.keyword !== keyword) continue;
-                // Mirrors the apply-time `outrankedBy` check
-                // (`applySourceStaticEffects`'s `r.sourceId !== source.id`):
-                // a source that both grants and strips the same keyword can
-                // never have outranked its OWN grant, so its own
-                // `removedKeywords` entry is not this grant's debtor and
-                // must not be cancelled by releasing it.
-                if (r.sourceId === grant.auraId) continue;
-                if ((r.seq ?? 0) <= (grant.seq ?? 0)) continue;
-                if (
-                    bestIdx === -1 ||
-                    (r.seq ?? 0) < (removed[bestIdx].seq ?? 0)
-                ) {
-                    bestIdx = i;
-                }
-            }
-            if (bestIdx !== -1) {
-                const kept = [
-                    ...removed.slice(0, bestIdx),
-                    ...removed.slice(bestIdx + 1),
-                ];
-                card.removedKeywords = kept.length > 0 ? kept : undefined;
-            }
-        }
-        return;
-    }
-    const idx = card.staticAbilities.indexOf(keyword);
-    if (idx !== -1) {
-        card.staticAbilities = [
-            ...card.staticAbilities.slice(0, idx),
-            ...card.staticAbilities.slice(idx + 1),
-        ];
-        return;
-    }
-    // A TRANSIENT release (see `unapplySourceStaticEffects`) is one half of a
-    // refresh round trip: the re-apply immediately re-takes the occupancy, and
-    // it needs the stripper's hold still on record to see that it is outranked
-    // (CR 613.1f). Only a FINAL release cancels a hold.
-    if (options.transient) return;
-    const removed = card.removedKeywords;
-    if (removed?.length) {
-        const i = removed.findIndex((r) => r.keyword === keyword);
-        if (i !== -1) {
-            const kept = [...removed.slice(0, i), ...removed.slice(i + 1)];
-            card.removedKeywords = kept.length > 0 ? kept : undefined;
-            return;
-        }
-    }
-    const temporary = card.temporaryRemovedKeywords;
-    if (temporary?.length) {
-        const i = temporary.findIndex((r) => r.keyword === keyword);
-        if (i !== -1) {
-            const kept = [...temporary.slice(0, i), ...temporary.slice(i + 1)];
-            card.temporaryRemovedKeywords = kept.length > 0 ? kept : undefined;
-        }
-    }
-}
-
-/** Reverse of `applyKeywordCounterGrant`: releases the one `staticAbilities`
- *  occurrence the counter grant owns (a natively-declared duplicate survives,
- *  CR 113.1; a stripper currently holding the occurrence has its hold
- *  cancelled — see `releaseGrantedKeywordOccurrence`) and drops its
- *  `grantedStaticAbilities` entry. Called by `removeCounter` once the
- *  counter type's count reaches zero. No-op when `counterType` grants no
- *  keyword or no live grant is on record (nothing to undo). */
+/** Reverse of `applyKeywordCounterGrant`: drops the ledger row once the counter
+ *  type's count reaches zero. The GRANT itself needs no undoing — `deriveLayer6`
+ *  stops producing it the moment the counter is gone (CR 122.1b), which is the
+ *  whole of what "revoking" a counter-borne grant means. Called by
+ *  `removeCounter`; a stale row left behind would only mean a re-added counter
+ *  reuses an old timestamp, which the drop prevents. */
 function unapplyKeywordCounterGrant(
     card: CardInstanceState,
     counterType: string
 ): void {
-    const keyword = getKeywordCounterGrant(counterType);
-    if (!keyword) return;
     const grants = card.grantedStaticAbilities;
     if (!grants?.length) return;
-    const idx = grants.findIndex((g) => g.counterType === counterType);
-    if (idx === -1) return;
-    const grant = grants[idx];
-    card.grantedStaticAbilities = [
-        ...grants.slice(0, idx),
-        ...grants.slice(idx + 1),
-    ];
-    releaseGrantedKeywordOccurrence(card, grant);
+    const kept = grants.filter((g) => g.counterType !== counterType);
+    if (kept.length === grants.length) return;
+    card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
 }
 
 /** CR 613.7 (issue #1715) — mints the next layer timestamp. Monotonic over
@@ -7848,45 +7707,31 @@ function allocStaticTimestamp(state: GameState): number {
     return max + 1;
 }
 
-/** CR 613.1f layer 6 — stamps ONE "loses all abilities" hold from `sourceId`
- *  onto `target`, at layer timestamp `seq`.
+/** CR 613.1f layer 6 — records ONE "loses all abilities" hold from `sourceId`
+ *  on `target`, at layer timestamp `seq`.
  *
- *  The single applier both arms of the mechanic share (extracted in #2361 when
- *  the second arm arrived): the CONTINUOUS `ability-loss` static effect
- *  (Titania's Song, `applySourceStaticEffects` below — `sourceId` is the
- *  granting permanent's instance id, released by `unapplySourceStaticEffects`
- *  when it leaves) and the INDEFINITE one-shot generated by a RESOLVING
- *  ability (CR 611.2c — `SpellContext.loseAllAbilities`, Oko, Thief of
- *  Crowns' `+1`, whose `sourceId` is the `"indefinite"` sentinel that no live
- *  permanent can ever match, so nothing releases it).
+ *  Since PRD #2064 S3 this is the LEDGER for the arm that has nothing to walk:
+ *  a continuous effect generated by a RESOLVING ability (CR 611.2c —
+ *  `SpellContext.loseAllAbilities`, Oko, Thief of Crowns' `+1`, keyed to the
+ *  `"indefinite"` sentinel that no live permanent can match; and
+ *  `loseAllAbilitiesWhileSourceRemains`, CR 611.2b — Tishana's Tidebinder,
+ *  keyed to the resolving permanent's own instance id). The CONTINUOUS arm
+ *  (Titania's Song's `ability-loss` static effect) is DERIVED from the board
+ *  walk in `gre/layer6.ts` and writes nothing here, so no strip is counted
+ *  twice.
  *
- *  Every keyword currently on `staticAbilities` is moved into
- *  `removedKeywords` source-keyed, reusing the `keyword-remove` restore path;
- *  `abilitiesSuppressedBy` is what makes native activated / triggered /
- *  intrinsic-mana abilities stop functioning (`abilityLossTimestamp`,
- *  `gre/activatedAbilities.ts`). Idempotent per source: a CONTINUOUS source
- *  already holding a suppression on this target adds nothing, because that arm
- *  re-runs on every layer recompute.
+ *  It no longer moves keywords anywhere. `deriveLayer6`'s ordered walk clears
+ *  everything applied so far when it reaches this hold — which is exactly
+ *  "everything with an earlier timestamp" (CR 613.7) — and a grant stamped
+ *  later is applied afterwards and survives (Humility, then Fire Whip). That
+ *  makes the multi-holder bookkeeping this function used to need disappear:
+ *  two live holders are two entries in one ordered walk, not two claimants to
+ *  one occurrence.
  *
- *  `opts.restamp` turns that dedupe OFF, and only the one-shot arm passes it:
- *  every RESOLUTION generates its own distinct continuous effect with its own
- *  timestamp (CR 611.2c / 613.7), so a SECOND "loses all abilities" must
- *  record a second, later hold — otherwise an ability granted between the two
- *  resolutions would outrank both and survive a strip that came after it. All
- *  one-shot holds share the `"indefinite"` sentinel source id, so a per-source
- *  check would collapse them into one.
- *
- *  Two DIFFERENT sources (two Tishana's Tidebinders, or a Tidebinder plus
- *  Titania's Song) holding a suppression on the SAME target SIMULTANEOUSLY —
- *  reachable since #1562 gave the one-shot arm a per-source, RELEASABLE
- *  `sourceId` instead of the shared never-released `"indefinite"` sentinel —
- *  is handled on the RELEASE side, not here: the second holder to apply finds
- *  `staticAbilities` already empty (the first holder stripped it) and records
- *  no `removedKeywords` of its own, so `unapplySourceStaticEffects`'s
- *  departure handling must not restore a keyword while a LATER-timestamped
- *  hold on the same target is still live (a strictly-later ordering check,
- *  not mere co-existence — an EARLIER surviving hold does not block, see the
- *  seq-aware ownership hand-off there).
+ *  `opts.restamp` turns the per-source dedupe OFF, and only the one-shot arm
+ *  passes it: every RESOLUTION generates its own continuous effect with its own
+ *  timestamp (CR 611.2c / 613.7), and all one-shot holds share the
+ *  `"indefinite"` sentinel, so a per-source check would collapse them into one.
  *
  *  Returns true when a new hold was recorded. */
 export function applyAbilityLossHold(
@@ -7901,16 +7746,6 @@ export function applyAbilityLossHold(
             (s) => s.sourceId === sourceId
         );
     if (already) return false;
-    // Strip every keyword into `removedKeywords` (source-keyed), reusing the
-    // keyword-remove restore path on unapply.
-    const removed = target.removedKeywords ?? [];
-    for (const kw of target.staticAbilities) {
-        removed.push({ keyword: kw, sourceId, seq });
-    }
-    if (target.staticAbilities.length > 0) {
-        target.staticAbilities = [];
-    }
-    target.removedKeywords = removed.length > 0 ? removed : undefined;
     target.abilitiesSuppressedBy = [
         ...(target.abilitiesSuppressedBy ?? []),
         { sourceId, seq },
@@ -7940,83 +7775,28 @@ export function applySourceStaticEffects(
         options?.preserveTimestamp && source.staticSeq !== undefined
             ? source.staticSeq
             : allocStaticTimestamp(state);
+    // CR 613.7a — the source's layer timestamp. Minted BEFORE the layer-6
+    // derivation runs, because that derivation reads it: an unstamped source
+    // sorts at 0 and would lose every ordering race it should win.
     source.staticSeq = seq;
     for (const player of state.players) {
         for (const target of player.battlefield) {
             for (const effect of effects) {
-                if (effect.kind === "keyword-grant") {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    // CR 611.2c (issue #1095) — an optional board-state gate,
-                    // mirroring `pt-buff`'s `condition`. Evaluated against the
-                    // full `state` (structurally a `StaticEffectStateView`),
-                    // not just the source/target pair `applies` checks.
-                    if (
-                        effect.condition &&
-                        !effect.condition(source, state, STATIC_EFFECT_CTX)
-                    ) {
-                        continue;
-                    }
-                    // CR 613.1f / 613.7 (issue #1715) — layer 6 applies grants
-                    // and removals in TIMESTAMP order. The grant loses only to
-                    // a stripper from another source holding a STRICTLY LATER
-                    // timestamp; a grant applied after a live stripper wins and
-                    // the keyword comes back (Gravity Sphere, then Flight: the
-                    // creature flies). The existence of a `removedKeywords`
-                    // entry proves nothing about order on its own — it is
-                    // written whenever the keyword happened to be present when
-                    // the stripper applied.
-                    const outrankedBy = (target.removedKeywords ?? []).some(
-                        (r) =>
-                            r.keyword === effect.keyword &&
-                            r.sourceId !== source.id &&
-                            (r.seq ?? 0) > seq
-                    );
-                    if (!outrankedBy) {
-                        target.staticAbilities = [
-                            ...target.staticAbilities,
-                            effect.keyword,
-                        ];
-                    }
-                    target.grantedStaticAbilities = [
-                        ...(target.grantedStaticAbilities ?? []),
-                        {
-                            ability: effect.keyword,
-                            auraId: source.id,
-                            seq,
-                            // Apply and unapply must stay exact inverses: a
-                            // grant that never reached `staticAbilities` must
-                            // not be spliced back out of it.
-                            ...(outrankedBy ? { suppressed: true } : {}),
-                        },
-                    ];
-                } else if (effect.kind === "activated-grant" && cardId) {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    target.grantedActivatedAbilities = [
-                        ...(target.grantedActivatedAbilities ?? []),
-                        {
-                            sourceCardId: cardId,
-                            abilityId: effect.abilityId,
-                            auraId: source.id,
-                            seq,
-                        },
-                    ];
-                } else if (effect.kind === "triggered-grant" && cardId) {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    target.grantedTriggeredAbilities = [
-                        ...(target.grantedTriggeredAbilities ?? []),
-                        {
-                            sourceCardId: cardId,
-                            abilityId: effect.abilityId,
-                            auraId: source.id,
-                            seq,
-                        },
-                    ];
+                if (
+                    effect.kind === "keyword-grant" ||
+                    effect.kind === "keyword-remove" ||
+                    effect.kind === "ability-loss" ||
+                    effect.kind === "activated-grant" ||
+                    effect.kind === "triggered-grant"
+                ) {
+                    // CR 613.1f layer 6 (PRD #2064 S3) — DERIVED, not
+                    // materialised. `syncLayer6` at the bottom of this function
+                    // recomputes the whole keyword multiset and the granted
+                    // ability sets from the Continuous Effects Registry, which
+                    // reads this source's `staticSeq` and its `applies` /
+                    // `condition` closures live. Nothing is pushed onto the
+                    // target here, so nothing can go stale on it.
+                    continue;
                 } else if (effect.kind === "type-add") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -8161,38 +7941,15 @@ export function applySourceStaticEffects(
                         continue;
                     }
                     applySupertypeSetGrant(target, source.id, effect);
-                } else if (effect.kind === "keyword-remove") {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    const idx = target.staticAbilities.indexOf(effect.keyword);
-                    if (idx !== -1) {
-                        target.staticAbilities = [
-                            ...target.staticAbilities.slice(0, idx),
-                            ...target.staticAbilities.slice(idx + 1),
-                        ];
-                        target.removedKeywords = [
-                            ...(target.removedKeywords ?? []),
-                            {
-                                keyword: effect.keyword,
-                                sourceId: source.id,
-                                seq,
-                            },
-                        ];
-                    }
-                } else if (effect.kind === "ability-loss") {
-                    // CR 613.1f layer-6 ability removal (Titania's Song).
-                    // Shares its whole body with the resolving-ability arm
-                    // (`SpellContext.loseAllAbilities`, issue #2361) — see
-                    // `applyAbilityLossHold` above.
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
-                        continue;
-                    }
-                    applyAbilityLossHold(target, source.id, seq);
                 }
             }
         }
     }
+    // CR 613.1f (PRD #2064 S3) — recompute layer 6 for the whole board from
+    // the registry. Runs here, not only at the next stable transition, so a
+    // resolution that reads `staticAbilities` between an ETB and the SBA pass
+    // sees the same multiset the derivation would give it.
+    syncLayer6(state);
 }
 
 /** Aura-flavored alias kept for back-compat at the call site that resolves an
@@ -8245,29 +8002,19 @@ function capturePrintedSubtypes(target: CardInstanceState): string[] {
  *  conservative behaviour rather than a silent resurrection. */
 export function unapplySourceStaticEffects(
     state: GameState,
-    source: CardInstanceState,
-    options: { transient?: boolean } = {}
+    source: CardInstanceState
 ): void {
     for (const player of state.players) {
         for (const target of player.battlefield) {
+            // CR 613.1f (PRD #2064 S3) — a source-provenance grant is
+            // DERIVED, so there is no occupancy to hand back and no
+            // suppression to unwind: once the source is gone, `deriveLayer6`
+            // stops producing the entry. Revocation is not an operation. All
+            // that is dropped here is a legacy `auraId`-keyed row persisted
+            // before this slice, which the derivation ignores anyway.
             const grants = target.grantedStaticAbilities;
             if (grants && grants.length > 0) {
-                const kept: typeof grants = [];
-                for (const g of grants) {
-                    if (g.auraId !== source.id) {
-                        kept.push(g);
-                        continue;
-                    }
-                    // CR 613.1f (issue #1715) / CR 113.1 (issue #1706) —
-                    // release the ONE occurrence this grant owns: a
-                    // `suppressed` grant never reached `staticAbilities` and
-                    // releases nothing; an occurrence a stripper is currently
-                    // holding is released by cancelling that hold. Apply and
-                    // unapply must stay exact inverses.
-                    releaseGrantedKeywordOccurrence(target, g, {
-                        transient: options.transient,
-                    });
-                }
+                const kept = grants.filter((g) => g.auraId !== source.id);
                 target.grantedStaticAbilities =
                     kept.length > 0 ? kept : undefined;
             }
@@ -8404,98 +8151,19 @@ export function unapplySourceStaticEffects(
             // CR 205.4a — release this source's supertype-set contribution
             // (Melting leaving play restores lands' printed Snow supertype).
             unapplySupertypeSetGrant(target, source.id);
-            // CR 613.7 (issue #1562 review fixup) — multi-holder composition.
-            // `abilitiesSuppressedBy` is populated ONLY by `applyAbilityLossHold`
-            // (Titania's Song's continuous hold and Oko's/Tishana's Tidebinder's
-            // one-shot holds). A SECOND "loses all abilities" holder applying
-            // while a FIRST is already live can find `staticAbilities` already
-            // empty and so record NO `removedKeywords` entries of its own
-            // (nothing left to strip) — every stripped keyword's entry then
-            // stays tagged with whichever holder happened to capture it. A full
-            // timestamp-ordered replay (CR 613.7) says an entry with timestamp
-            // `seq` must stay suppressed for as long as ANY OTHER active holder
-            // has a STRICTLY LATER timestamp — that later holder would re-strip
-            // the keyword even if the earlier removal were undone, whether or
-            // not it happened to capture its OWN entry for it. A surviving
-            // holder with an EARLIER-or-equal timestamp does NOT block: this
-            // entry already outranks it (`identitySwap.test.ts`'s "an eaten
-            // grant is held by the EARLIEST stripper that outranks it, not by
-            // the first one on the board" — releasing the LATER of two
-            // stackable holders must restore immediately when nothing else
-            // outranks it, even while an EARLIER holder is still live).
-            const survivingSuppressors = (
-                target.abilitiesSuppressedBy ?? []
-            ).filter((s) => s.sourceId !== source.id);
-            const removals = target.removedKeywords;
-            if (removals && removals.length > 0) {
-                const kept: typeof removals = [];
-                for (const r of removals) {
-                    if (r.sourceId !== source.id) {
-                        kept.push(r);
-                        continue;
-                    }
-                    // A surviving holder with a LATER timestamp than this
-                    // entry's own still legitimately re-strips the keyword —
-                    // hand the entry off to the EARLIEST such blocker (lowest
-                    // `seq`, mirroring the outranked-grant reclaim rule below)
-                    // instead of restoring it, preserving the entry's OWN
-                    // `seq` so the check re-runs identically on THAT holder's
-                    // eventual departure. Reassigning ownership only (never
-                    // the seq) is what keeps a departed sourceId from
-                    // becoming permanently unreachable by every future
-                    // unapply call.
-                    let blocker:
-                        | NonNullable<
-                              typeof target.abilitiesSuppressedBy
-                          >[number]
-                        | undefined;
-                    for (const s of survivingSuppressors) {
-                        if ((s.seq ?? 0) <= (r.seq ?? 0)) continue;
-                        if (!blocker || (s.seq ?? 0) < (blocker.seq ?? 0)) {
-                            blocker = s;
-                        }
-                    }
-                    if (blocker) {
-                        kept.push({ ...r, sourceId: blocker.sourceId });
-                        continue;
-                    }
-                    target.staticAbilities = [
-                        ...target.staticAbilities,
-                        r.keyword,
-                    ];
-                    // CR 613.1f (issue #1715) — the occurrence just restored
-                    // may be one this stripper outranked a grant out of. Hand
-                    // it back to that grant so a later unapply of the GRANT
-                    // splices it out again (and this stripper's restore is not
-                    // double-counted). Exactly one grant per restored
-                    // occurrence, oldest (LOWEST seq) first — issue #1750
-                    // part b: with 2+ suppressed grants of the same keyword,
-                    // `.find` previously picked by ARRAY POSITION, which is
-                    // construction order, not layer order; the lowest-seq
-                    // grant is the one CR 613.7 actually reapplies first once
-                    // the stripper is gone, so it is the one that must
-                    // reclaim the slot.
-                    let outranked:
-                        | NonNullable<
-                              typeof target.grantedStaticAbilities
-                          >[number]
-                        | undefined;
-                    for (const g of target.grantedStaticAbilities ?? []) {
-                        if (g.suppressed !== true) continue;
-                        if (g.ability !== r.keyword) continue;
-                        if ((g.seq ?? 0) >= (r.seq ?? 0)) continue;
-                        if (!outranked || (g.seq ?? 0) < (outranked.seq ?? 0)) {
-                            outranked = g;
-                        }
-                    }
-                    if (outranked) delete outranked.suppressed;
-                }
-                target.removedKeywords = kept.length > 0 ? kept : undefined;
-            }
-            // CR 613.1f — release this source's "loses all abilities" hold.
-            // Keyword restoration is handled by the `removedKeywords` block
-            // above (source-keyed); here we just drop the suppression marker so
-            // activated/triggered/mana abilities function once no source holds.
+            // CR 613.1f (PRD #2064 S3) — a keyword REMOVAL is derived too, so
+            // nothing is "restored" when its source leaves: `removedKeywords`
+            // is now the derivation's OUTPUT (which removals are taking an
+            // occurrence right now), never a ledger of debts owed back. The
+            // multi-holder hand-off this block used to perform — deciding
+            // which of several live "loses all abilities" holders keeps a
+            // stripped keyword suppressed — is the ordered walk in
+            // `deriveLayer6`, which never needs to attribute an occurrence to
+            // a holder at all.
+            //
+            // The `abilitiesSuppressedBy` ledger row is still dropped: it is
+            // the CR 611.2b hold of a RESOLVING ability keyed to this
+            // permanent (Tishana's Tidebinder), and its source is leaving.
             const suppressors = target.abilitiesSuppressedBy;
             if (suppressors && suppressors.length > 0) {
                 const keptS = suppressors.filter(
@@ -8511,102 +8179,27 @@ export function unapplySourceStaticEffects(
 /** Aura-flavored alias kept for back-compat. */
 export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
 
-/** CR 613.5 / 122.1 — the recomputation tick for COUNTER-GATED materialized
- *  static effects (issue #1711).
+/** CR 613.1f / 613.5 — the layer-6 recomputation tick (issue #1711, rewritten
+ *  for PRD #2064 S3).
  *
- *  `applySourceStaticEffects` MATERIALIZES its grant kinds (`keyword-grant`,
- *  `activated-grant`, `triggered-grant`, `type-add`, `subtype-set`, …) onto the
- *  target instance once, when the source or the target enters the battlefield.
- *  Unlike `pt-buff` / `pt-cda` — recomputed at every read — nothing re-runs
- *  them afterwards. A predicate gated on COUNTERS therefore goes stale the
- *  instant a counter is added or removed, and both consumers of the
- *  materialized arrays (`untapStep`'s `does-not-untap` check and
- *  `getEffectiveActivatedAbilities`) silently read the pre-counter answer. That
- *  is the whole bug class: Dread Wight's paralyzation lock, Venarian Gold's
- *  sleep counters, Cocoon's pupa counters, Cyclopean Tomb's mire markers,
- *  Gaea's Liege's forest markers, and the INV kicker `+1/+1` grants all shipped
- *  inert past their first materialization.
+ *  It used to be a NARROW sweep: find the sources whose static effects declare
+ *  `dependsOnCounters` (or, by a kind-specific special case, a `keyword-grant`
+ *  carrying a `condition`), tear each one down and re-apply it. That shape
+ *  existed only because a materialised grant could not be recomputed cheaply,
+ *  and it carried the whole staleness class with it — a gate that flipped OFF
+ *  left the stripper holding an orphaned occupancy, and any OTHER effect kind
+ *  that grew a `condition` would have shipped inert until someone remembered to
+ *  add its disjunct here.
  *
- *  For every battlefield source whose static effects DECLARE
- *  `dependsOnCounters` (see `CounterGatedStatic` in `cards/types.ts`, enforced
- *  catalogue-wide by `cards/__tests__/counterGatedStatics.test.ts`), unapply
- *  and re-apply its grants so each predicate is re-evaluated against the
- *  current counters. Sources that declare nothing are skipped, so this is a
- *  no-op sweep of the battlefield for the overwhelming majority of boards.
+ *  Layer 6 is now derived per read, so the tick is simply the derivation
+ *  (`gre/layer6.ts`): every gate, of every kind, on every source, is
+ *  re-evaluated against the live board on every call. `dependsOnCounters`
+ *  survives on `StaticEffect` only for the layers this slice does not own.
  *
- *  Generalized (issue #1095) to ALSO sweep any `keyword-grant` that declares
- *  a `condition` (CR 611.2c "as long as ..." board-state gate, mirroring
- *  `pt-buff`'s `condition` — Kavu Runner's "has haste as long as no opponent
- *  controls a white or blue creature"). `keyword-grant` is materialized
- *  once at apply time, unlike `pt-buff`/`pt-cda` recomputed at every read, so
- *  a `condition` on it needs exactly the same staleness fix counters already
- *  got: re-run `applies`/`condition` on every stable transition, not just
- *  when a counter changes.
- *
- *  Called from the two counter mutators (`addCounterToCard` and
- *  `SpellContext.removeCounter`) for immediate within-resolution consistency,
- *  and from `checkStateBasedActions` as the catch-all for every other write
- *  path that can flip a gate (CR 704.5q `+1/+1`/`-1/-1` annihilation,
- *  Freyalise's Winds' untap strip, depletion counters on tap,
- *  `payRemoveCounterCost`, planeswalker loyalty, and — for board-state gates —
- *  any permanent entering/leaving/changing color) — the same "not an SBA per
- *  se, but every stable transition runs this sweep" placement
- *  `refreshLandPlayLock` already occupies. */
+ *  Kept under its old name because ~a dozen call sites and card comments name
+ *  it as the recomputation tick; PRD #2064 S6 renames it with the rest. */
 export function refreshCounterGatedStatics(state: GameState): void {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
-            const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetDefinition(cardId) : null;
-            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            // NOTE: the second disjunct is a NARROW, kind-specific special
-            // case (`kind === "keyword-grant" && condition !== undefined`)
-            // rather than a generalization of `dependsOnCounters` to "any
-            // materialized kind with a `condition`". Harmless today — no
-            // OTHER materialized static-effect kind exposes `condition` — but
-            // the next one that does will silently need its own disjunct
-            // added here, or it ships inert exactly like the bug class this
-            // function exists to fix (issue #1095 review finding).
-            const needsRefresh = effects.some(
-                (e) =>
-                    e.dependsOnCounters === true ||
-                    (e.kind === "keyword-grant" && e.condition !== undefined)
-            );
-            if (!needsRefresh) continue;
-            // Full unapply/re-apply of THIS source only (the established
-            // reattach idiom): the predicate may read the target's counters
-            // (Dread Wight) or the source's own (Cocoon), so nothing short of
-            // re-running it is correct.
-            // CR 613.7 (issue #1715) — a counter-gated RE-EVALUATION does not
-            // give the source a new timestamp (only an Aura becoming attached
-            // does, CR 613.7d). Re-applying with a fresh timestamp would
-            // re-stamp this source LAST in every layer it participates in, so
-            // the winning subtype / keyword would depend on how many SBA
-            // passes have run. `preserveTimestamp` keeps `source.staticSeq`,
-            // which is what every record it rewrites is stamped with, so the
-            // refresh is idempotent by construction.
-            // `transient` (issue #1706) — this teardown cancels no stripper
-            // hold. For every occupancy the re-apply below DOES re-take that is
-            // exactly right: the hold must still be on record for the re-apply
-            // to read it, decide the grant is outranked (CR 613.1f) and
-            // re-record itself `suppressed`; cancelling here would let the
-            // grant come back live under a still-applying "loses all
-            // abilities", on every SBA pass.
-            //
-            // It is NOT a claim that the re-apply re-takes everything. When a
-            // gate flips OFF — Cocoon's pupa counters gone, Kavu Runner's
-            // `condition` now false — the grant is not re-applied at all, and a
-            // stripper holding its occurrence is left with an orphaned hold it
-            // will later restore. That is a real (narrow) gap, not a
-            // regression: before this change the site cancelled no holds under
-            // any circumstances. Closing it needs the re-apply to report which
-            // grants it declined to re-take, which is the counter-gated
-            // refresh's own redesign rather than the release primitive's.
-            unapplySourceStaticEffects(state, source, { transient: true });
-            applySourceStaticEffects(state, source, {
-                preserveTimestamp: true,
-            });
-        }
-    }
+    syncLayer6(state);
 }
 
 /** Applies every existing battlefield source's `keyword-grant` static effects
@@ -8650,72 +8243,27 @@ export function applyExistingGrantsTo(
         const def = cardId ? tryGetDefinition(cardId) : null;
         const effects = getEffectiveStaticEffects(def, source.chosenModeId);
         for (const effect of effects) {
-            if (effect.kind === "keyword-grant") {
-                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                // CR 611.2c (issue #1095) — same optional board-state gate
-                // `applySourceStaticEffects` checks; kept in sync so a
-                // pre-existing lord-style conditional grant reaching a
-                // newcomer respects it too.
-                if (
-                    effect.condition &&
-                    !effect.condition(source, state, STATIC_EFFECT_CTX)
-                ) {
-                    continue;
-                }
-                // Same layer-6 ordering rule as `applySourceStaticEffects`
-                // (CR 613.1f, issue #1715): only a STRICTLY LATER stripper
-                // beats this grant. With `sources` in timestamp order a
-                // later stripper normally hasn't run yet, so this only
-                // fires against a removal already recorded on the newcomer.
-                const outrankedBy = (newPermanent.removedKeywords ?? []).some(
-                    (r) =>
-                        r.keyword === effect.keyword &&
-                        r.sourceId !== source.id &&
-                        (r.seq ?? 0) > seq
-                );
-                if (!outrankedBy) {
-                    newPermanent.staticAbilities = [
-                        ...newPermanent.staticAbilities,
-                        effect.keyword,
-                    ];
-                }
-                newPermanent.grantedStaticAbilities = [
-                    ...(newPermanent.grantedStaticAbilities ?? []),
-                    {
-                        ability: effect.keyword,
-                        auraId: source.id,
-                        seq,
-                        ...(outrankedBy ? { suppressed: true } : {}),
-                    },
-                ];
-            } else if (effect.kind === "activated-grant" && cardId) {
-                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                newPermanent.grantedActivatedAbilities = [
-                    ...(newPermanent.grantedActivatedAbilities ?? []),
-                    {
-                        sourceCardId: cardId,
-                        abilityId: effect.abilityId,
-                        auraId: source.id,
-                        seq,
-                    },
-                ];
-            } else if (effect.kind === "triggered-grant" && cardId) {
-                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                newPermanent.grantedTriggeredAbilities = [
-                    ...(newPermanent.grantedTriggeredAbilities ?? []),
-                    {
-                        sourceCardId: cardId,
-                        abilityId: effect.abilityId,
-                        auraId: source.id,
-                        seq,
-                    },
-                ];
+            if (
+                effect.kind === "keyword-grant" ||
+                effect.kind === "keyword-remove" ||
+                effect.kind === "ability-loss" ||
+                effect.kind === "activated-grant" ||
+                effect.kind === "triggered-grant"
+            ) {
+                // CR 613.1f layer 6 (PRD #2064 S3) — DERIVED. This entry-side
+                // push existed because a grant had to be materialised onto a
+                // newcomer that arrived after its source; the derivation walks
+                // the board at every read, so a newcomer picks up every live
+                // source's grants without being pushed at.
+                //
+                // It also closes the asymmetry the old branch list encoded:
+                // there was no `keyword-remove` branch here at all, so a flier
+                // that entered under a live Gravity Sphere kept flying while
+                // one that was already on the battlefield lost it (drafted in
+                // `docs/findings/2361-applyexistinggrantsto-has-no-keyword-remove-branch.md`).
+                // One derivation cannot have one rule for grants and another
+                // for removals.
+                continue;
             } else if (effect.kind === "type-add") {
                 if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
                     continue;
@@ -8821,16 +8369,13 @@ export function applyExistingGrantsTo(
                     continue;
                 }
                 applySupertypeSetGrant(newPermanent, source.id, effect);
-            } else if (effect.kind === "ability-loss") {
-                // CR 613.1f — a noncreature artifact entering under
-                // Titania's Song loses all its abilities too.
-                if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
-                    continue;
-                }
-                applyAbilityLossHold(newPermanent, source.id, seq);
             }
         }
     }
+    // CR 613.1f (PRD #2064 S3) — layer 6 for the newcomer, and for everything
+    // its own arrival changes about everyone else (a lord entering grants the
+    // whole board).
+    syncLayer6(state);
 }
 
 /** CR 303.4 — "What an Aura can be attached to is defined by its enchant
@@ -11600,7 +11145,7 @@ export function addCounterToCard(
     const next = { ...(card.counters ?? {}) };
     next[type] = (next[type] ?? 0) + count;
     card.counters = next;
-    if (wasZero) applyKeywordCounterGrant(card, type);
+    if (wasZero) applyKeywordCounterGrant(state, card, type);
     // CR 613.5 (issue #1711) — a counter-gated MATERIALIZED static (Dread
     // Wight's paralyzation lock, Cocoon's pupa counters) is written onto its
     // target once and never recomputed; re-run the materialization now so the
@@ -12220,61 +11765,37 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // only the provenance record, the ability itself lives on the array. Both
     // run BEFORE the matching deletes below, while the provenance is readable.
     revertAnimation(card);
-    for (const grant of card.grantedStaticAbilities ?? []) {
-        // Release the ONE occurrence each grant owns (CR 113.1 / 613.1f,
-        // issues #1715 / #1706): a grant a strictly-later stripper outranked
-        // never reached `staticAbilities` and releases nothing, and an
-        // occurrence a stripper is holding is released by cancelling the hold
-        // rather than by eating an occurrence that belongs to the printed
-        // card.
-        releaseGrantedKeywordOccurrence(card, grant);
-    }
+    // CR 400.7 (PRD #2064 S3) — the object that leaves is not the object that
+    // comes back, so layer 6 resets to its BASE rather than being unwound
+    // grant by grant. `baseStaticAbilities` is exactly the pre-layer-6
+    // multiset, so the printed keywords come back and every grant, removal and
+    // ability-loss hold goes with the old object:
+    //
+    //  - a grant a strictly-later stripper had outranked needs no special case
+    //    (it was never on the array);
+    //  - a keyword a stripper was "holding" needs no hand-back (nothing was
+    //    ever taken);
+    //  - the `"indefinite"`-sentinel holds of CR 611.2c (Oko's `+1`), which no
+    //    source-keyed release could ever reach and which left a bounced elk
+    //    permanently blank, go with the record.
+    //
+    // It also closes the entry-side asymmetry drafted in
+    // `docs/findings/2361-applyexistinggrantsto-has-no-keyword-remove-branch.md`:
+    // a Serra Angel bounced and recast under a live Gravity Sphere used to come
+    // back still flying, because the re-entry path re-derived grants but not
+    // removals. Nothing is re-derived one kind at a time any more — the next
+    // `syncLayer6` recomputes grants AND removals from the same registry walk.
+    card.staticAbilities = [
+        ...(card.baseStaticAbilities ?? card.staticAbilities),
+    ];
+    delete card.baseStaticAbilities;
+    delete card.abilityLossSeq;
     delete card.grantedStaticAbilities;
     // CR 613.7 (issue #1715) — a permanent that leaves and re-enters is a NEW
     // object and takes a NEW layer timestamp on its next apply.
     delete card.staticSeq;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
-    // CR 400.7 / 613.1f (issue #2361 review round 1) — the ability-STRIP half of
-    // the `revertTypeProvenance` restore below, and missed for the same reason
-    // it exists: `removedKeywords` / `abilitiesSuppressedBy` are keyed by the
-    // SOURCE but mutate the TARGET's `staticAbilities` in place, so the
-    // source-driven release (`unapplySourceStaticEffects`) never fires when the
-    // TARGET is the one leaving. Worse, the INDEFINITE one-shot arm (CR 611.2c —
-    // Oko, Thief of Crowns' `+1`) keys its holds to the `"indefinite"` sentinel,
-    // which names no permanent at all, so nothing can EVER release them: a
-    // bounced/reanimated elk stayed a blank, ability-less object for the rest of
-    // the game. The zone change makes a new object, so hand every held
-    // occurrence back BEFORE the records are dropped.
-    //
-    // EVERY entry is restored, not just the sentinel-keyed ones. For the
-    // `ability-loss` producer (Titania's Song's continuous arm, Oko's `+1`)
-    // that is also self-healing: a hold whose source is still on the
-    // battlefield is re-applied to the re-entering object by the entry-side
-    // recompute — `applyExistingGrantsTo` has an `ability-loss` branch, which
-    // re-stamps the hold with the source's own `staticSeq` — and a hold whose
-    // source has left is stale by definition.
-    //
-    // The OTHER producer, `keyword-remove` (Gravity Sphere), is NOT re-applied
-    // on re-entry: `applyExistingGrantsTo` has no `keyword-remove` branch at
-    // all, so a Serra Angel bounced and recast under a live Gravity Sphere
-    // comes back still flying. That is a PRE-EXISTING entry-side gap, not a
-    // consequence of restoring here — a flier cast fresh from hand under the
-    // same Sphere already keeps flying. Drafted in
-    // `docs/findings/2361-applyexistinggrantsto-has-no-keyword-remove-branch.md`.
-    //
-    // Grant-owned occurrences were already handed back by the
-    // `releaseGrantedKeywordOccurrence` loop above, so what remains here is the
-    // printed card's own keywords. `temporaryRemovedKeywords` (the
-    // duration-scoped twin, Shelkin Brownie) rides along: its expiry purge in
-    // `phases.ts` scans the BATTLEFIELD only, so a hold that leaves play with
-    // the card is never restored either.
-    for (const r of card.removedKeywords ?? []) {
-        card.staticAbilities = [...card.staticAbilities, r.keyword];
-    }
-    for (const r of card.temporaryRemovedKeywords ?? []) {
-        card.staticAbilities = [...card.staticAbilities, r.keyword];
-    }
     delete card.removedKeywords;
     delete card.temporaryRemovedKeywords;
     delete card.abilitiesSuppressedBy;
@@ -14403,6 +13924,12 @@ export function buildSpellContext(
                     if (!next.includes(k)) next.push(k);
                 }
                 recipient.staticAbilities = next;
+                // CR 614.12c — a chosen BODY rewrites the object's own printed
+                // keywords, which is BELOW layer 6. Drop the captured base so
+                // the next `syncLayer6` re-captures it from the new list;
+                // leaving the old one would make the choice invisible the
+                // moment any grant recomputes (PRD #2064 S3, `gre/layer6.ts`).
+                delete recipient.baseStaticAbilities;
             }
         },
 
@@ -17236,17 +16763,22 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            found.card.staticAbilities = [
-                ...found.card.staticAbilities,
-                ability,
-            ];
+            // CR 613.7 (PRD #2064 S3) — the grant is a registry entry with a
+            // `duration` expiry, not a push onto `staticAbilities`: the
+            // derivation composes it at every read. It takes a real layer
+            // timestamp because a resolving ability's continuous effect has
+            // one (CR 611.2a) — without it an until-end-of-turn grant sorted
+            // at 0 and was removed by any "loses all abilities" that had ever
+            // resolved, however long before.
             found.card.grantedStaticAbilities = [
                 ...(found.card.grantedStaticAbilities ?? []),
                 {
                     ability,
                     duration: resolveDuration(duration, item.castById, state),
+                    seq: allocStaticTimestamp(state),
                 },
             ];
+            syncLayer6(state);
         },
         // CR 611.2c: grants a keyword with NO duration and NO aura link — it
         // persists for as long as the permanent stays on the battlefield (a
@@ -17273,14 +16805,11 @@ export function buildSpellContext(
                 (g) => g.ability === ability && isIndefiniteKeywordGrant(g)
             );
             if (already) return;
-            found.card.staticAbilities = [
-                ...found.card.staticAbilities,
-                ability,
-            ];
             found.card.grantedStaticAbilities = [
                 ...(found.card.grantedStaticAbilities ?? []),
-                { ability },
+                { ability, seq: allocStaticTimestamp(state) },
             ];
+            syncLayer6(state);
         },
         // CR 113.1 / 611.2a: grants an ACTIVATED ability for a limited
         // duration (Touch of Vitae: "gains '{0}: Untap this creature. Activate
@@ -17437,21 +16966,22 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             const resolved = resolveDuration(duration, item.castById, state);
-            const kept: string[] = [];
-            const removedNow: { keyword: string; duration: Duration }[] = [];
-            for (const kw of found.card.staticAbilities) {
-                if (predicate(kw)) {
-                    removedNow.push({ keyword: kw, duration: resolved });
-                } else {
-                    kept.push(kw);
-                }
-            }
+            // CR 611.2c — the set of objects a resolving ability's continuous
+            // effect affects is fixed when it begins, and so is the set of
+            // KEYWORDS it names: the predicate runs once, here, against the
+            // permanent's effective abilities. Each match becomes a registry
+            // entry with a `duration` expiry and its own layer timestamp
+            // (CR 613.7), so a grant that lands afterwards wins.
+            const seq = allocStaticTimestamp(state);
+            const removedNow = found.card.staticAbilities
+                .filter((kw) => predicate(kw))
+                .map((keyword) => ({ keyword, duration: resolved, seq }));
             if (removedNow.length === 0) return;
-            found.card.staticAbilities = kept;
             found.card.temporaryRemovedKeywords = [
                 ...(found.card.temporaryRemovedKeywords ?? []),
                 ...removedNow,
             ];
+            syncLayer6(state);
         },
         // CR 208.2, 611.1: turns the target permanent into a creature with
         // the given base P/T and optional subtype for the duration. We
@@ -17557,12 +17087,12 @@ export function buildSpellContext(
                             g.ability === ability && isIndefiniteKeywordGrant(g)
                     );
                     if (already) continue;
-                    card.staticAbilities = [...card.staticAbilities, ability];
                     card.grantedStaticAbilities = [
                         ...(card.grantedStaticAbilities ?? []),
-                        { ability },
+                        { ability, seq: allocStaticTimestamp(state) },
                     ];
                 }
+                syncLayer6(state);
             }
         },
         // CR 603.7a: queues a delayed triggered ability. On the template

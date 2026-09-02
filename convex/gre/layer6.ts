@@ -136,6 +136,33 @@ export function layer6Base(card: CardInstanceState): string[] {
     return card.baseStaticAbilities ?? card.staticAbilities;
 }
 
+/** Snapshots the pre-layer-6 base out of a permanent's `staticAbilities` the
+ *  first time layer 6 derives for it.
+ *
+ *  Normally this is just the array: since PRD #2064 S3 nothing materialises a
+ *  grant into it, so whatever is there IS the base. The subtraction handles the
+ *  one case where that is false — a `GameState` PERSISTED BEFORE this slice,
+ *  whose `staticAbilities` still holds base PLUS every grant the old code had
+ *  pushed. Capturing that verbatim would make each of those grants permanent
+ *  AND re-derive it, doubling the keyword. So one occurrence is taken back per
+ *  live grant row, which is the exact inverse of what the old materialisation
+ *  pushed (a `suppressed` row pushed nothing and takes nothing back).
+ *
+ *  Layer 4 has the same shape and the same reason: `capturePrintedSubtypes`
+ *  (`gre/state.ts`) filters out subtypes a live `subtype-add` put there. This
+ *  goes with the field when S6 deletes it. */
+function captureLayer6Base(card: CardInstanceState): string[] {
+    const grants = card.grantedStaticAbilities;
+    if (!grants?.length) return [...card.staticAbilities];
+    const base = [...card.staticAbilities];
+    for (const grant of grants) {
+        if (grant.suppressed) continue;
+        const index = base.indexOf(grant.ability);
+        if (index !== -1) base.splice(index, 1);
+    }
+    return base;
+}
+
 /** CR 114 — a source-less synthetic `PermanentView` standing in for a
  *  command-zone emblem, so its owner-scoped continuous static effects flow
  *  through the same `applies(target, source, ctx)` predicates as a battlefield
@@ -715,7 +742,7 @@ export function syncLayer6(state: GameState): void {
             // Capture the base BEFORE the first write, while `staticAbilities`
             // still holds it alone (see `layer6Base`).
             if (card.baseStaticAbilities === undefined) {
-                card.baseStaticAbilities = [...card.staticAbilities];
+                card.baseStaticAbilities = captureLayer6Base(card);
             }
             derived.push({
                 card,

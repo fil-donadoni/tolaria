@@ -12,6 +12,7 @@ import type {
     PlayerState,
 } from "./state";
 import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
+import { syncLayer6 } from "./layer6";
 import {
     removeLoyaltyForDamage,
     applyLifelinkLifeGain,
@@ -46,7 +47,6 @@ import {
     resolveTopOfStack,
     revertAnimation,
     revertControlChange,
-    releaseGrantedKeywordOccurrence,
     runDamageReplacement,
     tapPermanent,
     untapPermanent,
@@ -2950,17 +2950,12 @@ function tickAllDurations(state: GameState): void {
         p.grantedAbilities = kept.length > 0 ? kept : undefined;
     }
 
-    // Granted static keywords (e.g. Berserk's trample). On expiry, release
-    // the ONE `staticAbilities` occurrence the grant owns — natively-declared
-    // duplicates and other sources' grants are left untouched (CR 113.1), a
-    // `suppressed` grant owns nothing, and an occurrence a stripper is
-    // currently holding is released by cancelling that hold (CR 613.1f). The
-    // shared `releaseGrantedKeywordOccurrence` primitive is what keeps this
-    // purge obeying the same occurrence-ownership model as the counter-grant
-    // and aura teardowns (issue #1706) instead of being correct by accident.
-    // Aura-sourced grants have no duration — they're managed by the aura's
-    // lifetime (see applyAuraStaticEffects / unapplyAuraStaticEffects in
-    // state.ts) and pass through this purge unchanged.
+    // Granted static keywords (e.g. Berserk's trample). The duration expiring
+    // simply drops the registry entry's row: layer 6 is derived per read (PRD
+    // #2064 S3, `gre/layer6.ts`), so an expired grant stops being composed and
+    // there is no occurrence to hand back to anyone. Counter-keyed rows have no
+    // duration and pass through unchanged (their gate is the counter);
+    // `auraId`-keyed rows are legacy and are ignored by the derivation.
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.grantedStaticAbilities?.length) continue;
@@ -2971,11 +2966,7 @@ function tickAllDurations(state: GameState): void {
                     continue;
                 }
                 const next = tickDuration(grant.duration, view);
-                if (next === null) {
-                    releaseGrantedKeywordOccurrence(card, grant);
-                } else {
-                    kept.push({ ...grant, duration: next });
-                }
+                if (next !== null) kept.push({ ...grant, duration: next });
             }
             card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
         }
@@ -3024,29 +3015,25 @@ function tickAllDurations(state: GameState): void {
     }
 
     // Temporarily removed keywords (CR 611.2a layer 6 — Shelkin Brownie /
-    // Tolaria "loses banding / 'bands with other' until end of turn"). On
-    // expiry, push one occurrence of the keyword back into `staticAbilities`
-    // (CR 113.1 — a native duplicate present at strip time is not double-added,
-    // since each stripped occurrence was recorded separately). Mirrors the
-    // `grantedStaticAbilities` purge above.
+    // Tolaria "loses banding / 'bands with other' until end of turn"). Same
+    // shape as the grant purge above and for the same reason: dropping the row
+    // is the whole restore, because the keyword was never taken off anything —
+    // the derivation simply stops composing the removal.
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.temporaryRemovedKeywords?.length) continue;
             const kept: typeof card.temporaryRemovedKeywords = [];
             for (const entry of card.temporaryRemovedKeywords) {
                 const next = tickDuration(entry.duration, view);
-                if (next === null) {
-                    card.staticAbilities = [
-                        ...card.staticAbilities,
-                        entry.keyword,
-                    ];
-                } else {
-                    kept.push({ ...entry, duration: next });
-                }
+                if (next !== null) kept.push({ ...entry, duration: next });
             }
             card.temporaryRemovedKeywords = kept.length > 0 ? kept : undefined;
         }
     }
+    // CR 613.1f (PRD #2064 S3) — recompose layer 6 now that the expired rows
+    // are gone, so the boundary's effect is visible before the next read rather
+    // than at the next SBA pass.
+    syncLayer6(state);
 
     // One-shot prevention effects (e.g. Circle of Protection). An effect
     // that hasn't been consumed by the time its duration expires simply
