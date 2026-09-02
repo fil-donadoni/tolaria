@@ -7874,6 +7874,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Deep-Cavern Bat",
+        "scryfallId": "69c68c95-b788-43b1-9f22-1b22c5a00b25",
+        "oracleId": "e46f6644-6bf1-47b1-817c-906bd3eca99f",
+        "firstSet": "lci",
+        "firstPrintId": "69c68c95-b788-43b1-9f22-1b22c5a00b25",
+        "firstPrintSet": "lci"
+    },
+    {
         "name": "Deepwood Drummer",
         "scryfallId": "acbed0f5-2ac0-48d8-b5ab-b4cd7176fde2",
         "oracleId": "b2bbb4e5-05b1-49e5-ad02-7384e115e06b",
