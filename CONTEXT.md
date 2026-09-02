@@ -717,6 +717,18 @@ _Avoid_: Parser (that's one stage of it), card generator, importer
 The generated, committed record of what the **Oracle Compiler** made of every **Card Corpus** entry — each with its **Compile State** and, where `ready`, its **Compiled Definition**. Committed precisely so a change in compiler behaviour shows up as a reviewable diff instead of a silent shift: a card that stops compiling, or compiles differently, is visible before it is shipped.
 _Avoid_: Compiler output, cache, build artifact
 
+**Round-Trip**:
+Whether the **Oracle Compiler**, given a card's own printed text, produces that card's own **Card Definition** back. It is the measure of whether the compiler _read_ the card, and it is how a hand-written definition earns the right to be called gold. A card that does not round-trip either names the fragment that beat the grammar or sits in a shrinking baseline — never silence.
+_Avoid_: Reparse, verification, self-test
+
+**Twin Disagreement**:
+What it means when a card has both a hand-written and a **Compiled Definition** and, once every declared cosmetic encoding is normalised away, the two do not match. Neither side is presumed right: the disagreement is a defect on one of them, and which one is a question a person answers, not a precedence rule. Distinct from a **documented divergence** (a clause an author knowingly dropped, which is about one definition against its own Oracle text).
+_Avoid_: Divergence (taken — see the dropped-clause sense), conflict, mismatch
+
+**Card Retirement**:
+Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.
+_Avoid_: Deletion, deprecation, cleanup
+
 **Holding Bundle**:
 A record that pulls a **Permanent** (plus the Auras attached to it and a snapshot of its counters) off the battlefield as a unit and remembers how to put it back. Two flavours: the **phased-out bundle** (`phasedOut`, ADR 0021) keeps the same object off-battlefield with no zone change or triggers; the **exile-and-return bundle** (`exileHeld`, ADR 0028) is a real exile — leaves/enters triggers fire, the returned object is new, and counters are _noted_ then re-applied. The bundle's existence doubles as the "delayed return is armed" flag.
 _Avoid_: Limbo, stash, suspended permanent
