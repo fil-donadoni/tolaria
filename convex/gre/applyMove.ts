@@ -63,6 +63,8 @@ import {
     canPayDiscardAtRandom,
     assignMayPayHandCards,
     getPlayer,
+    emitSpellCastEvent,
+    processPendingActionTriggers,
 } from "./state";
 import {
     additionalCostHandLeg,
@@ -983,6 +985,15 @@ function applyBlockAssignments(
     recordBlockedAttackers(state);
 }
 
+/** Upper bound on the resolution steps the `cast-spell` leaf drains after a
+ *  cast (issue #3026). One cast can put more than one item on the stack — a
+ *  storm trigger, then one copy per prior spell this turn — and each copy
+ *  resolves in its own step, so the drain cannot be a single `resolveTopOfStack`
+ *  any more. Generous relative to any real storm count, and a bound rather than
+ *  a `while` so a card whose resolution re-pushes itself can never hang the
+ *  sandbox. */
+const MAX_CAST_RESOLUTION_STEPS = 64;
+
 function findCreature(
     state: GameState,
     id: string
@@ -1412,13 +1423,45 @@ export function applyMoveForSearch(
             ) {
                 stackItem.dashed = true;
             }
+            // CR 601.2i / 603.3 (issue #3026) — announce the cast through the
+            // single choke point, which is what makes `spellsCastThisTurn`
+            // (Storm, ADR 0052), the caster's own per-turn tally (issue #1343,
+            // connive / Ledger Shredder) and the lifetime `spellsCastThisGame`
+            // (issue #790) count in this sandbox at all, and what puts a
+            // keyword-synthesized or self-scoped cast trigger on the stack
+            // above the spell (`collectCastTriggers`). Both hand-built
+            // "StackItem from a cast" reimplementations (issue #2473) pushed
+            // without ever announcing, so the greedy selector and ISMCTS agreed
+            // only by both being wrong: every storm spell copied zero times.
+            const stackDepthBeforeCast = next.stack.length;
             next.stack.push(stackItem);
-            resolveTopOfStack(next);
-            // CR 614.12 / ADR 0051 — a spell that puts a shock land onto the
-            // battlefield (tutor / reanimation) enqueues a stackless
-            // `land-entry-tapped` pay-choice; drain it so the search leaf never
-            // stalls on a choice a rollout can't interactively answer.
-            autoFinalizeLandEntryChoices(next);
+            emitSpellCastEvent(next, stackItem);
+            processPendingActionTriggers(next);
+            // CR 603.3b — the cast trigger now sits ABOVE the spell, and a
+            // storm trigger pushes its copies when IT resolves, so the single
+            // `resolveTopOfStack` this leaf used to make would resolve the
+            // trigger and leave the spell itself unresolved — a leaf `evaluate`
+            // cannot compare against `pass`. Drain the whole cast-induced
+            // segment back to its pre-cast depth instead: that is the "stable,
+            // comparable point" this sandbox's contract promises (file header).
+            // Bounded, and it stops on the first pass that makes no progress so
+            // a `resolveTopOfStack` suspended on a PendingChoice cannot spin.
+            for (let step = 0; step < MAX_CAST_RESOLUTION_STEPS; step++) {
+                if (next.stack.length <= stackDepthBeforeCast) break;
+                const depthBefore = next.stack.length;
+                const topIdBefore = next.stack[next.stack.length - 1]?.id;
+                resolveTopOfStack(next);
+                // CR 614.12 / ADR 0051 — a spell that puts a shock land onto
+                // the battlefield (tutor / reanimation) enqueues a stackless
+                // `land-entry-tapped` pay-choice; drain it so the search leaf
+                // never stalls on a choice a rollout can't interactively
+                // answer.
+                autoFinalizeLandEntryChoices(next);
+                const progressed =
+                    next.stack.length !== depthBefore ||
+                    next.stack[next.stack.length - 1]?.id !== topIdBefore;
+                if (!progressed) break;
+            }
             checkStateBasedActions(next);
             return next;
         }
