@@ -249,6 +249,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "isSummoningSick",
     "isToken",
     "kickerPayments",
+    "layers2to5Derived",
     "knownTo",
     "lifePaidThisTap",
     "linkedTokenId",
@@ -419,6 +420,7 @@ function compactCard(
     // the lower layers put there, and a ledger holds an effect whose source has
     // already left the stack, so neither is derivable from the definition.
     if (card.baseControllerId) out.baseControllerId = card.baseControllerId;
+    if (card.layers2to5Derived) out.layers2to5Derived = true;
     if (card.baseTypes) out.baseTypes = card.baseTypes;
     if (card.baseSubtypes) out.baseSubtypes = card.baseSubtypes;
     if (card.textChangeHolds?.length) {
@@ -895,6 +897,7 @@ function expandCard(
     if (compact.baseControllerId) {
         result.baseControllerId = compact.baseControllerId as string;
     }
+    if (compact.layers2to5Derived) result.layers2to5Derived = true;
     if (compact.baseTypes) {
         result.baseTypes = compact.baseTypes as CardInstanceState["baseTypes"];
     }

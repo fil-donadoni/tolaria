@@ -839,6 +839,7 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     // spec that drops one has genuinely dropped state and the generic scan
     // must keep reporting it.
     "baseControllerId",
+    "layers2to5Derived",
     "baseTypes",
     "baseSubtypes",
     "printedSubtypes",

@@ -1163,6 +1163,12 @@ export type CardInstanceState = {
      *  effect applies. The layer-2 twin of `baseStaticAbilities`;
      *  `controllerId` is the derived answer. */
     baseControllerId?: string;
+    /** PRD #2064 S4 — true once `syncLayers2to5` has derived this instance's
+     *  layers 2-5 at least once. NOT a base and NOT cleared by the CR 400.7
+     *  departure reset: it records which ENGINE wrote the instance's
+     *  characteristic fields, which is what decides whether the pre-S4 ledger
+     *  migration may read them. Absent means the row predates this slice. */
+    layers2to5Derived?: boolean;
     /** CR 613.1d (PRD #2064 S4) — the pre-layer-4 card types, captured lazily
      *  at the first derivation. Cleared by every path that rewrites the
      *  copiable values from below (copy, face-down, transform, identity swap),

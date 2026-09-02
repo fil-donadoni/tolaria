@@ -197,21 +197,26 @@ export function layer4SubtypeBase(card: CardInstanceState): string[] {
  *  is only correct while the output fields still hold nothing but the base, and
  *  that is true exactly once. */
 export function ensureLayers2to5Base(card: CardInstanceState): void {
-    // A card the engine has NEVER derived for carries no base at all. That is
-    // the only state in which the pre-S4 migration below is correct — and it
-    // must be computed BEFORE the captures, which are what stop it being true.
+    // A card this ENGINE has never derived for is the only state in which the
+    // pre-S4 migration below is correct, and `layers2to5Derived` is the only
+    // honest way to ask: it is set by `writeDerivedCharacteristics` and never
+    // cleared, not even by the CR 400.7 departure reset, because "has this
+    // instance ever been through the derivation" is a fact about the ENGINE
+    // that wrote the row, not about the object's current zone.
     //
-    // The gate is load-bearing, not defensive: the derived output the migration
-    // reads (`grantedSubtypesAdd`, `grantedTypes`, `textChanges`, the supertype
-    // markers) is written by THIS engine's own sync, with `"indefinite"`
-    // attribution for every ledger-borne effect. Run it a second time and each
-    // of those rows is promoted into a ledger of its own — the effect applies
-    // twice, forever, and an identity swap (which re-seats the layer-4 bases
-    // and re-derives) is enough to trigger it.
-    const legacy =
-        card.baseControllerId === undefined &&
-        card.baseTypes === undefined &&
-        card.baseSubtypes === undefined;
+    // The gate is load-bearing, not defensive. Every field the migration reads
+    // — `grantedTypes`, `grantedSubtypesAdd`, `textChanges`, the supertype
+    // markers — is ALSO this engine's own derived output, written with the
+    // `"indefinite"` attribution the pre-S4 engine used for a one-shot. Run the
+    // migration a second time and each of those rows is promoted into a ledger
+    // of its own: the effect applies twice, forever.
+    //
+    // Deriving the gate from the BASES instead would be wrong twice over. An
+    // identity swap re-seats the layer-4 bases (`gre/identitySwap.ts`), and a
+    // CR 400.7 departure deletes all three while leaving the output rows on the
+    // instance — so a permanent that merely left and re-entered would have its
+    // own derived output promoted into permanent ledger rows.
+    const legacy = card.layers2to5Derived !== true;
     ensureLayer4Base(card);
     if (card.baseControllerId === undefined) {
         // A control change already materialised into `controllerId` (a state
@@ -1210,6 +1215,8 @@ function writeDerivedCharacteristics(
     card: CardInstanceState,
     result: Layers2to5Derivation
 ): void {
+    // The one-way marker `ensureLayers2to5Base` gates the pre-S4 migration on.
+    card.layers2to5Derived = true;
     card.textChanges =
         result.textChanges.length > 0 ? result.textChanges : undefined;
     card.types = result.types;

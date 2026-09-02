@@ -505,14 +505,28 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         ]);
         expect(hasSupertypeLive(lotus, "Snow")).toBe(true);
 
-        // Idempotent: a second sync must not promote the derived output it just
-        // wrote into a SECOND ledger row (which would apply the effect twice,
-        // permanently).
+        // …and the promotion runs ONCE. The discriminating case is a CR 400.7
+        // departure: it deletes all three bases and every ledger, but leaves
+        // this engine's own derived-output rows on the instance. A migration
+        // gated on "the bases are missing" would read those rows as a pre-S4
+        // snapshot and promote them into permanent ledgers — the effect would
+        // come back from the graveyard with the card it is supposed to have
+        // died with.
+        removePermanentTo(state, "lotus", "hand");
+        const bounced = state.players[0].hand.find((c) => c?.id === "lotus")!;
+        expect(bounced.typeLineHolds).toBeUndefined();
+        expect(bounced.textChangeHolds).toBeUndefined();
+        expect(bounced.supertypeHolds).toBeUndefined();
+
+        state.players[0].hand = state.players[0].hand.filter(
+            (c) => c?.id !== "lotus"
+        );
+        state.players[0].battlefield.push(bounced);
         syncLayers2to5(state);
-        expect(lotus.typeLineHolds).toHaveLength(1);
-        expect(lotus.textChangeHolds).toHaveLength(1);
-        expect(lotus.supertypeHolds).toHaveLength(1);
-        expect(lotus.types).toEqual(["Enchantment"]);
+        expect(bounced.typeLineHolds).toBeUndefined();
+        expect(bounced.supertypeHolds).toBeUndefined();
+        expect(bounced.types).toEqual(["Artifact"]);
+        expect(hasSupertypeLive(bounced, "Snow")).toBe(false);
     });
 
     it("B4 CR 613.7 — the layer-4 subtype base excludes a subtype a live ADD put there (issue #1715)", () => {
