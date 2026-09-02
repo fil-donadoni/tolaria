@@ -328,8 +328,14 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
         // since issue #1716 their `keyword-grant` gates on the permanent's
         // own `wasKicked` flag, not a counter count, so they don't read
         // counters at all anymore and never needed `dependsOnCounters`.
+        //
+        // Dread Wight LEFT this list in PRD #2064 S3: its two clauses are
+        // created by its end-of-combat trigger as Continuous Effects Registry
+        // entries with `counter` expiry (CR 611.2c), not by `staticEffects[]`
+        // on the Wight, so there is no materialised static for the refresh to
+        // re-evaluate and nothing to declare. That is the whole point of the
+        // registry — the gate IS the expiry.
         const expected = [
-            "65d332e2-4b2d-4131-84f7-862cb138c477", // Dread Wight (ICE)
             "11fb92c0-bb1e-463a-a6b6-887a5d0cb873", // Venarian Gold (LEG)
             "a82c87b1-de37-4423-a1a4-533a1d8108b2", // Cocoon (LEG)
             "894c5cf2-8ae2-427a-bcbc-67df0bdfee9d", // Cyclopean Tomb (LEA)

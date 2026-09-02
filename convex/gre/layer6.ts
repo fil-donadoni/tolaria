@@ -89,6 +89,19 @@ export type Layer6Derivation = {
      *  separate instances). #1715's "Flight then Gravity Sphere" case is
      *  exactly this arithmetic. */
     staticAbilities: string[];
+    /** CR 613.1f — the keyword grants a live SOURCE's static ability is
+     *  contributing, in the shape `grantedStaticAbilities` has always had.
+     *  DERIVED OUTPUT, like `staticAbilities` itself: the client reads the
+     *  provenance record (`src/lib/battlefield-stacks.ts`'s altered predicate)
+     *  and the bot reads it beside the multiset
+     *  (`gre/ai/defensiveGrants.ts`), so the record keeps being written until
+     *  PRD #2064 S5/S6 point those consumers at the registry. Nothing reads it
+     *  back as input — `layer6EffectsFor` skips every `auraId`-keyed row. */
+    grantedStatic: {
+        ability: string;
+        auraId: string;
+        seq: number;
+    }[];
     /** CR 113.1 — activated abilities granted by a live SOURCE's static
      *  ability, in timestamp order. Duration- and residue-borne grants stay on
      *  the instance until PRD #2064 S6 and are not reproduced here. */
@@ -716,6 +729,7 @@ export function deriveLayer6(
     );
     const instance = target as unknown as CardInstanceState;
     const staticAbilities = [...layer6Base(instance)];
+    const grantedStatic: Layer6Derivation["grantedStatic"] = [];
     const grantedActivated: Layer6Derivation["grantedActivated"] = [];
     const grantedTriggered: Layer6Derivation["grantedTriggered"] = [];
     const removedKeywords: Layer6Derivation["removedKeywords"] = [];
@@ -727,11 +741,26 @@ export function deriveLayer6(
         switch (action.kind) {
             case "keyword-grant":
                 staticAbilities.push(action.keyword);
+                if (entry.expiry.kind === "source") {
+                    grantedStatic.push({
+                        ability: action.keyword,
+                        auraId: entry.expiry.sourceId,
+                        seq: entry.timestamp,
+                    });
+                }
                 break;
             case "keyword-remove": {
                 const idx = staticAbilities.indexOf(action.keyword);
                 if (idx === -1) break;
                 staticAbilities.splice(idx, 1);
+                // Keep the provenance record in step with the multiset: the
+                // occurrence a removal takes is the one a consumer must no
+                // longer see attributed to a source (`defensiveGrants.ts`
+                // documents exactly this hazard).
+                const grantIdx = grantedStatic.findIndex(
+                    (g) => g.ability === action.keyword
+                );
+                if (grantIdx !== -1) grantedStatic.splice(grantIdx, 1);
                 removedKeywords.push({
                     keyword: action.keyword,
                     sourceId:
@@ -754,6 +783,7 @@ export function deriveLayer6(
                     });
                 }
                 staticAbilities.length = 0;
+                grantedStatic.length = 0;
                 // A later grant is applied after this point in the walk and
                 // survives, so the stamp is recorded rather than acted on
                 // again: `getEffectiveActivatedAbilities` needs it to make the
@@ -795,6 +825,7 @@ export function deriveLayer6(
 
     return {
         staticAbilities,
+        grantedStatic,
         grantedActivated,
         grantedTriggered,
         abilitiesSuppressedBy,
@@ -835,6 +866,14 @@ export function recomposeLayer6ForInstance(card: CardInstanceState): void {
             : undefined;
     card.removedKeywords =
         result.removedKeywords.length > 0 ? result.removedKeywords : undefined;
+    // The synthetic board holds only this permanent, so no source-provenance
+    // grant is derivable here; the residue rows are left exactly as they are
+    // and the next `syncLayer6` rebuilds the source half.
+    const keptStatic = (card.grantedStaticAbilities ?? []).filter(
+        (g) => !g.auraId
+    );
+    card.grantedStaticAbilities =
+        keptStatic.length > 0 ? keptStatic : undefined;
 }
 
 /** Writes layer 6's derivation onto every battlefield permanent as DERIVED
@@ -900,6 +939,12 @@ export function syncLayer6(
         // Source-provenance grants are derived; duration- and residue-borne
         // ones stay on the instance until PRD #2064 S6, so they are preserved
         // and the derived rows replace only the `auraId`-keyed half.
+        const keptStatic = (card.grantedStaticAbilities ?? []).filter(
+            (g) => !g.auraId
+        );
+        const staticRows = [...keptStatic, ...result.grantedStatic];
+        card.grantedStaticAbilities =
+            staticRows.length > 0 ? staticRows : undefined;
         const keptActivated = (card.grantedActivatedAbilities ?? []).filter(
             (g) => !g.auraId
         );
