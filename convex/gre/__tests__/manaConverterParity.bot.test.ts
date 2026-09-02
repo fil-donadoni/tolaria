@@ -39,8 +39,17 @@
 // `KNOWN_MULTI_MANA_DIVERGENCES = 11` budget covering every board whose only
 // surplus was a multi-mana source (Sol Ring paying {2}), because
 // `planManaPayment` counted one mana per source while the census counted one
-// unit per mana. The planner now reads the same quantity and the budget is 0,
-// so invariant A is asserted with no exemption at all.
+// unit per mana. The planner now reads the same quantity, and invariant A is
+// asserted over this POOL with no exemption at all.
+//
+// "Over this pool" is the honest scope, and the pool doc below says what is
+// deliberately outside it and why. Two known divergences of other shapes are
+// live and drawn up rather than budgeted for here:
+// `docs/findings/3027-census-counts-a-coloured-cost-tap-ability-free.md`
+// (an A-direction census over-count) and
+// `docs/findings/3027-planner-picks-one-option-per-colour.md` (a planner
+// under-count on a source whose one activation mixes colours). Both predate
+// this issue and neither is reachable from a subset of `POOL`.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -76,7 +85,19 @@ import { urzaLordHighArtificer } from "../../cards/sets/mh1";
  *  ability at all), plain lands, the OTHER non-tap shape (Farrelite Priest's
  *  pure `cost.mana`) and — since issue #3027 — a CHOICE-based burst source
  *  (Black Lotus, "Add three mana of any one color") alongside the fixed-burst
- *  Sol Ring. Every regression above lives inside a subset of this pool. */
+ *  Sol Ring. Every regression above lives inside a subset of this pool.
+ *
+ *  NOT in the pool, deliberately: a `{T}`-PLUS-something source (Apprentice
+ *  Wizard, "{U}, {T}: Add {C}{C}{C}"). Its extra leg is funded by no tap plan,
+ *  so its gross yield is not creditable — that class is pinned directly in
+ *  `burstManaSources.bot.test.ts` instead, because adding it HERE reds
+ *  invariant A for a reason that predates and is independent of issue #3027:
+ *  the census counts the Wizard's three mana free (its `{U}` leg is not
+ *  pure-generic, so the netting at `getProducibleManaUnits` does not fire) and
+ *  offers a Cast for {2} off the Wizard alone, which nothing can pay. Measured
+ *  11 board/spell pairs. Drawn up as
+ *  `docs/findings/3027-census-counts-a-coloured-cost-tap-ability-free.md`
+ *  rather than absorbed here as a second exemption. */
 const POOL = [
     urzaLordHighArtificer,
     moxSapphire,
@@ -108,6 +129,38 @@ function permanent(defId: string, id: string): CardInstanceState {
         isTapped: false,
         isSummoningSick: false,
     });
+}
+
+/** The two authorities' answers for one board / one spell — the single place
+ *  the sweep and the A' exclusion below both read, so the re-check cannot
+ *  drift from the measurement it is qualifying (issue #3027). */
+function authorities(
+    battlefield: readonly CardInstanceState[],
+    spellDefId: string
+): { offersCast: boolean; plan: ManaTap[] | null } {
+    const spell = makeInstance(spellDefId, {
+        id: "spell",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    const player = makePlayer("p1", {
+        hand: [spell],
+        battlefield: battlefield.map((c) => ({ ...c })),
+    });
+    const state = withTurnOf(makeState({ players: [player] }));
+    const live = state.players[0];
+    // None of `SPELLS` has a variable {X} or a hybrid pip, so the printed cost
+    // record IS the normalised cost `enumerateCastMoves` plans against.
+    const printed = getInstanceManaCost(spell) ?? {};
+    const cost: Record<string, number> = {};
+    for (const [k, v] of Object.entries(printed)) {
+        if (typeof v === "number") cost[k] = v;
+    }
+    return {
+        offersCast: getLegalActions(state, live, live.hand[0]).includes("cast"),
+        plan: planManaPayment(state, live, cost),
+    };
 }
 
 function withTurnOf(state: GameState): GameState {
@@ -180,17 +233,13 @@ function tappedPermanentIds(plan: readonly ManaTap[]): string[] {
  *  is exactly how the multi-mana one survived three review rounds. Any A'
  *  failure on a board without this shape reds the sweep.
  *  tracked-by: docs/findings/3027-census-nets-fundable-mana-ability-to-zero.md */
-function hasNetZeroManaAbility(
-    battlefield: readonly CardInstanceState[]
-): boolean {
-    return battlefield.some((perm) =>
-        getEffectiveActivatedAbilities(perm).some(
-            ({ ability }) =>
-                !ability.useStack &&
-                !ability.cost.tap &&
-                !ability.cost.tapOtherFilter &&
-                (pureGenericManaSubCost(ability.cost.mana ?? {}) ?? 0) > 0
-        )
+function isNetZeroManaPermanent(perm: CardInstanceState): boolean {
+    return getEffectiveActivatedAbilities(perm).some(
+        ({ ability }) =>
+            !ability.useStack &&
+            !ability.cost.tap &&
+            !ability.cost.tapOtherFilter &&
+            (pureGenericManaSubCost(ability.cost.mana ?? {}) ?? 0) > 0
     );
 }
 
@@ -208,32 +257,10 @@ describe("mana payment authorities agree (issue #2420)", () => {
                 permanent(defId, `perm${i}`)
             );
             for (const spellDef of SPELLS) {
-                const spell = makeInstance(spellDef.id, {
-                    id: "spell",
-                    controllerId: "p1",
-                    ownerId: "p1",
-                    zone: "hand",
-                });
-                const player = makePlayer("p1", {
-                    hand: [spell],
-                    battlefield: battlefield.map((c) => ({ ...c })),
-                });
-                const state = withTurnOf(makeState({ players: [player] }));
-                const live = state.players[0];
-                // None of `SPELLS` has a variable {X} or a hybrid pip, so
-                // the printed cost record IS the normalised cost
-                // `enumerateCastMoves` plans against.
-                const printed = getInstanceManaCost(spell) ?? {};
-                const cost: Record<string, number> = {};
-                for (const [k, v] of Object.entries(printed)) {
-                    if (typeof v === "number") cost[k] = v;
-                }
-                const plan = planManaPayment(state, live, cost);
-                const offersCast = getLegalActions(
-                    state,
-                    live,
-                    live.hand[0]
-                ).includes("cast");
+                const { offersCast, plan } = authorities(
+                    battlefield,
+                    spellDef.id
+                );
                 const where = `${board.label} casting ${spellDef.name}`;
 
                 if (offersCast) castsOffered++;
@@ -245,14 +272,31 @@ describe("mana payment authorities agree (issue #2420)", () => {
                 // INVARIANT A' — the other direction (issue #3027). A plan the
                 // Bot can execute that the human is not offered is a Cast
                 // button wrongly withheld.
-                if (
-                    !offersCast &&
-                    plan !== null &&
-                    !hasNetZeroManaAbility(player.battlefield)
-                ) {
-                    reverseDisagreements.push(
-                        `${where}: plan built, no cast offered`
+                //
+                // The exemption is DIVERGENCE-scoped, not board-scoped: the
+                // net-zero permanents are removed and the same two authorities
+                // re-asked. Only a divergence that DISAPPEARS with them is
+                // attributed to the census's netting; one that survives is a
+                // different bug and reds the sweep. A board-scoped `some(...)`
+                // would exempt the whole board for every cause — measured on
+                // this pool it masked 94 rows, and it would have swallowed the
+                // extra-cost-tap regression this branch's own review found
+                // (`[Farrelite Priest, Apprentice Wizard]`) in silence.
+                if (!offersCast && plan !== null) {
+                    const without = battlefield.filter(
+                        (perm) => !isNetZeroManaPermanent(perm)
                     );
+                    const causedByNetting =
+                        without.length !== battlefield.length &&
+                        !(() => {
+                            const bare = authorities(without, spellDef.id);
+                            return !bare.offersCast && bare.plan !== null;
+                        })();
+                    if (!causedByNetting) {
+                        reverseDisagreements.push(
+                            `${where}: plan built, no cast offered`
+                        );
+                    }
                 }
                 if (plan === null) continue;
                 plansBuilt++;

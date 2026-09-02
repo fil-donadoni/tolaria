@@ -49,6 +49,11 @@ const BRAIN_FREEZE = getCardByName("Brain Freeze").id; // {1}{U}
 const COUNTERSPELL = getCardByName("Counterspell").id; // {U}{U}
 const LORD_OF_ATLANTIS = getCardByName("Lord of Atlantis").id; // {U}{U}, no targets
 const CITY_OF_BRASS = getCardByName("City of Brass").id; // {T}: Add one of any color
+// The three shipped `{T}`-PLUS-something multi-mana sources (review finding 1).
+const APPRENTICE_WIZARD = getCardByName("Apprentice Wizard").id; // {U},{T}: Add {C}{C}{C}
+const ORCISH_LUMBERJACK = getCardByName("Orcish Lumberjack").id; // {T}, Sac a Forest: Add {R}{R}{R}
+const IMPLEMENTS = getCardByName("Implements of Sacrifice").id; // {1},{T}, Sac: Add two of one color
+const BASAL_THRULL = getCardByName("Basal Thrull").id; // {T}, Sac: Add {B}{B}
 const FIREBALL = getCardByName("Fireball").id; // {X}{R}
 
 function permanent(defId: string, id: string): CardInstanceState {
@@ -226,6 +231,47 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
         expect(castIds).toEqual(
             new Set(["ancestral", "brainFreeze", "counterspell"])
         );
+    });
+
+    // Review finding 1 (blocking). `isAutoPayableManaAbilityCost`
+    // (`constants.ts`) short-circuits on `if (cost.tap) return true`, so an
+    // ability whose cost is {T} PLUS something else reaches the plain-tap
+    // realisation. Crediting its GROSS yield hands the planner mana nothing
+    // ever paid for: measured on this branch before the guard, a lone
+    // Apprentice Wizard returned a plan for {3} with its {U} unfunded, and a
+    // lone Orcish Lumberjack one with no Forest sacrificed — plans
+    // `applyManaAbilityManaCost` / the sacrifice cost reject outright, while
+    // the search would meanwhile value them as legal (`applyTapPlan` only
+    // marks sources tapped). Such a source falls back to ONE mana, its exact
+    // pre-issue-#3027 behaviour.
+    it.each([
+        ["Apprentice Wizard ({U} leg)", APPRENTICE_WIZARD],
+        ["Orcish Lumberjack (sacrifice-another leg)", ORCISH_LUMBERJACK],
+        ["Implements of Sacrifice ({1} leg)", IMPLEMENTS],
+    ])(
+        "does not credit the yield of a tap ability whose cost has an unfunded leg — %s",
+        (_label, defId) => {
+            const state = position([permanent(defId, "src")]);
+            const live = state.players[0];
+            // One mana, exactly as before this issue.
+            expect(planManaPayment(state, live, { X: 1 })).not.toBeNull();
+            expect(planManaPayment(state, live, { X: 2 })).toBeNull();
+            expect(planManaPayment(state, live, { X: 3 })).toBeNull();
+        }
+    );
+
+    // The discriminating twin: a SELF-sacrifice leg IS executed by the same
+    // tap the plan already emits (`tapSourceIntoPayment`), so its yield stays
+    // creditable. Without this half the guard above would be satisfied by
+    // simply never crediting any tap ability at all — which would silently
+    // revert the whole issue.
+    it("still credits the yield of a tap ability whose only extra leg is a SELF-sacrifice", () => {
+        const state = position([permanent(BASAL_THRULL, "thrull")]);
+        const live = state.players[0];
+        expect(planManaPayment(state, live, { B: 2 })).toEqual([
+            { cardInstanceId: "thrull" },
+        ]);
+        expect(planManaPayment(state, live, { B: 3 })).toBeNull();
     });
 
     // The wire AC: the plan the executor would submit is accepted by the REAL
