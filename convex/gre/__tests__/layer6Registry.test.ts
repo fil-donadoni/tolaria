@@ -655,7 +655,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             {
                 id: EMBLEM_ID,
                 name: "Layer 6 Probe Emblem",
-                oracleText: "Creatures you control have flying.",
+                text: "Creatures you control have flying.",
                 staticEffects: [
                     {
                         kind: "keyword-grant",
@@ -673,7 +673,13 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
                 const bear = makeInstance(grizzlyBears.id, { id: "bear" });
                 const state = boardOf(bear);
                 state.emblems = [
-                    { id: "emblem-1", emblemId: EMBLEM_ID, ownerId: "p1" },
+                    {
+                        id: "emblem-1",
+                        emblemId: EMBLEM_ID,
+                        ownerId: "p1",
+                        name: "Layer 6 Probe Emblem",
+                        text: "Creatures you control have flying.",
+                    },
                 ];
                 refreshCounterGatedStatics(state);
 
