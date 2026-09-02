@@ -13,6 +13,15 @@ import {
  * true` keeps the board read out of the picture too (its own, pre-existing
  * `priorityWarning` degrade path — untouched here).
  *
+ * "Never a live `gh` call" was the INTENT, not the state: seven of these
+ * blocks stubbed `claimsRunner`/`queueRunner`/`openIssuesRunner` and left
+ * `mergedPrRunner` to default to the real `ghChecked`, so every one of them
+ * shelled out to GitHub and timed out at vitest's 5s default whenever the
+ * network or the machine was busy. That made `check:guards` — and therefore
+ * `land` — nondeterministic for every PR, not just this file's own (issue
+ * #2701 hit it twice). None of the seven asserts on merged PRs, so stubbing
+ * the fourth seam changes no expectation; it only makes the header true.
+ *
  * The bug this guards: a rate-limited `gh` call used to render as an empty,
  * healthy result — `claims: []` / `queueDepth: {total: 0}` — indistinguishable
  * from "nothing claimed, queue drained" (the loop's own documented stop
@@ -37,6 +46,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                 );
             },
             queueRunner: () => "[]",
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(result.claims).toBeNull();
@@ -53,6 +63,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
             queueRunner: () => {
                 throw new Error("GraphQL: API rate limit already exceeded");
             },
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(result.queueDepth).toBeNull();
@@ -79,6 +90,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                           { number: 101, labels: [{ name: "in-progress" }] },
                       ])
                     : "[]",
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         // Claims: unavailable.
@@ -100,6 +112,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                     ? claimedIssuesJson()
                     : "[]",
             queueRunner: () => JSON.stringify([{ number: 200, labels: [] }]),
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(result.claimsError).toBeNull();
@@ -168,6 +181,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
                     ? claimedIssuesJson()
                     : "[]",
             queueRunner: () => "[]",
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => {
                 throw new Error(
                     "GraphQL: API rate limit already exceeded for user ID 117459688"
@@ -198,6 +212,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
             queueRunner: () => {
                 throw new Error("boom");
             },
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(Array.isArray(result.timelinePasses)).toBe(true);
@@ -405,6 +420,7 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
             noPriority: true,
             claimsRunner: () => "[]",
             queueRunner: () => "[]",
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(result.verdict).toBeDefined();
@@ -420,6 +436,7 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
                 throw new Error("GraphQL: API rate limit already exceeded");
             },
             queueRunner: () => "[]",
+            mergedPrRunner: () => "[]",
             openIssuesRunner: () => "[]",
         });
         expect(result.verdict.state).toBe("NEEDS ATTENTION");
