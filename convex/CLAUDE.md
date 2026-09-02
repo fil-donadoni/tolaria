@@ -61,6 +61,36 @@ the Op vocabulary.
   guard's. Enforced by `divergenceMarkers.test.ts`; scanner shared with the
   liveness sweep in `scripts/lib/divergence-markers.ts`. Derivation:
   `docs/agents/gre-guards.md`.
+- **Guard C — round-trip-or-declare-the-gap (#2701, PRD #2693).** Guard A
+  polices a keyword the engine cannot honour, Guard B a clause the author
+  dropped. Guard C polices the gap the Oracle compiler introduced: a card
+  whose hand-written definition is entirely correct and whose own Oracle text
+  the grammar cannot read back into it. Nothing about such a card is broken,
+  which is why it would accumulate invisibly — and every one of them shrinks
+  the gold standard the compiler is measured against. So a hand-written card
+  does ONE of three things:
+    1. **round-trips** — `roundTripCard` (`convex/oracle/gold.ts`, the single
+       comparator, shared with the gold harness) reads the card's own text
+       back into the card's own behaviour. Structural equality for a DSL card;
+       for a card whose behaviour lives in a closure, producing a definition
+       at all is enough at this guard (an Effect Script and a `resolve()` are
+       not comparable in either direction).
+    2. carries **`// compiler-gap: <fragment> (#issue)`** in the comment
+       paragraph directly above its `export const … : CardDefinition` anchor —
+       same paragraph rules as Guard B (`paragraphBounds`, shared). The shape
+       is strict and the FRAGMENT is the deliverable: it is what the corpus
+       report aggregates to rank the next grammar rule (PRD #2693 user story
+       9), so quote the Oracle span that beat the grammar, never "the compiler
+       can't do this card". A marker inside the object literal, two paragraphs
+       up, or with no issue ref exempts NOTHING and reds as malformed.
+    3. sits in the one-time **baseline**
+       (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`) — the 1,756
+       cards that predate the guard. **Closed to new entries** and
+       shrink-only: a card that starts round-tripping must leave, a card whose
+       gap gets a marker must leave, and `BASELINE_CEILING` only ever comes
+       down. Enforced by `compilerRoundTrip.test.ts`; scanner in
+       `scripts/lib/compiler-gap-markers.ts`. Presence only — marker liveness
+       is the network sweep's job, exactly as for Guard B.
 
 **Guard B polices markers; it does not licence them.** A `tracked-by:` ref
 makes an already-accepted divergence findable — it never makes one
