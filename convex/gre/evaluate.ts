@@ -889,7 +889,7 @@ export function evaluate(
         dangerClock(state, playerId) +
         declaredCombatDelta(state, me.id, weights) +
         lethalUnblockedDelta(state, playerId, weights) +
-        deckOutDelta(state, me, opp, weights)
+        deckOutDelta(me, opp, weights)
     );
 }
 
@@ -907,11 +907,8 @@ export function evaluate(
  *  NARROW SUPPORT: exactly zero unless a library is actually empty, so no
  *  position that is not one draw from a deck-out can be moved by it.
  *
- *  Both libraries empty returns 0 deliberately: which player loses then depends
- *  on whose draw step comes first, which this leaf-level term does not model.
- *  Zero is the honest answer, and the position is vanishingly rare. */
+ *  Both libraries empty is NOT resolved here — see the note in the body. */
 function deckOutDelta(
-    state: GameState,
     me: PlayerState,
     opp: PlayerState,
     weights: EvalWeights
