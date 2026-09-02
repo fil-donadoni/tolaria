@@ -327,7 +327,7 @@ export type BladeSetupStep =
      *  Throws when the scan puts nothing on the stack — a position that
      *  silently fired no trigger must not pass for one that fired the trigger
      *  under test. */
-    | { kind: "phase-trigger"; phase?: string };
+    | { kind: "phase-trigger"; phase?: GameState["phase"] };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

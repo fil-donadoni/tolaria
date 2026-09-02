@@ -1024,7 +1024,8 @@ const playerAttackedThisTurnDescriptor = defineFilter<boolean>({
 // CR 601.2c (issue #2707) — "target player who controls more creatures than
 // they do and is their opponent" (Oath of Druids), and the same clause at
 // `type: "Land"` (Oath of Lieges). Counts LIVE battlefield types on both
-// sides (CR 205.2a — an animated land counts as a creature) and compares
+// sides — the layer-4 output (CR 613.1d), so an animated land counts as a
+// creature — and compares
 // STRICTLY, which is also what makes the "is their opponent" half free: no
 // player controls more permanents than themselves, so the baseline seat can
 // never satisfy its own comparison.
@@ -1048,9 +1049,18 @@ const playerControlsMoreThanDescriptor = defineFilter<
             if (!baseline) {
                 return "Cannot compare permanent counts: baseline player unknown";
             }
+            // `types` is REQUIRED on `CardInstanceState` and `slimCard`
+            // preserves it verbatim, but the client reaches this check through
+            // an `as unknown as PlayerState` cast off a projection whose own
+            // `CardInstance` type declares it optional — so the cast, not the
+            // type, is what guarantees it. Optional-chained rather than
+            // trusted: a row that somehow arrives without `types` counts as
+            // no match, which keeps the descriptor's fail-CLOSED promise
+            // instead of throwing inside a React render.
             const count = (p: { battlefield: readonly CardInstanceState[] }) =>
-                p.battlefield.filter((c) => c.types.includes(value.type))
-                    .length;
+                p.battlefield.filter(
+                    (c) => c.types?.includes(value.type) ?? false
+                ).length;
             return count(player) > count(baseline)
                 ? null
                 : `Target player does not control more ${value.type.toLowerCase()}s than the ${

@@ -625,8 +625,9 @@ export interface TargetRequirement {
      *  `ctx.chooserId` every other filter reads), for the Land Tax-class
      *  "an opponent controls more lands than you" phrasing.
      *
-     *  Both sides are counted off the LIVE battlefield `types` (CR 205.2a, so
-     *  an animated land counts as a creature) through the same
+     *  Both sides are counted off the LIVE battlefield `types` — the layer-4
+     *  output (CR 613.1d), so an animated land counts as a creature — through
+     *  the same
      *  `checkPlayerTargetFilters` registry the offered set, the accepted set
      *  and the CR 608.2b resolution re-check all share (ADR 0068). Fails
      *  CLOSED: a baseline player the ctx cannot resolve excludes every
@@ -13200,14 +13201,18 @@ export type EffectOp =
      *
      *  NO MATCH IN THE LIBRARY: the whole library is revealed and every
      *  revealed card goes to `rest` — the uniform behaviour of the
-     *  "reveal until" family (Weatherlight), and CR 608.2b's "do as much as
-     *  possible" for the `match` leg, whose "that card" has no referent. This
-     *  is why Oath's clause is a "may": revealing with no creature card left
-     *  in the library mills that library into the graveyard.
+     *  "reveal until" family (Weatherlight). The `match` leg's "that card" has
+     *  no referent, so that clause is impossible and is ignored (CR 101.3),
+     *  while the `rest` clause is performable and is carried out as far as
+     *  possible (CR 609.3). Deliberately NOT cited as 608.2b, which is target
+     *  legality on resolution and says nothing about impossible instructions.
+     *  This is why Oath's clause is a "may": revealing with no creature card
+     *  left in the library mills that library into the graveyard.
      *
-     *  Every other miss is a CR 608.2b no-op: an unresolvable player and an
-     *  empty library both reveal nothing and fire no dialog, and a revealed id
-     *  that is somehow no longer in the library when it is routed is skipped.
+     *  Every other miss is the same pair (CR 101.3 ignores it, CR 609.3 does
+     *  what it can): an unresolvable player and an empty library both reveal
+     *  nothing and fire no dialog, and a revealed id that is somehow no longer
+     *  in the library when it is routed is skipped.
      *
      *  NO `bind`: the matching card's destination is a per-card parameter, so
      *  the snapshot's `TargetSelection` kind would vary with `match` (a

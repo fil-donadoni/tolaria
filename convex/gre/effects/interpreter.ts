@@ -3467,7 +3467,8 @@ export const OP_EXECUTORS: {
     // suspends, so the reveal dialog fires exactly once.
     revealUntilMatch(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
-        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        // CR 101.3 — an instruction impossible to perform is ignored.
+        if (playerId === undefined) return; // no such player: nothing to do
         // Characteristics of every library card, read BEFORE anything moves —
         // routing the match onto the battlefield mutates the library, and the
         // remaining cards must still be read against what was revealed.
@@ -3479,21 +3480,20 @@ export const OP_EXECUTORS: {
         // "until" means. `getLibraryCards` is order-agnostic and supplies only
         // the size and the characteristics.
         const ordered = ctx.peekLibraryTop(playerId, byId.size);
-        if (ordered.length === 0) return; // CR 608.2b — empty library, no-op
+        if (ordered.length === 0) return; // CR 101.3 — empty library, no-op
         // Walk top-down and stop AT the first match (inclusive — the matching
         // card is itself revealed, CR 701.20a).
         const revealed: string[] = [];
         let matchId: string | undefined;
         for (const id of ordered) {
             const card = byId.get(id);
-            if (card === undefined) continue; // CR 608.2b — no longer there
+            if (card === undefined) continue; // CR 101.3 — no longer there
             revealed.push(id);
             if (matchesCardFilter(ctx, card, op.filter)) {
                 matchId = id;
                 break;
             }
         }
-        if (revealed.length === 0) return;
         // CR 701.20a — the whole revealed prefix is public BEFORE any of it is
         // routed. `markKnownToAll` is the persistent grant, `notifyReveal` the
         // transient dialog: the same pair `revealTopAndRoute` and `explore`
@@ -3506,11 +3506,19 @@ export const OP_EXECUTORS: {
             "reveal"
         );
         // No match anywhere in the library: the whole library was revealed and
-        // all of it goes to `rest`. CR 608.2b — the `match` leg's "that card"
-        // has no referent, so it does nothing while the rest of the
-        // instruction is carried out as far as possible. This is why Oath's
-        // clause is a "may": revealing with no creature card left mills the
-        // library.
+        // all of it goes to `rest`. The `match` leg's "that card" has no
+        // referent, so that clause is impossible and is ignored (CR 101.3),
+        // while the `rest` clause is performable and is carried out as far as
+        // possible (CR 609.3). Deliberately NOT cited as 608.2b, which is
+        // target legality on resolution and says nothing about impossible
+        // instructions. This is why Oath's clause is a "may": revealing with
+        // no creature card left mills the library.
+        // ORDERING, and it is a correctness property rather than an accident:
+        // the walk BREAKS at the match, so the match is always LAST in
+        // `revealed` and the whole prefix reaches `rest` before it is routed.
+        // A `match: "battlefield"` card therefore enters with the milled cards
+        // already in the graveyard, which is what an ETB trigger reading them
+        // (a graveyard count, a delirium check) has to see.
         for (const id of revealed) {
             const destination = id === matchId ? op.match : op.rest;
             if (destination === "battlefield") {

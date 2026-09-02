@@ -872,3 +872,84 @@ describe("blade setup — `know-library-top` rejects a run it cannot grant", () 
         }
     });
 });
+
+// CR 603.6a (issue #2707) — the phase-trigger twin of `etb-trigger`. Its whole
+// job is to make an "at the beginning of [step]" trigger the decision under
+// test, which no `ScenarioSpec` can express: a spec names a phase but only
+// describes a BOARD, and no other step advances the turn.
+describe("blade setup — `phase-trigger` fires an at-the-beginning trigger (issue #2707)", () => {
+    /** Oath of Druids under `me`, with the opponent ahead on creatures so the
+     *  CR 601.2c comparative target clause admits exactly one candidate. */
+    const oathBoard = (): ScenarioSpec => ({
+        cards: [
+            { name: "Oath of Druids", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            { name: "Craw Wurm", owner: "me", zone: "library", count: 10 },
+        ],
+        phase: "UPKEEP",
+        libraryCount: 0,
+    });
+
+    it("puts the upkeep trigger on the stack, targeted, through the real collection path", () => {
+        const state = build(oathBoard());
+        expect(state.stack).toHaveLength(0);
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "phase-trigger" }],
+        });
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("oath-of-druids-upkeep");
+        // CR 603.3d — the sole legal target auto-selected as the trigger was
+        // placed, which only happens on the REAL placement path.
+        expect(state.stack[0].targets).toEqual([
+            { type: "player", id: state.players[1].id },
+        ]);
+        // CR 117.3c — priority restarts at the active player.
+        expect(state.priorityPlayerId).toBe(state.activePlayerId);
+    });
+
+    it("`phase` overrides the built board's phase", () => {
+        const state = build({ ...oathBoard(), phase: "PRECOMBAT_MAIN" });
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "phase-trigger", phase: "UPKEEP" }],
+        });
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("THROWS when the scan reaches the stack with nothing, rather than passing as a fired trigger", () => {
+        // Same board, wrong step: Oath triggers at UPKEEP only, so an END_STEP
+        // scan puts nothing on the stack. A position that silently fired
+        // nothing must not pass for the position under test.
+        const state = build(oathBoard());
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "phase-trigger", phase: "END_STEP" }],
+            })
+        ).toThrow(BladeSetupError);
+    });
+
+    it("THROWS when the trigger is removed for having no legal target (CR 603.3d)", () => {
+        // The opponent is NOT ahead on creatures, so Oath's comparative target
+        // clause admits nobody and `placeTriggersOnStack` removes the trigger.
+        // The step must report that as a failure to reach the position, not as
+        // a fired trigger.
+        const state = build({
+            cards: [
+                { name: "Oath of Druids", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "UPKEEP",
+            libraryCount: 20,
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "phase-trigger" }],
+            })
+        ).toThrow(BladeSetupError);
+    });
+});

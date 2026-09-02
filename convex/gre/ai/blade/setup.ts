@@ -158,8 +158,7 @@ function applyPhaseTrigger(
     label: string,
     step: Extract<BladeSetupStep, { kind: "phase-trigger" }>
 ): void {
-    if (step.phase !== undefined)
-        state.phase = step.phase as GameState["phase"];
+    if (step.phase !== undefined) state.phase = step.phase;
     const before = state.stack.length;
     const triggers = collectTriggers(state, [
         {

@@ -79,7 +79,17 @@ export const survivalOfTheFittest: CardDefinition = {
 //    and NOT `controller: "opponent"`, which is relative to the chooser (this
 //    ability's controller) and is the wrong seat on the opponent's upkeep. The
 //    "and is their opponent" half needs no clause of its own: a strict `>`
-//    already excludes the baseline seat. With no legal target the trigger is
+//    already excludes the baseline seat.
+//
+//    COUPLING worth knowing before touching either half: the TARGETING
+//    baseline reads `state.activePlayerId` (through the filter ctx) while the
+//    BODY reads `{ ref: "$event.activePlayerId" }` off the firing event. Two
+//    sources for one concept. They agree on every reachable path today —
+//    a player has an upkeep only on their own turn, so the PHASE_BEGIN UPKEEP
+//    event's active player IS the state's, and the trigger cannot outlive that
+//    upkeep — but a delayed or copied phase trigger would separate them.
+//
+//    With no legal target the trigger is
 //    removed from the stack as it is announced (CR 603.3d,
 //    `raiseTriggerTargetSelection`), and the printed ruling's "the ability
 //    doesn't resolve if it's no longer true at that time" is the CR 608.2b

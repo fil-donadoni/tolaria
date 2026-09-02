@@ -294,7 +294,6 @@ describe("Oath of Druids (CR 603.6a each-player upkeep + CR 603.3d targeting + C
             );
             expect(milled, `revealed land, viewer ${viewer}`).toBeDefined();
             expect(milled!.card.id).toBe(forest.id);
-            expect(seat).toBeGreaterThanOrEqual(0);
         }
     });
 });

@@ -4395,8 +4395,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // Same board, same trigger, one difference: the library holds NO
         // creature card. Same library SIZE, same everything — only the card
         // TYPE differs, which is what makes the pair discriminating. Accepting
-        // reveals the WHOLE library and mills it (CR 608.2b — the `match` leg's
-        // "that card" has no referent), taking the library from 20 to 0 and
+        // reveals the WHOLE library and mills it (the `match` leg's "that card"
+        // has no referent, so CR 101.3 ignores that clause while CR 609.3 still
+        // performs the `rest` clause), taking the library from 20 to 0 and
         // straight through the decking term's 12-card horizon (`libraryTerm`,
         // evaluate.ts). That is the exact reason the printed clause is a "may".
         //

@@ -1424,7 +1424,11 @@ export function matchesSpellPendingTarget(
  *  `FullPlayer` reshape), `playerAttackedThisTurn` reads
  *  `player.battlefield[].hasAttackedThisTurn` and `playerControlsMoreThan`
  *  reads `player.battlefield[].types` — both survive `slimCard`, which only
- *  rewrites `card` → `{ id }`.
+ *  rewrites `card` → `{ id }`. The `as unknown as PlayerState` cast below is
+ *  what makes that a requirement rather than a hope: the projection's own
+ *  `CardInstance` declares `types` optional, so the descriptor optional-chains
+ *  it and counts a row without it as no match, keeping the fail-CLOSED
+ *  property rather than throwing inside a React render.
  *
  *  `allPlayers` (issue #2707) is the one dimension a single candidate cannot
  *  answer alone: `playerControlsMoreThan` is COMPARATIVE, so its check reads
