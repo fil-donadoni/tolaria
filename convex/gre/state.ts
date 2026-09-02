@@ -601,7 +601,16 @@ export type CardInstanceState = {
      *  duplicate isn't double-restored (CR 113.1). Distinct from
      *  `removedKeywords`, which is source-keyed and tied to a continuous static
      *  effect's lifetime rather than a fixed duration. */
-    temporaryRemovedKeywords?: { keyword: string; duration: Duration }[];
+    temporaryRemovedKeywords?: {
+        keyword: string;
+        duration: Duration;
+        /** CR 613.7 layer timestamp minted when the removal resolved. Layer 6
+         *  orders this removal against a grant exactly as it orders a
+         *  source-keyed one (`gre/layer6.ts`) — a grant that lands AFTER an
+         *  until-end-of-turn strip keeps its keyword. Absent on rows written
+         *  before PRD #2064 S3, which read as 0. */
+        seq?: number;
+    }[];
     /** `ability-loss` static-effect sources that have stripped this permanent
      *  of ALL its abilities (CR 613.1f — "loses all abilities", Titania's Song;
      *  Blood Moon strips a nonbasic land before setting its type). While
@@ -620,6 +629,31 @@ export type CardInstanceState = {
      *  which they could not while the field held ids alone (a Blood Moon'd
      *  Urza's Saga kept the mana ability its own chapter I had granted it). */
     abilitiesSuppressedBy?: { sourceId: string; seq: number }[];
+    /** DERIVED OUTPUT (PRD #2064 S3, `gre/layer6.ts`) — the LATEST layer
+     *  timestamp among the ability-loss effects currently applying to this
+     *  permanent, or absent when none do. Written by `syncLayer6`; never read
+     *  back by the derivation.
+     *
+     *  It exists because `getEffectiveActivatedAbilities(card)` and
+     *  `effectiveTriggeredAbilities(card)` take a card and no state, so they
+     *  cannot walk the board to find a Titania's Song. `abilitiesSuppressedBy`
+     *  answered that before, but it is now the LEDGER for the resolving-ability
+     *  arm only (CR 611.2c) — the continuous `ability-loss` static effect is
+     *  derived and writes no ledger row. `abilityLossTimestamp` reads both, so
+     *  a hand-built scenario fixture that stamps only the ledger still works.
+     *  PRD #2064 S6 deletes it along with the other materialised fields. */
+    abilityLossSeq?: number;
+    /** CR 613.1f — the PRE-LAYER-6 keyword multiset: what this permanent has
+     *  before any grant or removal applies. The layer-6 twin of
+     *  `printedSubtypes` (layer 4), and the input `deriveLayer6`
+     *  (`gre/layer6.ts`) composes the registry's entries on top of.
+     *
+     *  Captured lazily from `staticAbilities` at the first `syncLayer6`, while
+     *  that field still holds the base alone — grants no longer materialise
+     *  into it. Every path that rewrites the base from BELOW layer 6 (an
+     *  identity swap: copy, transform, turn face down / face up; a CR 614.12c
+     *  as-enters body choice) clears this field so the next sync re-captures. */
+    baseStaticAbilities?: string[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */

@@ -6833,9 +6833,26 @@ export interface StaticKeywordGrant {
         state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
-    /** Keyword string pushed into the host's `staticAbilities` (e.g.
-     *  "protection from red", "flying"). */
+    /** Keyword string granted to the host (e.g. "protection from red",
+     *  "flying"). The FIXED-output form; `keywordFor` is the computed one. */
     keyword: string;
+    /** CR 613.1f — the COMPUTED-output form of the grant (ADR 0050's fixed /
+     *  computed pair, as `subtype-set` already has). Returns the keyword to
+     *  grant, derived from the LIVE source and target, or `null` to grant
+     *  nothing this evaluation.
+     *
+     *  This is what makes a grant's PARAMETER stop being frozen (PRD #2064 S3).
+     *  Layer 6 used to render the keyword string once, at materialisation time,
+     *  and nothing ever recomputed it — a protection colour set, a landwalk
+     *  subtype or a rampage N could not track a board change after the grant
+     *  was created. `deriveLayer6` (`gre/layer6.ts`) calls this at EVERY read,
+     *  so it does. `keyword` stays required as the fallback and as the name a
+     *  fixed grant is authored under. */
+    keywordFor?: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => string | null;
 }
 
 /** Continuous control-changing effect (CR 613.1b, layer 2). Typical usage:

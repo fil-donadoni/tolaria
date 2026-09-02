@@ -171,6 +171,8 @@ function resolveCardId(raw: unknown, ctx?: ExpandCtx): string {
  *  a round-trip test, exactly like the fix in this issue. */
 export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "abilitiesSuppressedBy",
+    "abilityLossSeq",
+    "baseStaticAbilities",
     "activationsThisTurn",
     "animation",
     "attachedTo",

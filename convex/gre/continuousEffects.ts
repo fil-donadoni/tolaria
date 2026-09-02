@@ -163,7 +163,11 @@ export type ContinuousEffectInlinePayload =
      *  object had (`set`); a grant UNIONS (`add`). */
     | { kind: "color-change"; add?: Color[]; set?: Color[] }
     /** CR 613.1f layer 6 */
-    | { kind: "keyword-grant"; keyword: string }
+    | {
+          kind: "keyword-grant";
+          keyword: string;
+          parameter?: ContinuousEffectKeywordParameter;
+      }
     | { kind: "keyword-remove"; keyword: string }
     | { kind: "ability-loss" }
     | { kind: "activated-grant"; sourceCardId: string; abilityId: string }
@@ -175,6 +179,68 @@ export type ContinuousEffectInlinePayload =
     | { kind: "pt-set"; power?: number; toughness?: number }
     | { kind: "pt-modify"; power: number; toughness: number }
     | { kind: "pt-switch" };
+
+/** The STRUCTURED parameter of a parameterised keyword (CR 702), kept beside
+ *  the keyword rather than pre-rendered into its string.
+ *
+ *  The engine's keyword vocabulary is stringly typed — `"protection from red"`,
+ *  `"islandwalk"`, `"rampage 2"` — and roughly ninety consult sites read those
+ *  strings, so the strings themselves are not going away in this slice (PRD
+ *  #2064 S6 owns deleting the old fields, and with them the grammar). What DOES
+ *  go away here is the parameter being FROZEN: a grant used to render its
+ *  string once, at materialisation time, and nothing ever recomputed the colour
+ *  set, the landwalk subtype or the N. An entry that carries its parameter
+ *  structurally is rendered at every read (`renderKeyword`), so a board change
+ *  after the grant was created moves the grant with it.
+ *
+ *  `keyword` stays REQUIRED alongside it and stays the rendered form: the
+ *  parameter is what the entry knows, the string is what the consult sites
+ *  read, and rendering is a total function of the two. An entry with no
+ *  parameter is an unparameterised keyword (`"flying"`) — not a missing
+ *  parameter. */
+export type ContinuousEffectKeywordParameter =
+    /** CR 702.16a — protection from one or more qualities, as the QUALITY
+     *  words ("red", "colorless", "artifacts"), joined by " and " on render.
+     *  Stored as words rather than `Color[]` because CR 702.16a's quality
+     *  vocabulary is wider than colour (a card type, a supertype), and the
+     *  single parser that reads them back (`gre/protection.ts`) is defined
+     *  over words. */
+    | { kind: "protection"; qualities: string[] }
+    /** CR 702.13 — landwalk, parameterised by the land SUBTYPE it names
+     *  ("Island" -> "islandwalk"). */
+    | { kind: "landwalk"; subtype: string }
+    /** CR 702.23 (rampage), 702.21 (bushido), 702.15 (ward N) and every other
+     *  keyword whose parameter is a bare count: `"<keyword> <n>"`. */
+    | { kind: "count"; count: number };
+
+/** Renders a keyword payload to the string every layer-6 consult site reads.
+ *  Total: a payload with no `parameter` renders its `keyword` unchanged, so an
+ *  unparameterised grant costs nothing.
+ *
+ *  The inverse of the parsers in `gre/protection.ts` /
+ *  `gre/constants.ts` — deliberately NOT their replacement. Those parse
+ *  PRINTED keywords off a card definition, which this registry does not
+ *  produce; this renders a GRANT's structured parameter into the same
+ *  vocabulary so both arrive at a consult site indistinguishable. */
+export function renderKeyword(payload: {
+    keyword: string;
+    parameter?: ContinuousEffectKeywordParameter;
+}): string {
+    const parameter = payload.parameter;
+    if (!parameter) return payload.keyword;
+    switch (parameter.kind) {
+        case "protection":
+            // CR 702.16a — "protection from red and from black" is TWO
+            // instances of the ability (CR 702.16i), but the engine's string
+            // vocabulary spells a multi-quality grant with " and from ", which
+            // is what `parseProtectionQuality` reads back.
+            return `protection from ${parameter.qualities.join(" and from ")}`;
+        case "landwalk":
+            return `${parameter.subtype.toLowerCase()}walk`;
+        case "count":
+            return `${payload.keyword} ${parameter.count}`;
+    }
+}
 
 export type ContinuousEffectPayload =
     | ContinuousEffectTemplatePayload
@@ -244,6 +310,47 @@ export function compareContinuousEffects(
 ): number {
     if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** CR 613.7 — the LATEST layer timestamp among `entries`, or `null` when there
+ *  are none. The reduction every "does a later effect outrank this one?"
+ *  question is asked through, so no call site re-implements the max.
+ *
+ *  Takes bare stamps rather than `ContinuousEffect`s so the records that still
+ *  live on a card instance until PRD #2064 S6 deletes them
+ *  (`abilitiesSuppressedBy`, `removedKeywords`) can be ordered by the SAME
+ *  authority as a registry entry — the point of #1715's hardening was that two
+ *  sites comparing `seq` by hand are two sites that can disagree. */
+export function latestTimestamp(
+    stamps: Iterable<number | undefined>
+): number | null {
+    let latest: number | null = null;
+    for (const stamp of stamps) {
+        if (stamp === undefined) continue;
+        if (latest === null || stamp > latest) latest = stamp;
+    }
+    return latest;
+}
+
+/** CR 613.7 — true when the record stamped `timestamp` is applied BEFORE the
+ *  effect stamped `rival`, i.e. the rival outranks it.
+ *
+ *  STRICT: equal timestamps do not outrank, and `allocStaticTimestamp`
+ *  (`gre/state.ts`) mints strictly-increasing stamps precisely so a tie can
+ *  only mean "the same effect". An absent `timestamp` reads as 0 — a record
+ *  written before this codebase stamped anything, which every stamped effect
+ *  outranks — and an absent `rival` (no such effect) outranks nothing.
+ *
+ *  This is the ONE comparison behind `grantOutrankedByAbilityLoss`
+ *  (`gre/activatedAbilities.ts`) and the layer-6 grant-vs-removal decision in
+ *  `gre/layer6.ts`. #1715 had to harden those one site at a time because each
+ *  wrote the comparison inline; PRD #2064 S3 leaves exactly one. */
+export function outrankedBy(
+    timestamp: number | undefined,
+    rival: number | null
+): boolean {
+    if (rival === null) return false;
+    return (timestamp ?? 0) < rival;
 }
 
 /** Every registry entry applying in `layer` (and, for layer 7, `sublayer`),
