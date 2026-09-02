@@ -80,7 +80,11 @@ export function lowerTriggeredAbility(input: {
     const slots = new TargetSlots();
     const ops: EffectOp[] = [];
     for (const sentence of input.effects) {
-        const result = lowerSentence(sentence, slots);
+        // CR 107.3 — a triggered ability has no cost and announces nothing,
+        // so an X in its body has no value to read.
+        const result = lowerSentence(sentence, slots, {
+            allowX: false,
+        });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
     }

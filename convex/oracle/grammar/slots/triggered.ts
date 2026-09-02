@@ -52,9 +52,9 @@ import {
 } from "../../rule";
 import { conditionRule, type ConditionIR } from "../shared/condition";
 import {
+    assembleSentences,
     capitalise,
     sentenceRule,
-    type EffectSentenceIR,
     type SentenceIR,
 } from "../shared/effectClause";
 import { triggerHeadRule, type TriggerHeadIR } from "../shared/triggerHead";
@@ -67,45 +67,6 @@ const triggerSentence: Rule<SentenceIR> = rule(
     "trigger effect sentence",
     (span, ctx) => sentenceRule.run(capitalise(span), ctx)
 );
-
-/**
- * Assemble the tail into the ability's effects.
- *
- * A CR 602.5 activation restriction ("Activate only as a sorcery") is a
- * sentence a triggered ability cannot carry — there is no activation to
- * restrict — so it is refused rather than dropped. The "It can't be
- * regenerated" MODIFIER is accepted and folded into the destroy it follows,
- * the same way the activated slot folds it (CR 701.19c).
- */
-function assemble(
-    sentences: readonly SentenceIR[]
-): { ok: true; effects: EffectSentenceIR[] } | { ok: false; reason: string } {
-    const effects: EffectSentenceIR[] = [];
-    for (const sentence of sentences) {
-        if (sentence.role === "restriction")
-            return {
-                ok: false,
-                reason: "an activation restriction (CR 602.5) has no meaning on a triggered ability",
-            };
-        if (sentence.role === "modifier") {
-            const previous = effects[effects.length - 1];
-            if (previous === undefined || previous.kind !== "destroy")
-                return {
-                    ok: false,
-                    reason: '"It can\'t be regenerated." follows no destroy',
-                };
-            effects[effects.length - 1] = {
-                ...previous,
-                cantBeRegenerated: true,
-            };
-            continue;
-        }
-        effects.push(sentence.effect);
-    }
-    if (effects.length === 0)
-        return { ok: false, reason: "the trigger has no effect sentence" };
-    return { ok: true, effects };
-}
 
 interface TailIR {
     readonly condition?: ConditionIR;
@@ -152,7 +113,13 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         (head, tail): { head: TriggerHeadIR; tail: TailIR } => ({ head, tail })
     ).run(span, ctx);
     if (!parsed.ok) return parsed;
-    const assembled = assemble(parsed.value.tail.sentences);
+    // CR 602.5 — there is no activation to restrict on a trigger, so a
+    // restriction sentence here is a line we have misread.
+    const assembled = assembleSentences(parsed.value.tail.sentences, {
+        site: "trigger",
+        rejectRestrictions:
+            "an activation restriction (CR 602.5) has no meaning on a triggered ability",
+    });
     if (!assembled.ok) return fail(assembled.reason, span);
     return ok({
         kind: "triggered" as const,

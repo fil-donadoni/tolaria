@@ -70,7 +70,17 @@ export const PASSTHROUGH_KEYS: ReadonlySet<string> = new Set([
  * than the other. `id` is an engine-internal handle. Both are compared nowhere
  * and asserted nowhere else, so this exclusion is stated rather than assumed.
  */
-const ABILITY_DISPLAY_KEYS: ReadonlySet<string> = new Set(["oracleText", "id"]);
+const ABILITY_DISPLAY_KEYS: ReadonlySet<string> = new Set([
+    "oracleText",
+    "id",
+    // CR 700.2 — a MODE's picker label, by the same argument. The catalogue
+    // writes a human's shortened phrasing ("Counter target blue spell") where
+    // the compiler can only offer the bullet as printed ("Counter target spell
+    // if it's blue"); neither is more correct, and `ModeOption.label` is
+    // display-only — no engine path reads it. Only modes carry the field, so
+    // adding it here scopes itself.
+    "label",
+]);
 
 /**
  * Dead-field elision on a FIXED-OUTPUT mana ability.
@@ -187,6 +197,11 @@ const ABILITY_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "triggeredAbilities",
     "grantTemplates",
     "triggeredGrantTemplates",
+    // CR 700.2 — a modal spell's modes carry the same display-vs-behaviour
+    // split an ability does: `id` is an engine handle and `label`/`oracleText`
+    // are strings a picker renders, while `effects` and `targetRequirement`
+    // are the behaviour this harness exists to compare.
+    "modes",
 ]);
 
 export type GoldBucket =
@@ -196,7 +211,32 @@ export type GoldBucket =
     | "activated"
     | "triggered"
     | "static"
+    | "spell"
     | "other";
+
+/**
+ * `effect: "<shorthand>"` is a CLOSURE reached by name.
+ *
+ * `cards/effectRegistry.ts` maps the shorthand to a `ResolveFn`, so a card
+ * authoring its behaviour this way is in exactly the position `GoldIncomparable`
+ * describes for `resolve()`: an Effect Script and a closure are not comparable
+ * in either direction. The only thing that kept these cards out of that bucket
+ * was a representation accident — the projection sees the registry KEY, a
+ * string, where a `resolve()` body is a function `sortKeys` already renders as
+ * the sentinel.
+ *
+ * `CompiledDefinition` omits `effect` by construction (`oracle/types.ts`), so
+ * the compiled side can never carry one: a gold card that does is saying "my
+ * behaviour lives in a closure", and rendering it as one says so to the
+ * comparison too.
+ *
+ * Six cards print `effect: "destroy-target"`. Five (Disenchant, Ice Storm,
+ * Shatter, Sinkhole, Stone Rain) agree with the compiler on everything else
+ * and are counted `incomparable`; the sixth, Desert Twister, does NOT, and is
+ * a mismatch — see `BODY_KEYS`, which is what keeps the sentinel from
+ * exempting a card's comparable fields along with its body.
+ */
+const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
 
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
 export function behaviouralProjection(
@@ -205,6 +245,10 @@ export function behaviouralProjection(
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(definition)) {
         if (PASSTHROUGH_KEYS.has(key) || value === undefined) continue;
+        if (CLOSURE_VALUED_KEYS.has(key)) {
+            out[key] = sortKeys(() => undefined);
+            continue;
+        }
         if (ABILITY_ARRAY_KEYS.has(key) && Array.isArray(value)) {
             out[key] = value.map((ability) => {
                 const record = ability as Record<string, unknown>;
@@ -224,6 +268,20 @@ export function behaviouralProjection(
     return canonicaliseShorthands(sortKeys(out)) as Record<string, unknown>;
 }
 
+/**
+ * The card-level keys a compiled SPELL may write (`lower.ts`), and nothing
+ * else. Enumerated rather than derived so a new card-level field cannot widen
+ * the bucket silently: a card carrying a rider the spell slot does not emit is
+ * not a spell-slot measurement, whatever its type line says.
+ */
+const SPELL_BUCKET_KEYS: ReadonlySet<string> = new Set([
+    "effects",
+    "modes",
+    "targetRequirement",
+    "additionalCosts",
+    "flashback",
+]);
+
 /** Which v0 shape a hand-written card is, judged from the HAND-WRITTEN side. */
 export function goldBucket(definition: CardDefinition): GoldBucket {
     const keys = Object.keys(behaviouralProjection(definition));
@@ -242,6 +300,18 @@ export function goldBucket(definition: CardDefinition): GoldBucket {
     // it is produced by its own slot, so folding it into the 1,200-card `other`
     // bucket the grammar deliberately refuses would hide a static regression.
     if (keys.length === 1 && keys[0] === "staticEffects") return "static";
+    // CR 113.3a — an instant or sorcery, measured on its own for the reason
+    // every other slot bucket is: it is produced by its own slot (#2699), and
+    // it is the one shape whose behaviour hangs on the CARD rather than in an
+    // ability array, so its keys are a SET rather than a single field —
+    // `effects` or `modes` for the body, plus whatever cast-time riders the
+    // card prints. A card with any key outside this vocabulary is a shape the
+    // spell slot did not produce alone, and belongs in `other`.
+    if (
+        (keys.includes("effects") || keys.includes("modes")) &&
+        keys.every((key) => SPELL_BUCKET_KEYS.has(key))
+    )
+        return "spell";
     if (keys.length === 1 && keys[0] === "activatedAbilities") {
         const abilities = definition.activatedAbilities ?? [];
         if (abilities.length === 0) return "other";
@@ -358,6 +428,37 @@ export interface GoldReport {
     readonly withoutOracleText: readonly string[];
 }
 
+/**
+ * The TOP-LEVEL fields that hold a card's resolution body, in either encoding.
+ *
+ * A card whose body is a closure is incomparable IN ITS BODY — that is the
+ * whole of `GoldIncomparable`'s argument. It is not incomparable in its
+ * `targetRequirement`, its `additionalCosts` or its `flashback`, and treating
+ * it as such is how the harness stopped seeing that Desert Twister
+ * ("Destroy target permanent.") declares `targetRequirement.type: "any"` — CR
+ * 115.4's *any target*, which cannot name an artifact — the fifth instance of
+ * a catalogue defect this compiler exists to surface.
+ *
+ * So the sentinel exempts these keys, and the rest of the card is compared
+ * like anyone's.
+ */
+const BODY_KEYS: ReadonlySet<string> = new Set([
+    "effect",
+    "effects",
+    "resolve",
+    "resolveSteps",
+]);
+
+/** A projection with the resolution body removed from BOTH sides. */
+function withoutBody(projection: Record<string, unknown>): string {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(projection)) {
+        if (BODY_KEYS.has(key)) continue;
+        out[key] = value;
+    }
+    return JSON.stringify(out);
+}
+
 /** What `sortKeys` renders a function-valued field as (`gates.ts`). */
 const CLOSURE_SENTINEL = '"[closure]"';
 
@@ -449,13 +550,29 @@ export function roundTripCard(definition: CardDefinition): RoundTrip {
             actual,
         };
     }
+    // A closure on the gold side makes the card's BODY incomparable and
+    // nothing else — see `BODY_KEYS`. Testing the sentinel against the WHOLE
+    // serialised projection exempted the entire card, which is how Desert
+    // Twister's `type: "any"` for "target permanent" went unseen: its body is
+    // the `effect: "destroy-target"` shorthand, so the sentinel was present
+    // and every other field rode along under it. The verdict is therefore
+    // taken on the card MINUS its body, unless the sentinel SURVIVES that
+    // strip — a closure nested inside an ability, which this projection cannot
+    // separate from that ability's comparable fields.
     if (expected.includes(CLOSURE_SENTINEL)) {
-        return {
-            verdict: { ok: true, kind: "incomparable" },
-            outcome,
-            expected,
-            actual,
-        };
+        const bodilessExpected = withoutBody(behaviouralProjection(definition));
+        if (
+            bodilessExpected.includes(CLOSURE_SENTINEL) ||
+            bodilessExpected ===
+                withoutBody(behaviouralProjection(expandedActual))
+        ) {
+            return {
+                verdict: { ok: true, kind: "incomparable" },
+                outcome,
+                expected,
+                actual,
+            };
+        }
     }
     return {
         verdict: {
@@ -477,6 +594,7 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         activated: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         triggered: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         static: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        spell: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         other: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
     };
     const slots: Record<string, GoldBucketStats> = {};

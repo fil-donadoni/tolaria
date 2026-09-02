@@ -67,7 +67,11 @@ import { COMPILER_ROUND_TRIP_BASELINE } from "./compilerRoundTrip.baseline";
  * pinning its exact contents, which would red every unrelated grammar
  * improvement (see the baseline file's header).
  */
-const BASELINE_CEILING = 1756;
+// Lowered 1756 -> 1719 by issue #2699 (the instant/sorcery spell slot): 37
+// cards graduated — Lightning Bolt, Ancestral Recall, Giant Growth, Firebolt,
+// Terminate, … — and Guard C's stale-row check is what named every one of
+// them. The ceiling only ever comes down.
+const BASELINE_CEILING = 1719;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

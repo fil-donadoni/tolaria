@@ -58,6 +58,31 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // Oracle prints "{G}: Regenerate this creature." and the hand-written
     // definition has no activated ability at all. Same finding.
     "Wall of Brambles (keyword-only)",
+    // ── #2699: the spell slot's first pass over gold ──────────────────────
+    //
+    // Oracle: "Choose one — • Destroy target blue permanent. • Return target
+    // Island to its owner's hand." Both hand-written definitions encode
+    // "target <colour> permanent" as `type: "any"` — the SAME defect as
+    // Northern Paladin above, and the reason it is a defect rather than an
+    // encoding tie is that `"any"` is not a synonym for "permanent": CR 115.4
+    // "any target" is a creature, planeswalker, battle or PLAYER, which is
+    // what `matchesTargetRequirement` (src/lib/card-utils.ts) and
+    // `getLegalTargets` (gre/rules.ts) both implement. So as shipped these two
+    // can destroy a blue PLAYER and cannot destroy a blue artifact. The
+    // compiler emits the six permanent card types (CR 110.4).
+    "Active Volcano (spell)",
+    "Flash Flood (spell)",
+    // Oracle: "Flashback—Sacrifice a Mountain." The hand-written flashback
+    // cost restates `types: "Land"` beside `subtypes: "Mountain"` — the
+    // Horror of Horrors encoding tie above, at the flashback cost site.
+    "Lava Dart (spell)",
+    // Oracle: "Destroy target permanent." — `type: "any"` again, the FIFTH
+    // instance of the Northern Paladin defect, and the reason `gold.ts`
+    // exempts a closure body per KEY rather than per card: this one authors
+    // its body with the `effect: "destroy-target"` shorthand, so a whole-card
+    // exemption hid a live divergence behind it (review of PR #3044).
+    // docs/findings/2699-spell-slot-gaps.md
+    "Desert Twister (other)",
 ];
 
 describe("gold round-trip — precision", () => {
@@ -100,7 +125,16 @@ describe("gold round-trip — precision", () => {
         // A hand-written `resolve()` closure and a compiled Effect Script are
         // not comparable in either direction — see `GoldIncomparable`. Counted
         // separately and bounded so the hole cannot grow unnoticed.
-        expect(REPORT.incomparable.length).toBeLessThan(10);
+        // Raised from 10 in #2699 (4 -> 9). Five newly-accepted gold spells
+        // (Disenchant, Ice Storm, Shatter, Sinkhole, Stone Rain) author their
+        // behaviour with the pre-ADR-0045 `effect: "destroy-target"`
+        // shorthand — a closure reached by name
+        // (`cards/effectRegistry.ts`), which `CLOSURE_VALUED_KEYS` in
+        // `gold.ts` renders as one. Their sixth sibling, Desert Twister, is a
+        // MISMATCH rather than incomparable, because the exemption is
+        // per-BODY-KEY: see `BODY_KEYS`. The bound is still a bound and not a
+        // ratio — growth has to be explained, and this growth is.
+        expect(REPORT.incomparable.length).toBeLessThan(15);
         expect(REPORT.incomparable.map((i) => i.name)).toContain(
             "Royal Assassin"
         );
@@ -121,6 +155,8 @@ describe("gold round-trip — the harness is not vacuous", () => {
         // #2700 — without this the static slot could be switched off entirely
         // and every assertion above would still pass.
         expect(REPORT.buckets.static.accepted).toBeGreaterThan(5);
+        // #2699 — same, for the spell slot.
+        expect(REPORT.buckets.spell.accepted).toBeGreaterThan(20);
     });
 
     it("exercises every grammar-v0 slot against gold", () => {
@@ -131,6 +167,7 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(slotKeys).toContain("activated");
         expect(slotKeys).toContain("triggered");
         expect(slotKeys).toContain("static");
+        expect(slotKeys).toContain("spell");
     });
 
     it("reports the hand-written cards that carry no Oracle text at all", () => {

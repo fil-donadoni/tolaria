@@ -169,19 +169,50 @@ describe("gate.ts — machine-wide mutex", () => {
     }, 20_000);
 
     it("heartbeats the owner stamp while the held command BURNS CPU — a long hold never reads stale (issue #1924)", async () => {
-        const child = spawn("bun", [GATE, "heavy", burnCpu(3)], {
+        // ── Why the beat is 400ms and not 150ms ────────────────────────────
+        //
+        // The progress signal is `ps -o time=`, which reports CENTISECONDS —
+        // so a beat sees "progress" only if the subtree gained >= 10ms of CPU
+        // since the last sample. That is free on an idle machine and NOT free
+        // here: this test runs inside the full suite, which saturates the box
+        // with `ncpu - 1` vitest workers, and a starved burner gets a few
+        // percent of a core. At 5% CPU a 150ms beat earns ~7.5ms — under one
+        // tick — so two consecutive beats could legitimately observe no
+        // change and the gate would correctly declare STALLED. The test then
+        // failed for a property of the MACHINE rather than of the code, which
+        // is what made it flaky on main (it was red in `health:main` and in
+        // the #2699 merge gate, and green in isolation every time).
+        //
+        // 400ms beats earn ~20ms at 5% CPU — two ticks, with margin — so a
+        // STALLED verdict now needs the burner held under ~1.25% of a core for
+        // 800ms straight. The ASSERTION is unchanged; only the sampling window
+        // is wide enough to make the measurement.
+        //
+        // This is the HOUSE REMEDY, not a new one: the monotonic-total test
+        // below already carries the same 400ms beat and says why, in the same
+        // terms ("under a loaded machine a 150ms beat can legitimately see no
+        // measurable change on a starved process"). That test was widened when
+        // someone hit this; this one is the last with the vulnerable shape —
+        // asserting the ABSENCE of a stall while burning. The `stallEnv` tests
+        // keep 150ms correctly: they assert a zero-CPU `sleep` DOES trip, and
+        // starvation only makes that fire sooner.
+        //
+        // Production never had the problem at all: HEARTBEAT_MS defaults to
+        // five MINUTES (`scripts/gate.ts`), where a 10ms tick is never the
+        // limiting factor. Do not re-compress this to chase a faster test.
+        const child = spawn("bun", [GATE, "heavy", burnCpu(6)], {
             cwd: lockRoot,
             env: env({
-                TOLARIA_GATE_HEARTBEAT_MS: "150",
+                TOLARIA_GATE_HEARTBEAT_MS: "400",
                 TOLARIA_GATE_STALL_BEATS: "2",
             }),
             stdio: ["ignore", "ignore", "pipe"],
         } as never);
         let err = "";
         child.stderr!.on("data", (d) => (err += d));
-        await new Promise((r) => setTimeout(r, 900));
+        await new Promise((r) => setTimeout(r, 1200));
         const t1 = readOwnerTs();
-        await new Promise((r) => setTimeout(r, 900));
+        await new Promise((r) => setTimeout(r, 1200));
         const t2 = readOwnerTs();
         await new Promise<void>((r) => child.on("exit", () => r()));
         // The stamp must advance while the command runs: waiters measure
@@ -228,15 +259,25 @@ describe("gate.ts — liveness (issue #2999)", () => {
         } as never);
         let err = "";
         child.stderr!.on("data", (d) => (err += d));
-        await new Promise((r) => setTimeout(r, 1200));
+        // Wait for the VERDICT, then sample — never sample on a wall-clock
+        // guess. The beat is a 150ms `setInterval`, and under the load this
+        // suite creates it fires late; a fixed 1200ms window can therefore
+        // land BEFORE the stall is declared, catching the stamp mid-advance
+        // and failing `t2 === t1` for a property of the machine. (Observed:
+        // t2 - t1 = 1227ms, co-scheduled with the catalogue round-trip file.)
+        // The property under test is "once stalled, the stamp stops", which
+        // says nothing about when the stall lands — so wait for it.
+        const stalledBy = Date.now() + 10_000;
+        while (!err.includes("STALLED") && Date.now() < stalledBy)
+            await new Promise((r) => setTimeout(r, 50));
+        expect(err).toContain("STALLED");
         const t1 = readOwnerTs();
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 600));
         const t2 = readOwnerTs();
         child.kill("SIGKILL");
         await new Promise<void>((r) => child.on("exit", () => r()));
         // Frozen subtree ⇒ frozen stamp ⇒ the existing STALE_MS path can fire.
         expect(t2).toBe(t1);
-        expect(err).toContain("STALLED");
     }, 20_000);
 
     it("a waiter reclaims a stalled holder's lock through the STALE_MS path", async () => {

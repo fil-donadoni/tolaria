@@ -87,7 +87,7 @@ const DOES_NOT_UNTAP_MARKER = "does-not-untap";
  * a keyword that becomes expander-backed later cannot silently start shipping
  * inert grants.
  */
-function isDefinitionLevelKeyword(keyword: string): boolean {
+export function isDefinitionLevelKeyword(keyword: string): boolean {
     const bare: CardDefinition = {
         id: "oracle-grant-probe",
         rarity: "common",

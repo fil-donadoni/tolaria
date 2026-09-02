@@ -13,16 +13,30 @@
  *     the IR nodes carry lists, and the lists are lowered whole.
  */
 
-import type { ActivatedAbility, ManaCost } from "../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    EffectOp,
+    ManaCost,
+    SpellMode,
+    TargetRequirement,
+} from "../cards/types";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { lowerActivationCost } from "./grammar/shared/cost";
 import { lowerActivatedAbility } from "./lowerActivated";
-import { lowerStaticClause } from "./lowerStatic";
+import {
+    lowerAdditionalCosts,
+    lowerFlashback,
+    lowerSpellBody,
+    lowerSpellModes,
+} from "./lowerSpell";
+import { isDefinitionLevelKeyword, lowerStaticClause } from "./lowerStatic";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
+import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 
 export type LowerResult =
     | {
@@ -54,6 +68,45 @@ interface Accumulator {
     entersWithCounters: { type: string; count: number }[];
     plannedMechanics: string[];
     ungrantableKeywords: string[];
+    /** CR 113.3a — the spell site: at most one per card, see `lowerLine`. */
+    spellEffects?: EffectOp[];
+    spellTargetRequirement?: TargetRequirement;
+    spellModes?: SpellMode[];
+    additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
+    flashback?: NonNullable<CardDefinition["flashback"]>;
+}
+
+/**
+ * CR 702.1 / #962 — census the keywords an effect SENTENCE grants.
+ *
+ * The mirror of what `lowerStatic.ts` does for a `keyword-grant` static
+ * clause, and it exists for the same reason: `status: "implemented"` is the
+ * only thing standing between a grant and a card that resolves and does
+ * nothing. Guard A polices `staticAbilities[]`, which a `grantAbility` Op
+ * never touches — the grant writes the TARGET instance's abilities at
+ * resolution — so nothing else in the pipeline asks the question.
+ *
+ * Called from every slot whose IR carries effect sentences, rather than from
+ * `lowerSentence`, because the census is a CARD-level tally (`plannedMechanics`
+ * quarantines the card, not the ability) and routing it through the per-Op
+ * lowering would mean threading an accumulator through three call sites to
+ * reach the same list.
+ */
+function censusGrantedKeywords(
+    effects: readonly EffectSentenceIR[],
+    acc: Accumulator
+): void {
+    for (const sentence of effects) {
+        if (sentence.kind !== "grant-ability") continue;
+        const { ability, status } = sentence.keyword;
+        if (status !== "implemented") acc.plannedMechanics.push(ability);
+        // CR 702.1 — a keyword whose behaviour comes from an ADR 0054
+        // definition-level expander produces NOTHING when granted to another
+        // permanent, because the expander never reads the target instance's
+        // `staticAbilities` (issue #2700).
+        else if (isDefinitionLevelKeyword(ability))
+            acc.ungrantableKeywords.push(ability);
+    }
 }
 
 function lowerLine(
@@ -104,6 +157,7 @@ function lowerLine(
                 index === 0
                     ? `${slugify(card.name)}-ability`
                     : `${slugify(card.name)}-ability-${index + 1}`;
+            censusGrantedKeywords(ir.effects, acc);
             const lowered = lowerActivatedAbility({
                 id,
                 oracleText: parsed.line,
@@ -121,6 +175,7 @@ function lowerLine(
                 index === 0
                     ? `${slugify(card.name)}-trigger`
                     : `${slugify(card.name)}-trigger-${index + 1}`;
+            censusGrantedKeywords(ir.effects, acc);
             const lowered = lowerTriggeredAbility({
                 id,
                 oracleText: parsed.line,
@@ -163,11 +218,79 @@ function lowerLine(
             }
             return null;
         }
+        case "spell": {
+            // CR 113.3a — a spell has ONE resolution body. Two spell-text
+            // lines on one card is not a card that resolves twice; it is a
+            // card whose lines we have misread (an unread trailing clause
+            // routed as a second sentence, say), so it fails rather than
+            // silently concatenating into one script.
+            if (acc.spellEffects !== undefined || acc.spellModes !== undefined)
+                return "a card declares spell text twice (CR 113.3a)";
+            censusGrantedKeywords(ir.effects, acc);
+            const body = lowerSpellBody(ir.effects, {
+                // CR 107.3 — a spell announces X for the `{X}` pip in its own
+                // printed mana cost, and only then. Judged HERE because it is
+                // a fact about the cost rather than about the sentence
+                // (`lowerEffects.ts` — `SiteOptions`).
+                allowX: hasVariableX(card.manaCost),
+            });
+            if (!body.ok) return body.reason;
+            acc.spellEffects = body.value.effects;
+            if (body.value.targetRequirement !== undefined)
+                acc.spellTargetRequirement = body.value.targetRequirement;
+            return null;
+        }
+        case "spell-modal": {
+            if (acc.spellEffects !== undefined || acc.spellModes !== undefined)
+                return "a card declares spell text twice (CR 113.3a)";
+            for (const mode of ir.modes)
+                censusGrantedKeywords(mode.effects, acc);
+            const modes = lowerSpellModes(
+                ir.modes,
+                { slug: slugify(card.name), name: card.name },
+                { allowX: hasVariableX(card.manaCost) }
+            );
+            if (!modes.ok) return modes.reason;
+            acc.spellModes = modes.value;
+            return null;
+        }
+        case "additional-cost": {
+            // CR 601.2f — two additional-cost lines would both be paid, and
+            // merging them into one `additionalCosts` record would silently
+            // drop whichever field the second reuses.
+            if (acc.additionalCosts !== undefined)
+                return "a card declares an additional cost twice (CR 601.2f)";
+            const costs = lowerAdditionalCosts(ir.cost.atoms);
+            if (!costs.ok) return costs.reason;
+            acc.additionalCosts = costs.value;
+            return null;
+        }
+        case "flashback": {
+            if (acc.flashback !== undefined)
+                return "a card declares flashback twice (CR 702.34a)";
+            const flashback = lowerFlashback(ir.cost);
+            if (!flashback.ok) return flashback.reason;
+            acc.flashback = flashback.value;
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
         }
     }
+}
+
+/**
+ * CR 107.3 — does the printed mana cost announce a value for {X}?
+ *
+ * Read off the RAW printed string rather than the parsed `ManaCost`, because
+ * the parse happens later (and can fail) while this question is asked as each
+ * line is lowered. `readManaCost` writes a variable pip as `X: "X"`; the
+ * printed form is the literal symbol, and nothing else in a cost string
+ * contains it.
+ */
+function hasVariableX(printedManaCost: string): boolean {
+    return printedManaCost.includes("{X}");
 }
 
 /** CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700). */
@@ -264,6 +387,32 @@ export function lowerCard(
     if (acc.entersTapped) definition.entersTapped = true;
     if (acc.entersWithCounters.length > 0)
         definition.entersWith = { counters: acc.entersWithCounters };
+    // CR 113.3a — the spell site. `modes` and `effects` are mutually exclusive
+    // by construction (one `lowerLine` case writes each, and the second one to
+    // run fails the card), which is also what `validateEffectScript` asserts.
+    // CR 601.2f / 702.34a — an additional cost and a flashback cost are RIDERS
+    // on casting the spell; neither is a spell. A card that consumed one and
+    // no body line is a card whose effect line we failed to read while
+    // reporting success, so it fails rather than compiling to a castable spell
+    // that does nothing. (No corpus card reaches this today — it is the
+    // invariant, not a fix.)
+    if (
+        (acc.additionalCosts !== undefined || acc.flashback !== undefined) &&
+        acc.spellEffects === undefined &&
+        acc.spellModes === undefined
+    )
+        return {
+            ok: false,
+            reason: "a cast-time cost rider with no spell text to ride on",
+            fragment: card.oracleText,
+        };
+    if (acc.spellEffects !== undefined) definition.effects = acc.spellEffects;
+    if (acc.spellTargetRequirement !== undefined)
+        definition.targetRequirement = acc.spellTargetRequirement;
+    if (acc.spellModes !== undefined) definition.modes = acc.spellModes;
+    if (acc.additionalCosts !== undefined)
+        definition.additionalCosts = acc.additionalCosts;
+    if (acc.flashback !== undefined) definition.flashback = acc.flashback;
 
     return {
         ok: true,

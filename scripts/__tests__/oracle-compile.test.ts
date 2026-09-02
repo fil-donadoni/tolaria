@@ -70,6 +70,21 @@ const SYNTHETIC: CorpusCard[] = [
         toughness: undefined,
         legalIn: ["premodern", "legacy", "modern"],
     }),
+    // Issue #2699 shipped the spell slot, so "Test Bolt" above is now `ready`
+    // and something else has to carry the UNPARSED-row invariants (no
+    // definition, a recorded fragment, the format tally). A mass-destruction
+    // sentence is the honest choice: the grammar has no "all <descriptor>"
+    // subject, so this fails for a reason of its own rather than because a
+    // slot is switched off — which is what makes it a stable fixture.
+    corpusCard({
+        oracleId: "00000000-0000-0000-0000-000000000005",
+        name: "Test Wrath",
+        oracleText: "Destroy all green creatures.",
+        typeLine: "Sorcery",
+        manaCost: "{2}{B}",
+        power: undefined,
+        toughness: undefined,
+    }),
 ];
 
 /**
@@ -220,20 +235,36 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
         });
     });
 
-    it("spell text is unparsed, with the fragment recorded and NO definition", () => {
+    it("spell text is ready with the effect lowered onto the CARD (#2699)", () => {
         const row = byName.get("Test Bolt")!;
+        expect(row.state).toBe("ready");
+        expect(row.slots).toEqual(["spell"]);
+        // The spell site hangs on the definition itself, not in an ability —
+        // an instant has no permanent to carry one (CR 113.3a).
+        expect(row.definition?.effects).toEqual([
+            { op: "dealDamage", amount: 3, to: { target: 0 } },
+        ]);
+        expect(row.definition?.targetRequirement).toEqual({
+            type: "any",
+            count: 1,
+        });
+        expect(row.definition?.activatedAbilities).toBeUndefined();
+    });
+
+    it("an unread line is unparsed, with the fragment recorded and NO definition", () => {
+        const row = byName.get("Test Wrath")!;
         expect(row.state).toBe("unparsed");
         expect(row.definition).toBeUndefined();
         expect(row.gaps).toHaveLength(1);
         expect(lock.fragments[row.gaps![0]!]?.text).toBe(
-            "{self} deals 3 damage to any target."
+            "Destroy all green creatures."
         );
     });
 
     it("counts each card in every format it is legal in", () => {
-        expect(lock.formats.premodern.total).toBe(4);
+        expect(lock.formats.premodern.total).toBe(5);
         expect(lock.formats.modern.total).toBe(1);
-        expect(lock.formats.premodern.ready).toBe(3);
+        expect(lock.formats.premodern.ready).toBe(4);
         expect(lock.formats.premodern.unparsed).toBe(1);
     });
 });

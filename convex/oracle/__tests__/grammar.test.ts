@@ -274,7 +274,7 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
         if (r.ok) expect(r.value.slot).toBe("only-slot");
     });
 
-    it("has NO catch-all: spell text is refused, not best-effort parsed", () => {
+    it("has NO catch-all: unread spell text is refused, not best-effort parsed", () => {
         const sorcery = parseContext(
             oracleCard({
                 typeLine: "Sorcery",
@@ -282,7 +282,19 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
                 toughness: undefined,
             })
         );
-        expect(routeLine("Draw a card.", sorcery).ok).toBe(false);
+        // The spell slot ships (#2699), so the catch-all question is no longer
+        // "is any sorcery line refused" but the sharper one: a line the spell
+        // grammar does not READ must still fail, rather than being swept into
+        // the slot that happens to apply to this card type. "Draw a card." is
+        // now consumed — deliberately asserted here too, so this test cannot
+        // pass by the slot having been switched off.
+        expect(routeLine("Draw a card.", sorcery).ok).toBe(true);
+        expect(routeLine("Destroy all green creatures.", sorcery).ok).toBe(
+            false
+        );
+        expect(
+            routeLine("Each player sacrifices a creature.", sorcery).ok
+        ).toBe(false);
     });
 });
 
@@ -452,18 +464,25 @@ describe("the activated and mana-ability slots do not overlap (CR 605.1a)", () =
 describe("stubs fail closed", () => {
     const ctx = parseContext();
 
-    it("every unimplemented SLOT fails on representative input", () => {
-        const cases: [string, string][] = [
-            ["spell", "Destroy target creature."],
-        ];
-        const rules = {
-            spell: spellSlot,
-        };
-        for (const [name, line] of cases) {
-            const r = rules[name as keyof typeof rules].run(line, ctx);
-            expect(r.ok).toBe(false);
-            if (!r.ok) expect(r.reason).toMatch(/#2699/);
-        }
+    it("the spell slot no longer fails closed (#2699 shipped it)", () => {
+        const sorcery = parseContext(
+            oracleCard({
+                typeLine: "Sorcery",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        const r = spellSlot.run("Destroy target creature.", sorcery);
+        expect(r.ok).toBe(true);
+    });
+
+    it("the spell slot still refuses spell text on a PERMANENT (CR 113.3a)", () => {
+        // The guard that keeps the shipped slot from becoming the catch-all
+        // the router forbids: `ctx` here is a creature, whose text box holds
+        // abilities (CR 113.3b-d), never a resolve-once instruction.
+        const r = spellSlot.run("Destroy target creature.", ctx);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.reason).toMatch(/CR 113\.3a/);
     });
 
     it("the static slot no longer fails closed (#2700 shipped it)", () => {
