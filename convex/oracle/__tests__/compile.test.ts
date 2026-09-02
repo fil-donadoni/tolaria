@@ -142,6 +142,7 @@ describe("the ready gates demote", () => {
         const result = runGates({
             oracleId: "x",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "X",
                 types: ["Instant"],
@@ -156,6 +157,7 @@ describe("the ready gates demote", () => {
         const result = runGates({
             oracleId: "x",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "X",
                 types: ["Instant"],
@@ -181,6 +183,7 @@ describe("the ready gates demote", () => {
                 runGates({
                     oracleId: "x",
                     plannedMechanics: [],
+                    ungrantableKeywords: [],
                     definition: { name: "X", types: ["Instant"], effects },
                 })
             ).not.toThrow();
@@ -191,6 +194,7 @@ describe("the ready gates demote", () => {
         const result = runGates({
             oracleId: "x",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "X",
                 types: ["Instant"],
@@ -205,6 +209,7 @@ describe("the ready gates demote", () => {
         const result = runGates({
             oracleId: "x",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "X",
                 types: ["Creature"],

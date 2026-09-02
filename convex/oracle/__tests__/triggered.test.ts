@@ -284,6 +284,7 @@ describe("the ready gates read the REBUILT ability, not the descriptor", () => {
         const result = runGates({
             oracleId: "test-2698-dangling",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "Test Dangling",
                 types: ["Creature"],
@@ -318,6 +319,7 @@ describe("the ready gates read the REBUILT ability, not the descriptor", () => {
         const result = runGates({
             oracleId: "test-2698-json",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "Test Json",
                 types: ["Enchantment"],
@@ -373,6 +375,7 @@ describe("the gates judge only what the COMPILER emitted", () => {
         const result = runGates({
             oracleId: "test-2698-exalted",
             plannedMechanics: [],
+            ungrantableKeywords: [],
             definition: {
                 name: "Test Exalted Squire",
                 types: ["Creature"],

@@ -75,7 +75,10 @@ describe("gold round-trip — precision", () => {
         // card is keyword-only there and keyword-line+activated here. It is in
         // `KNOWN_DIVERGENCES` above, which is a stricter statement than the
         // percentage this loop used to make about it.
-        for (const bucket of ["vanilla", "mana-ability"] as const) {
+        // `static` joined them in #2700: 11 accepted, 11 equal, 0 incomparable
+        // — a closed shape with no divergence of its own, so the honest gate
+        // is the same 100% the other two pay, not a ratio floor.
+        for (const bucket of ["vanilla", "mana-ability", "static"] as const) {
             const stats = REPORT.buckets[bucket];
             expect(`${bucket}: ${stats.equal}/${stats.accepted}`).toBe(
                 `${bucket}: ${stats.accepted}/${stats.accepted}`
@@ -115,6 +118,9 @@ describe("gold round-trip — the harness is not vacuous", () => {
         // #2697 — without this the activated slot could be switched off
         // entirely and every assertion above would still pass.
         expect(REPORT.buckets.activated.accepted).toBeGreaterThan(80);
+        // #2700 — without this the static slot could be switched off entirely
+        // and every assertion above would still pass.
+        expect(REPORT.buckets.static.accepted).toBeGreaterThan(5);
     });
 
     it("exercises every grammar-v0 slot against gold", () => {
@@ -123,6 +129,8 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(slotKeys).toContain("mana-ability");
         expect(slotKeys).toContain("vanilla");
         expect(slotKeys).toContain("activated");
+        expect(slotKeys).toContain("triggered");
+        expect(slotKeys).toContain("static");
     });
 
     it("reports the hand-written cards that carry no Oracle text at all", () => {

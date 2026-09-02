@@ -124,6 +124,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
         oracleId: card.oracleId,
         definition: lowered.definition,
         plannedMechanics: lowered.plannedMechanics,
+        ungrantableKeywords: lowered.ungrantableKeywords,
     });
 
     if (reasons.length > 0) {

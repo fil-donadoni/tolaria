@@ -27,6 +27,7 @@ import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
+import { expandCompiledStatics } from "./compiledStatics";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
@@ -158,12 +159,17 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // Issue #2698 — `expandCompiledTriggers` runs INNERMOST so a compiled
     // card's rebuilt triggers are visible to every later expander exactly as a
     // hand-written card's are (a keyword expander must not see a different
-    // ability set depending on where the trigger came from).
+    // ability set depending on where the trigger came from). Issue #2700 —
+    // `expandCompiledStatics` sits beside it, one step further in, for the same
+    // reason: a later expander reading `staticEffects` must not see a different
+    // set depending on whether the card was compiled or hand-written.
     const expanded = expandAnnihilator(
         expandHideaway(
             expandKeywordTriggers(
                 expandFadingVanishing(
-                    expandChapterAbilities(expandCompiledTriggers(base))
+                    expandChapterAbilities(
+                        expandCompiledTriggers(expandCompiledStatics(base))
+                    )
                 )
             )
         )

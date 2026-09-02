@@ -1753,6 +1753,18 @@ export type {
     CompiledTriggerHead,
 } from "./compiledTriggers";
 
+// --- Compiled continuous-static descriptors (issue #2700) ---
+//
+// Same seam, same reason as the trigger descriptors above: defined in
+// `./compiledStatics.ts` beside the resolver that rebuilds them, TYPE-only in
+// both directions.
+
+import type { CompiledStaticEffect } from "./compiledStatics";
+export type {
+    CompiledSpellFilter,
+    CompiledStaticEffect,
+} from "./compiledStatics";
+
 /** Where a mana ability's COLOUR options come from when they are derived from
  *  the board instead of printed on the card (CR 605.1a). See
  *  {@link ActivatedAbility.manaColorSource}.
@@ -15442,6 +15454,17 @@ export interface CardDefinition {
      *  expander CONSUMES the field: it is absent from the expanded definition
      *  every engine read sees. */
     compiledTriggeredAbilities?: CompiledTriggeredAbility[];
+    /** JSON-pure continuous-static DESCRIPTORS, rebuilt into real
+     *  `staticEffects` at the `expandDefinition` seam (ADR 0054) by
+     *  `expandCompiledStatics` (`cards/compiledStatics.ts`, issue #2700).
+     *
+     *  The `staticEffects` twin of `compiledTriggeredAbilities` above and it
+     *  exists for the identical reason: every `StaticEffect` kind a static line
+     *  lowers to carries a required predicate (`applies` / `appliesToSpell`,
+     *  CR 611.2), and the Oracle compiler emits JSON only. Written ONLY by the
+     *  Oracle compiler; the expander CONSUMES the field, so it is absent from
+     *  the expanded definition every engine read sees. */
+    compiledStaticEffects?: CompiledStaticEffect[];
     /** Triggered-ability templates GRANTED to other permanents by a
      *  StaticTriggeredGrant on this card's `staticEffects` (CR 113.1, 611).
      *  Kept separate from `triggeredAbilities` so the source itself does not

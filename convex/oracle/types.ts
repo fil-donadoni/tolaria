@@ -64,6 +64,14 @@ export interface QuarantineReason {
     readonly kind:
         | "planned-op"
         | "planned-mechanic"
+        /**
+         * CR 702.1 — the keyword is implemented, but only as a PRINTED one:
+         * its behaviour comes from a definition-level ADR 0054 expander, and a
+         * `keyword-grant` writes the target INSTANCE's `staticAbilities`,
+         * which that expander never reads. The line was understood; the engine
+         * has no encoding for it (issue #2700).
+         */
+        | "ungrantable-keyword"
         | "validate-effect-script"
         | "smoke-scenario"
         | "wire-projection"
