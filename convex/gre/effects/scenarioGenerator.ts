@@ -766,6 +766,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // fallback branch.
             req.skip ??= `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`;
             return;
+        case "revealUntilMatch":
+            // `revealUntilMatch` reveals from the top UNTIL a card matching the
+            // filter appears, so the size of the revealed prefix — and whether
+            // there is a match at all — is decided entirely by the library the
+            // generator seeds. The canned generator seeds only a minimal filler
+            // library and cannot provision a KNOWN library composition, so both
+            // the prefix length and every destination are unpredictable from
+            // here and any delta would be a mis-assertion. Reported as an
+            // explicit skip; execution coverage is the Op's own interpreter
+            // tests, which drive the match, the no-match and the empty-library
+            // branches.
+            req.skip ??= `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`;
+            return;
         case "discardAtRandom":
             // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
             // TARGET player's hand. The canned generator seeds only a minimal
@@ -2289,6 +2302,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // coverage guard; both the matching route and the fallback are covered by
     // the Op's own interpreter tests.
     revealTopAndRoute() {
+        return null;
+    },
+    // `revealUntilMatch` (CR 701.20a, issue #2707) — never reached: `analyseOp`
+    // skips every script carrying one (the revealed prefix's size depends on
+    // the library composition the canned generator cannot provision, so any
+    // delta would be a mis-assertion). Kept for the 1:1 coverage guard; the
+    // match, no-match and empty-library branches are covered by the Op's own
+    // interpreter tests.
+    revealUntilMatch() {
         return null;
     },
     // `explore` (CR 701.44, issue #2376) — never reached: `analyseOp` skips

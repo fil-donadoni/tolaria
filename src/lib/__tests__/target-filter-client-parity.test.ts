@@ -52,6 +52,7 @@ import {
     grizzlyBears,
 } from "@convex/cards/sets/lea";
 import { thermokarst } from "@convex/cards/sets/ice/green";
+import { oathOfDruids } from "@convex/cards/sets/exo/green";
 
 const CHOOSER = "p1";
 
@@ -114,7 +115,11 @@ function clientPlayerOffered(
                     battlefield: p.battlefield as unknown as CardInstance[],
                 },
                 pendingTarget,
-                projected.activePlayerId
+                projected.activePlayerId,
+                projected.players.map((q) => ({
+                    id: q.id,
+                    battlefield: q.battlefield as unknown as CardInstance[],
+                }))
             )
         )
         .map((p) => p.id);
@@ -270,6 +275,56 @@ describe("player-target client parity (issue #1734)", () => {
     it("no player attacked — both sides offer nobody", () => {
         const state = makeState();
         const req = fireAndBrimstone.targetRequirement!;
+        expect(serverOffered(state, req)).toEqual([]);
+        expect(clientPlayerOffered(state, req)).toEqual([]);
+    });
+
+    it("playerControlsMoreThan (Oath of Druids, CR 601.2c) — offered set matches the server", () => {
+        // The COMPARATIVE dimension: its check reads the BASELINE seat's
+        // battlefield off `ctx.state.players`, which the client has to thread
+        // in. Before #2707's `allPlayers` parameter there was no players array
+        // in the client's ctx at all, so the whole dimension could not be
+        // evaluated browser-side.
+        const oppCreatures = [0, 1].map((i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `opp-bear-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: oppCreatures }),
+            ],
+        });
+        const req = oathOfDruids.triggeredAbilities![0].targetRequirement!;
+        const server = serverOffered(state, req);
+        expect(server).toEqual(["p2"]);
+        expect(clientPlayerOffered(state, req)).toEqual(server);
+    });
+
+    it("playerControlsMoreThan — a TIE offers NOBODY, on both sides", () => {
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "my-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const theirs = makeInstance(grizzlyBears.id, {
+            id: "their-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        const req = oathOfDruids.triggeredAbilities![0].targetRequirement!;
         expect(serverOffered(state, req)).toEqual([]);
         expect(clientPlayerOffered(state, req)).toEqual([]);
     });

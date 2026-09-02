@@ -109,7 +109,12 @@ export function useDivideTargets(): DivideTargetItem[] {
     if (wantsPlayerTarget(pendingTarget.targetType)) {
         for (const p of allPlayers) {
             if (
-                matchesPlayerTargetFilters(p, pendingTarget, activePlayerId) &&
+                matchesPlayerTargetFilters(
+                    p,
+                    pendingTarget,
+                    activePlayerId,
+                    allPlayers
+                ) &&
                 !isPlayerUntargetableByPending(
                     allPlayers,
                     p.id,

@@ -4139,6 +4139,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
     },
+    // CR 701.20a + CR 400.7 (issue #2707) — reveal from the top of a library
+    // UNTIL a card matching `filter` is revealed; that card goes to `match`,
+    // every other revealed card to `rest` (Oath of Druids). Deterministic; no
+    // choice, never suspends. `filter` is REQUIRED — a filter-less "reveal
+    // until" has no stop condition and would reveal the whole library, which
+    // is `mill`'s job, not this Op's. Both destinations are REQUIRED: an
+    // absent `rest` would silently strand the revealed prefix in the library
+    // (the same reason `revealTopAndRoute.fallback` is required), and an
+    // absent `match` has no sane default — "onto the battlefield" (Oath) and
+    // "into your hand" (Weatherlight) are equally printed.
+    revealUntilMatch: {
+        required: {
+            player: isPlayerRef,
+            filter: isCardFilter,
+            match: isRevealRouteDestination,
+            rest: isRevealRouteDestination,
+        },
+    },
     // CR 701.44 (issue #2376) — the Explore keyword action. ONE field: the
     // exploring permanent (`target`), an object selector like `counters`'
     // — an announced slot (the Map token's "target creature you control"),

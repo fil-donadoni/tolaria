@@ -27463,6 +27463,350 @@ describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
     });
 });
 
+// --- revealUntilMatch Op: reveal from the top of a library UNTIL a matching
+// card appears (CR 701.20a reveal + CR 400.7 zone change, issue #2707) ------
+// The "until" sibling of `revealTopAndRoute` above: same primitives, same
+// reveal pair, a stop condition instead of a fixed count. Deterministic — it
+// never suspends. Oath of Druids.
+
+describe("Effect Script Op: revealUntilMatch (CR 701.20a)", () => {
+    const libOf = (owner: "p1" | "p2", entries: [string, string][]) =>
+        entries.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    /** Oath of Druids' exact script: creature → battlefield, rest → graveyard. */
+    const OATH_SCRIPT: EffectOp[] = [
+        {
+            op: "revealUntilMatch",
+            player: "controller",
+            filter: { type: "Creature" },
+            match: "battlefield",
+            rest: "graveyard",
+        },
+    ];
+
+    it("stops AT the first match: that card hits the battlefield, the prefix hits the graveyard, the rest of the library is untouched", () => {
+        const id = registerScript("test-op-rum-match", OATH_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["creature", BEAR_ID],
+                        ["below", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "creature",
+        ]);
+        const graveyard = state.players[0].graveyard.map((c) => c.id);
+        expect(graveyard).toContain("l1");
+        expect(graveyard).toContain("l2");
+        // The card BELOW the match was never revealed and never moved — that
+        // is the whole difference between "until" and a fixed-count window.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["below"]);
+        expect(graveyard).not.toContain("below");
+    });
+
+    it("a match on the very top card sends nothing to `rest` (empty prefix)", () => {
+        const id = registerScript("test-op-rum-top", OATH_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["creature", BEAR_ID],
+                        ["below", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "creature",
+        ]);
+        // Only the resolved sorcery itself is in the graveyard (CR 608.2m).
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "below"
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["below"]);
+    });
+
+    it("NO match anywhere: the whole library is revealed and every card goes to `rest` (CR 608.2b)", () => {
+        const id = registerScript("test-op-rum-no-match", OATH_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["l3", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        const graveyard = state.players[0].graveyard.map((c) => c.id);
+        for (const cid of ["l1", "l2", "l3"]) expect(graveyard).toContain(cid);
+    });
+
+    it("is a no-op on an EMPTY library (CR 608.2b)", () => {
+        const id = registerScript("test-op-rum-empty", OATH_SCRIPT);
+        const state = makeState({
+            players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].battlefield).toHaveLength(0);
+        // Only the resolved sorcery (CR 608.2m) — nothing was revealed.
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "creature"
+        );
+    });
+
+    it("routes the match to a NON-battlefield destination when the card says so (Weatherlight-shape: match → hand, rest → exile)", () => {
+        const id = registerScript("test-op-rum-hand", [
+            {
+                op: "revealUntilMatch",
+                player: "controller",
+                filter: { type: "Creature" },
+                match: "hand",
+                rest: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("creature");
+        expect(state.players[0].exile.map((c) => c.id)).toContain("l1");
+    });
+
+    it("digs an announced TARGET player's library, not the controller's", () => {
+        const id = registerScript(
+            "test-op-rum-target",
+            [
+                {
+                    op: "revealUntilMatch",
+                    player: { target: 0 },
+                    filter: { type: "Creature" },
+                    match: "battlefield",
+                    rest: "graveyard",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["mine", BEAR_ID]]),
+                }),
+                makePlayer("p2", {
+                    library: libOf("p2", [["theirs", BEAR_ID]]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "theirs",
+        ]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["mine"]);
+    });
+
+    it("WIRE FORMAT — the MATCH card is public (CR 701.20a): it survives into the opponent's projected view", () => {
+        // HAND is the only destination the projection nulls out for the
+        // opponent, so it is the only one that can prove the CR 701.20a
+        // knowledge grant reached a card at all.
+        const id = registerScript("test-op-rum-wire", [
+            {
+                op: "revealUntilMatch",
+                player: "controller",
+                filter: { type: "Creature" },
+                match: "hand",
+                rest: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const oppView = projectPublicState(state, 1, "p2");
+        const revealed = oppView.players[0].hand.find(
+            (c) => c !== null && c.id === "creature"
+        );
+        expect(revealed).toBeDefined();
+        expect(revealed!.card.id).toBe(BEAR_ID);
+    });
+
+    it("WIRE FORMAT — the whole revealed PREFIX is public too, not just the match (CR 701.20a)", () => {
+        // The prefix's usual destinations — graveyard, exile, battlefield —
+        // are all PUBLIC, so asserting the prefix there proves NOTHING about
+        // the knowledge grant: the projection would show those cards either
+        // way. `rest: "hand"` is the one shape that can tell the two apart,
+        // and the Op's contract admits it. Proven load-bearing: narrowing
+        // `markKnownToAll` to the match card alone leaves this red and every
+        // other case in this block green.
+        const id = registerScript("test-op-rum-wire-prefix", [
+            {
+                op: "revealUntilMatch",
+                player: "controller",
+                filter: { type: "Creature" },
+                match: "exile",
+                rest: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["l2", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const oppView = projectPublicState(state, 1, "p2");
+        for (const cid of ["l1", "l2"]) {
+            const seen = oppView.players[0].hand.find(
+                (c) => c !== null && c.id === cid
+            );
+            expect(
+                seen,
+                `prefix card ${cid} in the opponent's view`
+            ).toBeDefined();
+            expect(seen!.card.id).toBe(LAND_ID);
+        }
+    });
+
+    it("never suspends — no PendingChoice is raised", () => {
+        const id = registerScript("test-op-rum-no-suspend", OATH_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [["creature", BEAR_ID]]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("composes under `if` — the construct's taken branch runs it exactly once", () => {
+        const id = registerScript("test-op-rum-under-if", [
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Dig?",
+                bind: "$dig",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$dig" },
+                then: OATH_SCRIPT,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Suspended on the may-pay — nothing dug yet.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect((state.pendingChoices ?? []).length).toBeGreaterThan(0);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "creature",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("l1");
+    });
+
+    it("composes under `if` — the DECLINED branch never digs", () => {
+        const id = registerScript("test-op-rum-under-if-declined", [
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Dig?",
+                bind: "$dig",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$dig" },
+                then: OATH_SCRIPT,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", [
+                        ["l1", LAND_ID],
+                        ["creature", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "l1",
+            "creature",
+        ]);
+    });
+});
+
 // --- explore Op: the CR 701.44 keyword action -------------------------------
 // Reveal the top card of the EXPLORING PERMANENT's controller's library; a
 // land goes to their hand; anything else puts a +1/+1 counter on the exploring

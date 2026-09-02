@@ -1419,15 +1419,32 @@ export function matchesSpellPendingTarget(
  *  so it is reproduced here rather than routed — CR 105.2: a player has no
  *  colour, so a colour-filtered requirement can never admit one.
  *
- *  **Wire safety.** Both dimensions read only fields the projection preserves
+ *  **Wire safety.** Every dimension reads only fields the projection preserves
  *  verbatim: `controller` reads `player.id` (untouched by the `PublicPlayer` /
- *  `FullPlayer` reshape) and `playerAttackedThisTurn` reads
- *  `player.battlefield[].hasAttackedThisTurn`, which `slimCard` passes through
- *  (it only rewrites `card` → `{ id }`). Neither reads `ctx.state`. */
+ *  `FullPlayer` reshape), `playerAttackedThisTurn` reads
+ *  `player.battlefield[].hasAttackedThisTurn` and `playerControlsMoreThan`
+ *  reads `player.battlefield[].types` — both survive `slimCard`, which only
+ *  rewrites `card` → `{ id }`. The `as unknown as PlayerState` cast below is
+ *  what makes that a requirement rather than a hope: the projection's own
+ *  `CardInstance` declares `types` optional, so the descriptor optional-chains
+ *  it and counts a row without it as no match, keeping the fail-CLOSED
+ *  property rather than throwing inside a React render.
+ *
+ *  `allPlayers` (issue #2707) is the one dimension a single candidate cannot
+ *  answer alone: `playerControlsMoreThan` is COMPARATIVE, so its check reads
+ *  the BASELINE seat's battlefield off `ctx.state.players`. It is threaded in
+ *  as a required parameter rather than defaulted, so a new call site cannot
+ *  silently omit it — and the descriptor itself fails CLOSED on a baseline it
+ *  cannot find, so an omission would narrow the offered set (a nameplate that
+ *  does not light) rather than widen it past the server's accepted set. */
 export function matchesPlayerTargetFilters(
     player: { id: string; battlefield: ReadonlyArray<CardInstance> },
     pendingTarget: PendingTarget,
-    activePlayerId: string
+    activePlayerId: string,
+    allPlayers: ReadonlyArray<{
+        id: string;
+        battlefield: ReadonlyArray<CardInstance>;
+    }>
 ): boolean {
     // CR 601.2c — a player already chosen under THIS SAME requirement is never
     // a legal second pick (Magma Burst's kicked "another target").
@@ -1449,10 +1466,12 @@ export function matchesPlayerTargetFilters(
         return false;
     }
     const filterCtx: TargetFilterCtx = {
-        // No player-kind check reads `ctx.state`; the two dimensions read the
-        // CANDIDATE (`player.id`, `player.battlefield`) and the chooser/active
-        // ids threaded below.
-        state: { activePlayerId } as unknown as GameState,
+        // The player-kind checks read the CANDIDATE (`player.id`,
+        // `player.battlefield`), the chooser/active ids threaded below, and —
+        // for the comparative `playerControlsMoreThan` — the BASELINE seat's
+        // battlefield, which lives on `state.players`. Nothing else off
+        // `state` is touched, so the literal stays a two-field stand-in.
+        state: { activePlayerId, players: allPlayers } as unknown as GameState,
         sourceColors: [],
         sourceTypes: [],
         sourceSubtypes: [],

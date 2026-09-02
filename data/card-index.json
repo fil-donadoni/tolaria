@@ -23040,6 +23040,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Oath of Druids",
+        "scryfallId": "cf14de50-d123-400c-862e-2c95fd2aa23f",
+        "oracleId": "cf0dcb27-f02e-4065-81dc-75fbbb09ea3f",
+        "firstSet": "exo",
+        "firstPrintId": "cf14de50-d123-400c-862e-2c95fd2aa23f",
+        "firstPrintSet": "exo"
+    },
+    {
         "name": "Oath of Lim-Dûl",
         "scryfallId": "f16df768-06de-43a0-b548-44fb0887490b",
         "oracleId": "64e163c2-2378-4e4c-aefe-5e0d2fd19988",

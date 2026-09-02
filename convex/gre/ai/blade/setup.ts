@@ -53,6 +53,7 @@ import {
     applyDeclareBlockers,
     applyExtraCombat,
 } from "./combatSetup";
+import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
@@ -139,6 +140,42 @@ function applyEtbTrigger(
             label,
             step,
             `"${step.card}" put no triggered ability on the stack when it entered. Either the card has no enters-the-battlefield trigger, or its condition is not met in this position.`
+        );
+    }
+}
+
+/** CR 603.6a (issue #2707) — the phase-trigger twin of `applyEtbTrigger`
+ *  directly above: build the SAME `PHASE_BEGIN` event `phases.ts`'s own
+ *  `firePhaseBeginTriggers` builds, run it through the SAME collection +
+ *  placement chokepoint (`collectTriggers` + `placeTriggersOnStack`, CR 603.2
+ *  / 603.3b), and restart priority at the active player (CR 117.3c) exactly as
+ *  the engine does. Reimplemented here rather than called because
+ *  `firePhaseBeginTriggers` is module-private to `phases.ts` and reaching it
+ *  from outside would mean advancing a whole turn, which is a different
+ *  position from the one written. */
+function applyPhaseTrigger(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "phase-trigger" }>
+): void {
+    if (step.phase !== undefined) state.phase = step.phase;
+    const before = state.stack.length;
+    const triggers = collectTriggers(state, [
+        {
+            type: "PHASE_BEGIN",
+            phase: state.phase,
+            activePlayerId: state.activePlayerId,
+        },
+    ]);
+    if (placeTriggersOnStack(state, triggers)) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+    }
+    if (state.stack.length <= before) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no "at the beginning of ${state.phase}" trigger reached the stack in this position. Either no permanent in the built state has one, or its CR 603.4 condition is not met — including a targeted trigger removed for having no legal target (CR 603.3d).`
         );
     }
 }
@@ -626,6 +663,9 @@ export function applyBladeSetup(
                 break;
             case "know-library-top":
                 applyKnowLibraryTop(state, scenario.label, step);
+                break;
+            case "phase-trigger":
+                applyPhaseTrigger(state, scenario.label, step);
                 break;
             case "extra-combat":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.
