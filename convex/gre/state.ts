@@ -11124,6 +11124,19 @@ export function revertAnimation(card: CardInstanceState): void {
  *  permanent (the one-shot layer-4 type SET arm, issue #2084) is cleared by
  *  the same block rather than a parallel one. */
 export function revertTypeProvenance(card: CardInstanceState): void {
+    // PRD #2064 S4 — when the layer-4 BASE has been captured, restoring it IS
+    // the revert: `types` is derived output, so the printed line is exactly
+    // what the derivation started from. The marker walk below survives for an
+    // instance that has never been derived for (a hand-built fixture, or a
+    // state persisted before this slice), where the markers are the only
+    // record of what layer 4 did.
+    if (card.baseTypes) {
+        card.types = [...card.baseTypes];
+        delete card.grantedTypes;
+        delete card.suppressedTypes;
+        delete card.typeLineHolds;
+        return;
+    }
     const granted = card.grantedTypes;
     const suppressed = card.suppressedTypes;
     if (

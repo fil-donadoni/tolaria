@@ -29,6 +29,7 @@ import {
     unapplySourceStaticEffects,
     refreshCounterGatedStatics,
 } from "../state";
+import { syncLayers2to5 } from "../layers2to5";
 import type { GameState, CardInstanceState } from "../state";
 import {
     makeInstance,
@@ -428,8 +429,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         });
 
         it("releases the add cleanly when the ADD's source leaves play", () => {
-            // The composer must not make an add immortal: `printedSubtypes` is
-            // snapshotted WITHOUT the live add contributions.
+            // The derivation must not make an add immortal: `baseSubtypes` is
+            // captured WITHOUT the live add contributions.
             const { state, land, sources } = makeBoard({ mire: 1 }, [
                 { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
@@ -439,9 +440,24 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             applySourceStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
-            unapplySourceStaticEffects(state, yavimaya);
+            // PRD #2064 S4 — layer 4 is DERIVED from the board, so a source
+            // "leaving play" has to actually leave: `unapplySourceStaticEffects`
+            // runs BEFORE the permanent is spliced out (that is what its
+            // `stoppedSourceIds` contract is for), and the splice is what
+            // production always does next. Leaving the permanent on the
+            // battlefield would leave its effect applying, correctly.
+            const leave = (source: (typeof sources)[number]) => {
+                unapplySourceStaticEffects(state, source);
+                for (const player of state.players) {
+                    player.battlefield = player.battlefield.filter(
+                        (c) => c.id !== source.id
+                    );
+                }
+                syncLayers2to5(state);
+            };
+            leave(yavimaya);
             expect(land.subtypes).toEqual(["Swamp"]);
-            unapplySourceStaticEffects(state, tomb);
+            leave(tomb);
             expect(land.subtypes).toEqual([]);
         });
     });

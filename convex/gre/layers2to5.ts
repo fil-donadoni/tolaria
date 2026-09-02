@@ -207,15 +207,28 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
         // A pre-slice state carries the granted / suppressed markers that were
         // materialised into `types`; unwinding them recovers the base. A fresh
         // permanent has neither and `types` IS the base.
+        //
+        // Same PRINTED-type discipline `revertTypeProvenance` has always
+        // applied (issue #2086): a granted type the card also PRINTS is not
+        // removed, and a suppressed type the card never printed is not
+        // resurrected. Without it a Titania's Song grant of "Artifact" onto
+        // Black Lotus would unwind the printed Artifact out of the base, and a
+        // Reconfigure-style suppression of a type the card never had would
+        // invent one.
+        const cardId = (card.card as { id?: string }).id;
+        const printed = (cardId ? (tryGetDefinition(cardId)?.types ?? []) : [])
+            .slice()
+            .map((t) => t as CardType);
         const base = [...card.types];
         for (const g of card.grantedTypes ?? []) {
+            if (printed.includes(g.type as CardType)) continue;
             const idx = base.indexOf(g.type as CardType);
             if (idx !== -1) base.splice(idx, 1);
         }
-        for (const s of card.suppressedTypes ?? []) {
-            if (!base.includes(s.type as CardType)) {
-                base.push(s.type as CardType);
-            }
+        for (const suppressed of card.suppressedTypes ?? []) {
+            const type = suppressed.type as CardType;
+            if (!printed.includes(type)) continue;
+            if (!base.includes(type)) base.push(type);
         }
         card.baseTypes = base;
     }
