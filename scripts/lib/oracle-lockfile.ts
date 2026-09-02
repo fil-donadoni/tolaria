@@ -129,6 +129,22 @@ const DRIVER_FILES = [
  */
 const DATA_INPUT_FILES = [RETIREMENT_LEDGER_PATH] as const;
 
+/**
+ * The lockfile's inputs as ONE reader-facing line, derived from the two lists
+ * above.
+ *
+ * The drift message used to hand-type this list, and the retirement ledger was
+ * added to the hash without being added to the sentence — so the one red a
+ * ledger edit causes named only the compiler sources, and the reader had no
+ * way to connect it to the file they had just edited. A list that CAN be
+ * derived is not a sentence someone maintains.
+ */
+export const LOCKFILE_INPUT_SUMMARY = [
+    `${ORACLE_MODULE_DIR}/**`,
+    ...DRIVER_FILES,
+    ...DATA_INPUT_FILES,
+].join(", ");
+
 /** Every file the lockfile's contents depend on, in a stable order. */
 export function compilerSourceFiles(root: string): string[] {
     const out: string[] = [];

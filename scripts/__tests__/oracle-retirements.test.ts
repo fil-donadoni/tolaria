@@ -12,7 +12,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { stampRetirements } from "../oracle-compile";
 import { retirementProblems } from "../check-oracle-lockfile";
-import { compilerSourceFiles, type CardRow } from "../lib/oracle-lockfile";
+import {
+    compilerSourceFiles,
+    LOCKFILE_INPUT_SUMMARY,
+    type CardRow,
+} from "../lib/oracle-lockfile";
 import {
     addRetirement,
     emptyRetirementLedger,
@@ -154,6 +158,19 @@ describe("stamping the marker onto the lockfile row", () => {
                 ledgerOf(entry())
             )
         ).toThrow(/names a different card/);
+    });
+
+    it("names every hashed input in the drift message a reader sees", () => {
+        // The message that fires when the ledger is edited without
+        // regenerating must SAY so. Hand-typed, it named only the compiler
+        // sources, and the reader had no way to connect the red to the file
+        // they had just edited — so the sentence is derived from the same
+        // lists the hash walks, and this pins that.
+        for (const file of compilerSourceFiles(ROOT)) {
+            if (file.startsWith("convex/oracle/")) continue;
+            expect(LOCKFILE_INPUT_SUMMARY).toContain(file);
+        }
+        expect(LOCKFILE_INPUT_SUMMARY).toContain("convex/oracle/**");
     });
 
     it("hashes the ledger into the lockfile's offline drift guard", () => {
