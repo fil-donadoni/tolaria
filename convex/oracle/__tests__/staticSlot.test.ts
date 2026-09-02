@@ -159,6 +159,15 @@ describe("anthem and lord (CR 613.1e)", () => {
         ).toBeTruthy();
     });
 
+    it("REFUSES a singular subject even where English would not print one", () => {
+        // Subject-verb agreement as a RULE, not as a coincidence. No card
+        // prints "Wall get +1/+1", so the descriptor grammar's own vocabulary
+        // is what keeps a singular subject away from this frame today — and a
+        // vocabulary is exactly the thing that changes. Without the check the
+        // line below compiles to a board-wide anthem over every Wall in play.
+        expect(refusal("Wall get +1/+1.")).toContain("plural");
+    });
+
     it("REFUSES a filter the predicate could not evaluate", () => {
         // A `PermanentView` carries no `staticAbilities`, so a `requireAbility`
         // filter would match NOTHING at run time — silently, and the symptom
