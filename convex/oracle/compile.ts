@@ -15,6 +15,7 @@
  */
 
 import { runGates } from "./gates";
+import { groupLines } from "./grammar/lineGroups";
 import { routeLine } from "./grammar/router";
 import type { LineParse } from "./grammar/ir";
 import { lowerCard } from "./lower";
@@ -94,9 +95,22 @@ export function compileCard(card: OracleCard): CompileOutcome {
         selfMarker: SELF_MARKER,
     };
 
+    // CR 700.2 — a bulleted mode list is part of the clause above it, not a
+    // line of its own (`grammar/lineGroups.ts`).
+    const grouped = groupLines(normalized.text.lines);
+    if (!grouped.ok) {
+        return unparsed([
+            {
+                line: grouped.fragment,
+                fragment: grouped.fragment,
+                reason: grouped.reason,
+            },
+        ]);
+    }
+
     const parsedLines: LineParse[] = [];
     const gaps: Gap[] = [];
-    for (const line of normalized.text.lines) {
+    for (const line of grouped.lines) {
         const routed = routeLine(line, ctx);
         if (routed.ok) parsedLines.push(routed.value);
         else

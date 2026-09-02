@@ -69,14 +69,19 @@ describe("compileCard — states", () => {
                 typeLine: "Sorcery",
                 power: undefined,
                 toughness: undefined,
-                oracleText: "Draw a card.\nYou gain 2 life.",
+                // Two lines the grammar cannot read, on a card type whose
+                // slot IS implemented (#2699) — the point is that the loop
+                // does not stop at the first gap, so both lines must fail for
+                // a reason of their own rather than because no slot applies.
+                oracleText:
+                    "Destroy all green creatures.\nEach player sacrifices a creature.",
             })
         );
         expect(outcome.state).toBe("unparsed");
         if (outcome.state === "unparsed") {
             expect(outcome.gaps.map((g) => g.fragment)).toEqual([
-                "Draw a card.",
-                "You gain 2 life.",
+                "Destroy all green creatures.",
+                "Each player sacrifices a creature.",
             ]);
         }
     });

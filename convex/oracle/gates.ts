@@ -92,6 +92,13 @@ function collectScripts(
 ): EffectOp[][] {
     const scripts: EffectOp[][] = [];
     if (definition.effects) scripts.push(definition.effects);
+    // CR 700.2 — a modal spell's body lives on its MODES; the card-level
+    // `effects` is undefined by construction (see `lower.ts`), so a walk that
+    // read only the card level would smoke nothing at all for every modal card
+    // — the same fail-open the trigger rebuild above closes, one field over.
+    for (const mode of definition.modes ?? []) {
+        if (mode.effects) scripts.push(mode.effects);
+    }
     for (const ability of definition.activatedAbilities ?? []) {
         if (ability.effects) scripts.push(ability.effects);
     }
@@ -195,6 +202,27 @@ export function runGates(input: GateInput): GateResult {
     // type, which only the rebuilt ability carries.
     const errors = [
         ...validateEffectScript({ ...definition, id: oracleId }),
+        // CR 700.2 — each mode is its own SPELL site, validated as one.
+        // `validateEffectScript` returns early on `def.effects === undefined`,
+        // and a modal card has none by construction, so without this every
+        // modal card would reach `ready` with its mode bodies unchecked. The
+        // synthetic host mirrors `cards/__tests__/effectSites.ts` §modeSites,
+        // which is how the catalogue sweep reaches the same scripts; it is
+        // rebuilt here rather than imported because a production gate may not
+        // depend on a test module.
+        ...(definition.modes ?? []).flatMap((mode) =>
+            mode.effects === undefined
+                ? []
+                : validateEffectScript({
+                      ...definition,
+                      id: `${oracleId}#${mode.id}`,
+                      name: `${definition.name} mode "${mode.id}"`,
+                      effects: mode.effects,
+                      // The card-level authoring fields belong to the CARD;
+                      // only the mode's own body could conflict with itself.
+                      modes: undefined,
+                  })
+        ),
         ...(definition.activatedAbilities ?? []).flatMap((ability) =>
             validateAbilityEffectScript(ability, definition.name)
         ),

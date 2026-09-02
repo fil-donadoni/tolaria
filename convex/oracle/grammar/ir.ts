@@ -11,7 +11,7 @@
  * a card that compiles to a definition missing an ability.
  */
 
-import type { Color, ManaCost } from "../../cards/types";
+import type { Color, ManaCost, PermanentFilter } from "../../cards/types";
 import type { ActivationCostIR } from "./shared/cost";
 import type { ConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
@@ -26,6 +26,27 @@ export interface KeywordIR {
     readonly ability: string;
     /** Registry status; `planned` is a quarantine reason, never a silent pass. */
     readonly status: "implemented" | "planned" | "out-of-scope";
+}
+
+/**
+ * CR 700.2 — one bullet of a modal spell.
+ *
+ * The bullet's own text is kept beside its sentences because a mode has a
+ * DISPLAY identity the engine shows in the picker (`SpellMode.label` /
+ * `oracleText`) as well as a resolution body, and neither is derivable from
+ * the other.
+ */
+export interface SpellModeIR {
+    /** The bullet, without its marker and without its full stop. */
+    readonly text: string;
+    readonly effects: readonly EffectSentenceIR[];
+}
+
+/** CR 702.34a — the cost of casting the card from a graveyard. */
+export interface FlashbackCostIR {
+    readonly mana?: ManaCost;
+    /** CR 118.5 — the non-mana half, e.g. Lava Dart's "Sacrifice a Mountain". */
+    readonly sacrifice?: PermanentFilter;
 }
 
 /** What a mana ability adds (CR 605.1a). */
@@ -72,7 +93,37 @@ export type SlotIR =
      * effects: a static ability never resolves, so there is nothing for the
      * Effect Script interpreter to run and the whole meaning is in the clause.
      */
-    | { readonly kind: "static"; readonly clause: StaticClauseIR };
+    | { readonly kind: "static"; readonly clause: StaticClauseIR }
+    /**
+     * CR 113.3a — the rules text of an instant or sorcery: an instruction
+     * carried out on resolution and then gone (CR 608.2m), with no permanent
+     * to hang an ability on. Its body is the SAME sentence list an activated
+     * or triggered ability's is, which is the whole reason the effect-sentence
+     * sub-grammar is shared: "Destroy target creature." means one thing, and
+     * where it is printed changes only where the resulting Effect Script hangs.
+     */
+    | { readonly kind: "spell"; readonly effects: readonly EffectSentenceIR[] }
+    /**
+     * CR 700.2 — a modal spell. Its modes are the ONE place a card carries
+     * several independent bodies with several independent target requirements,
+     * so they cannot collapse into the `spell` member above: folding them into
+     * one effect list would compile a spell that does one of N things into a
+     * spell that does all N.
+     */
+    | {
+          readonly kind: "spell-modal";
+          readonly modes: readonly SpellModeIR[];
+      }
+    /**
+     * CR 601.2f / 118.8 — "As an additional cost to cast this spell, …". Its
+     * own printed line, and not an effect at all: it is paid as the spell is
+     * CAST (CR 601.2h), so a grammar that read it as a resolution instruction
+     * would make an unpayable spell castable and then do the cost's work to
+     * the wrong player at the wrong time.
+     */
+    | { readonly kind: "additional-cost"; readonly cost: ActivationCostIR }
+    /** CR 702.34a — a "Flashback [cost]" line (a graveyard-cast permission). */
+    | { readonly kind: "flashback"; readonly cost: FlashbackCostIR };
 
 /** A line, the slot that consumed it, and what it means. */
 export interface LineParse {

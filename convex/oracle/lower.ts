@@ -13,11 +13,24 @@
  *     the IR nodes carry lists, and the lists are lowered whole.
  */
 
-import type { ActivatedAbility, ManaCost } from "../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    EffectOp,
+    ManaCost,
+    SpellMode,
+    TargetRequirement,
+} from "../cards/types";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { lowerActivationCost } from "./grammar/shared/cost";
 import { lowerActivatedAbility } from "./lowerActivated";
+import {
+    lowerAdditionalCosts,
+    lowerFlashback,
+    lowerSpellBody,
+    lowerSpellModes,
+} from "./lowerSpell";
 import { lowerStaticClause } from "./lowerStatic";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { readManaCost } from "./manaCost";
@@ -54,6 +67,12 @@ interface Accumulator {
     entersWithCounters: { type: string; count: number }[];
     plannedMechanics: string[];
     ungrantableKeywords: string[];
+    /** CR 113.3a — the spell site: at most one per card, see `lowerLine`. */
+    spellEffects?: EffectOp[];
+    spellTargetRequirement?: TargetRequirement;
+    spellModes?: SpellMode[];
+    additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
+    flashback?: NonNullable<CardDefinition["flashback"]>;
 }
 
 function lowerLine(
@@ -163,11 +182,74 @@ function lowerLine(
             }
             return null;
         }
+        case "spell": {
+            // CR 113.3a — a spell has ONE resolution body. Two spell-text
+            // lines on one card is not a card that resolves twice; it is a
+            // card whose lines we have misread (an unread trailing clause
+            // routed as a second sentence, say), so it fails rather than
+            // silently concatenating into one script.
+            if (acc.spellEffects !== undefined || acc.spellModes !== undefined)
+                return "a card declares spell text twice (CR 113.3a)";
+            const body = lowerSpellBody(ir.effects, {
+                // CR 107.3 — a spell announces X for the `{X}` pip in its own
+                // printed mana cost, and only then. Judged HERE because it is
+                // a fact about the cost rather than about the sentence
+                // (`lowerEffects.ts` — `SiteOptions`).
+                allowX: hasVariableX(card.manaCost),
+            });
+            if (!body.ok) return body.reason;
+            acc.spellEffects = body.value.effects;
+            if (body.value.targetRequirement !== undefined)
+                acc.spellTargetRequirement = body.value.targetRequirement;
+            return null;
+        }
+        case "spell-modal": {
+            if (acc.spellEffects !== undefined || acc.spellModes !== undefined)
+                return "a card declares spell text twice (CR 113.3a)";
+            const modes = lowerSpellModes(ir.modes, slugify(card.name), {
+                allowX: hasVariableX(card.manaCost),
+            });
+            if (!modes.ok) return modes.reason;
+            acc.spellModes = modes.value;
+            return null;
+        }
+        case "additional-cost": {
+            // CR 601.2f — two additional-cost lines would both be paid, and
+            // merging them into one `additionalCosts` record would silently
+            // drop whichever field the second reuses.
+            if (acc.additionalCosts !== undefined)
+                return "a card declares an additional cost twice (CR 601.2f)";
+            const costs = lowerAdditionalCosts(ir.cost.atoms);
+            if (!costs.ok) return costs.reason;
+            acc.additionalCosts = costs.value;
+            return null;
+        }
+        case "flashback": {
+            if (acc.flashback !== undefined)
+                return "a card declares flashback twice (CR 702.34a)";
+            const flashback = lowerFlashback(ir.cost);
+            if (!flashback.ok) return flashback.reason;
+            acc.flashback = flashback.value;
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
         }
     }
+}
+
+/**
+ * CR 107.3 — does the printed mana cost announce a value for {X}?
+ *
+ * Read off the RAW printed string rather than the parsed `ManaCost`, because
+ * the parse happens later (and can fail) while this question is asked as each
+ * line is lowered. `readManaCost` writes a variable pip as `X: "X"`; the
+ * printed form is the literal symbol, and nothing else in a cost string
+ * contains it.
+ */
+function hasVariableX(printedManaCost: string): boolean {
+    return printedManaCost.includes("{X}");
 }
 
 /** CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700). */
@@ -264,6 +346,16 @@ export function lowerCard(
     if (acc.entersTapped) definition.entersTapped = true;
     if (acc.entersWithCounters.length > 0)
         definition.entersWith = { counters: acc.entersWithCounters };
+    // CR 113.3a — the spell site. `modes` and `effects` are mutually exclusive
+    // by construction (one `lowerLine` case writes each, and the second one to
+    // run fails the card), which is also what `validateEffectScript` asserts.
+    if (acc.spellEffects !== undefined) definition.effects = acc.spellEffects;
+    if (acc.spellTargetRequirement !== undefined)
+        definition.targetRequirement = acc.spellTargetRequirement;
+    if (acc.spellModes !== undefined) definition.modes = acc.spellModes;
+    if (acc.additionalCosts !== undefined)
+        definition.additionalCosts = acc.additionalCosts;
+    if (acc.flashback !== undefined) definition.flashback = acc.flashback;
 
     return {
         ok: true,
