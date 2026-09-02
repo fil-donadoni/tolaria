@@ -209,6 +209,32 @@ describe("Tidehollow Sculler (ALA — linked hand exile + return on leave, CR 60
         }
     });
 
+    it("wire: while the pick is pending, the CONTROLLER sees the opponent's real hand and the opponent's own view is unchanged (issue #1698)", () => {
+        const { state } = setup([
+            handCard(grizzlyBears, "bears"),
+            handCard(swamp, "land"),
+        ]);
+        etbTriggerOnStack(state, state.players[0].battlefield[0]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("choose-hand-card");
+
+        // `HandCardPick` reads the ordinary `hand` field, not `revealedHand`
+        // — the cross-player exposure is keyed on "chooser ≠ zone owner"
+        // (`handPickZoneOwner`). Without it the chooser is handed a row of
+        // nulls and cannot pick at all.
+        const chooserView = projectPublicState(state, 1, "p1");
+        expect(chooserView.players[1].hand.map((c) => c?.card?.id)).toEqual([
+            grizzlyBears.id,
+            swamp.id,
+        ]);
+        // The zone owner's own view of their own hand is unaffected.
+        const ownerView = projectPublicState(state, 1, "p2");
+        expect(ownerView.players[1].hand.map((c) => c?.card?.id)).toEqual([
+            grizzlyBears.id,
+            swamp.id,
+        ]);
+    });
+
     it("wire: the exiled card is face up to BOTH viewers and pinned to the Sculler via exiledByPermanentId", () => {
         const { state } = setup([
             handCard(grizzlyBears, "bears"),
