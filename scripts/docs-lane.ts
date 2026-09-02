@@ -93,6 +93,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "plans over GitHub issues; the .md mention is an issue-body fixture",
     "scripts/__tests__/check-lane.test.ts":
         "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts the lane classifier treats them as UNRECOGNISED (fail-closed ⇒ full gate); it reads no repo document",
+    "scripts/__tests__/scenario-block.test.ts":
+        "parses GitHub PR BODIES for the ADR 0044 preset-scenario block, which are not files in this repo — the ```json / ``` fences in its fixtures are PR-body shapes, not repo prose",
     "scripts/__tests__/check-marker-liveness.test.ts":
         "the docs/adr and .md paths are synthetic examples fed to inScope()'s scope filter — the test asserts the filter EXCLUDES them (a real divergence marker is always a COMMENT in compiled source — `//` or `/** */` alike — never prose in a .md file); it reads no repo document",
 };
