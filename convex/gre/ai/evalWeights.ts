@@ -83,6 +83,24 @@ export type EvalWeights = {
      *  cannot dominate the leaf (the mana to cast them is the real limiter,
      *  and this term does not model it). */
     graveyardEngineCap: number;
+    /** Fraction of a REACHABLE graveyard card's latent worth credited to its
+     *  owner (`graveyardReachTerm`, evaluate.ts; issue #3042). Zero
+     *  contribution unless the owner can actually reach the card — see
+     *  `ai/graveyardReach.ts` for the gate; a graveyard with no reachable
+     *  payoff scores exactly as it did before the term existed.
+     *
+     *  A FRACTION, not a weight on a count, and deliberately well below 1:
+     *  the term must never make losing a permanent a wash. A creature dying
+     *  moves its full realized worth out of the `creatures` term (plus
+     *  `permanentWeight`) and returns only this fraction of its LATENT worth,
+     *  so a trade stays a decisive loss and the bot does not start chump-
+     *  blocking for free — the contrast `evaluate.bot.test.ts` measures. */
+    graveyardReachFraction: number;
+    /** How many reachable graveyard cards are credited, best-first. A payoff
+     *  can be used a bounded number of times before the mana and the cards to
+     *  use it run out, and this term models neither — so an enormous graveyard
+     *  cannot dominate the leaf. */
+    graveyardReachCap: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
     /** UCB1 exploration constant (`UCB_C`). The SOLE override path for this
@@ -140,6 +158,8 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     deckingWeight: 1.5,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
+    graveyardReachFraction: 0.15,
+    graveyardReachCap: 2,
     permanentWeight: 5,
     manaWeight: 12,
     manaDevWeight: 12,

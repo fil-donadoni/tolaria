@@ -41,6 +41,10 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         short: "Gy",
         name: "Graveyard (spells a play-from-graveyard engine can still cast)",
     },
+    graveyardReach: {
+        short: "Gr",
+        name: "Graveyard reach (cards there this player can recur or use)",
+    },
 };
 
 /** The keys of `EVAL_TERM_LABELS` in declaration order — what both consumers
