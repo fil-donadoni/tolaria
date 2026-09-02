@@ -47,13 +47,24 @@ export const CARD_ANCHOR =
 
 /** The card's own `name:` property, read out of the object literal below the
  *  anchor. This is the key Guard C joins the source scan to `getAllCards()`
- *  on — catalogue names are unique (asserted by the guard's own test), and a
+ *  on — catalogue names are unique (asserted by Guard C's own test, "catalogue
+ *  card names are unique"), and a
  *  name is what a human reads in a baseline diff, where an opaque print id is
  *  not. */
 const NAME_PROPERTY = /^\s*name:\s*"((?:[^"\\]|\\.)*)"/;
 
-/** Any line claiming to be a compiler-gap marker, well-formed or not. */
-export const COMPILER_GAP_CLAIM = /\/\/.*\bcompiler-gap:/i;
+/**
+ * Any line claiming to be a compiler-gap marker, well-formed or not.
+ *
+ * Matches a `//` line AND a block-comment line (`/*`, or a ` * ` continuation).
+ * Only `//` can ever ATTACH — `isParagraphBreak` ends a comment paragraph at
+ * any non-`//` line, so a marker in a JSDoc block above an anchor owns nothing
+ * — but recognising it is what turns that from INVISIBLE into a red saying
+ * "attached to no card". An unrecognised marker is the one failure this format
+ * is strict to avoid: the author believes the card is exempted and the guard
+ * never mentions the marker at all.
+ */
+export const COMPILER_GAP_CLAIM = /(?:\/\/|\/\*|^\s*\*).*\bcompiler-gap:/i;
 
 /**
  * The one accepted marker shape: `compiler-gap: <fragment> (#issue)`.

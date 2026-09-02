@@ -39,7 +39,7 @@
 // (`scripts/check-marker-liveness.ts`).
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
-// PR: each of the five assertions below was driven red by breaking the thing it
+// PR: each of the assertions below was driven red by breaking the thing it
 // guards, and the breaks are named there.
 
 import { describe, expect, it } from "vitest";
@@ -111,7 +111,7 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
                 "round-trip, or add a `// compiler-gap: <fragment> (#issue)` line to the " +
                 "card's own doc comment naming the exact Oracle fragment the grammar " +
                 "cannot consume (see .claude/rules/gre-development.md § Guard C). The " +
-                "baseline is closed to new entries."
+                "baseline cannot be appended to — see its header."
         ).toEqual([]);
     });
 
@@ -193,6 +193,28 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
             new Set(COMPILER_ROUND_TRIP_BASELINE).size,
             "the baseline holds a duplicate row"
         ).toBe(COMPILER_ROUND_TRIP_BASELINE.length);
+    });
+
+    it("catalogue card names are unique — every exemption is looked up by name", () => {
+        // `VERDICTS`, `MARKED` and `BASELINE` are all keyed by name, and a
+        // `Map`/`Set` is last-write-wins: two hand-written cards sharing a name
+        // would make one inherit the other's verdict and let one marker exempt
+        // both — the guard failing OPEN, silently, which is the one outcome it
+        // exists to prevent. MTG has genuine same-name pairs (Brothers
+        // Yamazaki), so this is a real future event, not a hypothetical: when
+        // it happens this assertion reds and the fix is to re-key the three
+        // lookups by `card.id`, keeping the name for the offender messages.
+        const counts = new Map<string, number>();
+        for (const card of CARDS) {
+            counts.set(card.name, (counts.get(card.name) ?? 0) + 1);
+        }
+        expect(
+            [...counts]
+                .filter(([, n]) => n > 1)
+                .map(([name, n]) => `${name} x${n}`),
+            "hand-written cards sharing a name. Guard C keys every lookup by name — " +
+                "re-key VERDICTS/MARKED/BASELINE by `card.id` before shipping the pair."
+        ).toEqual([]);
     });
 
     it("is not vacuous: the compiler really does read a large slice of the catalogue", () => {
@@ -280,6 +302,25 @@ describe("the compiler-gap marker format", () => {
         ];
         const markers = scanCompilerGapMarkers(lines);
         expect(markers.map((m) => m.card)).toEqual(["Delta"]);
+    });
+
+    it("sees a marker written in a JSDoc block, so it reds as unattached instead of vanishing", () => {
+        // A block comment can never BE a doc paragraph (`isParagraphBreak` ends
+        // one at any non-`//` line), so this marker legitimately owns no card —
+        // the point is that the guard says so out loud rather than never
+        // mentioning the marker at all.
+        const lines = [
+            "/**",
+            " * Zeta — a card.",
+            " * compiler-gap: some fragment (#2698)",
+            " */",
+            "export const zeta: CardDefinition = {",
+            '    name: "Zeta",',
+            "};",
+        ];
+        const markers = scanCompilerGapMarkers(lines);
+        expect(markers).toHaveLength(1);
+        expect(markers[0].card).toBe("");
     });
 
     it("finds a card's name past a long intra-literal comment (the Lutri shape)", () => {

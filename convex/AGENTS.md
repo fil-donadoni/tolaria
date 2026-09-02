@@ -91,10 +91,13 @@ the Op vocabulary.
        up, or with no issue ref exempts NOTHING and reds as malformed.
     3. sits in the one-time **baseline**
        (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`) — the 1,756
-       cards that predate the guard. **Closed to new entries** and
-       shrink-only: a card that starts round-tripping must leave, a card whose
-       gap gets a marker must leave, and `BASELINE_CEILING` only ever comes
-       down. Enforced by `compilerRoundTrip.test.ts`; scanner in
+       cards that predate the guard. Shrink-only: a card that starts
+       round-tripping must leave, a card whose gap gets a marker must leave,
+       and `BASELINE_CEILING` only ever comes down, so nothing can be APPENDED
+       to it. What the mechanism cannot stop — and the file says so rather than
+       overclaiming — is a diff that frees a slot by deleting a graduating row
+       and spends it on a new failing card; that shows up as an insertion in
+       the diff, and is reviewed like a `KEYWORD_ALLOWLIST` row. Enforced by `compilerRoundTrip.test.ts`; scanner in
        `scripts/lib/compiler-gap-markers.ts`. Presence only — marker liveness
        is the network sweep's job, exactly as for Guard B.
 
