@@ -11,8 +11,9 @@
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
  *     compiler's own source — the grammar under `convex/oracle/**` AND the
  *     driver that turns it into this file (`scripts/oracle-corpus.ts`,
- *     `scripts/oracle-compile.ts`, `scripts/lib/oracle-lockfile.ts`) — plus a
- *     hash of the Mechanics Registry's names and statuses. Any of them changing
+ *     `scripts/oracle-compile.ts`, `scripts/lib/oracle-lockfile.ts`) AND the
+ *     committed data inputs it stamps onto rows (`data/oracle-retirements.json`)
+ *     — plus a hash of the Mechanics Registry's names and statuses. Any of them changing
  *     changes what the compiler emits, so any of them differing from the tree
  *     means the lockfile is stale. This catches the failure that actually
  *     happens — a rule or a tally edited without regenerating — with no corpus
@@ -69,6 +70,7 @@ import {
 import { corpusIsCached, readCorpus, readPin } from "./oracle-corpus";
 import {
     compilerHash,
+    LOCKFILE_INPUT_SUMMARY,
     parseLockfile,
     registryHash,
     serializeLockfile,
@@ -141,8 +143,8 @@ function checkLockfile(): void {
     if (lock.header.compilerHash !== expectedCompiler) {
         fail(
             "oracle lockfile",
-            `compiler hash drift — a compiler source file has changed since the lockfile was generated\n` +
-                `    (convex/oracle/**, scripts/oracle-corpus.ts, scripts/oracle-compile.ts, scripts/lib/oracle-lockfile.ts)\n` +
+            `compiler hash drift — a lockfile input has changed since the lockfile was generated\n` +
+                `    (${LOCKFILE_INPUT_SUMMARY})\n` +
                 `    header: ${lock.header.compilerHash}\n    tree:   ${expectedCompiler}`,
             "bun run oracle:compile"
         );
@@ -373,7 +375,11 @@ function checkRetirements(): void {
             `${problems.length} problem(s) with the retirement markers ` +
                 `(ADR 0114 §1 — a marked row is the ONLY copy of that card's behaviour):\n` +
                 problems.map((p) => `    - ${p}`).join("\n"),
-            "bun run oracle:compile"
+            // Not always `oracle:compile`: a marked card that still has a
+            // hand-written definition is fixed by DELETING that definition (or
+            // by dropping the ledger entry, if the retirement was wrong), and
+            // regenerating would only re-stamp the same lie.
+            "bun run oracle:compile   # or, for a card that still has a hand-written definition, delete that definition"
         );
     }
     process.stdout.write(
