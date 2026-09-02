@@ -40,7 +40,7 @@ import type { CardDefinition } from "../../types";
 //     forces each opponent to sorcery timing for EVERY spell — instants and
 //     flash spells included. Read-time only; auto-reverts when Teferi leaves.
 //   • +1 — "Until your next turn, you may cast sorcery spells as though they
-//     had flash." A `grantCastTiming` Op (CR 601.3e) granting the controller a
+//     had flash." A `grantCastTiming` Op (CR 601.3b) granting the controller a
 //     flash-timing permission scoped to `cardTypes: ["Sorcery"]`, cleared at
 //     the start of the controller's next turn (advanceTurn) — the "until your
 //     next turn" boundary. A no-target loyalty ability.
@@ -79,7 +79,7 @@ export const teferiTimeRaveler: CardDefinition = {
             useStack: true,
             oracleText:
                 "+1: Until your next turn, you may cast sorcery spells as though they had flash.",
-            // CR 601.3e — grant the controller flash-timing for Sorcery spells
+            // CR 601.3b — grant the controller flash-timing for Sorcery spells
             // until their next turn (grantCastTiming Op).
             effects: [
                 {

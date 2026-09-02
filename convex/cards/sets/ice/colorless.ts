@@ -236,7 +236,7 @@ export const arcumsWeathervane: CardDefinition = {
 // mana value. If they don't pay, the creature attacks this turn if able, and
 // at the beginning of the next end step, destroy it if it didn't attack this
 // turn. Activate only before attackers are declared." (CR 508.1d, 603.7a,
-// 601.3e may-pay, 102.1 active player.)
+// CR 608.2d / 608.2g may-pay, CR 102.1 active player.)
 //
 // The attack-requirement seam shipped (`setMustAttackThisTurn` +
 // `hasAttackedThisTurn` + `next-end-step` delayed destroy — the Nettling Imp
@@ -296,7 +296,8 @@ export const arcumsWhistle: CardDefinition = {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;
                 // The creature's controller (the active player) may pay {X},
-                // X = the creature's mana value (CR 601.3e).
+                // X = the creature's mana value (CR 202.3); the option to pay
+                // is announced as the ability resolves (CR 608.2d / 608.2g).
                 const payer = ctx.getController(target);
                 const mv = ctx.getManaValue(target);
                 const accept = ctx.requestMayPay({
@@ -859,7 +860,8 @@ export const iceCauldron: CardDefinition = {
             // CR 106.10 — capture the TYPE and AMOUNT of mana spent on {X}.
             noteManaSpent: true,
             resolve: (ctx: SpellContext) => {
-                // CR 601.3e — "You may exile a nonland card from your hand."
+                // CR 608.2d — "You may exile a nonland card from your hand":
+                // an optional choice announced while the effect is applied.
                 const nonland = ctx
                     .getHandCards(ctx.caster)
                     .filter((c) => !c.types.includes("Land"))

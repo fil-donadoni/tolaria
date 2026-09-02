@@ -135,9 +135,9 @@ export default function PendingChoicePrompt({
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
     const sourceLabel = pendingChoiceLabel(choice.kind);
 
-    // "Pay" enables once the chooser's mana pool covers the cost (CR 117.6);
+    // "Pay" enables once the chooser's mana pool covers the cost (CR 118.3);
     // the chooser may activate mana abilities while the may-pay window is open
-    // (CR 117.3a) and the button enables as soon as the pool can cover it. The
+    // (CR 608.2g) and the button enables as soon as the pool can cover it. The
     // gating itself lives in usePendingChoicePrimaryAction (shared with Space).
     const canConfirm = primary?.canConfirm ?? false;
     const costSymbols =

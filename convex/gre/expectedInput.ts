@@ -226,7 +226,7 @@ export type GateRequest = {
     playerId: string;
     /** The Expected Input kind this mutation's action belongs to. */
     expect: ExpectedInputKind;
-    /** CR 117.3a / 605.3b — a mana-ability mutation. While a player is being
+    /** CR 608.2g / 605.3b — a mana-ability mutation. While a player is being
      *  asked an optional may-pay question the game's Expected Input is a
      *  `choice`, yet that player may still activate mana abilities to make the
      *  required mana. Set this so the gate admits the mana action during the
@@ -269,7 +269,7 @@ export function assertExpectedInput(
 
     const current = computeExpectedInput(state);
 
-    // CR 117.3a / 605.3b — mana abilities during the player's own may-pay
+    // CR 608.2g / 605.3b — mana abilities during the player's own may-pay
     // window are legal even though the Expected Input is a `choice`.
     if (
         request.allowManaForMayPay &&

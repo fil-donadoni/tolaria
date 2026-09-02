@@ -251,7 +251,7 @@ export interface CardInstance {
      *  cannot re-derive it, and `useHandCardCommit` for the two announcement
      *  choices it suppresses ({X} and the alternative-cost picker). */
     castManaCostReplaced?: true;
-    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 117.6-analog / 702.139 —
+    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 118.9 / 702.139 —
      *  which graveyard-cast mechanism surfaced this card's cast affordance, so
      *  the graveyard button labels "Flashback" / "Escape" / "Retrace" / "Cast".
      *  Present only on the viewer's own graveyard cards alongside

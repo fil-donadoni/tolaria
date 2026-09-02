@@ -21815,7 +21815,7 @@ describe("delayedTrigger timing: this-turn-creature-deals-combat-damage-to-playe
     });
 });
 
-describe("Effect Script choice kind: choose-exile-card + Op: grantCastFromExile (CR 601.3 / 117.6 / 122.6, issue #1156)", () => {
+describe("Effect Script choice kind: choose-exile-card + Op: grantCastFromExile (CR 601.3 / 118.9 / 122.6, issue #1156)", () => {
     it("filters the exile-zone choice by hasCounter, then grants cast permission + the free-cast waiver cross-player (Dauthi Voidwalker shape)", () => {
         const voidCard = makeInstance(BEAR_ID, {
             id: "void1",
@@ -22629,7 +22629,7 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
     });
 });
 
-describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3 / 117.6-analog, issue #1344)", () => {
+describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3 / 118.9, issue #1344)", () => {
     it("discards the chosen hand card, then grants graveyard cast permission + the free-cast waiver (Malcolm shape, same-player, 'this-turn' window)", () => {
         const handCard = makeInstance(BEAR_ID, {
             id: "hand1",

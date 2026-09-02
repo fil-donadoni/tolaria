@@ -3757,7 +3757,7 @@ describe("Halls of Mist (CR 702.24 / 508.1)", () => {
 
 // ---------------------------------------------------------------------------
 // Arcum's Whistle (#738) — CR 508.1d forced attack, 603.7a delayed destroy,
-// 601.3e may-pay gate, 102.1 active-player target filter.
+// CR 608.2d / 608.2g may-pay gate, CR 102.1 active-player target filter.
 // ---------------------------------------------------------------------------
 describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", () => {
     const ABILITY_ID = "arcums-whistle-force";

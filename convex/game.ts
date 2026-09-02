@@ -977,7 +977,7 @@ function assertGameNotOver(state: GameState) {
  *  mid-resolution player choices (CR 608.2). Priority is frozen in this
  *  window — only `submitResolutionChoice` is legal.
  *
- *  CR 117.3a exception: while a player is being asked an optional may-pay
+ *  CR 608.2g exception: while a player is being asked an optional may-pay
  *  question, they may activate mana abilities to make the mana required.
  *  Pass `allowManaForMayPay: true` from the tap/untap mana mutations so
  *  they can run during the pending may-pay's payment window for that
@@ -2368,7 +2368,7 @@ function findGraveyardPermissionCastable(
         : undefined;
 }
 
-/** Per-card cast-from-graveyard grant lookup (CR 601.3 / 117.6-analog,
+/** Per-card cast-from-graveyard grant lookup (CR 601.3 / 118.9,
  *  issue #1344 — Malcolm, Alluring Scoundrel: "you may cast the discarded
  *  card without paying its mana cost"). Returns the NON-LAND card in
  *  `player`'s graveyard matching `instanceId` while it carries
@@ -2508,7 +2508,7 @@ export function locateCastSource(
         instanceId
     );
     if (permissionCast) return { card: permissionCast, zone: "graveyard" };
-    // CR 601.3 / 117.6-analog (issue #1344) — a card castable purely under a
+    // CR 601.3 / 118.9 (issue #1344) — a card castable purely under a
     // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
     // reached only when the card has none of Flashback/Escape/the broad
     // permission (those branches above already returned).
@@ -5636,7 +5636,7 @@ export const playCard = mutation({
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be a legal "play" source. The normal source is a
-        // hand card; CR 601.3e — a LAND in exile carrying a play-from-exile
+        // hand card; CR 305.1-analog — a LAND in exile carrying a play-from-exile
         // permission (Headliner Scarlett / Expressive Iteration exiling a land,
         // "you may play that card this turn") is also a legal play source; a
         // LAND in the graveyard is a legal play source while the controller
@@ -14526,7 +14526,7 @@ export const tapUntap = mutation({
             expect: "priority",
             allowManaForMayPay: true,
         });
-        // CR 117.3a / 605.3b — while answering a may-pay choice, the player
+        // CR 608.2g / 605.3b — while answering a may-pay choice, the player
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
         // priority and reject mana ability activation.
@@ -15254,7 +15254,7 @@ export const activateManaAbility = mutation({
             allowManaForMayPay: true,
         });
 
-        // CR 117.3a / 605.3b — answering a may-pay choice opens a mana-payment
+        // CR 608.2g / 605.3b — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
         const mayPayHead = state.pendingChoices?.[0];
         const isMayPayPaymentWindow =

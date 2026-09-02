@@ -370,7 +370,7 @@ describe("normalizeManaCost", () => {
 });
 
 // ---------------------------------------------------------------------------
-// isManaCostCovered — CR 117.6: checking mana payment
+// isManaCostCovered — CR 118.3: checking mana payment
 // ---------------------------------------------------------------------------
 
 describe("isManaCostCovered", () => {
@@ -389,7 +389,7 @@ describe("isManaCostCovered", () => {
         expect(isManaCostCovered(pool, { W: 1 })).toBe(false);
     });
 
-    it("handles generic mana paid by any color (CR 117.6)", () => {
+    it("handles generic mana paid by any color (CR 107.4b)", () => {
         const pool = { W: 2, U: 1, B: 1, R: 0, G: 0, C: 0 };
         expect(isManaCostCovered(pool, { X: 3, W: 1 })).toBe(true);
     });
@@ -430,7 +430,7 @@ describe("isManaCostCovered", () => {
 });
 
 // ---------------------------------------------------------------------------
-// payManaCost — CR 117.6: deducting mana
+// payManaCost — CR 118.3a: deducting mana
 // ---------------------------------------------------------------------------
 
 describe("payManaCost", () => {

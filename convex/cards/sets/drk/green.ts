@@ -58,7 +58,7 @@ export const gaeasTouch: CardDefinition = {
                     kind: "choose-hand-card",
                     zone: "hand",
                     candidateIds,
-                    // "You MAY put" (CR 601.3e) — an optional 0-or-1 pick.
+                    // "You MAY put" (CR 608.2d) — an optional 0-or-1 pick.
                     count: { min: 0, max: 1 },
                     prompt: "You may put a basic Forest from your hand onto the battlefield.",
                 });

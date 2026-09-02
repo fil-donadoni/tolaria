@@ -171,8 +171,9 @@ export function getExtraLandDrops(player: PlayerState): number {
 }
 
 /** Whether `player` currently holds an unconditional, player-wide permission
- *  to play lands from their own graveyard (CR 305.1 special action / 601-
- *  analog permission), granted by ANY permanent declaring
+ *  to play lands from their own graveyard (CR 305.1-analog — the land-play
+ *  special action with 305.1's "from their hand" zone lifted; a land is
+ *  played, never cast, CR 305.9), granted by ANY permanent declaring
  *  `playsLandsFromGraveyard` on their battlefield (Icetill Explorer, issue
  *  #1190). Read live from the battlefield (mirrors `getExtraLandDrops`), so
  *  the permission ends the instant the granting source leaves play — no
@@ -200,8 +201,9 @@ export function canPlayLandsFromGraveyard(
 }
 
 /** Whether `player` currently holds an unconditional, player-wide permission
- *  to play lands from the TOP of their own library (CR 305.1 special action /
- *  601.3e-analog), granted by ANY permanent declaring
+ *  to play lands from the TOP of their own library (CR 305.1-analog — the
+ *  land-play special action with 305.1's "from their hand" zone lifted;
+ *  a land is played, never cast, CR 305.9), granted by ANY permanent declaring
  *  `playsLandsFromTopOfLibrary` on their battlefield (Courser of Kruphix).
  *  Read live from the battlefield (mirrors `canPlayLandsFromGraveyard`), so
  *  the permission ends the instant the granting source leaves play — no stale
@@ -907,7 +909,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 601.3 / 117.6-analog (issue #1344) — a NON-LAND card in the
+    // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card in the
     // player's OWN graveyard tagged with a per-card cast grant (Malcolm,
     // Alluring Scoundrel: "you may cast the discarded card without paying
     // its mana cost") is castable from there — for FREE when

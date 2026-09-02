@@ -3073,7 +3073,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // "skip your draw step this turn" flag. `player` names whose draw step
     // to skip.
     skipDrawStepThisTurn: { required: { player: isPlayerRef } },
-    // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player "cast as though
+    // CR 601.3b (Teferi, Time Raveler +1) — grant a per-player "cast as though
     // it had flash" timing permission. `player` names the grantee; `cardTypes`
     // (optional) narrows the grant to those card types (Teferi: ["Sorcery"]);
     // omitted grants flash for every spell.
@@ -3110,7 +3110,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // exile-redirect grant (Yawgmoth's Will's second clause). `player` names
     // the grantee.
     armGraveyardRedirect: { required: { player: isPlayerRef } },
-    // CR 601.3 / 117.6 (issue #1156) — grant cast/play permission (+
+    // CR 601.3 / 118.9 (issue #1156) — grant cast/play permission (+
     // optional cost waiver) for the exile card a preceding `choice(zone:
     // "exile")` Op picked. `card` is a bare picks ref; `player` names the
     // grantee; `window`/`withoutPayingManaCost` are optional.
@@ -3169,7 +3169,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return [];
         },
     },
-    // CR 601.3 / 117.6-analog (issue #1344) — grant cast permission (+
+    // CR 601.3 / 118.9 (issue #1344) — grant cast permission (+
     // optional cost waiver) for a graveyard card. `card` is EITHER a bare
     // picks ref (the card a preceding Op bound — Malcolm) OR an announced
     // target slot (`{ target: n }`, CR 601.2c — Emry, Lurker of the Loch,

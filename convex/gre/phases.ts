@@ -3369,7 +3369,7 @@ function advanceTurn(state: GameState): void {
             state.playerProtectionFromEverything = undefined;
         }
     }
-    // Teferi, Time Raveler +1 (CR 601.3e) — a "cast as though it had flash"
+    // Teferi, Time Raveler +1 (CR 601.3b) — a "cast as though it had flash"
     // grant lasts "until your next turn"; drop the grantee's entries the moment
     // their own next turn begins (same boundary as islandSanctuaryProtection).
     if (state.castTimingFlashGrants) {

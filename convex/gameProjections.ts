@@ -93,7 +93,7 @@ export type SlimExileCard = SlimCardInstance & {
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
  *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
  *  / 601, Yawgmoth's Will, issue #1149), a SPECIFIC-CARD graveyard-cast grant
- *  (CR 601.3 / 117.6-analog, Malcolm, Alluring Scoundrel, issue #1344), or
+ *  (CR 601.3 / 118.9, Malcolm, Alluring Scoundrel, issue #1344), or
  *  play it as a LAND under an unconditional play-lands-from-graveyard
  *  permission (CR 305.1-analog, Icetill Explorer #1190, or the same BROAD
  *  #1149 permission when its zones cover "land"). Present only on the
@@ -102,7 +102,7 @@ export type SlimExileCard = SlimCardInstance & {
  *  for an exile cast. */
 export type SlimGraveyardCard = SlimCardInstance & {
     legalActions?: CardAction[];
-    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 117.6-analog — which
+    /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 118.9 — which
      *  graveyard-cast mechanism surfaced this card's affordance, so the UI
      *  labels the button "Flashback" / "Escape" / "Retrace" / "Cast". Present
      *  only alongside `legalActions` for a CAST affordance — a land tagged under
@@ -749,7 +749,7 @@ function projectGraveyardCard(
             castKind: "graveyard-permission",
         };
     }
-    // CR 601.3 / 117.6-analog (issue #1344) — a NON-LAND card sitting in the
+    // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card sitting in the
     // viewer's own graveyard tagged with a per-card cast grant (Malcolm,
     // Alluring Scoundrel — `castableFromGraveyardBy`), reached only when the
     // card has neither Flashback, Escape, nor the broad permission above

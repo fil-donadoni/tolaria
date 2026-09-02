@@ -3962,7 +3962,7 @@ export interface SpellContext {
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6, issue #1156) —
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1156) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
      *  may play it this turn without paying its mana cost"), stamping
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
@@ -4013,8 +4013,8 @@ export interface SpellContext {
             costIncrease?: ManaCost;
         }
     ) => void;
-    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3 /
-     *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
+    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3, with the
+     *  waiver's own CR 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "you may
      *  cast the discarded card without paying its mana cost"). The
      *  graveyard-zone twin of {@link grantCastFromExile} — same "grant a
      *  specific card cast permission, optional cost waiver" shape,
@@ -4038,7 +4038,7 @@ export interface SpellContext {
      *    - "until-next-end-step" (issue #1557): mirrors
      *      `grantCastFromExile`'s same-named window — see its doc comment.
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6-analog, issue #1344)
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1344)
      *  — ALSO waives the card's mana cost entirely, stamping {@link
      *  CardInstanceState.castFromGraveyardWithoutPayingManaCost} alongside
      *  the permission flag. Omitted/false grants permission only (the card
@@ -4751,7 +4751,7 @@ export interface SpellContext {
      *  turn 1 would otherwise never be consumed and must not survive to a
      *  later turn). */
     skipDrawStepThisTurn: (playerId: string) => void;
-    /** CR 601.3e — grants `playerId` a per-player casting-timing permission:
+    /** CR 601.3b — grants `playerId` a per-player casting-timing permission:
      *  they may cast spells whose printed types intersect `cardTypes` as though
      *  they had flash (Teferi, Time Raveler's +1: "Until your next turn, you
      *  may cast sorcery spells as though they had flash"). Adds an entry to
@@ -11846,7 +11846,7 @@ export type EffectOp =
      *  one-shot flag from a DIFFERENT step's effect, with no choice left
      *  once armed. */
     | { op: "skipDrawStepThisTurn"; player: EffectPlayerRef }
-    /** CR 601.3e (Teferi, Time Raveler +1: "Until your next turn, you may cast
+    /** CR 601.3b (Teferi, Time Raveler +1: "Until your next turn, you may cast
      *  sorcery spells as though they had flash") — grant `player` a per-player
      *  casting-timing PERMISSION: they may cast spells whose printed types
      *  intersect `cardTypes` at instant speed (as though they had flash). A
@@ -11931,7 +11931,7 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
-    /** CR 601.3 / 305.1-analog / 117.6 (issue #1156) — grant `player` permission to cast/play
+    /** CR 601.3 / 305.1-analog / 118.9 (issue #1156) — grant `player` permission to cast/play
      *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
      *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
      *  declarative skin over `SpellContext.grantCastFromExile`, one execution
@@ -11983,7 +11983,7 @@ export type EffectOp =
            *  rejects the pair. */
           costIncrease?: ManaCost;
       }
-    /** CR 601.3 / 117.6-analog (issue #1344) — grant `player` permission to
+    /** CR 601.3 / 118.9 (issue #1344) — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
      *  names it in either of the two shapes an effect can reach one
      *  (`EffectObjectSelector`, issue #1650):
@@ -16061,8 +16061,9 @@ export interface CardDefinition {
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
     extraLandDrops?: number;
-    /** Unconditional, player-wide permission (CR 305.1 special action /
-     *  601.3e-analog) to play lands from the controller's own graveyard, as
+    /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
+     *  special action with 305.1's "from their hand" zone lifted; a land is
+     *  played, never cast, CR 305.9) to play lands from the controller's own graveyard, as
      *  though they were in hand, while ANY permanent with this flag is on the
      *  battlefield (Icetill Explorer, issue #1190). Read live from the
      *  battlefield (like `extraLandDrops`) via `canPlayLandsFromGraveyard`, so
@@ -16071,8 +16072,9 @@ export interface CardDefinition {
      *  permission granted to a specific card (Serra Paragon, issue #1149),
      *  which is a per-instance `CardInstanceState` grant, not player-wide. */
     playsLandsFromGraveyard?: boolean;
-    /** Unconditional, player-wide permission (CR 305.1 special action /
-     *  601.3e-analog) to play lands from the TOP of the controller's own
+    /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
+     *  special action with 305.1's "from their hand" zone lifted; a land is
+     *  played, never cast, CR 305.9) to play lands from the TOP of the controller's own
      *  library — and only the top card (index 0) — as though they were in
      *  hand, while ANY permanent with this flag is on the battlefield
      *  (Courser of Kruphix, Oracle of Mul Daya, Augur of Autumn). The sibling

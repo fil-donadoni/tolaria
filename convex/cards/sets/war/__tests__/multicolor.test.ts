@@ -143,7 +143,7 @@ describe("Teferi, Time Raveler — static: opponents cast at sorcery speed (CR 6
     });
 });
 
-describe("Teferi, Time Raveler — +1: cast sorceries as though they had flash (grantCastTiming Op, CR 601.3e)", () => {
+describe("Teferi, Time Raveler — +1: cast sorceries as though they had flash (grantCastTiming Op, CR 601.3b)", () => {
     it("adds a Sorcery flash-timing grant for the controller when it resolves", () => {
         const state = makeState({
             players: [
@@ -367,7 +367,7 @@ describe("Teferi, Time Raveler — the static never widens the CONTROLLER's wind
         expect(getLegalActions(state, p1, bears)).not.toContain("cast");
         expect(projectedHandActions(state, "bears1")).not.toContain("cast");
 
-        // p1's next turn starts → the grant is gone (CR 601.3e "until your next
+        // p1's next turn starts → the grant is gone (CR 601.3b "until your next
         // turn"), so the following opponent turn refuses the Sorcery again.
         advanceToNextTurn(state);
         expect(state.activePlayerId).toBe("p1");

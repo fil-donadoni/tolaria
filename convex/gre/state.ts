@@ -1475,7 +1475,7 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
-    /** CR 601.3 / 117.6 (issue #1156) — a cost waiver riding {@link
+    /** CR 601.3 / 118.9 (issue #1156) — a cost waiver riding {@link
      *  castableFromExileBy}: when both are set, `castableFromExileBy`'s
      *  named player may cast/play this card WITHOUT PAYING ITS MANA COST
      *  ("You may play it this turn without paying its mana cost" — Dauthi
@@ -1491,8 +1491,8 @@ export type CardInstanceState = {
      *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
      *  survives a DB round-trip. */
     castFromExileWithoutPayingManaCost?: boolean;
-    /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3 /
-     *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
+    /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3, with the
+     *  waiver's own CR 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
      *  the discarded card without paying its mana cost"). The graveyard-zone
      *  twin of {@link castableFromExileBy}. Distinct from the BROAD,
      *  player-wide `grantGraveyardPlay` permission
@@ -1518,7 +1518,7 @@ export type CardInstanceState = {
      *  primitive's "while-exiled" default; no shipped card needs this shape
      *  yet). */
     castableFromGraveyardUntilTurn?: number;
-    /** CR 601.3 / 117.6-analog (issue #1344) — a cost waiver riding {@link
+    /** CR 601.3 / 118.9 (issue #1344) — a cost waiver riding {@link
      *  castableFromGraveyardBy}: when both are set, the named player may
      *  cast this card WITHOUT PAYING ITS MANA COST (Malcolm's "without
      *  paying its mana cost"). Mirrors {@link castFromExileWithoutPayingManaCost}
@@ -4608,7 +4608,7 @@ export type GameState = {
      *  turns overlaps the two windows, and a single slot would clobber the
      *  first grant. */
     playerProtectionFromEverything?: string[];
-    /** CR 601.3e (Teferi, Time Raveler +1) — per-player "you may cast spells of
+    /** CR 601.3b (Teferi, Time Raveler +1) — per-player "you may cast spells of
      *  these types as though they had flash" grants. Each entry lets `playerId`
      *  cast a spell whose printed types intersect `cardTypes` (omitted/empty =
      *  every spell) at instant speed. Honored by the shared cast gate
@@ -15698,7 +15698,7 @@ export function buildSpellContext(
                 | "while-exiled"
                 | "until-next-end-step" = "while-exiled",
             opts?: {
-                /** CR 601.3 / 117.6 (issue #1156) — also waive the card's
+                /** CR 601.3 / 118.9 (issue #1156) — also waive the card's
                  *  mana cost entirely (Dauthi Voidwalker: "you may play it
                  *  this turn without paying its mana cost"), stamping
                  *  {@link CardInstanceState.castFromExileWithoutPayingManaCost}
@@ -15807,7 +15807,7 @@ export function buildSpellContext(
                 | "while-in-graveyard"
                 | "until-next-end-step" = "while-in-graveyard",
             opts?: {
-                /** CR 601.3 / 117.6-analog (issue #1344) — also waive the
+                /** CR 601.3 / 118.9 (issue #1344) — also waive the
                  *  card's mana cost entirely (Malcolm, Alluring Scoundrel:
                  *  "you may cast the discarded card without paying its mana
                  *  cost"), stamping {@link
@@ -15826,7 +15826,7 @@ export function buildSpellContext(
                 exilesOnResolve?: boolean;
             }
         ): void {
-            // CR 601.3 / 117.6-analog (issue #1344) — mark a card in
+            // CR 601.3 / 118.9 (issue #1344) — mark a card in
             // `playerId`'s OWN graveyard as castable from there by
             // `playerId`. Always SAME-PLAYER — no `zoneOwnerId` parameter,
             // unlike `grantCastFromExile`: no cross-player graveyard-cast
@@ -17108,7 +17108,7 @@ export function buildSpellContext(
         },
 
         grantCastTiming(playerId: string, cardTypes?: CardType[]): void {
-            // CR 601.3e — "you may cast <spells> as though they had flash".
+            // CR 601.3b — "you may cast <spells> as though they had flash".
             // Append a grant; a repeated grant this turn (two Teferis) simply
             // stacks — the reader matches on the first covering entry. Cleared
             // at the grantee's next turn start in `advanceTurn`.
@@ -20834,7 +20834,7 @@ export function removeFromZone(
     // rides the SAME permission window; consumed together, so the card carries
     // no stale tax if it is ever exiled again by something else.
     delete card.castFromExileCostIncrease;
-    // CR 601.3 / 117.6-analog (issue #1344) — the per-card cast-from-
+    // CR 601.3 / 118.9 (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
     // marker, mirroring the exile grant's cleanup above.

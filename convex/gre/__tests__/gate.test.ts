@@ -232,7 +232,7 @@ describe("assertExpectedInput — game over (CR 104.2a)", () => {
     });
 });
 
-describe("assertExpectedInput — mana-ability may-pay window (CR 117.3a / 605.3b)", () => {
+describe("assertExpectedInput — mana-ability may-pay window (CR 608.2g / 605.3b)", () => {
     it("admits the paying player's mana ability during their own may-pay window", () => {
         const state = makeState({ pendingChoices: [mayPayChoice] });
         expect(() =>

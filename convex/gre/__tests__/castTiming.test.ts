@@ -1,4 +1,4 @@
-// Per-player cast TIMING (CR 307.1 / 601.3a / 601.3e) — issue #1690.
+// Per-player cast TIMING (CR 307.1 / 601.3a / 601.3b) — issue #1690.
 //
 // `castTimingBaseLegal` is the SHARED cast-timing authority: the GRE
 // (`getLegalActions`), the cast mutation (through `assertLegalAction`) and the
@@ -116,7 +116,7 @@ describe("castTimingBaseLegal — the shared cast-timing authority (issue #1690)
         expect(castTimingBaseLegal(opp, "p1", instant(opp))).toBe(true);
     });
 
-    it("a live flash grant (CR 601.3e) — and only a live one — opens the off-turn Sorcery window", () => {
+    it("a live flash grant (CR 601.3b) — and only a live one — opens the off-turn Sorcery window", () => {
         const base = frame({ activePlayerId: "p2", priorityPlayerId: "p1" });
         expect(castTimingBaseLegal(base, "p1", sorcery(base))).toBe(false);
 
