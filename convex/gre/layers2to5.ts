@@ -503,6 +503,14 @@ type SourceEntries = {
     templates: ReadonlyMap<string, DerivedTemplate>;
 };
 
+/** Element-wise array equality, order included — the comparison "does the
+ *  derived output still equal the base?" is asked with. */
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+}
+
 /** True when any STORED registry entry belongs to layers 2-5. Cheap and
  *  board-wide, so the fast paths can ask it once. */
 function hasStoredLayer2to5Entry(state: LayerStateView): boolean {
@@ -516,8 +524,27 @@ function hasStoredLayer2to5Entry(state: LayerStateView): boolean {
 
 /** True when the permanent carries ANY layer-2-to-5 state: a ledger row this
  *  derivation would read, or an output row a PREVIOUS one wrote and this one
- *  might have to clear. Either way it owes a real derivation. */
+ *  might have to clear. Either way it owes a real derivation.
+ *
+ *  It also asks whether the permanent's OUTPUT still differs from its BASE,
+ *  which is not the same question. An effect that has just ENDED leaves no row
+ *  behind — dropping the row IS how a control change, a type-line set or a
+ *  subtype replacement ends — but the answer it produced is still sitting in
+ *  the field. A permanent whose Aladdin has left carries no `controlChanges`
+ *  and is still on the thief's battlefield; skipping it would strand it there
+ *  (CR 108.3). "Nothing applies" is only a licence to skip when the fields
+ *  already SAY nothing applies. */
 function carriesLayer2to5State(card: CardInstanceState): boolean {
+    if (
+        card.baseControllerId !== undefined &&
+        card.baseControllerId !== card.controllerId
+    ) {
+        return true;
+    }
+    if (card.baseTypes && !sameOrder(card.baseTypes, card.types)) return true;
+    if (card.baseSubtypes && !sameOrder(card.baseSubtypes, card.subtypes)) {
+        return true;
+    }
     return (
         card.controlChanges !== undefined ||
         card.textChangeHolds !== undefined ||
