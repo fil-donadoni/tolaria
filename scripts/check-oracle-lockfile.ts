@@ -29,6 +29,15 @@
  * silently a no-op on every clean checkout, which is the shape of a guard that
  * is not there.
  *
+ * Also guards the RETIREMENT MARKERS (issue #3049, ADR 0114 §1) — the third
+ * thing this file proves and the only one that is not about staleness. Once a
+ * card's hand-written definition is retired its lockfile row is the sole copy
+ * of its behaviour, so `checkRetirements` proves offline that every marker is
+ * true: the ledger and the rows agree, and no marked card still has a
+ * hand-written definition in `data/card-index.json`. It shares this file's
+ * wiring rather than adding a package.json script for the same reason the
+ * legality guard does — the gate surface must not grow per artifact.
+ *
  * Also guards `data/oracle-legality.json` (issue #2695), the sibling artifact
  * `convex/formats.ts` consumes for Premodern deck legality. It has no
  * "compiler source" to hash (its only input is the corpus), so its tiers are:
@@ -50,7 +59,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { buildLockfile } from "./oracle-compile";
+import { buildLockfile, poolOracleIdsFromIndex } from "./oracle-compile";
 import {
     buildLegalityFile,
     legalityContentHash,
@@ -63,11 +72,21 @@ import {
     parseLockfile,
     registryHash,
     serializeLockfile,
+    type Lockfile,
 } from "./lib/oracle-lockfile";
+import {
+    emptyRetirementLedger,
+    parseRetirementLedger,
+    validateRetirementLedger,
+    RETIREMENT_LEDGER_PATH,
+    type RetirementLedger,
+} from "./lib/oracle-retirements";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
+const RETIREMENTS_PATH = join(ROOT, RETIREMENT_LEDGER_PATH);
+const CARD_INDEX_PATH = join(ROOT, "data", "card-index.json");
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -241,8 +260,131 @@ function checkLegality(): void {
     );
 }
 
+/**
+ * Every way a retirement marker can be a LIE, checked offline against the
+ * committed tree (issue #3049, ADR 0114 §1).
+ *
+ * Pure over its three inputs — the ledger, the lockfile, and the oracle ids
+ * still covered by a hand-written definition — so each refusal is testable
+ * without a corpus, a lockfile on disk, or a card index.
+ *
+ * The marker's claim is "this row is the only copy of this card's behaviour".
+ * Three things can falsify it, and all three are cheap to check:
+ *
+ *  - the ledger names a card the lockfile has no row for (the marker guards
+ *    nothing);
+ *  - a row carries a marker the ledger does not (a hand-edit to a file stamped
+ *    "never hand-edited", or a marker that survived its ledger entry through a
+ *    bad merge);
+ *  - a marked card STILL has a hand-written definition in `data/card-index.json`
+ *    (the retirement never happened, or the module came back). This one is the
+ *    substantive check: a marker that says "no twin remains" while a twin
+ *    remains sends a reviewer looking for a fallback that is right there, and
+ *    hides the real problem — two authorities for one card, which ADR 0114 §3
+ *    makes a RED rather than a precedence.
+ */
+export function retirementProblems(
+    ledger: RetirementLedger,
+    lock: Pick<Lockfile, "cards">,
+    handWrittenOracleIds: ReadonlySet<string>
+): string[] {
+    const problems = validateRetirementLedger(ledger);
+    const rowsById = new Map(lock.cards.map((row) => [row.oracleId, row]));
+    const ledgerIds = new Set(ledger.retirements.map((e) => e.oracleId));
+
+    for (const entry of ledger.retirements) {
+        const where = `${entry.name} (${entry.oracleId})`;
+        const row = rowsById.get(entry.oracleId);
+        if (row === undefined) {
+            problems.push(
+                `${where}: the ledger retires this card but the lockfile has no row for it — the marker guards nothing`
+            );
+            continue;
+        }
+        if (row.retired === undefined) {
+            problems.push(
+                `${where}: the lockfile row carries no retirement marker — the lockfile is stale (run: bun run oracle:compile)`
+            );
+        } else if (
+            row.retired.at !== entry.retiredAt ||
+            row.retired.issue !== entry.issue ||
+            row.retired.pr !== entry.pr
+        ) {
+            problems.push(
+                `${where}: the row's marker disagrees with the ledger — the lockfile is stale or hand-edited ` +
+                    `(row: ${JSON.stringify(row.retired)}, ledger: ${JSON.stringify({ at: entry.retiredAt, issue: entry.issue, pr: entry.pr })})`
+            );
+        }
+        if (handWrittenOracleIds.has(entry.oracleId)) {
+            problems.push(
+                `${where}: marked retired, but data/card-index.json still lists a HAND-WRITTEN definition for it. ` +
+                    `The marker claims this row is the only copy of the card and it is not — either the retirement ` +
+                    `never deleted the module, or the module came back (ADR 0114 §3: two authorities for one card is a RED)`
+            );
+        }
+    }
+
+    for (const row of lock.cards) {
+        if (row.retired !== undefined && !ledgerIds.has(row.oracleId)) {
+            problems.push(
+                `${row.name} (${row.oracleId}): the lockfile row is marked retired but ${RETIREMENT_LEDGER_PATH} ` +
+                    `has no entry for it — the lockfile is generated from that ledger, so a marker without one was hand-added`
+            );
+        }
+    }
+    return problems;
+}
+
+function readLedger(): RetirementLedger {
+    if (!existsSync(RETIREMENTS_PATH)) return emptyRetirementLedger();
+    try {
+        return parseRetirementLedger(readFileSync(RETIREMENTS_PATH, "utf8"));
+    } catch (err) {
+        fail(
+            "oracle retirements",
+            `${RETIREMENT_LEDGER_PATH} does not parse: ${(err as Error).message}`,
+            "bun run oracle:retire --help"
+        );
+    }
+}
+
+function handWrittenOracleIds(): Set<string> {
+    if (!existsSync(CARD_INDEX_PATH)) return new Set();
+    return poolOracleIdsFromIndex(
+        JSON.parse(readFileSync(CARD_INDEX_PATH, "utf8")) as {
+            oracleId?: string;
+            source?: string;
+        }[]
+    );
+}
+
+/**
+ * Offline, always — no corpus, no pin. The retirement markers are the guard
+ * for cards that no longer have a hand-written definition anywhere, so a
+ * marker nobody verified is worse than no marker at all.
+ */
+function checkRetirements(): void {
+    const ledger = readLedger();
+    const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
+    const problems = retirementProblems(ledger, lock, handWrittenOracleIds());
+    if (problems.length > 0) {
+        fail(
+            "oracle retirements",
+            `${problems.length} problem(s) with the retirement markers ` +
+                `(ADR 0114 §1 — a marked row is the ONLY copy of that card's behaviour):\n` +
+                problems.map((p) => `    - ${p}`).join("\n"),
+            "bun run oracle:compile"
+        );
+    }
+    process.stdout.write(
+        `${GREEN}✓ oracle retirements${RESET} ${DIM}(${ledger.retirements.length} retired card(s); ` +
+            `ledger, row markers and hand-written coverage agree)${RESET}\n`
+    );
+}
+
 function main(): void {
     checkLockfile();
+    checkRetirements();
     checkLegality();
 }
 

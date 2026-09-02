@@ -92,6 +92,7 @@ import {
 } from "./lib/scenario-block";
 import { changedPaths, classifyLane, type Lane } from "./check-lane";
 import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
+import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -181,6 +182,47 @@ export function safeScenarioRefusal(
     return scenarioRefusal(verdict, owes);
 }
 
+/**
+ * The retirement-marker refusal (issue #3049, ADR 0114 §1), computed the same
+ * tolerant way the two above are: a git failure must not crash `land` before
+ * any refusal check runs.
+ *
+ * WHY THIS IS A GATE. A retired card's lockfile row is the only copy of its
+ * behaviour — the hand-written module is gone, and nobody reads a file that no
+ * longer exists. `check:oracle` proves the row is what the compiler produces
+ * and that the marker is not a lie; neither it nor Guard C asks whether a human
+ * LOOKED at a marked row changing, which is the one thing that cannot be
+ * derived offline. So the PR body carries it, exactly as it carries the preset
+ * scenario and the `check:ui` receipt.
+ *
+ * `-U0` and `origin/main...HEAD` match `changedPaths`: the lockfile's one-row-
+ * per-line serializer is what makes a line-oriented scan exact.
+ */
+export function safeRetirementRefusal(
+    cwd: string,
+    prBody: string
+): string | null {
+    let diff = "";
+    try {
+        diff = git(
+            [
+                "diff",
+                "-U0",
+                "origin/main...HEAD",
+                "--",
+                "data/oracle-compiled.json",
+            ],
+            cwd
+        );
+    } catch (err) {
+        console.warn(
+            `land: could not diff the lockfile to check retirement markers (${(err as Error).message}) — proceeding as if it touches none`
+        );
+        return null;
+    }
+    return retirementRefusal(changedRetiredRows(diff), prBody);
+}
+
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
@@ -252,6 +294,12 @@ export interface LandFacts {
      * this is a gate rather than a line of prose.
      */
     scenarioRefusal: string | null;
+    /**
+     * Refusal string from `safeRetirementRefusal` (issue #3049, ADR 0114 §1),
+     * or null. Set when the landing diff changes a lockfile row whose card has
+     * no hand-written definition left and the PR body does not name that card.
+     */
+    retirementRefusal: string | null;
 }
 
 /**
@@ -283,6 +331,9 @@ export function refusalReason(facts: LandFacts): string | null {
     }
     if (facts.scenarioRefusal) {
         return facts.scenarioRefusal;
+    }
+    if (facts.retirementRefusal) {
+        return facts.retirementRefusal;
     }
     return null;
 }
@@ -600,6 +651,9 @@ function main(): void {
     // ADR 0044 — the preset scenario, the other thing a PR body carries that
     // nothing else in the toolchain reads. Same tolerant shape.
     const scenarioProblem = safeScenarioRefusal(cwd, prBody);
+    // ADR 0114 §1 — a marked lockfile row has no hand-written twin behind it,
+    // so a change to one is reviewed rather than merely diffed. Same shape.
+    const retirementProblem = safeRetirementRefusal(cwd, prBody);
 
     const reason = refusalReason({
         branch,
@@ -608,6 +662,7 @@ function main(): void {
         prHeadRefName,
         skinReceiptInvalid,
         scenarioRefusal: scenarioProblem,
+        retirementRefusal: retirementProblem,
     });
     if (reason) fail(`refusing — ${reason}`);
 
