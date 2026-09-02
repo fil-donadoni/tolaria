@@ -102,7 +102,7 @@ function readSentences(
 
 const plainSpell: Rule<SlotIR> = terminated(
     ".",
-    rule("spell text", (span, ctx) => {
+    rule<SlotIR>("spell text", (span, ctx) => {
         const parsed = listOf("effect sentences", ". ", sentenceRule).run(
             span,
             ctx
@@ -125,7 +125,7 @@ const plainSpell: Rule<SlotIR> = terminated(
  */
 const MODAL_HEADS: ReadonlySet<string> = new Set(["Choose one —"]);
 
-const modalSpell: Rule<SlotIR> = rule("modal spell", (span, ctx) => {
+const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
     const parts = span.split(GROUP_SEPARATOR);
     const head = parts[0]!;
     if (!MODAL_HEADS.has(head))
@@ -184,7 +184,7 @@ const ADDITIONAL_COST_HEAD = "As an additional cost to cast this spell, ";
  * site ("Sacrifice a creature: …"). Same atom, same rule, one capital —
  * re-capitalised here exactly as the triggered slot re-capitalises its tail.
  */
-const additionalCostLine: Rule<SlotIR> = rule(
+const additionalCostLine: Rule<SlotIR> = rule<SlotIR>(
     "additional cost",
     (span, ctx) => {
         if (!span.startsWith(ADDITIONAL_COST_HEAD))
@@ -222,7 +222,7 @@ const FLASHBACK_DASH_HEAD = "Flashback—";
  * name. That is the parameterised-keyword refusal working as designed
  * (`slots/keywordLine.ts`), and it is why this shape needs a rule at all.
  */
-const flashbackLine: Rule<SlotIR> = rule("flashback", (span, ctx) => {
+const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
     const bare = span.match(FLASHBACK_MANA);
     if (bare !== null) {
         const mana = readManaCost(bare[1]!);
@@ -287,7 +287,7 @@ const spellBody: Rule<SlotIR> = oneOf("spell line", [
  * creature that plainly does not say that, and every keyword-less permanent in
  * the corpus would become an ambiguity or a wrong reading.
  */
-export const spellSlot: Rule<SlotIR> = rule(SPELL_SLOT, (span, ctx) => {
+export const spellSlot: Rule<SlotIR> = rule<SlotIR>(SPELL_SLOT, (span, ctx) => {
     const context = ctx as ParseContext;
     if (context.typeLine.types.some((t) => PERMANENT_TYPE_SET.has(t)))
         return fail(
