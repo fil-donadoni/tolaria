@@ -606,6 +606,26 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         ]);
     });
 
+    it("an identity swap keeps a live ability-loss it cannot re-walk to", () => {
+        // The other half of the same window, and the more dangerous one:
+        // clearing `abilitiesSuppressedBy` would silently END a Titania's Song
+        // strip mid-resolution, handing the permanent every ability back.
+        const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+        const song = makeInstance(titaniasSong.id, { id: "song" });
+        const state = boardOf(gear, song);
+        applySourceStaticEffects(state, song);
+        expect(gear.staticAbilities).toEqual([]);
+        expect(gear.abilitiesSuppressedBy).toEqual([
+            expect.objectContaining({ sourceId: "song" }),
+        ]);
+
+        recomposeLayer6ForInstance(gear);
+        expect(gear.staticAbilities).toEqual([]);
+        expect(gear.abilitiesSuppressedBy).toEqual([
+            expect.objectContaining({ sourceId: "song" }),
+        ]);
+    });
+
     it("paying a removeCounter COST does not drop the board's grants", () => {
         // Proven regression: `payRemoveCounterCost` takes no GameState, so it
         // goes through the instance recompose — which used to clear every
@@ -679,7 +699,10 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             const bear = makeInstance(DECLINING.id, { id: "bear" });
             const state = boardOf(bear);
             applySourceStaticEffects(state, bear);
-            expect(count(bear, "flying")).toBe(0);
+            // The WHOLE multiset, not just the absence of "flying": a
+            // fall-through that grants `null` leaves no "flying" either, and
+            // would push a junk occurrence every consult site then reads.
+            expect(bear.staticAbilities).toEqual([]);
         });
     });
 
