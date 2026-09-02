@@ -7707,6 +7707,19 @@ function allocStaticTimestamp(state: GameState): number {
             for (const g of card.grantedTriggeredAbilities ?? []) bump(g.seq);
             for (const s of card.abilityLossHolds ?? []) bump(s.seq);
             for (const s of card.abilitiesSuppressedBy ?? []) bump(s.seq);
+            // PRD #2064 S3 — two MORE sourceless record shapes, for the same
+            // reason as the three documented above: a resolving ability's
+            // keyword grant / removal (`SpellContext.grantStaticAbility`,
+            // `grantStaticAbilityPermanent`, `removeStaticAbilities`,
+            // `animateAsCreature`) and a keyword counter's CR 613.7c stamp now
+            // carry a real layer timestamp, and neither hangs off a permanent's
+            // `staticSeq`. Unscanned, a grant and the strip that follows it in
+            // the same turn minted the SAME number — and layer 6 breaks an
+            // equal-timestamp tie in the REMOVAL's favour, so Scarwood Hag's
+            // "target loses forestwalk" silently lost to the forestwalk it was
+            // meant to take off.
+            for (const g of card.grantedStaticAbilities ?? []) bump(g.seq);
+            for (const r of card.temporaryRemovedKeywords ?? []) bump(r.seq);
             for (const g of card.grantedSubtypesAdd ?? []) bump(g.seq);
             for (const g of card.grantedSubtypes ?? []) bump(g.seq);
         }

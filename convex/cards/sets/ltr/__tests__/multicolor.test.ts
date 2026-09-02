@@ -49,10 +49,12 @@ describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #
         )!;
         expect(arwen.counters).toEqual({ indestructible: 1 });
         expect(arwen.staticAbilities).toContain("indestructible");
-        expect(arwen.grantedStaticAbilities).toContainEqual({
-            ability: "indestructible",
-            counterType: "indestructible",
-        });
+        expect(arwen.grantedStaticAbilities).toContainEqual(
+            expect.objectContaining({
+                ability: "indestructible",
+                counterType: "indestructible",
+            })
+        );
 
         // Wire format — the ETB grant is board-visible and must survive the
         // projection.
@@ -74,7 +76,10 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"], // mirrors post-ETB state
             grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
+                expect.objectContaining({
+                    ability: "indestructible",
+                    counterType: "indestructible",
+                }),
             ],
         });
         const bear = makeInstance(grizzlyBears.id, {
@@ -172,7 +177,10 @@ describe("Arwen, Mortal Queen — paying her own removeCounter cost splices the 
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"],
             grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
+                expect.objectContaining({
+                    ability: "indestructible",
+                    counterType: "indestructible",
+                }),
             ],
         });
         payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
@@ -191,15 +199,20 @@ describe("Arwen, Mortal Queen — paying her own removeCounter cost splices the 
             counters: { indestructible: 2 },
             staticAbilities: ["indestructible"],
             grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
+                expect.objectContaining({
+                    ability: "indestructible",
+                    counterType: "indestructible",
+                }),
             ],
         });
         payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
         expect(arwen.counters).toEqual({ indestructible: 1 });
         expect(arwen.staticAbilities).toContain("indestructible");
-        expect(arwen.grantedStaticAbilities).toContainEqual({
-            ability: "indestructible",
-            counterType: "indestructible",
-        });
+        expect(arwen.grantedStaticAbilities).toContainEqual(
+            expect.objectContaining({
+                ability: "indestructible",
+                counterType: "indestructible",
+            })
+        );
     });
 });
