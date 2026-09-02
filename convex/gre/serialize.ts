@@ -172,7 +172,10 @@ function resolveCardId(raw: unknown, ctx?: ExpandCtx): string {
 export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "abilitiesSuppressedBy",
     "abilityLossHolds",
+    "baseControllerId",
     "baseStaticAbilities",
+    "baseSubtypes",
+    "baseTypes",
     "activationsThisTurn",
     "animation",
     "attachedTo",
@@ -271,6 +274,8 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "sourceTappedPTMods",
     "startedTurnUntapped",
     "staticSeq",
+    "subtypeAddHolds",
+    "supertypeHolds",
     "suppressedTypes",
     "tapBonusMana",
     "tapTriggerCommitted",
@@ -279,7 +284,9 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "temporaryPTSet",
     "temporaryRemovedKeywords",
     "temporarySubtypeChange",
+    "textChangeHolds",
     "textChanges",
+    "typeLineHolds",
     "toughness",
     "transformed",
     "transformedFrom",
@@ -407,6 +414,21 @@ function compactCard(
     if (card.abilityLossHolds?.length) {
         out.abilityLossHolds = card.abilityLossHolds;
     }
+    // PRD #2064 S4 — the layer-2 and layer-4 bases, and the four layer-2-to-5
+    // LEDGERS. Same argument as the layer-6 pair above: a base carries whatever
+    // the lower layers put there, and a ledger holds an effect whose source has
+    // already left the stack, so neither is derivable from the definition.
+    if (card.baseControllerId) out.baseControllerId = card.baseControllerId;
+    if (card.baseTypes) out.baseTypes = card.baseTypes;
+    if (card.baseSubtypes) out.baseSubtypes = card.baseSubtypes;
+    if (card.textChangeHolds?.length) {
+        out.textChangeHolds = card.textChangeHolds;
+    }
+    if (card.typeLineHolds?.length) out.typeLineHolds = card.typeLineHolds;
+    if (card.subtypeAddHolds?.length) {
+        out.subtypeAddHolds = card.subtypeAddHolds;
+    }
+    if (card.supertypeHolds?.length) out.supertypeHolds = card.supertypeHolds;
     if (card.damagedBySources?.length) {
         out.damagedBySources = card.damagedBySources;
     }
@@ -869,6 +891,31 @@ function expandCard(
     if (compact.abilityLossHolds) {
         result.abilityLossHolds =
             compact.abilityLossHolds as CardInstanceState["abilityLossHolds"];
+    }
+    if (compact.baseControllerId) {
+        result.baseControllerId = compact.baseControllerId as string;
+    }
+    if (compact.baseTypes) {
+        result.baseTypes = compact.baseTypes as CardInstanceState["baseTypes"];
+    }
+    if (compact.baseSubtypes) {
+        result.baseSubtypes = compact.baseSubtypes as string[];
+    }
+    if (compact.textChangeHolds) {
+        result.textChangeHolds =
+            compact.textChangeHolds as CardInstanceState["textChangeHolds"];
+    }
+    if (compact.typeLineHolds) {
+        result.typeLineHolds =
+            compact.typeLineHolds as CardInstanceState["typeLineHolds"];
+    }
+    if (compact.subtypeAddHolds) {
+        result.subtypeAddHolds =
+            compact.subtypeAddHolds as CardInstanceState["subtypeAddHolds"];
+    }
+    if (compact.supertypeHolds) {
+        result.supertypeHolds =
+            compact.supertypeHolds as CardInstanceState["supertypeHolds"];
     }
     if (compact.damagedBySources) {
         result.damagedBySources = compact.damagedBySources as string[];

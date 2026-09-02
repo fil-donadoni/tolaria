@@ -20,9 +20,10 @@
 // the layer system, and so does this registry. They share the `StaticEffect`
 // union today; that is the incoherence, not a reason to widen the boundary.
 //
-// STATUS — this slice ships the data structure and its ordering contract ONLY.
-// Nothing in production writes or reads the registry yet: layer 7 migrates in
-// S2 (#3003), layer 6 in S3 (#3004), layers 2-5 in S4 (#3005).
+// STATUS — every CR 613 layer now derives from this registry: layer 7 (S2,
+// #3003), layer 6 (S3, #3004), layers 2-5 (S4, #3005). What remains is the wire
+// (S5), deleting the materialised fields and the old helpers (S6), and the perf
+// pass (S7).
 
 import type {
     CardSupertype,
@@ -151,8 +152,18 @@ export type ContinuousEffectInlinePayload =
     | { kind: "control-change"; controllerId: string }
     /** CR 613.1c layer 3 — see CR 612 and `gre/textChanges.ts`. */
     | { kind: "text-change"; change: TextChange }
-    /** CR 613.1d layer 4 */
-    | { kind: "type-change"; add?: CardType[]; remove?: CardType[] }
+    /** CR 613.1d layer 4. `set` is CR 205.1a's whole-line REPLACEMENT (issue
+     *  #2084 — "return it to the battlefield. It's an enchantment."), which
+     *  neither `add` nor `remove` can express: it must suppress every type the
+     *  object had, including ones the entry cannot name. Added by PRD #2064 S4,
+     *  the slice that migrates layer 4 — S1 deliberately shipped only the two
+     *  variants layer 4's static-ability kinds needed. */
+    | {
+          kind: "type-change";
+          add?: CardType[];
+          remove?: CardType[];
+          set?: CardType[];
+      }
     | { kind: "subtype-change"; add?: string[]; set?: string[] }
     | {
           kind: "supertype-change";
