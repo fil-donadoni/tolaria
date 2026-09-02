@@ -246,6 +246,15 @@ export type EvalTerms = {
      *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
      *  activated option. One shared cap across both halves. */
     flexibility: number;
+    /** CR 104.3c / 704.5b — how close this player is to LOSING to an empty
+     *  library. Zero (exactly) above `deckingHorizon`, so it cannot move a
+     *  position that is not near decking; steeply negative as the library
+     *  runs out. See `libraryTerm`. */
+    library: number;
+    /** CR 702.138 — worth of the cards in this player's own graveyard while a
+     *  permanent they control makes that graveyard castable. Zero (exactly)
+     *  with no such engine on the battlefield. See `graveyardEngineTerm`. */
+    graveyard: number;
 };
 
 /** Untapped mana sources + floating mana available to `player` this turn — the
@@ -619,6 +628,124 @@ function manaDevelopmentTerm(
     return weights.manaDevWeight * Math.min(lands, handNeed);
 }
 
+/** CR 104.3c / 704.5b — the cost of a library running out.
+ *
+ *  A player who must draw from an empty library loses, so the cards left in it
+ *  are a resource exactly like life, and milling is a way to win. Before this
+ *  term the evaluator could not see a library AT ALL: measured on the probe
+ *  board, `evaluate` returned the identical 25.0000 for an opponent library of
+ *  40, of 1 and of 0, while an opponent at 1 life scored 177 — so no amount of
+ *  search could ever find a mill kill, because the objective did not exist in
+ *  the value function.
+ *
+ *  NARROW SUPPORT (ADR 0070 §5), like `lethalUnblockedDelta` below: exactly
+ *  zero at or above `deckingHorizon`, so an ordinary game is byte-identical
+ *  and no global weight is touched. Quadratic below it, so the gradient is
+ *  shallow where decking is theoretical and steep where it decides the game —
+ *  the shape `dangerClock` already uses for the life race. Negative for the
+ *  player who is short: `evaluate` takes my score minus the opponent's, so
+ *  milling THEM raises my score and milling MYSELF lowers it, with no
+ *  special-casing of who is who. */
+/** Phases in which the ACTIVE player has not yet taken their draw step, so the
+ *  next draw in the game is theirs. Spelled out rather than imported: the phase
+ *  order is a module-local const in `phases.ts`, and this only needs the cut at
+ *  DRAW. CR 103.8a's skipped first draw is deliberately ignored — this is a
+ *  leaf heuristic, and turn one is not a decking endgame. */
+const PHASES_BEFORE_ACTIVE_DRAW: ReadonlySet<string> = new Set([
+    "MULLIGAN",
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+]);
+
+/** Whose draw step comes NEXT (CR 504.1). The whole reason decking is a RACE
+ *  rather than a resource: with both libraries equally short, the player who
+ *  draws first is the one who loses. */
+function playerDrawingNext(state: GameState): string | undefined {
+    const active = state.activePlayerId;
+    if (PHASES_BEFORE_ACTIVE_DRAW.has(state.phase)) return active;
+    return state.players.find((p) => p.id !== active)?.id;
+}
+
+function libraryTerm(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    const remaining = player.library.length;
+    // Half a draw of handicap to whoever draws FIRST, so two equally short
+    // libraries no longer cancel exactly: the player about to draw is strictly
+    // worse off, which is the truth (CR 104.3c) and is what stops the bot
+    // treating "mill us both out" as neutral.
+    const effective =
+        remaining + (playerDrawingNext(state) === player.id ? 0 : 0.5);
+    if (effective >= weights.deckingHorizon) return 0;
+    const deficit = weights.deckingHorizon - effective;
+    return -weights.deckingWeight * deficit * deficit;
+}
+// CALIBRATION. `deckingWeight` is sized so this term's whole range —
+// `deckingHorizon² · deckingWeight` ≈ 216 — stays well inside
+// `weights.materialFull` (500), the cap `materialSignal` (`search.ts`) clips
+// at. At the original 4 the range was 576, so on a WON leaf the opponent's
+// empty-library penalty alone saturated the band: every continuation mapped to
+// the identical reward 1.0 and the search could not tell "keep my own library"
+// from "mill myself too". Measured on a 9/9 Underworld Breach board,
+// `v - winScore` now runs +384.6 → +348.6 → +285.6 → +228.6 → +195.6 as the
+// bot's own library is spent, so the won band orders them and surplus storm
+// copies stop being pointed at their own controller by rollout noise.
+
+/** CR 702.138 — a graveyard is a RESOURCE while something makes it castable.
+ *
+ *  Underworld Breach ("Each nonland card in your graveyard has escape. The
+ *  escape cost is ... plus exile three other cards from your graveyard") turns
+ *  every four cards in the graveyard into roughly one more spell: the one cast,
+ *  plus the `exileOtherCount` exiled to pay for it. Without this term the
+ *  evaluator saw a graveyard as worth nothing at all, so filling one's OWN
+ *  graveyard was pure loss — measured on the Breach probe, the bot fired Brain
+ *  Freeze at the opponent for three cards and stopped, and would never mill
+ *  ITSELF to make escape fodder, which is the first half of the real line.
+ *
+ *  NARROW SUPPORT (ADR 0070 §5): exactly zero unless the player controls a
+ *  permanent whose definition declares `grantsEscapeToOwnGraveyard`, so no
+ *  ordinary board is moved and the hot path pays one cached definition lookup
+ *  per permanent. The arithmetic is read off the GRANT (`exileOtherCount`),
+ *  never off a card name, so any future card of the same shape is priced by
+ *  the same rule.
+ *
+ *  Deliberately NOT covered: a card carrying PRINTED escape (Uro, Phlage,
+ *  Nethergoyf) with no such engine in play. That is a per-card property rather
+ *  than a graveyard-wide one, and pricing it means walking the graveyard on
+ *  every leaf. Left out rather than approximated.
+ *
+ *  Calibration note: sized so a self-mill is VISIBLE against the library it
+ *  costs, not so it wins automatically. Milling the opponent stays the better
+ *  leaf; self-milling only pays off through the multi-step line the search has
+ *  to actually find, which is where that decision belongs. */
+function graveyardEngineTerm(
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    let exileOtherCount: number | undefined;
+    for (const perm of player.battlefield) {
+        const permId = (perm.card as { id?: string }).id;
+        const grant = permId
+            ? tryGetDefinition(permId)?.grantsEscapeToOwnGraveyard
+            : undefined;
+        if (grant) {
+            exileOtherCount = grant.exileOtherCount;
+            break;
+        }
+    }
+    if (exileOtherCount === undefined) return 0;
+    // One cast consumes the card itself plus `exileOtherCount` others.
+    const perCast = exileOtherCount + 1;
+    const casts = Math.floor(player.graveyard.length / perCast);
+    return (
+        Math.min(casts, weights.graveyardEngineCap) *
+        weights.graveyardEngineWeight
+    );
+}
+
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 function playerTerms(
@@ -637,6 +764,8 @@ function playerTerms(
         mana: 0,
         manaDevelopment: 0,
         flexibility: 0,
+        library: libraryTerm(state, player, weights),
+        graveyard: graveyardEngineTerm(player, weights),
     };
 
     for (const perm of player.battlefield) {
@@ -695,7 +824,9 @@ function sumTerms(t: EvalTerms): number {
         t.permanents +
         t.mana +
         t.manaDevelopment +
-        t.flexibility
+        t.flexibility +
+        t.library +
+        t.graveyard
     );
 }
 
@@ -757,8 +888,50 @@ export function evaluate(
         comboScore(state, playerId) +
         dangerClock(state, playerId) +
         declaredCombatDelta(state, me.id, weights) +
-        lethalUnblockedDelta(state, playerId, weights)
+        lethalUnblockedDelta(state, playerId, weights) +
+        deckOutDelta(me, opp, weights)
     );
+}
+
+/** CR 104.3c / 704.5b — an empty library IS a loss, one step before the SBA
+ *  records it.
+ *
+ *  The same shape and the same justification as `lethalUnblockedDelta` below:
+ *  losing to an empty library happens at the next DRAW, not at the moment the
+ *  last card leaves, so `state.gameOver` and `hasDrawnFromEmpty` are both still
+ *  false on the leaf where the kill is decided. The graded `libraryTerm` gives
+ *  the search a gradient to climb toward that leaf; this puts the leaf itself
+ *  in the terminal band, where the surviving material margin still orders two
+ *  winning lines (issue #138).
+ *
+ *  NARROW SUPPORT: exactly zero unless a library is actually empty, so no
+ *  position that is not one draw from a deck-out can be moved by it.
+ *
+ *  Both libraries empty is NOT resolved here — see the note in the body. */
+function deckOutDelta(
+    me: PlayerState,
+    opp: PlayerState,
+    weights: EvalWeights
+): number {
+    const meEmpty = me.library.length === 0;
+    const oppEmpty = opp.library.length === 0;
+    // EXACTLY ONE empty library, and no verdict at all otherwise.
+    //
+    // Both-empty is deliberately NOT resolved here, though it is the endgame a
+    // mill deck produces and though whose draw comes next really does decide it
+    // (CR 504.1). A terminal verdict for it was tried and withdrawn, for two
+    // measured reasons: every hand-built fixture in the suite has `library: []`
+    // for both seats (`cards/__tests__/setup.ts`), so it fired on essentially
+    // every synthetic board; and terminal bands STACK — a position already lost
+    // to `lethalUnblockedDelta` scored −2 × winScore, the exact doubling that
+    // term's own history records fighting once already.
+    //
+    // Both-empty is instead resolved, sub-terminally, by `libraryTerm`'s
+    // half-draw handicap: the player about to draw is strictly worse off, so
+    // the position is never read as neutral, and the won-band ORDERING below
+    // makes every step towards it strictly worse anyway.
+    if (meEmpty === oppEmpty) return 0;
+    return oppEmpty ? weights.winScore : -weights.winScore;
 }
 
 // --- Lethal-on-the-table term (issue #1489, ADR 0070 §5) -------------------
@@ -1420,6 +1593,8 @@ export function evaluateBreakdown(
         mana: 0,
         manaDevelopment: 0,
         flexibility: 0,
+        library: 0,
+        graveyard: 0,
     };
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };

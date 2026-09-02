@@ -62,6 +62,27 @@ export type EvalWeights = {
     /** Fraction of the worst-case held-trick swing folded into a declared
      *  block's valuation (`BLOCK_CAUTION_FRACTION`). */
     blockCautionFraction: number;
+    /** Library size at or above which the decking term is EXACTLY ZERO
+     *  (`libraryTerm`, evaluate.ts). Narrow support in the ADR 0070 §5 sense:
+     *  an ordinary mid-game library is above this, so the term cannot move a
+     *  position that is not actually near decking. */
+    deckingHorizon: number;
+    /** Per squared card of deficit below `deckingHorizon`. Quadratic so the
+     *  gradient is shallow where decking is theoretical and steep where it
+     *  decides the game — the same shape the danger clock uses for life. */
+    deckingWeight: number;
+    /** Per spell a graveyard-play ENGINE can still cast out of its
+     *  controller's graveyard (`graveyardEngineTerm`, evaluate.ts). Zero
+     *  contribution unless such an engine is on the battlefield, so the term
+     *  is exactly absent from every ordinary board. Sized to make filling
+     *  one's OWN graveyard visible against the library it costs, without
+     *  forcing it: a self-mill must remain a choice the search explores, not
+     *  one the leaf dictates. */
+    graveyardEngineWeight: number;
+    /** Cap on how many such spells are credited, so an enormous graveyard
+     *  cannot dominate the leaf (the mana to cast them is the real limiter,
+     *  and this term does not model it). */
+    graveyardEngineCap: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
     /** UCB1 exploration constant (`UCB_C`). The SOLE override path for this
@@ -115,6 +136,10 @@ export type EvalWeights = {
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     winScore: 1_000_000,
     lifeWeight: 8,
+    deckingHorizon: 12,
+    deckingWeight: 1.5,
+    graveyardEngineWeight: 60,
+    graveyardEngineCap: 5,
     permanentWeight: 5,
     manaWeight: 12,
     manaDevWeight: 12,
