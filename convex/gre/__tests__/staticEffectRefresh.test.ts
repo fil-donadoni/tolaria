@@ -351,8 +351,18 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
+            // PRD #2064 S4 — layer 4 is DERIVED from the BOARD, so a source is
+            // applying from the moment it is on the battlefield, not from the
+            // moment `applySourceStaticEffects` is called on it. To make the
+            // Tomb's set genuinely LATER than the Yavimaya add, the Tomb has to
+            // arrive later — which is what production does anyway (a permanent
+            // is pushed and stamped in one entry).
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== tomb.id
+            );
             applySourceStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Forest"]);
+            state.players[0].battlefield.push(tomb);
             applySourceStaticEffects(state, tomb);
             expect(land.subtypes).toEqual(["Swamp"]);
 
@@ -428,8 +438,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         });
 
         it("releases the add cleanly when the ADD's source leaves play", () => {
-            // The composer must not make an add immortal: `printedSubtypes` is
-            // snapshotted WITHOUT the live add contributions.
+            // The derivation must not make an add immortal: `baseSubtypes` is
+            // captured WITHOUT the live add contributions.
             const { state, land, sources } = makeBoard({ mire: 1 }, [
                 { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
@@ -439,9 +449,29 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             applySourceStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
-            unapplySourceStaticEffects(state, yavimaya);
+            // PRD #2064 S4 — layer 4 is DERIVED from the board, so a source
+            // "leaving play" has to actually leave: `unapplySourceStaticEffects`
+            // runs BEFORE the permanent is spliced out (that is what its
+            // `stoppedSourceIds` contract is for), and the splice is what
+            // production always does next. Leaving the permanent on the
+            // battlefield would leave its effect applying, correctly.
+            const leave = (source: (typeof sources)[number]) => {
+                // `unapplySourceStaticEffects` is the moment the source STOPS
+                // applying, and it syncs with `stoppedSourceIds` — the assertion
+                // below runs against THAT answer, in the window before the array
+                // catches up, which is the contract's whole point. The splice
+                // then makes the departure real for the NEXT source's sync.
+                unapplySourceStaticEffects(state, source);
+                expect(state.players[0].battlefield).toContainEqual(source);
+                for (const player of state.players) {
+                    player.battlefield = player.battlefield.filter(
+                        (c) => c.id !== source.id
+                    );
+                }
+            };
+            leave(yavimaya);
             expect(land.subtypes).toEqual(["Swamp"]);
-            unapplySourceStaticEffects(state, tomb);
+            leave(tomb);
             expect(land.subtypes).toEqual([]);
         });
     });

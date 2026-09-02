@@ -40,13 +40,9 @@ import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { compareContinuousEffects, renderKeyword } from "./continuousEffects";
 import type { ContinuousEffect } from "./continuousEffects";
-import { STATIC_EFFECT_CTX } from "./layers";
+import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
 import type { LayerStateView } from "./layers";
-import type {
-    EmblemInstance,
-    PermanentView,
-    StaticEffect,
-} from "../cards/types";
+import type { PermanentView, StaticEffect } from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
 
 /** The `StaticEffect` kinds layer 6 owns (CR 613.1f). Every other kind belongs
@@ -207,24 +203,6 @@ function captureLayer6Base(card: CardInstanceState): string[] {
         if (index !== -1) base.splice(index, 1);
     }
     return base;
-}
-
-/** CR 114 — a source-less synthetic `PermanentView` standing in for a
- *  command-zone emblem, so its owner-scoped continuous static effects flow
- *  through the same `applies(target, source, ctx)` predicates as a battlefield
- *  source. Twin of `emblemAsStaticSource` in `gre/layers.ts` (issue #1221);
- *  duplicated rather than exported across because the two modules would
- *  otherwise import each other. */
-function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
-    return {
-        id: emblem.id,
-        controllerId: emblem.ownerId,
-        ownerId: emblem.ownerId,
-        types: [],
-        subtypes: [],
-        isTapped: false,
-        card: { id: emblem.emblemId },
-    } as PermanentView;
 }
 
 /** The static effects a source contributes, resolved through the card registry

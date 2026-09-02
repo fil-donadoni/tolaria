@@ -240,7 +240,13 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 // to. NOTHING re-applies the grant — the only thing that runs
                 // is the recompute tick, exactly as it would after any board
                 // change.
+                // PRD #2064 S4 — `subtypes` is layer 4's DERIVED OUTPUT now, so
+                // a hand-written change to the object's OWN line goes in the
+                // base beside it; a bare assignment is overwritten by the very
+                // recompute this test then triggers. Same shape as the
+                // `baseStaticAbilities` half S3 introduced.
                 bear.subtypes = [...bear.subtypes, "Wizard"];
+                bear.baseSubtypes = [...bear.subtypes];
                 refreshCounterGatedStatics(state);
 
                 expect(bear.staticAbilities).toContain("protection from blue");

@@ -40,6 +40,7 @@ import {
     type GameState,
     type PendingTarget,
 } from "../state";
+import { syncLayers2to5 } from "../layers2to5";
 import { affordableAlternativeCosts } from "../alternativeCost";
 import { checkStateBasedActions } from "../sba";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
@@ -332,8 +333,18 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         // p2's card, currently controlled by p1 because of this Aura.
         host.ownerId = "p2";
         host.controlChanges = [
-            { auraId: "nantuko", previousControllerId: "p2" },
+            {
+                auraId: "nantuko",
+                previousControllerId: "p2",
+                controllerId: "p1",
+            },
         ];
+        // PRD #2064 S4 — control is DERIVED from `baseControllerId` plus the
+        // ledger, so a hand-built row has to say what the base was: the
+        // derivation replays FORWARD, and a base already captured as "p1" (the
+        // resolution above ran a sync while p1 held the host outright) would
+        // make dropping the row a no-op.
+        host.baseControllerId = "p2";
         // PRD #2064 S3 — protection is a characteristic BELOW layer 6, so the
         // base is where it goes; `staticAbilities` is derived output and the
         // next recompute would overwrite a bare assignment to it.
@@ -366,11 +377,25 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         const bestowed = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "nantuko"
         )!;
-        // Titania's Song-style grant, materialised exactly as
-        // `applySourceStaticEffects` writes it (type in `types[]`, origin in
-        // `grantedTypes` keyed by the granting source).
-        bestowed.types = [...bestowed.types, "Artifact"];
-        bestowed.grantedTypes = [{ type: "Artifact", auraId: "song" }];
+        // PRD #2064 S4 — a Titania's Song-style layer-4 grant, expressed the
+        // only way layer 4 is expressible now: a Continuous Effects Registry
+        // entry. `types` and `grantedTypes` are the derivation's OUTPUT, so
+        // hand-writing them would assert against a record the next recompute
+        // overwrites — the effect has to be something the derivation can see.
+        state.continuousEffects = [
+            ...(state.continuousEffects ?? []),
+            {
+                id: "ce-song",
+                layer: 4,
+                timestamp: 1,
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                affected: { kind: "instances", instanceIds: [bestowed.id] },
+                payload: { kind: "type-change", add: ["Artifact"] },
+                characteristicDefining: false,
+            },
+        ];
+        syncLayers2to5(state);
+        expect(bestowed.types).toContain("Artifact");
 
         // PRD #2064 S3 — protection is a characteristic BELOW layer 6, so the
         // base is where it goes; `staticAbilities` is derived output and the
@@ -388,7 +413,7 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         expect(after.bestowed).toBeUndefined();
         expect(after.types).toEqual(["Enchantment", "Creature", "Artifact"]);
         expect(after.grantedTypes).toEqual([
-            { type: "Artifact", auraId: "song" },
+            { type: "Artifact", auraId: "indefinite" },
         ]);
     });
 

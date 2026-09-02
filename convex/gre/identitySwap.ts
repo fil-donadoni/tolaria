@@ -48,12 +48,9 @@
  * construction and replaying them would double-apply.
  */
 
-import {
-    applyLandTypeReplacement,
-    composeMaterializedSubtypes,
-} from "./constants";
 import type { CardType } from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
+import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState } from "./state";
 
 /** The copiable values (CR 613.1a layer 1) an identity swap installs: the
@@ -90,70 +87,6 @@ function reseatLayer6Base(card: CardInstanceState, base: CopiableValues): void {
     recomposeLayer6ForInstance(card);
 }
 
-/** Layer 4 card types (CR 613.1d) — re-apply the `type-add` / `type-remove`
- *  surrogates over the new base. Both records name the type itself, so they
- *  are identity-independent; their restore side reads the LIVE definition
- *  (already swapped by the caller), which is the new face by construction. */
-function replayLayer4Types(
-    card: CardInstanceState,
-    base: CopiableValues
-): void {
-    const types: CardType[] = [...base.types];
-    for (const granted of card.grantedTypes ?? []) {
-        const type = granted.type as CardType;
-        if (!types.includes(type)) types.push(type);
-    }
-    for (const suppressed of card.suppressedTypes ?? []) {
-        const idx = types.indexOf(suppressed.type as CardType);
-        if (idx !== -1) types.splice(idx, 1);
-    }
-    card.types = types;
-}
-
-/** Layer 4 subtypes (CR 305.7 / 613.1d) — recompose the `subtype-set` /
- *  `subtype-add` record over the new base through the ONE composer, then
- *  replay the two one-shot subtype REPLACEMENTS on top, re-capturing each
- *  one's restore anchor from the new base. */
-function replayLayer4Subtypes(
-    card: CardInstanceState,
-    base: CopiableValues,
-    priorSubtypes: string[]
-): void {
-    // `printedSubtypes` is the composer's own layer-1 anchor — re-capture it.
-    if (card.printedSubtypes) card.printedSubtypes = [...base.subtypes];
-    let subtypes = composeMaterializedSubtypes(card);
-
-    const indefinite = card.indefiniteSubtypeSet;
-    if (indefinite) {
-        const set = indefinite.subtypes;
-        card.indefiniteSubtypeSet = {
-            ...indefinite,
-            restoreSubtypes: [...subtypes],
-        };
-        subtypes = set
-            ? card.types.includes("Land")
-                ? applyLandTypeReplacement(subtypes, set)
-                : [...set]
-            : // Row persisted before #1705 recorded the set value: the live
-              // pre-swap line IS what the effect set (`setSubtypes` replaces
-              // wholesale and clears the layer-4 record).
-              [...priorSubtypes];
-    }
-
-    const timed = card.temporarySubtypeChange;
-    if (timed) {
-        card.temporarySubtypeChange = {
-            ...timed,
-            restoreSubtypes: [...subtypes],
-        };
-        subtypes = card.types.includes("Land")
-            ? applyLandTypeReplacement(subtypes, timed.subtypes)
-            : [...timed.subtypes];
-    }
-
-    card.subtypes = subtypes;
-}
-
 /** Layer 4 + 7b animation (CR 208.2 / 611.1 / 613.4b) — re-apply the
  *  "becomes a creature" mutation over the new base and re-derive BOTH of its
  *  anchors: `savedPower`/`savedToughness` (the new face's pre-animation P/T)
@@ -169,23 +102,19 @@ function replayAnimation(
     const anim = card.animation;
     if (!anim) return;
 
-    const addedCreatureType = !card.types.includes("Creature");
+    // Anchors against the NEW BASE, not against the live line: the live line is
+    // `syncLayers2to5`'s derived output and already includes this animation's
+    // own contribution, so measuring against it would record "adds nothing".
+    const addedCreatureType = !base.types.includes("Creature");
     const addedTypes = (anim.addedTypes ?? []).filter(
-        (t) => !card.types.includes(t)
+        (t) => !base.types.includes(t)
     );
     const addedSubtype =
         anim.addedSubtype !== undefined &&
-        !card.subtypes.includes(anim.addedSubtype)
+        !base.subtypes.includes(anim.addedSubtype)
             ? anim.addedSubtype
             : undefined;
 
-    const types: CardType[] = [...card.types];
-    if (addedCreatureType) types.push("Creature");
-    types.push(...addedTypes);
-    card.types = types;
-    if (addedSubtype !== undefined) {
-        card.subtypes = [...card.subtypes, addedSubtype];
-    }
     card.power = anim.setPower ?? priorPower;
     card.toughness = anim.setToughness ?? priorToughness;
     card.animation = {
@@ -221,7 +150,6 @@ export function rebuildCopiableValuesAndReplayOverlays(
     // before layer 1 is overwritten.
     const priorPower = card.power;
     const priorToughness = card.toughness;
-    const priorSubtypes = [...card.subtypes];
 
     card.types = [...base.types];
     card.subtypes = [...base.subtypes];
@@ -230,10 +158,31 @@ export function rebuildCopiableValuesAndReplayOverlays(
     card.staticAbilities = [...base.staticAbilities];
 
     reseatLayer6Base(card, base);
-    // Types before subtypes: the CR 305.7 land-type narrowing in the subtype
-    // replay reads the composed type line. Animation last: it stacks on top of
-    // the layer-4 result, exactly as `animateAsCreature` did on the old face.
-    replayLayer4Types(card, base);
-    replayLayer4Subtypes(card, base, priorSubtypes);
+    // CR 613.1a vs 613.1d (PRD #2064 S4) — the layer-2-to-5 BASES are re-seated
+    // on the new face and everything above them is re-derived. The hand-written
+    // type and subtype replays this used to perform are gone for the same
+    // reason S3 deleted the layer-6 one: they were a SECOND implementation of
+    // the CR 613.7 walk, kept in step with the apply path by hand.
+    card.baseTypes = [...base.types];
+    card.baseSubtypes = [...base.subtypes];
+    card.printedSubtypes = [...base.subtypes];
+    // Anchor re-derivation before the recompose, so the animation entry the
+    // derivation reads describes what it adds to the NEW line.
     replayAnimation(card, base, priorPower, priorToughness);
+    // The restore anchors of the two one-shot subtype REPLACEMENTS are stale on
+    // the new face for the same reason: they were captured from the identity
+    // that was live when the effect started (CR 613.1a changed underneath).
+    if (card.indefiniteSubtypeSet) {
+        card.indefiniteSubtypeSet = {
+            ...card.indefiniteSubtypeSet,
+            restoreSubtypes: [...base.subtypes],
+        };
+    }
+    if (card.temporarySubtypeChange) {
+        card.temporarySubtypeChange = {
+            ...card.temporarySubtypeChange,
+            restoreSubtypes: [...base.subtypes],
+        };
+    }
+    recomposeLayers2to5ForInstance(card);
 }

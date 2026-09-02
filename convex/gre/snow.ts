@@ -16,42 +16,35 @@ export {
 } from "../cards/snowReads";
 export type { SupertypeView } from "../cards/snowReads";
 
-/** Mutable instance shape `applyIndefiniteSupertypeMutation` writes. */
+/** Mutable instance shape `applyIndefiniteSupertypeMutation` writes: the
+ *  layer-4 supertype LEDGER (PRD #2064 S4). `grantedSupertypes` /
+ *  `removedSupertypes` are `syncLayers2to5`'s derived output and are NOT
+ *  written here — a ledger row that also wrote the output would be overwritten
+ *  by the next sync and read as a lost mutation. */
 interface MutableSupertypeInstance {
-    grantedSupertypes?: { supertype: string; sourceId: string }[];
-    removedSupertypes?: { supertype: string; sourceId: string }[];
+    supertypeHolds?: {
+        add?: string[];
+        remove?: string[];
+        seq: number;
+    }[];
 }
 
-const INDEFINITE = "indefinite";
-
 /** Adds (`present: true`) or removes (`present: false`) a supertype on a single
- *  permanent indefinitely (CR 205.4a — Arcum's Weathervane). Writes the
- *  source-keyed markers `hasSupertypeLive` reads, using the `"indefinite"`
- *  sentinel source. Adding clears a prior indefinite removal of the same
- *  supertype (and vice versa) so toggling is consistent and idempotent. */
+ *  permanent indefinitely (CR 205.4a — Arcum's Weathervane). Appends one row to
+ *  the layer-4 supertype ledger; the derivation replays the rows in CR 613.7
+ *  timestamp order, so a later toggle simply outranks an earlier one and no
+ *  "clear the opposite marker" bookkeeping is needed — that reconciliation
+ *  existed only because the markers were the authority. */
 export function applyIndefiniteSupertypeMutation(
     card: MutableSupertypeInstance,
     supertype: string,
-    present: boolean
+    present: boolean,
+    /** CR 613.7 — the layer timestamp of this mutation, minted by the caller
+     *  (which is the one holding the `GameState`). */
+    seq: number
 ): void {
-    const dropFrom = (
-        list: { supertype: string; sourceId: string }[] | undefined
-    ) =>
-        (list ?? []).filter(
-            (e) => !(e.sourceId === INDEFINITE && e.supertype === supertype)
-        );
-
-    if (present) {
-        const removed = dropFrom(card.removedSupertypes);
-        card.removedSupertypes = removed.length > 0 ? removed : undefined;
-        const granted = dropFrom(card.grantedSupertypes);
-        granted.push({ supertype, sourceId: INDEFINITE });
-        card.grantedSupertypes = granted;
-    } else {
-        const granted = dropFrom(card.grantedSupertypes);
-        card.grantedSupertypes = granted.length > 0 ? granted : undefined;
-        const removed = dropFrom(card.removedSupertypes);
-        removed.push({ supertype, sourceId: INDEFINITE });
-        card.removedSupertypes = removed;
-    }
+    card.supertypeHolds = [
+        ...(card.supertypeHolds ?? []),
+        present ? { add: [supertype], seq } : { remove: [supertype], seq },
+    ];
 }

@@ -43,12 +43,12 @@
 import type {
     AlternativeCost,
     CardDefinition,
-    CardType,
     EnchantRestriction,
     TargetRequirement,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
-import { composeMaterializedSubtypes, isCreature } from "./constants";
+import { isCreature } from "./constants";
+import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState, GameState } from "./state";
 
 /** CR 702.103b — the enchant ability a bestowed spell GAINS ("enchant
@@ -154,26 +154,24 @@ export function revertBestow(card: CardInstanceState): void {
     if (!def) return;
     card.power = def.power;
     card.toughness = def.toughness;
-    // Layer 4 (CR 613.1d), additive then subtractive — the `grantedTypes` /
-    // `suppressedTypes` surrogates are keyed by SOURCE and name the type
-    // itself, so they are identity-independent and replay verbatim.
-    const types: CardType[] = [...def.types];
-    for (const granted of card.grantedTypes ?? []) {
-        const type = granted.type as CardType;
-        if (!types.includes(type)) types.push(type);
-    }
-    for (const suppressed of card.suppressedTypes ?? []) {
-        const idx = types.indexOf(suppressed.type as CardType);
-        if (idx !== -1) types.splice(idx, 1);
-    }
-    card.types = types;
-    // CR 305.7 / 613.7 — subtypes go through the ONE composer, whose layer-1
-    // anchor is `printedSubtypes`; re-anchor it on the printed line first (the
-    // bestow mutation may have been the value it was captured from).
+    // CR 613.1a/d (PRD #2064 S4) — the printed line is the layer-4 BASE, not
+    // the answer. Re-seat both bases and let the derivation replay whatever is
+    // still applying over them; the hand-written type and subtype replays this
+    // used to perform were a third copy of the CR 613.7 walk (beside
+    // `gre/identitySwap.ts`'s, now also deleted), and a copy of an ordered walk
+    // is a copy that drifts.
+    card.types = [...def.types];
+    card.baseTypes = [...def.types];
     const printedSubtypes = [...(def.subtypes ?? [])];
     card.subtypes = printedSubtypes;
+    card.baseSubtypes = [...printedSubtypes];
     if (card.printedSubtypes) card.printedSubtypes = [...printedSubtypes];
-    card.subtypes = composeMaterializedSubtypes(card);
+    // The CR 702.103f road leaves the object ON the battlefield, so every
+    // effect applying to it is still applying. Recompose what the INSTANCE
+    // bears immediately; a SOURCE-provenance effect comes back at the caller's
+    // next `syncLayers2to5` (`gre/sba.ts` runs `unapplySourceStaticEffects`
+    // right before this, which syncs the whole board).
+    recomposeLayers2to5ForInstance(card);
 }
 
 /** CR 601.2c / 702.103b — is there any creature a bestowed cast could legally

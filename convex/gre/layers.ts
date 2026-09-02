@@ -51,7 +51,7 @@ export type LayerStateView = StaticEffectStateView & {
  *  anthem's "creatures you control" predicate (controller match) scopes
  *  correctly. Carries no card characteristics — an emblem has none (CR 114.3).
  *  Issue #1221. */
-function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
+export function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
     return {
         id: emblem.id,
         controllerId: emblem.ownerId,

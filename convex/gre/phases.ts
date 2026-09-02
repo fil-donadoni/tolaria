@@ -13,6 +13,7 @@ import type {
 } from "./state";
 import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
 import { syncLayer6 } from "./layer6";
+import { syncLayers2to5 } from "./layers2to5";
 import {
     removeLoyaltyForDamage,
     applyLifelinkLifeGain,
@@ -3181,7 +3182,13 @@ function tickAllDurations(state: GameState): void {
             if (!change) continue;
             const next = tickDuration(change.duration, view);
             if (next === null) {
-                card.subtypes = [...change.restoreSubtypes];
+                // PRD #2064 S4 — dropping the LEDGER row is the whole restore:
+                // `subtypes` is `syncLayers2to5`'s derived output, recomposed
+                // below from the layer-4 base plus everything still applying.
+                // Writing `restoreSubtypes` here as well would clobber a live
+                // `subtype-set` aura's answer until the next recompute (CR
+                // 613.7 — the restore is not "put the old array back", it is
+                // "stop contributing").
                 card.temporarySubtypeChange = undefined;
             } else {
                 card.temporarySubtypeChange = { ...change, duration: next };
@@ -3208,6 +3215,14 @@ function tickAllDurations(state: GameState): void {
             }
         }
     }
+    // CR 613.1b-e (PRD #2064 S4) — recompose layers 2-5 now that the expired
+    // rows are gone, the twin of the layer-6 recompose above and owed for the
+    // same reason: the boundary's effect must be visible before the next read,
+    // not at the next SBA pass. It covers all four purges that just ran — the
+    // duration-scoped control change (CR 611.2b), the animation (CR 208.2), the
+    // timed subtype replacement (CR 305.7) and the timed colour set (CR 105.3)
+    // — each of which is a LEDGER row the derivation reads.
+    syncLayers2to5(state);
 
     // CR 514.2 — the turn-scoped GLOBAL flags. One gated loop, not one `if`
     // per flag: see TURN_SCOPED_GLOBAL_FLAGS above for why the boundary is a

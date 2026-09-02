@@ -73,11 +73,39 @@ const registry = new Map<string, CardDefinition>();
  *  definition and returns `null`). Fail-slow, never fail-open. */
 const zoneConditionalIds = new Set<string>();
 
+/** Ids whose definition declares a layer-2-to-5 static effect (PRD #2064 S4).
+ *  Derived by `setRegistryEntry`; see `declaresLayer2to5StaticEffect`. */
+const layer2to5StaticIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
     if (def.offBattlefieldCharacteristics) zoneConditionalIds.add(key);
+    if (declaresLayer2to5Kind(def)) layer2to5StaticIds.add(key);
 };
+
+/** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
+ *  Duplicated from `gre/layers2to5.ts`'s own table rather than imported: this
+ *  module is the registry, and `gre/**` imports IT. The membership test below
+ *  is the only consumer, and `layers2to5.ts` asserts the two agree. */
+const LAYER_2_5_STATIC_KINDS = new Set<string>([
+    "control-change",
+    "type-add",
+    "type-remove",
+    "subtype-set",
+    "subtype-add",
+    "supertype-set",
+    "color-grant",
+]);
+
+/** Whether a definition declares any layer-2-to-5 static effect, in its own
+ *  `staticEffects[]` or in a mode's (CR 700.2c — `getEffectiveStaticEffects`
+ *  concatenates both). */
+const declaresLayer2to5Kind = (def: CardDefinition): boolean =>
+    (def.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind)) ||
+    (def.modes ?? []).some((m) =>
+        (m.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind))
+    );
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
@@ -87,6 +115,25 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
 export const declaresOffBattlefieldCharacteristics = (
     cardId: string
 ): boolean => zoneConditionalIds.has(cardId);
+
+/** CR 613.1b-e (PRD #2064 S4) — does `cardId`'s definition declare any
+ *  layer-2-to-5 static effect? The precheck `gre/layers2to5.ts`'s board scan
+ *  runs before it will touch the registry at all.
+ *
+ *  It exists because that scan is the hottest thing in the slice: it runs on
+ *  every permanent at every sync, and every sync runs at every apply site,
+ *  which the ISMCTS search pays on every node it expands. Measured: stubbing
+ *  the scan out took a search-heavy test file from 327s to 250s. The
+ *  overwhelming majority of permanents declare nothing here, and a `Set.has` on
+ *  the id answers that without a registry lookup or an `expandDefinition`.
+ *
+ *  Same DERIVED-membership discipline as `zoneConditionalIds` above, including
+ *  its trade: `withTemporaryDefinition` restoring a previous entry can leave a
+ *  stale TRUE membership, which costs one wasted lookup and never a wrong
+ *  answer — the scan still reads the live definition before deriving anything.
+ *  A stale FALSE is impossible: every write goes through `setRegistryEntry`. */
+export const declaresLayer2to5StaticEffect = (cardId: string): boolean =>
+    layer2to5StaticIds.has(cardId);
 
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */

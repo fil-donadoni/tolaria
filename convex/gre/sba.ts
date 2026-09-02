@@ -12,6 +12,7 @@ import {
     unapplyAuraControlChange,
     unapplySourceStaticEffects,
 } from "./state";
+import { syncLayers2to5 } from "./layers2to5";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
 import { revertBestow } from "./bestow";
 import { applyZoneCharacteristics } from "./zoneCharacteristics";
@@ -224,6 +225,11 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
             unapplyAuraControlChange(state, bestowed);
             unapplySourceStaticEffects(state, bestowed);
             revertBestow(bestowed);
+            // CR 613.1d (PRD #2064 S4) — `revertBestow` re-seated the object's
+            // layer-4 BASES; this is the board-wide recompute that replays
+            // every SOURCE-provenance effect still applying to it over them
+            // (the one-card recompose inside `revertBestow` cannot see them).
+            syncLayers2to5(state);
             continue;
         }
         removePermanentTo(state, id, "graveyard");

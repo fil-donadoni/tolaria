@@ -24,6 +24,7 @@ import { applyCopy, revertCopy } from "../copy";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { transformPermanent } from "../transform";
 import { syncLayer6 } from "../layer6";
+import { syncLayers2to5 } from "../layers2to5";
 import {
     applySourceStaticEffects,
     buildSpellContext,
@@ -831,11 +832,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.types).toEqual(["Creature", "Artifact"]);
 
         transformPermanent(card);
-        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
-        // recomposes only what the INSTANCE bears; the board's own continuous
-        // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
-        // of every SBA pass and before every write).
+        // CR 613.1d/f (PRD #2064 S3/S4) — every layer is DERIVED, so an
+        // identity swap recomposes only what the INSTANCE bears; the board's
+        // own continuous effects come back at the engine's recompute tick,
+        // which every production path reaches (`refreshCounterGatedStatics`,
+        // run at the top of every SBA pass and before every write).
+        syncLayers2to5(state);
         syncLayer6(state);
 
         expect(card.types.filter((t) => t === "Artifact")).toHaveLength(1);
@@ -843,8 +845,14 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(projected(state, "type-1").types).toContain("Artifact");
 
         // The source leaving still removes exactly what it added — the type
-        // was not printed on either face.
+        // was not printed on either face. Under a derivation "leaving" means
+        // actually leaving the battlefield array, which is what production does
+        // immediately after `unapplySourceStaticEffects` announces the stop.
+        // `unapplySourceStaticEffects` syncs with `stoppedSourceIds`, so the
+        // effect is gone from that instant — while the source is still IN the
+        // battlefield array, which is the window the contract exists for.
         unapplySourceStaticEffects(state, adder);
+        expect(state.players[0].battlefield).toContainEqual(adder);
         expect(card.types).not.toContain("Artifact");
     });
 
