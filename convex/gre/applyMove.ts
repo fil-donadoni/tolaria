@@ -1477,14 +1477,17 @@ export function applyMoveForSearch(
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
-                // CR 704.3 — state-based actions are checked whenever a player
-                // WOULD receive priority, which is between two resolutions, not
-                // only at the end of the segment. `resolveTopOfStack` does not
-                // run them itself, so without this a storm-copied pinger sees
-                // its target survive every copy: the creature is still a legal
-                // target for copy three when the first two already killed it
-                // (CR 608.2b).
-                checkStateBasedActions(next);
+                // NOT `checkStateBasedActions` here, deliberately (CR 704.3).
+                // SBAs are checked whenever a player WOULD receive priority, so
+                // a storm-copied pinger's third copy ought to fizzle once the
+                // first two killed its target (CR 608.2b) — but neither
+                // `drainAutoPasses` (`gre/phases.ts`, the ISMCTS side) nor the
+                // mutation path checks between two resolutions either. Running
+                // them HERE alone would make this sandbox the only one of the
+                // three with that timing, which is precisely the greedy-vs-
+                // ISMCTS divergence this issue exists to close. Drafted as an
+                // engine-wide finding instead:
+                // `docs/findings/3026-sbas-not-checked-between-resolutions.md`.
                 // CR 614.12 / ADR 0051 — a spell that puts a shock land onto
                 // the battlefield (tutor / reanimation) enqueues a stackless
                 // `land-entry-tapped` pay-choice; drain it so the search leaf
