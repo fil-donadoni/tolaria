@@ -53,6 +53,7 @@ import {
     composeMaterializedSubtypes,
 } from "./constants";
 import type { CardType } from "../cards/types";
+import { recomposeLayer6ForInstance } from "./layer6";
 import type { CardInstanceState } from "./state";
 
 /** The copiable values (CR 613.1a layer 1) an identity swap installs: the
@@ -86,6 +87,7 @@ function reseatLayer6Base(card: CardInstanceState, base: CopiableValues): void {
     // Derived output of the OLD face: recomputed, never carried across.
     delete card.removedKeywords;
     delete card.abilityLossSeq;
+    recomposeLayer6ForInstance(card);
 }
 
 /** Layer 4 card types (CR 613.1d) — re-apply the `type-add` / `type-remove`

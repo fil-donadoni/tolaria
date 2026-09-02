@@ -206,11 +206,11 @@ export type ContinuousEffectKeywordParameter =
      *  single parser that reads them back (`gre/protection.ts`) is defined
      *  over words. */
     | { kind: "protection"; qualities: string[] }
-    /** CR 702.13 — landwalk, parameterised by the land SUBTYPE it names
+    /** CR 702.14 — landwalk, parameterised by the land SUBTYPE it names
      *  ("Island" -> "islandwalk"). */
     | { kind: "landwalk"; subtype: string }
-    /** CR 702.23 (rampage), 702.21 (bushido), 702.15 (ward N) and every other
-     *  keyword whose parameter is a bare count: `"<keyword> <n>"`. */
+    /** Every keyword whose parameter is a bare count, rendered
+     *  `"<keyword> <n>"` — CR 702.23 is Rampage, CR 702.21 is Ward. */
     | { kind: "count"; count: number };
 
 /** Renders a keyword payload to the string every layer-6 consult site reads.

@@ -23,6 +23,7 @@ import { describe, it, expect } from "vitest";
 import { applyCopy, revertCopy } from "../copy";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { transformPermanent } from "../transform";
+import { syncLayer6 } from "../layer6";
 import {
     applySourceStaticEffects,
     buildSpellContext,
@@ -145,6 +146,19 @@ function ctxFor(state: GameState) {
 
 /** Occurrences of `keyword` — the only quantity the multiset model cares
  *  about (CR 113.1, #1706). */
+/** CR 400.7 / 613.1f — a source STOPS applying by leaving the battlefield, not
+ *  by having `unapplySourceStaticEffects` called on it: layer 6 is derived from
+ *  the live board (PRD #2064 S3), so a permanent left in the battlefield array
+ *  keeps applying however many times its teardown ran. Production splices it
+ *  out immediately after (`removePermanentTo`); these tests do the same. */
+function leaveBattlefield(state: GameState, card: CardInstanceState): void {
+    unapplySourceStaticEffects(state, card);
+    for (const player of state.players) {
+        player.battlefield = player.battlefield.filter((c) => c.id !== card.id);
+    }
+    syncLayer6(state);
+}
+
 function count(card: CardInstanceState, keyword: string): number {
     return card.staticAbilities.filter((a) => a === keyword).length;
 }
@@ -221,7 +235,14 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             // The provenance record is untouched, so the CLEANUP purge can
             // still find and release exactly its own occurrence.
             expect(card.grantedStaticAbilities).toEqual([
-                { ability: "haste", duration: { phase: "end-of-turn" } },
+                {
+                    ability: "haste",
+                    duration: { phase: "end-of-turn" },
+                    // CR 613.7 (PRD #2064 S3) — a resolving ability's
+                    // continuous effect carries its own layer timestamp now,
+                    // so a grant that lands after a strip survives it.
+                    seq: expect.any(Number),
+                },
             ]);
             // Board-visible: the grant must survive the wire too.
             expect(projected(state, "swap-1").staticAbilities).toContain(
@@ -239,6 +260,12 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         expect(count(card, "flying")).toBe(2);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The back face also prints flying, so the counter's occurrence sits
         // on top of the NEW printed one — still exactly two.
@@ -258,6 +285,12 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         );
 
         turnFaceDown(card, "morph");
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
         // CR 708.2 — face down it is a 2/2 vanilla, but the layer-6 grant is
         // not a copiable value and applies over layer 1.
         expect(card.power).toBe(2);
@@ -265,6 +298,12 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         expect(count(card, "vigilance")).toBe(1);
 
         turnFaceUp(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
         expect(count(card, "flying")).toBe(1);
         expect(count(card, "vigilance")).toBe(1);
         expect(projected(state, "swap-i").staticAbilities).toContain(
@@ -294,6 +333,12 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             UNTIL_EOT
         );
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
         // Back face prints flying + trample; the grant adds a second flying.
         expect(count(card, "flying")).toBe(2);
         expect(count(card, "trample")).toBe(1);
@@ -323,6 +368,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(count(elemental, "flying")).toBe(0);
 
         applyCopy(elemental, djinn);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // Mahamoti Djinn prints flying; the Sphere's hold is still live.
         expect(count(elemental, "flying")).toBe(0);
@@ -344,6 +395,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(count(card, "flying")).toBe(0);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(count(card, "flying")).toBe(0);
         expect(count(card, "trample")).toBe(1);
@@ -363,6 +420,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
         // Becomes a Grizzly Bear — which prints no flying at all.
         applyCopy(elemental, bear);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
         expect(count(elemental, "flying")).toBe(0);
 
         // The Sphere's hold had nothing to take on the new face, so its
@@ -380,6 +443,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The back face prints flying AND trample — a blanket layer-6 removal
         // applies over layer 1 whatever layer 1 now says (CR 613.1a/613.1f).
@@ -394,6 +463,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
         applySourceStaticEffects(state, nullifier);
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
         unapplySourceStaticEffects(state, nullifier);
 
         // Back face's line, not the front's ["flying"].
@@ -415,6 +490,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(count(card, "flying")).toBe(1);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The later grant still wins, and the back face's printed keywords are
         // still eaten by the stripper.
@@ -436,6 +517,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The complement of the Humility-then-Fire-Whip case above: a grant
         // that PREDATES the stripper is still eaten on the new face, exactly
@@ -462,6 +549,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(card.staticAbilities).toEqual([]);
         // The blanket source only ever took what was live at ITS timestamp:
@@ -486,14 +579,14 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
             }),
         ]);
 
-        unapplySourceStaticEffects(state, nullifier);
+        leaveBattlefield(state, nullifier);
         expect(count(card, "flying")).toBe(0); // the Sphere is still live
         expect(count(card, "trample")).toBe(1);
         expect(projected(state, "swap-b7").staticAbilities).toEqual([
             "trample",
         ]);
 
-        unapplySourceStaticEffects(state, sphere);
+        leaveBattlefield(state, sphere);
         expect(count(card, "flying")).toBe(1);
     });
 
@@ -513,17 +606,23 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(card.staticAbilities).toEqual([]);
         // Releasing the LATER stripper hands back only what it took — the
         // aura's occurrence. The back face's printed flying + trample are held
         // by the earlier one and stay gone.
-        unapplySourceStaticEffects(state, second);
+        leaveBattlefield(state, second);
         expect(count(card, "flying")).toBe(1);
         expect(count(card, "trample")).toBe(0);
         expect(projected(state, "swap-b8").staticAbilities).toEqual(["flying"]);
 
-        unapplySourceStaticEffects(state, first);
+        leaveBattlefield(state, first);
         expect(count(card, "flying")).toBe(2);
         expect(count(card, "trample")).toBe(1);
     });
@@ -536,18 +635,20 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // the replay must not disagree with it.
         expect(grantOutrankedByAbilityLoss(5, 5)).toBe(false);
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b9" });
-        card.grantedStaticAbilities = [
-            { ability: "haste", auraId: "tie-src", seq: 5 },
-        ];
+        // An INDEFINITE grant from a resolving ability (CR 611.2c) — the
+        // residue channel, so it is the permanent's own record rather than a
+        // source's, which is what lets it be stamped by hand at all.
+        card.grantedStaticAbilities = [{ ability: "haste", seq: 5 }];
+        card.baseStaticAbilities = [];
         card.staticAbilities = ["haste"];
         card.abilitiesSuppressedBy = [{ sourceId: "null-tie", seq: 5 }];
-        card.removedKeywords = [
-            { keyword: "flying", sourceId: "null-tie", seq: 5 },
-        ];
 
         transformPermanent(card);
 
         expect(card.staticAbilities).toEqual(["haste"]);
+        // The back face's printed flying + trample are both eaten by the
+        // equal-timestamp stripper (it applies first at a tie), and the grant
+        // that shares its timestamp is applied after it and survives.
         expect(card.removedKeywords).toEqual([
             { keyword: "flying", sourceId: "null-tie", seq: 5 },
             { keyword: "trample", sourceId: "null-tie", seq: 5 },
@@ -568,6 +669,12 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(count(card, "flying")).toBe(1);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // Back face prints flying too: the Sphere's hold takes one occurrence,
         // the later grant keeps the other.
@@ -600,6 +707,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.animation?.addedCreatureType).toBe(true);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The layer-7b set survives the swap …
         expect(card.power).toBe(2);
@@ -636,6 +749,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.power).toBe(5);
 
         applyCopy(card, bear);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(card.power).toBe(5);
         expect(card.animation?.savedPower).toBe(2);
@@ -659,6 +778,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.temporarySubtypeChange?.restoreSubtypes).toEqual(["Bird"]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // The layer-4 set survives; its anchor is now the BACK face's line.
         expect(card.subtypes).toEqual(["Zombie"]);
@@ -680,6 +805,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.subtypes).toEqual(["Spirit"]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(card.subtypes).toEqual(["Spirit"]);
         expect(card.indefiniteSubtypeSet?.restoreSubtypes).toEqual([
@@ -698,6 +829,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.types).toEqual(["Creature", "Artifact"]);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         expect(card.types.filter((t) => t === "Artifact")).toHaveLength(1);
         expect(card.types).toContain("Creature");
@@ -717,6 +854,12 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(getEffectivePower(state, card)).toBe(7);
 
         transformPermanent(card);
+        // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
+        // recomposes only what the INSTANCE bears; the board's own continuous
+        // effects come back at the engine's recompute tick, which every
+        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // of every SBA pass and before every write).
+        syncLayer6(state);
 
         // A layer-7b SET beats the new face's printed 3/3 (CR 613.4b), and the
         // base P/T underneath it is the back face's.

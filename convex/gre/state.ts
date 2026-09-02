@@ -14887,12 +14887,14 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            ensureLayer6Base(found.card);
             applyAbilityLossHold(
                 found.card,
                 "indefinite",
                 allocStaticTimestamp(state),
                 { restamp: true }
             );
+            syncLayer6(state);
         },
         // CR 613.1f layer 6 / CR 611.2b (issue #1562) — a target permanent
         // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING
@@ -14934,11 +14936,13 @@ export function buildSpellContext(
             if (!src) return;
             const found = findOnBattlefield(state, targetId);
             if (!found) return;
+            ensureLayer6Base(found.card);
             applyAbilityLossHold(
                 found.card,
                 src.card.id,
                 allocStaticTimestamp(state)
             );
+            syncLayer6(state);
         },
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
