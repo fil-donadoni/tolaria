@@ -34,6 +34,17 @@
 //     its payoff and its price are scored together (issue #1920). Anything
 //     that revives the greedy selector owes this leg the same push.
 //   * Single-block only, matching `enumerateMoves`' single-block scope.
+//   * A cast trigger whose PLACEMENT suspends is dropped (issue #3026). Since
+//     the `cast-spell` leaf started announcing through the real choke point,
+//     `processPendingActionTriggers` can park a `pendingTarget` for a TARGETING
+//     cast trigger, or stash two-or-more orderable ones off-stack in
+//     `pendingTriggerBatch` (`gre/triggers.ts`). This sandbox answers only
+//     `land-entry-tapped` choices, so such a batch never lands and the leaf
+//     keeps an unanswered `pendingChoice`. Storm itself is exempt
+//     (`sliceNeedsOrdering` skips engine-internal triggers) and the ISMCTS
+//     sandbox is unaffected (the search enumerates `submit-target` /
+//     `resolution-choice` as real decisions), so this rides the same
+//     "greedy selector has no live caller" exemption as the note above.
 
 import type {
     CardInstanceState,
@@ -63,6 +74,8 @@ import {
     canPayDiscardAtRandom,
     assignMayPayHandCards,
     getPlayer,
+    emitSpellCastEvent,
+    processPendingActionTriggers,
 } from "./state";
 import {
     additionalCostHandLeg,
@@ -983,6 +996,15 @@ function applyBlockAssignments(
     recordBlockedAttackers(state);
 }
 
+/** Upper bound on the resolution steps the `cast-spell` leaf drains after a
+ *  cast (issue #3026). One cast can put more than one item on the stack — a
+ *  storm trigger, then one copy per prior spell this turn — and each copy
+ *  resolves in its own step, so the drain cannot be a single `resolveTopOfStack`
+ *  any more. Generous relative to any real storm count, and a bound rather than
+ *  a `while` so a card whose resolution re-pushes itself can never hang the
+ *  sandbox. */
+const MAX_CAST_RESOLUTION_STEPS = 64;
+
 function findCreature(
     state: GameState,
     id: string
@@ -1412,13 +1434,71 @@ export function applyMoveForSearch(
             ) {
                 stackItem.dashed = true;
             }
+            // CR 601.2i / 603.3 (issue #3026) — announce the cast through the
+            // single choke point, which is what makes `spellsCastThisTurn`
+            // (Storm, ADR 0052), the caster's own per-turn tally (issue #1343,
+            // connive / Ledger Shredder) and the lifetime `spellsCastThisGame`
+            // (issue #790) count in this sandbox at all, and what puts a
+            // keyword-synthesized or self-scoped cast trigger on the stack
+            // above the spell (`collectCastTriggers`). Both hand-built
+            // "StackItem from a cast" reimplementations (issue #2473) pushed
+            // without ever announcing, so the greedy selector and ISMCTS agreed
+            // only by both being wrong: every storm spell copied zero times.
+            const stackDepthBeforeCast = next.stack.length;
             next.stack.push(stackItem);
-            resolveTopOfStack(next);
-            // CR 614.12 / ADR 0051 — a spell that puts a shock land onto the
-            // battlefield (tutor / reanimation) enqueues a stackless
-            // `land-entry-tapped` pay-choice; drain it so the search leaf never
-            // stalls on a choice a rollout can't interactively answer.
-            autoFinalizeLandEntryChoices(next);
+            emitSpellCastEvent(next, stackItem);
+            processPendingActionTriggers(next);
+            // CR 603.3b — the cast trigger now sits ABOVE the spell, and a
+            // storm trigger pushes its copies when IT resolves, so the single
+            // `resolveTopOfStack` this leaf used to make would resolve the
+            // trigger and leave the spell itself unresolved — a leaf `evaluate`
+            // cannot compare against `pass`. Drain the whole cast-induced
+            // segment back to its pre-cast depth instead: that is the "stable,
+            // comparable point" this sandbox's contract promises (file header).
+            // Bounded, and it stops on the first pass that makes no progress so
+            // a `resolveTopOfStack` suspended on a PendingChoice cannot spin.
+            for (let step = 0; step < MAX_CAST_RESOLUTION_STEPS; step++) {
+                // Depth alone is the wrong bound: a cast trigger can REMOVE an
+                // item that was on the stack before the cast (a storm copy of a
+                // counterspell, a "whenever you cast, counter target spell"),
+                // which drops the depth back to its pre-cast value while the
+                // cast spell itself is still sitting there unresolved — the
+                // very leaf shape this drain exists to prevent. So the cast
+                // item's own presence is part of the condition.
+                const castItemStillOnStack = next.stack.some(
+                    (i) => i.id === stackItem.id
+                );
+                if (
+                    next.stack.length <= stackDepthBeforeCast &&
+                    !castItemStillOnStack
+                ) {
+                    break;
+                }
+                const depthBefore = next.stack.length;
+                const topIdBefore = next.stack[next.stack.length - 1]?.id;
+                resolveTopOfStack(next);
+                // NOT `checkStateBasedActions` here, deliberately (CR 704.3).
+                // SBAs are checked whenever a player WOULD receive priority, so
+                // a storm-copied pinger's third copy ought to fizzle once the
+                // first two killed its target (CR 608.2b) — but neither
+                // `drainAutoPasses` (`gre/phases.ts`, the ISMCTS side) nor the
+                // mutation path checks between two resolutions either. Running
+                // them HERE alone would make this sandbox the only one of the
+                // three with that timing, which is precisely the greedy-vs-
+                // ISMCTS divergence this issue exists to close. Drafted as an
+                // engine-wide finding instead:
+                // `docs/findings/3026-sbas-not-checked-between-resolutions.md`.
+                // CR 614.12 / ADR 0051 — a spell that puts a shock land onto
+                // the battlefield (tutor / reanimation) enqueues a stackless
+                // `land-entry-tapped` pay-choice; drain it so the search leaf
+                // never stalls on a choice a rollout can't interactively
+                // answer.
+                autoFinalizeLandEntryChoices(next);
+                const progressed =
+                    next.stack.length !== depthBefore ||
+                    next.stack[next.stack.length - 1]?.id !== topIdBefore;
+                if (!progressed) break;
+            }
             checkStateBasedActions(next);
             return next;
         }

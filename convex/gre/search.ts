@@ -52,6 +52,7 @@ import {
     removeFromZone,
     resolveTopOfStack,
     emitPermanentEntered,
+    emitSpellCastEvent,
     processPendingActionTriggers,
     getOpponentId,
     tapPermanent,
@@ -1170,6 +1171,25 @@ export function applyMoveInSearch(
             state.passCount = 0;
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;
+            // CR 601.2i / 603.3 (issue #3026) — the SPELL_CAST choke point, in
+            // the same position and the same order the mutation path puts it
+            // (`commitPendingCast`, `convex/game.ts`): after the push and the
+            // priority bookkeeping, BEFORE the auto-pass drain. Reaching it is
+            // what makes `spellsCastThisTurn` (Storm, ADR 0052), the caster's
+            // own per-turn tally (issue #1343, connive / Ledger Shredder) and
+            // the lifetime `spellsCastThisGame` (issue #790) count inside the
+            // tree at all — this leaf hand-builds its StackItem and used to
+            // push it without ever announcing the cast, so the search modelled
+            // a game in which nobody had ever cast anything: storm always
+            // copied zero times and no "whenever you cast" trigger existed.
+            // `collectCastTriggers` runs inside it, so the storm / self-cast
+            // trigger lands ABOVE the spell in the same atomic step.
+            emitSpellCastEvent(state, stackItem);
+            // CR 603.3 — flush the battlefield-watching cast triggers the event
+            // just queued BEFORE the drain, for the reason `commitPendingCast`
+            // spells out: the drain can reach two consecutive passes and start
+            // resolving the very spell whose trigger has not been placed yet.
+            processPendingActionTriggers(state);
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;
