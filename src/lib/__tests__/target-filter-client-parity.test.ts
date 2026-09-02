@@ -114,7 +114,11 @@ function clientPlayerOffered(
                     battlefield: p.battlefield as unknown as CardInstance[],
                 },
                 pendingTarget,
-                projected.activePlayerId
+                projected.activePlayerId,
+                projected.players.map((q) => ({
+                    id: q.id,
+                    battlefield: q.battlefield as unknown as CardInstance[],
+                }))
             )
         )
         .map((p) => p.id);

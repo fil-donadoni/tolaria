@@ -34,6 +34,7 @@ import type {
     EffectRef,
     EffectCaptureSource,
     PlayerCounterKind,
+    RevealRouteDestination,
 } from "../../cards/types";
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
@@ -990,6 +991,35 @@ const revealTopAndRoute: Valuer<"revealTopAndRoute"> = (op, ctx) => {
     };
 };
 
+// CR 701.20a (issue #2707) — reveal from the top UNTIL a match, that card to
+// `match`, everything else to `rest` (Oath of Druids). Priced off the MATCH
+// leg alone, as ONE scalar: the size of the revealed prefix is decided by a
+// hidden library the valuer cannot see, so any per-card term would be a guess
+// multiplied by a guess. The match leg is the whole reason a card prints this,
+// and its worth is set by WHERE the match lands:
+//   battlefield → a free permanent straight out of the library, the
+//                 library-sourced twin of graveyard reanimation → REANIMATE_VALUE
+//   hand        → one card of advantage, dug for rather than drawn → CARD_VALUE
+//   graveyard   → a filtered self-mill, a graveyard-deck enabler   → TUCK_VALUE
+//   exile       → the card leaves the game; the reveal is the point → SCRY_PER_CARD_VALUE
+// The prefix sent to `rest` is deliberately NOT netted out. It is a real cost
+// when it self-mills (Oath) and a real gain when it fills a graveyard deck,
+// and the valuer cannot tell which without knowing the deck — a signed guess
+// would be worse than none, and the sign it would flip is the one
+// `OP_BENEFICENCE` below reads.
+const REVEAL_UNTIL_MATCH_VALUE: Record<RevealRouteDestination, number> = {
+    battlefield: REANIMATE_VALUE,
+    hand: CARD_VALUE,
+    graveyard: TUCK_VALUE,
+    exile: SCRY_PER_CARD_VALUE,
+};
+const revealUntilMatch: Valuer<"revealUntilMatch"> = (op) => ({
+    points: REVEAL_UNTIL_MATCH_VALUE[op.match],
+    // Never `board-scaling`: the Op takes no `EffectValue`, so there is no
+    // amount that could scale with the board.
+    tags: ["cardAdvantage"],
+});
+
 // CR 701.44 (issue #2376) — Explore. A TWO-BRANCH effect whose branch is
 // decided by a card the valuer cannot see (the top of a hidden library), so it
 // gets ONE scalar rather than a guess at which branch fires. That is honest
@@ -1389,6 +1419,7 @@ export const OP_VALUERS: {
     libraryLook,
     mill,
     revealTopAndRoute,
+    revealUntilMatch,
     explore,
     nameCard,
     preventDamage,
@@ -1581,6 +1612,16 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // explores" pointed at an opponent's board is a gift, the Wild Growth
     // shape `gre/ai/beneficence.ts` exists to catch.
     explore: "beneficial",
+    // CR 701.20a (issue #2707) — every `RevealRouteDestination` the match leg
+    // can name gets the RECIPIENT the card: onto their battlefield, into their
+    // hand, into their graveyard (a graveyard deck's fuel), or — at worst —
+    // exiled from a library they were not going to draw it from anyway. So the
+    // sign is positive for the player whose library is dug, which is the whole
+    // point of listing it: `?? "neutral"` would hide the Wild Growth shape
+    // (`gre/ai/beneficence.ts`) where the bot points a gift at an opponent.
+    // The `rest` leg's self-mill is a cost, but it is the SAME player's cost
+    // and does not flip who benefits.
+    revealUntilMatch: "beneficial",
     winGame: "beneficial",
     // ── Attacks on the recipient ──────────────────────────────────────────
     dealDamage: "harmful",

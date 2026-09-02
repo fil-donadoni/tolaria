@@ -1021,6 +1021,45 @@ const playerAttackedThisTurnDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 601.2c (issue #2707) — "target player who controls more creatures than
+// they do and is their opponent" (Oath of Druids), and the same clause at
+// `type: "Land"` (Oath of Lieges). Counts LIVE battlefield types on both
+// sides (CR 205.2a — an animated land counts as a creature) and compares
+// STRICTLY, which is also what makes the "is their opponent" half free: no
+// player controls more permanents than themselves, so the baseline seat can
+// never satisfy its own comparison.
+//
+// Fails CLOSED — a baseline player the ctx cannot name (`than: "you"` with no
+// `chooserId`, or a baseline absent from `state.players`) excludes every
+// candidate rather than admitting all of them, so a caller that forgets to
+// thread the seat ids narrows the offered set instead of widening the
+// accepted one (the Phelia bug class runs the other way, ADR 0068).
+const playerControlsMoreThanDescriptor = defineFilter<
+    NonNullable<TargetRequirement["playerControlsMoreThan"]>
+>({
+    lower: (req) => req.playerControlsMoreThan,
+    checks: {
+        player: (player, value, ctx) => {
+            const baselineId =
+                value.than === "active" ? ctx.activePlayerId : ctx.chooserId;
+            const baseline = baselineId
+                ? ctx.state.players?.find((p) => p.id === baselineId)
+                : undefined;
+            if (!baseline) {
+                return "Cannot compare permanent counts: baseline player unknown";
+            }
+            const count = (p: { battlefield: readonly CardInstanceState[] }) =>
+                p.battlefield.filter((c) => c.types.includes(value.type))
+                    .length;
+            return count(player) > count(baseline)
+                ? null
+                : `Target player does not control more ${value.type.toLowerCase()}s than the ${
+                      value.than === "active" ? "active player" : "chooser"
+                  }`;
+        },
+    },
+});
+
 // ─── T2 spell-only filter descriptors (ADR 0068 / issue #1409) ─────────────
 // One entry per filter previously validated inline, independently, by BOTH
 // `getLegalTargets`'s spell loop AND `selectTarget`'s spell branch (game.ts)
@@ -1275,7 +1314,10 @@ export type SpellOnlyFilterKey = (typeof SPELL_ONLY_FILTER_KEYS)[number];
 /** The player-ONLY filter key T3 adds (issue #1410) — `controller` is
  *  cross-kind and already registered above by `PERMANENT_FILTER_KEYS`; this
  *  is the sole filter exclusive to `type: "player"` targets. */
-export const PLAYER_ONLY_FILTER_KEYS = ["playerAttackedThisTurn"] as const;
+export const PLAYER_ONLY_FILTER_KEYS = [
+    "playerAttackedThisTurn",
+    "playerControlsMoreThan",
+] as const;
 
 export type PlayerOnlyFilterKey = (typeof PLAYER_ONLY_FILTER_KEYS)[number];
 
@@ -1333,6 +1375,8 @@ export const REGISTRY = {
     spellWasKicked: spellWasKickedDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
+    playerControlsMoreThan:
+        playerControlsMoreThanDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
     controlledSinceTurnStart:
@@ -1636,6 +1680,7 @@ export function lowerSpellFilters(
 export const PLAYER_FILTER_KEYS = [
     "controller",
     "playerAttackedThisTurn",
+    "playerControlsMoreThan",
 ] as const;
 
 export type PlayerFilterKey = (typeof PLAYER_FILTER_KEYS)[number];
@@ -1646,6 +1691,7 @@ export type PlayerFilterKey = (typeof PLAYER_FILTER_KEYS)[number];
 export type PlayerFilterValues = Partial<{
     controller: TargetRequirement["controller"];
     playerAttackedThisTurn: boolean;
+    playerControlsMoreThan: TargetRequirement["playerControlsMoreThan"];
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a player) through

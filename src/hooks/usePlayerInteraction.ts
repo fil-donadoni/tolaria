@@ -127,7 +127,12 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // but simply did not have `controller` (Word of Command's "target
         // opponent"), so both nameplates lit up and the server rejected the
         // click — the #1697 symptom, player-kind (issue #1734).
-        matchesPlayerTargetFilters(player, pendingTarget, activePlayerId) &&
+        matchesPlayerTargetFilters(
+            player,
+            pendingTarget,
+            activePlayerId,
+            allPlayers
+        ) &&
         // CR 702.18 (applied to a player via CR 115.4) — don't offer a
         // shrouded player as a click-to-target candidate; the server would
         // reject it anyway (issue #1128, mirrors the battlefield's

@@ -136,8 +136,10 @@ import {
 } from "./rules";
 import {
     checkPermanentTargetFilters,
+    checkPlayerTargetFilters,
     checkSpellTargetFilters,
     lowerPermanentFilters,
+    lowerPlayerFilters,
     lowerSpellOnlyFilters,
     requirementAdmitsSpellTarget,
 } from "./targetFilters";
@@ -3545,6 +3547,15 @@ export type PendingTarget = {
      *  (CR 506.2). Propagated from TargetRequirement.playerAttackedThisTurn.
      *  Used by Fire and Brimstone. Ignored for non-player target types. */
     playerAttackedThisTurn?: boolean;
+    /** Restricts legal PLAYER targets to players controlling strictly more
+     *  permanents of `type` than the `than` baseline seat (CR 601.2c, issue
+     *  #2707). Propagated from TargetRequirement.playerControlsMoreThan. Used
+     *  by Oath of Druids ("target player who controls more creatures than they
+     *  do and is their opponent"). Ignored for non-player target types. */
+    playerControlsMoreThan?: {
+        type: CardType;
+        than: "you" | "active";
+    };
     /** Zone the target lives in (CR 109.2). Default "battlefield" — set to
      *  "graveyard" for reanimation/recursion spells like Regrowth. Propagated
      *  from TargetRequirement.zone. */
@@ -3770,6 +3781,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     controlledSinceTurnStart: true,
     attachedToFilter: true,
     playerAttackedThisTurn: true,
+    playerControlsMoreThan: true,
     spellStackKind: true,
     stackSourceTypeFilter: true,
     spellTargetsInstanceIds: true,
@@ -5726,6 +5738,59 @@ function resolvingTargetRequirement(
         : undefined;
 }
 
+/** CR 608.2b, player-kind half (issue #2707) — re-checks a still-present
+ *  PLAYER target against the resolving item's own player target filters, not
+ *  merely the existence + shroud/protection gates in `isTargetStillLegal`
+ *  above. The permanent-kind twin directly below, built the same way and for
+ *  the same reason: "other changes to the game state may cause a target to no
+ *  longer be legal" (CR 608.2b, printed) applies to a player target whose
+ *  BOARD changed while the ability sat on the stack.
+ *
+ *  Oath of Druids is the card that forces it — its printed ruling is explicit
+ *  that "the targeted player controlling more creatures than the current
+ *  player is a part of the targeting requirement… the ability doesn't resolve
+ *  if it's no longer true at that time", so an opponent who loses creatures in
+ *  response fizzles the trigger. Zone existence alone let that through.
+ *
+ *  Reuses the SAME `PLAYER_FILTER_KEYS` / `checkPlayerTargetFilters` single
+ *  authority `getLegalTargets` (offered set) and `selectTarget` (accepted set)
+ *  already run at targeting time (ADR 0068) — completing that authority rather
+ *  than adding a third rule beside it, so every player-kind REGISTRY key is
+ *  covered (`controller`, `playerAttackedThisTurn`,
+ *  `playerControlsMoreThan`), not only the clause that surfaced the gap.
+ *
+ *  Fails OPEN (returns `true`) whenever the resolving requirement can't be
+ *  reconstructed, or reconstructs with no player filter set at all — this gate
+ *  only ever ADDS illegality it can prove, never removes it. */
+function playerTargetStillMeetsRestrictions(
+    state: GameState,
+    item: StackItem,
+    candidate: PlayerState
+): boolean {
+    const cardId = (item.card as { id?: string }).id;
+    const cardDef = cardId
+        ? (tryGetDefinition(cardId) ?? undefined)
+        : undefined;
+    const resolved = resolvingTargetRequirement(item, cardDef);
+    if (!resolved) return true;
+    // CR 601.2c — independent additional target groups pack every group's
+    // picks into the SAME flat `item.targets`, so one group's filters must not
+    // be applied to another group's pick. Same carve-out, same reason as the
+    // permanent-kind twin below.
+    if (resolved.hasAdditionalGroups) return true;
+    const values = lowerPlayerFilters(resolved.req, undefined, undefined);
+    if (Object.keys(values).length === 0) return true;
+    const ctx: TargetFilterCtx = {
+        state,
+        sourceColors: STATIC_EFFECT_CTX.getColors(item),
+        sourceTypes: item.types,
+        sourceSubtypes: item.subtypes,
+        chooserId: item.controllerId,
+        activePlayerId: state.activePlayerId,
+    };
+    return checkPlayerTargetFilters(ctx, candidate, values) === null;
+}
+
 /** CR 608.2b, permanent-kind half (issue #1853 review) — re-checks a
  *  still-on-the-battlefield PERMANENT target against the resolving item's
  *  own permanent target filters (subtype, tap-state, attachment, …), not
@@ -5965,6 +6030,16 @@ function isTargetStillLegal(
             if (playerHasShroud(state, target.id)) return false;
             if (playerHasProtectionFromEverything(state, target.id))
                 return false;
+            // CR 608.2b (issue #2707) — …and one whose BOARD no longer
+            // satisfies the resolving item's own player target filters (Oath
+            // of Druids' "controls more creatures than they do", whose printed
+            // ruling makes it part of the targeting requirement re-checked on
+            // resolution). Gated on `item` like the permanent-kind branch: an
+            // item-less caller has no requirement to reconstruct.
+            const player = state.players.find((p) => p.id === target.id);
+            if (item && player) {
+                return playerTargetStillMeetsRestrictions(state, item, player);
+            }
             return true;
         }
         case "spell": {

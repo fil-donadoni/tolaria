@@ -605,6 +605,39 @@ export interface TargetRequirement {
      *  ("target player who attacked this turn"). Ignored for non-player target
      *  types. */
     playerAttackedThisTurn?: boolean;
+    /** COMPARATIVE player-target predicate (CR 601.2c, issue #2707) — the
+     *  candidate player must control STRICTLY MORE permanents of `type` than
+     *  the `than` baseline player does. The Oath cycle's targeting clause:
+     *  Oath of Druids' "target player who controls more creatures than they do
+     *  and is their opponent" is `{ type: "Creature", than: "active" }`; Oath
+     *  of Lieges' "more lands" is the same shape at `type: "Land"`.
+     *
+     *  The "and is their opponent" half needs NO separate clause and MUST NOT
+     *  be spelled as `controller: "opponent"`: a player never controls more
+     *  permanents than themselves, so a strict `>` already excludes the
+     *  baseline seat, while `controller` is relative to the CHOOSER (the
+     *  trigger's controller — the enchantment's controller, not the upkeep
+     *  player), which is the wrong seat on the opponent's upkeep.
+     *
+     *  `than` reuses this interface's own seat vocabulary (`controller`):
+     *  `"active"` is the active player — the Oath cycle's "that player", i.e.
+     *  whose upkeep it is; `"you"` is the requirement's chooser (the
+     *  `ctx.chooserId` every other filter reads), for the Land Tax-class
+     *  "an opponent controls more lands than you" phrasing.
+     *
+     *  Both sides are counted off the LIVE battlefield `types` (CR 205.2a, so
+     *  an animated land counts as a creature) through the same
+     *  `checkPlayerTargetFilters` registry the offered set, the accepted set
+     *  and the CR 608.2b resolution re-check all share (ADR 0068). Fails
+     *  CLOSED: a baseline player the ctx cannot resolve excludes every
+     *  candidate rather than admitting all of them. Ignored for non-player
+     *  target types. */
+    playerControlsMoreThan?: {
+        /** Card type counted on BOTH sides of the comparison. */
+        type: CardType;
+        /** Whose count the candidate is compared against. */
+        than: "you" | "active";
+    };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that have
      *  EXACTLY ONE target and whose single target IS the source's controller
      *  (the activating player). Used by Reflecting Mirror ("target spell with a
@@ -13126,6 +13159,75 @@ export type EffectOp =
               to: RevealRouteDestination;
           }[];
           fallback: RevealRouteDestination;
+      }
+    /** CR 701.20a reveal + CR 400.7 zone change (issue #2707) — the
+     *  "reveal cards from the top of your library UNTIL you reveal a
+     *  <filter> card" family. Oath of Druids: "The first player may reveal
+     *  cards from the top of their library until they reveal a creature card.
+     *  If the first player does, that player puts that card onto the
+     *  battlefield and all other cards revealed this way into their
+     *  graveyard."
+     *
+     *  A thin declarative skin over primitives that already exist, one
+     *  execution path (ADR 0045) — no new `SpellContext` primitive:
+     *  `peekLibraryTop` names the window (called once, for the WHOLE library,
+     *  so the walk sees true top-down order — `getLibraryCards` is
+     *  order-agnostic and is used only to read characteristics and the
+     *  library's size), `markKnownToAll` + `notifyReveal` make the revealed
+     *  prefix public (the same pair `revealTopAndRoute` / `explore` fire), and
+     *  each card is routed with `putFromLibraryOntoBattlefield` (battlefield)
+     *  or `moveCardById(player, id, "library", …)` (every other zone) — the
+     *  exact two primitives `revealTopAndRoute` already dispatches between.
+     *
+     *  WHY AN OP AND NOT A COMPOSITION (`.claude/rules/gre-development.md`
+     *  § Primitive reuse). Decompose: no construct iterates a library
+     *  top-down with a stop condition — `forEach` walks a FIXED set computed
+     *  up front, and nothing binds the top library card's characteristics
+     *  before it moves. Generalize: the two neighbours both take a FIXED
+     *  window size and cannot express "until" — `revealTopAndRoute` reveals
+     *  `count` cards and routes each by what it is, `digMatchingToHand`
+     *  reveals `look` cards and splits them by a filter. Widening either with
+     *  an "until" mode would be a behaviour-changing flag on an Op whose whole
+     *  contract is a fixed window, which is exactly the mode-flag shape ADR
+     *  0045 forbids. Orthogonal: this is a zone operation parameterized by a
+     *  filter and two destinations, not a card-shaped effect.
+     *
+     *  DETERMINISTIC — nothing is chosen, so like `revealTopAndRoute` (and
+     *  unlike `lookDistribute` / `scryReorder` / `explore`) it never suspends
+     *  and its reveal dialog can never double-pop. The Oracle "may" is NOT
+     *  modelled here: it is an `optionChoice` wrapping this Op, so the
+     *  optionality stays one construct and this Op stays one execution path.
+     *
+     *  NO MATCH IN THE LIBRARY: the whole library is revealed and every
+     *  revealed card goes to `rest` — the uniform behaviour of the
+     *  "reveal until" family (Weatherlight), and CR 608.2b's "do as much as
+     *  possible" for the `match` leg, whose "that card" has no referent. This
+     *  is why Oath's clause is a "may": revealing with no creature card left
+     *  in the library mills that library into the graveyard.
+     *
+     *  Every other miss is a CR 608.2b no-op: an unresolvable player and an
+     *  empty library both reveal nothing and fire no dialog, and a revealed id
+     *  that is somehow no longer in the library when it is routed is skipped.
+     *
+     *  NO `bind`: the matching card's destination is a per-card parameter, so
+     *  the snapshot's `TargetSelection` kind would vary with `match` (a
+     *  `"permanent"` on the battlefield, a `"graveyard-card"` in a graveyard)
+     *  — a binding whose TYPE depends on a sibling field is exactly the
+     *  card-shaped seam ADR 0045 keeps out of the vocabulary. A card that
+     *  needs the revealed card afterwards earns the field then, with the
+     *  disambiguation it forces. */
+    | {
+          op: "revealUntilMatch";
+          player: EffectPlayerRef;
+          /** What ends the reveal — the FIRST card matching this is the
+           *  "creature card" of the Oracle text. */
+          filter: EffectCardFilter;
+          /** Where the first matching card goes ("puts that card onto the
+           *  battlefield"). */
+          match: RevealRouteDestination;
+          /** Where every OTHER revealed card goes ("all other cards revealed
+           *  this way into their graveyard"). */
+          rest: RevealRouteDestination;
       }
     /** CR 701.44 (issue #2376) — the Explore keyword action: "Target creature
      *  you control explores." A thin declarative skin composed of primitives
