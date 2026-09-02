@@ -27,6 +27,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { enumerateMoves, type Move } from "../moves";
+import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, policyValue } from "../search";
 import { applyCastModeCharacteristics, type CastMode } from "../castMode";
@@ -34,6 +35,7 @@ import { evaluate } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { cloneGameState } from "../clone";
 import { resolveTopOfStack } from "../state";
+import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 
 const FOREST = getCardByName("Forest").id;
@@ -174,13 +176,34 @@ function modeCastMove(state: GameState, mode: CastMode): Move {
     return variant;
 }
 
-/** The `subject` object after `move` is applied, wherever it ended up. */
+/** The `subject` object after `move` is applied, wherever it ended up — still
+ *  on the stack (the ISMCTS executor leaves it there by design) or already on
+ *  the battlefield (the greedy sandbox resolves it). */
 function subjectAfter(state: GameState): CardInstanceState {
-    const found = state.stack
-        .concat(state.players.flatMap((p) => p.battlefield))
-        .find((c) => c.id === "subject");
+    const everywhere: CardInstanceState[] = [
+        ...state.stack,
+        ...state.players.flatMap((p) => p.battlefield),
+    ];
+    const found = everywhere.find((c) => c.id === "subject");
     if (!found) throw new Error("subject vanished");
     return found;
+}
+
+/** The alt-cost id that selects `mode` on `def`. An exhaustive switch, so a
+ *  mode added to `CastMode` cannot compile until this fixture knows how to
+ *  announce it. */
+function altCostIdFor(def: CardDefinition, mode: CastMode): string {
+    switch (mode) {
+        // Synthesized by the rule, not declared by the card (CR 702.37a).
+        case "morph":
+            return MORPH_CAST_ALT_COST_ID;
+        case "bestow":
+            return def.bestow?.id ?? "";
+        case "dash":
+            return def.dash?.id ?? "";
+        case "evoke":
+            return def.evoke?.id ?? "";
+    }
 }
 
 describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () => {
@@ -197,13 +220,7 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
                 (c) => c.id === "subject"
             )!;
             const item = structuredClone(subject);
-            const def = getCardByName(fixture.card);
-            const altCostId =
-                mode === "morph"
-                    ? "morph-face-down"
-                    : ((def as Record<string, { id?: string } | undefined>)[
-                          mode
-                      ]?.id ?? "");
+            const altCostId = altCostIdFor(getCardByName(fixture.card), mode);
             applyCastModeCharacteristics(item, altCostId);
             fixture.assertStamped(modeMarkersOf(item));
         });
