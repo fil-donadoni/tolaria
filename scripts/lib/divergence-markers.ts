@@ -266,8 +266,14 @@ export function collectSetFiles(root: string): string[] {
 
 /** Start/end line indices (inclusive) of the comment PARAGRAPH containing
  *  line `i`: expand up and down while the adjacent line is neither a
- *  paragraph break nor a non-comment line. */
-function paragraphBounds(
+ *  paragraph break nor a non-comment line.
+ *
+ *  Exported (issue #2701) so Guard C's `compiler-gap:` scanner
+ *  (`scripts/lib/compiler-gap-markers.ts`) uses the SAME paragraph rules
+ *  Guard B does rather than a second implementation that can drift — the
+ *  issue's own wording is "in its own comment paragraph (Guard B paragraph
+ *  rules)". */
+export function paragraphBounds(
     lines: string[],
     i: number
 ): { start: number; end: number } {
