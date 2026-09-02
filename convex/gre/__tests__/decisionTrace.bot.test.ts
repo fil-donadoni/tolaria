@@ -64,8 +64,12 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
             ],
         });
         const b = evaluateBreakdown(state, "p1");
+        // EVERY term, derived from the object rather than hand-listed: the
+        // hand-listed version silently omitted `manaDevelopment` and
+        // `flexibility` and passed only because this fixture zeroes them, so it
+        // stopped being a decomposition check the moment a term went nonzero.
         const sum = (t: typeof b.self) =>
-            t.life + t.hand + t.creatures + t.permanents + t.mana;
+            Object.values(t).reduce((n, v) => n + v, 0);
         expect(sum(b.self) - sum(b.opp)).toBe(b.margin);
         expect(b.total).toBe(evaluate(state, "p1"));
     });

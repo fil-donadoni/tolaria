@@ -649,7 +649,7 @@ function manaDevelopmentTerm(
 /** Phases in which the ACTIVE player has not yet taken their draw step, so the
  *  next draw in the game is theirs. Spelled out rather than imported: the phase
  *  order is a module-local const in `phases.ts`, and this only needs the cut at
- *  DRAW. CR 103.7a's skipped first draw is deliberately ignored — this is a
+ *  DRAW. CR 103.8a's skipped first draw is deliberately ignored — this is a
  *  leaf heuristic, and turn one is not a decking endgame. */
 const PHASES_BEFORE_ACTIVE_DRAW: ReadonlySet<string> = new Set([
     "MULLIGAN",
@@ -918,20 +918,22 @@ function deckOutDelta(
 ): number {
     const meEmpty = me.library.length === 0;
     const oppEmpty = opp.library.length === 0;
-    if (!meEmpty && !oppEmpty) return 0;
-    if (meEmpty && oppEmpty) {
-        // BOTH empty is decided by WHOSE DRAW COMES NEXT (CR 504.1), never
-        // treated as neutral. An earlier version returned 0 here, reasoning the
-        // position was vanishingly rare — it is not: it is the exact endgame a
-        // mill deck produces. Returning 0 made the evaluation collapse from the
-        // won band (≈ +1 000 718 on a measured board) to ≈ +298 the moment the
-        // bot milled itself out alongside its opponent, so it won only because
-        // the human happened to draw first, having self-targeted far more storm
-        // copies than the kill needed.
-        const next = playerDrawingNext(state);
-        if (next === undefined) return 0;
-        return next === opp.id ? weights.winScore : -weights.winScore;
-    }
+    // EXACTLY ONE empty library, and no verdict at all otherwise.
+    //
+    // Both-empty is deliberately NOT resolved here, though it is the endgame a
+    // mill deck produces and though whose draw comes next really does decide it
+    // (CR 504.1). A terminal verdict for it was tried and withdrawn, for two
+    // measured reasons: every hand-built fixture in the suite has `library: []`
+    // for both seats (`cards/__tests__/setup.ts`), so it fired on essentially
+    // every synthetic board; and terminal bands STACK — a position already lost
+    // to `lethalUnblockedDelta` scored −2 × winScore, the exact doubling that
+    // term's own history records fighting once already.
+    //
+    // Both-empty is instead resolved, sub-terminally, by `libraryTerm`'s
+    // half-draw handicap: the player about to draw is strictly worse off, so
+    // the position is never read as neutral, and the won-band ORDERING below
+    // makes every step towards it strictly worse anyway.
+    if (meEmpty === oppEmpty) return 0;
     return oppEmpty ? weights.winScore : -weights.winScore;
 }
 

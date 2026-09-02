@@ -176,7 +176,10 @@ describe("evaluate sees the library (CR 104.3c / 704.5b)", () => {
         }
     });
 
-    it("decides BOTH libraries empty by whose draw comes next, never as neutral", () => {
+    // Sub-terminal on purpose — see `deckOutDelta`'s own note for why a
+    // terminal verdict here was withdrawn. What must hold is that the position
+    // is NOT read as neutral: the player about to draw is strictly worse off.
+    it("does not read BOTH libraries empty as neutral — the player drawing next is worse off", () => {
         const bothEmpty = (activeIsMe: boolean) => {
             const s = board(
                 [{ name: "Black Lotus", owner: "me", zone: "battlefield" }],
@@ -191,8 +194,9 @@ describe("evaluate sees the library (CR 104.3c / 704.5b)", () => {
             s.activePlayerId = activeIsMe ? me : opp.id;
             return evaluate(s, me);
         };
-        expect(bothEmpty(true)).toBeGreaterThan(WIN_SCORE / 2);
-        expect(bothEmpty(false)).toBeLessThan(-WIN_SCORE / 2);
+        // Active = me, past my draw step, so the OPPONENT draws next and is the
+        // one who loses: that orientation must score strictly higher.
+        expect(bothEmpty(true)).toBeGreaterThan(bothEmpty(false));
     });
 
     // THE REGRESSION THIS SECTION EXISTS FOR. Once the opponent is decked the
@@ -224,7 +228,11 @@ describe("evaluate sees the library (CR 104.3c / 704.5b)", () => {
             s.activePlayerId = me;
             return evaluate(s, me);
         };
-        const scores = [9, 6, 3, 1, 0].map(won);
+        // Stops at ONE card, not zero: with both libraries empty the position
+        // leaves the won band by design — `deckOutDelta` declines a terminal
+        // verdict there (see its note), and the half-draw handicap resolves it
+        // sub-terminally instead.
+        const scores = [9, 6, 3, 1].map(won);
         // Every one of them is a win...
         for (const v of scores) expect(v).toBeGreaterThan(WIN_SCORE / 2);
         // ...strictly ordered, most own library first...
