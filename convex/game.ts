@@ -977,7 +977,7 @@ function assertGameNotOver(state: GameState) {
  *  mid-resolution player choices (CR 608.2). Priority is frozen in this
  *  window — only `submitResolutionChoice` is legal.
  *
- *  CR 117.3a exception: while a player is being asked an optional may-pay
+ *  CR 608.2g exception: while a player is being asked an optional may-pay
  *  question, they may activate mana abilities to make the mana required.
  *  Pass `allowManaForMayPay: true` from the tap/untap mana mutations so
  *  they can run during the pending may-pay's payment window for that
@@ -14526,7 +14526,7 @@ export const tapUntap = mutation({
             expect: "priority",
             allowManaForMayPay: true,
         });
-        // CR 117.3a / 605.3b — while answering a may-pay choice, the player
+        // CR 608.2g / 605.3b — while answering a may-pay choice, the player
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
         // priority and reject mana ability activation.
@@ -15254,7 +15254,7 @@ export const activateManaAbility = mutation({
             allowManaForMayPay: true,
         });
 
-        // CR 117.3a / 605.3b — answering a may-pay choice opens a mana-payment
+        // CR 608.2g / 605.3b — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
         const mayPayHead = state.pendingChoices?.[0];
         const isMayPayPaymentWindow =

@@ -171,8 +171,9 @@ export function getExtraLandDrops(player: PlayerState): number {
 }
 
 /** Whether `player` currently holds an unconditional, player-wide permission
- *  to play lands from their own graveyard (CR 305.1 special action / 601-
- *  analog permission), granted by ANY permanent declaring
+ *  to play lands from their own graveyard (CR 305.1-analog — the land-play
+ *  special action with 305.1's "from their hand" zone lifted; a land is
+ *  played, never cast, CR 305.9), granted by ANY permanent declaring
  *  `playsLandsFromGraveyard` on their battlefield (Icetill Explorer, issue
  *  #1190). Read live from the battlefield (mirrors `getExtraLandDrops`), so
  *  the permission ends the instant the granting source leaves play — no
