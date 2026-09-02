@@ -32,7 +32,7 @@ import {
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { finalizeCleanup, untapStep } from "../phases";
 import { withTemporaryDefinition } from "../../cards";
-import { registerEmblemDefinition } from "../../cards/emblems";
+import { withTemporaryEmblemDefinition } from "../../cards/emblems";
 import type {
     CardDefinition,
     PermanentView,
@@ -631,28 +631,35 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         // would have shipped inert with no test red. No catalogue emblem
         // declares one today, so the guard is a probe definition.
         const EMBLEM_ID = "layer6-registry-test-emblem";
-        registerEmblemDefinition({
-            id: EMBLEM_ID,
-            name: "Layer 6 Probe Emblem",
-            oracleText: "Creatures you control have flying.",
-            staticEffects: [
-                {
-                    kind: "keyword-grant",
-                    applies: (target: PermanentView, source: PermanentView) =>
-                        target.controllerId === source.controllerId &&
-                        target.types.includes("Creature"),
-                    keyword: "flying",
-                },
-            ],
-        });
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
-        const state = boardOf(bear);
-        state.emblems = [
-            { id: "emblem-1", emblemId: EMBLEM_ID, ownerId: "p1" },
-        ];
-        refreshCounterGatedStatics(state);
+        withTemporaryEmblemDefinition(
+            {
+                id: EMBLEM_ID,
+                name: "Layer 6 Probe Emblem",
+                oracleText: "Creatures you control have flying.",
+                staticEffects: [
+                    {
+                        kind: "keyword-grant",
+                        applies: (
+                            target: PermanentView,
+                            source: PermanentView
+                        ) =>
+                            target.controllerId === source.controllerId &&
+                            target.types.includes("Creature"),
+                        keyword: "flying",
+                    },
+                ],
+            },
+            () => {
+                const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+                const state = boardOf(bear);
+                state.emblems = [
+                    { id: "emblem-1", emblemId: EMBLEM_ID, ownerId: "p1" },
+                ];
+                refreshCounterGatedStatics(state);
 
-        expect(count(bear, "flying")).toBe(1);
+                expect(count(bear, "flying")).toBe(1);
+            }
+        );
     });
 
     it("`keywordFor` returning null grants NOTHING, not the fixed keyword", () => {
