@@ -195,6 +195,7 @@ export type GoldBucket =
     | "mana-ability"
     | "activated"
     | "triggered"
+    | "static"
     | "other";
 
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
@@ -236,6 +237,11 @@ export function goldBucket(definition: CardDefinition): GoldBucket {
     // bucket the grammar deliberately refuses.
     if (keys.length === 1 && keys[0] === "triggeredAbilities")
         return "triggered";
+    // CR 113.3d — a card whose only behaviour is a continuous static effect is
+    // the #2700 shape, measured on its own for the same reason `triggered` is:
+    // it is produced by its own slot, so folding it into the 1,200-card `other`
+    // bucket the grammar deliberately refuses would hide a static regression.
+    if (keys.length === 1 && keys[0] === "staticEffects") return "static";
     if (keys.length === 1 && keys[0] === "activatedAbilities") {
         const abilities = definition.activatedAbilities ?? [];
         if (abilities.length === 0) return "other";
@@ -362,6 +368,7 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         "mana-ability": { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         activated: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         triggered: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
+        static: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
         other: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
     };
     const slots: Record<string, GoldBucketStats> = {};

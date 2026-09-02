@@ -15,6 +15,7 @@ import type { Color, ManaCost } from "../../cards/types";
 import type { ActivationCostIR } from "./shared/cost";
 import type { ConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
+import type { StaticClauseIR } from "./shared/staticClause";
 import type { TriggerHeadIR } from "./shared/triggerHead";
 
 /** One keyword ability named on a keyword line (CR 702.1). */
@@ -64,7 +65,14 @@ export type SlotIR =
           readonly head: TriggerHeadIR;
           readonly condition?: ConditionIR;
           readonly effects: readonly EffectSentenceIR[];
-      };
+      }
+    /**
+     * CR 113.3d — a continuous static ability written as a sentence rather
+     * than as a keyword. Unlike every other member this one carries no
+     * effects: a static ability never resolves, so there is nothing for the
+     * Effect Script interpreter to run and the whole meaning is in the clause.
+     */
+    | { readonly kind: "static"; readonly clause: StaticClauseIR };
 
 /** A line, the slot that consumed it, and what it means. */
 export interface LineParse {
@@ -74,3 +82,4 @@ export interface LineParse {
 }
 
 export type { Color };
+export type { StaticClauseIR } from "./shared/staticClause";

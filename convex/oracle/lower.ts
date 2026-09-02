@@ -14,9 +14,11 @@
  */
 
 import type { ActivatedAbility, ManaCost } from "../cards/types";
+import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { lowerActivationCost } from "./grammar/shared/cost";
 import { lowerActivatedAbility } from "./lowerActivated";
+import { lowerStaticClause } from "./lowerStatic";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
@@ -46,6 +48,9 @@ interface Accumulator {
     staticAbilities: string[];
     activatedAbilities: ActivatedAbility[];
     compiledTriggeredAbilities: CompiledTriggeredAbility[];
+    compiledStaticEffects: CompiledStaticEffect[];
+    entersTapped: boolean;
+    entersWithCounters: { type: string; count: number }[];
     plannedMechanics: string[];
 }
 
@@ -127,6 +132,33 @@ function lowerLine(
             acc.compiledTriggeredAbilities.push(lowered.ability);
             return null;
         }
+        case "static": {
+            const lowered = lowerStaticClause(ir.clause);
+            if (!lowered.ok) return lowered.reason;
+            const out = lowered.lowered;
+            if (out.effect !== undefined)
+                acc.compiledStaticEffects.push(out.effect);
+            // CR 702.1 — see `lowerStatic.ts`: a granted keyword is censused
+            // exactly like a printed one, so an unimplemented grant
+            // quarantines instead of shipping an inert card.
+            if (
+                out.grantedKeyword !== undefined &&
+                !out.grantedKeyword.implemented
+            )
+                acc.plannedMechanics.push(out.grantedKeyword.ability);
+            if (out.entersTapped === true) acc.entersTapped = true;
+            if (out.entersWithCounters !== undefined)
+                acc.entersWithCounters.push(out.entersWithCounters);
+            if (out.staticAbility !== undefined) {
+                // The same duplicate check the keyword-line slot pays: a
+                // marker named twice on one card is a sign a line was misread,
+                // not something to silently dedupe.
+                if (acc.staticAbilities.includes(out.staticAbility))
+                    return `"${out.staticAbility}" is declared twice on one card`;
+                acc.staticAbilities.push(out.staticAbility);
+            }
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
@@ -155,6 +187,9 @@ export function lowerCard(
         staticAbilities: [],
         activatedAbilities: [],
         compiledTriggeredAbilities: [],
+        compiledStaticEffects: [],
+        entersTapped: false,
+        entersWithCounters: [],
         plannedMechanics: [],
     };
     for (const line of lines) {
@@ -214,6 +249,16 @@ export function lowerCard(
     // sees this field — `expandDefinition` consumes it.
     if (acc.compiledTriggeredAbilities.length > 0)
         definition.compiledTriggeredAbilities = acc.compiledTriggeredAbilities;
+    // CR 611 — descriptors, not effects, for the same reason as the triggers
+    // above: `StaticEffect` is a predicate closure and the compiler emits JSON
+    // (`cards/compiledStatics.ts`). `expandDefinition` consumes the field.
+    if (acc.compiledStaticEffects.length > 0)
+        definition.compiledStaticEffects = acc.compiledStaticEffects;
+    // CR 614.1c / 121.6 — entry riders, applied AS the permanent enters. Never
+    // a continuous effect and never a trigger (issue #1693).
+    if (acc.entersTapped) definition.entersTapped = true;
+    if (acc.entersWithCounters.length > 0)
+        definition.entersWith = { counters: acc.entersWithCounters };
 
     return { ok: true, definition, plannedMechanics: acc.plannedMechanics };
 }

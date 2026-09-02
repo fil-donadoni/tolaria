@@ -43,6 +43,7 @@
  * `grammar/router.ts`.
  */
 
+import { STATIC_FILTER_FIELDS } from "../../../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type {
     CardSupertype,
@@ -851,3 +852,102 @@ export const targetFilterRule: Rule<TargetRequirement> = rule(
         return targetRequirementFromDescriptor(descriptor.value);
     }
 );
+
+/**
+ * Descriptor → `PermanentFilter` for a CONTINUOUS STATIC effect (CR 611.2).
+ *
+ * The third of this file's derived shapes, and the one with the narrowest
+ * reader: a compiled static's predicate sees a `PermanentView`, which carries
+ * no `staticAbilities` and no live supertype array. A field this filter could
+ * not be evaluated against would fail closed INSIDE the matcher — an anthem
+ * that buffs nobody, which looks exactly like an anthem nobody noticed. So the
+ * accepted vocabulary is `STATIC_FILTER_FIELDS` (`cards/compiledStatics.ts`),
+ * declared beside the predicate that has to feed it rather than copied here,
+ * and anything outside it refuses the card.
+ *
+ * Wider than `permanentFilterFromDescriptor` in exactly two places, both of
+ * which a cost filter refuses for reasons that do not apply here: `controller`
+ * ("creatures YOU control" — CR 109.5, the effect's controller) and `colors`
+ * ("WHITE creatures get +1/+1" — Crusade), which the predicate answers through
+ * `StaticEffectContext.getColors`.
+ *
+ * A bare subtype noun gets its implied card type (CR 205.3m — "Goblins you
+ * control" are creatures), matching what the hand-written catalogue writes:
+ * every tribal lord's `applies` opens with `ctx.isCreature(target)` before it
+ * looks at the subtype.
+ */
+export function staticFilterFromDescriptor(
+    descriptor: DescriptorIR
+): RuleResult<PermanentFilter> {
+    if (descriptor.player !== undefined || descriptor.anyTarget === true)
+        return fail("a player has no power, toughness or keywords", "player");
+    if (descriptor.card === true || descriptor.zone !== undefined)
+        return fail(
+            "a continuous static effect applies to permanents (CR 611.2)",
+            "zone"
+        );
+
+    const filter: Record<string, unknown> = {};
+    if (descriptor.types) filter.types = [...descriptor.types];
+    else {
+        const implied = impliedTypes(descriptor.subtypes);
+        if (implied !== undefined) filter.types = implied;
+    }
+    if (descriptor.subtypes) filter.subtypes = [...descriptor.subtypes];
+    if (descriptor.supertypes) filter.supertypes = [...descriptor.supertypes];
+    if (descriptor.excludeTypes)
+        filter.excludeTypes = [...descriptor.excludeTypes];
+    if (descriptor.excludeSubtypes)
+        filter.excludeSubtypes = [...descriptor.excludeSubtypes];
+    if (descriptor.excludeSupertypes)
+        filter.excludeSupertypes = [...descriptor.excludeSupertypes];
+    if (descriptor.colors) filter.colors = [...descriptor.colors];
+    if (descriptor.controller !== undefined)
+        filter.controllerRelation =
+            descriptor.controller === "you" ? "you" : "opponents";
+    if (descriptor.tapped !== undefined)
+        filter.tapped = descriptor.tapped === "tapped";
+    for (const role of descriptor.combatRole ?? []) {
+        if (role === "attacking") filter.isAttacking = true;
+        else filter.isBlocking = true;
+    }
+
+    // Every field the descriptor carried and this filter did NOT read. Written
+    // as a residue check rather than as an allow-list of descriptor keys for
+    // the reason `rule.ts` has no `rest` field: a new `DescriptorIR` member
+    // that nobody wires up here must fail the card, not be dropped.
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined) continue;
+        if (READ_BY_STATIC_FILTER.has(field)) continue;
+        return fail(
+            `"${field}" is not expressible as a continuous static filter`,
+            field
+        );
+    }
+    for (const field of Object.keys(filter)) {
+        // Tripwire: the mapping above must not invent a field the predicate
+        // cannot feed (see `STATIC_FILTER_FIELDS`'s own doc comment).
+        if (!STATIC_FILTER_FIELDS.has(field))
+            return fail(`"${field}" is not a static filter field`, field);
+    }
+    if (Object.keys(filter).length === 0)
+        return fail("static filter matches everything", "filter");
+    return ok(filter as PermanentFilter);
+}
+
+/** `DescriptorIR` members {@link staticFilterFromDescriptor} consumes. */
+const READ_BY_STATIC_FILTER: ReadonlySet<string> = new Set([
+    "types",
+    "subtypes",
+    "supertypes",
+    "excludeTypes",
+    "excludeSubtypes",
+    "excludeSupertypes",
+    "colors",
+    "controller",
+    "tapped",
+    "combatRole",
+    // Carries no filtering meaning — the CALLER decides whether a plural noun
+    // is required (an anthem needs one, "this creature gets" does not).
+    "plural",
+]);

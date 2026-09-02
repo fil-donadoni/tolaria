@@ -454,18 +454,21 @@ describe("stubs fail closed", () => {
 
     it("every unimplemented SLOT fails on representative input", () => {
         const cases: [string, string][] = [
-            ["static", "Creatures you control get +1/+1."],
             ["spell", "Destroy target creature."],
         ];
         const rules = {
-            static: staticSlot,
             spell: spellSlot,
         };
         for (const [name, line] of cases) {
             const r = rules[name as keyof typeof rules].run(line, ctx);
             expect(r.ok).toBe(false);
-            if (!r.ok) expect(r.reason).toMatch(/#(2699|2700)/);
+            if (!r.ok) expect(r.reason).toMatch(/#2699/);
         }
+    });
+
+    it("the static slot no longer fails closed (#2700 shipped it)", () => {
+        const r = staticSlot.run("Creatures you control get +1/+1.", ctx);
+        expect(r.ok).toBe(true);
     });
 
     it("the triggered slot no longer fails closed (#2698 shipped it)", () => {
