@@ -30,6 +30,17 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         expect(DEFAULT_EVAL_WEIGHTS).toEqual({
             winScore: 1_000_000,
             lifeWeight: 8,
+            // CR 104.3c / 704.5b — the decking pair, added with the `library`
+            // eval term. Narrow support: the term is exactly zero at or above
+            // `deckingHorizon`, so these move no position that is not near a
+            // deck-out.
+            deckingHorizon: 12,
+            deckingWeight: 4,
+            // CR 702.138 — the graveyard-as-resource pair, added with the
+            // `graveyard` eval term. Zero contribution unless a controlled
+            // permanent declares `grantsEscapeToOwnGraveyard`.
+            graveyardEngineWeight: 60,
+            graveyardEngineCap: 5,
             permanentWeight: 5,
             manaWeight: 12,
             manaDevWeight: 12,
