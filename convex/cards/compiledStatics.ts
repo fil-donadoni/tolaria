@@ -73,6 +73,33 @@ export const STATIC_FILTER_FIELDS: ReadonlySet<string> = new Set([
     "excludeSource",
 ]);
 
+/**
+ * The subset a MATERIALISED effect may filter on — narrower, because the two
+ * kinds have opposite evaluation models and only one of them is re-read.
+ *
+ * `pt-buff` is recomputed at every stat read, so a filter over a permanent's
+ * MUTABLE combat/tap state answers freshly each time. `keyword-grant` is not:
+ * `applySourceStaticEffects` (`gre/state.ts`) writes the keyword into the
+ * target's `staticAbilities` ONCE, when the source or the target enters the
+ * battlefield, and the only later sweep (`refreshCounterGatedStatics`) re-runs
+ * an effect solely when it declares `dependsOnCounters` or is a
+ * `keyword-grant` carrying a `condition` — neither of which a compiled
+ * descriptor sets.
+ *
+ * So "Attacking creatures you control have double strike" evaluated at
+ * materialisation time asks whether anything was attacking when the enchantment
+ * entered — always no — and nothing re-asks at DECLARE_ATTACKERS. The grant is
+ * inert, silently, on a card that reads as `ready`. Refused at lowering
+ * instead; the `pt-buff` twins of those cards (Orcish Oriflamme) are correct
+ * and stay accepted, which is exactly why the split is per-kind rather than a
+ * blanket removal.
+ */
+export const MATERIALISED_FILTER_FIELDS: ReadonlySet<string> = new Set(
+    [...STATIC_FILTER_FIELDS].filter(
+        (field) => !["tapped", "isAttacking", "isBlocking"].includes(field)
+    )
+);
+
 /** CR 205.4a — the whole supertype vocabulary, materialised per predicate call. */
 const SUPERTYPES: readonly CardSupertype[] = [
     "Basic",
@@ -99,7 +126,7 @@ export interface CompiledSpellFilter {
 
 /** The continuous static effects the compiler can emit (CR 611). Closed. */
 export type CompiledStaticEffect =
-    /** CR 613.1e layer 7c — "<filter> get +N/+N". */
+    /** CR 613.4c layer 7c — "<filter> get +N/+N". */
     | {
           readonly kind: "pt-buff";
           readonly filter: PermanentFilter;
@@ -197,7 +224,7 @@ function spellMatches(
     return true;
 }
 
-/** CR 601.2f — a generic-only cost delta, as the engine's `ManaCost`. */
+/** CR 118.7a — a generic-only cost delta, as the engine's `ManaCost`. */
 function generic(amount: number): ManaCost {
     return { X: amount };
 }

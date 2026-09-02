@@ -86,9 +86,9 @@ function compiled(card: OracleCard): CardDefinition {
     return { ...outcome.definition, id: card.oracleId, rarity: "common" };
 }
 
-// ── Frame: anthem / lord (CR 613.1e, layer 7c) ─────────────────────────────
+// ── Frame: anthem / lord (CR 613.4c, layer 7c) ─────────────────────────────
 
-describe("anthem and lord (CR 613.1e)", () => {
+describe("anthem and lord (CR 613.4c)", () => {
     it("reads a colour anthem into a layer-7c buff", () => {
         expect(clause("White creatures get +1/+1.")).toEqual({
             kind: "pt-buff",
@@ -168,6 +168,17 @@ describe("anthem and lord (CR 613.1e)", () => {
         expect(refusal("Wall get +1/+1.")).toContain("plural");
     });
 
+    it("REFUSES stacked subtype adjectives — AND that would encode as OR", () => {
+        // Broodwarden: "Eldrazi Spawn creatures you control get +2/+1."
+        // `PermanentFilter.subtypes` is matched with `.some()`, and the
+        // descriptor grammar reaches that array from an or-list noun AND from
+        // stacked adjectives without recording which. Encoded as OR, this
+        // buffs every bare Eldrazi on the board — Emrakul becomes a 17/15.
+        expect(
+            refusal("Eldrazi Spawn creatures you control get +2/+1.")
+        ).toContain("AND or OR");
+    });
+
     it("REFUSES a filter the predicate could not evaluate", () => {
         // A `PermanentView` carries no `staticAbilities`, so a `requireAbility`
         // filter would match NOTHING at run time — silently, and the symptom
@@ -195,6 +206,33 @@ describe("keyword grant (CR 613.1f)", () => {
                 ability: "haste",
                 status: "implemented",
             },
+        });
+    });
+
+    it("REFUSES a combat-scoped grant — materialised once, never re-read", () => {
+        // Blade Historian: "Attacking creatures you control have double
+        // strike." `applySourceStaticEffects` writes a `keyword-grant` onto
+        // the target ONCE, when either permanent enters; nothing re-runs it at
+        // DECLARE_ATTACKERS. Nothing was attacking at apply time, so the grant
+        // is inert — a `ready` card that does nothing.
+        expect(
+            refusal("Attacking creatures you control have double strike.")
+        ).toContain("never re-read");
+    });
+
+    it("ACCEPTS the same combat scope as a pt-buff, which IS re-read", () => {
+        // The other half of the claim above: the split is per-KIND, not a
+        // blanket ban. Orcish Oriflamme's shape stays accepted because layer 7c
+        // is recomputed at every stat read.
+        expect(clause("Attacking creatures you control get +1/+0.")).toEqual({
+            kind: "pt-buff",
+            filter: {
+                types: ["Creature"],
+                controllerRelation: "you",
+                isAttacking: true,
+            },
+            power: 1,
+            toughness: 0,
         });
     });
 
@@ -252,7 +290,7 @@ describe("cost modifier (CR 601.2f)", () => {
     });
 });
 
-// ── Frame: entry riders (CR 614.1c / 121.6) ────────────────────────────────
+// ── Frame: entry riders (CR 614.1c / 122.1) ────────────────────────────────
 
 describe("entry riders (CR 614.1c)", () => {
     it("reads the bare enters-tapped line", () => {
@@ -261,7 +299,7 @@ describe("entry riders (CR 614.1c)", () => {
         });
     });
 
-    it("reads the counters clause instead of dropping it (CR 121.6)", () => {
+    it("reads the counters clause instead of dropping it (CR 122.1)", () => {
         // The prefix-match defect in its most concrete form: a rule with an
         // optional tail would return the bare reading above for this line, and
         // Hickory Woodlot would enter with no depletion counters at all.
@@ -274,15 +312,24 @@ describe("entry riders (CR 614.1c)", () => {
     });
 
     it("REFUSES an enters-tapped line about another permanent (CR 109.2)", () => {
+        // Both spellings, because they are refused by DIFFERENT guards and a
+        // test that only used the first proved nothing about the second:
+        // "enter" (plural) never matches the anchored regex, while "enters"
+        // reaches `isSelfPhrase` and is refused there. Deleting the
+        // `isSelfPhrase` check leaves the plural line red and the singular one
+        // green — which is exactly the hole this second case closes.
         expect(
             refusal("Lands your opponents control enter tapped.")
         ).toBeTruthy();
+        expect(
+            refusal("Each land your opponents control enters tapped.")
+        ).toContain("is not this permanent");
     });
 });
 
-// ── Frame: the untap marker (CR 502.1) ─────────────────────────────────────
+// ── Frame: the untap marker (CR 502.3) ─────────────────────────────────────
 
-describe("untap-step marker (CR 502.1)", () => {
+describe("untap-step marker (CR 502.3)", () => {
     it("reads the self-scoped line", () => {
         expect(
             clause("This artifact doesn't untap during your untap step.")
@@ -297,6 +344,16 @@ describe("untap-step marker (CR 502.1)", () => {
                 "Enchanted creature doesn't untap during its controller's untap step."
             )
         ).toBeTruthy();
+    });
+
+    it("REFUSES the same sentence said about ANOTHER permanent (CR 109.2)", () => {
+        // The line above is refused by the regex's tail ("its controller's"),
+        // never reaching `isSelfPhrase`. This one matches the regex exactly and
+        // is refused by the self check alone — without it, an opponent's
+        // creature would stamp the marker onto THIS card.
+        expect(
+            refusal("Enchanted creature doesn't untap during your untap step.")
+        ).toContain("is not this permanent");
     });
 });
 
@@ -375,6 +432,35 @@ describe("lowering", () => {
         expect(definition.staticAbilities).toEqual(["does-not-untap"]);
     });
 
+    it("QUARANTINES a grant of a keyword only PRINTED implementations honour", () => {
+        // First Sliver's Chosen: "Sliver creatures you control have exalted."
+        // `expandKeywordTriggers` injects the CR 702.83a trigger by reading the
+        // DEFINITION's `staticAbilities`; a grant writes the target INSTANCE's,
+        // which trigger collection never consults. The registry says exalted is
+        // `implemented` — true of the PRINTED keyword, and reading that as a
+        // claim about the granted one is the defect. Quarantined rather than
+        // refused: the sentence was read correctly, so it must not enter the
+        // gap histogram that ranks the next grammar rule.
+        const outcome = compileCard(
+            oracle({ oracleText: "Sliver creatures you control have exalted." })
+        );
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state !== "quarantine") return;
+        expect(outcome.reasons.map((r) => r.kind)).toContain(
+            "ungrantable-keyword"
+        );
+    });
+
+    it("does NOT quarantine a keyword the engine reads off the instance", () => {
+        // The other half: `haste` is honoured by reading `staticAbilities` on
+        // the permanent, which is exactly what a grant writes. Without this,
+        // the check above could be a blanket ban and look identical.
+        const outcome = compileCard(
+            oracle({ oracleText: "Goblins you control have haste." })
+        );
+        expect(outcome.state).toBe("ready");
+    });
+
     it("QUARANTINES a grant of a keyword the engine has not implemented", () => {
         // CR 702.1 — a granted keyword is censused exactly like a printed one.
         // Without this the card would ship `ready` with a grant that does
@@ -412,7 +498,7 @@ function vanilla(id: string, name: string, cost: string): CardDefinition {
     };
 }
 
-describe("a compiled anthem in the layer system (CR 613.1e)", () => {
+describe("a compiled anthem in the layer system (CR 613.4c)", () => {
     const crusade = {
         ...compiled(
             oracle({
@@ -558,7 +644,7 @@ describe("resolveCompiledStatic (cards/compiledStatics.ts)", () => {
         ).toBe(false);
     });
 
-    it("reduces only the generic portion of a cost (CR 601.2f)", () => {
+    it("reduces only the generic portion of a cost (CR 118.7a)", () => {
         const resolved = resolveCompiledStatic({
             kind: "cost-modifier",
             spells: {},

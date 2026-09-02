@@ -25,7 +25,12 @@
  * `TargetSlots` walk and no one-target ceiling to pay.
  */
 
+import { expandAnnihilator } from "../cards/abilities/annihilator";
+import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
+import { expandHideaway } from "../cards/abilities/hideaway";
+import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
+import type { CardDefinition } from "../cards/types";
 import type { StaticClauseIR } from "./grammar/shared/staticClause";
 
 /** Where one lowered static clause lands. All fields are optional and merged. */
@@ -42,6 +47,8 @@ export interface LoweredStatic {
         readonly count: number;
     };
     readonly staticAbility?: string;
+    /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
+    readonly ungrantableKeyword?: string;
 }
 
 export type LowerStaticResult =
@@ -49,12 +56,57 @@ export type LowerStaticResult =
     | { readonly ok: false; readonly reason: string };
 
 /**
- * CR 502.1 — the engine-internal marker for "doesn't untap during your untap
+ * CR 502.3 — the engine-internal marker for "doesn't untap during your untap
  * step", read by the untap step in `gre/phases.ts`. Named from the Mechanics
  * Registry row id (`ENGINE_INTERNAL_MARKERS`, `cards/mechanicsRegistry.ts`)
  * rather than spelled inline at the call site.
  */
 const DOES_NOT_UNTAP_MARKER = "does-not-untap";
+
+/**
+ * Is this keyword implemented by DEFINITION-LEVEL EXPANSION rather than by an
+ * instance-level `staticAbilities` read?
+ *
+ * A `keyword-grant` writes its keyword onto the TARGET INSTANCE's
+ * `staticAbilities` (`applySourceStaticEffects`, `gre/state.ts`). That is
+ * enough for a keyword the engine honours by reading that array —
+ * `haste`, `flying`, `lifelink`. It is NOT enough for one whose implementation
+ * is an ADR 0054 expander: `expandKeywordTriggers` reads
+ * `def.staticAbilities` off the DEFINITION and injects a triggered ability
+ * there (CR 702.83a exalted, CR 702.108a prowess), and trigger collection
+ * reads the definition's `triggeredAbilities`, never the instance's keyword
+ * list. Granting `exalted` therefore produces no trigger at all: First Sliver's
+ * Chosen ("Sliver creatures you control have exalted") would ship `ready` and
+ * do nothing.
+ *
+ * The registry's `status: "implemented"` cannot answer this — it is a claim
+ * about the PRINTED keyword, and reading it as a claim about the GRANTED one
+ * is the actual defect. So the question is asked of the expanders themselves:
+ * run the ADR 0054 chain over a synthetic definition carrying only this
+ * keyword and see whether anything was injected. Derived, not hand-listed, so
+ * a keyword that becomes expander-backed later cannot silently start shipping
+ * inert grants.
+ */
+function isDefinitionLevelKeyword(keyword: string): boolean {
+    const bare: CardDefinition = {
+        id: "oracle-grant-probe",
+        rarity: "common",
+        name: "Grant probe",
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        staticAbilities: [keyword],
+    };
+    // The keyword expanders from `expandDefinition`'s chain (`cards/registry.ts`)
+    // that key off `staticAbilities`. `expandChapterAbilities` is deliberately
+    // absent: it reads `chapterAbilities`, not a keyword, so no grant can reach
+    // it. Each returns its INPUT unchanged when its keyword is absent, which is
+    // what makes identity the honest test.
+    const expanded = expandAnnihilator(
+        expandHideaway(expandFadingVanishing(expandKeywordTriggers(bare)))
+    );
+    return expanded !== bare;
+}
 
 export function lowerStaticClause(clause: StaticClauseIR): LowerStaticResult {
     switch (clause.kind) {
@@ -74,6 +126,14 @@ export function lowerStaticClause(clause: StaticClauseIR): LowerStaticResult {
             return {
                 ok: true,
                 lowered: {
+                    // Quarantined, never refused: the SENTENCE was read
+                    // correctly and only the engine's encoding is missing, so
+                    // recording it as a parse gap would put a fragment we
+                    // understand into the backlog histogram that ranks the next
+                    // grammar rule (`compile.ts`).
+                    ...(isDefinitionLevelKeyword(clause.keyword.ability)
+                        ? { ungrantableKeyword: clause.keyword.ability }
+                        : {}),
                     effect: {
                         kind: "keyword-grant",
                         filter: clause.filter,
@@ -97,9 +157,10 @@ export function lowerStaticClause(clause: StaticClauseIR): LowerStaticResult {
                     effect: {
                         kind: "cost-modifier",
                         spells: clause.spells,
-                        // CR 601.2f — a reduction only ever touches the generic
-                        // portion of a cost, which is why both directions carry
-                        // a bare number and the descriptor turns it into mana.
+                        // CR 118.7a — a generic reduction affects ONLY the
+                        // generic component of a cost, which is why both
+                        // directions carry a bare number and the descriptor
+                        // turns it into mana (CR 601.2f applies it).
                         ...(clause.direction === "more"
                             ? { increase: clause.amount }
                             : { reduction: clause.amount }),

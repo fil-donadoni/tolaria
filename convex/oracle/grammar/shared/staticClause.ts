@@ -48,6 +48,7 @@ import {
     descriptorRule,
     staticFilterFromDescriptor,
     type DescriptorIR,
+    type StaticFilterEvaluation,
 } from "./targetFilter";
 import { keywordVocabulary } from "../slots/keywordLine";
 import type { KeywordIR } from "../ir";
@@ -75,7 +76,7 @@ export const STATIC_CLAUSE = "static clause";
  * it" one answer instead of a parse that lowering later has to walk back.
  */
 export type StaticClauseIR =
-    /** CR 613.1e layer 7c — an anthem or a tribal lord. */
+    /** CR 613.4c layer 7c — an anthem or a tribal lord. */
     | {
           readonly kind: "pt-buff";
           readonly filter: PermanentFilter;
@@ -95,12 +96,12 @@ export type StaticClauseIR =
           readonly direction: "more" | "less";
           readonly amount: number;
       }
-    /** CR 614.1c / 121.6 — how this permanent enters. */
+    /** CR 614.1c / 122.1 — how this permanent enters. */
     | {
           readonly kind: "enters-tapped";
           readonly counters?: { readonly type: string; readonly count: number };
       }
-    /** CR 502.1 — "doesn't untap during your untap step". */
+    /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" };
 
 // ── Shared pieces ──────────────────────────────────────────────────────────
@@ -120,7 +121,10 @@ export type StaticClauseIR =
  * uses it would otherwise be refused for a phrasing difference rather than for
  * anything about the card (342 corpus lines open with it).
  */
-function readSubject(span: string): RuleResult<PermanentFilter> {
+function readSubject(
+    span: string,
+    evaluation: StaticFilterEvaluation
+): RuleResult<PermanentFilter> {
     const head = span.startsWith("All ") ? span.slice("All ".length) : span;
     if (head.length === 0) return fail("empty static subject", span);
     const descriptor = descriptorRule.run(head, undefined);
@@ -131,7 +135,7 @@ function readSubject(span: string): RuleResult<PermanentFilter> {
             "a continuous static effect over a set needs a plural subject",
             span
         );
-    return staticFilterFromDescriptor(value);
+    return staticFilterFromDescriptor(value, evaluation);
 }
 
 /** `pair`-style unique split, over a separator that may occur several times. */
@@ -186,7 +190,7 @@ function uniqueSplit<T>(
     );
 }
 
-// ── Frame: anthem / lord P/T (CR 613.1e) ───────────────────────────────────
+// ── Frame: anthem / lord P/T (CR 613.4c) ───────────────────────────────────
 
 const PT_MODIFIER = /^([+-]\d+)\/([+-]\d+)$/;
 
@@ -196,7 +200,7 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
         uniqueSplit("anthem", span, " get ", (subject, modifier) => {
             const pt = modifier.match(PT_MODIFIER);
             if (pt === null) return null;
-            const filter = readSubject(subject);
+            const filter = readSubject(subject, "recomputed");
             if (!filter.ok) return filter;
             return ok({
                 kind: "pt-buff" as const,
@@ -219,7 +223,7 @@ export const keywordGrantRule: Rule<StaticClauseIR> = rule(
             // shipped as an inert grant.
             const keyword = keywordVocabulary().get(tail.toLowerCase());
             if (keyword === undefined) return null;
-            const filter = readSubject(subject);
+            const filter = readSubject(subject, "materialised");
             if (!filter.ok) return filter;
             return ok({
                 kind: "keyword-grant" as const,
@@ -303,7 +307,7 @@ export const costModifierRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
-// ── Frame: entry riders (CR 614.1c / 121.6) ────────────────────────────────
+// ── Frame: entry riders (CR 614.1c / 122.1) ────────────────────────────────
 
 const ENTERS_TAPPED = /^(.+) enters tapped$/;
 const ENTERS_TAPPED_WITH =
@@ -346,7 +350,7 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
     }
 );
 
-// ── Frame: the untap-step marker (CR 502.1) ────────────────────────────────
+// ── Frame: the untap-step marker (CR 502.3) ────────────────────────────────
 
 const DOES_NOT_UNTAP = /^(.+) doesn't untap during your untap step$/;
 

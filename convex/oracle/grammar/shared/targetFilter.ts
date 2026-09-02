@@ -43,7 +43,10 @@
  * `grammar/router.ts`.
  */
 
-import { STATIC_FILTER_FIELDS } from "../../../cards/compiledStatics";
+import {
+    MATERIALISED_FILTER_FIELDS,
+    STATIC_FILTER_FIELDS,
+} from "../../../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type {
     CardSupertype,
@@ -877,7 +880,8 @@ export const targetFilterRule: Rule<TargetRequirement> = rule(
  * looks at the subtype.
  */
 export function staticFilterFromDescriptor(
-    descriptor: DescriptorIR
+    descriptor: DescriptorIR,
+    evaluation: StaticFilterEvaluation
 ): RuleResult<PermanentFilter> {
     if (descriptor.player !== undefined || descriptor.anyTarget === true)
         return fail("a player has no power, toughness or keywords", "player");
@@ -885,6 +889,22 @@ export function staticFilterFromDescriptor(
         return fail(
             "a continuous static effect applies to permanents (CR 611.2)",
             "zone"
+        );
+    // CR 205.3 — `PermanentFilter.subtypes` is matched with `.some()`, i.e. OR.
+    // `DescriptorIR` reaches this array from two grammatically opposite
+    // sources and does not record which: an or-list noun ("Goblins or Elves",
+    // genuinely OR) and STACKED ADJECTIVES ("Eldrazi Spawn creatures", which
+    // is AND in English). Encoding the second as OR is a real misread —
+    // Broodwarden's "Eldrazi Spawn creatures you control get +2/+1" would buff
+    // every bare Eldrazi on the board. `readNoun` already refuses the same
+    // conflation for TYPES ("artifact creature"); nothing refused it for
+    // subtypes, so this does. Fixing it properly means teaching `DescriptorIR`
+    // to carry the conjunction, which is a change to the target and cost sites
+    // too — see docs/findings/2700-descriptor-subtype-conjunction.md.
+    if ((descriptor.subtypes?.length ?? 0) > 1)
+        return fail(
+            "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
+            (descriptor.subtypes ?? []).join(" ")
         );
 
     const filter: Record<string, unknown> = {};
@@ -924,16 +944,36 @@ export function staticFilterFromDescriptor(
             field
         );
     }
+    const allowed =
+        evaluation === "materialised"
+            ? MATERIALISED_FILTER_FIELDS
+            : STATIC_FILTER_FIELDS;
     for (const field of Object.keys(filter)) {
         // Tripwire: the mapping above must not invent a field the predicate
-        // cannot feed (see `STATIC_FILTER_FIELDS`'s own doc comment).
-        if (!STATIC_FILTER_FIELDS.has(field))
-            return fail(`"${field}" is not a static filter field`, field);
+        // cannot feed (see `STATIC_FILTER_FIELDS`'s own doc comment), nor one
+        // the effect's evaluation model cannot keep LIVE (see
+        // `MATERIALISED_FILTER_FIELDS`).
+        if (!allowed.has(field))
+            return fail(
+                evaluation === "materialised" && STATIC_FILTER_FIELDS.has(field)
+                    ? `"${field}" changes during a turn, and a materialised effect is never re-read`
+                    : `"${field}" is not a static filter field`,
+                field
+            );
     }
     if (Object.keys(filter).length === 0)
         return fail("static filter matches everything", "filter");
     return ok(filter as PermanentFilter);
 }
+
+/**
+ * How the effect this filter belongs to is evaluated by the engine.
+ *
+ * `recomputed` — read afresh every time (`pt-buff`, `pt-cda`).
+ * `materialised` — written onto the target once at apply time and never
+ * re-read (`keyword-grant`). See {@link MATERIALISED_FILTER_FIELDS}.
+ */
+export type StaticFilterEvaluation = "recomputed" | "materialised";
 
 /** `DescriptorIR` members {@link staticFilterFromDescriptor} consumes. */
 const READ_BY_STATIC_FILTER: ReadonlySet<string> = new Set([

@@ -29,6 +29,7 @@ export type LowerResult =
           readonly ok: true;
           readonly definition: CompiledDefinition;
           readonly plannedMechanics: readonly string[];
+          readonly ungrantableKeywords: readonly string[];
       }
     | {
           readonly ok: false;
@@ -52,6 +53,7 @@ interface Accumulator {
     entersTapped: boolean;
     entersWithCounters: { type: string; count: number }[];
     plannedMechanics: string[];
+    ungrantableKeywords: string[];
 }
 
 function lowerLine(
@@ -146,6 +148,8 @@ function lowerLine(
                 !out.grantedKeyword.implemented
             )
                 acc.plannedMechanics.push(out.grantedKeyword.ability);
+            if (out.ungrantableKeyword !== undefined)
+                acc.ungrantableKeywords.push(out.ungrantableKeyword);
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
@@ -191,6 +195,7 @@ export function lowerCard(
         entersTapped: false,
         entersWithCounters: [],
         plannedMechanics: [],
+        ungrantableKeywords: [],
     };
     for (const line of lines) {
         const err = lowerLine(line, card, acc);
@@ -254,11 +259,16 @@ export function lowerCard(
     // (`cards/compiledStatics.ts`). `expandDefinition` consumes the field.
     if (acc.compiledStaticEffects.length > 0)
         definition.compiledStaticEffects = acc.compiledStaticEffects;
-    // CR 614.1c / 121.6 — entry riders, applied AS the permanent enters. Never
+    // CR 614.1c / 122.1 — entry riders, applied AS the permanent enters. Never
     // a continuous effect and never a trigger (issue #1693).
     if (acc.entersTapped) definition.entersTapped = true;
     if (acc.entersWithCounters.length > 0)
         definition.entersWith = { counters: acc.entersWithCounters };
 
-    return { ok: true, definition, plannedMechanics: acc.plannedMechanics };
+    return {
+        ok: true,
+        definition,
+        plannedMechanics: acc.plannedMechanics,
+        ungrantableKeywords: acc.ungrantableKeywords,
+    };
 }

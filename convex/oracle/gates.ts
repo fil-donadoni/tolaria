@@ -109,6 +109,8 @@ export interface GateInput {
     readonly definition: CompiledDefinition;
     /** Keyword abilities whose registry row is not `implemented` (from lowering). */
     readonly plannedMechanics: readonly string[];
+    /** Keywords GRANTED whose implementation is definition-level (issue #2700). */
+    readonly ungrantableKeywords: readonly string[];
 }
 
 export interface GateResult {
@@ -117,7 +119,8 @@ export interface GateResult {
 }
 
 export function runGates(input: GateInput): GateResult {
-    const { definition, plannedMechanics, oracleId } = input;
+    const { definition, plannedMechanics, ungrantableKeywords, oracleId } =
+        input;
     const reasons: QuarantineReason[] = [];
     const opsUsed = collectOps(definition);
     // Issue #2698 — the gates read the compiler's OWN scripts, with its
@@ -169,6 +172,16 @@ export function runGates(input: GateInput): GateResult {
         reasons.push({
             kind: "planned-mechanic",
             detail: `keyword "${keyword}" is not implemented in the Mechanics Registry`,
+        });
+    }
+
+    // CR 702.1 — see the `ungrantable-keyword` reason in `oracle/types.ts`.
+    // The registry's `implemented` is a claim about the PRINTED keyword, and a
+    // grant of an expander-backed one produces nothing at all.
+    for (const keyword of ungrantableKeywords) {
+        reasons.push({
+            kind: "ungrantable-keyword",
+            detail: `keyword "${keyword}" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing`,
         });
     }
 
