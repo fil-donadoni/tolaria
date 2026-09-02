@@ -19,8 +19,10 @@
 // site) rather than exploding. Caps are documented, never silent.
 
 import type {
+    ActivatedAbility,
     CardDefinition,
     Color,
+    ManaCost,
     TargetRequirement,
     TargetSelection,
 } from "../cards/types";
@@ -519,7 +521,8 @@ export const MAX_COMBINATIONS = 64;
 // Mana payment planning
 // ---------------------------------------------------------------------------
 
-/** HOW one unit of mana gets produced from a `PlanSource` (issue #2420).
+/** HOW one ACTIVATION of mana gets produced from a `PlanSource` (issue #2420,
+ *  yield-aware since issue #3027).
  *
  *  The planner's unit of account is a PHYSICAL PERMANENT, never an ability:
  *  every untapped permanent is at most one `PlanSource`, and consuming it
@@ -528,39 +531,131 @@ export const MAX_COMBINATIONS = 64;
  *  double-tap impossible by construction rather than by bookkeeping (review
  *  round 3, finding 1: a `reserved`-set fix that missed the plain-tap leg let
  *  one Mox Sapphire be tapped once plainly and once as Urza's fodder, a plan
- *  the search valued as legal and the executor rejected outright). */
+ *  the search valued as legal and the executor rejected outright).
+ *
+ *  Issue #3027 kept that identity verbatim and changed only what consuming a
+ *  source YIELDS: `produces` carries the whole `ManaCost` of the one
+ *  activation (Black Lotus's "Add three mana of any one color" is `{U:3}`,
+ *  Sol Ring's is `{C:2}`), and the surplus lands in the plan-local floating
+ *  pool rather than on the source. `undefined` means the ordinary case — one
+ *  mana of whichever colour the option was selected for — so every option on
+ *  a board of lands and `{T}` rocks stays the shared, allocation-free
+ *  singleton it was. */
 type PlanOption =
     /** The permanent taps itself — its own `{T}` ability, a basic land
      *  subtype's intrinsic `{T}: Add C` (CR 305.6), or pool mana. */
-    | { via: "tap"; manaChoiceIndex?: number }
+    | { via: "tap"; manaChoiceIndex?: number; produces?: ManaCost }
     /** The permanent's OWN `useStack: false` ability whose whole cost is N
      *  GENERIC mana (Farrelite Priest's "{1}: Add {W}"). It taps nothing —
      *  CR 602.1 — and is funded from OTHER plain sources, so the source is
-     *  still spent (one activation per plan; see `fundGenericFromPlain`). */
+     *  still spent (one activation per plan; see `fundGenericFromPlain`).
+     *  `produces` is the GROSS yield; the `generic` sub-cost is funded
+     *  separately, which nets to exactly what the castability census's own
+     *  netting produces (`getProducibleManaUnits`, rules.ts). */
     | {
           via: "mana-cost";
           abilityId: string;
           manaChoiceIndex?: number;
           generic: number;
+          produces?: ManaCost;
       }
     /** ANOTHER permanent's `tapOtherFilter` mana ability (Urza, Lord High
      *  Artificer) taps THIS one as its cost. The mana belongs to the
      *  permanent that gets tapped — see `manaConverters.ts` for why that is
-     *  the exact model and not merely a convenient one. */
+     *  the exact model and not merely a convenient one. Always one mana:
+     *  `isSingleTapOtherManaAbility` admits no other shape, and the census
+     *  bounds converter capacity at one unit per physical permanent for the
+     *  same reason. */
     | { via: "converter"; converterId: string; abilityId: string };
+
+/** Total mana one activation of `opt` produces. `produces` absent is the
+ *  ordinary one-mana case (issue #3027). */
+function optionYieldTotal(opt: PlanOption): number {
+    if (opt.via === "converter" || !opt.produces) return 1;
+    let total = 0;
+    for (const c of MANA_COLORS) total += opt.produces[c] ?? 0;
+    return total;
+}
 
 /** Cached `{ via: "tap" }` realisations (issue #2420). Every permanent on an
  *  ordinary board contributes one per colour it makes; the values are
  *  immutable and never escape into a `ManaTap`, so one instance per choice
- *  index is enough and the planner allocates nothing per option. */
+ *  index is enough and the planner allocates nothing per option.
+ *
+ *  Issue #3027 — a MULTI-mana option (Black Lotus, Sol Ring) needs its own
+ *  `produces`, so it cannot share a singleton keyed on the choice index
+ *  alone; those allocate. An ordinary board has none and keeps the cache. */
 const PLAIN_TAP_OPTION: PlanOption = { via: "tap" };
 const PLAIN_TAP_OPTION_BY_INDEX: PlanOption[] = [];
-function plainTapOption(manaChoiceIndex: number | undefined): PlanOption {
+function plainTapOption(
+    manaChoiceIndex: number | undefined,
+    produces?: ManaCost
+): PlanOption {
+    if (produces) return { via: "tap", manaChoiceIndex, produces };
     if (manaChoiceIndex === undefined) return PLAIN_TAP_OPTION;
     return (PLAIN_TAP_OPTION_BY_INDEX[manaChoiceIndex] ??= {
         via: "tap",
         manaChoiceIndex,
     });
+}
+
+/** The `ManaCost` a `PlanOption` must carry explicitly, or `undefined` for the
+ *  ordinary one-mana case the shared singletons cover (issue #3027). A
+ *  multi-COLOUR single-mana option (one tap, one mana, several colours to
+ *  choose from) is still one unit per colour entry in `detailed`, so only a
+ *  genuine 2+ total earns a `produces`. Exits at 2 — the answer is a boolean
+ *  in disguise, and this runs per option per permanent on the hot path. */
+function explicitYield(mana: ManaCost): ManaCost | undefined {
+    let total = 0;
+    for (const c of MANA_COLORS) {
+        total += mana[c] ?? 0;
+        if (total >= 2) return mana;
+    }
+    return undefined;
+}
+
+/** Cost legs a `{T}` mana activation may carry and still have its FULL yield
+ *  credited (issue #3027, review finding 1). `tapSourceIntoPayment`
+ *  (`convex/game.ts`) executes exactly these as part of the same tap: the tap
+ *  itself, and a SELF-sacrifice (`activateFixedSacrificeManaAbility` /
+ *  the sacrifice branch — this is why Black Lotus commits end to end). */
+const TAP_YIELD_CREDITABLE_COST_LEGS: ReadonlySet<string> = new Set([
+    "tap",
+    "sacrifice",
+]);
+
+/** True when the whole cost of a `{T}` mana activation is paid by the tap the
+ *  plan already emits, so the activation's ENTIRE yield is really available.
+ *
+ *  `isAutoPayableManaAbilityCost` (`constants.ts`) short-circuits on
+ *  `if (cost.tap) return true` — deliberately, "always payable regardless of
+ *  what else rides along" — so an ability whose cost is `{T}` PLUS something
+ *  else reaches the plain-tap realisation below. That was harmless while a
+ *  source was worth one mana and `sources.length < totalRequired` capped it;
+ *  crediting the GROSS yield of such an ability is not, because nothing ever
+ *  plans the other leg. Measured on this branch before this guard:
+ *  Apprentice Wizard ("{U}, {T}: Add {C}{C}{C}") alone returned a plan for a
+ *  {3} cost with the {U} unfunded, and Orcish Lumberjack ("{T}, Sacrifice a
+ *  Forest: Add {R}{R}{R}") returned one with no Forest chosen — plans the
+ *  server rejects outright, and which the search would meanwhile value as
+ *  legal (`applyTapPlan` only marks sources tapped).
+ *
+ *  DENY-BY-DEFAULT over the cost's own keys, so a leg added to
+ *  `ActivatedAbility["cost"]` later is excluded until someone reviews it here
+ *  rather than silently inheriting the gross credit. Denied means the source
+ *  falls back to one mana — its exact pre-issue-#3027 behaviour, never a plan
+ *  the server refuses. */
+function tapActivationExecutesWholeCost(
+    ability: ActivatedAbility | undefined
+): boolean {
+    // `undefined` = an intrinsic basic-land-subtype option (CR 305.6): a bare
+    // {T} with no riders at all.
+    if (!ability) return true;
+    for (const [leg, value] of Object.entries(ability.cost)) {
+        if (value === undefined || value === false) continue;
+        if (!TAP_YIELD_CREDITABLE_COST_LEGS.has(leg)) return false;
+    }
+    return true;
 }
 
 type PlanSource = {
@@ -653,10 +748,16 @@ export function planManaPayment(
     const boardBattlefields = manaGateBattlefields(state);
 
     const sources: PlanSource[] = [];
+    /** Upper bound on the mana this board can produce — one activation per
+     *  physical permanent, taking that permanent's largest single yield
+     *  (issue #3027). Only ever used to reject early, so an over-estimate is
+     *  safe and an under-estimate would drop payable plans. */
+    let capacity = 0;
     for (const c of MANA_COLORS) {
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) {
             sources.push({ options: new Map([[c, { via: "tap" }]]) });
+            capacity++;
         }
     }
     // Issue #2420 — ONE cheap pass classifying every permanent (tapped ones
@@ -712,10 +813,20 @@ export function planManaPayment(
         // exactly as it did before this issue.
         const mayBeNonTap = nonTapFlags[permIndex];
         const options = new Map<Color, PlanOption>();
+        /** The largest yield of any ONE realisation stored on this permanent —
+         *  its whole contribution to `capacity`, since only one activation per
+         *  permanent is ever executed (issue #3027). */
+        let permCapacity = 0;
         if (mayBeNonTap || !sick) {
             const abilities = mayBeNonTap
                 ? getEffectiveActivatedAbilities(perm)
                 : undefined;
+            /** Lazily resolved post-layer ability list for the yield check
+             *  below, on a board the prefilter spared the walk (issue #3027).
+             *  Allocated only when this permanent has a 2+-mana option. */
+            let permAbilities:
+                | ReturnType<typeof getEffectiveActivatedAbilities>
+                | undefined;
             for (let index = 0; index < view.detailed.length; index++) {
                 const opt = view.detailed[index];
                 const src = opt.source;
@@ -738,9 +849,46 @@ export function planManaPayment(
                 // summoning sickness never applied to it (CR 302.6).
                 if (sick && (!ability || ability.cost.tap)) continue;
                 const manaChoiceIndex = view.needIndex ? index : undefined;
+                // Issue #3027 — the QUANTITY this one activation makes, which
+                // the planner used to discard (it read `opt.mana[c] > 0` and
+                // kept the boolean) while the castability census it mirrors
+                // has counted one unit per individual mana since issue #132.
                 let realisation: PlanOption;
                 if (!ability || ability.cost.tap) {
-                    realisation = plainTapOption(manaChoiceIndex);
+                    // A gross yield is credited only when the tap pays the
+                    // WHOLE cost — see `tapActivationExecutesWholeCost`.
+                    //
+                    // `ability` being undefined here does NOT mean "no ability
+                    // to check": the prefilter above skips the post-layer
+                    // walk entirely on an ordinary board, so `abilities` is
+                    // undefined and every option looks intrinsic. Only
+                    // `src.kind === "basic"` really is (CR 305.6); an
+                    // `"activated"` option must be resolved before its yield
+                    // can be trusted. The lookup happens ONLY when the option
+                    // makes 2+ mana — false for every land and {T} rock — so
+                    // the hot path still pays nothing for it, and a resolution
+                    // that finds nothing falls back to one mana.
+                    const produces = explicitYield(opt.mana);
+                    let creditable: ManaCost | undefined;
+                    if (produces) {
+                        const resolved =
+                            src.kind === "basic"
+                                ? undefined
+                                : (
+                                      abilities ??
+                                      (permAbilities ??=
+                                          getEffectiveActivatedAbilities(perm))
+                                  ).find(
+                                      ({ ability: a }) => a.id === src.abilityId
+                                  )?.ability;
+                        const whole =
+                            src.kind === "basic"
+                                ? true
+                                : !!resolved &&
+                                  tapActivationExecutesWholeCost(resolved);
+                        if (whole) creditable = produces;
+                    }
+                    realisation = plainTapOption(manaChoiceIndex, creditable);
                 } else {
                     const generic = pureGenericManaSubCost(
                         ability.cost.mana ?? {}
@@ -751,17 +899,30 @@ export function planManaPayment(
                     // a non-pure-generic `cost.mana` cannot reach here. Fail
                     // closed rather than mis-tap if one ever does.
                     if (generic === null) continue;
+                    // A non-tap ability admitted here has ONLY its pure-generic
+                    // `cost.mana` leg (`isAutoPayableManaAbilityCost` rejects
+                    // every `NEVER_AUTO_PAYABLE_COST_LEGS` member on this
+                    // path), and `fundGenericFromPlain` plans exactly that leg
+                    // — so the gross yield IS creditable here.
+                    const produces = explicitYield(opt.mana);
                     realisation = {
                         via: "mana-cost",
                         abilityId: ability.id,
                         manaChoiceIndex,
                         generic,
+                        ...(produces ? { produces } : {}),
                     };
                 }
+                let stored = false;
                 for (const c of MANA_COLORS) {
                     if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
                         options.set(c, realisation);
+                        stored = true;
                     }
+                }
+                if (stored) {
+                    const y = optionYieldTotal(realisation);
+                    if (y > permCapacity) permCapacity = y;
                 }
             }
         }
@@ -776,12 +937,23 @@ export function planManaPayment(
                     converterId: leg.converterId,
                     abilityId: leg.abilityId,
                 });
+                // A converter leg is always exactly one mana
+                // (`isSingleTapOtherManaAbility`).
+                if (permCapacity < 1) permCapacity = 1;
             }
         }
         if (options.size === 0) continue;
         sources.push({ cardInstanceId: perm.id, options });
+        // Issue #3027 — the cheap early reject must count what the board can
+        // actually MAKE, not how many permanents it has: `sources.length` is
+        // the yield-blind count that rejected a Black Lotus paying {U}{U}
+        // before a single pip was considered. One activation per permanent,
+        // so a source contributes the largest yield of any ONE realisation.
+        // `permCapacity` is accumulated as the options are built (above), so
+        // an ordinary board pays no second pass over the map for it.
+        capacity += permCapacity;
     }
-    if (sources.length < totalRequired) return null;
+    if (capacity < totalRequired) return null;
 
     // CR 609.4b (issue #2890) — a live mana substitution widens what a source
     // may PAY, not what it produces: a source that taps for `from` can now
@@ -814,6 +986,91 @@ export function planManaPayment(
     });
     const taps: ManaTap[] = [];
 
+    /** Mana this plan has already PRODUCED and not yet spent (issue #3027).
+     *
+     *  This is where the surplus of a multi-mana activation lives, and it is
+     *  deliberately NOT a "partly spent source": the physical permanent is
+     *  still removed from `remaining` the instant it is used, exactly as
+     *  before, so "one permanent, one activation" stays true BY CONSTRUCTION
+     *  rather than by bookkeeping (see `PlanOption`'s header for what the
+     *  bookkeeping version cost). The planner therefore only ever sees
+     *  UNSPENT permanents and FLOATING mana — never a half-used source. Any
+     *  mana still floating when the plan completes is simply left in the pool
+     *  and empties at end of step (CR 500.4), which is what a human tapping a
+     *  Lotus for a two-mana spell also does. */
+    const floating: Partial<Record<Color, number>> = {};
+    let floatingTotal = 0;
+
+    /** Credit one activation's whole yield. `color` is the colour the option
+     *  was selected FOR, and doubles as the identity of an option with no
+     *  explicit `produces` — the ordinary one-mana case.
+     *
+     *  The last branch is a CR 609.4b SUBSTITUTION realisation: `remaining`
+     *  below maps `sub.to` onto the option that produces `sub.from`, so the
+     *  option's own `produces` does not contain the colour it was selected
+     *  for. A substitution rule licenses spending mana of `from` as `to`, so
+     *  the quantity creditable as `color` is the amount of the ONE substituted
+     *  colour, not the option's total (issue #3027, review finding 2). A
+     *  single-colour yield is therefore credited whole — every mana of it is
+     *  `from` (Sol Ring's `{C}{C}` under a `C → U` grant really does pay
+     *  {U}{U}) — while a MIXED yield credits one, because the option does not
+     *  record which of its colours the substitution matched and only that
+     *  component qualifies. Crediting the total there would let one tap of a
+     *  `{W}{U}` source pay two red pips under Sunglasses of Urza's `W → R`, of
+     *  which only the white one may legally be spent as red. Under-crediting
+     *  is always safe: it is what the same source paid before this issue. */
+    const creditYield = (opt: PlanOption, color: Color): void => {
+        const produces = opt.via === "converter" ? undefined : opt.produces;
+        if (produces && (produces[color] ?? 0) > 0) {
+            for (const c of MANA_COLORS) {
+                const n = produces[c] ?? 0;
+                if (n > 0) {
+                    floating[c] = (floating[c] ?? 0) + n;
+                    floatingTotal += n;
+                }
+            }
+            return;
+        }
+        let credited = 1;
+        if (produces) {
+            let colours = 0;
+            let only = 0;
+            for (const c of MANA_COLORS) {
+                const n = produces[c] ?? 0;
+                if (n > 0) {
+                    colours++;
+                    only = n;
+                }
+            }
+            if (colours === 1) credited = only;
+        }
+        floating[color] = (floating[color] ?? 0) + credited;
+        floatingTotal += credited;
+    };
+
+    /** Spend one floating mana of `color`, if any. */
+    const spendFloating = (color: Color): boolean => {
+        const n = floating[color] ?? 0;
+        if (n <= 0) return false;
+        floating[color] = n - 1;
+        floatingTotal--;
+        return true;
+    };
+
+    /** Spend one floating mana of ANY colour on a generic pip, in
+     *  `MANA_COLORS` order so the choice is deterministic. */
+    const spendFloatingAny = (): boolean => {
+        if (floatingTotal <= 0) return false;
+        for (const c of MANA_COLORS) {
+            if ((floating[c] ?? 0) > 0) {
+                floating[c]!--;
+                floatingTotal--;
+                return true;
+            }
+        }
+        return false;
+    };
+
     /** Fund `count` GENERIC mana strictly from PLAIN sources — never another
      *  non-tap mana ability (`isPlainTapSource`) — pushing the funding taps
      *  onto `taps` BEFORE the caller's own entry so the pool already covers
@@ -822,6 +1079,12 @@ export function planManaPayment(
     const fundGenericFromPlain = (count: number): boolean => {
         let need = count;
         while (need > 0) {
+            // Issue #3027 — mana this plan has already produced pays the
+            // sub-cost before any further permanent is committed to it.
+            if (spendFloatingAny()) {
+                need--;
+                continue;
+            }
             let idx = -1;
             let bestSize = Infinity;
             for (let i = 0; i < remaining.length; i++) {
@@ -844,6 +1107,7 @@ export function planManaPayment(
             if (idx === -1) return false;
             const color = remaining[idx].options.keys().next().value as Color;
             if (!consume(idx, color)) return false;
+            if (!spendFloatingAny()) return false;
             need--;
         }
         return true;
@@ -853,8 +1117,12 @@ export function planManaPayment(
         const src = remaining[idx];
         const cardInstanceId = src.cardInstanceId;
         if (!cardInstanceId) {
-            // Pool mana — consumed by the server at commit, never a tap.
+            // Pool mana — consumed by the server at commit, never a tap. Still
+            // credited and debited like any other yield (issue #3027) so the
+            // caller has ONE spend path; the net effect is unchanged.
             remaining.splice(idx, 1);
+            floating[color] = (floating[color] ?? 0) + 1;
+            floatingTotal++;
             return true;
         }
         const opt = src.options.get(color);
@@ -872,6 +1140,7 @@ export function planManaPayment(
                 abilityId: opt.abilityId,
                 tapOtherIds: [cardInstanceId],
             });
+            creditYield(opt, color);
             return true;
         }
         if (opt.via === "mana-cost") {
@@ -885,6 +1154,10 @@ export function planManaPayment(
                     ? { manaChoiceIndex: opt.manaChoiceIndex }
                     : {}),
             });
+            // GROSS yield, credited only after the sub-cost above was funded
+            // — so the ability can never fund itself and the net matches the
+            // census's own netting (issue #3027).
+            creditYield(opt, color);
             return true;
         }
         taps.push(
@@ -892,6 +1165,7 @@ export function planManaPayment(
                 ? { cardInstanceId }
                 : { cardInstanceId, manaChoiceIndex: opt.manaChoiceIndex }
         );
+        creditYield(opt, color);
         return true;
     };
 
@@ -921,10 +1195,25 @@ export function planManaPayment(
             const src = remaining[candidate.idx];
             const remainingSnapshot = [...remaining];
             const tapsLen = taps.length;
+            // Issue #3027 — the floating pool is part of the partial effect a
+            // failed `consume()` can leave behind (`fundGenericFromPlain`
+            // spends from it), so it rolls back with `remaining` and `taps`.
+            // ONLY the `mana-cost` realisation can fail after touching it:
+            // a plain tap and a converter credit as their last act and return
+            // true, so a board with no such ability — every ordinary one —
+            // allocates no snapshot at all.
+            const canFail =
+                src.options.get(candidate.color)?.via === "mana-cost";
+            const floatingSnapshot = canFail ? { ...floating } : undefined;
+            const floatingTotalSnapshot = floatingTotal;
             if (consume(candidate.idx, candidate.color)) return true;
             remaining.length = 0;
             remaining.push(...remainingSnapshot);
             taps.length = tapsLen;
+            if (floatingSnapshot) {
+                for (const c of MANA_COLORS) floating[c] = floatingSnapshot[c];
+            }
+            floatingTotal = floatingTotalSnapshot;
             excluded.add(src);
         }
     };
@@ -936,27 +1225,54 @@ export function planManaPayment(
     for (const c of MANA_COLORS) {
         let need = cost[c] ?? 0;
         while (need > 0) {
+            // Issue #3027 — mana a previous activation already produced pays
+            // this pip before any further permanent is committed, so a source
+            // is never tapped while its own surplus would cover the need.
+            if (spendFloating(c)) {
+                need--;
+                continue;
+            }
             const ok = consumeBest((excluded) => {
                 let bestIdx = -1;
                 let bestSize = Infinity;
                 let bestRank = Infinity;
+                let bestYield = Infinity;
                 for (let i = 0; i < remaining.length; i++) {
                     const s = remaining[i];
                     if (excluded.has(s)) continue;
-                    if (!s.options.has(c)) continue;
+                    const opt = s.options.get(c);
+                    if (!opt) continue;
                     const rank = planOptionRank(s, c);
+                    // Lexicographic (rank, colour-count, YIELD). The yield key
+                    // is last and only ever separates sources the first two
+                    // tie, so a board of one-mana sources — every land, every
+                    // {T} rock — keeps byte-identical selection (issue #3027).
+                    // Where it does fire it stops the greedy burning a Black
+                    // Lotus on a pip an equally flexible single-mana source
+                    // already covers.
+                    const yieldTotal = optionYieldTotal(opt);
                     if (
                         rank < bestRank ||
-                        (rank === bestRank && s.options.size < bestSize)
+                        (rank === bestRank &&
+                            (s.options.size < bestSize ||
+                                (s.options.size === bestSize &&
+                                    yieldTotal < bestYield)))
                     ) {
                         bestIdx = i;
                         bestSize = s.options.size;
                         bestRank = rank;
+                        bestYield = yieldTotal;
                     }
                 }
                 return bestIdx === -1 ? null : { idx: bestIdx, color: c };
             });
             if (!ok) return null;
+            // STRUCTURALLY UNREACHABLE, kept fail-closed (issue #3027 review
+            // finding 6): the option was selected because it produces `c`, so
+            // `creditYield` has just credited at least one `c`. It is here so
+            // that a future `creditYield` branch which does not can never
+            // silently under-pay a pip instead of failing the plan.
+            if (!spendFloating(c)) return null;
             need--;
         }
     }
@@ -964,6 +1280,13 @@ export function planManaPayment(
     // Generic remainder: prefer pool sources (no tap), then least-flexible card.
     let generic = cost.X ?? 0;
     while (generic > 0) {
+        // Floating first (issue #3027): the surplus of a coloured activation
+        // pays the generic remainder — a Black Lotus tapped for the {U} of
+        // {1}{U} funds the {1} with the two mana it already made.
+        if (spendFloatingAny()) {
+            generic--;
+            continue;
+        }
         if (remaining.length === 0) return null;
         const ok = consumeBest((excluded) => {
             let idx = remaining.findIndex(
@@ -982,6 +1305,7 @@ export function planManaPayment(
             // "smallest option set, first colour" pick, unchanged.
             let bestSize = Infinity;
             let bestRank = Infinity;
+            let bestYield = Infinity;
             let bestColor: Color | undefined;
             idx = -1;
             for (let i = 0; i < remaining.length; i++) {
@@ -997,12 +1321,19 @@ export function planManaPayment(
                     }
                 }
                 if (color === undefined) continue;
+                // Same lexicographic (rank, colour-count, yield) tie-break as
+                // the coloured loop — see there (issue #3027).
+                const yieldTotal = optionYieldTotal(s.options.get(color)!);
                 if (
                     rank < bestRank ||
-                    (rank === bestRank && s.options.size < bestSize)
+                    (rank === bestRank &&
+                        (s.options.size < bestSize ||
+                            (s.options.size === bestSize &&
+                                yieldTotal < bestYield)))
                 ) {
                     bestSize = s.options.size;
                     bestRank = rank;
+                    bestYield = yieldTotal;
                     bestColor = color;
                     idx = i;
                 }
@@ -1011,6 +1342,8 @@ export function planManaPayment(
             return { idx, color: bestColor };
         });
         if (!ok) return null;
+        // Structurally unreachable, kept fail-closed — see the coloured loop.
+        if (!spendFloatingAny()) return null;
         generic--;
     }
 

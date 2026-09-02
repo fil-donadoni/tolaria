@@ -4102,6 +4102,85 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Issue #1524, half 2 — the discriminating twin of "known top: digs with a cantrip because it knows the Bolt is there"; the two are only evidence together, so neither may be deleted alone. The pin is what makes half 1 pass, so this half proves the pin is carrying INFORMATION rather than just biasing the bot towards its cantrip: swap the pinned card and the preference flips. A pin that leaked identity, or a search that had simply learned to like Thought Scour, would pass one of these two and not the other.',
     },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3027).
+        // PAIRED WITH: "burst mana: does NOT reach the two-mana kill off a
+        // ONE-mana source".
+        //
+        // No lands at all. The whole mana base is one untapped Black Lotus
+        // ("{T}, Sacrifice this artifact: Add three mana of any one color"),
+        // and the only card in hand is Incinerate ({1}{R}, 3 damage to any
+        // target) with the opponent at exactly 3. The kill is a TWO-mana spell
+        // funded by ONE source, which is precisely what `planManaPayment`
+        // could not express before this issue: it built one `PlanSource` per
+        // permanent and let it pay one pip, so `enumerateCastMoves` dropped
+        // the cast and the bot passed with lethal in hand — while
+        // `getLegalActions` told the human the Cast was legal.
+        label: "burst mana: kills with a two-mana spell off a single Black Lotus",
+        spec: {
+            cards: [
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Incinerate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // The point of the entry: the Lotus is the entire mana base.
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            // `target: "opp"` is what makes this discriminating rather than
+            // merely "casts something": the face is the lethal, and the only
+            // other legal target is its own controller.
+            moves: [{ kind: "cast-spell", card: "Incinerate", target: "opp" }],
+        },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "burst mana: does NOT reach the two-mana kill off a ONE-mana source". Neither half is meaningful alone: half 2 shares every line but the mana source, so a bot that simply liked casting Incinerate would pass one and fail the other. Measured on `98ed936f4` this half was UNREACHABLE — `planManaPayment` returned null for {1}{R} off one Lotus and the cast was never enumerated.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3027).
+        // PAIRED WITH: "burst mana: kills with a two-mana spell off a single
+        // Black Lotus". Identical position with the burst source replaced by a
+        // ONE-mana producer (Mox Ruby, "{T}: Add {R}"): {1}{R} is genuinely
+        // unpayable, so the cast must NOT be offered. This is the half that
+        // stops the yield model from becoming yield-UNBOUNDED — a planner that
+        // let any source cover any number of pips would pass half 1 and fail
+        // here.
+        label: "burst mana: does NOT reach the two-mana kill off a ONE-mana source",
+        spec: {
+            cards: [
+                {
+                    name: "Mox Ruby",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Incinerate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Incinerate" }],
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "burst mana: kills with a two-mana spell off a single Black Lotus". Neither half is meaningful alone (ADR 0070 §1: a `forbidden` entry a never-casting bot also satisfies asserts nothing by itself). One untapped Mox Ruby makes exactly one mana, so {1}{R} cannot be paid and the cast must stay unenumerated. Measured under a deliberate break that made the planner floating pool unbounded (issue #3027 proof-of-failure): this half stayed GREEN, because the census (`canPotentiallyPayCost`) refuses the cast before the planner is ever consulted. So what this half pins is that the difference between the two halves is the SOURCE and not an appetite for Incinerate; the PLANNER upper bound is pinned instead by the unit tests in `burstManaSources.bot.test.ts` ("cannot pay a FOURTH pip", "Sol Ring pays {2} off one tap and stops at {3}"), both proven red under that same break.',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
