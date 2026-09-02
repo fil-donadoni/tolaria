@@ -226,4 +226,18 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
         name: "mana-dev-off",
         evalWeights: { manaDevWeight: 0 },
     },
+    /** A/B knob for the graveyard-reach term (issue #3042), the exact twin of
+     *  `mana-dev-off` above: the candidate seat runs with
+     *  `graveyardReachFraction` zeroed — the pre-#3042 behaviour, in which a
+     *  graveyard was worth nothing whoever could reach it — so a ladder run
+     *  A/Bs the SHIPPED term against its absence with no code edit. It is a
+     *  GLOBAL leaf term, so unlike a blunder-class fix a blade pair alone
+     *  cannot carry its strength claim; the verdict to look for is "no
+     *  regression" (candidate not above the production default beyond the
+     *  `placebo` noise floor). Remove alongside the term if it is ever
+     *  killed. */
+    "graveyard-reach-off": {
+        name: "graveyard-reach-off",
+        evalWeights: { graveyardReachFraction: 0 },
+    },
 };
