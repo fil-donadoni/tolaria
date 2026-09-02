@@ -67,6 +67,27 @@ the Op vocabulary.
   guard's. Enforced by `divergenceMarkers.test.ts`; scanner shared with the
   liveness sweep in `scripts/lib/divergence-markers.ts`. Derivation:
   `docs/agents/gre-guards.md`.
+- **Guard C — round-trip-or-declare-the-gap (#2701, PRD #2693).** The gap the
+  Oracle compiler introduced: a card whose hand-written definition is entirely
+  correct and whose own Oracle text the grammar cannot read back into it.
+  Nothing about it is broken — which is why it would accumulate invisibly,
+  shrinking the gold standard the compiler is measured against. So a card does
+  ONE of three things. (1) **Round-trips**: `roundTripCard`
+  (`convex/oracle/gold.ts`, the single comparator, shared with the gold
+  harness) — structural equality for a DSL card; for a closure card, producing
+  a definition at all is enough here. (2) Carries
+  **`// compiler-gap: <fragment> (#issue)`** in the comment paragraph directly
+  above its `export const … : CardDefinition` anchor (Guard B's
+  `paragraphBounds`, shared). The shape is strict and the FRAGMENT is the
+  deliverable — it ranks the next grammar rule (user story 9) — so quote the
+  Oracle span, never "the compiler can't do this card". A marker inside the
+  object literal, two paragraphs up, or with no issue ref exempts NOTHING and
+  reds. (3) Sits in the one-time **baseline**
+  (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`, 1,756 cards), which
+  cannot be APPENDED to and drains as cards graduate. Enforced by
+  `compilerRoundTrip.test.ts`; scanner in
+  `scripts/lib/compiler-gap-markers.ts`. Presence only — liveness is the
+  network sweep's job, exactly as for Guard B.
 
 **Guard B polices markers; it does not licence them.** A `tracked-by:` ref
 makes an already-accepted divergence findable — it never makes one

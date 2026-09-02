@@ -61,15 +61,22 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
 const RESIDENT_CEILING_BYTES = 35_500;
 
 /**
- * Measured 2026-08-29: 21,225 bytes across `convex/CLAUDE.md` (16,793) and
- * `src/CLAUDE.md` (4,432).
+ * Measured 2026-09-02: 24,163 bytes across `convex/CLAUDE.md` (19,731) and
+ * `src/CLAUDE.md` (4,432). (Was 21,225 / 23,000 on 2026-08-29.)
  *
  * Larger than the resident ceiling on purpose — this tier is where the tables,
  * worked examples and derivations are SUPPOSED to live. It is budgeted so that
  * "move it to the nested file" stays a real editorial decision rather than an
  * unbounded escape hatch.
+ *
+ * Raised by 1,500 in issue #2701, which added Guard C — a new mandatory
+ * authoring norm, which is the one thing this ceiling is meant to make room
+ * for. The raise restores the ~300 bytes of headroom the ceiling had before,
+ * and no more: Guard C's own text was cut from 2,451 bytes to 1,460 first, to
+ * sit proportionate to Guard A and Guard B rather than paying for the raise
+ * with prose.
  */
-const ON_DEMAND_CEILING_BYTES = 23_000;
+const ON_DEMAND_CEILING_BYTES = 24_500;
 
 function residentFiles(): string[] {
     const out: string[] = [];

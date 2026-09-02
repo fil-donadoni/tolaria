@@ -38,7 +38,7 @@ import type { CardDefinition } from "../cards/types";
 import { compileCard } from "./compile";
 import { sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
-import type { CompiledDefinition, OracleCard } from "./types";
+import type { CompiledDefinition, CompileOutcome, OracleCard } from "./types";
 
 /** Fields with no rules text behind them — see the header. */
 export const PASSTHROUGH_KEYS: ReadonlySet<string> = new Set([
@@ -361,6 +361,114 @@ export interface GoldReport {
 /** What `sortKeys` renders a function-valued field as (`gates.ts`). */
 const CLOSURE_SENTINEL = '"[closure]"';
 
+/**
+ * What compiling ONE hand-written card's own Oracle text back against its own
+ * definition proved.
+ *
+ * `equal` and `incomparable` are both round-trip PASSES for Guard C (issue
+ * #2701) and are still counted apart by the gold report, because they answer
+ * different questions: `equal` says the grammar read the card correctly,
+ * `incomparable` says only that it produced a definition for a card whose
+ * hand-written behaviour lives in a closure an Effect Script can never equal
+ * (see `GoldIncomparable`). Guard C accepts the weaker claim on purpose — the
+ * issue's own wording, "for closure cards, 'compiles to a definition' is enough
+ * at this guard"; behavioural equality for those is its own ticket.
+ */
+export type RoundTripVerdict =
+    | { readonly ok: true; readonly kind: "equal" | "incomparable" }
+    | {
+          readonly ok: false;
+          readonly kind: "no-oracle-text" | "unparsed" | "mismatch";
+          /** One clause naming what stopped it — a gap's fragment, or the
+           *  first differing projection. */
+          readonly detail: string;
+      };
+
+export interface RoundTrip {
+    readonly verdict: RoundTripVerdict;
+    /** `undefined` only for `no-oracle-text`, where nothing was compiled. */
+    readonly outcome?: CompileOutcome;
+    /** The two compared projections — present whenever a comparison ran. */
+    readonly expected?: string;
+    readonly actual?: string;
+}
+
+/**
+ * Compile one hand-written card's own Oracle text and compare the result to the
+ * card itself. THE single comparator: `runGoldHarness` below and Guard C
+ * (`convex/cards/__tests__/compilerRoundTrip.test.ts`) both route through it,
+ * so a catalogue-wide report and a catalogue-wide gate can never disagree about
+ * what "round-trips" means.
+ *
+ * A card with NO `oracleText` fails rather than being skipped. Compiling `""`
+ * does not error — it produces a behaviourless definition, which MATCHES a
+ * vanilla creature (Grizzly Bears is exactly such a card), so treating the
+ * missing input as an empty one would score a fixture hole as a pass. See
+ * `docs/findings/2694-gold-cards-without-oracletext.md`.
+ */
+export function roundTripCard(definition: CardDefinition): RoundTrip {
+    if (definition.oracleText === undefined) {
+        return {
+            verdict: {
+                ok: false,
+                kind: "no-oracle-text",
+                detail: "the definition carries no `oracleText` — the compiler's input is missing, not empty",
+            },
+        };
+    }
+    const outcome = compileCard(goldOracleCard(definition));
+    if (outcome.state === "unparsed") {
+        return {
+            verdict: {
+                ok: false,
+                kind: "unparsed",
+                detail: outcome.gaps
+                    .map((g) => `"${g.fragment}" (${g.reason})`)
+                    .join("; "),
+            },
+            outcome,
+        };
+    }
+    // Compare through the REAL registry seam (ADR 0046): `getAllCards()`
+    // returns expanded definitions, so a bare `staticAbilities: ["exalted"]`
+    // on the gold side already carries its injected CR 702.83a trigger. The
+    // compiled side must go through the same expansion or every implicit-
+    // keyword card would read as a dropped ability.
+    const expandedActual = expandDefinition({
+        ...(outcome.definition as CardDefinition),
+        id: definition.id,
+        rarity: definition.rarity,
+    });
+    const expected = JSON.stringify(behaviouralProjection(definition));
+    const actual = JSON.stringify(behaviouralProjection(expandedActual));
+    if (expected === actual) {
+        return {
+            verdict: { ok: true, kind: "equal" },
+            outcome,
+            expected,
+            actual,
+        };
+    }
+    if (expected.includes(CLOSURE_SENTINEL)) {
+        return {
+            verdict: { ok: true, kind: "incomparable" },
+            outcome,
+            expected,
+            actual,
+        };
+    }
+    return {
+        verdict: {
+            ok: false,
+            kind: "mismatch",
+            detail: `expected ${expected}`,
+        },
+        outcome,
+        expected,
+        actual,
+    };
+}
+
 export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
     const buckets: Record<GoldBucket, GoldBucketStats> = {
         vanilla: { total: 0, accepted: 0, equal: 0, incomparable: 0 },
@@ -383,19 +491,11 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         }
         const bucket = goldBucket(definition);
         buckets[bucket].total += 1;
-        const outcome = compileCard(goldOracleCard(definition));
-        if (outcome.state === "unparsed") continue;
+        // ONE comparator, shared with Guard C — see `roundTripCard`.
+        const { verdict, outcome, expected, actual } =
+            roundTripCard(definition);
+        if (outcome === undefined || outcome.state === "unparsed") continue;
         buckets[bucket].accepted += 1;
-        // Compare through the REAL registry seam (ADR 0046): `getAllCards()`
-        // returns expanded definitions, so a bare `staticAbilities: ["exalted"]`
-        // on the gold side already carries its injected CR 702.83a trigger. The
-        // compiled side must go through the same expansion or every implicit-
-        // keyword card would read as a dropped ability.
-        const expandedActual = expandDefinition({
-            ...(outcome.definition as CardDefinition),
-            id: definition.id,
-            rarity: definition.rarity,
-        });
 
         const slotKey =
             outcome.slots.length === 0 ? "vanilla" : outcome.slots.join("+");
@@ -403,27 +503,25 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         slots[slotKey].total += 1;
         slots[slotKey].accepted += 1;
 
-        const expected = JSON.stringify(behaviouralProjection(definition));
-        const actual = JSON.stringify(behaviouralProjection(expandedActual));
-        if (expected === actual) {
+        if (verdict.kind === "equal") {
             buckets[bucket].equal += 1;
             slots[slotKey].equal += 1;
-        } else if (expected.includes(CLOSURE_SENTINEL)) {
+        } else if (verdict.kind === "incomparable") {
             buckets[bucket].incomparable += 1;
             slots[slotKey].incomparable += 1;
             incomparable.push({
                 name: definition.name,
                 bucket,
-                expected,
-                actual,
+                expected: expected!,
+                actual: actual!,
             });
         } else {
             mismatches.push({
                 name: definition.name,
                 bucket,
                 state: outcome.state,
-                expected,
-                actual,
+                expected: expected!,
+                actual: actual!,
             });
         }
     }

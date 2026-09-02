@@ -530,6 +530,8 @@ keywords and Ops.
   confession marker under `convex/cards/sets/**` carries `tracked-by: #NNN` or
   an out-of-scope note. Guard B polices markers, it does not licence them: the
   default is no marker — implement the clause.
+- **Guard C — compiler round-trip (#2701).** A card compiles back to its own
+  definition, or carries `compiler-gap: <fragment> (#issue)` above its anchor.
 - **A MECHANIC is implemented WHOLE**, never partially shipped behind a
   marker: every subrule of its CR section, on every surface.
 - **Per-Op test regime.** A DSL card using only already-exercised Ops needs no
@@ -538,8 +540,7 @@ keywords and Ops.
 
 ### Testing requirement
 
-Tests in `convex/gre/__tests__/`, each naming its CR section. `bun run test`
-zero failures after any change.
+Tests in `convex/gre/__tests__/`, each naming its CR section.
 
 ### Proof-of-failure (mandatory for every new guarding test)
 
