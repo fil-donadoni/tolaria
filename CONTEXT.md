@@ -693,6 +693,30 @@ _Avoid_: Closure, snapshot (that term is reserved for last-known-information bin
 The machine-readable census of every CR keyword ability (702) and keyword action (701), each with an implementation status and its engine binding (**Op** name or static ability). The single authority on mechanic names: cards and **Effect Scripts** may only reference mechanics it lists. Census is total; implementation is demand-driven.
 _Avoid_: Mechanics doc, keyword list, capability matrix
 
+**Card Corpus**:
+Every card the engine knows _of_ — the full printed universe, whether or not it can be played. Distinct from the set of playable cards: a corpus entry may have no **Card Definition** at all. The corpus is the denominator every coverage claim is measured against, which is why it is named rather than left implicit.
+_Avoid_: Catalogue (that's the playable subset), database, card pool (reserved for **Deck Pool**)
+
+**Compiled Definition**:
+A **Card Definition** produced by the **Oracle Compiler** from a card's Oracle text, rather than authored by hand. It is the same thing a hand-written definition is — consumers resolve both through one lookup and cannot tell them apart, by design. What differs is provenance, and provenance decides authority: where both exist for one card, the hand-written one wins.
+_Avoid_: Generated card, parsed card, auto-card
+
+**Compile State**:
+What the **Oracle Compiler** concluded about one **Card Corpus** entry, as one of three: **ready** (the whole text compiled, and the result may be played), **quarantine** (it compiled but the result is not trusted), **unparsed** (some clause had no grammar). The states are exhaustive and fail closed — an entry the compiler cannot fully account for never reaches `ready`, so partial understanding is never mistaken for coverage.
+_Avoid_: Supported/unsupported, coverage, implemented (that word belongs to the **Mechanics Registry**)
+
+**Compiled Pool**:
+The `ready` slice of the **Oracle Lockfile**, in the shape the runtime consumes, minus every card that already has a hand-written **Card Definition**. It is what is actually delivered to a running client or server — the lockfile is the record, the pool is the payload.
+_Avoid_: Compiled cards, the JSON, ready set
+
+**Oracle Compiler**:
+The translation of a card's printed Oracle text into an **Effect Script** plus its declarative ability slots. It compiles, it never authors: a clause it has no grammar for stops the card rather than being approximated, so what it emits is either the whole card or nothing (ADR 0105). Runs ahead of time, never while a game is in progress.
+_Avoid_: Parser (that's one stage of it), card generator, importer
+
+**Oracle Lockfile**:
+The generated, committed record of what the **Oracle Compiler** made of every **Card Corpus** entry — each with its **Compile State** and, where `ready`, its **Compiled Definition**. Committed precisely so a change in compiler behaviour shows up as a reviewable diff instead of a silent shift: a card that stops compiling, or compiles differently, is visible before it is shipped.
+_Avoid_: Compiler output, cache, build artifact
+
 **Holding Bundle**:
 A record that pulls a **Permanent** (plus the Auras attached to it and a snapshot of its counters) off the battlefield as a unit and remembers how to put it back. Two flavours: the **phased-out bundle** (`phasedOut`, ADR 0021) keeps the same object off-battlefield with no zone change or triggers; the **exile-and-return bundle** (`exileHeld`, ADR 0028) is a real exile — leaves/enters triggers fire, the returned object is new, and counters are _noted_ then re-applied. The bundle's existence doubles as the "delayed return is armed" flag.
 _Avoid_: Limbo, stash, suspended permanent
