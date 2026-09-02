@@ -1785,11 +1785,25 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // the Op's literal `destination` cannot express. Net: total unchanged
         // at 474, Op-blocked 140->139, FREE 319->320, AFK-ready 310->311.
         // Partition: 320+15+139=474.
+        //
+        // PRD #2064 S3 adds NO closure and removes none — it RECLASSIFIES one,
+        // in the other direction. Dread Wight's end-of-combat trigger
+        // (`ice/black.ts`) now calls `ctx.addContinuousEffect`, the Continuous
+        // Effects Registry's first producer (ADR 0082), which no Op exposes, so
+        // the clause-mapper sees an uncovered primitive and the closure moves
+        // FREE -> Op-blocked. Accurate, and not a step backwards: the trigger
+        // was already NOT-DSL-migratable for an unrelated reason (its
+        // "creatures blocking or blocked by this creature" selector has no
+        // `EffectForEachSelector`), so no migration is lost — the census simply
+        // now records the real primitive gap too. PRD #2064 S6 is where the
+        // registry's producers get their Op. Net: total unchanged at 474,
+        // FREE 320->319, AFK-ready 311->310, Op-blocked 139->140.
+        // Partition: 319+15+140=474.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(474);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(320);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(311);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(319);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(310);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(139);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

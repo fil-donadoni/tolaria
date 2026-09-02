@@ -36,7 +36,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { projectPublicState } from "../../gameProjections";
-import { dreadWight } from "../../cards/sets/ice/black";
+import { venarianGold } from "../../cards/sets/leg/blue";
 import { bloodMoon } from "../../cards/sets/drk/red";
 import { cyclopeanTomb } from "../../cards/sets/lea/colorless";
 import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless";
@@ -48,14 +48,19 @@ import { flight, airElemental } from "../../cards/sets/lea/blue";
  *  subtype seen below comes from a layer-4 source and nothing else. */
 function makeBoard(
     landCounters: Record<string, number>,
-    sourceCardIds: { id: string; instanceId: string }[]
+    sourceCardIds: { id: string; instanceId: string; attachedTo?: string }[]
 ): { state: GameState; land: CardInstanceState; sources: CardInstanceState[] } {
     const land = makeInstance(mishrasFactory.id, {
         id: "land-1",
         counters: { ...landCounters },
     });
     const sources = sourceCardIds.map((s) =>
-        makeInstance(s.id, { id: s.instanceId })
+        makeInstance(s.id, {
+            id: s.instanceId,
+            // An Aura source needs its host: Venarian Gold's counter-gated
+            // `keyword-grant` predicate is `target.id === source.attachedTo`.
+            ...(s.attachedTo ? { attachedTo: s.attachedTo } : {}),
+        })
     );
     const state = makeState({
         players: [
@@ -69,12 +74,16 @@ function makeBoard(
 describe("materialized static refresh — round-trip semantics (issue #1715)", () => {
     describe("defect 1 — keyword-grant may not resurrect a stripped keyword (CR 613.1f)", () => {
         it("keeps the keyword stripped across any number of refreshes", () => {
-            // Dread Wight grants `does-not-untap` to every permanent carrying a
-            // paralyzation counter (counter-gated); Blood Moon's `ability-loss`
-            // strips every ability off a nonbasic land with a LATER timestamp,
-            // so the loss wins (CR 613.1f).
-            const { state, land, sources } = makeBoard({ paralyzation: 1 }, [
-                { id: dreadWight.id, instanceId: "wight-1" },
+            // Venarian Gold grants its host `does-not-untap` while the host
+            // carries a sleep counter (counter-gated, CR 502.3); Blood Moon's
+            // `ability-loss` strips every ability off a nonbasic land with a
+            // LATER timestamp, so the loss wins (CR 613.1f).
+            const { state, land, sources } = makeBoard({ sleep: 1 }, [
+                {
+                    id: venarianGold.id,
+                    instanceId: "wight-1",
+                    attachedTo: "land-1",
+                },
                 { id: bloodMoon.id, instanceId: "moon-1" },
             ]);
             const [wight, moon] = sources;
@@ -95,8 +104,12 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         });
 
         it("still grants when no live stripper removed that keyword", () => {
-            const { state, land, sources } = makeBoard({ paralyzation: 1 }, [
-                { id: dreadWight.id, instanceId: "wight-1" },
+            const { state, land, sources } = makeBoard({ sleep: 1 }, [
+                {
+                    id: venarianGold.id,
+                    instanceId: "wight-1",
+                    attachedTo: "land-1",
+                },
             ]);
             const [wight] = sources;
             applySourceStaticEffects(state, wight);
@@ -152,15 +165,16 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
 
     describe("idempotence — one refresh equals N refreshes on a combined board", () => {
         it("is stable with a grant, a stripper, a subtype-set and a subtype-add live at once", () => {
-            const { state, land, sources } = makeBoard(
-                { paralyzation: 1, mire: 1 },
-                [
-                    { id: dreadWight.id, instanceId: "wight-1" },
-                    { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                    { id: bloodMoon.id, instanceId: "moon-1" },
-                    { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
-                ]
-            );
+            const { state, land, sources } = makeBoard({ sleep: 1, mire: 1 }, [
+                {
+                    id: venarianGold.id,
+                    instanceId: "wight-1",
+                    attachedTo: "land-1",
+                },
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: bloodMoon.id, instanceId: "moon-1" },
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+            ]);
             const [wight, tomb, moon, yavimaya] = sources;
             applySourceStaticEffects(state, wight);
             applySourceStaticEffects(state, tomb);

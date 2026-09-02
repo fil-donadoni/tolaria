@@ -424,7 +424,11 @@ describe("ability-stripped Saga (2026 CR 714.3c / 714.4 gates)", () => {
     it("is not sacrificed even at/past what WOULD be its final chapter", () => {
         const { state, saga } = sagaOnBattlefield({
             counters: { [LORE_COUNTER]: 5 },
-            abilitiesSuppressedBy: [{ sourceId: "blood-moon", seq: 1 }],
+            // PRD #2064 S3 — `abilitiesSuppressedBy` is DERIVED output now;
+            // the hold a resolving ability leaves behind lives in
+            // `abilityLossHolds`, and the `"indefinite"` sentinel (CR 611.2c)
+            // is the one whose source needs no permanent on the board.
+            abilityLossHolds: [{ sourceId: "indefinite", seq: 1 }],
         });
         checkStateBasedActions(state);
         expect(state.players[0].battlefield).toContain(saga);

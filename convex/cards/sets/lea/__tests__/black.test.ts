@@ -1414,6 +1414,12 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
                 makePlayer("p2"),
             ],
         });
+        // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
+        // and a source's continuous effects begin applying when the engine
+        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // path). A fixture that places the source directly has to run that step
+        // itself, exactly as an ETB would.
+        applySourceStaticEffects(state, master);
         pushSpell(state, scatheZombies.id, "p1");
         resolveTopOfStack(state);
         const newZ = state.players[0].battlefield.find(
@@ -1426,26 +1432,21 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
 
     it("when Master leaves, Zombies lose grant entries (swampwalk + regen)", () => {
         const master = makeInstance(zombieMaster.id, { id: "master" });
-        const zombie = makeInstance(scatheZombies.id, {
-            id: "zomb",
-            staticAbilities: ["swampwalk"],
-            grantedStaticAbilities: [
-                { ability: "swampwalk", auraId: "master" },
-            ],
-            grantedActivatedAbilities: [
-                {
-                    sourceCardId: zombieMaster.id,
-                    abilityId: "zombie-master-regenerate",
-                    auraId: "master",
-                },
-            ],
-        });
+        const zombie = makeInstance(scatheZombies.id, { id: "zomb" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [master, zombie] }),
                 makePlayer("p2"),
             ],
         });
+        // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
+        // and a source's continuous effects begin applying when the engine
+        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // path). A fixture that places the source directly has to run that step
+        // itself, exactly as an ETB would.
+        applySourceStaticEffects(state, master);
+        expect(zombie.staticAbilities).toContain("swampwalk");
+        expect(zombie.grantedActivatedAbilities).toHaveLength(1);
         removePermanentTo(state, "master", "graveyard");
         const after = state.players[0].battlefield.find(
             (c) => c.id === "zomb"

@@ -793,6 +793,12 @@ describe("Lord-style keyword grant — Goblin King mountainwalk", () => {
                 makePlayer("p2"),
             ],
         });
+        // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
+        // and a source's continuous effects begin applying when the engine
+        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // path). A fixture that places the source directly has to run that step
+        // itself, exactly as an ETB would.
+        applySourceStaticEffects(state, king);
         pushSpell(state, monssGoblinRaiders.id, "p1");
         resolveTopOfStack(state);
         const newRat = state.players[0].battlefield.find(
@@ -803,19 +809,20 @@ describe("Lord-style keyword grant — Goblin King mountainwalk", () => {
 
     it("when the King leaves, the grant is removed from existing Goblins", () => {
         const king = makeInstance(goblinKing.id, { id: "king" });
-        const goblin = makeInstance(monssGoblinRaiders.id, {
-            id: "rat",
-            staticAbilities: ["mountainwalk"],
-            grantedStaticAbilities: [
-                { ability: "mountainwalk", auraId: "king" },
-            ],
-        });
+        const goblin = makeInstance(monssGoblinRaiders.id, { id: "rat" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [king, goblin] }),
                 makePlayer("p2"),
             ],
         });
+        // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
+        // and a source's continuous effects begin applying when the engine
+        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // path). A fixture that places the source directly has to run that step
+        // itself, exactly as an ETB would.
+        applySourceStaticEffects(state, king);
+        expect(goblin.staticAbilities).toContain("mountainwalk");
         removePermanentTo(state, "king", "graveyard");
         const ratAfter = state.players[0].battlefield.find(
             (c) => c.id === "rat"

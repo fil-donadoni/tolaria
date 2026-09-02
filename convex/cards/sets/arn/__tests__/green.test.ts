@@ -226,10 +226,12 @@ describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () 
         )!;
         expect(target.staticAbilities).toContain("forestwalk");
         // "Until your next upkeep" — scoped to Erhnam's controller (p1).
-        expect(target.grantedStaticAbilities).toContainEqual({
-            ability: "forestwalk",
-            duration: { phase: "upkeep", playerId: "p1" },
-        });
+        expect(target.grantedStaticAbilities).toContainEqual(
+            expect.objectContaining({
+                ability: "forestwalk",
+                duration: { phase: "upkeep", playerId: "p1" },
+            })
+        );
     });
 
     it("raises a target choice when two+ non-Wall opponent creatures are legal (CR 603.3d)", () => {

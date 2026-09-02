@@ -74,6 +74,7 @@ import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     applyExistingGrantsTo,
+    applySourceStaticEffects,
     refreshCounterGatedStatics,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
@@ -730,7 +731,11 @@ describe("Aggression — Aura: first strike + trample + end-step destroy (CR 611
             ],
         });
         const live = state.players[0].battlefield.find((c) => c.id === "host")!;
-        // The aura's keyword-grant statics attach to the host via the grant pass.
+        // CR 613.7a (PRD #2064 S3) — layer 6 derives from the live board, and
+        // an Aura's continuous effects begin applying when the engine stamps it
+        // (`applySourceStaticEffects`, run when it enters / attaches). A fixture
+        // that places it directly has to run that step itself.
+        applySourceStaticEffects(state, aura);
         applyExistingGrantsTo(state, live);
         expect(live.staticAbilities).toContain("first strike");
         expect(live.staticAbilities).toContain("trample");
@@ -1077,6 +1082,11 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
                 blockersConfirmed: false,
             },
         });
+        // CR 613.7a (PRD #2064 S3) — the Lord's own conditional `keyword-grant`
+        // is derived from the live board and needs the entry stamp the engine
+        // mints on every battlefield entry path; the recompute tick below then
+        // composes it.
+        applySourceStaticEffects(state, lord);
         refreshCounterGatedStatics(state);
         return state;
     }

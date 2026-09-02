@@ -676,6 +676,14 @@ const IGNORED_STATE_KEYS = [
 const IGNORED_INSTANCE_KEYS = [
     "worldSeq",
     "staticSeq",
+    // PRD #2064 S3 — the layer-6 base, captured LAZILY the first time
+    // `syncLayer6` derives for a permanent. Exactly `staticSeq`'s shape one
+    // line up: a bookkeeping cursor whose mere PRESENCE distinguishes a state
+    // the engine has touched from one it has not, so the probe (which runs the
+    // engine) would always differ from the untouched baseline and no move could
+    // ever be proved dominated. Nothing is masked by ignoring it: it is derived
+    // from `staticAbilities`, which this comparison still makes in full.
+    "baseStaticAbilities",
     "activationsThisTurn",
     "triggersThisTurn",
 ] as const;

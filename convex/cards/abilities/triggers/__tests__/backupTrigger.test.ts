@@ -143,7 +143,10 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             // CR 611.2 — the grant is duration-scoped, tracked for the
             // phase-boundary purge.
             expect(target.grantedStaticAbilities).toEqual([
-                { ability: keyword, duration: { phase: "end-of-turn" } },
+                expect.objectContaining({
+                    ability: keyword,
+                    duration: { phase: "end-of-turn" },
+                }),
             ]);
         });
     }

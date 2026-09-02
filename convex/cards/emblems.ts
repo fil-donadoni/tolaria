@@ -24,6 +24,31 @@ export function registerEmblemDefinition(def: EmblemDefinition): void {
     EMBLEM_REGISTRY.set(def.id, def);
 }
 
+/** Registers `def` for the SYNCHRONOUS extent of `fn`, then restores whatever
+ *  was there before — the emblem twin of `withTemporaryDefinition`
+ *  (`cards/registry.ts`) and it exists for the same reason: the node test
+ *  projects run `isolate: false`, so a probe emblem left behind leaks into the
+ *  shared catalogue and reds the catalogue-wide art guard
+ *  (`__tests__/emblemArt.test.ts`) in whatever file happens to run next.
+ *
+ *  Never call from production code. */
+export function withTemporaryEmblemDefinition<T>(
+    def: EmblemDefinition,
+    fn: () => T
+): T {
+    const previous = EMBLEM_REGISTRY.get(def.id);
+    EMBLEM_REGISTRY.set(def.id, def);
+    try {
+        return fn();
+    } finally {
+        if (previous) {
+            EMBLEM_REGISTRY.set(def.id, previous);
+        } else {
+            EMBLEM_REGISTRY.delete(def.id);
+        }
+    }
+}
+
 /** Look up an emblem definition by key, or `undefined` if unregistered. */
 export function tryGetEmblemDefinition(
     id: string

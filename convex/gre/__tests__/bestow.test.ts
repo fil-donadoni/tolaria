@@ -291,17 +291,21 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         castBestowed(state, "host");
         resolveTopOfStack(state);
         checkStateBasedActions(state);
-        host.staticAbilities = [...host.staticAbilities, "flying"];
-        host.grantedStaticAbilities = [
-            { ability: "flying", auraId: "nantuko" },
-        ];
-
         // CR 702.16c — the host gains protection from the Aura's colour. It
         // does NOT leave the battlefield, so the only thing that can release
         // the grant is the CR 702.103f detach itself.
-        host.staticAbilities = [
+        //
+        // PRD #2064 S3 — protection is an intrinsic characteristic BELOW layer
+        // 6, so it belongs to the base; the Aura's flying is a layer-6 grant
+        // stamped on top of it, exactly as `applySourceStaticEffects` used to
+        // write it.
+        host.baseStaticAbilities = [
             ...host.staticAbilities,
             "protection from green",
+        ];
+        host.staticAbilities = [...host.baseStaticAbilities, "flying"];
+        host.grantedStaticAbilities = [
+            { ability: "flying", auraId: "nantuko" },
         ];
         checkStateBasedActions(state);
 
@@ -330,10 +334,14 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         host.controlChanges = [
             { auraId: "nantuko", previousControllerId: "p2" },
         ];
-        host.staticAbilities = [
+        // PRD #2064 S3 — protection is a characteristic BELOW layer 6, so the
+        // base is where it goes; `staticAbilities` is derived output and the
+        // next recompute would overwrite a bare assignment to it.
+        host.baseStaticAbilities = [
             ...host.staticAbilities,
             "protection from green",
         ];
+        host.staticAbilities = [...host.baseStaticAbilities];
         checkStateBasedActions(state);
 
         const returned = getPlayer(state, "p2").battlefield.find(
@@ -364,10 +372,14 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         bestowed.types = [...bestowed.types, "Artifact"];
         bestowed.grantedTypes = [{ type: "Artifact", auraId: "song" }];
 
-        host.staticAbilities = [
+        // PRD #2064 S3 — protection is a characteristic BELOW layer 6, so the
+        // base is where it goes; `staticAbilities` is derived output and the
+        // next recompute would overwrite a bare assignment to it.
+        host.baseStaticAbilities = [
             ...host.staticAbilities,
             "protection from green",
         ];
+        host.staticAbilities = [...host.baseStaticAbilities];
         checkStateBasedActions(state);
 
         const after = getPlayer(state, "p1").battlefield.find(

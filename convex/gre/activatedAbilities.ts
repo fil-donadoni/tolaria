@@ -1,5 +1,6 @@
 import type { ActivatedAbility } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { latestTimestamp, outrankedBy } from "./continuousEffects";
 import type { CardInstanceState } from "./state";
 
 /** One entry of a permanent's POST-LAYER activated-ability set: the ability
@@ -71,11 +72,15 @@ export function getEffectiveActivatedAbilities(
  *  `effectiveTriggeredAbilities` (`gre/copy.ts`) so activated and triggered
  *  abilities can never disagree about what a stripper removed. */
 export function abilityLossTimestamp(card: CardInstanceState): number | null {
-    const suppressors = card.abilitiesSuppressedBy;
-    if (!suppressors?.length) return null;
-    let latest = 0;
-    for (const s of suppressors) latest = Math.max(latest, s.seq ?? 0);
-    return latest;
+    // ONE reduction, through the S1 ordering authority (`latestTimestamp`) —
+    // PRD #2064 S3. `abilitiesSuppressedBy` is now `syncLayer6`'s DERIVED
+    // answer, composing BOTH ability-loss arms: the continuous one from a live
+    // source's static ability (Titania's Song, Blood Moon), which this function
+    // could never see for itself (it takes a card and no board to walk), and
+    // the resolving-ability ledger `abilityLossHolds`.
+    return latestTimestamp(
+        (card.abilitiesSuppressedBy ?? []).map((s) => s.seq)
+    );
 }
 
 /** CR 613.7 — layer 6 applies grants and removals in timestamp order, so a
@@ -91,6 +96,9 @@ export function grantOutrankedByAbilityLoss(
     grantSeq: number | undefined,
     strippedAt: number | null
 ): boolean {
-    if (strippedAt === null) return false;
-    return (grantSeq ?? 0) < strippedAt;
+    // The comparison itself lives in the registry's ordering authority
+    // (`gre/continuousEffects.ts`), not here: #1715 had to harden four sites
+    // that each wrote `(a ?? 0) < b` by hand, and PRD #2064 S3 leaves exactly
+    // one. This function survives as the NAME the read paths use.
+    return outrankedBy(grantSeq, strippedAt);
 }

@@ -15,6 +15,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
@@ -23,6 +24,7 @@ import { fear } from "../../cards/sets/lea/black";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
+import { buildSpellContext } from "../state";
 import type { GameState, PendingChoice } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
@@ -1053,6 +1055,77 @@ describe("specFromState (issue #2148)", () => {
         ]) {
             expect(playerResidue).toContain(field);
         }
+    });
+
+    it("reports a Continuous Effects Registry entry as unrepresentable (PRD #2064 S3)", () => {
+        // `ScenarioSpec` has no field for `state.continuousEffects`, and S3 is
+        // the registry's first producer — so a live position carrying one CAN
+        // be lowered, but not faithfully. The generic top-level residue scan is
+        // what says so; this pins that it keeps saying so rather than the entry
+        // going quietly missing from a saved scenario.
+        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 6,
+                timestamp: 1,
+                expiry: {
+                    kind: "counter",
+                    permanentId: "bear",
+                    counterType: "paralyzation",
+                },
+                affected: { kind: "instances", instanceIds: ["bear"] },
+                payload: {
+                    kind: "keyword-grant",
+                    keyword: "does-not-untap",
+                },
+                characteristicDefining: false,
+            },
+        ];
+
+        const { dropped } = specFromState(state, { mySeatId: "p1" });
+        expect(dropped.some((d) => d.includes("continuousEffects"))).toBe(true);
+    });
+
+    it("does NOT report a duration-scoped keyword strip as dangling residue (PRD #2064 S3)", () => {
+        // `removedKeywords` is derived output now, and a duration-scoped strip
+        // (Shelkin Brownie) is stamped with the `"indefinite"` sentinel because
+        // no source produced it. The dangling test asks "is this sourceId still
+        // on a battlefield?", which no sentinel can answer — without the skip
+        // every such strip reported as unrecoverable on every save.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, grizzlyBears.id, "p1")
+        );
+        ctx.removeStaticAbilities(
+            { type: "permanent", id: "bear" },
+            (kw) => kw === "flying",
+            { phase: "end-of-turn" }
+        );
+        expect(bear.removedKeywords).toEqual([
+            expect.objectContaining({ sourceId: "indefinite" }),
+        ]);
+
+        const { dropped } = specFromState(state, { mySeatId: "p1" });
+        expect(
+            dropped.some((d) => d.includes("removedKeywords stripped by"))
+        ).toBe(false);
     });
 
     it("reports removedKeywords/abilitiesSuppressedBy sourced from a permanent that has already left the battlefield (dangling sourceId), unlike a still-present source which is rebuild behaviour and stays silent", () => {

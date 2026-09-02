@@ -2526,6 +2526,12 @@ describe("Resurrection (return target Creature card from your graveyard to the b
                 makePlayer("p2"),
             ],
         });
+        // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
+        // and a source's continuous effects begin applying when the engine
+        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // path). A fixture that places the source directly has to run that step
+        // itself, exactly as an ETB would.
+        applySourceStaticEffects(state, king);
         pushSpell(state, resurrection.id, "p1", [
             { type: "graveyard-card", id: "dead-goblin", playerId: "p1" },
         ]);
