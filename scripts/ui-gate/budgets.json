@@ -692,6 +692,11 @@
             "status": "unwalked",
             "reason": "MEASURED AND WITHDRAWN, on purpose. The walk works (surfaces.ts resumes a match or deals a solo game), but the position it lands on is not fixed, and two consecutive runs of the SAME tree gave cardsOcc 4 then 5 at 844x390x3 — hand-fan overlap scales with the hand. A ceiling that flaps is worse than no ceiling: a lane people learn to re-run is a lane they route around (#2512). The board becomes budgetable through `game-stress` below, which loads a FIXED position; close that row first, then this one."
         },
+        "game-card-preview": {
+            "label": "Card Preview overlay — Engine view (anchored pin)",
+            "status": "unwalked",
+            "reason": "issue #2704's Engine View tree lives on the CARD PREVIEW, and the only board a preview budget can mean anything over is the fixed stress position — a dealt solo game lands somewhere nobody chose, which is why `game-board` above is withdrawn. So this row inherits `game-stress`'s blocker exactly: `ensureStressBoard` reaches the board and opens Debug > Scenarios, and the click on the seeded `UI stress — full board, full hand, deep piles` row times out (`click: Timeout 8000ms exceeded`) — measured on 2026-09-02 from an EMPTY lobby, with the scenario confirmed present on the deployment, so it is an actionability problem on the row and not the active-game or missing-seed condition `game-stress`'s own reason describes. GAME-STRESS CLOSES FIRST, then this one: the walk is written and committed (`surfaces.ts`), it right-presses the topmost hand card at coordinates (the gesture binds on the card's `[data-card-tilt-root]` ancestor, so `locator.click()` reads that ancestor as an intercepting element and times out), and it already refuses a pin that mounts without a filled `[data-engine-view-tree]` well — the issue #2704 wiring bug no offline suite can see. Re-record with `bun run check:ui -- --record --surface=game-card-preview` once the scenario row is clickable."
+        },
         "game-stress": {
             "label": "Game board — UI stress scenario",
             "status": "unwalked",

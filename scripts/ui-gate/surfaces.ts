@@ -640,6 +640,15 @@ function currentEventId(page: Page): string {
  * `lobby-loadout.tsx`) and exercised through the real lobby wiring in
  * `src/components/lobby/__tests__/lobby.test.tsx`. */
 const DECK_TILE_SELECTED = '[data-deck-tile][data-selected="true"]';
+/** A card in the seat's hand (`gre-hand-card.tsx`) — the card-preview walk's
+ *  subject. The hand is the one zone guaranteed non-empty on a freshly created
+ *  solo game, where the battlefield is empty by rule (CR 103). */
+const HAND_CARD = "[data-board-hand-card]";
+/** The anchored preview pin (`card-preview-anchored.tsx`). */
+const PREVIEW_ANCHORED = "[data-card-preview-anchored]";
+/** The Engine View well (`card-preview-engine-view.tsx`, issue #2728), which
+ *  issue #2704 fills with the tree. */
+const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
 const DECK_TILE_SELECT = "[data-deck-tile] [data-deck-select]:not([disabled])";
 const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
 const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
@@ -726,6 +735,53 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
             "reached /game but no board affordance rendered within 10s"
         );
     }
+}
+
+/** The board with the FIXED stress position loaded (`stress-scenario.json`).
+ *
+ *  Two surfaces need it and both need it for the same reason `game-board`
+ *  itself is declared unwalked in `budgets.json`: a dealt solo game lands on a
+ *  position nobody chose, and two runs of the same tree gave different card
+ *  counts. A ceiling over a position that flaps is worse than no ceiling. This
+ *  is the one board a budget row can mean something about. */
+async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
+    await ensureBoard(page, ctx);
+    if (!ctx.createdGame) {
+        throw new Unreachable(
+            "an active game the lane did not create is in progress; loading a scenario would clobber it. Finish or concede it, then re-run"
+        );
+    }
+    if (!(await clickIfVisible(page, "button:has-text('Debug')", 6000))) {
+        throw new Unreachable(
+            "no Debug panel toggle on the board — the signed-in account is probably not an admin"
+        );
+    }
+    if (!(await clickIfVisible(page, "button:has-text('Scenarios')", 6000))) {
+        throw new Unreachable("the Debug panel offered no Scenarios button");
+    }
+    const search = page
+        .locator("input[placeholder*='Search scenarios']")
+        .first();
+    if (
+        !(await visible(page, "input[placeholder*='Search scenarios']", 6000))
+    ) {
+        throw new Unreachable(
+            "the Scenarios list did not open (listDebugScenarios is admin-gated — is this account an admin?)"
+        );
+    }
+    await search.fill(ctx.stressScenarioLabel);
+    await page.waitForTimeout(600);
+    const row = page.locator(
+        `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`
+    );
+    if ((await row.count()) === 0) {
+        throw new Unreachable(
+            `debug scenario "${ctx.stressScenarioLabel}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
+        );
+    }
+    await row.first().click({ timeout: STEP_TIMEOUT });
+    await page.waitForTimeout(2500);
+    await settle(page);
 }
 
 export const SURFACES: readonly Surface[] = [
@@ -1223,60 +1279,102 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // Issue #2704 — the Card Preview overlay's Engine View tree. Its own
+        // surface rather than a step inside `game-board`, because it is a
+        // different SCREEN: an anchored panel with its own scroll port, its own
+        // dense chip cluster and its own tap targets, none of which exist on the
+        // board the `game-board` row measures. Folding it in would have averaged
+        // the two into one number nobody could attribute.
+        //
+        // Right-press, not long-press: the mobile overlay needs a real touch
+        // sequence, and `CardPreview`'s gesture code ignores the mouse for good
+        // once it has seen one (`sawTouchRef`) — a touch walk would therefore
+        // measure a different surface at the two touch viewports than at the
+        // three others. The anchored pin renders the SAME full slot (header +
+        // tree) at every viewport, which is what makes one budget row per
+        // viewport comparable.
+        id: "game-card-preview",
+        label: "Card Preview overlay — Engine view (anchored pin)",
+        async walk(page, ctx) {
+            // The FIXED stress position, not a dealt solo game — same reason
+            // `game-stress` uses it and `game-board` is withdrawn: a preview
+            // budget is only meaningful over a card the lane chose.
+            await ensureStressBoard(page, ctx);
+            // The LAST card in the fan, not the first: hand cards overlap to
+            // the right, so every card but the last has a sibling painted over
+            // its centre and Playwright's actionability check on it times out
+            // (measured — `click: Timeout 8000ms exceeded`). The last card is
+            // the one fully on top at every viewport, which is also what makes
+            // the measured subject the same one from run to run.
+            const card = page.locator(HAND_CARD).last();
+            if (!(await visible(page, HAND_CARD, STEP_TIMEOUT))) {
+                // Say WHICH of the two failures happened. "No hand card" is
+                // ambiguous between an empty hand and a hand that is mounted
+                // but not visible (collapsed rail, off-screen fan), and the two
+                // have opposite fixes.
+                const mounted = await page.locator(HAND_CARD).count();
+                throw new Unreachable(
+                    `no visible hand card to preview at ${page.url()} — ${mounted} \`${HAND_CARD}\` node(s) mounted. Zero means the seat's hand never dealt; nonzero means the hand is mounted but not visible at this viewport`
+                );
+            }
+            // Right-press at COORDINATES rather than `locator.click()`.
+            // `CardPreview` binds the gesture on the card's
+            // `[data-card-tilt-root]` ANCESTOR on purpose (a `preserve-3d`
+            // wrapper around an `overflow-hidden` box flattens the subtree, so
+            // a real right-click hit-tests to that ancestor and never reaches a
+            // handler on the card itself — see `card-preview.tsx`). Playwright's
+            // actionability check reads that same hit target as an intercepting
+            // element and times out, so the lane has to press where a user
+            // presses instead of asking the locator's permission.
+            const box = await card.boundingBox();
+            if (!box) {
+                throw new Unreachable(
+                    "the topmost hand card has no layout box — it is mounted but occupies no space, so there is nothing to right-press"
+                );
+            }
+            await page.mouse.click(
+                box.x + box.width / 2,
+                box.y + box.height / 2,
+                {
+                    button: "right",
+                }
+            );
+            if (!(await visible(page, PREVIEW_ANCHORED, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "right-pressing a hand card opened no anchored preview — the pin gesture is the only one that reaches the FULL Engine View slot at every viewport"
+                );
+            }
+            // A pin that opened without its tree is the #2704 wiring bug, and it
+            // is invisible to every offline suite: the panel is on screen, it is
+            // just missing the thing this surface exists to measure.
+            const tree = page.locator(ENGINE_VIEW_TREE).first();
+            if ((await tree.count()) === 0) {
+                throw new Unreachable(
+                    "the anchored preview mounted without an Engine View slot — issue #2728's `[data-engine-view-tree]` well is absent"
+                );
+            }
+            if ((await tree.locator("> *").count()) === 0) {
+                throw new Unreachable(
+                    "the Engine View well mounted EMPTY — `buildPreviewBody` is not deriving `engineTree`, or `CardPreviewFace` is not forwarding it (issue #2704)"
+                );
+            }
+            await settle(page);
+        },
+        // Dismiss the pin once it has been measured. The board's own outside-
+        // click handler would close it on the next surface's first click
+        // anyway, but "anyway" is how a later walk inherits an overlay it never
+        // accounted for — `game-stress` opens the Debug panel immediately after
+        // this row.
+        async cleanup(page) {
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(200);
+        },
+    },
+    {
         id: "game-stress",
         label: "Game board — UI stress scenario",
         async walk(page, ctx) {
-            await ensureBoard(page, ctx);
-            if (!ctx.createdGame) {
-                throw new Unreachable(
-                    "an active game the lane did not create is in progress; loading a scenario would clobber it. Finish or concede it, then re-run"
-                );
-            }
-            if (
-                !(await clickIfVisible(page, "button:has-text('Debug')", 6000))
-            ) {
-                throw new Unreachable(
-                    "no Debug panel toggle on the board — the signed-in account is probably not an admin"
-                );
-            }
-            if (
-                !(await clickIfVisible(
-                    page,
-                    "button:has-text('Scenarios')",
-                    6000
-                ))
-            ) {
-                throw new Unreachable(
-                    "the Debug panel offered no Scenarios button"
-                );
-            }
-            const search = page
-                .locator("input[placeholder*='Search scenarios']")
-                .first();
-            if (
-                !(await visible(
-                    page,
-                    "input[placeholder*='Search scenarios']",
-                    6000
-                ))
-            ) {
-                throw new Unreachable(
-                    "the Scenarios list did not open (listDebugScenarios is admin-gated — is this account an admin?)"
-                );
-            }
-            await search.fill(ctx.stressScenarioLabel);
-            await page.waitForTimeout(600);
-            const row = page.locator(
-                `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`
-            );
-            if ((await row.count()) === 0) {
-                throw new Unreachable(
-                    `debug scenario "${ctx.stressScenarioLabel}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
-                );
-            }
-            await row.first().click({ timeout: STEP_TIMEOUT });
-            await page.waitForTimeout(2500);
-            await settle(page);
+            await ensureStressBoard(page, ctx);
         },
     },
 ];
