@@ -17,17 +17,26 @@ import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
+    buildSpellContext,
     removePermanentTo,
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { deriveLayers2to5, syncLayers2to5 } from "../layers2to5";
+import {
+    clearLayers2to5Base,
+    deriveLayers2to5,
+    syncLayers2to5,
+} from "../layers2to5";
+import { checkStateBasedActions } from "../sba";
+import { applyIndefiniteSupertypeMutation, hasSupertypeLive } from "../snow";
+import { evilPresence } from "../../cards/sets/lea/black";
 import type { PermanentView } from "../../cards/types";
 import type { LayerStateView } from "../layers";
 import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import { finalizeCleanup } from "../phases";
 import { projectPublicState } from "../../gameProjections";
@@ -394,5 +403,163 @@ describe("CR 611.2b — the phase boundary re-derives layers 2-5 (PRD #2064 S4)"
         // the expired row carried as its restore anchor.
         expect(mtn.temporarySubtypeChange).toBeUndefined();
         expect(mtn.subtypes).toEqual(["Island"]);
+    });
+});
+
+describe("review findings — the shapes a materialise-to-derive migration loses (PRD #2064 S4)", () => {
+    it("B1 CR 613.7 — a timed subtype change that resolves LATER beats a live subtype-set aura", () => {
+        // `SpellContext.setSubtypesUntil` used to write `card.subtypes`
+        // directly, which put its answer last by accident. As a derivation
+        // input its ledger row needs a real minted stamp, or it sorts below
+        // every `staticSeq` and the OLDER aura wins the CR 613.7 race.
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(evilPresence.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        aura.attachedTo = "land";
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, aura);
+        expect(land.subtypes).toEqual(["Swamp"]);
+
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        buildSpellContext(state, item).setSubtypesUntil(
+            { type: "permanent", id: "land" },
+            ["Forest"],
+            { phase: "end-of-turn" }
+        );
+        expect(land.subtypes).toEqual(["Forest"]);
+        // …and it survives the next full recompute, which is where the missing
+        // stamp used to show: an SBA pass handed the land back to the aura.
+        checkStateBasedActions(state);
+        expect(land.subtypes).toEqual(["Forest"]);
+    });
+
+    it("B2 CR 205.4a — a later supertype toggle cancels the earlier opposite one", () => {
+        // `hasSupertypeLive` checks GRANTED before REMOVED, so a walk that
+        // accumulates both lists answers `true` forever: Arcum's Weathervane
+        // could make a land snow but never make it non-snow again.
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        syncLayers2to5(state);
+        applyIndefiniteSupertypeMutation(land, "Snow", true, 10);
+        syncLayers2to5(state);
+        expect(hasSupertypeLive(land, "Snow")).toBe(true);
+
+        applyIndefiniteSupertypeMutation(land, "Snow", false, 20);
+        syncLayers2to5(state);
+        expect(hasSupertypeLive(land, "Snow")).toBe(false);
+    });
+
+    it("B3 CR 400.7 — a pre-S4 snapshot's ledgerless effects are promoted, not deleted, by the first derivation", () => {
+        // `game_state` is a live per-game snapshot, so a deploy lands mid-game.
+        // Every derived-output field is overwritten at the first sync; without
+        // the promotion that overwrite is a DELETION.
+        const lotus = makeInstance(blackLotus.id, {
+            id: "lotus",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Exactly what the pre-S4 engine wrote for an Oko `+1`-style one-shot
+        // SET, a Magical Hack rewrite and an Arcum's Weathervane toggle.
+        lotus.types = ["Enchantment"];
+        lotus.grantedTypes = [{ type: "Enchantment", auraId: "indefinite" }];
+        lotus.suppressedTypes = [{ type: "Artifact", sourceId: "indefinite" }];
+        lotus.textChanges = [
+            { kind: "land-type", from: "Island", to: "Swamp" },
+        ];
+        lotus.grantedSupertypes = [
+            { supertype: "Snow", sourceId: "indefinite" },
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lotus] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        syncLayers2to5(state);
+
+        expect(lotus.types).toEqual(["Enchantment"]);
+        expect(lotus.textChanges).toEqual([
+            { kind: "land-type", from: "Island", to: "Swamp" },
+        ]);
+        expect(hasSupertypeLive(lotus, "Snow")).toBe(true);
+
+        // Idempotent: a second sync must not promote the derived output it just
+        // wrote into a SECOND ledger row (which would apply the effect twice,
+        // permanently).
+        syncLayers2to5(state);
+        expect(lotus.typeLineHolds).toHaveLength(1);
+        expect(lotus.textChangeHolds).toHaveLength(1);
+        expect(lotus.supertypeHolds).toHaveLength(1);
+        expect(lotus.types).toEqual(["Enchantment"]);
+    });
+
+    it("B4 CR 613.7 — the layer-4 subtype base excludes a subtype a live ADD put there (issue #1715)", () => {
+        // A base that contained the add would make it IMMORTAL: it would
+        // survive its own source leaving play, because the derivation replays
+        // the add from its own record on top of a base that already has it.
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        land.subtypes = ["Mountain", "Swamp"];
+        land.grantedSubtypesAdd = [
+            { subtype: "Swamp", auraId: "indefinite", seq: 5 },
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        syncLayers2to5(state);
+        expect(land.baseSubtypes).toEqual(["Mountain"]);
+    });
+
+    it("B5 — clearing the layer-4 base clears the field that outranks it", () => {
+        // `layer4SubtypeBase` falls back to `printedSubtypes` BEFORE `subtypes`,
+        // so a stale one left behind would silently undo the very rewrite
+        // `clearLayers2to5Base` exists to admit.
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        syncLayers2to5(state);
+        expect(land.printedSubtypes).toEqual(["Mountain"]);
+
+        // A CR 614.12c body choice rewriting the object's OWN subtype line.
+        land.subtypes = [...land.subtypes, "Shapeshifter"];
+        clearLayers2to5Base(land);
+        syncLayers2to5(state);
+        expect(land.subtypes).toEqual(["Mountain", "Shapeshifter"]);
     });
 });
