@@ -331,15 +331,18 @@ export type Move =
            *  instead of the printed mana cost, forwarded verbatim to
            *  `announceCast.alternativeCostId`. Absent = the ordinary cast.
            *
-           *  Today the enumerator emits it for exactly one cast mode, Bestow
-           *  (CR 702.103a, issue #2388) — and Bestow is why the field exists
-           *  at all: every other alternative cost this engine ships
-           *  (evoke/dash/Gush/Fireblast) changes only what the caster PAYS, so
-           *  a Bot that never picks one merely plays suboptimally, while a Bot
-           *  that never picks Bestow cannot reach a whole class of board state
-           *  (an Aura on a creature) no other move produces. Adding an
-           *  evoke/dash/alt-cost variant later is the same field and needs no
-           *  new plumbing — only its own enumeration and its own cost. */
+           *  Bestow (CR 702.103a, issue #2388) is why the field exists at all:
+           *  a plain alternative cost (evoke/Gush/Fireblast) changes only what
+           *  the caster PAYS, so a Bot that never picks one merely plays
+           *  suboptimally, while a Bot that never picks Bestow cannot reach a
+           *  whole class of board state (an Aura on a creature) no other move
+           *  produces. The enumerator emits it today for Bestow, Morph
+           *  (CR 702.37a, issue #2705) and Dash (CR 702.109a, issue #1964);
+           *  every one of those is a cast MODE, and what a mode implies about
+           *  the resulting stack item is stamped by the shared census both
+           *  search executors read (`gre/castMode.ts`, issue #2796) — adding a
+           *  further alt-cost variant needs its own enumeration and its own
+           *  cost here, plus a row there if it is a mode rather than a price. */
           alternativeCostId?: string;
           /** CR 601.2b / 118.8 — which leg of a CASTER-CHOSEN additional cost
            *  ("discard a card or pay 3 life", Bitter Triumph) this variant

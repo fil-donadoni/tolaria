@@ -109,7 +109,6 @@ import {
 // returns the snapshot-flagged one's characteristics (issue #2375).
 import { applySacrificeSelection } from "./sacrificeChoice";
 import { checkStateBasedActions } from "./sba";
-import { applyBestowCharacteristics } from "./bestow";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
     applyAllCombatDamage,
@@ -132,8 +131,9 @@ import {
     getManaSubstitutions,
 } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
-import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
-import { turnFaceDown, turnFaceUp } from "./faceDown";
+import { morphTurnUpPaymentPlan } from "./morph";
+import { applyCastModeCharacteristics } from "./castMode";
+import { turnFaceUp } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
 import { genericManaShortfall, markGraveyardPermanentCastUsed } from "./rules";
@@ -1428,62 +1428,22 @@ export function applyMoveForSearch(
                 ...graveyardCastStackFlags(next, spellCard, castFromZone),
                 ...reboundCastStackFlags(spellCard, castFromZone),
             };
-            // CR 702.103b (issue #2388) — a BESTOW variant of this move casts
-            // the card as an Aura enchantment, not as a creature. The sandbox
-            // resolves the item below (`resolveTopOfStack`), so without this
-            // the search would evaluate every bestow line as "a 1/1 body
-            // entered" and never see the attachment or the +1/+1 it grants —
-            // the two things that make the mode worth choosing. Compared by
-            // reference against the definition, the same discriminator
-            // `announceCast` uses.
-            if (
-                move.alternativeCostId !== undefined &&
-                move.alternativeCostId ===
-                    tryGetDefinition(
-                        (spellCard.card as { id?: string }).id ?? ""
-                    )?.bestow?.id
-            ) {
-                applyBestowCharacteristics(stackItem);
-            }
-            // CR 702.37c (issue #2705) — a MORPH variant of this move puts a
-            // FACE-DOWN 2/2 on the stack, not the printed card: "It becomes a
-            // 2/2 face-down creature card with no text, no name, no subtypes,
-            // and no mana cost … Put it onto the stack (as a face-down spell
-            // with the same characteristics) … When the spell resolves, it
-            // enters the battlefield with the same characteristics the spell
-            // had." The sandbox resolves the item immediately below, so
-            // without this the search would evaluate every morph line as
-            // though the real creature had entered — valuing a hidden 2/2 at
-            // the price of a 4/5 flier, and never seeing that the unmorph
-            // still has to be paid for.
-            if (
-                isMorphCastId(
-                    tryGetDefinition(
-                        (spellCard.card as { id?: string }).id ?? ""
-                    ) ?? undefined,
-                    move.alternativeCostId
-                )
-            ) {
-                turnFaceDown(stackItem, "morph");
-            }
-            // CR 702.109a (issue #1964) — a DASH variant of this move must
-            // stamp `dashed: true` on the resulting stack item (which rides
-            // onto the entering permanent for free, the `escaped`/`evoked`
-            // precedent) — otherwise `dashTrigger`'s `conditionOnSelf:
-            // self.dashed === true` (`convex/cards/abilities/dash.ts`) can
-            // never decide TRUE inside a search rollout, so the haste grant
-            // and delayed return would never fire even though `moves.ts` now
-            // enumerates the dash cast itself. Same reference-equality
-            // discriminator the Bestow check above uses.
-            if (
-                move.alternativeCostId !== undefined &&
-                move.alternativeCostId ===
-                    tryGetDefinition(
-                        (spellCard.card as { id?: string }).id ?? ""
-                    )?.dash?.id
-            ) {
-                stackItem.dashed = true;
-            }
+            // CR 601.2b (issues #2388 / #2705 / #1964 / #2796) — the
+            // characteristics of the CAST MODE the caster chose: Bestow's Aura
+            // rewrite (702.103b), Morph's face-down 2/2 (702.37c), Dash's
+            // marker (702.109a) and Evoke's (702.74b). The sandbox resolves the
+            // item below, so a mode left unstamped here is a mode the search
+            // cannot see at all — every bestow line evaluating as "a 1/1 body
+            // entered", a hidden 2/2 priced as the real card, a dashed or
+            // evoked creature modelled as one that stays.
+            //
+            // One shared census (`gre/castMode.ts`, issue #2796) rather than a
+            // per-mode `if` here and a DIFFERENT per-mode `if` in the ISMCTS
+            // executor: these two hand-written lists had already drifted (this
+            // one carried bestow and dash, the tree carried morph, neither
+            // carried evoke), which is exactly the divergence issue #2473 named
+            // when it called them two reimplementations of the same thing.
+            applyCastModeCharacteristics(stackItem, move.alternativeCostId);
             // CR 601.2i / 603.3 (issue #3026) — announce the cast through the
             // single choke point, which is what makes `spellsCastThisTurn`
             // (Storm, ADR 0052), the caster's own per-turn tally (issue #1343,

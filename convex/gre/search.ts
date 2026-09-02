@@ -91,8 +91,9 @@ import {
     mayBeSacrificedForMana,
 } from "./constants";
 import { getInstanceManaCost } from "../cards";
-import { isMorphCastId, morphTurnUpPaymentPlan } from "./morph";
-import { turnFaceDown, turnFaceUp } from "./faceDown";
+import { morphTurnUpPaymentPlan } from "./morph";
+import { applyCastModeCharacteristics } from "./castMode";
+import { turnFaceUp } from "./faceDown";
 import {
     applyActivationCostsForSearch,
     applyAdditionalCostLegForSearch,
@@ -1184,25 +1185,18 @@ export function applyMoveInSearch(
                 ...graveyardCastStackFlags(state, spellCard, castFromZone),
                 ...reboundCastStackFlags(spellCard, castFromZone),
             };
-            // CR 702.37c (issue #2705) — a MORPH cast puts a face-down 2/2 on
-            // the stack, not the printed card: "It becomes a 2/2 face-down
-            // creature card with no text, no name, no subtypes, and no mana
-            // cost … When the spell resolves, it enters the battlefield with
-            // the same characteristics the spell had." Without this the ISMCTS
-            // tree would resolve every morph line into the REAL creature — the
-            // bot would price a hidden 2/2 as a 4/5 flier and never notice that
-            // the unmorph still has to be paid for, which is the entire
-            // decision morph poses.
-            if (
-                isMorphCastId(
-                    tryGetDefinition(
-                        (spellCard.card as { id?: string }).id ?? ""
-                    ) ?? undefined,
-                    move.alternativeCostId
-                )
-            ) {
-                turnFaceDown(stackItem, "morph");
-            }
+            // CR 601.2b (issue #2796) — the characteristics of the CAST MODE
+            // the caster chose (Bestow's Aura rewrite, Morph's face-down 2/2,
+            // Dash's and Evoke's markers), through the single census both
+            // search executors share (`gre/castMode.ts`). This leaf used to
+            // keep its own partial copy: it stamped morph and nothing else, so
+            // a bestow line resolved into a plain 1/1 creature and was
+            // indistinguishable from the printed-cost cast at every depth and
+            // every budget — the root pick between them fell to rollout noise,
+            // which is how the bot came to bestow a +1/+1 Aura onto the
+            // OPPONENT's creature (issue #2796), and an evoked creature was
+            // modelled as one that stays.
+            applyCastModeCharacteristics(stackItem, move.alternativeCostId);
             state.stack.push(stackItem);
             // CR 117: the caster gets priority but auto-passes it (no Ctrl), so
             // the opponent gets to respond before the spell resolves.

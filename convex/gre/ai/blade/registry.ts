@@ -4242,6 +4242,95 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlan`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2796).
+        // PAIRED WITH: "cast mode: never bestows the Aura onto the OPPONENT's
+        // creature".
+        //
+        // Springheart Nantuko ({1}{G}, 1/1, "Bestow {1}{G}", "Enchanted
+        // creature gets +1/+1") in hand, two untapped Forests, and the ONLY
+        // creature on the board is the opponent's. So the bestow line can point
+        // at nothing but the opponent's Hill Giant — a strictly self-harming
+        // play that spends the card and the mana to hand the opponent a
+        // permanent +1/+1 and keeps no body — while the printed-cost cast puts
+        // a 1/1 on the bot's own board.
+        //
+        // Half 1 is the POSITIVE half, and it is what makes half 2 mean
+        // something: a bot that simply never cast the card would satisfy half
+        // 2's `forbidden` and fail here.
+        label: "cast mode: casts the creature for its printed cost rather than gifting the bestow",
+        spec: {
+            cards: [
+                { name: "Springheart Nantuko", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            // A predicate, not a `{ card }` matcher: BOTH cast variants act
+            // with the same card, so the only thing that separates the printed
+            // cast from the bestow one is that the bestow cast TARGETS (CR
+            // 702.103b — an Aura spell must). Matching on shape alone would
+            // accept the blunder.
+            predicate: (move) =>
+                move?.kind === "cast-spell" && move.targets.length === 0,
+            describe:
+                "casts Springheart Nantuko with NO target (the printed-cost creature cast), not the bestow variant",
+        },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "cast mode: never bestows the Aura onto the OPPONENT\'s creature". Red on the parent commit: `applyMoveInSearch` (the ISMCTS in-tree cast executor) stamped no bestow characteristics, so both variants resolved into the same board — a plain 1/1 entering — and the two lines tied at every depth and every budget, leaving the root pick to rollout noise (measured 4/6 in favour of the GIFT over 10 seeds at both 400 and 2000 iterations). With the shared cast-mode census in place the bestow line resolves as the Aura it is and `policyValue` separates them by 297 points (132.92 vs −163.88), and all ten seeds cast for the printed cost.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2796).
+        // PAIRED WITH: "cast mode: casts the creature for its printed cost
+        // rather than gifting the bestow". Same board plus one creature the BOT
+        // controls, so a bestow line now has two possible hosts and the choice
+        // between them is the whole decision. Bestowing onto the opponent's
+        // creature stays perfectly LEGAL (CR 702.103b — "enchant creature"
+        // names no controller, and there are real reasons to do it); what it
+        // must never be is the bot's PREFERENCE over the same Aura on its own
+        // creature, or over simply casting the 1/1.
+        label: "cast mode: never bestows the Aura onto the OPPONENT's creature",
+        spec: {
+            cards: [
+                { name: "Springheart Nantuko", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            // The two creatures carry DIFFERENT names precisely so a
+            // name-based matcher can tell whose creature the Aura landed on.
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Springheart Nantuko",
+                    target: "Hill Giant",
+                },
+            ],
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "cast mode: casts the creature for its printed cost rather than gifting the bestow" (ADR 0070 §1: a `forbidden` half a never-casting bot also satisfies asserts nothing alone). This is the reported blunder from issue #2796 verbatim. Red on the parent commit across the same seeds; the triage tally over 10 seeds was 3 printed cast / 2 bestow-onto-own / 5 bestow-onto-OPPONENT, identical at 400 and at 2000 iterations, which is the signature of a pick decided by noise rather than by search.',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
