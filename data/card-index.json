@@ -34550,6 +34550,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Tidehollow Sculler",
+        "scryfallId": "1abecc77-07f2-43e4-8585-0a8199cdcf01",
+        "oracleId": "51b55057-8b14-4277-894b-4813b4f7eb39",
+        "firstSet": "ala",
+        "firstPrintId": "1abecc77-07f2-43e4-8585-0a8199cdcf01",
+        "firstPrintSet": "ala"
+    },
+    {
         "name": "Tidehollow Strix",
         "scryfallId": "4aafc65d-faa8-4bfe-83ac-7714c969022b",
         "oracleId": "19a39cc5-2134-4dee-932c-81389806c57b",
