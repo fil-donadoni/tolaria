@@ -1,31 +1,41 @@
 import EngineViewBadgeChip from "./card-preview-engine-view-badge";
+import CardPreviewEngineTree from "./card-preview-engine-tree";
 import type { EngineViewBadge } from "~/lib/preview-body";
+import type { EngineViewTree } from "~/lib/engine-view-tree";
+import type { EngineViewReportContext } from "~/lib/engine-view-report";
 
-// The "Engine view" slot (ADR 0103 §9, issue #2728) — #2704's keyword /
-// target / effect / triggered / activated tree lands INSIDE `[data-engine-
-// view-tree]` below, read from the same real `CardDefinition` this badge
-// already reads. Until then the slot renders only the badge: what the
-// definition IS (a DSL-first Effect Script vs a hand-written `resolve()` /
-// mana-ability closure, ADR 0045) plus, for a script, a rough Op-count chip.
-// A definition with no resolution body at all renders the slot with NO chip
-// (`EngineViewBadgeChip`) — the well is still #2704's mount point, but there
-// is no script to claim.
+// The "Engine view" slot (ADR 0103 §9, issue #2728), now carrying issue
+// #2704's tree. Two things are rendered from the same real `CardDefinition`:
+//
+//  - the BADGE — what the definition IS (a DSL-first Effect Script vs a
+//    hand-written `resolve()` / mana-ability closure, ADR 0045) plus, for a
+//    script, a rough Op-count chip. A definition with no resolution body at
+//    all renders NO chip (`EngineViewBadgeChip`) — there is no script to claim.
+//  - the TREE (`[data-engine-view-tree]`) — HOW it read it: keyword / static /
+//    target / effect / triggered / activated nodes with parameter chips, a
+//    declarative-coverage bar, and a "Report a problem" draft.
 //
 // `compact` is the desktop lateral zoom (`CardPreviewDock`, ADR 0103 issue
 // body: "carries an Alt: engine view affordance") — no room there for the
 // header + tree well, so it renders just the badge and a discoverability
 // hint instead. The full slot (mobile long-press overlay, the anchored pin,
-// the editing surfaces' `InspectOverlay`) renders the eyebrow header and an
-// EMPTY `[data-engine-view-tree]` well beneath it — #2704 fills that well
-// without touching this header or the surrounding layout, which is the
-// whole point of "mounts without layout change".
+// the editing surfaces' `InspectOverlay`) renders the eyebrow header and the
+// tree beneath it.
 export default function CardPreviewEngineView({
     badge,
+    tree,
+    reportContext,
     compact = false,
 }: {
     /** `null`/`undefined` — no `CardDefinition` to read (an emblem/
      *  designation face, or an unresolved id) — renders nothing. */
     badge?: EngineViewBadge | null;
+    /** The tree for the same definition (`buildEngineViewTree`). Null exactly
+     *  when `badge` is; optional so the hand-built `PreviewBodyContent`
+     *  fixtures predating issue #2704 keep compiling, in which case the slot
+     *  degrades to its issue-#2728 form — header, badge, empty well. */
+    tree?: EngineViewTree | null;
+    reportContext?: EngineViewReportContext;
     compact?: boolean;
 }) {
     if (!badge) return null;
@@ -48,8 +58,14 @@ export default function CardPreviewEngineView({
                 <span className="text-label">Engine view</span>
                 <EngineViewBadgeChip badge={badge} />
             </div>
-            {/* #2704 mounts its keyword/target/effect tree here. */}
-            <div data-engine-view-tree />
+            <div data-engine-view-tree>
+                {tree && (
+                    <CardPreviewEngineTree
+                        tree={tree}
+                        reportContext={reportContext}
+                    />
+                )}
+            </div>
         </div>
     );
 }
