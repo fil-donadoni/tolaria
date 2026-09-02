@@ -13,6 +13,7 @@
 //     through the registry;
 //  4. that the answer survives the wire projection, which is where a
 //     server-only derivation silently diverges from the client.
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
@@ -144,49 +145,57 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
         expect(mtn.subtypes).toEqual(["Island"]);
     });
 
-    it("CR 613.7 orders BETWEEN layers, not by array position: a layer-2 entry stamped LATER than a layer-4 one still applies first", () => {
-        const bears = makeInstance(grizzlyBears.id, {
-            id: "bears",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [bears] }),
-            ],
-        });
-        syncLayers2to5(state);
-        state.continuousEffects = [
-            {
-                id: "ce-type",
-                layer: 4,
-                timestamp: 1,
-                expiry: { kind: "indefinite", controllerId: "p2" },
-                affected: { kind: "instances", instanceIds: ["bears"] },
-                payload: { kind: "type-change", add: ["Artifact"] },
-                characteristicDefining: false,
-            },
-            {
-                id: "ce-control",
-                layer: 2,
-                timestamp: 9_999,
-                expiry: { kind: "indefinite", controllerId: "p1" },
-                affected: { kind: "instances", instanceIds: ["bears"] },
-                payload: { kind: "control-change", controllerId: "p1" },
-                characteristicDefining: false,
-            },
-        ];
-        const derived = deriveLayers2to5(view(state), asView(bears));
-        expect(derived.controllerId).toBe("p1");
-        expect(derived.types).toContain("Artifact");
+    it("CR 613.7 orders BETWEEN layers, not by timestamp: a layer-2 entry stamped LATER than a layer-4 source still applies first", () => {
+        // The discriminating case for the LAYER key in the ordering. The
+        // control change has a strictly LATER timestamp than the type-adder's
+        // `staticSeq`, so a sort by timestamp alone would run layer 4 first —
+        // and layer 4's predicate would read the pre-change controller and
+        // decline. CR 613.7 puts every layer-2 effect before every layer-4 one
+        // regardless of stamp, which is the only order that answers correctly.
+        const adderId = "s4-layer-key-adder";
+        withTemporaryDefinition(controllerScopedTypeAdder(adderId), () => {
+            const bears = makeInstance(grizzlyBears.id, {
+                id: "bears",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const adder = makeInstance(adderId, {
+                id: "adder",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [adder] }),
+                    makePlayer("p2", { battlefield: [bears] }),
+                ],
+            });
+            applySourceStaticEffects(state, adder);
+            expect(adder.staticSeq).toBeLessThan(9_999);
 
-        // …and the sync actually MOVES it (CR 613.1b's output is placement).
-        syncLayers2to5(state);
-        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
-            "bears"
-        );
-        expect(bears.controllerId).toBe("p1");
+            state.continuousEffects = [
+                {
+                    id: "ce-control",
+                    layer: 2,
+                    timestamp: 9_999,
+                    expiry: { kind: "indefinite", controllerId: "p1" },
+                    affected: { kind: "instances", instanceIds: ["bears"] },
+                    payload: { kind: "control-change", controllerId: "p1" },
+                    characteristicDefining: false,
+                },
+            ];
+
+            const derived = deriveLayers2to5(view(state), asView(bears));
+            expect(derived.controllerId).toBe("p1");
+            expect(derived.types).toContain("Enchantment");
+
+            // …and the sync actually MOVES it (CR 613.1b's output is placement).
+            syncLayers2to5(state);
+            expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+                "bears"
+            );
+            expect(bears.controllerId).toBe("p1");
+        });
     });
 });
 
@@ -307,5 +316,23 @@ describe("wire format — the derived layer-4/5 answer survives projectPublicSta
         expect(slim.grantedColors).toEqual([
             { color: "B", sourceId: "indefinite" },
         ]);
+    });
+});
+
+describe("ADR 0082 — no CR 613 layer is derived outside the registry (PRD #2064 S4)", () => {
+    it("gre/state.ts reads no `StaticEffect` kind at all: the three materialising walks are gone", () => {
+        // The bound this slice completes. `applySourceStaticEffects`,
+        // `applyExistingGrantsTo` and `unapplySourceStaticEffects` each used to
+        // branch on `effect.kind` and write layer-2-to-6 records onto the
+        // affected permanent; every one of those branches is now a registry
+        // entry read by `gre/layers2to5.ts` or `gre/layer6.ts`. A new branch
+        // reappearing in `gre/state.ts` is a second channel for a layer that
+        // already has one, which is exactly the incoherence ADR 0082 exists to
+        // remove — so the invariant is a scan, not a paragraph.
+        const source = readFileSync(
+            new URL("../state.ts", import.meta.url),
+            "utf8"
+        );
+        expect(source).not.toMatch(/\beffect\.kind\s*===/);
     });
 });
