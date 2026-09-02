@@ -57,6 +57,7 @@ describe("land.ts — refusal matrix", () => {
         prState: "OPEN",
         prHeadRefName: "fix/issue-2517",
         skinReceiptInvalid: false,
+        scenarioRefusal: null,
     };
 
     it("allows a clean branch with a matching open PR", () => {
@@ -131,10 +132,50 @@ describe("land.ts — refusal matrix", () => {
         ).toMatch(/head branch/);
     });
 
+    // ADR 0044 — the preset-scenario refusal. Like `skinReceiptInvalid` this
+    // is a PRE-COMPUTED fact by the time it reaches `refusalReason`
+    // (`safeScenarioRefusal` classifies the PR body and the landing diff);
+    // this suite proves only the refusal-matrix side. The classification
+    // itself is proven in `scenario-block.test.ts` against real PR-body
+    // shapes.
+    it("refuses when the landing diff owes a preset scenario and the body has none", () => {
+        expect(
+            refusalReason({
+                ...clean,
+                scenarioRefusal: "no preset scenario …",
+            })
+        ).toBe("no preset scenario …");
+    });
+
+    it("does not refuse when the scenario check passed", () => {
+        expect(refusalReason({ ...clean, scenarioRefusal: null })).toBeNull();
+    });
+
+    it("checks the check:ui receipt BEFORE the scenario — both are body facts, and the receipt is the older contract", () => {
+        expect(
+            refusalReason({
+                ...clean,
+                skinReceiptInvalid: true,
+                scenarioRefusal: "no preset scenario …",
+            })
+        ).toMatch(/check:ui receipt failed verification/);
+    });
+
+    it("checks structural facts before either body fact — a dirty tree never needs them", () => {
+        expect(
+            refusalReason({
+                ...clean,
+                dirty: true,
+                scenarioRefusal: "no preset scenario …",
+            })
+        ).toMatch(/dirty/);
+    });
+
     // Proof-of-failure: commented out the `if (facts.skinReceiptInvalid)`
     // branch — "refuses a skin diff with an invalid receipt" went red
     // (refusalReason returned null instead of naming the receipt failure).
-    // Reverted.
+    // Reverted. Same for `if (facts.scenarioRefusal)` — "refuses when the
+    // landing diff owes a preset scenario and the body has none" went red.
 });
 
 describe("land.ts — the locked command", () => {
@@ -160,6 +201,34 @@ describe("land.ts — the locked command", () => {
         // what this test guards is unchanged: it is textually inside the ONE
         // string the heavy lock wraps.
         expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2517/);
+    });
+
+    it("seeds the preset scenario post-merge, in the PRIMARY checkout, non-gating (ADR 0044)", () => {
+        const cmd = buildLockedCommand(base);
+        // In the primary checkout: a linked worktree has no `.env.local`, so
+        // no `CONVEX_DEPLOYMENT` — a seed run from the worktree would find no
+        // deployment at all.
+        expect(cmd).toMatch(
+            /\(cd '\/repo' && bun '[^']*seed-scenario\.ts' 2517 \|\| true\)/
+        );
+        // AFTER the merge — there is nothing to register until the PR lands.
+        const mergeIdx = cmd.indexOf("pr-merge.ts");
+        const seedIdx = cmd.indexOf("seed-scenario.ts");
+        expect(seedIdx).toBeGreaterThan(mergeIdx);
+        // And past the green-sha write, like the rest of the housekeeping.
+        expect(seedIdx).toBeGreaterThan(
+            cmd.indexOf("git rev-parse origin/main >")
+        );
+    });
+
+    it("does not seed at all without a merge (--no-merge gates and pushes only)", () => {
+        const cmd = buildLockedCommand({ ...base, merge: false });
+        expect(cmd).not.toContain("seed-scenario.ts");
+    });
+
+    it("seeds even under --keep — teardown is about the worktree, not the scenario", () => {
+        const cmd = buildLockedCommand({ ...base, teardown: false });
+        expect(cmd).toContain("seed-scenario.ts");
     });
 
     it("never passes --delete-branch (review round 2, B2)", () => {

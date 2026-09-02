@@ -88,3 +88,62 @@ bug, not introduced here.)
 - This is a **feature in its own right** (table + generator action + validation +
   UI), implemented under its own PRD, independent of the ADR 0043 set
   decomposition.
+
+## Amendment: the registration step had no owner, and now it is a script (2026-09-02)
+
+This ADR settled WHERE a scenario lives (the DB, deployment-local) and CLAUDE.md
+§ Development cycle step 7 settled WHO writes it: a headless agent emits
+`{ label, spec }` in the PR body, and **"the orchestrator registers it
+post-merge"**. ADR 0110 then retired the orchestrator — `/process-gh-issues`'s
+fan-out became `/next-issue`, one session per issue — and the replacement skill
+never inherited the registration step. Nothing else picked it up: `land`,
+`pr-merge` and `check-lane` did not mention scenarios at all, so no gate ever
+went red on a missing one and no code path ever performed the insert.
+
+**Measured before fixing it** (last 200 merged PRs, against a `debugScenarios`
+table holding 14 rows whose newest cited issue #2398):
+
+|                                                      | count |
+| ---------------------------------------------------- | ----- |
+| carried a spec that was never registered anywhere    | 33    |
+| carried a spec that **could not load**               | 12    |
+| explicitly said none was owed                        | 26    |
+| shipped a gameplay diff with no block and no decline | 39    |
+
+The 12 unloadable ones are the sharper half. `normalizeScenarioSpec` is
+deliberately fail-open — its own doc says it never throws and degrades a
+malformed spec to an empty board — which is right for loading a row somebody
+already saved and catastrophic as the only check before saving one. So the
+corpus accumulated specs that would have loaded silently WRONG had anyone
+loaded them: eight invented a shape the type does not have (`players: [{ seat,
+battlefield }]`, a `combat:` block) and would have produced an empty board, and
+four used `owner: "p1"` / `"opponent"`, which `normalizeCard` maps to `"me"` —
+both players' cards piled onto one side.
+
+**Decision.** The requirement moves out of prose and into the toolchain, per
+CLAUDE.md § Skills ("a rule that CAN be enforced mechanically belongs in a
+script the gate runs"):
+
+- **`scripts/lib/scenario-block.ts`** is the ONE parser. It is tolerant about
+  syntax (half the corpus fences a JS object literal, not JSON) and strict
+  about anything that would load wrong — an unrecognised `owner` or `zone`, a
+  spec that normalizes to fewer cards than it declared, an empty board.
+- **`land` refuses pre-merge** when the landing diff touches
+  `convex/cards/sets/**` or `convex/gre/**` and the body carries no block and
+  no decline, and refuses ANY malformed block regardless of the diff. It sits
+  beside the `check:ui` receipt refusal, which has exactly the same shape: a
+  fact read out of the PR body that no other gate can see.
+- **`land` seeds post-merge**, non-gating, in the primary checkout (a linked
+  worktree has no `.env.local`, so no `CONVEX_DEPLOYMENT`). A missing local
+  deployment must never turn a landed PR into a reported failure.
+- **`bun run seed:backlog`** recovered the history: 33 registered, 0 rejected
+  by the deployment. It stays as the re-runnable sweep (`seedScenarioDirect`
+  upserts by label).
+
+**Known imprecision, accepted.** `owesScenario` is path-based, so a
+comment-only or rename-only change under `convex/gre/**` is asked for a
+scenario it does not owe. The escape is one sentence in the section, which 26
+PRs already write unprompted, and a narrow predicate that never fires would
+have been worse than one that occasionally asks. The 39 silent PRs are reported
+by `seed:backlog` and never acted on — a merged PR cannot be sent back for a
+scenario.

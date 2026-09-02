@@ -3,7 +3,7 @@
 // A receipt is what a subagent hands back to the orchestrator: the outcome, the
 // PR, the paths the diff actually touched, one proof-of-failure line per
 // behaviour-guarding test, and — for a card or a user-visible mechanic — the
-// debug-scenario spec the orchestrator registers post-merge.
+// debug-scenario spec `land` seeds post-merge (`bun run seed:scenario`).
 //
 // Until now that existed only as prose in the orchestrator's context window,
 // which has three consequences the loop pays for repeatedly:
@@ -65,7 +65,10 @@ export interface ProofOfFailure {
     failed: string;
 }
 
-/** A debug-scenario spec the orchestrator registers post-merge (issue #1455). */
+/** A debug-scenario spec (issue #1455). Seeded post-merge by `land` from the
+ *  PR BODY, not from this receipt — `scripts/lib/scenario-block.ts` is the one
+ *  parser. This field predates that wiring and stays for the receipt schema's
+ *  own consumers. */
 export interface ScenarioSpec {
     label: string;
     /** `debugSetupScenario`'s args minus `gameId`. */

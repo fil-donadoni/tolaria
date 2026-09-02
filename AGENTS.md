@@ -251,13 +251,11 @@ prose is the fallback for judgment, not the home of invariants.
    revert, say what you broke — § Proof-of-failure).
 6. **Validate** — full gate once before done: `bun run check:all` +
    `bun run test`, both zero-error
-7. **Preset scenario** — for any new card/gameplay feature (ADR 0044; DB is
-   the single source of truth, #770/#1455). Headless agents do NOT insert it:
-   emit one `{ label, spec }` in the PR receipt; the orchestrator registers
-   it post-merge via `npx convex run debugScenarios:seedScenarioDirect`
-   (upserts by label; row is deployment-local by design). Interactive work:
-   Debug panel → Scenarios → "Save scenario" (`saveDebugScenario`). Skip only
-   for pure refactors.
+7. **Preset scenario** — for any new card/gameplay feature (ADR 0044, DB is
+   the source of truth #770/#1455): a ```json `{ "label", "spec": { "cards" } }`fence under a`## Preset scenario` heading. **`land`refuses without one** on
+a`convex/{cards/sets,gre}/\*\*`diff and seeds it post-merge; a refactor owes
+nothing — say so there.`owner`is`"me"`/`"opp"`, never anything else (it
+silently loads as `"me"`). Sweep: `bun run seed:backlog`.
 8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
    freeze, no silent ignore. Three seams per
    `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
