@@ -127,7 +127,7 @@ export function applyPlayLand(
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
-/** CR 400.7 / 601.3e (issue #1156) — moves a single card from `from`'s zone on
+/** CR 400.7 / 305.1-analog (issue #1156) — moves a single card from `from`'s zone on
  *  ONE player to `to`'s zone on a DIFFERENT player (`moveCard`'s cross-player
  *  counterpart — that primitive only moves within a single player's own
  *  zones). Used exactly once: a cross-player exile grant (Dauthi Voidwalker,
@@ -166,7 +166,7 @@ function moveCardAcrossPlayers(
     return card;
 }
 
-/** CR 305 / 601.3e — play a LAND from exile under a play-from-exile permission
+/** CR 305.1-analog — play a LAND from exile under a play-from-exile permission
  *  (Headliner Scarlett / Expressive Iteration exiling a land, "you may play that
  *  card this turn"). Moves `cardInstanceId` from the player's exile to the
  *  battlefield and runs the identical land-entry settlement as {@link
@@ -186,7 +186,7 @@ export function applyPlayLandFromExile(
     player: PlayerState,
     cardInstanceId: string
 ): CardInstanceState | null {
-    // CR 601.3e / 400.7 (issue #1156) — the card may sit in a DIFFERENT
+    // CR 305.1-analog / 400.7 (issue #1156) — the card may sit in a DIFFERENT
     // player's exile than the one playing it (a cross-player grant — Dauthi
     // Voidwalker's opponent-owned void-countered land, Robber of the Rich's
     // opponent-library land). `moveCard` only moves within a single player's
@@ -256,7 +256,7 @@ function isHiddenInExile(card: CardInstanceState): boolean {
     return (card.knownTo?.length ?? 0) > 0;
 }
 
-/** CR 601.3e — the play-from-exile permission is consumed the moment the card
+/** CR 305.1-analog — the play-from-exile permission is consumed the moment the card
  *  leaves exile for the battlefield; drop the now-stale grant flags. Shared by
  *  the immediate exile play (`applyPlayLandFromExile`) and the DELAYED one
  *  that resumes out of a CR 614.12 pay-choice (`finalizeLandEntry`), so the
@@ -629,7 +629,7 @@ export function enqueueLandEntryChoice(
 
 /** The land a suspended `land-entry-tapped` choice is waiting on, together
  *  with the player whose zone currently holds it. `owner` differs from the
- *  acting player only for the cross-player exile grant (CR 400.7 / 601.3e,
+ *  acting player only for the cross-player exile grant (CR 400.7 / 305.1-analog,
  *  issue #1156 — Dauthi Voidwalker letting a card leave an OPPONENT's exile
  *  straight onto the caster's battlefield). */
 type SuspendedLandSource = {
@@ -679,7 +679,7 @@ function locateSuspendedLandSource(
                 : undefined;
         }
         case "exile": {
-            // CR 400.7 / 601.3e (issue #1156) — exile is the one origin whose
+            // CR 400.7 / 305.1-analog (issue #1156) — exile is the one origin whose
             // owner may not be the acting player, so resolve it by search
             // rather than assuming `player`, exactly as
             // `applyPlayLandFromExile` does on its immediate path.
@@ -760,7 +760,7 @@ export function finalizeLandEntry(
                       "exile",
                       "battlefield"
                   );
-        // CR 601.3e — the delayed exile play consumes its permission on
+        // CR 305.1-analog — the delayed exile play consumes its permission on
         // arrival, exactly like the immediate one; without this the grant
         // survives on the now-on-battlefield card (issue #1980).
         if (playSource.zone === "exile") consumeExilePlayGrant(card);

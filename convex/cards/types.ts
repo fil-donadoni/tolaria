@@ -4751,7 +4751,7 @@ export interface SpellContext {
      *  turn 1 would otherwise never be consumed and must not survive to a
      *  later turn). */
     skipDrawStepThisTurn: (playerId: string) => void;
-    /** CR 601.3e — grants `playerId` a per-player casting-timing permission:
+    /** CR 601.3b — grants `playerId` a per-player casting-timing permission:
      *  they may cast spells whose printed types intersect `cardTypes` as though
      *  they had flash (Teferi, Time Raveler's +1: "Until your next turn, you
      *  may cast sorcery spells as though they had flash"). Adds an entry to
@@ -11846,7 +11846,7 @@ export type EffectOp =
      *  one-shot flag from a DIFFERENT step's effect, with no choice left
      *  once armed. */
     | { op: "skipDrawStepThisTurn"; player: EffectPlayerRef }
-    /** CR 601.3e (Teferi, Time Raveler +1: "Until your next turn, you may cast
+    /** CR 601.3b (Teferi, Time Raveler +1: "Until your next turn, you may cast
      *  sorcery spells as though they had flash") — grant `player` a per-player
      *  casting-timing PERMISSION: they may cast spells whose printed types
      *  intersect `cardTypes` at instant speed (as though they had flash). A
@@ -16061,8 +16061,9 @@ export interface CardDefinition {
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
     extraLandDrops?: number;
-    /** Unconditional, player-wide permission (CR 305.1 special action /
-     *  601.3e-analog) to play lands from the controller's own graveyard, as
+    /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
+     *  special action with 305.1's "from their hand" zone lifted; a land is
+     *  played, never cast, CR 305.9) to play lands from the controller's own graveyard, as
      *  though they were in hand, while ANY permanent with this flag is on the
      *  battlefield (Icetill Explorer, issue #1190). Read live from the
      *  battlefield (like `extraLandDrops`) via `canPlayLandsFromGraveyard`, so
@@ -16071,8 +16072,9 @@ export interface CardDefinition {
      *  permission granted to a specific card (Serra Paragon, issue #1149),
      *  which is a per-instance `CardInstanceState` grant, not player-wide. */
     playsLandsFromGraveyard?: boolean;
-    /** Unconditional, player-wide permission (CR 305.1 special action /
-     *  601.3e-analog) to play lands from the TOP of the controller's own
+    /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
+     *  special action with 305.1's "from their hand" zone lifted; a land is
+     *  played, never cast, CR 305.9) to play lands from the TOP of the controller's own
      *  library — and only the top card (index 0) — as though they were in
      *  hand, while ANY permanent with this flag is on the battlefield
      *  (Courser of Kruphix, Oracle of Mul Daya, Augur of Autumn). The sibling

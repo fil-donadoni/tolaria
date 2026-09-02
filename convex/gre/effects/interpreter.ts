@@ -2133,7 +2133,7 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.skipDrawStepThisTurn(playerId);
     },
-    // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player casting-timing
+    // CR 601.3b (Teferi, Time Raveler +1) — grant a per-player casting-timing
     // permission: `player` may cast spells whose printed types intersect
     // `cardTypes` (omitted = every spell) as though they had flash, until their
     // next turn. Skipped when the player is gone (CR 608.2b).

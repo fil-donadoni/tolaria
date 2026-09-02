@@ -4608,7 +4608,7 @@ export type GameState = {
      *  turns overlaps the two windows, and a single slot would clobber the
      *  first grant. */
     playerProtectionFromEverything?: string[];
-    /** CR 601.3e (Teferi, Time Raveler +1) — per-player "you may cast spells of
+    /** CR 601.3b (Teferi, Time Raveler +1) — per-player "you may cast spells of
      *  these types as though they had flash" grants. Each entry lets `playerId`
      *  cast a spell whose printed types intersect `cardTypes` (omitted/empty =
      *  every spell) at instant speed. Honored by the shared cast gate
@@ -17108,7 +17108,7 @@ export function buildSpellContext(
         },
 
         grantCastTiming(playerId: string, cardTypes?: CardType[]): void {
-            // CR 601.3e — "you may cast <spells> as though they had flash".
+            // CR 601.3b — "you may cast <spells> as though they had flash".
             // Append a grant; a repeated grant this turn (two Teferis) simply
             // stacks — the reader matches on the first covering entry. Cleared
             // at the grantee's next turn start in `advanceTurn`.

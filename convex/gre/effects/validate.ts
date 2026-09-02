@@ -3073,7 +3073,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // "skip your draw step this turn" flag. `player` names whose draw step
     // to skip.
     skipDrawStepThisTurn: { required: { player: isPlayerRef } },
-    // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player "cast as though
+    // CR 601.3b (Teferi, Time Raveler +1) — grant a per-player "cast as though
     // it had flash" timing permission. `player` names the grantee; `cardTypes`
     // (optional) narrows the grant to those card types (Teferi: ["Sorcery"]);
     // omitted grants flash for every spell.

@@ -97,7 +97,7 @@ export interface CastRestrictionStateView {
         playerId: string;
         cardTypes?: readonly CardType[];
     }>;
-    /** CR 601.3e (Teferi, Time Raveler +1) — per-player "cast spells of these
+    /** CR 601.3b (Teferi, Time Raveler +1) — per-player "cast spells of these
      *  types as though they had flash" grants. Read by `hasCastTimingFlashGrant`
      *  to widen a sorcery-speed card's timing window. Survives the wire
      *  projection (`projectPublicState` spreads it), so the client's cast gate
@@ -144,7 +144,7 @@ export function isCastTimingSorcerySpeedLocked(
     return false;
 }
 
-/** CR 601.3e — `true` when `casterId` holds a `castTimingFlashGrant` (Teferi's
+/** CR 601.3b — `true` when `casterId` holds a `castTimingFlashGrant` (Teferi's
  *  +1) covering `spell`: an entry for that player whose `cardTypes` intersect
  *  the spell's printed types (or an entry with no `cardTypes`, covering every
  *  spell). Lets the caller treat an otherwise sorcery-speed spell as if it had

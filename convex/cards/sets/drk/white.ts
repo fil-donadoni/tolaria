@@ -255,7 +255,8 @@ export const preacher: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             // Target an opponent (CR 115.4 player target); that opponent picks
-            // the creature at resolution (CR 601.3e "of an opponent's choice").
+            // the creature at resolution (CR 608.2d "of an opponent's choice"
+            // — a choice the effect offers, announced while it is applied).
             targetRequirement: {
                 type: "player",
                 controller: "opponent",

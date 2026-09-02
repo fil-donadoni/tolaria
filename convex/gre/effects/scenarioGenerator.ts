@@ -550,7 +550,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analysePlayer(op.player, req, false);
             return;
         case "grantCastTiming":
-            // CR 601.3e (Teferi +1) — a per-player "cast as though flash" grant;
+            // CR 601.3b (Teferi +1) — a per-player "cast as though flash" grant;
             // the deterministic outcome is the player id landing in
             // state.castTimingFlashGrants (asserted below).
             analysePlayer(op.player, req, false);
@@ -1724,7 +1724,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    // `grantCastTiming` (CR 601.3e, Teferi +1) — a deterministic same-resolution
+    // `grantCastTiming` (CR 601.3b, Teferi +1) — a deterministic same-resolution
     // state change: the named player's id lands in state.castTimingFlashGrants
     // (the per-player "cast as though flash" grant the shared cast gate reads).
     grantCastTiming(rawOp, _scenario, pre) {

@@ -5636,7 +5636,7 @@ export const playCard = mutation({
         const player = getPlayer(state, args.playerId);
 
         // Validate: card must be a legal "play" source. The normal source is a
-        // hand card; CR 601.3e — a LAND in exile carrying a play-from-exile
+        // hand card; CR 305.1-analog — a LAND in exile carrying a play-from-exile
         // permission (Headliner Scarlett / Expressive Iteration exiling a land,
         // "you may play that card this turn") is also a legal play source; a
         // LAND in the graveyard is a legal play source while the controller

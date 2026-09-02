@@ -323,11 +323,11 @@ describe.each([
     });
 });
 
-// CR 601.3e / 400.7 — the exile origin carries two concerns the graveyard one
+// CR 305.1-analog / 400.7 — the exile origin carries two concerns the graveyard one
 // does not: a per-card play permission that must be consumed when the card
 // leaves exile, and an exile zone that may belong to a DIFFERENT player
 // (issue #1156). Both have to survive the detour through the pay-choice.
-describe("shock land entry: exile origin specifics (CR 601.3e, #1980)", () => {
+describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", () => {
     it("consumes the exile play grant when the DELAYED entry settles, not at the suspend", () => {
         const shock = makeInstance(steamVents.id, {
             id: "shock",
