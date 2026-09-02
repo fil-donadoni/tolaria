@@ -2493,6 +2493,152 @@ describe("checkPlayerTargetFilters — shared offered/accepted gate (ADR 0068, i
             ).toBe("Target player did not attack this turn");
         });
     });
+
+    // CR 601.2c (issue #2707) — the COMPARATIVE predicate. Every case here
+    // builds a ctx whose `state.players` holds BOTH seats, because the check
+    // reads the baseline seat's battlefield off the state, not off the
+    // candidate.
+    describe("playerControlsMoreThan (CR 601.2c, Oath of Druids)", () => {
+        const seat = (id: string, creatures: number, lands = 0) =>
+            makePlayer({
+                id,
+                battlefield: [
+                    ...Array.from({ length: creatures }, (_, i) =>
+                        makeCard({ id: `${id}-c${i}`, card: CREATURE })
+                    ),
+                    ...Array.from({ length: lands }, (_, i) =>
+                        makeCard({
+                            id: `${id}-l${i}`,
+                            card: { id: "test-land", name: "L" },
+                            types: ["Land"],
+                        })
+                    ),
+                ],
+            });
+
+        const ctxWith = (
+            players: ReturnType<typeof seat>[],
+            overrides: Partial<TargetFilterCtx> = {}
+        ): TargetFilterCtx => ({
+            ...baseCtx,
+            state: makeGameState({ players }),
+            ...overrides,
+        });
+
+        it("than: 'active' accepts a player with MORE creatures than the active player", () => {
+            const p1 = seat("p1", 1);
+            const p2 = seat("p2", 3);
+            expect(
+                checkPlayerTargetFilters(ctxWith([p1, p2]), p2, {
+                    playerControlsMoreThan: {
+                        type: "Creature",
+                        than: "active",
+                    },
+                })
+            ).toBeNull();
+        });
+
+        it("rejects on a TIE — the comparison is strict (CR 601.2c 'more than')", () => {
+            const p1 = seat("p1", 2);
+            const p2 = seat("p2", 2);
+            expect(
+                checkPlayerTargetFilters(ctxWith([p1, p2]), p2, {
+                    playerControlsMoreThan: {
+                        type: "Creature",
+                        than: "active",
+                    },
+                })
+            ).toBe(
+                "Target player does not control more creatures than the active player"
+            );
+        });
+
+        it("the BASELINE seat can never satisfy its own comparison — that is the 'and is their opponent' half, for free", () => {
+            // p1 is the active player AND holds the bigger board. Even so it
+            // must fail: no player controls more creatures than themselves.
+            const p1 = seat("p1", 5);
+            const p2 = seat("p2", 0);
+            expect(
+                checkPlayerTargetFilters(ctxWith([p1, p2]), p1, {
+                    playerControlsMoreThan: {
+                        type: "Creature",
+                        than: "active",
+                    },
+                })
+            ).not.toBeNull();
+        });
+
+        it("than: 'you' compares against the CHOOSER, not the active player", () => {
+            // The two seats disagree: p2 is active and empty, p1 chooses and
+            // holds one creature. A candidate with 2 creatures beats the
+            // CHOOSER (than: "you") but the same fixture read against the
+            // ACTIVE player would be a different question — this is the
+            // fixture that can tell the two baselines apart.
+            const p1 = seat("p1", 1);
+            const p2 = seat("p2", 0);
+            const p3 = seat("p3", 2);
+            const ctx = ctxWith([p1, p2, p3], {
+                chooserId: "p1",
+                activePlayerId: "p2",
+            });
+            expect(
+                checkPlayerTargetFilters(ctx, p3, {
+                    playerControlsMoreThan: { type: "Creature", than: "you" },
+                })
+            ).toBeNull();
+            // p1 itself has more creatures than the ACTIVE player (p2, zero)
+            // but not more than the chooser (itself) — the two baselines pick
+            // different sets.
+            expect(
+                checkPlayerTargetFilters(ctx, p1, {
+                    playerControlsMoreThan: {
+                        type: "Creature",
+                        than: "active",
+                    },
+                })
+            ).toBeNull();
+            expect(
+                checkPlayerTargetFilters(ctx, p1, {
+                    playerControlsMoreThan: { type: "Creature", than: "you" },
+                })
+            ).not.toBeNull();
+        });
+
+        it("counts by `type` — a land board does not satisfy a Creature comparison (Oath of Lieges vs Oath of Druids)", () => {
+            const p1 = seat("p1", 0);
+            const p2 = seat("p2", 0, 3);
+            const ctx = ctxWith([p1, p2]);
+            expect(
+                checkPlayerTargetFilters(ctx, p2, {
+                    playerControlsMoreThan: {
+                        type: "Creature",
+                        than: "active",
+                    },
+                })
+            ).not.toBeNull();
+            expect(
+                checkPlayerTargetFilters(ctx, p2, {
+                    playerControlsMoreThan: { type: "Land", than: "active" },
+                })
+            ).toBeNull();
+        });
+
+        it("fails CLOSED when the baseline seat cannot be resolved", () => {
+            const p2 = seat("p2", 3);
+            // `than: "you"` with no chooser threaded in: excluded, not
+            // admitted — an omission narrows the offered set rather than
+            // widening the accepted one.
+            const ctx: TargetFilterCtx = {
+                ...ctxWith([p2]),
+                chooserId: undefined,
+            };
+            expect(
+                checkPlayerTargetFilters(ctx, p2, {
+                    playerControlsMoreThan: { type: "Creature", than: "you" },
+                })
+            ).toBe("Cannot compare permanent counts: baseline player unknown");
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -307,7 +307,27 @@ export type BladeSetupStep =
           count?: number;
           of?: BladeSeat;
           knower?: BladeSeat;
-      };
+      }
+    /** CR 603.6a (issue #2707) — fire the "at the beginning of [step]"
+     *  triggers of the phase the position is in, through the engine's OWN
+     *  collection + placement chokepoint (`collectTriggers` +
+     *  `placeTriggersOnStack`, CR 603.2 / 603.3b), leaving them on the stack
+     *  UNRESOLVED. The phase-trigger twin of `etb-trigger`, and it opens a
+     *  whole class of positions the suite could not reach before: a
+     *  `ScenarioSpec` names a phase but only describes a BOARD, and no step
+     *  advanced the turn, so no upkeep / draw / end-step trigger — Oath of
+     *  Druids, Howling Mine, Braids — could be the decision under test.
+     *
+     *  `phase` (optional) sets the phase first, so a spec built at
+     *  `PRECOMBAT_MAIN` can still ask an upkeep question; omitted, the
+     *  position's own phase is used. Pair it with `resolve-top` to reach the
+     *  decision the trigger's RESOLUTION opens (Oath's "may reveal"), exactly
+     *  as `activate` + `resolve-top` reaches a fetchland's search choice.
+     *
+     *  Throws when the scan puts nothing on the stack — a position that
+     *  silently fired no trigger must not pass for one that fired the trigger
+     *  under test. */
+    | { kind: "phase-trigger"; phase?: string };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).

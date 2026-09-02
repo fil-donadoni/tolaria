@@ -4339,6 +4339,92 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "cast mode: casts the creature for its printed cost rather than gifting the bestow" (ADR 0070 §1: a `forbidden` half a never-casting bot also satisfies asserts nothing alone). This is the reported blunder from issue #2796 verbatim. Red on the parent commit across the same seeds; the triage tally over 10 seeds was 3 printed cast / 2 bestow-onto-own / 5 bestow-onto-OPPONENT, identical at 400 and at 2000 iterations, which is the signature of a pick decided by noise rather than by search.',
     },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2707).
+        // Oath of Druids' "may" is a real decision, and the two halves of this
+        // pair differ in ONE thing only: what the bot's own library holds. The
+        // Op valuer cannot see a library, so if the bot got this right by
+        // valuing the announcement it would answer both halves the same way —
+        // which is exactly what makes the pair discriminating.
+        //
+        // HALF 1: an all-creature library. Accepting reveals exactly one card,
+        // puts a free body onto a board where the opponent controls the only
+        // creatures (which is also what makes Oath's target legal at all,
+        // CR 601.2c) and mills NOTHING; declining gets nothing. Twenty copies
+        // rather than one deep fatty on purpose: the observer's own library
+        // ORDER is hidden and re-shuffled per determinization
+        // (`determinize.ts`), so a single seeded card at a known depth is a
+        // position the search cannot actually see — a creature-dense library
+        // makes the reveal depth the same on every determinization.
+        label: "oath: takes the free body when its library is creature-dense",
+        spec: {
+            cards: [
+                { name: "Oath of Druids", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+            ],
+            phase: "UPKEEP",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: { moves: [{ kind: "may-pay", accept: true }] },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "oath: declines the dig when its library holds no creature". Also the FIRST blade position whose decision is a phase trigger: it needs the `phase-trigger` setup step (issue #2707), since a ScenarioSpec names a phase but only describes a board and no step advanced the turn, so no upkeep/draw/end-step trigger could previously be the decision under test. The reveal is CR 701.20a, the free arrival CR 400.7.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2707).
+        // Same board, same trigger, one difference: the library holds NO
+        // creature card. Same library SIZE, same everything — only the card
+        // TYPE differs, which is what makes the pair discriminating. Accepting
+        // reveals the WHOLE library and mills it (CR 608.2b — the `match` leg's
+        // "that card" has no referent), taking the library from 20 to 0 and
+        // straight through the decking term's 12-card horizon (`libraryTerm`,
+        // evaluate.ts). That is the exact reason the printed clause is a "may".
+        //
+        // This is the half a valuer alone can never get right: `revealUntilMatch`
+        // scores the same announcement in both positions, so a bot answering
+        // from the valuer accepts here too. Getting it right requires the
+        // SEARCH to apply the Op through the real GRE and score the emptied
+        // library.
+        label: "oath: declines the dig when its library holds no creature",
+        spec: {
+            cards: [
+                { name: "Oath of Druids", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+            ],
+            phase: "UPKEEP",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: { moves: [{ kind: "may-pay", accept: false }] },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "oath: takes the free body when its library is creature-dense". Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement\'s flat valuation — the valuer scores the two announcements identically.',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
