@@ -228,9 +228,13 @@ export type GoldBucket =
  * `CompiledDefinition` omits `effect` by construction (`oracle/types.ts`), so
  * the compiled side can never carry one: a gold card that does is saying "my
  * behaviour lives in a closure", and rendering it as one says so to the
- * comparison too. The five cards this covers (Disenchant, Ice Storm, Shatter,
- * Sinkhole, Stone Rain) all print "Destroy target …", which the compiler reads
- * into the ADR-0045-mandated Effect Script — neither a match nor a defect.
+ * comparison too.
+ *
+ * Six cards print `effect: "destroy-target"`. Five (Disenchant, Ice Storm,
+ * Shatter, Sinkhole, Stone Rain) agree with the compiler on everything else
+ * and are counted `incomparable`; the sixth, Desert Twister, does NOT, and is
+ * a mismatch — see `BODY_KEYS`, which is what keeps the sentinel from
+ * exempting a card's comparable fields along with its body.
  */
 const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
 
@@ -424,6 +428,37 @@ export interface GoldReport {
     readonly withoutOracleText: readonly string[];
 }
 
+/**
+ * The TOP-LEVEL fields that hold a card's resolution body, in either encoding.
+ *
+ * A card whose body is a closure is incomparable IN ITS BODY — that is the
+ * whole of `GoldIncomparable`'s argument. It is not incomparable in its
+ * `targetRequirement`, its `additionalCosts` or its `flashback`, and treating
+ * it as such is how the harness stopped seeing that Desert Twister
+ * ("Destroy target permanent.") declares `targetRequirement.type: "any"` — CR
+ * 115.4's *any target*, which cannot name an artifact — the fifth instance of
+ * a catalogue defect this compiler exists to surface.
+ *
+ * So the sentinel exempts these keys, and the rest of the card is compared
+ * like anyone's.
+ */
+const BODY_KEYS: ReadonlySet<string> = new Set([
+    "effect",
+    "effects",
+    "resolve",
+    "resolveSteps",
+]);
+
+/** A projection with the resolution body removed from BOTH sides. */
+function withoutBody(projection: Record<string, unknown>): string {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(projection)) {
+        if (BODY_KEYS.has(key)) continue;
+        out[key] = value;
+    }
+    return JSON.stringify(out);
+}
+
 /** What `sortKeys` renders a function-valued field as (`gates.ts`). */
 const CLOSURE_SENTINEL = '"[closure]"';
 
@@ -570,10 +605,39 @@ export function runGoldHarness(cards: readonly CardDefinition[]): GoldReport {
         slots[slotKey].total += 1;
         slots[slotKey].accepted += 1;
 
+<<<<<<< HEAD
         if (verdict.kind === "equal") {
+||||||| parent of 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
+        const expected = JSON.stringify(behaviouralProjection(definition));
+        const actual = JSON.stringify(behaviouralProjection(expandedActual));
+        if (expected === actual) {
+=======
+        const expectedProjection = behaviouralProjection(definition);
+        const actualProjection = behaviouralProjection(expandedActual);
+        const expected = JSON.stringify(expectedProjection);
+        const actual = JSON.stringify(actualProjection);
+        // A closure on the gold side makes the BODY incomparable and nothing
+        // else, so the verdict is taken on the card MINUS its body — unless
+        // the sentinel survives that strip, which means the closure is nested
+        // inside an ability and this harness cannot separate it from the
+        // ability's comparable fields.
+        const bodilessExpected = withoutBody(expectedProjection);
+        const closureIsNested = bodilessExpected.includes(CLOSURE_SENTINEL);
+        const incomparableBody =
+            expected.includes(CLOSURE_SENTINEL) &&
+            (closureIsNested ||
+                bodilessExpected === withoutBody(actualProjection));
+        if (expected === actual) {
+>>>>>>> 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
             buckets[bucket].equal += 1;
             slots[slotKey].equal += 1;
+<<<<<<< HEAD
         } else if (verdict.kind === "incomparable") {
+||||||| parent of 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
+        } else if (expected.includes(CLOSURE_SENTINEL)) {
+=======
+        } else if (incomparableBody) {
+>>>>>>> 2e888aa24 (fix(oracle): census granted keywords, unmask the self marker, exempt closures per key)
             buckets[bucket].incomparable += 1;
             slots[slotKey].incomparable += 1;
             incomparable.push({

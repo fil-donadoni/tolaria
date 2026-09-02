@@ -26,6 +26,7 @@
  */
 
 import type { TargetRequirement } from "../../../cards/types";
+import type { KeywordIR } from "../ir";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule } from "../../rule";
 import { keywordVocabulary } from "../slots/keywordLine";
@@ -79,9 +80,21 @@ export type EffectSentenceIR =
           readonly duration: DurationIR;
       }
     | {
+          /**
+           * CR 613.1f — a keyword granted until end of turn.
+           *
+           * Carries the whole Mechanics Registry row rather than just the
+           * name, because the name alone cannot answer the Guard A question
+           * (#962): a grant of a keyword the engine has not implemented ships
+           * a card whose effect is inert, exactly like a printed one. The
+           * static slot's `keyword-grant` clause already keeps the row for
+           * this reason (`lowerStatic.ts`), and censusing one grant site and
+           * not the other is how "Target creature gains undying until end of
+           * turn." reached `ready` promising a `planned` keyword.
+           */
           readonly kind: "grant-ability";
           readonly subject: SubjectIR;
-          readonly ability: string;
+          readonly keyword: KeywordIR;
           readonly duration: DurationIR;
       }
     | {
@@ -369,7 +382,7 @@ function effectSentence(span: string, ctx: unknown) {
         return ok({
             kind: "grant-ability" as const,
             subject: subject.value,
-            ability: keyword.ability,
+            keyword,
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }

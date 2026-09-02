@@ -55,6 +55,19 @@ export type GroupResult =
 export function groupLines(lines: readonly string[]): GroupResult {
     const grouped: string[] = [];
     for (const line of lines) {
+        // The separator is available BECAUSE `normalize.ts` splits on newlines
+        // and then collapses every whitespace run inside a line, so no line it
+        // emits can contain one. That is an invariant of another module, and a
+        // silent one: if it ever stopped holding, `slots/spell.ts` would split
+        // a line at a boundary that is not a mode boundary and read the halves
+        // as modes. Asserting it here costs one comparison and makes the
+        // coupling fail closed instead of corrupting.
+        if (line.includes(GROUP_SEPARATOR))
+            return {
+                ok: false,
+                reason: "a normalised line contains the group separator",
+                fragment: line,
+            };
         if (!line.startsWith(`${BULLET} `)) {
             grouped.push(line);
             continue;

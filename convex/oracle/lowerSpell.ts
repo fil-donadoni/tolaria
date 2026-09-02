@@ -29,6 +29,7 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import type { CostAtomIR } from "./grammar/shared/cost";
+import { SELF_MARKER } from "./normalize";
 import type { FlashbackCostIR, SpellModeIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import {
@@ -95,21 +96,31 @@ export function lowerSpellBody(
  */
 export function lowerSpellModes(
     modes: readonly SpellModeIR[],
-    cardSlug: string,
+    card: { readonly slug: string; readonly name: string },
     site: SiteOptions
 ): LowerSpellResult<SpellMode[]> {
     const out: SpellMode[] = [];
     for (const [index, mode] of modes.entries()) {
         const body = lowerBody(mode.effects, site);
         if (!body.ok) return body;
+        // CR 201.5 — `normalize.ts` replaced the card's own name with
+        // `SELF_MARKER` so the GRAMMAR could bind a REFERENT rather than a
+        // string. These two fields are the only compiler output a PLAYER ever
+        // reads (`ModeOption.label` is the mode picker's row, `oracleText` the
+        // stack-item display and the rule-trace line), so the marker has to
+        // come back out: "{self} deals 5 damage to target creature" is never
+        // valid output, and it shipped on 18 of 34 modal rows until the review
+        // of PR #3044 caught it — the gold harness structurally cannot, since
+        // both fields are display keys it excludes.
+        const printed = mode.text.split(SELF_MARKER).join(card.name);
         const lowered: SpellMode = {
-            id: `${cardSlug}-mode-${index + 1}`,
+            id: `${card.slug}-mode-${index + 1}`,
             // Both are DISPLAY strings and both are the bullet as printed: the
             // compiler has no shorter phrasing to offer a picker than the words
             // the card itself uses, and inventing one would be a claim about
             // the card that the Oracle text does not make.
-            label: mode.text,
-            oracleText: `${mode.text}.`,
+            label: printed,
+            oracleText: `${printed}.`,
             effects: body.value.effects,
         };
         if (body.value.targetRequirement !== undefined)
@@ -136,9 +147,12 @@ type AdditionalCosts = NonNullable<CardDefinition["additionalCosts"]>;
  *   - `mana` — an additional MANA cost is folded into the printed mana cost by
  *     the engine's cast path, and no card prints one on this line.
  *
- * `discard X cards` (Sickening Dreams, 10 cards) is refused one level up, by
- * the `count` type: `additionalCosts.discard.count` is a `number`, so a
- * variable discard has no encoding at all — see the PR for issue #2699.
+ * `discard X cards` (Sickening Dreams, 10 cards) never reaches this function
+ * at all: the cost GRAMMAR refuses it, because `splitCount` reads its count
+ * word through `readNumberWord`, which has no `X`. That refusal is the right
+ * one either way — `additionalCosts.discard.count` is a `number`, so a
+ * variable discard has no encoding to lower into — but the type is not what
+ * enforces it. See docs/findings/2699-spell-slot-gaps.md.
  */
 export function lowerAdditionalCosts(
     atoms: readonly CostAtomIR[]

@@ -31,10 +31,18 @@ both consumers implement it that way: `matchesTargetRequirement`
 two spells can destroy a blue **player** and cannot destroy a blue artifact
 or enchantment. The compiler emits the six permanent card types (CR 110.4).
 
-This is the **same defect as Northern Paladin**, already filed in the #2697
-finding — the third and fourth instances of one encoding mistake, which
+**Desert Twister** (`convex/cards/sets/lea/green.ts`) is the same mistake a
+third time — Oracle `"Destroy target permanent."`, hand-written
+`type: "any"`. It surfaced only during review of PR #3044: it authors its body
+with the pre-ADR-0045 `effect: "destroy-target"` shorthand, and the closure
+exemption the PR added was initially per-CARD, which hid every one of its
+comparable fields along with its body. The exemption is now per-BODY-KEY
+(`BODY_KEYS`, `convex/oracle/gold.ts`) and the divergence is enumerated.
+
+So this is the **same defect as Northern Paladin**, already filed in the #2697
+finding — the third, fourth and fifth instances of one encoding mistake, which
 argues the fix is a catalogue sweep for `type: "any"` on a non-damage effect
-rather than three per-card edits.
+rather than four per-card edits.
 
 **(2)** **Lava Dart** (`convex/cards/sets/ons/red.ts`) — `flashback: { sacrifice: {
 types: "Land", subtypes: "Mountain" } }` for `"Flashback—Sacrifice a
@@ -63,6 +71,24 @@ mechanism. (Sickening Dreams is blocked twice; see item 5.)
 `life` leg, so its flashback cast cannot be paid. ADR 0079's shared
 `CostLegs` already has a `life` leg that `AlternativeCost` and `MayPayCost`
 both use; `FlashbackCost` predates the consolidation and did not get it.
+
+## Group C — one guard that was missing, now closed in this PR
+
+Recorded because the CLASS outlives the fix.
+
+**(7)** **A granted keyword escaped the Guard A census.** `staticAbilities[]`
+is what Guard A (#962) polices, and a `{ op: "grantAbility" }` never touches
+it — the grant writes the TARGET instance's abilities at resolution. So a
+spell or ability granting a keyword the Mechanics Registry marks `planned`
+reached `ready`, promising an effect the engine does not implement. Three
+cards did: **Undying Evil** (`undying`, added by this PR's spell slot),
+**Antler Skulkin** (`persist`) and **Jabari's Banner** (`flanking`), the
+latter two pre-existing since #2697. `lower.ts` now censuses every
+`grant-ability` sentence at all four effect-bearing slots, the way
+`lowerStatic.ts` already did for the static `keyword-grant` clause. The
+second half of the same hole — a grant of an expander-backed keyword, which
+`isDefinitionLevelKeyword` catches — is wired at the same time; no corpus card
+reaches it today.
 
 ## Also noted, not a gap
 

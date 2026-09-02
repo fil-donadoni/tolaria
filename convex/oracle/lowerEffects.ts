@@ -88,8 +88,10 @@ export class TargetSlots {
     /** Announce a target, returning its positional index (CR 601.2c). */
     allocate(requirement: TargetRequirement): Lowered<number> {
         if (this.slots.length > 0)
+            // Reached from every ability site and from the spell and per-mode
+            // sites, so the reason names the LIMIT rather than one site.
             return unlowerable(
-                "grammar v0 allows one target per activated ability"
+                "grammar v0 allows one target per effect site (CR 601.2c)"
             );
         this.slots.push(requirement);
         return lowered(this.slots.length - 1);
@@ -177,7 +179,7 @@ export function lowerSentence(
                 {
                     op: "grantAbility",
                     target: target.value,
-                    ability: sentence.ability,
+                    ability: sentence.keyword.ability,
                     duration: durationSpec(sentence.duration),
                 },
             ]);

@@ -76,6 +76,13 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // cost restates `types: "Land"` beside `subtypes: "Mountain"` — the
     // Horror of Horrors encoding tie above, at the flashback cost site.
     "Lava Dart (spell)",
+    // Oracle: "Destroy target permanent." — `type: "any"` again, the FIFTH
+    // instance of the Northern Paladin defect, and the reason `gold.ts`
+    // exempts a closure body per KEY rather than per card: this one authors
+    // its body with the `effect: "destroy-target"` shorthand, so a whole-card
+    // exemption hid a live divergence behind it (review of PR #3044).
+    // docs/findings/2699-spell-slot-gaps.md
+    "Desert Twister (other)",
 ];
 
 describe("gold round-trip — precision", () => {
@@ -118,14 +125,15 @@ describe("gold round-trip — precision", () => {
         // A hand-written `resolve()` closure and a compiled Effect Script are
         // not comparable in either direction — see `GoldIncomparable`. Counted
         // separately and bounded so the hole cannot grow unnoticed.
-        // Raised from 10 in #2699. The spell slot newly ACCEPTS 31 gold
-        // spells, and six of them (Desert Twister, Disenchant, Ice Storm,
-        // Shatter, Sinkhole, Stone Rain) author their behaviour with the
-        // pre-ADR-0045 `effect: "destroy-target"` shorthand — a closure
-        // reached by name (`cards/effectRegistry.ts`), which
-        // `CLOSURE_VALUED_KEYS` in `gold.ts` now renders as one. The bound is
-        // still a bound and still above the count by a hair, not a ratio:
-        // growth has to be explained, and this growth is.
+        // Raised from 10 in #2699 (4 -> 9). Five newly-accepted gold spells
+        // (Disenchant, Ice Storm, Shatter, Sinkhole, Stone Rain) author their
+        // behaviour with the pre-ADR-0045 `effect: "destroy-target"`
+        // shorthand — a closure reached by name
+        // (`cards/effectRegistry.ts`), which `CLOSURE_VALUED_KEYS` in
+        // `gold.ts` renders as one. Their sixth sibling, Desert Twister, is a
+        // MISMATCH rather than incomparable, because the exemption is
+        // per-BODY-KEY: see `BODY_KEYS`. The bound is still a bound and not a
+        // ratio — growth has to be explained, and this growth is.
         expect(REPORT.incomparable.length).toBeLessThan(15);
         expect(REPORT.incomparable.map((i) => i.name)).toContain(
             "Royal Assassin"

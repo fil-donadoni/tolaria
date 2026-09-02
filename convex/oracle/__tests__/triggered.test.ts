@@ -263,7 +263,7 @@ describe("targets are announced, not invented (CR 603.3d)", () => {
             refusalReason(
                 "When this creature enters, destroy target creature. Tap target land."
             )
-        ).toMatch(/one target per activated ability|targets were announced/);
+        ).toMatch(/one target per effect site|targets were announced/);
     });
 });
 

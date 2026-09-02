@@ -45,7 +45,7 @@ export interface SpellModeIR {
 /** CR 702.34a — the cost of casting the card from a graveyard. */
 export interface FlashbackCostIR {
     readonly mana?: ManaCost;
-    /** CR 118.5 — the non-mana half, e.g. Lava Dart's "Sacrifice a Mountain". */
+    /** CR 701.21a — the non-mana half, e.g. Lava Dart's "Sacrifice a Mountain". */
     readonly sacrifice?: PermanentFilter;
 }
 

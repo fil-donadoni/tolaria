@@ -246,8 +246,10 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
             out.mana = atom.mana;
             continue;
         }
-        // CR 702.34a — `FlashbackCost` carries exactly one non-mana component,
-        // a CR 701.21a sacrifice filter. Every other atom the shared cost
+        // CR 702.34a — of `FlashbackCost`'s two non-mana components, a CR 701.21a
+        // sacrifice filter is the one this grammar can reach: the shared cost
+        // sub-grammar has no exile-from-HAND atom, so `exileFromHand` has no
+        // atom that could lower into it. Every other atom the shared cost
         // grammar can read has nowhere to go on the flashback cast path, and
         // an unpaid cost is an unbounded bug (see `shared/cost.ts`).
         if (atom.kind === "sacrifice-other" && atom.count === 1) {

@@ -191,6 +191,30 @@ describe("spell slot — modal spells (CR 700.2)", () => {
         expect(new Set(ids).size).toBe(ids.length);
     });
 
+    it("puts the card's NAME back into the picker's visible strings (CR 201.5)", () => {
+        // `normalize.ts` substitutes SELF_MARKER so the grammar binds a
+        // referent; `label` and `oracleText` are the only compiler output a
+        // player reads, so the marker must not survive into them. The gold
+        // harness cannot see this — both are display keys it excludes.
+        const def = compiled(
+            spellCard({
+                name: "Test Charm",
+                oracleText:
+                    "Choose one —\n• {self} deals 2 damage to any target.\n• Destroy target artifact.",
+            })
+        );
+        expect(def.modes?.[0]?.label).toBe(
+            "Test Charm deals 2 damage to any target"
+        );
+        expect(def.modes?.[0]?.oracleText).toBe(
+            "Test Charm deals 2 damage to any target."
+        );
+        for (const mode of def.modes ?? []) {
+            expect(mode.label).not.toContain("{self}");
+            expect(mode.oracleText).not.toContain("{self}");
+        }
+    });
+
     it("refuses every head whose ARITY is not exactly one (CR 700.2)", () => {
         // `CardDefinition.modes` is a choose-ONE shape and the engine locks a
         // single `chosenModeId` at announcement, so compiling these into it
@@ -346,7 +370,44 @@ describe("spell slot — X is gated by the printed cost (CR 107.3)", () => {
     });
 });
 
-// ── 6. Behaviour: the compiled definition actually resolves ────────────────
+// ── 6. Granted keywords are censused (CR 702.1, Guard A / #962) ───────────
+
+describe("spell slot — a granted keyword is censused, not trusted", () => {
+    it("quarantines a spell granting a keyword the registry calls planned", () => {
+        // Guard A polices `staticAbilities[]`, which a `grantAbility` Op never
+        // touches — the grant writes the TARGET instance's abilities at
+        // resolution. So nothing else in the pipeline asks whether the keyword
+        // is implemented, and Undying Evil ("Target creature gains undying
+        // until end of turn.") reached `ready` promising an inert effect.
+        const outcome = compileCard(
+            spellCard({
+                oracleText: "Target creature gains undying until end of turn.",
+            })
+        );
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state === "quarantine")
+            expect(
+                outcome.reasons.some(
+                    (r) =>
+                        r.kind === "planned-mechanic" &&
+                        r.detail.includes("undying")
+                )
+            ).toBe(true);
+    });
+
+    it("still reaches ready when the granted keyword IS implemented", () => {
+        // The other half: a census that quarantined everything would pass the
+        // test above while shipping nothing.
+        const outcome = compileCard(
+            spellCard({
+                oracleText: "Target creature gains flying until end of turn.",
+            })
+        );
+        expect(outcome.state).toBe("ready");
+    });
+});
+
+// ── 7. Behaviour: the compiled definition actually resolves ────────────────
 
 describe("spell slot — a compiled spell resolves through the real stack", () => {
     it("destroys the announced target (CR 701.8a)", () => {

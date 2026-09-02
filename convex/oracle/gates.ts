@@ -218,8 +218,14 @@ export function runGates(input: GateInput): GateResult {
                       id: `${oracleId}#${mode.id}`,
                       name: `${definition.name} mode "${mode.id}"`,
                       effects: mode.effects,
-                      // The card-level authoring fields belong to the CARD;
-                      // only the mode's own body could conflict with itself.
+                      // The card-level authoring fields belong to the CARD, so
+                      // they are cleared; the mode's OWN `resolve` is carried
+                      // through, because its mutual exclusivity with the
+                      // mode's body is the one check this synthetic host
+                      // exists to run (`effectSites.ts` §modeSites, mirrored).
+                      resolve: mode.resolve,
+                      resolveSteps: undefined,
+                      effect: undefined,
                       modes: undefined,
                   })
         ),
