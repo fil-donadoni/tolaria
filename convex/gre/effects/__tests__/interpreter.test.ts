@@ -1366,15 +1366,12 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         expect(count(a.staticAbilities, (k) => k === "trample")).toBe(1);
         expect(count(a.staticAbilities, (k) => k === "flying")).toBe(0);
         expect(count(b.staticAbilities, (k) => k === "flying")).toBe(1);
-        expect(
-            count(
-                a.grantedStaticAbilities ?? [],
-                (g) => g.ability === "trample"
-            )
-        ).toBe(1);
-        expect(
-            count(b.grantedStaticAbilities ?? [], (g) => g.ability === "flying")
-        ).toBe(1);
+        // PRD #2064 S3 — a SOURCE-provenance grant leaves no row on the
+        // recipient at all: it is derived from the live board at every read, so
+        // the multiset above IS the no-double-apply assertion. The record that
+        // would have double-counted no longer exists.
+        expect(a.grantedStaticAbilities).toBeUndefined();
+        expect(b.grantedStaticAbilities).toBeUndefined();
         // activated-grant duplication (grantedActivatedAbilities).
         expect(
             count(

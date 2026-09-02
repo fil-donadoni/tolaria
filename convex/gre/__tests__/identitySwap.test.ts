@@ -641,7 +641,9 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         card.grantedStaticAbilities = [{ ability: "haste", seq: 5 }];
         card.baseStaticAbilities = [];
         card.staticAbilities = ["haste"];
-        card.abilitiesSuppressedBy = [{ sourceId: "null-tie", seq: 5 }];
+        // PRD #2064 S3 — the resolving arm's LEDGER; `abilitiesSuppressedBy`
+        // is the derived output the swap recomputes.
+        card.abilityLossHolds = [{ sourceId: "null-tie", seq: 5 }];
 
         transformPermanent(card);
 
