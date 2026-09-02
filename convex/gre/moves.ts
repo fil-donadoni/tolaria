@@ -1005,16 +1005,20 @@ export function planManaPayment(
      *  was selected FOR, and doubles as the identity of an option with no
      *  explicit `produces` — the ordinary one-mana case.
      *
-     *  The third branch is a CR 609.4b SUBSTITUTION realisation: `remaining`
+     *  The last branch is a CR 609.4b SUBSTITUTION realisation: `remaining`
      *  below maps `sub.to` onto the option that produces `sub.from`, so the
      *  option's own `produces` does not contain the colour it was selected
-     *  for. Exactly ONE mana is credited there, never the whole yield (issue
-     *  #3027, review finding 2): a substitution rule licenses spending mana of
-     *  `from` as `to`, and for a MIXED yield only the `from` component
-     *  qualifies — crediting the total would let one tap of a `{W}{U}` source
-     *  pay two red pips under Sunglasses of Urza's `W → R`, of which only the
-     *  white one may legally be spent as red. One is always right and never
-     *  inflates: it is what the same source paid before this issue. */
+     *  for. A substitution rule licenses spending mana of `from` as `to`, so
+     *  the quantity creditable as `color` is the amount of the ONE substituted
+     *  colour, not the option's total (issue #3027, review finding 2). A
+     *  single-colour yield is therefore credited whole — every mana of it is
+     *  `from` (Sol Ring's `{C}{C}` under a `C → U` grant really does pay
+     *  {U}{U}) — while a MIXED yield credits one, because the option does not
+     *  record which of its colours the substitution matched and only that
+     *  component qualifies. Crediting the total there would let one tap of a
+     *  `{W}{U}` source pay two red pips under Sunglasses of Urza's `W → R`, of
+     *  which only the white one may legally be spent as red. Under-crediting
+     *  is always safe: it is what the same source paid before this issue. */
     const creditYield = (opt: PlanOption, color: Color): void => {
         const produces = opt.via === "converter" ? undefined : opt.produces;
         if (produces && (produces[color] ?? 0) > 0) {
@@ -1027,8 +1031,21 @@ export function planManaPayment(
             }
             return;
         }
-        floating[color] = (floating[color] ?? 0) + 1;
-        floatingTotal++;
+        let credited = 1;
+        if (produces) {
+            let colours = 0;
+            let only = 0;
+            for (const c of MANA_COLORS) {
+                const n = produces[c] ?? 0;
+                if (n > 0) {
+                    colours++;
+                    only = n;
+                }
+            }
+            if (colours === 1) credited = only;
+        }
+        floating[color] = (floating[color] ?? 0) + credited;
+        floatingTotal += credited;
     };
 
     /** Spend one floating mana of `color`, if any. */
