@@ -45,62 +45,13 @@ import {
 import type { ParseContext } from "../../types";
 import { activationCostRule, type ActivationCostIR } from "../shared/cost";
 import {
+    assembleSentences,
     sentenceRule,
-    type EffectSentenceIR,
-    type RestrictionIR,
     type SentenceIR,
 } from "../shared/effectClause";
 import type { SlotIR } from "../ir";
 
 export const ACTIVATED_SLOT = "activated";
-
-/**
- * Assemble a sentence list into effects + restrictions.
- *
- * Two orderings are enforced because both encode a real rule: a restriction
- * (CR 602.5) applies to the whole ability and is printed last, and a modifier
- * ("It can't be regenerated.", CR 701.19c on regenerate) attaches to the one before it.
- * A restriction followed by an effect, or a modifier with nothing in front of
- * it, is a sentence sequence we have misread.
- */
-function assemble(sentences: readonly SentenceIR[]):
-    | {
-          readonly ok: true;
-          readonly effects: EffectSentenceIR[];
-          readonly restrictions: RestrictionIR[];
-      }
-    | { readonly ok: false; readonly reason: string } {
-    const effects: EffectSentenceIR[] = [];
-    const restrictions: RestrictionIR[] = [];
-    for (const sentence of sentences) {
-        if (sentence.role === "restriction") {
-            restrictions.push(sentence.restriction);
-            continue;
-        }
-        if (restrictions.length > 0)
-            return {
-                ok: false,
-                reason: "an effect sentence follows an activation restriction",
-            };
-        if (sentence.role === "modifier") {
-            const previous = effects[effects.length - 1];
-            if (previous === undefined || previous.kind !== "destroy")
-                return {
-                    ok: false,
-                    reason: '"It can\'t be regenerated." follows no destroy',
-                };
-            effects[effects.length - 1] = {
-                ...previous,
-                cantBeRegenerated: true,
-            };
-            continue;
-        }
-        effects.push(sentence.effect);
-    }
-    if (effects.length === 0)
-        return { ok: false, reason: "the ability has no effect sentence" };
-    return { ok: true, effects, restrictions };
-}
 
 const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
     const parsed = pair(
@@ -117,7 +68,11 @@ const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
         })
     ).run(span, ctx);
     if (!parsed.ok) return parsed;
-    const assembled = assemble(parsed.value.sentences);
+    // CR 602.5 — an activated ability is the ONE site that may carry an
+    // activation restriction, so it is the one caller that accepts them.
+    const assembled = assembleSentences(parsed.value.sentences, {
+        site: "ability",
+    });
     if (!assembled.ok) return fail(assembled.reason, span);
     return ok({
         kind: "activated" as const,

@@ -38,6 +38,29 @@ import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 
 export const EFFECT_CLAUSE = "effect clause";
 
+/**
+ * CR 107.3 — an effect's MAGNITUDE: a printed number, or the announced {X}.
+ *
+ * `X` is read by the GRAMMAR wherever a count word is read, and refused by the
+ * LOWERING at every site whose source has no `{X}` pip to announce
+ * (`lowerEffects.ts` — `lowerAmount`). The split is deliberate: whether the
+ * word "X" appears is a fact about the sentence, whereas whether an X was
+ * announced is a fact about the COST, which lives on the card and on the
+ * ability, not in this span. Reading it here and judging it there keeps a
+ * "deals X damage" line on a card with no {X} an honest `unparsed` rather than
+ * a card that deals zero.
+ */
+export type AmountIR =
+    | { readonly kind: "fixed"; readonly value: number }
+    | { readonly kind: "x" };
+
+/** A count word at an effect site: a cardinal, or CR 107.3's `X`. */
+export function readAmount(word: string): AmountIR | null {
+    if (word === "X") return { kind: "x" };
+    const fixed = readNumberWord(word);
+    return fixed === null ? null : { kind: "fixed", value: fixed };
+}
+
 /** Who or what a sentence acts on (CR 109.2, CR 115.1). */
 export type SubjectIR =
     /** The object the ability is printed on (CR 109.2). */
@@ -63,13 +86,13 @@ export type EffectSentenceIR =
       }
     | {
           readonly kind: "deal-damage";
-          readonly amount: number;
+          readonly amount: AmountIR;
           readonly to: SubjectIR;
       }
     | {
           readonly kind: "draw";
           readonly player: PlayerRefIR;
-          readonly count: number;
+          readonly count: AmountIR;
       }
     | {
           readonly kind: "destroy";
@@ -86,13 +109,13 @@ export type EffectSentenceIR =
           readonly kind: "life";
           readonly action: "gain" | "lose";
           readonly player: PlayerRefIR;
-          readonly amount: number;
+          readonly amount: AmountIR;
       }
     | {
           readonly kind: "counters";
           readonly subject: SubjectIR;
           readonly counter: string;
-          readonly count: number;
+          readonly count: AmountIR;
       }
     | {
           readonly kind: "move-zone";
@@ -102,7 +125,7 @@ export type EffectSentenceIR =
     | {
           readonly kind: "discard-at-random";
           readonly player: PlayerRefIR;
-          readonly count: number;
+          readonly count: AmountIR;
       };
 
 /** CR 602.5 — a clause restricting WHEN the ability may be activated. */
@@ -125,6 +148,74 @@ export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
     | { readonly role: "modifier"; readonly modifier: ModifierIR };
+
+/**
+ * A parsed sentence LIST assembled into what an ability site actually carries.
+ *
+ * The third consumer is what made this shared: the activated slot, the
+ * triggered slot and the spell slot all read the same `". "`-separated sentence
+ * list, and all three have to fold the CR 701.19c "It can't be regenerated."
+ * MODIFIER onto the destroy in front of it. Two copies had already drifted
+ * apart only in their prose; a third would have made the fold a convention
+ * rather than a rule.
+ *
+ * What still differs is the one thing that genuinely does: a CR 602.5
+ * activation restriction is a sentence only an ACTIVATED ability can carry —
+ * there is no activation to restrict on a trigger or on a spell. So the caller
+ * either accepts restrictions (and inherits the ordering rule: a restriction
+ * applies to the whole ability and is printed last, so an effect that follows
+ * one is a sequence we have misread) or names the reason it refuses them.
+ */
+export type AssembledSentences =
+    | {
+          readonly ok: true;
+          readonly effects: EffectSentenceIR[];
+          readonly restrictions: RestrictionIR[];
+      }
+    | { readonly ok: false; readonly reason: string };
+
+export function assembleSentences(
+    sentences: readonly SentenceIR[],
+    opts: {
+        /** Set to REFUSE CR 602.5 restrictions, with this as the reason. */
+        readonly rejectRestrictions?: string;
+        /** What an empty effect list is called in the failure reason. */
+        readonly site: string;
+    }
+): AssembledSentences {
+    const effects: EffectSentenceIR[] = [];
+    const restrictions: RestrictionIR[] = [];
+    for (const sentence of sentences) {
+        if (sentence.role === "restriction") {
+            if (opts.rejectRestrictions !== undefined)
+                return { ok: false, reason: opts.rejectRestrictions };
+            restrictions.push(sentence.restriction);
+            continue;
+        }
+        if (restrictions.length > 0)
+            return {
+                ok: false,
+                reason: "an effect sentence follows an activation restriction",
+            };
+        if (sentence.role === "modifier") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined || previous.kind !== "destroy")
+                return {
+                    ok: false,
+                    reason: '"It can\'t be regenerated." follows no destroy',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                cantBeRegenerated: true,
+            };
+            continue;
+        }
+        effects.push(sentence.effect);
+    }
+    if (effects.length === 0)
+        return { ok: false, reason: `the ${opts.site} has no effect sentence` };
+    return { ok: true, effects, restrictions };
+}
 
 // ── Subjects ───────────────────────────────────────────────────────────────
 
@@ -294,7 +385,7 @@ function effectSentence(span: string, ctx: unknown) {
                 `"${damage[1]}" is not a damage source this grammar knows`,
                 span
             );
-        const amount = readNumberWord(damage[2]!);
+        const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
         const to = subjectRule.run(damage[3]!, ctx);
@@ -309,7 +400,7 @@ function effectSentence(span: string, ctx: unknown) {
     // ── draw (CR 121.1) ────────────────────────────────────────────────────
     const drawSelf = span.match(DRAW_SELF);
     if (drawSelf !== null) {
-        const count = readNumberWord(drawSelf[1]!);
+        const count = readAmount(drawSelf[1]!);
         if (count === null)
             return fail(`"${drawSelf[1]}" is not a count`, span);
         return ok({
@@ -323,7 +414,7 @@ function effectSentence(span: string, ctx: unknown) {
         const player = playerSubject(drawPlayer[1]!, ctx);
         if (player === null)
             return fail(`"${drawPlayer[1]}" is not a player`, span);
-        const count = readNumberWord(drawPlayer[2]!);
+        const count = readAmount(drawPlayer[2]!);
         if (count === null)
             return fail(`"${drawPlayer[2]}" is not a count`, span);
         return ok({
@@ -374,7 +465,7 @@ function effectSentence(span: string, ctx: unknown) {
     if (life !== null) {
         const player = playerSubject(life[1]!, ctx);
         if (player === null) return fail(`"${life[1]}" is not a player`, span);
-        const amount = readNumberWord(life[3]!);
+        const amount = readAmount(life[3]!);
         if (amount === null) return fail(`"${life[3]}" is not an amount`, span);
         return ok({
             kind: "life" as const,
@@ -387,7 +478,7 @@ function effectSentence(span: string, ctx: unknown) {
     // ── counters (CR 122.1) ────────────────────────────────────────────────
     const counters = span.match(COUNTERS);
     if (counters !== null) {
-        const count = readNumberWord(counters[1]!);
+        const count = readAmount(counters[1]!);
         if (count === null)
             return fail(`"${counters[1]}" is not a count`, span);
         const subject = subjectRule.run(counters[3]!, ctx);
@@ -447,7 +538,7 @@ function effectSentence(span: string, ctx: unknown) {
         const player = playerSubject(discard[1]!, ctx);
         if (player === null)
             return fail(`"${discard[1]}" is not a player`, span);
-        const count = readNumberWord(discard[2]!);
+        const count = readAmount(discard[2]!);
         if (count === null) return fail(`"${discard[2]}" is not a count`, span);
         return ok({
             kind: "discard-at-random" as const,

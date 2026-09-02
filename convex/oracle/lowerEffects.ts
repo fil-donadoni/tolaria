@@ -17,10 +17,12 @@ import type {
     EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
+    EffectValue,
     TargetRequirement,
 } from "../cards/types";
 import { durationSpec } from "./grammar/shared/duration";
 import type {
+    AmountIR,
     EffectSentenceIR,
     SubjectIR,
 } from "./grammar/shared/effectClause";
@@ -46,6 +48,37 @@ export function lowered<T>(value: T): Lowered<T> {
 
 export function unlowerable<T>(reason: string): Lowered<T> {
     return { ok: false, reason };
+}
+
+/**
+ * What the SITE lowering a sentence knows that the sentence itself cannot.
+ *
+ * Exactly one thing so far, and it is the CR 107.3 one: whether an `{X}` was
+ * announced for this effect at all. The grammar reads the word "X" wherever it
+ * reads a count word (`readAmount`), because that is a fact about the span;
+ * whether the number exists is a fact about the COST, which lives on the card
+ * (a spell's `{X}` pip) or on the ability (an activation cost's), never in the
+ * sentence. A site that cannot announce an X refuses the sentence rather than
+ * lowering it to a number it would have to invent — an `X` folded to 0 is a
+ * card that resolves and does nothing, the exact silent shape this compiler
+ * exists to refuse.
+ */
+export interface SiteOptions {
+    /** CR 107.3 — the source announces a value for {X} (it has an `{X}` pip). */
+    readonly allowX: boolean;
+}
+
+/** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
+function lowerAmount(
+    amount: AmountIR,
+    site: SiteOptions
+): Lowered<EffectValue> {
+    if (amount.kind === "fixed") return lowered(amount.value);
+    return site.allowX
+        ? lowered({ X: true })
+        : unlowerable(
+              "an effect reads X but its source announces no {X} (CR 107.3)"
+          );
 }
 
 /** Collects the ability's target requirements as the sentences are walked. */
@@ -120,7 +153,8 @@ function damageTarget(
 
 export function lowerSentence(
     sentence: EffectSentenceIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectOp[]> {
     switch (sentence.kind) {
         case "pump": {
@@ -151,15 +185,19 @@ export function lowerSentence(
         case "deal-damage": {
             const to = damageTarget(sentence.to, slots);
             if (!to.ok) return to;
+            const amount = lowerAmount(sentence.amount, site);
+            if (!amount.ok) return amount;
             return lowered([
-                { op: "dealDamage", amount: sentence.amount, to: to.value },
+                { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
         }
         case "draw": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
             return lowered([
-                { op: "draw", player: player.value, count: sentence.count },
+                { op: "draw", player: player.value, count: count.value },
             ]);
         }
         case "destroy": {
@@ -198,30 +236,34 @@ export function lowerSentence(
         case "life": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;
+            const amount = lowerAmount(sentence.amount, site);
+            if (!amount.ok) return amount;
             return lowered([
                 sentence.action === "gain"
                     ? {
                           op: "gainLife",
                           player: player.value,
-                          amount: sentence.amount,
+                          amount: amount.value,
                       }
                     : {
                           op: "loseLife",
                           player: player.value,
-                          amount: sentence.amount,
+                          amount: amount.value,
                       },
             ]);
         }
         case "counters": {
             const target = objectSelector(sentence.subject, slots);
             if (!target.ok) return target;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
             return lowered([
                 {
                     op: "counters",
                     action: "add",
                     counter: sentence.counter,
                     target: target.value,
-                    count: sentence.count,
+                    count: count.value,
                 },
             ]);
         }
@@ -230,11 +272,13 @@ export function lowerSentence(
         case "discard-at-random": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
             return lowered([
                 {
                     op: "discardAtRandom",
                     player: player.value,
-                    count: sentence.count,
+                    count: count.value,
                 },
             ]);
         }

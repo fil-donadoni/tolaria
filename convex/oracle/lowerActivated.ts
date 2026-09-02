@@ -76,7 +76,12 @@ export function lowerActivatedAbility(input: {
     const slots = new TargetSlots();
     const ops: EffectOp[] = [];
     for (const sentence of input.effects) {
-        const result = lowerSentence(sentence, slots);
+        // CR 107.3 — an activated ability announces X in its ACTIVATION cost,
+        // which the cost sub-grammar does not yet read as a variable, so no
+        // site here can supply a value for it.
+        const result = lowerSentence(sentence, slots, {
+            allowX: false,
+        });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
     }
