@@ -131,7 +131,7 @@ describe("gold round-trip — precision", () => {
         // a closure card's twin by running the card's own tests against it,
         // which is the evidence the structural comparison cannot produce, and
         // a card so proven has its closure retired to the `effects[]` the
-        // compiler emitted. Seven of the nine went that way here (Disenchant,
+        // compiler emitted. Eight of the nine went that way here (Disenchant,
         // Fissure, Goblin Grenade, Ice Storm, Royal Assassin, Shatter,
         // Sinkhole, Stone Rain — the five `effect: "destroy-target"` shorthand
         // spells plus three `resolve()` closures), and they now round-trip as

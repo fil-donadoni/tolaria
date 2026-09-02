@@ -94,7 +94,11 @@ export type Verdict =
     | "compiled-red"
     | "unparsed"
     | "no-oracle-text"
-    | "no-test";
+    | "no-test"
+    /** The swap did not take, so this card was never measured. Distinct from
+     *  `no-test` on purpose: one is a missing test, the other is a broken
+     *  harness, and collapsing them hides the second. */
+    | "harness-error";
 
 interface Row {
     readonly name: string;
@@ -189,15 +193,14 @@ function listDirs(root: string): string[] {
  * `describe` is not exercised. That is the same boundary the issue draws ("the
  * card's existing tests") and the same one `hasPerCardTest` draws.
  *
- * `count` is the anti-vacuity half. A `-t` filter that matches nothing exits 0
- * with zero tests run, which reads exactly like a pass — so the caller must
- * check it, and treats zero as "no evidence", never as green.
+ * Classification of the result is `classifyRun`, which is where the subtlety
+ * is — see its own comment.
  */
 function runSwapped(
     id: string,
     name: string,
     testFile: string
-): { ok: boolean; count: number; log: string } {
+): { status: number | null; log: string } {
     const result = spawnSync(
         "bunx",
         ["vitest", "run", "--project", "node", testFile, "-t", name],
@@ -207,12 +210,63 @@ function runSwapped(
             env: { ...process.env, [SWAP_ENV]: id },
         }
     );
-    const log = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+    return {
+        status: result.status,
+        log: `${result.stdout ?? ""}${result.stderr ?? ""}`,
+    };
+}
+
+/** What one swapped test run proved. */
+export type RunOutcome =
+    /** The card's own tests ran and passed against the twin. */
+    | { readonly kind: "green"; readonly count: number }
+    /** They ran and disagreed — a real behavioural difference. */
+    | { readonly kind: "red"; readonly count: number; readonly detail: string }
+    /** The filter matched no test: no evidence either way, never a pass. */
+    | { readonly kind: "no-match" }
+    /** The HARNESS failed — the swap never took, so nothing was measured. */
+    | { readonly kind: "harness-error"; readonly detail: string };
+
+/**
+ * Turn one vitest run into a verdict. Pure, so it can be tested against
+ * recorded logs (`scripts/__tests__/oracle-behavioural.test.ts`) instead of by
+ * hand-driving a subprocess — which is how the ordering bug below survived
+ * being written in the first place.
+ *
+ * ORDER MATTERS, and it is the opposite of the obvious one. Three different
+ * situations produce a run with ZERO tests:
+ *
+ *   1. `-t <name>` matched nothing -> vitest exits 0, prints
+ *      "Tests  N skipped". Genuinely no evidence: `no-match`.
+ *   2. The swap block in `vitest.setup.node.ts` THREW — unknown id, card did
+ *      not compile, or `assertSwapped` found the registry serving something
+ *      else -> vitest exits 1 before collecting anything, prints
+ *      "Tests  no tests".
+ *   3. Any other collection-time crash -> also a non-zero exit.
+ *
+ * Cases 2 and 3 are HARNESS failures, and case 2 is precisely the alarm this
+ * whole harness is built around: "the swap did not take, and this run proves
+ * nothing". Testing the zero-test condition FIRST swallows that alarm and
+ * reports it as case 1 — a quiet "no behavioural evidence" row in the report,
+ * indistinguishable from a card that simply has no test. A regression in
+ * `preloadDefinitions` would go from loud to invisible exactly when it mattered
+ * most, because these rows are the evidence used to DELETE working card code.
+ * So the exit status is consulted before the tally, always.
+ */
+export function classifyRun(status: number | null, log: string): RunOutcome {
     const tally = log.match(/Tests\s+(.*)$/m)?.[1] ?? "";
-    const ran =
+    const count =
         (Number(tally.match(/(\d+) passed/)?.[1] ?? 0) || 0) +
         (Number(tally.match(/(\d+) failed/)?.[1] ?? 0) || 0);
-    return { ok: result.status === 0, count: ran, log };
+    if (status !== 0) {
+        // A non-zero exit that ran NO test is the harness failing, not the card
+        // disagreeing — there was no card assertion to disagree.
+        if (count === 0) {
+            return { kind: "harness-error", detail: firstFailure(log) };
+        }
+        return { kind: "red", count, detail: firstFailure(log) };
+    }
+    return count === 0 ? { kind: "no-match" } : { kind: "green", count };
 }
 
 /** The first line that names what went wrong: the swap error if the twin never
@@ -276,27 +330,45 @@ function main(): void {
             continue;
         }
         process.stderr.write(`  running ${card.name} … `);
-        const { ok, count, log } = runSwapped(card.id, card.name, testFile);
-        if (count === 0) {
-            // Exit 0 with nothing run is not a pass — see `runSwapped`.
-            process.stderr.write("no matching test\n");
-            rows.push({
-                name: card.name,
-                id: card.id,
-                verdict: "no-test",
-                detail: `"${testFile}" names the card but no test title matched it — no behavioural evidence`,
-                testFile,
-            });
-            continue;
+        const { status, log } = runSwapped(card.id, card.name, testFile);
+        const outcome = classifyRun(status, log);
+        const base = { name: card.name, id: card.id, testFile };
+        switch (outcome.kind) {
+            case "harness-error":
+                // The swap itself failed — nothing was measured. Loud, and
+                // never filed under "no test", which reads as a shrug.
+                process.stderr.write("HARNESS ERROR\n");
+                rows.push({
+                    ...base,
+                    verdict: "harness-error",
+                    detail: outcome.detail,
+                });
+                break;
+            case "no-match":
+                process.stderr.write("no matching test\n");
+                rows.push({
+                    ...base,
+                    verdict: "no-test",
+                    detail: `"${testFile}" names the card but no test title matched it — no behavioural evidence`,
+                });
+                break;
+            case "red":
+                process.stderr.write(`RED (${outcome.count})\n`);
+                rows.push({
+                    ...base,
+                    verdict: "compiled-red",
+                    detail: outcome.detail,
+                });
+                break;
+            case "green":
+                process.stderr.write(`green (${outcome.count})\n`);
+                rows.push({
+                    ...base,
+                    verdict: "compiled-green",
+                    detail: `${outcome.count} assertions`,
+                });
+                break;
         }
-        process.stderr.write(ok ? `green (${count})\n` : `RED (${count})\n`);
-        rows.push({
-            name: card.name,
-            id: card.id,
-            verdict: ok ? "compiled-green" : "compiled-red",
-            detail: ok ? `${count} assertions` : firstFailure(log),
-            testFile,
-        });
     }
 
     if (asJson) {
@@ -312,18 +384,33 @@ function report(rows: readonly Row[], candidates: number): void {
     const red = of("compiled-red");
     const unparsed = of("unparsed");
     const noTest = of("no-test");
+    const broken = of("harness-error");
 
     process.stdout.write(
         `\nBehavioural gold — closure cards against their own tests (issue #2703)\n` +
             `${"=".repeat(72)}\n\n` +
             `closure-carrying catalogue cards   ${candidates}\n` +
-            `  compiler ACCEPTED                ${green.length + red.length + noTest.length}\n` +
+            `  compiler ACCEPTED                ${green.length + red.length + noTest.length + broken.length}\n` +
             `    compiled-and-green             ${green.length}   ← retirable\n` +
             `    compiled-but-red               ${red.length}\n` +
             `    accepted, no per-card test     ${noTest.length}\n` +
+            `    HARNESS ERROR (measured none)  ${broken.length}\n` +
             `  unparsed                         ${unparsed.length}\n\n`
     );
 
+    if (broken.length > 0) {
+        // First, and shouting. Every other row in this report is a claim about
+        // a card; these are a claim that the report itself did not work, and
+        // reading past them would mean trusting numbers gathered by a harness
+        // that just failed.
+        process.stdout.write(
+            `!! HARNESS ERROR — the swap did not take, so NOTHING below was measured\n` +
+                `!! for these cards. Do not retire on this run. Fix the harness first.\n`
+        );
+        for (const r of broken)
+            process.stdout.write(`  ${r.name}\n      ${r.detail}\n`);
+        process.stdout.write("\n");
+    }
     if (green.length > 0) {
         process.stdout.write(
             `compiled-and-green — the card's own tests pass against the compiled twin:\n`
