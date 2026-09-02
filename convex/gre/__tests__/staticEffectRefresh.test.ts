@@ -352,8 +352,18 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
+            // PRD #2064 S4 — layer 4 is DERIVED from the BOARD, so a source is
+            // applying from the moment it is on the battlefield, not from the
+            // moment `applySourceStaticEffects` is called on it. To make the
+            // Tomb's set genuinely LATER than the Yavimaya add, the Tomb has to
+            // arrive later — which is what production does anyway (a permanent
+            // is pushed and stamped in one entry).
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== tomb.id
+            );
             applySourceStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Forest"]);
+            state.players[0].battlefield.push(tomb);
             applySourceStaticEffects(state, tomb);
             expect(land.subtypes).toEqual(["Swamp"]);
 
