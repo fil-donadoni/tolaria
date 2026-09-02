@@ -276,10 +276,7 @@ describe("Oath of Druids (CR 603.6a each-player upkeep + CR 603.3d targeting + C
         resolveTopOfStack(state);
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
 
-        for (const [seat, viewer] of [
-            [0, "p1"],
-            [1, "p2"],
-        ] as const) {
+        for (const viewer of ["p1", "p2"] as const) {
             const view = projectPublicState(state, 1, viewer);
             const arrived = view.players[0].battlefield.find(
                 (c) => c.id === "fatty"
