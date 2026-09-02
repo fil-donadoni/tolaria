@@ -819,6 +819,14 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "grantedTriggeredAbilities",
     "removedKeywords",
     "abilitiesSuppressedBy",
+    // Same class, PRD #2064 S3: `baseStaticAbilities` is the pre-layer-6
+    // keyword multiset and `abilityLossHolds` the resolving-ability ledger.
+    // The base is re-captured from the reloaded `staticAbilities` at the first
+    // `syncLayer6`, so it is rebuild behaviour, never spec-keyed data. A hold
+    // whose source has left is caught by `reportCardResidue` below, on the same
+    // rule as a duration-scoped grant.
+    "baseStaticAbilities",
+    "abilityLossHolds",
     // Privacy field — never present on a real read (`slimCard` deletes it
     // even in the full debug projection); read separately (raw states only)
     // to derive `faceDownExile`.

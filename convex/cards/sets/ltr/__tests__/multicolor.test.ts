@@ -76,11 +76,11 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"], // mirrors post-ETB state
             grantedStaticAbilities: [
-                expect.objectContaining({
-                    ability: "indestructible",
-                    counterType: "indestructible",
-                }),
+                { ability: "indestructible", counterType: "indestructible" },
             ],
+            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
+            // base must say what the permanent has WITHOUT it.
+            baseStaticAbilities: [],
         });
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear1",
@@ -177,20 +177,20 @@ describe("Arwen, Mortal Queen — paying her own removeCounter cost splices the 
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"],
             grantedStaticAbilities: [
-                expect.objectContaining({
-                    ability: "indestructible",
-                    counterType: "indestructible",
-                }),
+                { ability: "indestructible", counterType: "indestructible" },
             ],
+            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
+            // base must say what the permanent has WITHOUT it.
+            baseStaticAbilities: [],
         });
         payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
         expect(arwen.counters).toBeUndefined();
         expect(arwen.staticAbilities).not.toContain("indestructible");
-        // `unapplyKeywordCounterGrant` splices the sole entry out via
-        // slice/slice (pre-existing behavior, mirrored from
-        // `keywordCounters.test.ts`'s `removeCounter` assertions) — an empty
-        // array, not `undefined`.
-        expect(arwen.grantedStaticAbilities).toEqual([]);
+        // PRD #2064 S3 — `unapplyKeywordCounterGrant` drops the LEDGER row
+        // (the only thing that record still carries is the CR 613.7c
+        // timestamp), and an emptied list is cleared rather than left as `[]`,
+        // matching every other layer-6 record on the instance.
+        expect(arwen.grantedStaticAbilities).toBeUndefined();
     });
 
     it("a partial removal (2 -> 1, an unusual but legal board state) leaves the grant intact", () => {
@@ -199,11 +199,11 @@ describe("Arwen, Mortal Queen — paying her own removeCounter cost splices the 
             counters: { indestructible: 2 },
             staticAbilities: ["indestructible"],
             grantedStaticAbilities: [
-                expect.objectContaining({
-                    ability: "indestructible",
-                    counterType: "indestructible",
-                }),
+                { ability: "indestructible", counterType: "indestructible" },
             ],
+            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
+            // base must say what the permanent has WITHOUT it.
+            baseStaticAbilities: [],
         });
         payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
         expect(arwen.counters).toEqual({ indestructible: 1 });

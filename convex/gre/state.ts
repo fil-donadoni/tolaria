@@ -57,7 +57,11 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
-import { ensureLayer6Base, syncLayer6 } from "./layer6";
+import {
+    ensureLayer6Base,
+    recomposeLayer6ForInstance,
+    syncLayer6,
+} from "./layer6";
 import { turnFaceDown, turnFaceUp } from "./faceDown";
 import type { FaceDownProducer } from "./faceDown";
 import {
@@ -13004,6 +13008,11 @@ function applyAsEntersAnswer(
                             (a) => !card.staticAbilities.includes(a)
                         ),
                     ];
+                    // CR 614.12c (PRD #2064 S3) — this rewrites the object's
+                    // own printed keywords, which is BELOW layer 6. Drop the
+                    // captured base so the next `syncLayer6` re-captures it
+                    // from the new list.
+                    delete card.baseStaticAbilities;
                 }
             }
             return {};
@@ -13014,6 +13023,11 @@ function applyAsEntersAnswer(
             for (const ability of option?.staticAbilities ?? []) {
                 if (!card.staticAbilities.includes(ability)) {
                     card.staticAbilities.push(ability);
+                    // CR 614.12c (PRD #2064 S3) — this rewrites the object's
+                    // own printed keywords, which is BELOW layer 6. Drop the
+                    // captured base so the next `syncLayer6` re-captures it
+                    // from the new list.
+                    delete card.baseStaticAbilities;
                 }
             }
             return {};
@@ -21294,6 +21308,13 @@ export function payRemoveCounterCost(
     // `removeCounter`/`SpellContext`, so without this call she would keep
     // indestructible after her last indestructible counter is spent).
     if (remaining === 0) unapplyKeywordCounterGrant(card, cost.type);
+    // CR 122.1b (PRD #2064 S3) — recompose this permanent's layer 6 now. A
+    // counter-borne grant is INSTANCE-borne, so the one-card recompose is
+    // exact; the next `syncLayer6` (top of every SBA pass) folds the board's
+    // own effects back in. This helper takes no `GameState` — it is a cost
+    // payment on one card — which is precisely why the instance-scoped
+    // recompose exists.
+    recomposeLayer6ForInstance(card);
 }
 
 /** True iff `player` can pay a "discard the last card you drew this turn"
