@@ -6,6 +6,7 @@
 import type { CardDefinition, TriggerStateView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 /** Delirium's threshold — "four or more card types among cards in your
  *  graveyard". Delirium is an ability word (CR 207.2c): pure flavour framing,
@@ -131,6 +132,81 @@ export const fearOfMissingOut: CardDefinition = {
                 { op: "tapUntap", action: "untap", target: { target: 0 } },
                 { op: "extraCombat" },
             ],
+        }),
+    ],
+};
+
+// Enduring Courage — {2}{R}{R} Enchantment Creature — Dog Glimmer, 3/3
+// (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
+// CR 205.1a / 613.1d derivation live in `abilities/enduringReturn.ts`).
+//
+// "Whenever another creature you control enters, it gets +2/+0 and gains haste
+// until end of turn." — CR 603.6a entry trigger; "another … you control" is
+// `enteredTrigger`'s `another-yours` scope, which compares the entering
+// permanent's instance id against `self.id` so this card's own arrival never
+// pumps itself.
+//
+// "IT" is the TRIGGERING permanent, not a target — the clause announces
+// nothing (CR 603.3d), so there is no `targetRequirement` and no
+// hexproof/protection interaction. The Effect Script names it with the
+// censused `$event.instanceId` object ref (ADR 0049, `EVENT_FIELD_REGISTRY`),
+// which is legal here precisely because `enteredTrigger` declares a SCALAR
+// `event: "PERMANENT_ENTERED"` — the array-`event` form has no single event
+// type to census a field against. A permanent that left in response resolves
+// to nothing and both Ops skip (CR 608.2b).
+//
+// Two already-exercised Ops, no new verb: `pump` +2/+0 (layer 7c, CR 613.4c)
+// and `grantAbility` haste (layer 6, CR 613.1f / 702.10a), both expiring at
+// the CR 514.2 cleanup boundary. Haste matters on the ENTERING creature
+// (CR 702.10b/c — it may attack and pay {T} costs the turn it arrives), which
+// is the whole point of the clause.
+//
+// Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
+// either half of this card yet, so the fragments are named here for the
+// corpus backlog PRD #2693 ranks the next grammar rule by. The shared
+// dies-trigger line is the cycle's; Enduring Innocence carries it in the
+// one-time baseline instead, which only ever shrinks.
+// compiler-gap: Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn. (#2693)
+// compiler-gap: When {self} dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (#2693)
+export const enduringCourage: CardDefinition = {
+    id: "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
+    name: "Enduring Courage",
+    rarity: "rare",
+    manaCost: { X: 2, R: 2 },
+    types: ["Enchantment", "Creature"],
+    subtypes: ["Dog", "Glimmer"],
+    power: 3,
+    toughness: 3,
+    oracleText:
+        "Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn.\nWhen Enduring Courage dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.)",
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "enduring-courage-pump",
+            oracleText:
+                "Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn.",
+            scope: "another-yours",
+            filter: { types: ["Creature"] },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$event.instanceId" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "haste",
+                    target: { ref: "$event.instanceId" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        }),
+        // The cycle's shared dies-trigger (CR 700.4 / 603.4 intervening-if,
+        // CR 205.1a / 613.1d type-line SET) — `abilities/enduringReturn.ts`.
+        enduringReturnTrigger({
+            id: "enduring-courage-return",
+            cardName: "Enduring Courage",
         }),
     ],
 };
