@@ -1114,7 +1114,7 @@ describe("game_state serialize round-trip", () => {
         // #946 (CR 514.2 / 608.2g) — the turn-scoped impulse-play expiry marker
         // must survive a save/load so cleanup revokes it on the right turn.
         lion.castableFromExileUntilTurn = 7;
-        // issue #1156 (CR 601.3 / 117.6) — the free-cast waiver riding the
+        // issue #1156 (CR 601.3 / 118.9) — the free-cast waiver riding the
         // exile permission above (Dauthi Voidwalker) must survive a save/load.
         lion.castFromExileWithoutPayingManaCost = true;
         // issue #1689 (CR 305.9) — the land-inclusive marker riding the exile
@@ -1132,7 +1132,7 @@ describe("game_state serialize round-trip", () => {
             types: ["Creature"],
             hostId: "host-1",
         };
-        // issue #1344 (CR 601.3 / 117.6-analog) — Malcolm, Alluring
+        // issue #1344 (CR 601.3 / 118.9) — Malcolm, Alluring
         // Scoundrel's per-card cast-from-graveyard grant, mirroring the
         // exile grant's three fields above.
         lion.castableFromGraveyardBy = "p1";

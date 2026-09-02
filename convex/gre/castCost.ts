@@ -65,7 +65,7 @@ export function flashbackStackFlags(zone: CastFromZone): {
         : {};
 }
 
-/** CR 702.34 / 702.138 / 305.1-analog / 117.6-analog — the stack-item flags a
+/** CR 702.34 / 702.138 / 305.1-analog / 118.9 — the stack-item flags a
  *  graveyard cast adds, choosing between Escape, Flashback, and every OTHER
  *  graveyard-cast mechanism by the card's live capability:
  *   - Escape (CR 702.138b): `castFromGraveyard` + `escaped` — the resulting
@@ -120,7 +120,7 @@ export function graveyardCastStackFlags(
     if (hasRetrace(state, card)) {
         return { castFromGraveyard: true };
     }
-    // CR 305.1-analog / 601 (issue #1149) / 117.6-analog (issue #1344) —
+    // CR 305.1-analog / 601 (issue #1149) / 118.9 (issue #1344) —
     // neither Escape nor Flashback: this is a plain cast under the BROAD
     // graveyard-cast permission (Yawgmoth's Will) or a per-card grant
     // (Malcolm). No exile-on-resolve, no `escaped` — the card resolves and
@@ -190,7 +190,7 @@ export function castRawManaCost(
     card: CardInstanceState,
     zone: CastFromZone
 ): ManaCost | undefined {
-    // CR 601.3 / 117.6 (issue #1156) — Dauthi Voidwalker's "play it without
+    // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's "play it without
     // paying its mana cost" free-cast waiver: this specific exile-sourced
     // card was granted a cost-free cast (`SpellContext.grantCastFromExile`'s
     // `withoutPayingManaCost` option). Checked BEFORE the Madness branch — a
@@ -217,7 +217,7 @@ export function castRawManaCost(
         return {};
     }
     if (zone !== "graveyard") return getInstanceManaCost(card);
-    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // CR 601.3 / 118.9 (issue #1344) — Malcolm, Alluring Scoundrel's
     // "cast the discarded card without paying its mana cost" free-cast
     // waiver: this specific graveyard-sourced card was granted a cost-free
     // cast (`SpellContext.grantCastFromGraveyard`'s `withoutPayingManaCost`

@@ -3962,7 +3962,7 @@ export interface SpellContext {
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6, issue #1156) —
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1156) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
      *  may play it this turn without paying its mana cost"), stamping
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
@@ -4013,8 +4013,8 @@ export interface SpellContext {
             costIncrease?: ManaCost;
         }
     ) => void;
-    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3 /
-     *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
+    /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3, with the
+     *  waiver's own CR 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "you may
      *  cast the discarded card without paying its mana cost"). The
      *  graveyard-zone twin of {@link grantCastFromExile} — same "grant a
      *  specific card cast permission, optional cost waiver" shape,
@@ -4038,7 +4038,7 @@ export interface SpellContext {
      *    - "until-next-end-step" (issue #1557): mirrors
      *      `grantCastFromExile`'s same-named window — see its doc comment.
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3 / 117.6-analog, issue #1344)
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1344)
      *  — ALSO waives the card's mana cost entirely, stamping {@link
      *  CardInstanceState.castFromGraveyardWithoutPayingManaCost} alongside
      *  the permission flag. Omitted/false grants permission only (the card
@@ -11931,7 +11931,7 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
-    /** CR 601.3 / 305.1-analog / 117.6 (issue #1156) — grant `player` permission to cast/play
+    /** CR 601.3 / 305.1-analog / 118.9 (issue #1156) — grant `player` permission to cast/play
      *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
      *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
      *  declarative skin over `SpellContext.grantCastFromExile`, one execution
@@ -11983,7 +11983,7 @@ export type EffectOp =
            *  rejects the pair. */
           costIncrease?: ManaCost;
       }
-    /** CR 601.3 / 117.6-analog (issue #1344) — grant `player` permission to
+    /** CR 601.3 / 118.9 (issue #1344) — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
      *  names it in either of the two shapes an effect can reach one
      *  (`EffectObjectSelector`, issue #1650):

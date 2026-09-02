@@ -2368,7 +2368,7 @@ function findGraveyardPermissionCastable(
         : undefined;
 }
 
-/** Per-card cast-from-graveyard grant lookup (CR 601.3 / 117.6-analog,
+/** Per-card cast-from-graveyard grant lookup (CR 601.3 / 118.9,
  *  issue #1344 — Malcolm, Alluring Scoundrel: "you may cast the discarded
  *  card without paying its mana cost"). Returns the NON-LAND card in
  *  `player`'s graveyard matching `instanceId` while it carries
@@ -2508,7 +2508,7 @@ export function locateCastSource(
         instanceId
     );
     if (permissionCast) return { card: permissionCast, zone: "graveyard" };
-    // CR 601.3 / 117.6-analog (issue #1344) — a card castable purely under a
+    // CR 601.3 / 118.9 (issue #1344) — a card castable purely under a
     // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
     // reached only when the card has none of Flashback/Escape/the broad
     // permission (those branches above already returned).

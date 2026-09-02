@@ -908,7 +908,7 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 601.3 / 117.6-analog (issue #1344) — a NON-LAND card in the
+    // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card in the
     // player's OWN graveyard tagged with a per-card cast grant (Malcolm,
     // Alluring Scoundrel: "you may cast the discarded card without paying
     // its mana cost") is castable from there — for FREE when

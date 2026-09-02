@@ -2173,7 +2173,7 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.armGraveyardRedirectThisTurn(playerId);
     },
-    // CR 601.3 / 117.6 (issue #1156) — grant cast/play permission (optionally
+    // CR 601.3 / 118.9 (issue #1156) — grant cast/play permission (optionally
     // a mana-cost waiver) for the exile card a preceding `choice(zone:
     // "exile")` Op picked. The picked card's CURRENT exile owner (looked up
     // live via `getExileCardOwner`, since it may be an OPPONENT's exile —
@@ -2225,7 +2225,7 @@ export const OP_EXECUTORS: {
             );
         }
     },
-    // CR 601.3 / 117.6-analog (issue #1344) — grant cast permission
+    // CR 601.3 / 118.9 (issue #1344) — grant cast permission
     // (optionally a mana-cost waiver) for a graveyard card. Two selector
     // shapes (issue #1650), both `EffectObjectSelector` members:
     //   - a bare PICKS ref — the card a preceding Op bound (typically the

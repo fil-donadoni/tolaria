@@ -35,13 +35,13 @@ export default function GraveyardFlashbackButton({
     // button so an illegal cast is disabled rather than dispatched and rejected
     // by `assertLegalAction`.
     const enabled = card.legalActions?.includes("cast") ?? false;
-    // CR 702.34 vs 702.138 vs 305.1-analog vs 117.6-analog — the projection
+    // CR 702.34 vs 702.138 vs 305.1-analog vs 118.9 — the projection
     // tags which graveyard-cast mechanism surfaced this affordance so the
     // label and disabled-tooltip match.
     const isEscape = card.castKind === "escape";
     // CR 305.1-analog / 601 (issue #1149) — a BROAD permission cast
     // (Yawgmoth's Will) pays the card's NORMAL printed mana cost, not an
-    // alternative one. CR 601.3 / 117.6-analog (issue #1344) — a
+    // alternative one. CR 601.3 / 118.9 (issue #1344) — a
     // SPECIFIC-CARD grant (Malcolm, Alluring Scoundrel) renders identically —
     // "Cast", gated purely by `legalActions` (which is already free when the
     // grant waives the mana cost, `castRawManaCost`'s graveyard-grant branch).

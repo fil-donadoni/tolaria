@@ -2993,7 +2993,7 @@ export function formatTypeLine(
 
 const MANA_DISPLAY_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
 
-/** Returns true if `pool` fully covers a numeric `cost` (CR 117.6). Mirrors
+/** Returns true if `pool` fully covers a numeric `cost` (CR 118.3). Mirrors
  *  the server-side `isManaCostCovered` for UI affordances such as enabling
  *  the "Pay" button on a may-pay prompt only when the player's mana pool
  *  can actually pay the cost. Treats `cost.X` as additional generic mana
@@ -3269,7 +3269,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     return { mana: cost as ManaCost };
 }
 
-/** UI affordability gate for a `may-pay` cost union (CR 117.6). The mana leg
+/** UI affordability gate for a `may-pay` cost union (CR 118.3). The mana leg
  *  must be coverable by `pool`; `life` must be ≤ the chooser's life; the
  *  sacrifice leg needs at least `count` candidate permanents. Life / sacrifice
  *  candidate counts come from the caller (the UI knows the chooser's life and a

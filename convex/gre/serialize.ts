@@ -610,7 +610,7 @@ function compactCard(
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
-    // CR 601.3 / 117.6 (issue #1156) — Dauthi Voidwalker's free-cast waiver
+    // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's free-cast waiver
     // rides `castableFromExileBy`'s permission window and must survive a
     // save/load the same way.
     if (card.castFromExileWithoutPayingManaCost) {
@@ -643,7 +643,7 @@ function compactCard(
     if (card.exiledBySourceId) {
         out.exiledBySourceId = card.exiledBySourceId;
     }
-    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm, Alluring Scoundrel's
+    // CR 601.3 / 118.9 (issue #1344) — Malcolm, Alluring Scoundrel's
     // per-card cast-from-graveyard grant on a graveyard card, mirroring
     // `castableFromExileBy` above.
     if (card.castableFromGraveyardBy) {
@@ -656,7 +656,7 @@ function compactCard(
         out.castableFromGraveyardUntilTurn =
             card.castableFromGraveyardUntilTurn;
     }
-    // CR 601.3 / 117.6-analog (issue #1344) — Malcolm's free-cast waiver
+    // CR 601.3 / 118.9 (issue #1344) — Malcolm's free-cast waiver
     // rides `castableFromGraveyardBy`'s permission window and must survive a
     // save/load the same way.
     // issue #2380 — the "exile it instead" rider on the same grant window;

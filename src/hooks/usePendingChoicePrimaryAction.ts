@@ -43,7 +43,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
 
     const choice = pendingChoices?.[0];
     const isChooser = !!choice && choice.playerId === playerId;
-    // CR 117.6 / 614.12 / 614 (#735) — the yes-no "pay a cost or not" families
+    // CR 118.3 / 614.12 / 614 (#735) — the yes-no "pay a cost or not" families
     // share the affordability + affirmative rendering; only the submit mutation
     // differs (`may-pay` → submitMayPay, `land-entry-tapped` →
     // submitLandEntryChoice, `draw-replacement` → submitDrawReplacementPay).
@@ -117,7 +117,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
 
     let canConfirm: boolean;
     if (isYesNoPay) {
-        // CR 117.6 / 702.24 — Pay/Yes is legal only once every leg of the cost
+        // CR 118.3 / 702.24 — Pay/Yes is legal only once every leg of the cost
         // union (mana / life / sacrifice) can be paid.
         const chooser = allPlayers.find((p) => p.id === choice.playerId);
         // ADR 0042 — a cumulative-upkeep may-pay (`manaRestriction` set) may

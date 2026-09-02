@@ -290,7 +290,7 @@ export const urzaLordHighArtificer: CardDefinition = {
                 // CR 406.3 — exiled hidden to the opponent, known to the
                 // controller.
                 ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
-                // CR 601.3 / 117.6 — cast/play permission until end of turn,
+                // CR 601.3 / 118.9 — cast/play permission until end of turn,
                 // without paying the mana cost. `includesLand: true`: the
                 // oracle says "play", not "cast" (CR 305.9, issue #1689).
                 ctx.grantCastFromExile(
