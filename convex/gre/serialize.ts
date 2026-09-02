@@ -396,6 +396,17 @@ function compactCard(
     if (card.abilitiesSuppressedBy?.length) {
         out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
     }
+    // PRD #2064 S3 — the layer-6 base and the resolving-ability ability-loss
+    // LEDGER. Both are genuine state, not derivable from the definition: the
+    // base carries whatever the lower layers put there (a copy effect's line, a
+    // face-down 2/2's empty list, a CR 614.12c body choice), and the ledger
+    // holds effects whose source has already left the stack.
+    if (card.baseStaticAbilities) {
+        out.baseStaticAbilities = card.baseStaticAbilities;
+    }
+    if (card.abilityLossHolds?.length) {
+        out.abilityLossHolds = card.abilityLossHolds;
+    }
     if (card.damagedBySources?.length) {
         out.damagedBySources = card.damagedBySources;
     }
@@ -851,6 +862,13 @@ function expandCard(
         ).map((s) =>
             typeof s === "string" ? { sourceId: s, seq: 0 } : s
         ) as CardInstanceState["abilitiesSuppressedBy"];
+    }
+    if (compact.baseStaticAbilities) {
+        result.baseStaticAbilities = compact.baseStaticAbilities as string[];
+    }
+    if (compact.abilityLossHolds) {
+        result.abilityLossHolds =
+            compact.abilityLossHolds as CardInstanceState["abilityLossHolds"];
     }
     if (compact.damagedBySources) {
         result.damagedBySources = compact.damagedBySources as string[];
@@ -2180,6 +2198,7 @@ const LEGACY_SEQ_RECORD_SPECS: {
         | "grantedTriggeredAbilities"
         | "removedKeywords"
         | "abilitiesSuppressedBy"
+        | "abilityLossHolds"
         | "grantedSubtypes"
         | "grantedSubtypesAdd";
     idKey: "sourceId" | "auraId";
@@ -2189,6 +2208,10 @@ const LEGACY_SEQ_RECORD_SPECS: {
     { field: "grantedTriggeredAbilities", idKey: "auraId" },
     { field: "removedKeywords", idKey: "sourceId" },
     { field: "abilitiesSuppressedBy", idKey: "sourceId" },
+    // PRD #2064 S3 — the resolving arm's CR 611.2b hold names its source by
+    // battlefield INSTANCE id (Tishana's Tidebinder), so it is remapped like
+    // every other id-bearing record.
+    { field: "abilityLossHolds", idKey: "sourceId" },
     { field: "grantedSubtypes", idKey: "sourceId" },
     { field: "grantedSubtypesAdd", idKey: "auraId" },
 ];
