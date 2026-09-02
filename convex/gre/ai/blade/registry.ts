@@ -4181,6 +4181,67 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "burst mana: kills with a two-mana spell off a single Black Lotus". Neither half is meaningful alone (ADR 0070 §1: a `forbidden` entry a never-casting bot also satisfies asserts nothing by itself). One untapped Mox Ruby makes exactly one mana, so {1}{R} cannot be paid and the cast must stay unenumerated. Measured under a deliberate break that made the planner floating pool unbounded (issue #3027 proof-of-failure): this half stayed GREEN, because the census (`canPotentiallyPayCost`) refuses the cast before the planner is ever consulted. So what this half pins is that the difference between the two halves is the SOURCE and not an appetite for Incinerate; the PLANNER upper bound is pinned instead by the unit tests in `burstManaSources.bot.test.ts` ("cannot pay a FOURTH pip", "Sol Ring pays {2} off one tap and stops at {3}"), both proven red under that same break.',
     },
+    {
+        // The Underworld Breach probe, reduced to one root decision.
+        //
+        // Breach is out, one untapped Black Lotus is the entire mana base, and
+        // the graveyard holds a Lightning Bolt plus six inert lands as escape
+        // fodder. The opponent is at 9 cards. The kill is NOT the Bolt: it is
+        // to cast Brain Freeze, let the Lotus reach the GRAVEYARD paying for
+        // it, escape the Lotus, tap it a SECOND time for a different colour,
+        // and escape Brain Freeze itself with a storm count — which mills the
+        // opponent out (CR 104.3c / 704.5b).
+        //
+        // Every piece of that needs something this entry guards:
+        //   - the Lotus reaches the graveyard at all: `applyTapPlan` models a
+        //     sacrifice-cost mana source leaving the battlefield;
+        //   - the graveyard is worth filling: the `graveyard` eval term;
+        //   - milling the opponent out is a WIN: the `library` term and
+        //     `deckOutDelta`.
+        //
+        // MEASURED on the parent commit (all three absent), same board, same
+        // seeds, at 400 AND 1200 iterations: the bot cast the Lightning Bolt
+        // from the graveyard and then had nothing, leaving the opponent at 8
+        // cards. On this branch it plays the line above on every seed and every
+        // budget measured, and the opponent's library reaches 0.
+        label: "decking: casts the storm kill that recurs its own Black Lotus",
+        spec: {
+            cards: [
+                { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Brain Freeze", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                // Inert escape fodder — lands, so Breach's "each NONLAND card"
+                // grant never makes them castable and they only ever pay an
+                // exile cost.
+                { name: "Island", owner: "me", zone: "graveyard", count: 6 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            // NOTE: `libraryCount` seeds BOTH libraries, so the bot is as close
+            // to decking as its opponent. That is not a weakness of the entry —
+            // it means the `library` term cannot be passed by a sign error, and
+            // milling the opponent has to be chosen over milling nobody.
+            libraryCount: 9,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Brain Freeze", target: "opp" },
+            ],
+        },
+        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlan`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
