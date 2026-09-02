@@ -33,8 +33,11 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 //
 // "Target opponent" is a REAL target announced when the ETB trigger goes on
 // the stack (CR 603.3d, the issue #1193 machinery), not a resolution-time
-// choice — so it reaches the player-target legality gate (protection from
-// everything, shroud — CR 702.16b / 702.18 via CR 115.4).
+// choice — so it reaches the player-target legality gate. Both of the
+// abilities that make a PLAYER an illegal target are stated in those terms:
+// protection (CR 702.16b — "a permanent or player with protection can't be
+// targeted by spells with the stated quality") and shroud (CR 702.18a —
+// "this permanent or player can't be the target of spells or abilities").
 //
 // DELIBERATELY no `condition` on the leaves-the-battlefield trigger: per CR
 // 603.2 the ability triggers whenever the permanent leaves, whether or not a
@@ -51,6 +54,13 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // `knownTo` (ADR 0026 public-zone rule), and the board affordance pinning the
 // exiled card to the Sculler comes free from the `exiledBySourceId` →
 // `exiledByPermanentId` projection link (issue #791).
+//
+// The Oracle compiler has no grammar for either printed line yet — the
+// reveal-and-exile-a-chosen-hand-card clause and the linked return-on-leave
+// clause are both unconsumed slots, so Guard C is satisfied by declaring the
+// fragments rather than by a round trip (PRD #2693).
+// compiler-gap: When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card. (#2693)
+// compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
 export const tidehollowSculler: CardDefinition = {
     id: "1abecc77-07f2-43e4-8585-0a8199cdcf01",
     name: "Tidehollow Sculler",
