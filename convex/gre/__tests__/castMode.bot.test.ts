@@ -3,7 +3,7 @@
 //
 // A cast mode is an alternative cost that changes what the spell IS, or what
 // becomes of the permanent it makes — Bestow (CR 702.103b), Morph (CR 702.37c),
-// Dash (CR 702.109a), Evoke (CR 702.74b) — as opposed to one that only changes
+// Dash (CR 702.109a), Evoke (CR 702.74a) — as opposed to one that only changes
 // the price. This engine builds a cast's stack item at two SEARCH sites, the
 // greedy 1-ply sandbox (`applyMoveForSearch`) and the ISMCTS in-tree executor
 // (`applyMoveInSearch`), and each used to carry its own hand-written list of
@@ -145,7 +145,7 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.dashed).toBe(true);
         },
     },
-    // CR 702.74b — the marker `evokeTrigger` reads to sacrifice the permanent
+    // CR 702.74a — the marker `evokeTrigger` reads to sacrifice the permanent
     // as it enters. NOT enumerated today (the Bot is never offered an evoke
     // cast), so this row pins the census entry rather than an executor path:
     // the day `enumerateMoves` offers one, both executors already stamp it.

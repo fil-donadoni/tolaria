@@ -1431,7 +1431,7 @@ export function applyMoveForSearch(
             // CR 601.2b (issues #2388 / #2705 / #1964 / #2796) — the
             // characteristics of the CAST MODE the caster chose: Bestow's Aura
             // rewrite (702.103b), Morph's face-down 2/2 (702.37c), Dash's
-            // marker (702.109a) and Evoke's (702.74b). The sandbox resolves the
+            // marker (702.109a) and Evoke's (702.74a). The sandbox resolves the
             // item below, so a mode left unstamped here is a mode the search
             // cannot see at all — every bestow line evaluating as "a 1/1 body
             // entered", a hidden 2/2 priced as the real card, a dashed or

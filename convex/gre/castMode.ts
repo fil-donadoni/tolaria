@@ -14,7 +14,7 @@
  *   * Dash (CR 702.109a) — the permanent gains haste and is returned to hand at
  *     the beginning of the next end step (the `dashed` marker its trigger
  *     reads);
- *   * Evoke (CR 702.74a/b) — the permanent is sacrificed when it enters (the
+ *   * Evoke (CR 702.74a) — the permanent is sacrificed when it enters (the
  *     `evoked` marker `evokeTrigger`'s `conditionOnSelf` reads).
  *
  * Every one of those is invisible unless the cast's stack item is STAMPED at
@@ -99,8 +99,8 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
             item.dashed = true;
         },
     },
-    // CR 702.74b — "if you cast a spell for its evoke cost, that permanent is
-    // sacrificed when it enters." `evokeTrigger`
+    // CR 702.74a — "When this permanent enters, if its evoke cost was paid, its
+    // controller sacrifices it." `evokeTrigger`
     // (`convex/cards/abilities/evoke.ts`) decides on `self.evoked === true`, so
     // an unstamped evoke line models a free fat creature that STAYS — the most
     // over-valued line the bot can see.
