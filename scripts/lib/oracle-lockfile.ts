@@ -19,6 +19,10 @@ import type {
     QuarantineReason,
 } from "../../convex/oracle/types";
 import type { CorpusPin, ReportedFormat } from "../oracle-corpus";
+import {
+    RETIREMENT_LEDGER_PATH,
+    type RetirementMarker,
+} from "./oracle-retirements";
 
 export interface LockfileHeader {
     readonly grammarVersion: string;
@@ -60,6 +64,25 @@ export interface CardRow {
     readonly opsUsed?: readonly string[];
     readonly quarantineReasons?: readonly QuarantineReason[];
     readonly definition?: CompiledDefinition;
+    /**
+     * Present iff this card's hand-written definition has been RETIRED
+     * (issue #3049, ADR 0114 §1) — this row is then the only copy of the
+     * card's behaviour, and a diff touching it is a behaviour change with no
+     * hand-written twin to fall back on.
+     *
+     * Stamped from `data/oracle-retirements.json` by `buildLockfile`, never
+     * hand-written into this file (the whole file is regenerated, so a
+     * hand-edit here does not survive the next `oracle:compile` — see
+     * `lib/oracle-retirements.ts` for why provenance lives in an input).
+     * Always the LAST key of the row, so marking a card changes exactly one
+     * row and nothing about the rest of the file's bytes.
+     *
+     * Provenance is on the LOCKFILE, never on the served asset: ADR 0114 §2
+     * keeps `data/oracle-compiled-pool.json` a resolved catalogue with nothing
+     * left to resolve at runtime, and a marker is read by review, not by the
+     * engine.
+     */
+    readonly retired?: RetirementMarker;
 }
 
 export interface Lockfile {
@@ -92,7 +115,21 @@ const DRIVER_FILES = [
     "scripts/lib/oracle-lockfile.ts",
 ] as const;
 
-/** Every source file the lockfile's contents depend on, in a stable order. */
+/**
+ * Committed INPUTS that are not compiler source but still decide the
+ * lockfile's bytes.
+ *
+ * The retirement ledger (issue #3049) is stamped onto rows by `buildLockfile`,
+ * so editing it without regenerating leaves the lockfile stale in exactly the
+ * way tier 1 exists to catch — and tier 1 is the only tier that runs on a
+ * clean checkout, where the corpus is gitignored and absent. Leaving it out of
+ * the hash would make "add a retirement, forget to compile" invisible offline,
+ * which is the same "guard that is not there" shape that put the driver files
+ * above into this hash (review of #2795, round 2).
+ */
+const DATA_INPUT_FILES = [RETIREMENT_LEDGER_PATH] as const;
+
+/** Every file the lockfile's contents depend on, in a stable order. */
 export function compilerSourceFiles(root: string): string[] {
     const out: string[] = [];
     const walk = (dir: string): void => {
@@ -108,11 +145,13 @@ export function compilerSourceFiles(root: string): string[] {
     };
     walk(ORACLE_MODULE_DIR);
     out.push(...DRIVER_FILES);
+    out.push(...DATA_INPUT_FILES);
     return out;
 }
 
 /**
- * Hash of the compiler's own source — grammar AND driver.
+ * Hash of the compiler's own source — grammar AND driver — plus the committed
+ * data inputs in {@link DATA_INPUT_FILES}.
  *
  * This is what makes the drift guard work OFFLINE. The full regenerate-and-diff
  * needs the 24 MB corpus, which is gitignored and absent on a clean checkout;

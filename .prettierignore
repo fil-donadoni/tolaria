@@ -55,3 +55,11 @@ data/oracle-compiled.json
 # formatting-dirty. Same rationale as the entry above: this is a generated,
 # machine-formatted artifact, not hand-authored source.
 data/oracle-compiled-pool.json
+
+# Oracle retirement ledger (issue #3049, ADR 0114 §1). Same rationale as the
+# two entries above: written by `bun run oracle:retire` with a deterministic
+# serializer that puts ONE RETIREMENT PER LINE, so a retirement is a single
+# added line in review. Prettier would explode each entry across five lines and
+# collapse the empty-array form, and the script's own output would then never
+# reproduce the committed bytes.
+data/oracle-retirements.json

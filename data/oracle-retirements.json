@@ -1,0 +1,5 @@
+{
+    "generator": "written by `bun run oracle:retire` — never hand-edited (see docs/adr/0114-retiring-a-hand-written-card.md)",
+    "retirements": [
+    ]
+}

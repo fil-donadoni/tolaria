@@ -36,6 +36,14 @@ import {
     type FragmentRow,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import {
+    emptyRetirementLedger,
+    parseRetirementLedger,
+    retirementMarkers,
+    validateRetirementLedger,
+    RETIREMENT_LEDGER_PATH,
+    type RetirementLedger,
+} from "./lib/oracle-retirements";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 export const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
@@ -65,6 +73,62 @@ function poolOracleIds(): Set<string> {
         source?: string;
     }[];
     return poolOracleIdsFromIndex(index);
+}
+
+const RETIREMENTS_PATH = join(ROOT, RETIREMENT_LEDGER_PATH);
+
+function readRetirementLedger(): RetirementLedger {
+    if (!existsSync(RETIREMENTS_PATH)) return emptyRetirementLedger();
+    const ledger = parseRetirementLedger(
+        readFileSync(RETIREMENTS_PATH, "utf8")
+    );
+    const problems = validateRetirementLedger(ledger);
+    if (problems.length > 0) {
+        throw new Error(
+            `${RETIREMENT_LEDGER_PATH} is malformed — a marker nobody can trust is worse than no marker:\n` +
+                problems.map((p) => `  - ${p}`).join("\n")
+        );
+    }
+    return ledger;
+}
+
+/**
+ * Stamp the retirement markers onto the rows they name, fail-closed on an
+ * entry that names no row.
+ *
+ * A ledger entry whose `oracleId` is absent from the corpus (a typo, a card
+ * dropped by a re-pin) would otherwise stamp NOTHING: the author sees a green
+ * compile, believes the card is marked, and the gate that is supposed to make
+ * a change to that row reviewed never fires. The name check catches the other
+ * half of the same mistake — a real oracle id copied from the wrong card.
+ *
+ * Pure over the two inputs so both refusals are testable without a corpus.
+ */
+export function stampRetirements(
+    rows: readonly CardRow[],
+    ledger: RetirementLedger
+): CardRow[] {
+    const byId = new Map(rows.map((row) => [row.oracleId, row]));
+    for (const entry of ledger.retirements) {
+        const row = byId.get(entry.oracleId);
+        if (row === undefined) {
+            throw new Error(
+                `${RETIREMENT_LEDGER_PATH}: no card in the corpus has oracle id ${entry.oracleId} ` +
+                    `(${entry.name}) — the retirement marks nothing, so the retired card's row would be unguarded`
+            );
+        }
+        if (row.name !== entry.name) {
+            throw new Error(
+                `${RETIREMENT_LEDGER_PATH}: oracle id ${entry.oracleId} is "${row.name}" in the corpus, ` +
+                    `but the ledger calls it "${entry.name}" — the entry names a different card than it marks`
+            );
+        }
+    }
+    const markers = retirementMarkers(ledger);
+    return rows.map((row) => {
+        const marker = markers.get(row.oracleId);
+        return marker === undefined ? row : { ...row, retired: marker };
+    });
 }
 
 function toOracleCard(card: CorpusCard): OracleCard {
@@ -97,6 +161,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
         );
     }
     const pool = poolOracleIds();
+    const retirements = readRetirementLedger();
 
     // Fragment table: dedupe by the unconsumed line, count the CARDS it blocks.
     //
@@ -204,7 +269,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
     // No dedupe here: the row's gap indexes are already distinct (deduped at
     // intern time) and `remap` is a bijection. Deduping again would only hide a
     // regression in the counting from the rows that are supposed to prove it.
-    const cards: CardRow[] = rawRows.map((row) =>
+    const remapped: CardRow[] = rawRows.map((row) =>
         row.gaps === undefined
             ? row
             : {
@@ -214,6 +279,9 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
                       .sort((a, b) => a - b),
               }
     );
+    // Last, so `retired` is the final key of every marked row and marking a
+    // card touches exactly that one row's bytes.
+    const cards: CardRow[] = stampRetirements(remapped, retirements);
 
     return {
         generator: LOCKFILE_GENERATOR,

@@ -50,6 +50,7 @@
         "oracle:legality": "bun scripts/oracle-legality.ts",
         "oracle:pool": "bun scripts/oracle-pool.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
+        "oracle:retire": "bun scripts/oracle-retire.ts",
         "prepare": "husky",
         "preview": "vite preview",
         "queue:lint": "bun scripts/queue-lint.ts",
