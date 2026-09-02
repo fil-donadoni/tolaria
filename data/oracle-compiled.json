@@ -24,7 +24,7 @@
             "ready": 595,
             "quarantine": 251,
             "unparsed": 4529,
-            "pool": 1311
+            "pool": 1312
         },
         "pauper": {
             "total": 10793,
@@ -52,14 +52,14 @@
             "ready": 2492,
             "quarantine": 781,
             "unparsed": 28417,
-            "pool": 2013
+            "pool": 2014
         },
         "commander": {
             "total": 31830,
             "ready": 2494,
             "quarantine": 780,
             "unparsed": 28556,
-            "pool": 2026
+            "pool": 2027
         }
     },
     "fragments": [
