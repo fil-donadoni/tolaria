@@ -1,7 +1,8 @@
 ---
 title: The ISMCTS sandbox never emits SPELL_CAST, so storm and every other cast trigger is invisible to the search
 discoveredBy: 2980
-status: draft
+status: triaged
+issue: 3026
 confidence: high
 ---
 
