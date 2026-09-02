@@ -1,7 +1,8 @@
 ---
 title: The Bot's mana model counts one mana per source, so it can never cast anything off a Black Lotus
 discoveredBy: 2980
-status: draft
+status: triaged
+issue: 3027
 confidence: high
 ---
 
