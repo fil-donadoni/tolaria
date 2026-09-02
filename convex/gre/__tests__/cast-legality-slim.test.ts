@@ -46,6 +46,12 @@ import { urzaLordHighArtificer } from "../../cards/sets/mh1";
 import { firebolt } from "../../cards/sets/ody";
 import { nethergoyf } from "../../cards/sets/mh3";
 import { planarGate } from "../../cards/sets/leg";
+import { castRawManaCost } from "../castCost";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+} from "../state";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type {
@@ -804,18 +810,26 @@ describe("cast affordability — escape board threading (issue #1751 finding 6, 
     });
 });
 
-// Issue #1751 finding 6 — negative folding assertion. `canPotentiallyPayCost`
-// deliberately sets `opts.foldCostModifiers: true` ONLY at the plain
-// hand-cast branch (rules.ts); every non-hand-cast branch — including
-// escape — passes `state` for the board view alone and must NOT also fold in
-// a battlefield cost-modifier static effect. Planar Gate ("Creature spells
-// you cast cost {2} less to cast.") would reduce Nethergoyf's escape cost
-// from {2}{B} to {B} alone IF the folding separation were violated. Set up a
-// board with exactly enough mana for the WRONGLY-folded cost ({B}, one
-// Swamp) but not the real unreduced one ({2}{B}, needs 2 more generic
-// sources) — if escape ever started folding cost modifiers, this test would
-// flip from "not castable" to "castable" and fail loudly.
-describe("cast affordability — foldCostModifiers separation holds for escape (issue #1751 finding 6)", () => {
+// CR 601.2f / 702.138a (issue #2981, reversing issue #1751 finding 6) — an
+// escape cast DOES take the board's cost modifiers.
+//
+// `bun run cr 702.138a`: "Casting a spell using its escape ability follows the
+// rules for paying alternative costs in rules 601.2b and 601.2f-h."
+// `bun run cr 601.2f`: "The total cost is the mana cost or alternative cost
+// (as determined in rule 601.2b), plus all additional costs and cost
+// increases, and minus all cost reductions."
+//
+// This block used to assert the OPPOSITE — that the then-opt-in
+// `foldCostModifiers` separation held for escape, so Planar Gate ("Creature
+// spells you cast cost {2} less to cast.") did NOT reduce Nethergoyf's
+// {2}{B} escape cost. That separation was never a rule, it was an omission:
+// `announceCast` folds the collector onto whatever cost a cast owes, for every
+// zone and mechanism with no carve-out, so the gate refused a cast the payment
+// prices at {B} — the same gate-vs-payment disagreement issue #2981 fixed on
+// the free-exile branch, in the direction that hides a legal cast instead of
+// offering an unpayable one. Same board as before, opposite verdict, and both
+// sides asserted so they cannot drift apart again.
+describe("cast affordability — an escape cast folds cost modifiers (CR 601.2f / 702.138a, issue #2981)", () => {
     function onBattlefield(defId: string, id: string) {
         return makeInstance(defId, {
             id,
@@ -826,7 +840,7 @@ describe("cast affordability — foldCostModifiers separation holds for escape (
         });
     }
 
-    it("Nethergoyf's escape does NOT pick up Planar Gate's creature-spell cost reduction", () => {
+    it("Nethergoyf's escape picks up Planar Gate's creature-spell cost reduction, and the payment prices it the same", () => {
         const goyf = makeInstance(nethergoyf.id, {
             controllerId: "p1",
             ownerId: "p1",
@@ -843,16 +857,36 @@ describe("cast affordability — foldCostModifiers separation holds for escape (
             battlefield: [
                 onBattlefield(planarGate.id, "gate"),
                 onBattlefield(swamp.id, "swamp1"),
-                // Deliberately NO other mana source: the correct, unreduced
-                // {2}{B} escape cost needs 2 more generic sources that aren't
-                // here. A wrongly-folded {B}-only cost would be covered by
-                // the Swamp alone.
+                // Deliberately NO other mana source: the one Swamp covers the
+                // REDUCED {B} and nothing more, so this board discriminates.
+                // The unreduced {2}{B} would need two further generic sources.
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
 
-        expect(getLegalActions(state, player, goyf)).not.toContain("cast");
+        // GATE half — {2}{B} minus Planar Gate's {2} is {B}, which the Swamp
+        // pays. (Nethergoyf's four other graveyard cards satisfy escape's own
+        // "four or more card types among them" exile cost, so what is being
+        // judged here is purely the mana half.)
+        expect(getLegalActions(state, player, goyf)).toContain("cast");
+
+        // PAYMENT half, at the HELPER level — the two calls `announceCast`
+        // makes, in its order, on the same board: the cost authority for the
+        // zone, then the collector folded onto it. They must land on the SAME
+        // {B} the gate just offered. This asserts the two helpers compose to
+        // {B}, NOT that the mutation calls them in that order; escape's
+        // "four or more card types among them" exile cost is a variable picker
+        // that parks a choice, so driving `announceCast` here would assert the
+        // picker, not the mana. The end-to-end proof for the same disagreement
+        // runs through the real mutation on the free-exile branch
+        // (`freeCastGateCostModifiers.test.ts`), whose waived cast takes no
+        // picker.
+        const paid = normalizeManaCost(
+            castRawManaCost(state, goyf, "graveyard") ?? {}
+        );
+        applyCostModifiers(paid, getCostModifiers(state, goyf, "spell"));
+        expect(paid).toEqual({ B: 1 });
     });
 });
 

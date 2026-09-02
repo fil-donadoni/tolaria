@@ -6,6 +6,18 @@ issue: 2981
 confidence: high
 ---
 
+**RESOLVED by issue #2981 / PR #3036.** The open CR question below is
+settled, and it settled in favour of moving the GATE. `bun run cr 118.6a` names
+the "without paying its mana cost" waiver **as an alternative cost**, and
+`bun run cr 118.9d` applies every increase and reduction to an alternative
+cost — so the payment path was already right. The fold is now unconditional
+inside `canPotentiallyPayCost`, on every one of the gate's cast branches rather
+than the three that opted in, so the "one gate branch per cast mechanism, and
+only three of them fold" framing at the end of this file is fixed as a class.
+`bun run cr 702.138a` settled escape the same way (it routes through 601.2f),
+which reversed the issue #1751 finding-6 test that had asserted the opposite.
+Everything below is the original draft, kept as written.
+
 **What is wrong.** `getLegalActions`'s FREE-exile branch (CR 601.3, the
 `castFromExileWithoutPayingManaCost` waiver — Dauthi Voidwalker) probes
 affordability with `canPotentiallyPayCost(caster, card, {}, state)` and no

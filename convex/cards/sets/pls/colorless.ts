@@ -541,9 +541,9 @@ export const terminalMoraine: CardDefinition = {
 // Everything downstream is pre-existing and shared, so the reduction is
 // visible EVERYWHERE, not merely at payment: `getCostModifiers` /
 // `applyCostModifiers` (`gre/state.ts`) is the single CR 601.2f authority, and
-// its callers are the castability probe (`canPotentiallyPayCost` with
-// `foldCostModifiers`, driving `getLegalActions`' plain-cast branch —
-// so Draco is reported castable the moment Domain makes it affordable),
+// its callers are the castability probe (`canPotentiallyPayCost`, which folds
+// them onto every one of `getLegalActions`' cast branches — so Draco is
+// reported castable the moment Domain makes it affordable),
 // the announce/payment path (`announceCast` parks an ALREADY-reduced
 // `pendingCast.manaCost`, which is what the auto-tap solver taps for and what
 // the client's payment surface renders), the bot's move enumeration
