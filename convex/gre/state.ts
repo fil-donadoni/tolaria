@@ -8003,6 +8003,7 @@ export function refreshCounterGatedStatics(state: GameState): void {
             });
         }
     }
+    syncLayers2to5(state);
     syncLayer6(state);
 }
 

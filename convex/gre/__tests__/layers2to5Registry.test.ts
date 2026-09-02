@@ -29,6 +29,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { finalizeCleanup } from "../phases";
 import { projectPublicState } from "../../gameProjections";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { getDefinition } from "../../cards";
@@ -334,5 +335,61 @@ describe("ADR 0082 — no CR 613 layer is derived outside the registry (PRD #206
             "utf8"
         );
         expect(source).not.toMatch(/\beffect\.kind\s*===/);
+    });
+});
+
+describe("CR 611.2b — the phase boundary re-derives layers 2-5 (PRD #2064 S4)", () => {
+    it("a timed subtype replacement expiring at CLEANUP restores the derived line, and does NOT clobber a live SET that outlives it", () => {
+        // The gap this pins: `tickAllDurations` drops the expired LEDGER rows,
+        // and until PRD #2064 S4 nothing re-derived layers 2-5 afterwards — so
+        // the boundary's effect was invisible until the next SBA pass. Worse,
+        // the old restore wrote `restoreSubtypes` back onto `subtypes`
+        // directly, which is the derivation's OUTPUT: with a longer-lived
+        // `subtype-set` still applying, that array is not the answer.
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            // CR 514.2 — the boundary this test drives is the CLEANUP step.
+            phase: "CLEANUP",
+            players: [
+                makePlayer("p1", { battlefield: [mtn] }),
+                makePlayer("p2"),
+            ],
+        });
+        syncLayers2to5(state);
+        expect(mtn.subtypes).toEqual(["Mountain"]);
+
+        // An INDEFINITE set that survives the boundary (a live Blood Moon-style
+        // source's residue), plus a TIMED one stamped later that does not.
+        state.continuousEffects = [
+            {
+                id: "ce-lasting",
+                layer: 4,
+                timestamp: 10,
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                affected: { kind: "instances", instanceIds: ["mtn"] },
+                payload: { kind: "subtype-change", set: ["Island"] },
+                characteristicDefining: false,
+            },
+        ];
+        mtn.temporarySubtypeChange = {
+            subtypes: ["Swamp"],
+            restoreSubtypes: ["Mountain"],
+            duration: { phase: "end-of-turn" },
+            seq: 20,
+        };
+        syncLayers2to5(state);
+        expect(mtn.subtypes).toEqual(["Swamp"]);
+
+        finalizeCleanup(state);
+
+        // The timed row is gone and the answer is RE-DERIVED: the indefinite
+        // set is still applying, so the line is Island — not the `Mountain`
+        // the expired row carried as its restore anchor.
+        expect(mtn.temporarySubtypeChange).toBeUndefined();
+        expect(mtn.subtypes).toEqual(["Island"]);
     });
 });
