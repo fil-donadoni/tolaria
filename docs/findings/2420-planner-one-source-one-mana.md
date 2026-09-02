@@ -1,9 +1,16 @@
 ---
 title: planManaPayment models one source = one mana, the castability census counts one unit per mana
 discoveredBy: 2420
-status: draft
+status: triaged
+issue: 3027
 confidence: high
 ---
+
+**Closed by issue #3027.** `planManaPayment` now reads the same per-mana
+quantity the census does, the sweep's `KNOWN_MULTI_MANA_DIVERGENCES = 11`
+escape hatch is deleted, and invariant A is asserted with no exemption at all.
+Kept for the measurement below, which is the baseline the fix is stated
+against.
 
 ## What
 

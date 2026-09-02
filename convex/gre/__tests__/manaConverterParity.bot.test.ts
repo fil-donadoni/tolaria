@@ -12,6 +12,8 @@
 //   round 2  [Urza, Mox Sapphire]       → cast offered, plan null
 //   round 3  [Urza, Mox Sapphire, Mox Jet] → cast offered, plan null
 //            [Mox Sapphire, Mox Jet, Urza] → plan taps Sapphire TWICE
+//   #3027    [Sol Ring] casting Ankh of Mishra ({2}) → cast offered, plan null
+//            [Black Lotus] casting Lord of Atlantis ({U}{U}) → same
 //
 // A Cast the player cannot pay for parks unpayably in `pendingCast` (the
 // #1695 trap `rules.ts` records); a plan that taps one permanent twice is
@@ -23,9 +25,22 @@
 //
 // The invariants:
 //   A. `getLegalActions` offering "cast" ⇒ `planManaPayment` returns a plan.
+//   A'. `planManaPayment` returning a plan ⇒ `getLegalActions` offers "cast"
+//      — the reverse direction, added by issue #3027, with ONE mechanism
+//      excluded and named (see `hasNetZeroManaAbility`). A strict `iff` is
+//      not achievable: the census is documented to OVER-approximate
+//      ("errs toward showing the Cast button", `canPotentiallyPayCost`), so
+//      A is the direction that can be total.
 //   B. No plan taps one PHYSICAL permanent twice — across plain entries and
 //      `tapOtherIds` alike.
 //   C. A `tapOtherFilter` activation never taps its own source (CR 602.1).
+//
+// Issue #3027 removed the one escape hatch this file used to carry: a
+// `KNOWN_MULTI_MANA_DIVERGENCES = 11` budget covering every board whose only
+// surplus was a multi-mana source (Sol Ring paying {2}), because
+// `planManaPayment` counted one mana per source while the census counted one
+// unit per mana. The planner now reads the same quantity and the budget is 0,
+// so invariant A is asserted with no exemption at all.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -36,10 +51,12 @@ import {
 import { planManaPayment, type ManaTap } from "../moves";
 import { getLegalActions } from "../rules";
 import { getInstanceManaCost } from "../../cards";
-import { MANA_COLORS, getManaTapOptionsDetailed } from "../constants";
+import { pureGenericManaSubCost } from "../constants";
+import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import type { CardInstanceState, GameState } from "../state";
 import {
     ankhOfMishra,
+    blackLotus,
     crusade,
     grizzlyBears,
     island,
@@ -56,9 +73,10 @@ import { urzaLordHighArtificer } from "../../cards/sets/mh1";
 
 /** Mixed pool: the converter (Urza), artifacts it can and cannot usefully tap
  *  (a blue Mox, an off-colour Mox, a colourless rock, a 0/2 with no mana
- *  ability at all), plain lands, and the OTHER non-tap shape (Farrelite
- *  Priest's pure `cost.mana`). Every regression above lives inside a subset
- *  of this pool. */
+ *  ability at all), plain lands, the OTHER non-tap shape (Farrelite Priest's
+ *  pure `cost.mana`) and — since issue #3027 — a CHOICE-based burst source
+ *  (Black Lotus, "Add three mana of any one color") alongside the fixed-burst
+ *  Sol Ring. Every regression above lives inside a subset of this pool. */
 const POOL = [
     urzaLordHighArtificer,
     moxSapphire,
@@ -68,6 +86,7 @@ const POOL = [
     island,
     plains,
     farrelitePriest,
+    blackLotus,
 ] as const;
 
 /** Untargeted spells covering a doubled coloured pip, a mixed generic +
@@ -139,37 +158,46 @@ function tappedPermanentIds(plan: readonly ManaTap[]): string[] {
     return ids;
 }
 
-/** True when any untapped permanent produces 2+ mana from ONE tap (Sol Ring's
- *  {C}{C}). `planManaPayment` is explicitly a one-source-one-mana model (see
- *  its own doc comment) while `coloredCostLeftover` counts one unit PER MANA
- *  (issue #132), so those boards carry a PRE-EXISTING divergence that predates
- *  and is independent of this issue: measured on baseline 45e0bdcc, 15 boards
- *  of this sweep disagree, every one of them a Sol Ring board paying a purely
- *  generic cost. This branch reduces that to 11 (Urza can now tap Ornithopter
- *  for the missing unit) and adds none. Closing it means teaching the planner
- *  multi-mana sources, which moves every board and is not this issue's scope
- *  — see `docs/findings/2420-planner-one-source-one-mana.md`. */
-function hasMultiManaTapSource(
+/** True when any untapped permanent carries a mana ability that taps NOTHING
+ *  and whose whole cost is generic mana (Farrelite Priest's "{1}: Add {W}").
+ *  These boards are the one place invariant A' does NOT hold, and the reason
+ *  is on the CENSUS side, in the opposite direction to this file's usual
+ *  quarry: `getProducibleManaUnits` (rules.ts) nets such an ability's own
+ *  sub-cost out of its produced units (issue #2420 review finding 2, which
+ *  stopped a FALSE-POSITIVE Cast button), so a Priest that a real board can
+ *  genuinely fund contributes zero units and the census refuses a cast the
+ *  planner — and a human — can make.
+ *
+ *  Measured on `98ed936f4`, i.e. BEFORE issue #3027 touched anything:
+ *  `[Mox Sapphire, Mox Jet, Farrelite Priest]` casting Island Sanctuary
+ *  ({1}{W}) already returned the three-tap plan
+ *  `[sapphire, priest, jet]` while `getLegalActions` returned `[]`. That is a
+ *  pre-existing census under-approximation, not a planner regression, and
+ *  closing it means revisiting #2420's netting — a different issue.
+ *
+ *  The exclusion is a NAMED MECHANISM, deliberately not a count: a numeric
+ *  budget absorbs the next divergence of a different shape in silence, which
+ *  is exactly how the multi-mana one survived three review rounds. Any A'
+ *  failure on a board without this shape reds the sweep.
+ *  tracked-by: docs/findings/3027-census-nets-fundable-mana-ability-to-zero.md */
+function hasNetZeroManaAbility(
     battlefield: readonly CardInstanceState[]
 ): boolean {
     return battlefield.some((perm) =>
-        getManaTapOptionsDetailed(perm, "p1", [
-            { playerId: "p1", battlefield },
-        ]).some(
-            (opt) =>
-                MANA_COLORS.reduce((n, c) => n + (opt.mana[c] ?? 0), 0) >= 2
+        getEffectiveActivatedAbilities(perm).some(
+            ({ ability }) =>
+                !ability.useStack &&
+                !ability.cost.tap &&
+                !ability.cost.tapOtherFilter &&
+                (pureGenericManaSubCost(ability.cost.mana ?? {}) ?? 0) > 0
         )
     );
 }
 
-/** Measured on this branch; baseline 45e0bdcc is 15 (see above). A change that
- *  raises it is a regression even though the shape is pre-existing. */
-const KNOWN_MULTI_MANA_DIVERGENCES = 11;
-
 describe("mana payment authorities agree (issue #2420)", () => {
     it("every board the Cast affordance admits has a concrete tap plan, and no plan taps one permanent twice", () => {
         const disagreements: string[] = [];
-        const preExisting: string[] = [];
+        const reverseDisagreements: string[] = [];
         const doubleTaps: string[] = [];
         const selfTaps: string[] = [];
         let castsOffered = 0;
@@ -209,14 +237,22 @@ describe("mana payment authorities agree (issue #2420)", () => {
                 const where = `${board.label} casting ${spellDef.name}`;
 
                 if (offersCast) castsOffered++;
-                // INVARIANT A — the #1695 trap.
+                // INVARIANT A — the #1695 trap. No exemption since issue
+                // #3027: the planner reads the census's own quantity.
                 if (offersCast && plan === null) {
-                    const line = `${where}: cast offered, plan null`;
-                    if (hasMultiManaTapSource(player.battlefield)) {
-                        preExisting.push(line);
-                    } else {
-                        disagreements.push(line);
-                    }
+                    disagreements.push(`${where}: cast offered, plan null`);
+                }
+                // INVARIANT A' — the other direction (issue #3027). A plan the
+                // Bot can execute that the human is not offered is a Cast
+                // button wrongly withheld.
+                if (
+                    !offersCast &&
+                    plan !== null &&
+                    !hasNetZeroManaAbility(player.battlefield)
+                ) {
+                    reverseDisagreements.push(
+                        `${where}: plan built, no cast offered`
+                    );
                 }
                 if (plan === null) continue;
                 plansBuilt++;
@@ -235,9 +271,7 @@ describe("mana payment authorities agree (issue #2420)", () => {
         }
 
         expect(disagreements).toEqual([]);
-        expect(preExisting.length).toBeLessThanOrEqual(
-            KNOWN_MULTI_MANA_DIVERGENCES
-        );
+        expect(reverseDisagreements).toEqual([]);
         expect(doubleTaps).toEqual([]);
         expect(selfTaps).toEqual([]);
         // The sweep must actually reach both authorities — a matrix that
