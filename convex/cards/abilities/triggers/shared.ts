@@ -423,8 +423,9 @@ export function withTriggerGate<T extends TriggeredAbility>(
  *  the strictly worse error, because a trigger that reaches the stack ANNOUNCES
  *  targets and emits `BECAME_TARGET` (issue #2015).
  *
- *  Deliberately a local read of the documented public field rather than an
- *  import of `gre/kicker.ts`'s `kickerPaidCount` (the RESOLUTION-time authority
+ *  Deliberately a local read of the documented public fields rather than an
+ *  import of `gre/kicker.ts`'s `additionalCostPaidCount` (the RESOLUTION-time
+ *  authority
  *  over the same record): `gre/kicker.ts` pulls in `gre/state.ts`, and this
  *  module is imported — transitively — by every card file in the catalogue, so
  *  that edge would drag the whole engine into every card module's init graph.
@@ -434,8 +435,18 @@ function additionalCostPaidTimes(
     self: PermanentView,
     kickerId: string
 ): number {
-    const n = self.kickerPayments?.[kickerId];
-    return typeof n === "number" && n > 0 ? n : 0;
+    // ADR 0085 — read across BOTH payment records, each sanitised on its own
+    // (never summed raw: a corrupt string entry must still read 0, not
+    // concatenate). The split at the write is about KICKED-ness (CR 702.33d),
+    // which is a question about the SPELL; a per-id question is about ONE cost
+    // entry, so "if its offspring cost was paid" (CR 702.175a) must answer yes
+    // on a permanent that was never kicked. Mirrors `additionalCostPaidCount`
+    // (`gre/kicker.ts`) leg for leg — the agreement test pins them.
+    const times = (record: Record<string, number> | undefined): number => {
+        const n = record?.[kickerId];
+        return typeof n === "number" && n > 0 ? n : 0;
+    };
+    return times(self.kickerPayments) + times(self.unkickedCostPayments);
 }
 
 /** CR 603.4 check-time predicate — "if it was kicked with its {A} kicker",

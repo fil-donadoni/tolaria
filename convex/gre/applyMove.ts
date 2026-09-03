@@ -82,7 +82,11 @@ import {
     resolveAdditionalCosts,
 } from "./additionalCost";
 import type { AdditionalCostSpec, CardDefinition } from "../cards/types";
-import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
+import {
+    additionalCostPaymentSnapshot,
+    buildCastPermanentCostChoice,
+    type KickerPayments,
+} from "./kicker";
 import { completeSacrificeSelection } from "./paymentPicks";
 import { applyCastSacrificeVictims, type CastCostPicks } from "./castCostPicks";
 import { cheapestFirst } from "./paymentPicks";
@@ -1390,9 +1394,16 @@ export function applyMoveForSearch(
                 // `.buybackPaid` → `StackItem`), so a resolving Kicker/Buyback
                 // spell reads `wasKicked` / `{ additionalCostPaid }` / the Buyback
                 // return-to-hand redirect correctly inside the search.
-                ...(move.kickerPayments
-                    ? { kickerPayments: move.kickerPayments }
-                    : {}),
+                // CR 702.33d / 702.175a (ADR 0085) — partitioned by keyword at
+                // the write, exactly as the real commit paths partition it
+                // (`game.ts`), so the sandbox's resolving spell reads the same
+                // kicked-ness the mutation would have produced.
+                ...additionalCostPaymentSnapshot(
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    ),
+                    move.kickerPayments
+                ),
                 ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
                 // CR 118.8 / 608.2h — the additional-cost victim snapshot, so a
                 // spell that reads it back at resolve (`getAdditionalSacrificeMv`)

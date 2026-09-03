@@ -11,7 +11,7 @@
 // an unambiguous "this exact Kicker was paid at least once" must read false.
 import { describe, expect, it } from "vitest";
 import { additionalCostPaidCondition } from "../shared";
-import { kickerPaidCount } from "../../../../gre/kicker";
+import { additionalCostPaidCount } from "../../../../gre/kicker";
 import type { CardType, PermanentView } from "../../../types";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
@@ -97,11 +97,41 @@ describe("additionalCostPaidCondition (CR 702.33 / 603.4 per-Kicker check-time g
         expect(additionalCostPaidCondition("constructor")(self)).toBe(false);
     });
 
+    // ── the SIBLING record (CR 702.175a / ADR 0085) ────────────────────────
+    // A per-id question is about ONE cost entry, never about kicked-ness, so a
+    // permanent whose OFFSPRING cost was paid — and which therefore carries no
+    // `kickerPayments` at all — must still answer true for that entry's id.
+    it("true for an id recorded in the UNKICKED sibling record only", () => {
+        const self = makeSelf({ unkickedCostPayments: { offspring: 1 } });
+        expect(additionalCostPaidCondition("offspring")(self)).toBe(true);
+        expect(additionalCostPaidCondition("kicker")(self)).toBe(false);
+    });
+
+    it("answers both records on a permanent that paid one of each", () => {
+        const self = makeSelf({
+            kickerPayments: { kicker: 1 },
+            unkickedCostPayments: { offspring: 1 },
+        });
+        expect(additionalCostPaidCondition("kicker")(self)).toBe(true);
+        expect(additionalCostPaidCondition("offspring")(self)).toBe(true);
+    });
+
+    it("fails CLOSED on a corrupt entry in the sibling record", () => {
+        const self = makeSelf({
+            unkickedCostPayments: { offspring: "1" } as unknown as Record<
+                string,
+                number
+            >,
+        });
+        expect(additionalCostPaidCondition("offspring")(self)).toBe(false);
+    });
+
     it("agrees with `gre/kicker.ts`'s resolution-time authority on every shape", () => {
-        // The check-time predicate deliberately reads `kickerPayments` locally
-        // rather than importing `kickerPaidCount` (that import would drag
-        // `gre/state.ts` into every card module's init graph — see the helper's
-        // doc comment). This is the test that keeps the two in lockstep.
+        // The check-time predicate deliberately reads the two payment records
+        // locally rather than importing `additionalCostPaidCount` (that import
+        // would drag `gre/state.ts` into every card module's init graph — see
+        // the helper's doc comment). This is the test that keeps the two in
+        // lockstep, across BOTH halves of the ADR 0085 split.
         const records: Array<Record<string, number> | undefined> = [
             undefined,
             {},
@@ -110,14 +140,33 @@ describe("additionalCostPaidCondition (CR 702.33 / 603.4 per-Kicker check-time g
             { "kicker-b": -1 },
             { "kicker-b": 3, "kicker-g": 1 },
             { "kicker-g": 1 },
+            { offspring: 1 },
         ];
-        for (const rec of records) {
-            for (const id of ["kicker-b", "kicker-g", "nope"]) {
-                expect(
-                    additionalCostPaidCondition(id)(
-                        makeSelf({ kickerPayments: rec })
-                    )
-                ).toBe(kickerPaidCount(rec, id) >= 1);
+        for (const kicked of records) {
+            for (const unkicked of records) {
+                for (const id of [
+                    "kicker-b",
+                    "kicker-g",
+                    "offspring",
+                    "nope",
+                ]) {
+                    expect(
+                        additionalCostPaidCondition(id)(
+                            makeSelf({
+                                kickerPayments: kicked,
+                                unkickedCostPayments: unkicked,
+                            })
+                        )
+                    ).toBe(
+                        additionalCostPaidCount(
+                            {
+                                kickerPayments: kicked,
+                                unkickedCostPayments: unkicked,
+                            },
+                            id
+                        ) >= 1
+                    );
+                }
             }
         }
     });

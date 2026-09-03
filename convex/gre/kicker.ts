@@ -23,6 +23,7 @@
 //     (`{ kickerCount: true }`, `entersWith.counters` count `"kicker"`, the bot
 //     valuers) reads it through here.
 import type {
+    AdditionalCostKeyword,
     CardDefinition,
     CardType,
     Color,
@@ -49,6 +50,70 @@ import { getInstanceManaCost } from "../cards/registry";
  *  derived from it (`totalKickerCount`), never stored beside it (ADR 0079). */
 export type KickerPayments = Record<string, number>;
 
+/** CR 702.33d (ADR 0085) — what each {@link AdditionalCostKeyword} in the
+ *  family MEANS, as an exhaustive table.
+ *
+ *  A `Record` over the closed union, deliberately: adding a keyword is a
+ *  COMPILE ERROR until this table states its kicked-ness. There is no default
+ *  in either direction because both defaults are wrong somewhere — a deny-list
+ *  fails OPEN on the next member, an allow-list keyed on the literal name
+ *  `"kicker"` fails on **Sticker kicker** (CR 702.33h: it MEANS "Kicker
+ *  [cost]", so a sticker-kicked spell genuinely IS kicked).
+ *
+ *  - `countsAsKicked` — CR 702.33d: does declaring the intention to pay this
+ *    cost make the spell "kicked"? The ONE axis every kicked-ness reader
+ *    depends on, applied at the WRITE (see
+ *    {@link additionalCostPaymentSnapshot}) so no reader has to.
+ *  - `requiresTrigger` — does the keyword's own CR text pair the cost half with
+ *    a twin TRIGGER that must ship with it? CR 702.175a gives offspring one
+ *    ("When this permanent enters, if its offspring cost was paid, create a
+ *    token that's a copy of it, except it's 1/1"); CR 702.33a gives kicker
+ *    none. Read by the catalogue guard that refuses to let one half ship alone.
+ *  - `allowsMulti` — may an entry with this keyword set {@link KickerCost.multi}
+ *    (CR 702.33c "any number of times")? Kicker may — that IS Multikicker,
+ *    which CR 702.33c defines as a kicker cost rather than a separate identity.
+ *    CR 702.175a has no such clause for offspring, so it may not; enforced at
+ *    announcement by {@link resolveKickerPayments}. */
+export const ADDITIONAL_COST_KEYWORDS: Record<
+    AdditionalCostKeyword,
+    {
+        countsAsKicked: boolean;
+        requiresTrigger: boolean;
+        allowsMulti: boolean;
+    }
+> = {
+    // CR 702.33a/d — the original, and the only identity "kicked" is defined
+    // over. CR 702.33c folds Multikicker in here rather than beside it.
+    kicker: { countsAsKicked: true, requiresTrigger: false, allowsMulti: true },
+    // CR 702.175a — same cost half word for word, a DIFFERENT consequence, and
+    // never "kicked". Its twin trigger is what issue #2079 ships; until then
+    // no shipped card may declare it (`additionalCostKeywords.test.ts`).
+    offspring: {
+        countsAsKicked: false,
+        requiresTrigger: true,
+        allowsMulti: false,
+    },
+};
+
+/** CR 702.33a (ADR 0085) — the keyword identity of ONE cost entry. The SINGLE
+ *  place the omitted-field default is applied: an entry that does not say which
+ *  keyword it is, is a Kicker, which is what every entry in the catalogue was
+ *  before the family existed. */
+export function additionalCostKeywordOf(
+    kicker: Pick<KickerCost, "keyword">
+): AdditionalCostKeyword {
+    return kicker.keyword ?? "kicker";
+}
+
+/** CR 702.33d — does paying THIS cost entry make the spell "kicked"? Answered
+ *  only through {@link ADDITIONAL_COST_KEYWORDS}, never by comparing names. */
+export function costEntryCountsAsKicked(
+    kicker: Pick<KickerCost, "keyword">
+): boolean {
+    return ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)]
+        .countsAsKicked;
+}
+
 /** CR 702.33 — the DERIVED total: how many times ANY of the spell's Kickers was
  *  paid (0 = not kicked at all). Backs `SpellContext.getKickerCount()`, the
  *  `{ kickerCount: true }` Effect Script value, `entersWith.counters` count
@@ -72,6 +137,40 @@ export function kickerPaidCount(
 ): number {
     const n = payments?.[kickerId];
     return typeof n === "number" && n > 0 ? n : 0;
+}
+
+/** The pair of per-id payment records an object carries once
+ *  {@link additionalCostPaymentSnapshot} has partitioned them (ADR 0085): the
+ *  KICKED-counting one, and its sibling. Structurally satisfied by `StackItem`,
+ *  `CardInstanceState` and the client's `PermanentView` alike, so one merged
+ *  read serves all three. */
+export type AdditionalCostPaymentRecords = {
+    kickerPayments?: KickerPayments;
+    unkickedCostPayments?: KickerPayments;
+};
+
+/** CR 702.33a / 702.175a (ADR 0085) — how many times the NAMED cost entry was
+ *  paid, ACROSS BOTH records (0 = not paid). The single authority for every
+ *  per-id question — `SpellContext.getKickerPaidCount()`, the
+ *  `{ additionalCostPaid: "<id>" }` Effect Script value and the permanent-side
+ *  `additionalCostPaidCondition` — because a per-id question is about ONE cost
+ *  entry, never about kicked-ness: "was its offspring cost paid?" must answer
+ *  yes even though the spell was never kicked.
+ *
+ *  The split is the other direction's job: kicked-ness reads `kickerPayments`
+ *  ALONE and needs no card definition, which is exactly why the partition
+ *  happens at the write. Ids are unique within a card
+ *  (`kickerDeclarations.test.ts`), so at most one record can answer; summing
+ *  rather than short-circuiting keeps that a fact about the catalogue instead
+ *  of an assumption this function would silently rely on. */
+export function additionalCostPaidCount(
+    records: AdditionalCostPaymentRecords,
+    costEntryId: string
+): number {
+    return (
+        kickerPaidCount(records.kickerPayments, costEntryId) +
+        kickerPaidCount(records.unkickedCostPayments, costEntryId)
+    );
 }
 
 /** The card's Kicker with this id, or undefined. */
@@ -135,6 +234,19 @@ export function resolveKickerPayments(
         if (!kicker.multi && n > 1) {
             throw new Error("This spell's kicker can only be paid once");
         }
+        // CR 702.33c / 702.175a (ADR 0085) — repeatability is a property of the
+        // KEYWORD as well as of the entry: "any number of times" is Multikicker
+        // (a kicker cost, CR 702.33c), and no other member of the family has
+        // that clause. A `multi: true` entry on a keyword whose table row says
+        // `allowsMulti: false` is a mis-declared card, not a payable cost, so
+        // it fails CLOSED at announcement rather than quietly charging twice.
+        if (
+            kicker.multi &&
+            !ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)]
+                .allowsMulti
+        ) {
+            throw new Error("This spell's kicker can only be paid once");
+        }
         if (kicker.energy !== undefined) {
             throw new Error("This kicker's cost cannot be paid");
         }
@@ -151,6 +263,82 @@ export function resolveKickerPayments(
         throw new Error("These kickers' costs cannot be paid together");
     }
     return canonical;
+}
+
+/** CR 702.33d (ADR 0085) — THE split. Partition one cast's per-id payment
+ *  record by keyword and return it as the pair of fields to spread onto the
+ *  resulting `StackItem`: `kickerPayments` receives only the entries whose
+ *  keyword `countsAsKicked`, everything else goes to `unkickedCostPayments`.
+ *  Either field is omitted when its half is empty, so an unkicked cast still
+ *  carries neither and the shape on the wire is unchanged for every card in
+ *  today's catalogue.
+ *
+ *  **Why here and not at the reads.** "Was this spell kicked?" is observable in
+ *  six places — the `kickedTargetRequirement` swap (`game.ts`), the `wasKicked`
+ *  permanent snapshot, the `count: "kicker"` ETB tally, `{ kickerCount: true }`,
+ *  the `spellWasKicked` target filter, and that filter again from the CLIENT,
+ *  which receives a slim stack item with no card definition at all and
+ *  therefore cannot be made definition-aware. Narrowing six readers needs a
+ *  definition lookup at each and leaves a SEVENTH reader, added later, silently
+ *  wrong. Splitting once at the write means every reader — present, future and
+ *  client-side — is correct by construction with no edit at all
+ *  (ADR 0085 § Decision 2).
+ *
+ *  Fail-CLOSED on an id the card does not declare: it goes to the sibling, so a
+ *  stray or mistyped key can never invent a KICK. (`resolveKickerPayments`
+ *  already rejects such an id at announcement; this is the second line, for the
+ *  Bot's sandboxes, which build stack items from a `Move`.) */
+export function additionalCostPaymentSnapshot(
+    cardDef: Pick<CardDefinition, "kickers"> | undefined | null,
+    payments: KickerPayments | undefined
+): AdditionalCostPaymentRecords {
+    if (!payments) return {};
+    const kicked: KickerPayments = {};
+    const unkicked: KickerPayments = {};
+    for (const [id, raw] of Object.entries(payments)) {
+        if (typeof raw !== "number" || raw <= 0) continue;
+        const entry = cardDef ? findKicker(cardDef, id) : undefined;
+        if (entry && costEntryCountsAsKicked(entry)) {
+            kicked[id] = raw;
+        } else {
+            unkicked[id] = raw;
+        }
+    }
+    return {
+        ...(Object.keys(kicked).length > 0 ? { kickerPayments: kicked } : {}),
+        ...(Object.keys(unkicked).length > 0
+            ? { unkickedCostPayments: unkicked }
+            : {}),
+    };
+}
+
+/** CR 702.33d (ADR 0085) — how many KICKS a not-yet-partitioned payment record
+ *  represents, for the two consumers that run BEFORE the snapshot exists: the
+ *  `kickedTargetRequirement` swap at announcement (CR 601.2b — the kick
+ *  decision precedes target selection, so this question is asked while the
+ *  record is still the single one `resolveKickerPayments` returned), in
+ *  `game.ts`'s `castAdjustedTargetRequirement` and in its `moves.ts` twin
+ *  {@link kickedTargetRequirement}.
+ *
+ *  Both of those already hold the `CardDefinition` — they are choosing between
+ *  two of its fields — so asking the keyword question costs them nothing. What
+ *  matters is that the ANSWER still comes from
+ *  {@link additionalCostPaymentSnapshot}: kicked-ness is decided in exactly one
+ *  function whether it is asked before the write or after it, so the two can
+ *  never disagree about the same cast. Every consumer that runs after the
+ *  write — five of the six, the client's included — keeps reading
+ *  `totalKickerCount(item.kickerPayments)` with no definition at all. */
+export function kickedCountOfPayments(
+    cardDef: Pick<CardDefinition, "kickers"> | undefined | null,
+    payments: KickerPayments | undefined
+): number {
+    // `enumerateCastMoves` (`moves.ts`) asks this once per (leg × kicker
+    // variant × mode) combination on every ISMCTS node, and the overwhelming
+    // majority of those casts pay nothing — answer them without allocating.
+    if (!payments) return 0;
+    return totalKickerCount(
+        additionalCostPaymentSnapshot(cardDef, payments).kickerPayments
+    );
 }
 
 /** CR 702.33d + CR 603.2 (issue #1097) — the `SPELL_KICKED` events for ONE
@@ -480,11 +668,19 @@ export function foldBuybackCost(
 export function kickedTargetRequirement(
     cardDef: Pick<
         CardDefinition,
-        "targetRequirement" | "kickedTargetRequirement"
+        "targetRequirement" | "kickedTargetRequirement" | "kickers"
     >,
     payments: KickerPayments | undefined
 ): TargetRequirement | undefined {
-    if (totalKickerCount(payments) > 0 && cardDef.kickedTargetRequirement) {
+    // ADR 0085 — "kicked" is CR 702.33d, not "paid any additional cost": an
+    // offspring payment must leave the base requirement in place. This runs
+    // BEFORE the payment record is partitioned onto a stack item, so it asks
+    // the split function directly rather than reading a snapshot that does not
+    // exist yet.
+    if (
+        kickedCountOfPayments(cardDef, payments) > 0 &&
+        cardDef.kickedTargetRequirement
+    ) {
         return cardDef.kickedTargetRequirement;
     }
     return cardDef.targetRequirement;

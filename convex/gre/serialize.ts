@@ -292,6 +292,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "transformed",
     "transformedFrom",
     "triggersThisTurn",
+    "unkickedCostPayments",
     "untapLockedBy",
     "wasKicked",
     "worldSeq",
@@ -755,6 +756,18 @@ function compactCard(
     if (card.kickerPayments && Object.keys(card.kickerPayments).length > 0) {
         out.kickerPayments = card.kickerPayments;
     }
+    // CR 702.33d / 702.175a (ADR 0085) — the SIBLING record, persisted for the
+    // same reason and in the same breath: an offspring-cost permanent's own ETB
+    // trigger re-checks "if its offspring cost was paid" only once the trigger
+    // resolves, which can be after a stable point was already written. Dropping
+    // one half of a partitioned snapshot is exactly the drift the split exists
+    // to prevent.
+    if (
+        card.unkickedCostPayments &&
+        Object.keys(card.unkickedCostPayments).length > 0
+    ) {
+        out.unkickedCostPayments = card.unkickedCostPayments;
+    }
     // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
     // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
     // stable point (state written to `game_state`), and only THEN does the
@@ -1201,6 +1214,14 @@ function expandCard(
             number
         >;
     }
+    // CR 702.33d / 702.175a (ADR 0085) — and the sibling half of the same
+    // partitioned snapshot.
+    if (compact.unkickedCostPayments) {
+        result.unkickedCostPayments = compact.unkickedCostPayments as Record<
+            string,
+            number
+        >;
+    }
     // CR 107.3 / 601.2b (issue #674) — restore the chosen {X} snapshot.
     if (compact.chosenXOnCast !== undefined) {
         result.chosenXOnCast = compact.chosenXOnCast as number;
@@ -1519,6 +1540,13 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // sits on the stack. A plain `Record<string, number>`, so it round-trips as
     // raw JSON like `targetAmounts` below.
     if (item.kickerPayments) base.kickerPayments = item.kickerPayments;
+    // CR 702.33d / 702.175a (ADR 0085) — the sibling record rides the same
+    // round-trip: a spell whose OFFSPRING cost was paid must still read
+    // `{ additionalCostPaid: "<id>" }` true after a save/load on the stack,
+    // while staying unkicked for `wasKicked` and the `spellWasKicked` filter.
+    if (item.unkickedCostPayments) {
+        base.unkickedCostPayments = item.unkickedCostPayments;
+    }
     if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
     if (item.additionalSacrificeSnapshot) {
@@ -1674,6 +1702,12 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
     if (compact.kickerPayments) {
         item.kickerPayments = compact.kickerPayments as Record<string, number>;
+    }
+    if (compact.unkickedCostPayments) {
+        item.unkickedCostPayments = compact.unkickedCostPayments as Record<
+            string,
+            number
+        >;
     }
     if (compact.targetAmounts) {
         item.targetAmounts = compact.targetAmounts as Record<string, number>;

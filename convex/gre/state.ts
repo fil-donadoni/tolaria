@@ -182,8 +182,8 @@ import {
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { KickerPayments } from "./kicker";
 import {
+    additionalCostPaidCount,
     buildSpellKickedEvents,
-    kickerPaidCount,
     totalKickerCount,
 } from "./kicker";
 import type { SacrificeSelection } from "./sacrificeChoice";
@@ -1734,6 +1734,25 @@ export type CardInstanceState = {
      *  and before any reanimation-style re-entry. Undefined for a permanent
      *  cast without a Kicker cost, or one whose Kickers were all declined. */
     kickerPayments?: KickerPayments;
+    /** CR 702.33d / 702.175a (ADR 0085) — the SIBLING record: the same per-id
+     *  payment tally for optional additional costs whose keyword does NOT make
+     *  the spell "kicked" (CR 702.175a Offspring; CR 702.33d defines "kicked"
+     *  over kicker costs alone). Written by the same partition-at-the-write
+     *  that fills `kickerPayments` ({@link additionalCostPaymentSnapshot},
+     *  `gre/kicker.ts`) and inherited by the permanent through the same
+     *  `finalizeSpellResolution` push.
+     *
+     *  It exists so that `wasKicked` and every other kicked-ness read can go on
+     *  consulting `kickerPayments` ALONE and stay honest — none of them needs
+     *  the card definition, which matters most for the one reader that runs on
+     *  the CLIENT and has none. A PER-ID question ("was its offspring cost
+     *  paid?") is asked across both records via `additionalCostPaidCount`.
+     *
+     *  Same CR 400.7 zone-change lifecycle as `kickerPayments`:
+     *  `resetBattlefieldTransientState` clears it on a bounce to hand/library
+     *  and before any reanimation-style re-entry. Undefined for a permanent
+     *  cast without a non-kicker additional cost, or one that declined it. */
+    unkickedCostPayments?: KickerPayments;
     /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
      *  casting cost, snapshotted from the resolving stack item's `chosenX` the
      *  instant it enters the battlefield (`finalizeSpellResolution`). The
@@ -2079,6 +2098,15 @@ export type StackItem = CardInstanceState & {
      *  `{ additionalCostPaid: "<id>" }` read one entry. Undefined for spells without a
      *  Kicker cost / cast unkicked. */
     kickerPayments?: KickerPayments;
+    /** CR 702.33d / 702.175a (ADR 0085) — the SIBLING of `kickerPayments`: the
+     *  per-id tally for the paid additional costs whose keyword does NOT count
+     *  as a kick. Both fields are written by ONE partition at cast commit
+     *  ({@link additionalCostPaymentSnapshot}, `gre/kicker.ts`), which is what
+     *  keeps every kicked-ness reader — including the client's, which sees a
+     *  slim item with no definition — correct without any edit. Per-id reads
+     *  span both records (`additionalCostPaidCount`). See
+     *  {@link CardInstanceState.unkickedCostPayments} for the full doc. */
+    unkickedCostPayments?: KickerPayments;
     /** CR 702.27a — whether this spell's Buyback cost was paid as it was cast
      *  (absent/false = not paid). Snapshotted at cast commit from
      *  `PendingCast.buybackPaid`; read at resolution by
@@ -6992,6 +7020,10 @@ function resetStackTransientState(item: StackItem): void {
     delete item.targets;
     delete item.chosenX;
     delete item.kickerPayments;
+    // ADR 0085 — the sibling half of the same partitioned snapshot; a record
+    // cleared on one side and left on the other is exactly the drift the split
+    // exists to prevent.
+    delete item.unkickedCostPayments;
     delete item.buybackPaid;
     delete item.targetAmounts;
     delete item.chosenModeId;
@@ -11614,6 +11646,11 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // in `resetStackTransientState`.
     delete card.wasKicked;
     delete card.kickerPayments;
+    // ADR 0085 — and the sibling record (CR 702.175a Offspring), which is the
+    // same one-shot cast fact under a keyword that never made the spell
+    // "kicked". Cleared here for the same CR 400.7 reason and in the same
+    // breath, so the two halves can never fall out of step.
+    delete card.unkickedCostPayments;
     // CR 107.3 / 400.7 (issue #674) — the chosen {X} is a one-shot fact about
     // the OBJECT that resolved; a zone change makes a new object with no
     // memory of it. Exactly the `wasKicked` pair above: the typed snapshot
@@ -15964,9 +16001,12 @@ export function buildSpellContext(
         },
         // CR 702.33 — the PER-KICKER read a two-Kicker card's intervening-ifs
         // need ("if it was kicked with its {2}{U} kicker"): a total cannot say
-        // WHICH of two Kickers was paid (ADR 0079).
+        // WHICH of two Kickers was paid (ADR 0079). Read across BOTH payment
+        // records (ADR 0085): a per-id question is about ONE cost entry, never
+        // about kicked-ness, so "was its offspring cost paid?" (CR 702.175a)
+        // answers yes on a spell that was never kicked.
         getKickerPaidCount(kickerId: string): number {
-            return kickerPaidCount(item.kickerPayments, kickerId);
+            return additionalCostPaidCount(item, kickerId);
         },
         // Domain (CR 702 preamble ability word, issue #1066) — the number of
         // basic land types among `playerId`'s controlled lands (0–5). `state`

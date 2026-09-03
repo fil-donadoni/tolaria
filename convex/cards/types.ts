@@ -199,6 +199,37 @@ export interface EscapeCost {
     exile: { count: number } | { minCardTypes: number };
 }
 
+/** CR 702.33a / 702.175a (ADR 0085) — WHICH keyword an optional additional cost
+ *  entry is. Several keywords share the cost half of Kicker word for word:
+ *
+ *   - **702.33a** "Kicker [cost]" means "You may pay an additional [cost] as you
+ *     cast this spell."
+ *   - **702.175a** "Offspring [cost]" means "You may pay an additional [cost] as
+ *     you cast this spell" AND "When this permanent enters, if its offspring
+ *     cost was paid, create a token that's a copy of it, except it's 1/1."
+ *
+ *  The cost machinery is therefore shared verbatim ({@link KickerCost} and the
+ *  whole `gre/kicker.ts` subsystem, ADR 0079). What is NOT shared is one
+ *  sentence — **CR 702.33d**: "If a spell's controller declares the intention to
+ *  pay any of that spell's KICKER costs, that spell has been 'kicked.'"
+ *  "Kicked" is defined over kicker costs alone, so a spell whose offspring cost
+ *  was paid was never kicked, and this discriminator is what says so.
+ *
+ *  A CLOSED union on purpose: `ADDITIONAL_COST_KEYWORDS` (`gre/kicker.ts`) is a
+ *  `Record` over it, so adding a member is a COMPILE ERROR until that member's
+ *  kicked-ness is stated. Neither a deny-list nor an allow-list would do: a
+ *  deny-list (`=== "offspring"` ⇒ skip) fails OPEN, silently counting the next
+ *  keyword in the family as kicked; an allow-list (`=== "kicker"` ⇒ count) fails
+ *  closed but gets **Sticker kicker** wrong, which CR 702.33h defines as MEANING
+ *  "Kicker [cost]" and which therefore genuinely IS kicked. The table refuses to
+ *  answer by default.
+ *
+ *  Multikicker is deliberately NOT a member: CR 702.33c — "A multikicker cost is
+ *  a kicker cost" — so it is the same identity, expressed as
+ *  {@link KickerCost.multi} on a `"kicker"` entry (ADR 0079: repeatability is a
+ *  property of ONE cost entry, not of the card). */
+export type AdditionalCostKeyword = "kicker" | "offspring";
+
 /** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
  *  pay as they cast the spell ("You may pay an additional [cost] as you cast
  *  this spell"). Paid ON TOP of the mana cost at cast time (CR 601.2f — unlike
@@ -239,10 +270,21 @@ export type KickerCost = CostLegs & {
      *  ("Kicker {2}{U}", "Kicker — sacrifice two lands"). The client renders
      *  this verbatim, so a non-mana leg is legible BEFORE the caster commits. */
     description: string;
-    /** CR 702.33e — Multikicker: THIS Kicker's cost may be paid any number of
+    /** CR 702.33c — Multikicker: THIS Kicker's cost may be paid any number of
      *  times as the spell is cast. Omitted/false = a single kicker (paid at most
-     *  once). */
+     *  once). Only legal on a keyword whose `ADDITIONAL_COST_KEYWORDS` row says
+     *  `allowsMulti` (`gre/kicker.ts`) — CR 702.175a gives offspring no "any
+     *  number of times" clause, so an offspring entry can never carry it. */
     multi?: boolean;
+    /** CR 702.33a / 702.175a (ADR 0085) — WHICH keyword this cost entry is, and
+     *  therefore whether paying it makes the spell "kicked" (CR 702.33d).
+     *  Omitted = `"kicker"`, the identity every entry in the catalogue had
+     *  before the family existed; the table (`ADDITIONAL_COST_KEYWORDS`,
+     *  `gre/kicker.ts`) is the only thing that maps it to kicked-ness. It is
+     *  read at ONE place — the snapshot onto the resulting stack item, which
+     *  partitions the payment record by keyword — so no reader of "was this
+     *  kicked" ever needs the card definition (ADR 0085 § Decision 2). */
+    keyword?: AdditionalCostKeyword;
 };
 
 export type CardType =
@@ -6616,6 +6658,16 @@ export interface PermanentView {
      *  {@link CardInstanceState.kickerPayments} (`gre/state.ts`) for the full
      *  doc. Undefined for a permanent cast without a Kicker cost. */
     kickerPayments?: Record<string, number>;
+    /** CR 702.33d / 702.175a (ADR 0085) — the SIBLING of `kickerPayments`,
+     *  holding the per-id payments for additional-cost keywords that do NOT
+     *  make the spell kicked (offspring). Kept apart so `wasKicked` and every
+     *  other kicked-ness read stays honest without consulting the card
+     *  definition; a per-id question ("was its offspring cost paid?") is asked
+     *  across BOTH records via `additionalCostPaidCondition`
+     *  (`cards/abilities/triggers/shared.ts`). See
+     *  {@link CardInstanceState.unkickedCostPayments} (`gre/state.ts`) for the
+     *  full doc. */
+    unkickedCostPayments?: Record<string, number>;
     /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
      *  casting cost, snapshotted from the resolving stack item's `chosenX` the
      *  instant it entered the battlefield (`finalizeSpellResolution`,
