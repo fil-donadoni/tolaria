@@ -103,6 +103,7 @@ import {
     applyCastCostPicksForSearch,
 } from "./applyMove";
 import { markGraveyardPermanentCastUsed } from "./rules";
+import { additionalCostPaymentSnapshot } from "./kicker";
 import {
     castSourceForSearch,
     findCastSourceCard,
@@ -1142,9 +1143,16 @@ export function applyMoveInSearch(
                 // `wasKicked` / `{ additionalCostPaid }` / the Buyback return-to-hand
                 // redirect correctly on THIS, the chokepoint every rollout and
                 // all self-play route through.
-                ...(move.kickerPayments
-                    ? { kickerPayments: move.kickerPayments }
-                    : {}),
+                // CR 702.33d / 702.175a (ADR 0085) — partitioned by keyword at
+                // the write, exactly as the real commit paths partition it
+                // (`game.ts`), so the sandbox's resolving spell reads the same
+                // kicked-ness the mutation would have produced.
+                ...additionalCostPaymentSnapshot(
+                    tryGetDefinition(
+                        (spellCard.card as { id?: string }).id ?? ""
+                    ),
+                    move.kickerPayments
+                ),
                 ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
                 // CR 118.8 / 608.2h — the additional-cost victim snapshot the
                 // cost payment above collected, stamped exactly as

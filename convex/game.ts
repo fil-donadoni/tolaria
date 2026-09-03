@@ -284,15 +284,16 @@ import {
 // shared `CostLegs` vocabulary, payment recorded per kicker id.
 import type { KickerPayments } from "./gre/kicker";
 import {
+    additionalCostPaymentSnapshot,
     assertKickerPermanentSlotFree,
     buildCastHandCostChoice,
     buildCastPermanentCostChoice,
     canPayKickerLegs,
     foldKickerCosts,
+    kickedCountOfPayments,
     kickerLifeCost,
     resolveCastPermanentSelection,
     resolveKickerPayments,
-    totalKickerCount,
 } from "./gre/kicker";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -3613,9 +3614,12 @@ export function tryAutoCommitPendingCast(
         castById: playerId,
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
-        ...(pendingKickerPayments
-            ? { kickerPayments: pendingKickerPayments }
-            : {}),
+        // CR 702.33d / 702.175a (ADR 0085) — ONE partition at the write: the
+        // kicked-counting entries land on `kickerPayments`, the rest on
+        // `unkickedCostPayments`, so every "was this kicked" reader (including
+        // the CLIENT's, which sees a slim item with no definition) stays
+        // correct with no edit of its own.
+        ...additionalCostPaymentSnapshot(castDef, pendingKickerPayments),
         ...(pendingBuybackPaid ? { buybackPaid: true } : {}),
         ...(pendingTargetAmounts
             ? { targetAmounts: pendingTargetAmounts }
@@ -6204,8 +6208,14 @@ function castAdjustedTargetRequirement(
     // still holds when the catalogue changes.
     if (isMorphCost) return undefined;
     if (isBestowCost) return BESTOW_TARGET_REQUIREMENT;
+    // ADR 0085 — CR 702.33d defines "kicked" over KICKER costs alone, so an
+    // additional cost paid under another keyword (CR 702.175a Offspring) must
+    // leave the base requirement in place. This is one of the two consumers
+    // that run BEFORE the payment record is partitioned onto the stack item
+    // (CR 601.2b — the kick decision precedes target selection), so it asks the
+    // split function itself; every post-write consumer reads the snapshot.
     if (
-        totalKickerCount(kickerPayments) > 0 &&
+        kickedCountOfPayments(cardDef, kickerPayments) > 0 &&
         cardDef.kickedTargetRequirement
     ) {
         return cardDef.kickedTargetRequirement;
@@ -7186,7 +7196,10 @@ export function finalizeTargetSelection(
             castById: playerId,
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
-            ...(kickerPayments ? { kickerPayments } : {}),
+            // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
+            // twin: the payment record is partitioned by keyword HERE, at the
+            // write, so no kicked-ness reader needs the card definition.
+            ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
@@ -8523,7 +8536,10 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
-                ...(kickerPayments ? { kickerPayments } : {}),
+                // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
+                // twin: the payment record is partitioned by keyword HERE, at
+                // the write, so no kicked-ness reader needs the definition.
+                ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -8937,7 +8953,10 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
-                ...(kickerPayments ? { kickerPayments } : {}),
+                // CR 702.33d / 702.175a (ADR 0085) — see `finalizePendingCast`'s
+                // twin: the payment record is partitioned by keyword HERE, at
+                // the write, so no kicked-ness reader needs the definition.
+                ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }

@@ -98,6 +98,15 @@ function scenario(): {
         { type: "permanent", id: "bear" },
     ]);
     kicked.kickerPayments = { kicker: 1 };
+    // CR 702.175a / ADR 0085 (issue #2078) — a spell that PAID an additional
+    // cost under a keyword that is not a kick. It carries the sibling record
+    // and no `kickerPayments` at all, which is exactly what the split at the
+    // write produces; the client sees a slim stack item with no card definition
+    // and must still read it as unkicked without one.
+    const unkicked = pushSpell(state, urzasRage.id, "p2", [
+        { type: "permanent", id: "bear" },
+    ]);
+    unkicked.unkickedCostPayments = { offspring: 1 };
     return {
         state,
         ids: {
@@ -105,6 +114,7 @@ function scenario(): {
             targetsPlayer: targetsPlayer.id,
             targetsLand: targetsLand.id,
             kicked: kicked.id,
+            unkicked: unkicked.id,
         },
     };
 }
@@ -163,9 +173,11 @@ describe("spell-property target filters — server offered set == client clickab
         expect(clientClickable(state, req).sort()).toEqual(
             serverOffered(state, req).sort()
         );
-        // …and is not vacuous: exactly the two creature-targeting spells.
+        // …and is not vacuous: exactly the three creature-targeting spells
+        // (`unkicked` is the ADR 0085 probe below — same targets, different
+        // additional-cost keyword).
         expect(clientClickable(state, req).sort()).toEqual(
-            [ids.targetsCreature, ids.kicked].sort()
+            [ids.targetsCreature, ids.kicked, ids.unkicked].sort()
         );
     });
 
@@ -175,6 +187,30 @@ describe("spell-property target filters — server offered set == client clickab
             serverOffered(state, KICKED_REQ)
         );
         expect(clientClickable(state, KICKED_REQ)).toEqual([ids.kicked]);
+    });
+
+    // ADR 0085 (issue #2078) — the payment record is partitioned by keyword at
+    // the WRITE, so this reader needed no change at all: a spell whose
+    // OFFSPRING cost was paid (CR 702.175a) carries its payments in the sibling
+    // record and is therefore not kicked (CR 702.33d), on the client exactly as
+    // on the server. This is the reader that could not have been narrowed —
+    // `slimCard` gives it `{ id }` in place of the card definition.
+    it("spellWasKicked: a non-kicker additional cost is NOT clickable, client and server agree", () => {
+        const { state, ids } = scenario();
+        const clickable = clientClickable(state, KICKED_REQ);
+        expect(clickable).toEqual(serverOffered(state, KICKED_REQ));
+        expect(clickable).toEqual([ids.kicked]);
+        expect(clickable).not.toContain(ids.unkicked);
+        // …and the sibling record really did survive the projection, so the
+        // verdict above is a decision, not a dropped field.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            (
+                projected.stack.find((i) => i.id === ids.unkicked) as {
+                    unkickedCostPayments?: Record<string, number>;
+                }
+            ).unkickedCostPayments
+        ).toEqual({ offspring: 1 });
     });
 
     it("both requirements enable stack-spell selection (wantsSpellTarget)", () => {

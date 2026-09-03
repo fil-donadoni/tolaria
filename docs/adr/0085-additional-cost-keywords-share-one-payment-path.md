@@ -2,7 +2,8 @@
 
 ## Status
 
-proposed
+accepted — implemented by issue #2078 (the discriminator, the table and the
+split); the Offspring mechanic itself is issue #2079.
 
 ## Context
 
@@ -126,8 +127,10 @@ where the record is written rather than by how it is read.**
 - `{ additionalCostPaid: id }` reads across two records; the merged view is the
   single authority for per-id questions, as `totalKickerCount` remains for
   kicked-ness.
-- The bot still never _pays_ an additional cost — `moves.ts:644` states the
-  enumerator emits no `kickerPayments` at all. Pre-existing and catalogue-wide
-  (Overload, Bloodchief's Thirst, all of Planeshift #1935); tracked separately
-  because bounding the move-space blow-up of optional costs is its own design
-  problem, not plumbing.
+- The bot's two cast sandboxes (`gre/search.ts`, `gre/applyMove.ts`) build
+  their own `StackItem`s, so they partition too — otherwise the search would
+  disagree with the mutation about whether a spell was kicked. (This bullet
+  originally recorded that the enumerator emitted no `kickerPayments` at all;
+  issue #2081 closed that gap first — `enumerateKickerVariants` now cross-
+  products genuine payment records into `enumerateCastMoves`, which is exactly
+  why the two sandbox writes are load-bearing here.)
