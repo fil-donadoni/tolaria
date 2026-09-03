@@ -13,11 +13,21 @@
  *     driver that turns it into this file (`scripts/oracle-corpus.ts`,
  *     `scripts/oracle-compile.ts`, `scripts/lib/oracle-lockfile.ts`) AND the
  *     committed data inputs it stamps onto rows (`data/oracle-retirements.json`)
- *     — plus a hash of the Mechanics Registry's names and statuses. Any of them changing
+ *     — plus a hash of the Mechanics Registry's names and statuses, plus a hash
+ *     of the POOL PROJECTION (`data/card-index.json` read as the set of oracle
+ *     ids a hand-written definition covers, which is what the per-format `pool`
+ *     figure counts — issue #3068). Any of them changing
  *     changes what the compiler emits, so any of them differing from the tree
  *     means the lockfile is stale. This catches the failure that actually
  *     happens — a rule or a tally edited without regenerating — with no corpus
  *     at all.
+ *
+ *     The card index is hashed as that PROJECTION and not as a file: it also
+ *     changes for reasons that cannot move a `pool` figure (the compiler's own
+ *     `source: "compiled"` rows, a `firstPrintId` correction), and reding those
+ *     would demand a corpus download to clear a red on a lockfile whose bytes
+ *     would not change — exactly the unsatisfiable-offline red this tiering
+ *     exists to avoid.
  *  2. PIN AGREEMENT (when `data/oracle-corpus.pin.json` is present). The header
  *     must name the same corpus the pin does, so a lockfile built from a
  *     different Scryfall snapshot than the one the repo pins is caught.
@@ -60,7 +70,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { buildLockfile, poolOracleIdsFromIndex } from "./oracle-compile";
+import { buildLockfile, poolOracleIds } from "./oracle-compile";
 import {
     buildLegalityFile,
     legalityContentHash,
@@ -72,8 +82,11 @@ import {
     compilerHash,
     LOCKFILE_INPUT_SUMMARY,
     parseLockfile,
+    POOL_PROJECTION_SOURCE,
+    poolHash,
     registryHash,
     serializeLockfile,
+    type HeaderHashes,
     type Lockfile,
 } from "./lib/oracle-lockfile";
 import {
@@ -88,7 +101,6 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 const RETIREMENTS_PATH = join(ROOT, RETIREMENT_LEDGER_PATH);
-const CARD_INDEX_PATH = join(ROOT, "data", "card-index.json");
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -129,6 +141,62 @@ function fail(label: string, message: string, fixCommand: string): never {
     process.exit(1);
 }
 
+/**
+ * Tier 1 as a PURE comparison over the three header hashes (issue #3068).
+ *
+ * Extracted for the same reason `retirementProblems` is: tier 1 is the only
+ * tier that runs on a clean checkout, so its every branch has to be provable
+ * without the 24 MB gitignored corpus — and a test that rebuilds the
+ * comparison by hand proves nothing about the comparison the guard makes.
+ * `checkLockfile` is the thin wrapper that supplies the tree's hashes and
+ * turns a message into an exit code.
+ *
+ * Returns the FIRST drift as a ready-to-print message, or `null` when the
+ * header matches the tree on all three.
+ */
+export function headerHashDrift(
+    header: HeaderHashes,
+    tree: HeaderHashes
+): string | null {
+    if (header.compilerHash !== tree.compilerHash) {
+        return (
+            `compiler hash drift — a lockfile input has changed since the lockfile was generated\n` +
+            `    (${LOCKFILE_INPUT_SUMMARY})\n` +
+            `    header: ${header.compilerHash}\n    tree:   ${tree.compilerHash}`
+        );
+    }
+    if (header.registryHash !== tree.registryHash) {
+        return (
+            `registry hash drift — a Mechanics Registry name or status has changed\n` +
+            `    header: ${header.registryHash}\n    tree:   ${tree.registryHash}`
+        );
+    }
+    // The one input no offline tier used to see (issue #3068): the card index
+    // reaches the lockfile ONLY as the per-format `pool` figure, so shipping a
+    // card moved the true pool while the committed lockfile kept the old
+    // number and every offline tier stayed green. Hashed as the PROJECTION
+    // rather than the file, so the changes that cannot move a `pool` figure —
+    // a `source: "compiled"` row, a `firstPrintId` correction — do not red a
+    // lockfile whose bytes would not change.
+    if (header.poolHash !== tree.poolHash) {
+        return (
+            `pool drift — ${POOL_PROJECTION_SOURCE} covers a different set of cards with a\n` +
+            `    hand-written definition than the lockfile's per-format \`pool\` counts were built from\n` +
+            `    header: ${header.poolHash}\n    tree:   ${tree.poolHash}`
+        );
+    }
+    return null;
+}
+
+/** The tree's own answer to each of {@link headerHashDrift}'s three hashes. */
+function treeHashes(): HeaderHashes {
+    return {
+        compilerHash: compilerHash(ROOT),
+        registryHash: registryHash(),
+        poolHash: poolHash(handWrittenOracleIds()),
+    };
+}
+
 function checkLockfile(): void {
     if (!existsSync(LOCKFILE_PATH))
         fail(
@@ -139,25 +207,9 @@ function checkLockfile(): void {
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
 
     // Tier 1 — header hashes.
-    const expectedCompiler = compilerHash(ROOT);
-    if (lock.header.compilerHash !== expectedCompiler) {
-        fail(
-            "oracle lockfile",
-            `compiler hash drift — a lockfile input has changed since the lockfile was generated\n` +
-                `    (${LOCKFILE_INPUT_SUMMARY})\n` +
-                `    header: ${lock.header.compilerHash}\n    tree:   ${expectedCompiler}`,
-            "bun run oracle:compile"
-        );
-    }
-    const expectedRegistry = registryHash();
-    if (lock.header.registryHash !== expectedRegistry) {
-        fail(
-            "oracle lockfile",
-            `registry hash drift — a Mechanics Registry name or status has changed\n` +
-                `    header: ${lock.header.registryHash}\n    tree:   ${expectedRegistry}`,
-            "bun run oracle:compile"
-        );
-    }
+    const drift = headerHashDrift(lock.header, treeHashes());
+    if (drift !== null)
+        fail("oracle lockfile", drift, "bun run oracle:compile");
 
     // Tier 2 — pin agreement.
     const pin = readPin();
@@ -351,13 +403,7 @@ function readLedger(): RetirementLedger {
 }
 
 function handWrittenOracleIds(): Set<string> {
-    if (!existsSync(CARD_INDEX_PATH)) return new Set();
-    return poolOracleIdsFromIndex(
-        JSON.parse(readFileSync(CARD_INDEX_PATH, "utf8")) as {
-            oracleId?: string;
-            source?: string;
-        }[]
-    );
+    return poolOracleIds();
 }
 
 /**

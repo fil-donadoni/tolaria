@@ -8,14 +8,22 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildLockfile, poolOracleIdsFromIndex } from "../oracle-compile";
+import {
+    buildLockfile,
+    poolOracleIds,
+    poolOracleIdsFromIndex,
+} from "../oracle-compile";
+import { headerHashDrift } from "../check-oracle-lockfile";
 import type { CorpusCard } from "../oracle-corpus";
 import {
     compilerHash,
     compilerSourceFiles,
     parseLockfile,
+    POOL_PROJECTION_SOURCE,
+    poolHash,
     registryHash,
     serializeLockfile,
+    type HeaderHashes,
     type Lockfile,
 } from "../lib/oracle-lockfile";
 
@@ -288,11 +296,18 @@ describe("the committed lockfile", () => {
         expect(lock!.header.corpus.sha256).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("matches the compiler and registry in this tree (offline drift guard)", () => {
+    it("matches the compiler, registry and pool in this tree (offline drift guard)", () => {
         // The same comparison `bun run check:oracle` makes, asserted here so the
         // suite catches it too. If this is red, run: bun run oracle:compile
+        //
+        // `poolHash` is here because the card index was the one lockfile input
+        // no offline tier saw (issue #3068): shipping a card moved the true
+        // per-format `pool` while the committed lockfile kept the old number,
+        // and only the corpus-dependent tier noticed — on a machine that
+        // happened to have the gitignored 24 MB cache.
         expect(lock!.header.compilerHash).toBe(compilerHash(ROOT));
         expect(lock!.header.registryHash).toBe(registryHash());
+        expect(lock!.header.poolHash).toBe(poolHash(poolOracleIds()));
     });
 
     it("has one row per corpus card, sorted by oracle id, with no duplicates", () => {
@@ -404,5 +419,102 @@ describe("the offline hash covers the whole compiler", () => {
         expect(files.some((f) => f.startsWith("convex/oracle/"))).toBe(true);
         expect(files.filter((f) => f.includes("__tests__"))).toEqual([]);
         expect(new Set(files).size).toBe(files.length);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// The pool projection and the offline tier that compares it (issue #3068)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("poolHash — the card index as the lockfile sees it", () => {
+    const idsOf = (
+        index: readonly { oracleId?: string; source?: string }[]
+    ): string => poolHash(poolOracleIdsFromIndex(index));
+
+    it("changes when a hand-written definition is added or removed", () => {
+        // The whole point: this is the movement that shifts every per-format
+        // `pool` figure and used to leave the committed lockfile stale with
+        // every offline tier green.
+        const before = idsOf([{ oracleId: "a" }, { oracleId: "b" }]);
+        expect(
+            idsOf([{ oracleId: "a" }, { oracleId: "b" }, { oracleId: "c" }])
+        ).not.toBe(before);
+        expect(idsOf([{ oracleId: "a" }])).not.toBe(before);
+    });
+
+    it("ignores a card-index change that cannot move a pool figure", () => {
+        // A `source: "compiled"` row is the compiler's own output and a
+        // `firstPrintId` correction touches no oracle id — neither changes what
+        // `pool` counts. Hashing the FILE would red both, and the only way to
+        // clear that red is a corpus download for a lockfile whose bytes would
+        // not change: exactly the unsatisfiable-offline red the tiering exists
+        // to avoid.
+        const base = [{ oracleId: "a" }, { oracleId: "b" }];
+        expect(idsOf([...base, { oracleId: "c", source: "compiled" }])).toBe(
+            idsOf(base)
+        );
+        expect(
+            idsOf([{ oracleId: "a", firstPrintId: "x" }, { oracleId: "b" }] as {
+                oracleId?: string;
+                source?: string;
+            }[])
+        ).toBe(idsOf(base));
+    });
+
+    it("frames each id injectively, so no two pools share a hash", () => {
+        // A plain `id + "\n"` join collides on ids containing the separator:
+        // {"a\nb", "c"} and {"a", "b\nc"} both serialize to `a\nb\nc\n`. No
+        // Scryfall UUID can trigger that today, but a hash whose whole job is
+        // to fail closed must not rest on an assumption about its input's
+        // alphabet (review of PR #3070).
+        expect(poolHash(new Set(["a\nb", "c"]))).not.toBe(
+            poolHash(new Set(["a", "b\nc"]))
+        );
+    });
+
+    it("depends on the pool's MEMBERSHIP, not on the index's row order", () => {
+        // A `Set` iterates in insertion order, so hashing it raw would make a
+        // pure reordering of `data/card-index.json` red a lockfile whose bytes
+        // do not change.
+        expect(idsOf([{ oracleId: "b" }, { oracleId: "a" }])).toBe(
+            idsOf([{ oracleId: "a" }, { oracleId: "b" }])
+        );
+    });
+});
+
+describe("headerHashDrift — the offline tier of check:oracle", () => {
+    const TREE: HeaderHashes = {
+        compilerHash: "sha256:compiler",
+        registryHash: "sha256:registry",
+        poolHash: "sha256:pool",
+    };
+
+    it("passes when the header agrees with the tree on all three", () => {
+        expect(headerHashDrift({ ...TREE }, TREE)).toBeNull();
+    });
+
+    it("reds on pool drift, naming the card index and the fix", () => {
+        // The acceptance criterion of issue #3068: a reader who shipped a card
+        // and forgot to regenerate must be sent to the file they touched. The
+        // fix command comes from `fail()`, which always names
+        // `bun run oracle:compile` (plus the corpus bootstrap when the cache
+        // is absent).
+        const drift = headerHashDrift(
+            { ...TREE, poolHash: "sha256:stale" },
+            TREE
+        );
+        expect(drift).toContain(POOL_PROJECTION_SOURCE);
+        expect(drift).toContain("pool drift");
+        expect(drift).toContain("sha256:stale");
+        expect(drift).toContain("sha256:pool");
+    });
+
+    it("still reds on the two hashes it already covered", () => {
+        expect(
+            headerHashDrift({ ...TREE, compilerHash: "sha256:x" }, TREE)
+        ).toContain("compiler hash drift");
+        expect(
+            headerHashDrift({ ...TREE, registryHash: "sha256:x" }, TREE)
+        ).toContain("registry hash drift");
     });
 });
