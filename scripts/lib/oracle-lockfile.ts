@@ -28,10 +28,13 @@ import {
  * The header's three DERIVED hashes — the whole of the drift guard's offline
  * tier, and the only part of the header a clean checkout can re-derive.
  *
- * Named as its own type so the guard's comparison takes exactly these three
- * and `tsc` reds when a fourth is added to {@link LockfileHeader} without the
- * guard learning to compare it (issue #3068 shipped the third, and the reason
- * it was missing for so long is that nothing forced the two to agree).
+ * Named as its own type so the guard's comparison takes exactly these three:
+ * adding a fourth reds every site that CONSTRUCTS one, which is what forces
+ * the guard to learn to compute the tree's side of it. It does not force the
+ * comparison itself — a hash added here and never compared in
+ * `headerHashDrift` still type-checks, so that half stays on the author.
+ * Issue #3068 shipped the third, and it went missing for so long because
+ * nothing forced the header and the guard to agree at all.
  */
 export interface HeaderHashes {
     /**
@@ -265,12 +268,18 @@ export function registryHash(): string {
  * raw would make the hash depend on the card index's row order rather than on
  * its membership, and a pure reordering would then red a lockfile whose bytes
  * do not change.
+ *
+ * LENGTH-PREFIXED rather than separator-joined, so the framing is injective
+ * for any id at all. A plain `id + "\n"` join collides on ids that contain the
+ * separator — `{"a\nb", "c"}` and `{"a", "b\nc"}` both serialize to
+ * `a\nb\nc\n` — which no Scryfall UUID can trigger today, but a hash whose
+ * whole job is to fail closed should not rest on an assumption about its
+ * input's alphabet (review of PR #3070).
  */
 export function poolHash(poolOracleIds: ReadonlySet<string>): string {
     const hash = createHash("sha256");
     for (const id of [...poolOracleIds].sort()) {
-        hash.update(id);
-        hash.update("\n");
+        hash.update(`${id.length}:${id}`);
     }
     return `sha256:${hash.digest("hex")}`;
 }

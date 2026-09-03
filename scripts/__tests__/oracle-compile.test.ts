@@ -461,6 +461,17 @@ describe("poolHash — the card index as the lockfile sees it", () => {
         ).toBe(idsOf(base));
     });
 
+    it("frames each id injectively, so no two pools share a hash", () => {
+        // A plain `id + "\n"` join collides on ids containing the separator:
+        // {"a\nb", "c"} and {"a", "b\nc"} both serialize to `a\nb\nc\n`. No
+        // Scryfall UUID can trigger that today, but a hash whose whole job is
+        // to fail closed must not rest on an assumption about its input's
+        // alphabet (review of PR #3070).
+        expect(poolHash(new Set(["a\nb", "c"]))).not.toBe(
+            poolHash(new Set(["a", "b\nc"]))
+        );
+    });
+
     it("depends on the pool's MEMBERSHIP, not on the index's row order", () => {
         // A `Set` iterates in insertion order, so hashing it raw would make a
         // pure reordering of `data/card-index.json` red a lockfile whose bytes
