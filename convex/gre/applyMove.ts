@@ -111,7 +111,10 @@ import {
 } from "./activationCostPicks";
 // CR 118.8 / 608.2h — the single authority that removes the chosen victims AND
 // returns the snapshot-flagged one's characteristics (issue #2375).
-import { applySacrificeSelection } from "./sacrificeChoice";
+import {
+    applySacrificeSelection,
+    isSacrificeSelectionComplete,
+} from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
@@ -686,6 +689,36 @@ export function applyActivationCostsForSearch(
         if (handOwner && handAbility?.cost.discardThis) {
             discardToGraveyard(state, handOwner.id, move.cardInstanceId);
         }
+        // CR 702.49a — the NINJUTSU return leg, the other board-changing cost a
+        // hand-source ability can carry. Paid through the same
+        // `activationSacrificePayment` → `applySacrificeSelection` pair the
+        // battlefield branch below uses, so the search gives up the attacker
+        // exactly as the mutation does. Left unpaid it is the failure this
+        // function's own header warns about: the tree keeps a 5/4 attacking
+        // AND the creature it was supposed to return, and ranks a line the
+        // server would price very differently.
+        if (
+            handOwner &&
+            handCard &&
+            handAbility?.cost.returnUnblockedAttacker
+        ) {
+            const payment = activationSacrificePayment(
+                state,
+                handOwner,
+                handCard,
+                handAbility,
+                move.costPicks
+            );
+            // Fail CLOSED: an incomplete selection means no legal victim was
+            // available (or none was named), so the activation is one the
+            // server would refuse — report it rather than buying the effect.
+            if (!payment || !isSacrificeSelectionComplete(payment))
+                return false;
+            // CR 702.49c — capture the defender before the bounce removes the
+            // returned creature from combat.
+            captureNinjutsuAttackTarget(state, handCard, payment);
+            applySacrificeSelection(state, payment);
+        }
         return true;
     }
 
@@ -827,14 +860,6 @@ export function applyActivationCostsForSearch(
         picks
     );
     if (sacPayment) {
-        // CR 702.49c — the search pays the ninjutsu return leg through this
-        // same selection, so it owes the same defender capture the mutation
-        // path makes: without it the sim's ninja attacks the defending player
-        // while live play sends it at a planeswalker, and the tree scores a
-        // position the server never produces.
-        if (ability.cost.returnUnblockedAttacker) {
-            captureNinjutsuAttackTarget(state, src, sacPayment);
-        }
         const results = applySacrificeSelection(state, sacPayment);
         const snap = results.find((r) => r.snapshot);
         if (out && snap) {
