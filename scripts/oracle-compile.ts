@@ -30,6 +30,8 @@ import {
 import {
     compilerHash,
     LOCKFILE_GENERATOR,
+    POOL_PROJECTION_SOURCE,
+    poolHash,
     registryHash,
     serializeLockfile,
     type CardRow,
@@ -47,7 +49,7 @@ import {
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 export const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
-const CARD_INDEX_PATH = join(ROOT, "data", "card-index.json");
+const CARD_INDEX_PATH = join(ROOT, POOL_PROJECTION_SOURCE);
 
 /** Oracle ids already covered by a hand-written definition (the current
  *  pool) — feeds the committed per-format `pool` metric (PRD #2693 M1
@@ -66,7 +68,15 @@ export function poolOracleIdsFromIndex(
     );
 }
 
-function poolOracleIds(): Set<string> {
+/**
+ * The pool projection as the compiler sees it, read from disk.
+ *
+ * Exported so `check-oracle-lockfile.ts` reads the card index through THIS
+ * reader rather than a second copy of it: the guard compares a hash of this
+ * value against the header, and two readers that can disagree about the path
+ * or the filter make that comparison meaningless (issue #3068).
+ */
+export function poolOracleIds(): Set<string> {
     if (!existsSync(CARD_INDEX_PATH)) return new Set();
     const index = JSON.parse(readFileSync(CARD_INDEX_PATH, "utf8")) as {
         oracleId?: string;
@@ -289,6 +299,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
             grammarVersion: GRAMMAR_VERSION,
             compilerHash: compilerHash(ROOT),
             registryHash: registryHash(),
+            poolHash: poolHash(pool),
             corpus: pin,
             counts: { ...counts, total: corpus.length },
         },

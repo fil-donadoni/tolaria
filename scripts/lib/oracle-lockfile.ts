@@ -24,8 +24,16 @@ import {
     type RetirementMarker,
 } from "./oracle-retirements";
 
-export interface LockfileHeader {
-    readonly grammarVersion: string;
+/**
+ * The header's three DERIVED hashes — the whole of the drift guard's offline
+ * tier, and the only part of the header a clean checkout can re-derive.
+ *
+ * Named as its own type so the guard's comparison takes exactly these three
+ * and `tsc` reds when a fourth is added to {@link LockfileHeader} without the
+ * guard learning to compare it (issue #3068 shipped the third, and the reason
+ * it was missing for so long is that nothing forced the two to agree).
+ */
+export interface HeaderHashes {
     /**
      * sha256 of every source file whose edit can change the bytes of this
      * lockfile: `convex/oracle/**` (non-test) plus the corpus reader, the
@@ -34,6 +42,16 @@ export interface LockfileHeader {
     readonly compilerHash: string;
     /** sha256 of the Mechanics Registry's names and statuses. */
     readonly registryHash: string;
+    /**
+     * sha256 of the POOL PROJECTION — the sorted set of non-compiled oracle
+     * ids read from `data/card-index.json`, i.e. exactly the cards the
+     * per-format `pool` figure counts.
+     */
+    readonly poolHash: string;
+}
+
+export interface LockfileHeader extends HeaderHashes {
+    readonly grammarVersion: string;
     readonly corpus: CorpusPin;
     readonly counts: Record<CompileState, number> & { readonly total: number };
 }
@@ -130,14 +148,35 @@ const DRIVER_FILES = [
 const DATA_INPUT_FILES = [RETIREMENT_LEDGER_PATH] as const;
 
 /**
- * The lockfile's inputs as ONE reader-facing line, derived from the two lists
- * above.
+ * The card index, read as the POOL PROJECTION and hashed as
+ * {@link poolHash} — not as a file in {@link DATA_INPUT_FILES}.
+ *
+ * It is an input to the lockfile like the ledger is, but only through one
+ * derived value: the set of oracle ids a hand-written definition covers, which
+ * is what the per-format `pool` figure counts. Hashing the whole FILE would
+ * red on changes that cannot move a `pool` figure — the compiler's own
+ * `source: "compiled"` rows, a `firstPrintId` correction — and the only way to
+ * clear that red is a corpus download for a lockfile whose bytes would not
+ * change, which is exactly the unsatisfiable-offline red the tiering exists to
+ * avoid (issue #3068).
+ */
+export const POOL_PROJECTION_SOURCE = "data/card-index.json";
+
+/**
+ * The files {@link compilerHash} covers, as ONE reader-facing line, derived
+ * from the two lists above.
  *
  * The drift message used to hand-type this list, and the retirement ledger was
  * added to the hash without being added to the sentence — so the one red a
  * ledger edit causes named only the compiler sources, and the reader had no
  * way to connect it to the file they had just edited. A list that CAN be
  * derived is not a sentence someone maintains.
+ *
+ * {@link POOL_PROJECTION_SOURCE} is deliberately NOT here: it reaches the
+ * lockfile through a different hash, so a compiler-hash red can never be the
+ * card index and listing it would send the reader to a file they did not
+ * touch. Every input a reader could have edited is still named in the red it
+ * causes — by the tier that owns it (issue #3068).
  */
 export const LOCKFILE_INPUT_SUMMARY = [
     `${ORACLE_MODULE_DIR}/**`,
@@ -204,6 +243,36 @@ export function registryHash(): string {
     ]);
     const ops = EFFECT_OP_REGISTRY.map((r) => [r.op, r.status]);
     return `sha256:${createHash("sha256").update(JSON.stringify({ mechanics, ops })).digest("hex")}`;
+}
+
+/**
+ * Hash of the POOL PROJECTION — the sorted set of oracle ids the card index
+ * covers with a hand-written definition, which is exactly what the per-format
+ * `pool` figure counts.
+ *
+ * Without it the card index was the one lockfile input no offline tier saw
+ * (issue #3068): shipping a card moved the true `pool` while the committed
+ * lockfile kept the old number, tiers 1 and 2 stayed green, and only the
+ * corpus-dependent tier 3 noticed — on a machine that happened to have the
+ * 24 MB gitignored cache. So the drift merged, and the next person with a
+ * corpus paid for it as a conflict in a generated file they never touched.
+ *
+ * The caller passes the set, never a path: it is computed by the SAME exported
+ * helper the compiler uses (`poolOracleIdsFromIndex`), so the guard and the
+ * compiler cannot disagree about what the pool is.
+ *
+ * Sorted, because a `Set`'s iteration order is insertion order — hashing it
+ * raw would make the hash depend on the card index's row order rather than on
+ * its membership, and a pure reordering would then red a lockfile whose bytes
+ * do not change.
+ */
+export function poolHash(poolOracleIds: ReadonlySet<string>): string {
+    const hash = createHash("sha256");
+    for (const id of [...poolOracleIds].sort()) {
+        hash.update(id);
+        hash.update("\n");
+    }
+    return `sha256:${hash.digest("hex")}`;
 }
 
 /**
