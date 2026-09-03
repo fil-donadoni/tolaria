@@ -27,6 +27,7 @@
 // ninja inherits.
 
 import type { CardInstanceState, GameState } from "./state";
+import type { UnblockedAttackerScope } from "./combat";
 import { unblockedAttackerIds } from "./combat";
 import type {
     SacrificeRequirement,
@@ -49,7 +50,7 @@ import { autoResolveFungible } from "./sacrificeChoice";
  *  picker and the Bot's move enumerator all call this, so none of them can
  *  offer an activation another one refuses. */
 export function ninjutsuReturnCandidateIds(
-    state: GameState,
+    state: UnblockedAttackerScope,
     playerId: string
 ): string[] {
     if (!state.combat?.blockersConfirmed) return [];

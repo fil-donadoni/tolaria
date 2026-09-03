@@ -17339,6 +17339,30 @@ export function buildSpellContext(
             state.allCreaturesMustAttack = playerId;
         },
 
+        // CR 506.3c / 508.4 — join the CURRENT combat as an attacker without
+        // ever having been declared as one. The single shared `markAttacking`
+        // helper sets both representations; `recordAttackerDeclared` is
+        // deliberately NOT called, so "whenever a creature attacks" watchers
+        // never see this entry.
+        enterCombatAttacking(cardInstanceId: string): void {
+            if (!state.combat) return;
+            const found = findOnBattlefield(state, cardInstanceId);
+            if (!found) return;
+            const card = found.card;
+            markAttacking(state, card);
+            // CR 508.1a / 702.49c — a stamped planeswalker or battle defender
+            // is consumed here; without one the creature attacks the defending
+            // player, for which `attackTargets` holds no entry.
+            const stamped = card.enterAttackingTarget;
+            delete card.enterAttackingTarget;
+            if (stamped) {
+                state.combat.attackTargets = {
+                    ...(state.combat.attackTargets ?? {}),
+                    [cardInstanceId]: stamped,
+                };
+            }
+        },
+
         removeFromCombat(target: TargetSelection): void {
             if (target.type !== "permanent" || !state.combat) return;
             const found = findOnBattlefield(state, target.id);

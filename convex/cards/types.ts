@@ -4973,6 +4973,27 @@ export interface SpellContext {
      *  combat damage to the defender without trample. Use `becomeUnblocked`
      *  for the rare effect that actually un-blocks an attacker. */
     removeFromCombat: (target: TargetSelection) => void;
+    /** CR 506.3c / 508.4 — puts a permanent that is ALREADY on the battlefield
+     *  into the CURRENT combat as an attacking creature, the inverse of
+     *  `removeFromCombat`. Sets BOTH representations of "attacking"
+     *  (`combat.attackerIds` membership and the per-permanent `isAttacking`
+     *  flag) through the one shared `markAttacking` helper the enters-attacking
+     *  token path uses, so a creature that joins here is not half-attacking.
+     *
+     *  Deliberately does NOT record the creature as having been DECLARED as an
+     *  attacker: CR 506.3c makes such a creature "attacking" but never
+     *  "attacked", so "whenever a creature attacks" abilities correctly never
+     *  see it (the same split `markAttacking` / `recordAttackerDeclared` draws).
+     *
+     *  DEFENDER (CR 508.1a): a planeswalker or battle stamped on the permanent
+     *  as `enterAttackingTarget` is consumed here — that is CR 702.49c's "the
+     *  same player, planeswalker or battle as the creature that was returned".
+     *  No stamp means the defending player, which `combat.attackTargets`
+     *  records nothing for.
+     *
+     *  No-op when there is no combat to join, or when the id is on no
+     *  battlefield (CR 608.2b). */
+    enterCombatAttacking: (cardInstanceId: string) => void;
     /** Makes an attacker that became blocked count as unblocked (CR 509.1h),
      *  so it deals its combat damage to the defending player. Strips it from
      *  the blocked set and from every blocker's assignment. Used by Ydwen
@@ -12430,7 +12451,21 @@ export type EffectOp =
      *  graveyard → exile replacement redirect, a token that ceased to exist —
      *  CR 704.5d) is simply not found and the Op no-ops (CR 608.2b — the
      *  effect does as much as it can). `tapped: true` (CR 110.5a) makes the
-     *  returned permanent enter tapped; valid only with `to: "battlefield"`. */
+     *  returned permanent enter tapped; valid only with `to: "battlefield"`.
+     *
+     *  HAND SOURCE (issue #2390) — `{ ref: "$source" }` on an ability whose
+     *  source is a card in its owner's HAND (`activateFromHand`) resolves to
+     *  the hand-card carrier and, with `to: "battlefield"`, routes through
+     *  `putFromHandOntoBattlefield` — the SAME primitive the `cards` shape's
+     *  own `from: "hand"` branch already calls (Stoneforge Mystic), reached
+     *  from a bare `$source` rather than from a `choice` Op's picks. This is
+     *  what makes Ninjutsu's "Put this card onto the battlefield from your hand
+     *  tapped and attacking" (CR 702.49a) an ordinary Effect Script rather than
+     *  a keyword-shaped Op: `tapped` and `attacking` are the two riders, and
+     *  the zone move itself is the one this Op already owned. The hand carrier
+     *  accepts NO other destination — a hand → graveyard/exile/library move is
+     *  the `cards` shape's filter-driven or picks-driven business, and admitting
+     *  it here would give one Op two ways to say the same thing. */
     | {
           op: "moveZone";
           target: EffectObjectSelector;
@@ -12439,6 +12474,23 @@ export type EffectOp =
           bind?: string;
           controller?: EffectPlayerRef;
           tapped?: boolean;
+          /** CR 506.3c / 702.49a (issue #2390) — the entering permanent joins
+           *  the CURRENT combat as an attacking creature. Valid only with
+           *  `to: "battlefield"` (validator-enforced), and only on the HAND
+           *  source below, which is the one zone a printed "put this onto the
+           *  battlefield tapped and attacking" ever names (Ninjutsu).
+           *
+           *  Composed AFTER the entry through the `enterCombatAttacking`
+           *  primitive, the same way `tapped` is a direct `tap` after entry
+           *  rather than an as-enters replacement. CR 506.3c is what makes the
+           *  simplification exact here rather than approximate: such a creature
+           *  is attacking but was never DECLARED as an attacker, so there is no
+           *  declaration event whose ordering relative to the entry could
+           *  matter — nothing observes the gap. The defender comes from the
+           *  permanent's own `enterAttackingTarget` stamp (CR 702.49c),
+           *  consumed by that primitive; with no stamp it attacks the defending
+           *  player. Outside combat it is a clean no-op. */
+          attacking?: boolean;
           /** issue #1726 — battlefield → library at a POSITION (1-based from
            *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
            *  −3). Valid only with `to: "library"` on this shape

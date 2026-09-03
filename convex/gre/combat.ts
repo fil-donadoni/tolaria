@@ -99,6 +99,23 @@ export function recordAttackerDeclared(
     state.creatureAttackedThisTurn = true;
 }
 
+/** The minimum a caller must supply to answer "which attackers are unblocked".
+ *
+ *  Structural rather than `GameState` so the CLIENT can call the SAME function
+ *  on its projected view (ADR 0074 — the frontend may import pure engine
+ *  modules; what it never has is authority). A client that re-derived
+ *  CR 509.1h from `blockerAssignments` would disagree with the server the
+ *  moment a blocker left combat, and the hand menu would offer a ninjutsu
+ *  activation the mutation rejects. */
+export type UnblockedAttackerScope = {
+    combat?: {
+        attackerIds: readonly string[];
+        blockedAttackerIds?: readonly string[];
+        blockersConfirmed: boolean;
+    };
+    players: readonly { id: string; battlefield: readonly { id: string }[] }[];
+};
+
 /** CR 509.1h — the UNBLOCKED attacking creatures `playerId` controls, in
  *  `combat.attackerIds` order.
  *
@@ -117,7 +134,7 @@ export function recordAttackerDeclared(
  *  gate, its candidate picker and the Bot's move enumerator cannot disagree
  *  about which creatures qualify. */
 export function unblockedAttackerIds(
-    state: GameState,
+    state: UnblockedAttackerScope,
     playerId: string
 ): string[] {
     const combat = state.combat;

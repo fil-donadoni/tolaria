@@ -2931,6 +2931,27 @@ export const OP_EXECUTORS: {
                         zone === "exile"
                             ? ctx.getExileCardOwner(gid)
                             : ctx.getGraveyardCardOwner(gid);
+                    // CR 702.49a (issue #2390) — a HAND-source ability
+                    // (`activateFromHand`): its `$source` is in no graveyard
+                    // and no exile, so recover it from the controller's hand.
+                    // Checked only after the graveyard/exile lookups miss, so
+                    // no existing recovery changes shape; the resulting
+                    // hand-card carrier is accepted by the `to: "battlefield"`
+                    // branch alone (see the shape's doc, cards/types.ts).
+                    if (owner === undefined && isSource && !explicitFrom) {
+                        const handOwner = ctx.controller;
+                        if (
+                            ctx
+                                .getHandCards(handOwner)
+                                .some((c) => c.id === gid)
+                        ) {
+                            target = {
+                                type: "hand-card",
+                                id: gid,
+                                playerId: handOwner,
+                            };
+                        }
+                    }
                     if (owner !== undefined) {
                         recoveredZone = zone;
                         // The `graveyard-card` carrier is the generic
@@ -2965,6 +2986,33 @@ export const OP_EXECUTORS: {
                     target,
                     ("position" in op ? op.position : undefined) ?? 1
                 );
+            }
+            return;
+        }
+        if (target.type === "hand-card") {
+            // CR 702.49a (issue #2390) — hand → battlefield, the ONLY
+            // destination this carrier accepts here (the shape's doc says
+            // why). `putFromHandOntoBattlefield` is the same free zone change
+            // the `cards` shape's `from: "hand"` branch uses, so it consumes no
+            // land drop and fires ETB triggers normally (CR 603.6).
+            const owner = target.playerId;
+            if (owner === undefined || op.to !== "battlefield") return;
+            const entered = ctx.putFromHandOntoBattlefield(owner, target.id);
+            if (!entered) return; // CR 608.2b — a staging redirect or a
+            // card no longer in hand
+            if (op.bind) {
+                bindSnapshot(ctx, op.bind, {
+                    type: "permanent",
+                    id: target.id,
+                });
+            }
+            // CR 110.5a — enter tapped; the same direct `tap` after entry the
+            // graveyard branch below performs.
+            if (op.tapped) ctx.tap({ type: "permanent", id: target.id });
+            // CR 506.3c / 702.49c — join the current combat as an attacker,
+            // against the defender stamped by the ninjutsu cost payment.
+            if ("attacking" in op && op.attacking) {
+                ctx.enterCombatAttacking(target.id);
             }
             return;
         }

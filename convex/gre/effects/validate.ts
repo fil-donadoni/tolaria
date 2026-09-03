@@ -3351,6 +3351,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
             from: isMovableZone,
             tapped: isBoolean,
+            // issue #2390 — CR 506.3c: the entering permanent joins the current
+            // combat as an attacker ("put this card onto the battlefield from
+            // your hand tapped and attacking", Ninjutsu CR 702.49a).
+            attacking: isBoolean,
             // issue #1104 — the FOURTH shape: a filter-driven bulk sweep
             // across one or more zones (Lobotomy).
             fromZones: isMovableZoneArray,
@@ -3656,6 +3660,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             if ("tapped" in entry && (hasBulk || entry.to !== "battlefield")) {
                 errors.push(
                     'field "tapped" is only valid with "cards"/"target" and to: "battlefield"'
+                );
+            }
+            // issue #2390 — `attacking` (CR 506.3c) is narrower than `tapped`:
+            // only the `target` shape, only into the battlefield. A printed
+            // "enters attacking" clause always names ONE object (this card, a
+            // token), never a picked set or a bulk sweep, and there is no
+            // defender to inherit for a card that was never linked to one — so
+            // widening it would create shapes with no CR reading.
+            if (
+                "attacking" in entry &&
+                (!hasTarget || entry.to !== "battlefield")
+            ) {
+                errors.push(
+                    'field "attacking" is only valid with "target" and to: "battlefield"'
                 );
             }
             // issue #1125 — "library-top" is the search-then-shuffle-then-top

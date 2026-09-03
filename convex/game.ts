@@ -92,6 +92,7 @@ import {
     captureNinjutsuAttackTarget,
     ninjutsuReturnCandidateIds,
 } from "./gre/ninjutsu";
+import { grantKnowledgeToAll } from "./gre/state";
 import {
     buildAutoTapSources,
     solveAutoTap,
@@ -3040,6 +3041,11 @@ export function tryAutoCommitPendingActivation(
     // removes it from combat, stamping it on the ninjutsu source still in hand.
     if (pa.returnUnblockedAttacker) {
         captureNinjutsuAttackTarget(state, card, pa.sacrificeSelection);
+        // CR 702.49a/b — "Reveal this card from your hand" is the cost's third
+        // leg. Knowledge here is per-viewer and monotonic (ADR 0026), so the
+        // reveal is a grant with nothing to undo when CR 702.49b's window
+        // closes.
+        grantKnowledgeToAll(state, playerId, [card.id]);
     }
     const activationSacrificeSnapshot = sacrificeSnapshotFromSelection(
         pa.sacrificeSelection,
@@ -14489,6 +14495,8 @@ export function activateAbilityOnState(
     // unblocked attacker auto-resolves the pick, so no park is ever created).
     if (ability.cost.returnUnblockedAttacker) {
         captureNinjutsuAttackTarget(state, card, activationSac);
+        // CR 702.49a/b — the reveal leg; see the deferred-commit twin above.
+        grantKnowledgeToAll(state, args.playerId, [card.id]);
     }
     const immediateSacSnapshot = sacrificeSnapshotFromSelection(
         activationSac,
