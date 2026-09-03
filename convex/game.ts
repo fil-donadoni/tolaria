@@ -89,6 +89,10 @@ import {
     canAffordSacrifice,
 } from "./gre/sacrificeChoice";
 import {
+    captureNinjutsuAttackTarget,
+    ninjutsuReturnCandidateIds,
+} from "./gre/ninjutsu";
+import {
     buildAutoTapSources,
     solveAutoTap,
     solveSmartAutoTap,
@@ -2709,6 +2713,12 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.discardAtRandom
             ? { discardAtRandomCount: ability.cost.discardAtRandom }
             : {}),
+        // CR 702.49a — mark the selection above as a ninjutsu RETURN leg, so
+        // the commit path knows to capture CR 702.49c's defender before the
+        // bounce takes the returned creature out of combat.
+        ...(ability.cost.returnUnblockedAttacker
+            ? { returnUnblockedAttacker: true }
+            : {}),
         ...(opts.sacrificeSelection
             ? { sacrificeSelection: opts.sacrificeSelection }
             : {}),
@@ -3026,6 +3036,11 @@ export function tryAutoCommitPendingActivation(
     // sacrifice(s) (own cost + Drought) through the unified layer. The own-cost
     // requirement is snapshot-flagged: its mv/subtypes/effective power ride on
     // the stack item (Priest of Yawgmoth, Freyalise Supplicant).
+    // CR 702.49c — capture the returned creature's defender BEFORE the bounce
+    // removes it from combat, stamping it on the ninjutsu source still in hand.
+    if (pa.returnUnblockedAttacker) {
+        captureNinjutsuAttackTarget(state, card, pa.sacrificeSelection);
+    }
     const activationSacrificeSnapshot = sacrificeSnapshotFromSelection(
         pa.sacrificeSelection,
         state
@@ -14244,6 +14259,19 @@ export function activateAbilityOnState(
             throw new Error("No legal permanent to pay the sacrifice cost");
         }
     }
+    // CR 702.49a — Ninjutsu's "Return an unblocked attacking creature you
+    // control to its owner's hand" leg: illegal unless such a creature exists.
+    // This gate is ALSO the keyword's timing rule — a creature is neither
+    // blocked nor unblocked until blockers are declared (CR 509.1h), so the
+    // candidate set is empty before then and the ability is simply
+    // unaffordable, rather than carrying a second window rule that could drift
+    // from the cost.
+    if (
+        ability.cost.returnUnblockedAttacker &&
+        ninjutsuReturnCandidateIds(state, player.id).length === 0
+    ) {
+        throw new Error("No unblocked attacker to return");
+    }
     // CR 602.1 / 118.5 — "exile N cards from a single graveyard" (Night
     // Soil): illegal unless one graveyard holds enough matching cards.
     // Validated up-front so we never enter an unpayable pendingActivation.
@@ -14457,6 +14485,11 @@ export function activateAbilityOnState(
     }
     // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
     // sacrifice (Drought / fungible own cost) as the ability commits.
+    // CR 702.49c — same capture on the immediate-commit path (a single
+    // unblocked attacker auto-resolves the pick, so no park is ever created).
+    if (ability.cost.returnUnblockedAttacker) {
+        captureNinjutsuAttackTarget(state, card, activationSac);
+    }
     const immediateSacSnapshot = sacrificeSnapshotFromSelection(
         activationSac,
         state

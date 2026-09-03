@@ -1213,6 +1213,10 @@ const NEVER_AUTO_PAYABLE_COST_LEGS = [
     "sacrifice",
     "sacrificeFilter",
     "sacrificeFilterCount",
+    // CR 702.49a — a ninjutsu return leg gives up an attacking creature; the
+    // same "spend a resource the player should choose to spend" exclusion the
+    // sacrifice legs above carry.
+    "returnUnblockedAttacker",
     "life",
     "loyalty",
     "removeCounter",

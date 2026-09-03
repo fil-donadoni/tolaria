@@ -47,7 +47,7 @@ import {
 } from "./owedPayment";
 import {
     nextUnmetRequirement,
-    sacrificeCandidates,
+    requirementCandidates,
     isSacrificeSelectionComplete,
     type SacrificeSelection,
 } from "./sacrificeChoice";
@@ -87,7 +87,7 @@ export function nextSacrificeCandidates(
     if (!req) return [];
     const taken = new Set(sel.picked);
     return cheapestFirst(
-        sacrificeCandidates(state, sel.playerId, req.filter).filter(
+        requirementCandidates(state, sel.playerId, req).filter(
             (c) => !taken.has(c.id)
         )
     );

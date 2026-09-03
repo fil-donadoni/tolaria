@@ -27,6 +27,7 @@
 import type { ActivatedAbility } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getStaticAdditionalSacrifices } from "./state";
+import { buildNinjutsuReturnSelection } from "./ninjutsu";
 import type {
     SacrificeRequirement,
     SacrificeSelection,
@@ -200,6 +201,20 @@ export function buildActivationSacrificeSelection(
     player: PlayerState,
     reason: string
 ): SacrificeSelection | undefined {
+    // CR 702.49a — Ninjutsu's return leg is a give-up-a-permanent cost like any
+    // other, so it rides this same layer; what differs is only the terminal
+    // action ("return" to hand, not sacrifice). A selection carries ONE action,
+    // so an ability that combined this leg with a sacrifice leg would need two
+    // selections and has no way to park both — no printed card does, and the
+    // throw keeps a future one from shipping a silently half-paid cost.
+    if (ability.cost.returnUnblockedAttacker) {
+        if (ability.cost.sacrificeFilter) {
+            throw new Error(
+                "An ability cannot combine a ninjutsu return leg with a sacrifice leg"
+            );
+        }
+        return buildNinjutsuReturnSelection(state, player.id, reason);
+    }
     const specs: SacrificeRequirement[] = [];
     if (ability.cost.sacrificeFilter) {
         specs.push({

@@ -242,6 +242,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "hasAttackedThisTurn",
     "hasBlockedThisTurn",
     "entersAsTypeLine",
+    "enterAttackingTarget",
     "imagePrintId",
     "indefiniteSubtypeSet",
     "isAttacking",
@@ -461,6 +462,9 @@ function compactCard(
     // enters" choices is PARKED in `stagedEntries` across a real save point
     // (ADR 0100) and re-enters the funnel on a later mutation, so the stamp
     // must survive the round trip or that permanent enters as its printed self.
+    if (card.enterAttackingTarget) {
+        out.enterAttackingTarget = card.enterAttackingTarget;
+    }
     if (card.entersAsTypeLine) {
         out.entersAsTypeLine = card.entersAsTypeLine;
     }
@@ -959,6 +963,9 @@ function expandCard(
     if (compact.indefiniteSubtypeSet) {
         result.indefiniteSubtypeSet =
             compact.indefiniteSubtypeSet as CardInstanceState["indefiniteSubtypeSet"];
+    }
+    if (compact.enterAttackingTarget) {
+        result.enterAttackingTarget = compact.enterAttackingTarget as string;
     }
     if (compact.entersAsTypeLine) {
         result.entersAsTypeLine =

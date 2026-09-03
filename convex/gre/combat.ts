@@ -99,6 +99,40 @@ export function recordAttackerDeclared(
     state.creatureAttackedThisTurn = true;
 }
 
+/** CR 509.1h — the UNBLOCKED attacking creatures `playerId` controls, in
+ *  `combat.attackerIds` order.
+ *
+ *  "Unblocked" is the negation of the explicit blocked list (ADR 0019): an
+ *  attacker becomes blocked when one or more creatures are declared as
+ *  blockers for it and STAYS blocked even if every blocker leaves combat, so
+ *  it is not derivable from `blockerAssignments` alone. Before blockers are
+ *  declared there is no blocked list, so every attacker reads as unblocked —
+ *  which is what CR 509.1h says (an attacker is neither blocked nor unblocked
+ *  until the declare-blockers step) but NOT what a cost that returns "an
+ *  unblocked attacker" may act on. Callers that need the CR 702.49a window
+ *  gate on `combat.blockersConfirmed` themselves; this function answers only
+ *  "which attackers have no blockers declared for them".
+ *
+ *  The single authority for the question, so the ninjutsu cost's legality
+ *  gate, its candidate picker and the Bot's move enumerator cannot disagree
+ *  about which creatures qualify. */
+export function unblockedAttackerIds(
+    state: GameState,
+    playerId: string
+): string[] {
+    const combat = state.combat;
+    if (!combat) return [];
+    const blocked = new Set(combat.blockedAttackerIds ?? []);
+    const controlled = new Set(
+        state.players
+            .find((p) => p.id === playerId)
+            ?.battlefield.map((c) => c.id) ?? []
+    );
+    return combat.attackerIds.filter(
+        (id) => controlled.has(id) && !blocked.has(id)
+    );
+}
+
 /** CR 509.1a / CR 613.1f — the blocker-side counterpart of
  *  {@link markAttacking}: locks in every creature listed in
  *  `combat.blockerAssignments` as a declared blocker, then IMMEDIATELY

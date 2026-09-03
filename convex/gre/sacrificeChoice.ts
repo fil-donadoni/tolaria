@@ -32,6 +32,22 @@ export type SacrificeRequirement = {
      *  historical Arena-UX auto-resolve is unchanged for every existing
      *  producer. */
     explicit?: boolean;
+    /** Narrow this requirement to a PRECOMPUTED candidate set, intersected
+     *  with `filter`. For a cost whose legal victims are not expressible as a
+     *  `PermanentFilter` because the predicate lives in game state rather than
+     *  on the permanent: Ninjutsu's "return an UNBLOCKED attacking creature you
+     *  control" (CR 702.49a) reads `combat.blockedAttackerIds` (ADR 0019), a
+     *  fact no `MatchablePermanent` carries.
+     *
+     *  Baked into the requirement at announcement — the same "static per-card
+     *  filter becomes per-activation data" move `excludeInstanceIds` makes —
+     *  so it crosses the wire on the selection and every consumer
+     *  (`autoResolveFungible`, `canAffordSacrifice`, `isSacrificeCandidateLegal`,
+     *  the Bot's picks, the client's battlefield highlight) narrows
+     *  identically instead of re-deriving a combat fact each site would get
+     *  subtly differently. Absent = no narrowing, the historical behaviour of
+     *  every existing producer. */
+    candidateIds?: string[];
 };
 
 export type SacrificeSelection = {
@@ -99,6 +115,25 @@ export function sacrificeCandidates(
             supertypesOf: liveSupertypesOf,
         });
     });
+}
+
+/** The legal victims for ONE requirement: its filter's matches, narrowed by
+ *  `candidateIds` when the producer baked a precomputed set in.
+ *
+ *  Every REQUIREMENT-driven consumer must go through this rather than through
+ *  `sacrificeCandidates` directly — that one answers only the filter half and
+ *  would fail OPEN on a narrowed requirement, offering victims the cost does
+ *  not allow. `sacrificeCandidates` stays exported for the two producers that
+ *  have a bare filter and no requirement (the attack-declaration land tax). */
+export function requirementCandidates(
+    state: GameState,
+    playerId: string,
+    req: SacrificeRequirement
+): CardInstanceState[] {
+    const cands = sacrificeCandidates(state, playerId, req.filter);
+    if (!req.candidateIds) return cands;
+    const allowed = new Set(req.candidateIds);
+    return cands.filter((c) => allowed.has(c.id));
 }
 
 /** The first requirement whose picked-count is below its `count`. Picks are
@@ -181,11 +216,9 @@ export function autoResolveFungible(
         if (req.explicit) break;
         const need = req.count - countPicksFor(sel, req);
         if (need <= 0) continue;
-        const cands = sacrificeCandidates(
-            state,
-            sel.playerId,
-            req.filter
-        ).filter((c) => !used.has(c.id));
+        const cands = requirementCandidates(state, sel.playerId, req).filter(
+            (c) => !used.has(c.id)
+        );
         if (cands.length <= need) {
             for (const c of cands) {
                 sel.picked.push(c.id);
@@ -214,7 +247,7 @@ export function canAffordSacrifice(
     const reserved = new Set<string>();
     for (const req of requirements) {
         let need = req.count;
-        for (const c of sacrificeCandidates(state, playerId, req.filter)) {
+        for (const c of requirementCandidates(state, playerId, req)) {
             if (need <= 0) break;
             if (reserved.has(c.id)) continue;
             reserved.add(c.id);
@@ -235,7 +268,7 @@ export function isSacrificeCandidateLegal(
     if (sel.picked.includes(cardInstanceId)) return false;
     const req = nextUnmetRequirement(sel);
     if (!req) return false;
-    const cands = sacrificeCandidates(state, sel.playerId, req.filter);
+    const cands = requirementCandidates(state, sel.playerId, req);
     return cands.some((c) => c.id === cardInstanceId);
 }
 

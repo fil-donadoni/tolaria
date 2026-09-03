@@ -195,6 +195,14 @@ export function useBattlefieldVisualState(
         const req = nextSacrificeRequirement(sacrificeSelection);
         if (!req) return false;
         if (sacrificeSelection.picked.includes(card.id)) return false;
+        // Mirrors the server's `requirementCandidates`: a requirement whose
+        // legal victims were precomputed at announcement (Ninjutsu's unblocked
+        // attackers, CR 702.49a) narrows to that set — the filter alone would
+        // light up every attacking creature, including blocked ones the cost
+        // refuses.
+        if (req.candidateIds && !req.candidateIds.includes(card.id)) {
+            return false;
+        }
         return matchesPermanentFilter(card, req.filter, controlContinuity);
     }
 

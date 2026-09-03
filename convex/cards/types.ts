@@ -1124,6 +1124,33 @@ export interface ActivatedAbility {
          *  (`getAdditionalSacrificeMv()`) is taken only for a count of 1,
          *  since "the sacrificed permanent" is ambiguous above that. */
         sacrificeFilterCount?: number;
+        /** "Return an unblocked attacking creature you control to its owner's
+         *  hand" as an activation cost (CR 702.49a — the Ninjutsu cost's
+         *  non-mana component, alongside its mana leg and the reveal).
+         *
+         *  A cost that GIVES UP a permanent, so it routes through the ONE
+         *  unified selection layer every sacrifice and return-to-hand cost
+         *  uses (`gre/sacrificeChoice.ts`, `action: "return"`) rather than
+         *  auto-picking a victim: with two unblocked attackers, WHICH one goes
+         *  back is a real tactical choice and the payer must make it. The
+         *  candidate set is not expressible as a `PermanentFilter` — CR 509.1h
+         *  "unblocked" lives in `combat.blockedAttackerIds` (ADR 0019), not on
+         *  the permanent — so the requirement is narrowed by `candidateIds`,
+         *  computed once at announcement from `unblockedAttackerIds`
+         *  (`gre/combat.ts`) and read back by every consumer.
+         *
+         *  The cost is also the TIMING rule. CR 702.49a places no window on the
+         *  ability, but a creature is neither blocked nor unblocked until
+         *  blockers are declared (CR 509.1h), so the candidate set is empty
+         *  before that and the activation is simply unaffordable — the
+         *  "declare blockers step or later" window falls out of CR 601.2/118.4
+         *  affordability instead of being a second, separately-drifting rule.
+         *
+         *  CR 702.49c is why the payment is not merely a bounce: the returned
+         *  creature's defender is captured at commit onto the source card
+         *  (`CardInstanceState.enterAttackingTarget`) so the ninja enters
+         *  attacking the same player or planeswalker. */
+        returnUnblockedAttacker?: boolean;
         /** "Tap untapped permanents matching <filter> you control" as an
          *  activation cost (CR 602.1, 118.8). The activating player chooses
          *  which untapped permanents to tap while paying the cost; the
