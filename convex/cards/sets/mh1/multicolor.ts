@@ -78,8 +78,11 @@ export const hogaakArisenNecropolis: CardDefinition = {
 // "without paying their mana costs" is CR 118.9 — `withoutPayingManaCost`,
 // which for a land leg is simply vacuous (playing a land pays nothing).
 //
-// compiler-gap: "Ninjutsu {2}{U}{B}" (#2693) — the Oracle grammar has no rule
-// for the keyword's activated-ability expansion.
+// The Oracle grammar consumes neither line: the keyword has no expansion rule,
+// and the trigger's exile-and-play clause is the cross-player impulse-draw
+// shape that has no Op for the compiler to emit.
+// compiler-gap: "Ninjutsu {2}{U}{B}" (#2693)
+// compiler-gap: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs." (#2693)
 export const fallenShinobi: CardDefinition = {
     id: "900c9dfd-ece1-4b09-a801-0fa05e1994b9", // MH1 199
     name: "Fallen Shinobi",

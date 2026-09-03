@@ -67,10 +67,26 @@ export function ninjutsuReturnRequirement(
     state: GameState,
     playerId: string
 ): SacrificeRequirement {
+    const candidateIds = ninjutsuReturnCandidateIds(state, playerId);
     return {
         filter: { types: ["Creature"] },
         count: 1,
-        candidateIds: ninjutsuReturnCandidateIds(state, playerId),
+        candidateIds,
+        // ADR 0079 — opt OUT of `autoResolveFungible` as soon as there is more
+        // than one candidate. The default fungibility test (`identityKey`:
+        // same card, same tapped state, no counters, no attachments) would
+        // collapse two identical unblocked attackers into an arbitrary pick,
+        // and for THIS cost they are not interchangeable: CR 702.49c gives the
+        // ninja the defender of whichever creature is returned, so two
+        // identical bears attacking two different planeswalkers are two
+        // different plays. The fungibility rule is right for a sacrifice, where
+        // nothing downstream reads the victim's combat role; it is wrong here,
+        // and the narrow fix belongs on this requirement rather than in
+        // `identityKey`, which every other cost shares.
+        //
+        // A SINGLE candidate is still auto-resolved: there is no choice to
+        // make and no defender ambiguity to resolve.
+        ...(candidateIds.length > 1 ? { explicit: true } : {}),
     };
 }
 
