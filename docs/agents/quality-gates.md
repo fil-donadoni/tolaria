@@ -452,3 +452,97 @@ documentation path must be either in `DOC_GATE_TESTS` or in
 `DOC_GATE_TESTS_EXCLUDED` with a recorded reason, and `check:docs:inner` in
 `package.json` must run exactly the covered set. A new doc guard that nobody
 adds to the lane fails the census rather than silently narrowing the gate.
+
+## Context hygiene — the measurement, and why it is not a gate
+
+ADR 0110 moved an issue from an orchestrator fanning out to subagents into ONE
+main-thread context. Per issue that trade paid (median $59 → $42), but it also
+retired the doctrine that had kept the orchestrator's context small — delegate
+read-only search, pipe noisy stdout — and put nothing in its place. Nothing in
+the pipeline caps or prunes what accumulates, and a prompt is re-read as
+cache-read by every turn that follows it, so the cost of a session grows
+super-linearly in its own length.
+
+**`bun run telemetry:context`** is what makes that visible:
+
+```bash
+bun run telemetry:context                                # last 7 days
+bun run telemetry:context --from 2026-08-28 --to 2026-09-05
+bun run telemetry:context --json                         # machine-readable
+```
+
+It reads the SQLite mirror (`bun run telemetry:ingest` fills it) from the
+primary checkout, so it works unchanged from inside a worktree. A session is
+taken WHOLE when any of its turns falls in the window — deciles are positions
+within a session, and truncating one at the window edge would report its middle
+as its start.
+
+### The committed baseline — 2026-08-28 → 2026-09-05, 115 sessions
+
+This is the state the hygiene contract in `.claude/skills/next-issue/SKILL.md`
+was written against. Re-run the command over a later window to say whether it
+held.
+
+```
+  decile   turns   mean $/turn   mean ctx
+  0         2613       $0.0843        88k
+  1         2563       $0.0861       133k
+  2         2574       $0.1004       165k
+  3         2565       $0.1139       194k
+  4         2550       $0.1254       223k
+  5         2582       $0.1367       250k
+  6         2576       $0.1546       274k
+  7         2563       $0.1693       301k
+  8         2574       $0.1811       326k
+  9         2515       $0.1989       349k
+
+  last/first turn cost: 2.36x — back half = 62% of main-thread spend
+  per API response (one response = one turn): $0.0741 → $0.1860 over 15751 turns
+
+  bucket        calls   tok added   solo    tok/call     p90
+  fs             7419     4915607    4409        960     2133
+  other          5387     2682232    4586        541     1179
+  gh              869      526578     638        631     2057
+  git            1178      470996     809        501      810
+  test            743      258975     563        427      686
+  convex          317      212723     188        958     2670
+  bun             433      187968     309        499     1242
+  skill            34      135229      32       4184     5540
+  gate            135       52387     108        459      836
+  agent            87       22203      37        407      418
+  task              6        6756       5       1220     1520
+
+  untracked (Read/Edit/Grep/user text): 11331042 tok over 3107 intervals; 44 intervals dropped (context compacted)
+```
+
+### How to read it
+
+The **decile table** is the headline: a turn in the last tenth of a session cost
+2.36x one in the first, and the back half burned 62% of main-thread spend for
+50% of the turns. Running the back half at the front half's context is worth
+roughly a quarter of total spend.
+
+The **bucket table** attributes context growth to the calls that caused it.
+There is no record of how big any tool result was — the hook stores a command,
+never its stdout — so growth is derived from the one thing that IS recorded,
+each turn's prompt size: `added = ctx(i+1) - ctx(i) - out_tok(i)`, credited to
+the spans whose pre-event falls between the two turns. `tokAdded` splits a
+shared interval evenly; `tok/call` and `p90` are reported over SOLO intervals
+only, where no split is needed and the number is a measurement rather than an
+average of an average. The derivation, and the two things it deliberately
+cannot see, are documented on `scripts/lib/telemetry-context.ts`.
+
+`untracked` is the honest hole: the hook records spans for Bash, Agent, Skill
+and Task only, so Read/Edit/Grep/Write and the user's own text have no span to
+attribute to and are reported as a lump rather than folded into `other`. At 11.3M
+tokens it is the largest single line in the table — worth naming, not hiding.
+
+### Why prose and not a ratchet
+
+Issue #3078 scoped enforcement out on purpose. A hook that refuses an unfielded
+`gh` call, or a ratchet on tokens-per-issue, prices every legitimate exception
+(an issue whose comments genuinely must be read in full) at the same rate as the
+waste, and the pipeline already carries more mechanical gates than any single
+session reads. The contract is three habits in the one document every
+issue-closing session reads, and this command is how anyone checks, after the
+fact, whether they took.
