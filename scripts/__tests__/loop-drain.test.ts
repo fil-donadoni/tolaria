@@ -166,6 +166,7 @@ const stubBunUsageWindow = (pct: number, weighted = 1): void => {
     writeStub(
         "bun",
         [
+            planBranch(),
             `if [ "$1" = "run" ] && [ "$2" = "usage:window" ]; then`,
             `  echo '{"sinceIso":"x","hours":5,"models":{},"totals":{"input":0,"output":0,"cacheCreation":0,"cacheRead":0},"weighted":${weighted},"budget":1,"pct":${pct}}'`,
             `  exit 0`,
@@ -184,6 +185,7 @@ const writeBunUsageWindowStub = (body: string): void => {
     writeStub(
         "bun",
         [
+            planBranch(),
             `if [ "$1" = "run" ] && [ "$2" = "usage:window" ]; then`,
             body,
             `fi`,
@@ -218,6 +220,32 @@ const planJson = (number: number, model: string): string =>
         staleClaims: [],
     });
 
+/** Everything the pre-flight calls `bun` for, as one shell fragment.
+ *
+ *  EVERY stub needs it, not just the pre-flight's own tests: since #3088 a
+ *  pre-flight that cannot resolve a head STOPS the run, so a `bun` stub that
+ *  answers only `usage:window` or only `loop-doctor.ts` now ends the run
+ *  before its own subject is ever reached.
+ *
+ *  It reproduces `bun run`'s `$ bun scripts/… ` banner on STDERR. That is
+ *  load-bearing: the pre-flight's first implementation captured `2>&1` and
+ *  could not parse a single real plan, while every stub here was silent on
+ *  stderr and stayed green. */
+const planBranch = (number = 101, model = "sonnet"): string =>
+    [
+        `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+        `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
+        `  cat <<'PLANEOF'`,
+        planJson(number, model),
+        `PLANEOF`,
+        `  exit 0`,
+        `fi`,
+        // The pre-flight reads the plan's JSON with `bun -e`; that must reach
+        // the REAL bun even in stubs that otherwise answer one script and fail
+        // everything else, or the read comes back empty and the run stops.
+        `if [ "$1" = "-e" ] && [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+    ].join("\n");
+
 /** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the
  * pre-flight's `queue:plan` with a one-issue plan, forward everything else to
  * the real `bun`.
@@ -233,17 +261,7 @@ const stubBunDefaultBody = (): string =>
         `case "$*" in`,
         `  *loop-doctor.ts*) exit 0 ;;`,
         `esac`,
-        // `bun run <script>` prints this banner on STDERR before the script's
-        // own output. Reproducing it is load-bearing: the pre-flight's first
-        // implementation captured `2>&1` and could not parse a single real
-        // plan, while every stub here was silent on stderr and stayed green.
-        `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
-        `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
-        `  cat <<'PLANEOF'`,
-        planJson(101, "sonnet"),
-        `PLANEOF`,
-        `  exit 0`,
-        `fi`,
+        planBranch(101, "sonnet"),
         `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
         `echo "unstubbed bun invocation in test: $*" >&2`,
         `exit 1`,
@@ -259,13 +277,7 @@ const stubBunPlanHead = (number: number, model: string): void => {
             `case "$*" in`,
             `  *loop-doctor.ts*) exit 0 ;;`,
             `esac`,
-            `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
-            `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
-            `  cat <<'PLANEOF'`,
-            planJson(number, model),
-            `PLANEOF`,
-            `  exit 0`,
-            `fi`,
+            planBranch(number, model),
             `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
             `exit 1`,
         ].join("\n")
@@ -279,6 +291,7 @@ const stubBunReap = (body: string): void => {
     writeStub(
         "bun",
         [
+            planBranch(),
             `case "$*" in`,
             `  *loop-doctor.ts*)`,
             body,
@@ -1163,11 +1176,12 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         );
     });
 
-    it("degrades LOUDLY to the bare prompt when the planner cannot answer, rather than ending the run", () => {
-        // Non-fatal by construction, like the orphan-claim sweep: a planner
-        // outage at 3am must not end a budgeted night. It must also never be
-        // silent — the degraded pass carries back the stall risk this
-        // pre-flight exists to remove.
+    it("STOPS the run when the planner cannot answer, rather than letting a pass pick for itself (#3088)", () => {
+        // The one place the driver's usual "a janitor must not end the night"
+        // trade goes the other way. A pass handed the bare prompt picks its
+        // own issue and `/next-issue` knows nothing about HITL, so it would
+        // implement AND `land` work reserved for a human. Losing the rest of a
+        // night is the cheaper failure.
         stubGhCountingFrom(5);
         writeStub(
             "bun",
@@ -1183,11 +1197,14 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
                 `exit 1`,
             ].join("\n")
         );
-        const argv = argvForOnePass();
-        expect(argv).toEqual(["argc=2", "arg=-p", "arg=/next-issue"]);
+        writeStub("claude", `echo "must not run" >&2\nexit 0`);
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.stdout).toMatch(/reason=preflight-error/);
+        expect(r.status).toBe(1);
+        expect(passLogCount()).toBe(0);
     });
 
-    it("says so on stderr when it degrades, never silently", () => {
+    it("says so on stderr when it stops, never silently", () => {
         stubGhCountingFrom(5);
         writeStub(
             "bun",
@@ -1203,9 +1220,10 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         stubClaudeProgress();
         const r = run({ args: ["--max-passes", "1"] });
         expect(r.stderr).toMatch(/pre-flight FAILED/);
+        expect(r.stderr).toMatch(/STOPPING/);
     });
 
-    it("falls back rather than trusting a head the planner returned in an unusable shape", () => {
+    it("stops rather than trusting a head the planner returned in an unusable shape", () => {
         // A plan whose batch[0].number is not an integer must not reach the
         // pass as a prompt argument — `/next-issue not-a-number` burns a pass,
         // and unattended it burns one EVERY pass. Two layers reject it (the
@@ -1228,11 +1246,10 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
                 `exit 1`,
             ].join("\n")
         );
-        expect(argvForOnePass()).toEqual([
-            "argc=2",
-            "arg=-p",
-            "arg=/next-issue",
-        ]);
+        writeStub("claude", `echo "must not run" >&2\nexit 0`);
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.stdout).toMatch(/reason=preflight-error/);
+        expect(passLogCount()).toBe(0);
     });
 
     it("asks the planner to EXCLUDE HITL work — an unattended pass cannot supply the human it wants (#3088)", () => {
@@ -1304,7 +1321,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         ]);
     });
 
-    it("resolves nothing when an empty batch is all the planner returns — a deferred issue's number is not a head", () => {
+    it("stops on an empty batch — and a deferred issue's number is not a head", () => {
         // The reason the plan is read through `bun -e` and not a `grep -o` on
         // the JSON: `deferred` and `skipped` entries carry `number` fields
         // too, so a first-match scan hands the pass a DEFERRED issue exactly
@@ -1324,9 +1341,12 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
                 `exit 1`,
             ].join("\n")
         );
-        const argv = argvForOnePass();
-        expect(argv).toEqual(["argc=2", "arg=-p", "arg=/next-issue"]);
-        expect(argv.join(" ")).not.toContain("9999");
+        writeStub("claude", `echo "$@" > "${path.join(tmp, "ran")}"\nexit 0`);
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.stdout).toMatch(/reason=preflight-error/);
+        expect(passLogCount()).toBe(0);
+        // The deferred issue must not have leaked into a prompt on the way out.
+        expect(fs.existsSync(path.join(tmp, "ran"))).toBe(false);
     });
 });
 
@@ -1705,8 +1725,11 @@ describe("orphan-claim reap (#2627)", () => {
         // loop-doctor's branch scans: no local branch, no remote branch.
         writeStub("git", `exit 0`);
         // Forward everything to the real bun, so the sweep the driver invokes
-        // is the real `scripts/loop-doctor.ts`.
-        writeStub("bun", `exec "${REAL_BUN}" "$@"`);
+        // is the real `scripts/loop-doctor.ts` — except the pre-flight's own
+        // `queue:plan`, which would otherwise run the real planner against the
+        // recording `gh` above, fail to resolve a head, and stop the run
+        // before the sweep's assertions have anything to look at.
+        writeStub("bun", [planBranch(), `exec "${REAL_BUN}" "$@"`].join("\n"));
         fs.writeFileSync(queueFile, "1");
         return editLog;
     };
