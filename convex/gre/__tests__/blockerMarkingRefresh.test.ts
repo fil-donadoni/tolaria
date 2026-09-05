@@ -383,26 +383,30 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
 describe("camouflage auto-confirm refreshes isBlocking-conditioned statics (CR 509.1a / 510.4, issue #1826)", () => {
     it("advancePhase's forced pile blocks materialize the grant immediately, so its own CR 510.4 check does not skip FIRST_STRIKE_DAMAGE", () => {
         const { state, blocker } = makeCombatState();
-        // Camouflage (ADR 0012) replaced the declare-blockers step: the piles
-        // were locked into `blockerAssignments` at the spell's resolution and
-        // the DECLARE_BLOCKERS phase entry confirms them with no priority
-        // window — so no SBA pass runs between the marking and the CR 510.4
-        // decision either.
+        // Camouflage (ADR 0012) replaced the defender's block DECLARATION: the
+        // piles were locked into `blockerAssignments` at the spell's
+        // resolution and the DECLARE_BLOCKERS phase entry confirms them
+        // without a prompt. No SBA pass runs between that marking and the
+        // CR 510.4 decision — the step's priority round (CR 117.3a, issue
+        // #3086) sits between them but runs no SBAs of its own.
         state.phase = "DECLARE_ATTACKERS";
         state.camouflageCombat = true;
         state.priorityPlayerId = "p1";
 
-        // ONE call: `advancePhase` enters DECLARE_BLOCKERS, auto-confirms the
-        // piles, and — with no blocking priority window to stop at — takes its
-        // own CR 510.4 decision and recurses onward, all before any SBA pass.
+        // `advancePhase` enters DECLARE_BLOCKERS and auto-confirms the piles,
+        // then rests on the step's priority round.
         advancePhase(state);
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
         expect(state.combat?.blockersConfirmed).toBe(true);
         expect(blocker.isBlocking).toBe(true);
         // Materialized by the auto-confirm itself — nothing in this test has
         // run an SBA pass.
         expect(blocker.staticAbilities).toContain("first strike");
-        // Pre-fix this landed on COMBAT_DAMAGE: the skip check read a stale
-        // `staticAbilities` and CR 510.4 removed the first-strike step.
+
+        // Leaving the step takes the CR 510.4 decision, still with no SBA pass
+        // in between. Pre-fix this landed on COMBAT_DAMAGE: the skip check read
+        // a stale `staticAbilities` and CR 510.4 removed the first-strike step.
+        advancePhase(state);
         expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
     });
 });
