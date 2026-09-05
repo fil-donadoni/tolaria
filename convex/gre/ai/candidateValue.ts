@@ -27,6 +27,12 @@ import {
     dslSpellScriptOpValue,
 } from "./cardScriptValue";
 import { contextAwareGrounding, type GroundingContext } from "./grounding";
+import {
+    hasGraveyardRecursionAccess,
+    isSelfReachableInGraveyard,
+    latentGraveyardValue,
+} from "./graveyardReach";
+import type { SearchFindDestination } from "./searchDestination";
 import type { OpValue, ValueTag } from "./featureBasis";
 import type {
     EffectCardFilter,
@@ -159,24 +165,178 @@ const LAND_SEARCH_BASE = 70;
 const LAND_SEARCH_STEP = 10;
 const LAND_SEARCH_FLOODED = 20;
 
+// --- Graveyard-bound finds (issue #3041) -----------------------------------
+//
+// A find is worth what it is worth IN THE ZONE THE EFFECT PUTS IT, and for
+// every destination but one that is the same question this module already
+// answered: a card going to hand or the battlefield is about to be cast or is
+// about to be a permanent, so its prospective/fetch-curve worth IS its worth.
+// A card going to a GRAVEYARD is a different question entirely, and pricing it
+// with the hand answer is what made Entomb fetch a dual land: the land's
+// fetch-curve worth (~70 at a low land count) beat every reanimation target's
+// prospective worth, and the generator's top-K admission — which ranks by this
+// same function — could drop the reanimation target out of the answer set
+// altogether, so no amount of reward could correct it.
+//
+// The worth of a card in a graveyard is `graveyardReach.ts`'s question, already
+// answered there for the leaf evaluator's `graveyardReach` term (issue #3042)
+// and reused verbatim here rather than re-derived: a graveyard is a DEAD ZONE
+// by default, and a card in it earns credit only to the extent its owner can
+// actually reach it — recursion they hold or control, or the card being usable
+// out of the graveyard on its own. No card names, no archetype classifier
+// (ADR 0102).
+
+/** Rescales `latentGraveyardValue`'s Forge-scale points (`cardValueById`'s
+ *  currency — the same scale `OP_VALUERS` uses) onto this module's smaller
+ *  board-worth currency, exactly as {@link NONCREATURE_SCRIPT_SCALE} does for a
+ *  noncreature's script value, so a graveyard-bound candidate pool ranks on the
+ *  SAME scale as every other candidate pool. */
+const GRAVEYARD_FIND_SCALE = NONCREATURE_SCRIPT_SCALE;
+
+/** How much of a reachable card's latent worth survives the trip through a
+ *  graveyard. Strictly less than 1: getting it back costs the recursion card
+ *  and the mana to run it, neither of which this pricing models.
+ *
+ *  Together with its unreachable twin below, this pair is the ORDERING
+ *  mechanism, not a uniform scale factor: `isSelfReachableInGraveyard` is a
+ *  PER-CARD predicate, so two finds in one node can sit on different sides of
+ *  the 0.6-vs-0.05 split. That is exactly what makes a self-reachable card
+ *  outrank a much larger one that nothing can return. */
+const GRAVEYARD_REACHABLE_FRACTION = 0.6;
+
+/** …and how little survives when nothing can reach the card in a graveyard.
+ *  Near-floor rather than exactly zero on purpose: at zero every unreachable
+ *  find ties, and the generator's top-K admission would then keep whichever
+ *  identities sort first alphabetically. Burying into a graveyard nobody can
+ *  spend genuinely is low-value — the ranking should say so — but it should
+ *  still say WHICH low-value card it would bury, so the ordering among them
+ *  stays their own. */
+const GRAVEYARD_UNREACHABLE_FRACTION = 0.05;
+
+/** Worth of a find that the source effect puts into a graveyard.
+ *
+ *  WHOSE graveyard is CR 400.7's question, not the searcher's: a card put into
+ *  a graveyard goes to its OWNER's. So reachability is read against
+ *  `card.ownerId`, which for every shipped search is the searcher anyway
+ *  (all 51 are `player: "controller"`) but is the correct player by rule rather
+ *  than by coincidence — reading the searcher would, on a "search target
+ *  opponent's library and bury it" card, scan the BOT's hand for recursion that
+ *  would serve the opponent. What that card would additionally need is a
+ *  SIGN flip (a reachable card in the opponent's graveyard is bad for the bot),
+ *  and no such card exists to calibrate one against; the four cross-player
+ *  searches in the catalogue all move to exile, never a graveyard.
+ *
+ *  Both reach shapes come from `graveyardReach.ts`, the single authority:
+ *  `hasGraveyardRecursionAccess` (the player holds/controls something that pulls
+ *  a card back out) and `isSelfReachableInGraveyard` (the card is castable or
+ *  activatable from there on its own). The latter's precondition is normally
+ *  "the card is in `player.graveyard`" — here it is asked HYPOTHETICALLY, of a
+ *  card still in the library, which is exactly the question the pricing needs
+ *  ("if I bury this, can I use it?") and which the predicate answers off the
+ *  same printed-mechanism + battlefield-permission reads either way.
+ *
+ *  `recursionAccess`, when supplied, is the caller's already-computed
+ *  `hasGraveyardRecursionAccess` for this node. That predicate is PLAYER-level
+ *  and node-invariant while the per-card `isSelfReachableInGraveyard` is not, so
+ *  recomputing it per pool card made a graveyard-bound node 3.6x the cost of a
+ *  hand-bound one (measured on a 56-card library in review of PR #3077:
+ *  0.575 ms vs 0.160 ms per `choiceCandidates` call). Omitted, it is computed
+ *  here — the answer is identical either way.
+ *
+ *  A land needs no carve-out and gets none: its latent worth is
+ *  `NONCREATURE_BASE` (8 Forge points — `cardValue.ts`), so it prices at the
+ *  floor by VALUE, while a fat reanimation target prices far above it. That is
+ *  the fix — the land fetch curve simply never applies to a zone where a land
+ *  produces no mana. */
+function graveyardFindWorth(
+    state: GameState,
+    card: CardInstanceState,
+    recursionAccess?: { playerId: string; hasAccess: boolean }
+): number {
+    // CR 400.7 — the card lands in its OWNER's graveyard.
+    const owner = getPlayer(state, card.ownerId);
+    const recursion =
+        recursionAccess && recursionAccess.playerId === owner.id
+            ? recursionAccess.hasAccess
+            : hasGraveyardRecursionAccess(owner);
+    const reachable =
+        recursion || isSelfReachableInGraveyard(state, owner, card);
+    const fraction = reachable
+        ? GRAVEYARD_REACHABLE_FRACTION
+        : GRAVEYARD_UNREACHABLE_FRACTION;
+    return latentGraveyardValue(card) * GRAVEYARD_FIND_SCALE * fraction;
+}
+
+/** The player-level half of {@link graveyardFindWorth}'s reachability gate,
+ *  hoisted so a caller pricing a whole pool pays it ONCE (see that function's
+ *  `recursionAccess` note). Exported rather than inlined at each call site so
+ *  the hoisted read and the fallback inside the pricing can never be two
+ *  different predicates. Cheap no-op for a non-graveyard destination — the
+ *  caller skips it, and the pricing never asks. */
+export function graveyardRecursionAccessFor(
+    state: GameState,
+    playerId: string
+): { playerId: string; hasAccess: boolean } {
+    return {
+        playerId,
+        hasAccess: hasGraveyardRecursionAccess(getPlayer(state, playerId)),
+    };
+}
+
+/** What the caller has already worked out about THIS search node, shared by
+ *  both consumers so they can never price the same node differently. Both
+ *  fields are node-invariant — one derivation per node, not one per pool card
+ *  (see {@link graveyardFindWorth}'s `recursionAccess` note for the measured
+ *  reason the second field exists). An absent `pricing`, or an absent
+ *  `destination` inside it, is the documented "cannot derive" fallback and
+ *  prices exactly as this function did before issue #3041. */
+export type SearchPricing = {
+    /** Zone the source effect moves the find to (`searchFindDestination`). */
+    destination?: SearchFindDestination;
+    /** A `hasGraveyardRecursionAccess` answer the caller already computed,
+     *  CARRYING THE PLAYER IT IS ABOUT. The player is not decoration: the
+     *  hoisted value is the LIBRARY's owner while the reach question is about
+     *  the found card's OWNER (CR 400.7), and those two coincide for every
+     *  shipped search but are not the same thing. Pricing uses the hint only
+     *  when the ids match and recomputes otherwise, so the optimisation can
+     *  never change an answer. */
+    recursionAccess?: { playerId: string; hasAccess: boolean };
+};
+
 /** Rough latent worth of a card a library search could find (CR 701.23), used
- *  to RANK targets and to feed the `priorFor` seam — never legality. A LAND
- *  is priced against the SEARCHER's own mana development (real board state —
- *  genuinely context-aware), which is what makes a fetchland pick sensible
- *  early and near-irrelevant when flooded; every other card reuses
- *  `prospectiveCardWorth` (OP_VALUERS-driven for a noncreature, issue #1433).
+ *  to RANK targets and to feed the `priorFor` seam — never legality. Priced
+ *  against the zone the source effect actually PUTS the find in (issue #3041),
+ *  derived generically from that source's own Effect Script by
+ *  `searchFindDestination` and passed in by the caller:
+ *
+ *  - `"graveyard"` — {@link graveyardFindWorth}, gated on reachability.
+ *  - every other destination, AND an undeterminable one (`undefined` — an
+ *    imperative `resolve()` tutor, an unusual script shape) — unchanged: a LAND
+ *    is priced against the SEARCHER's own mana development (real board state —
+ *    genuinely context-aware), which is what makes a fetchland pick sensible
+ *    early and near-irrelevant when flooded; every other card reuses
+ *    `prospectiveCardWorth` (OP_VALUERS-driven for a noncreature, issue #1433).
+ *
  *  Shared by the `search-library` candidate generator's hint
  *  (`choiceCandidates.ts`, always context-free — a structural hint, not the
  *  final ordering score) AND the DSL `priorFor` provider (`choicePriors.ts`,
  *  which passes a real `contextAwareGrounding` — issue #1433 review finding
  *  2) so the two never drift apart on WHICH function they call, only on
- *  which `ctx` they ground it with. */
+ *  which `ctx` they ground it with. Both pass the SAME derived destination, so
+ *  fixing the pricing here fixes the generator's top-K ADMISSION and the
+ *  prior's ORDERING by construction — the admission half is the one a
+ *  prior-only fix cannot reach (a graveyard-relevant find in a 50-card library
+ *  can be pruned out of the answer set entirely, and then no reward corrects
+ *  it). */
 export function libraryTargetWorth(
     state: GameState,
     searcherId: string,
     card: CardInstanceState,
-    ctx?: GroundingContext
+    ctx?: GroundingContext,
+    pricing?: SearchPricing
 ): number {
+    if (pricing?.destination === "graveyard")
+        return graveyardFindWorth(state, card, pricing.recursionAccess);
     if (!card.types.includes("Land"))
         return prospectiveCardWorth(state, card, ctx);
     const lands = getPlayer(state, searcherId).battlefield.filter((c) =>

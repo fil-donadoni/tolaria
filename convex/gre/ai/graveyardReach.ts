@@ -46,6 +46,9 @@ import { graveyardCastMechanismForMember } from "../castCost";
 import { getPrintedEscape } from "../escape";
 import { canPlayLandsFromGraveyard } from "../rules";
 import { isLand } from "../constants";
+// The DSL's nesting constructs, enumerated ONCE for every static script walk in
+// `gre/ai/**` (issue #3041 added a third caller — `searchDestination.ts`).
+import { childOpArrays } from "./effectOpChildren";
 
 /** A destination a recovered card can actually be used from. Returning a card
  *  to the LIBRARY (a shuffle-back, Elixir of Immortality) is deliberately not
@@ -134,37 +137,6 @@ function opIsGraveyardRecovery(
     // the ordinary BOUNCE of a battlefield permanent (Unsummon, Boomerang,
     // Repulse), which reaches no graveyard at all.
     return shape.to === "battlefield" && !scriptExiles;
-}
-
-/** Every nested Op array an Op carries — the ONE place the DSL's nesting
- *  constructs are enumerated, so the two walks below cannot drift apart and a
- *  new construct cannot be added to the DSL while only one of them learns
- *  about it. Beyond the four structural constructs (ADR 0045) this covers the
- *  three Ops that also carry scripts: `delayedTrigger` / `reflexiveTrigger`
- *  (their `effects`) and `divideIntoPiles` (both branches). Missing them was a
- *  live false NEGATIVE — Death or Glory reanimates from inside a
- *  `divideIntoPiles` branch — and a latent false POSITIVE, since `scriptExiles`
- *  is the only thing separating a blink from real recursion in the un-zoned
- *  `$ref` case. */
-function childOpArrays(op: EffectOp): readonly (readonly EffectOp[])[] {
-    switch (op.op) {
-        case "if":
-            return op.else ? [op.then, op.else] : [op.then];
-        case "forEach":
-            return [op.effects];
-        case "optionChoice":
-            return op.modes.map((mode) => mode.effects);
-        case "coinFlip":
-        case "coinFlipSync":
-            return [op.win.effects, op.loss.effects];
-        case "delayedTrigger":
-        case "reflexiveTrigger":
-            return [op.effects];
-        case "divideIntoPiles":
-            return [op.chosenEffect, op.otherEffect];
-        default:
-            return [];
-    }
 }
 
 /** Does this script exile something it could then be RETURNING? A blink (exile
