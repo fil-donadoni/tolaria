@@ -23,7 +23,8 @@ import type { CardInstanceState, GameState } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { unblockedAttackerIds } from "../combat";
 import { ninjutsuReturnCandidateIds } from "../ninjutsu";
-import { refreshExpectedInput } from "../expectedInput";
+import { computeExpectedInput, refreshExpectedInput } from "../expectedInput";
+import { advancePhase } from "../phases";
 import { drought } from "../../cards/sets/ice/white";
 import { wrennAndSix } from "../../cards/sets/mh1/multicolor";
 import { swamp } from "../../cards/sets/lea/colorless";
@@ -400,5 +401,53 @@ describe("Ninjutsu wire format (projectPublicState)", () => {
         expect(
             own.players.find((p) => p.id === "p1")!.hand.map((c) => c?.id)
         ).toContain("a1");
+    });
+});
+
+describe("Ninjutsu reaches its window through the real phase advance (CR 117.3a, issue #3086)", () => {
+    // The keyword's timing window IS the declare-blockers priority round.
+    // CR 702.49a — the ninjutsu cost can only name an unblocked attacking
+    // creature, and CR 509.1h makes an attacker unblocked only once blockers
+    // have been declared. When the defender has no legal block the engine
+    // confirms the empty declaration itself — and used to suppress the
+    // priority round along with the prompt, which put Ninjutsu out of reach in
+    // exactly the position the card is built for.
+    it("is activatable in the window the engine opens when no block is legal", () => {
+        const { state, shinobiId } = combatBoard({
+            attackerIds: ["a1"],
+            blockersConfirmed: false,
+        });
+        // Park before the step and let the engine walk in. p2 controls only a
+        // planeswalker, so no block is legal (CR 509.1a needs a creature).
+        state.phase = "DECLARE_ATTACKERS";
+        state.priorityPlayerId = "p1";
+        state.passCount = 0;
+
+        advancePhase(state);
+
+        // CR 117.3a — the step opened its priority round with the attacking
+        // player holding priority, blockers confirmed and no prompt owed.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.combat!.blockersConfirmed).toBe(true);
+        expect(state.priorityPlayerId).toBe("p1");
+        refreshExpectedInput(state);
+        expect(computeExpectedInput(state)?.kind).toBe("priority");
+
+        // CR 500.5 — the step change emptied the pre-floated mana pool;
+        // re-float it so what follows is about the WINDOW, not about mana.
+        state.players[0].manaPool = { W: 0, U: 1, B: 1, R: 0, G: 0, C: 2 };
+
+        // CR 702.49a — and the ability the window exists for is legal in it.
+        expect(ninjutsuReturnCandidateIds(state, "p1")).toEqual(["a1"]);
+        ninjutsu(state, shinobiId);
+        resolveTopOfStack(state);
+
+        const shinobi = battlefieldOf(state, "p1").find(
+            (c) => c.id === shinobiId
+        );
+        expect(shinobi).toBeDefined();
+        expect(shinobi!.isTapped).toBe(true);
+        expect(shinobi!.isAttacking).toBe(true);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a1");
     });
 });

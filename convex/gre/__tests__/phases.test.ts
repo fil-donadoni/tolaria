@@ -22,6 +22,8 @@ import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { recordBlockedAttackers } from "../banding";
+import { pushSpell } from "../../cards/__tests__/setup";
+import { giantGrowth } from "../../cards/sets/lea/green";
 import { assertExpectedInput } from "../expectedInput";
 
 // ---------------------------------------------------------------------------
@@ -249,9 +251,11 @@ describe("advancePhase", () => {
             expect(state.phase).toBe("DECLARE_BLOCKERS");
         });
 
-        it("DECLARE_BLOCKERS auto-skips when all attackers are unblockable (landwalk, CR 702.14b)", () => {
+        it("DECLARE_BLOCKERS auto-confirms an empty block but still grants priority (landwalk, CR 702.14b / 117.3a)", () => {
             // Active player p1 attacks with a swampwalker; p2 defender
-            // controls a Swamp → every attacker is unblockable, phase skips.
+            // controls a Swamp → every attacker is unblockable, so the empty
+            // declaration is confirmed for the defender rather than prompted.
+            // The step's priority round still opens (issue #3086).
             const state = makeGameState({
                 phase: "DECLARE_ATTACKERS",
                 combat: {
@@ -283,10 +287,20 @@ describe("advancePhase", () => {
             );
             const p2LifeBefore = p2.life;
             advancePhase(state);
-            // Phase advances past DECLARE_BLOCKERS to combat damage, which
-            // auto-applies (wraith unblocked → 3 damage to defender).
-            expect(state.phase).not.toBe("DECLARE_BLOCKERS");
+            // CR 117.3a — the step rests here with the active player holding
+            // priority. Blockers are confirmed (nothing to prompt for) but no
+            // damage has been dealt: this is the window Ninjutsu and held
+            // instants need.
+            expect(state.phase).toBe("DECLARE_BLOCKERS");
             expect(state.combat?.blockersConfirmed).toBe(true);
+            expect(state.priorityPlayerId).toBe("p1");
+            expect(state.passCount).toBe(0);
+            expect(p2.life).toBe(p2LifeBefore);
+
+            // Both players passing drains to combat damage (wraith unblocked
+            // → 3 damage to the defender).
+            state.autoPassPlayers = ["p1", "p2"];
+            drainAutoPasses(state);
             expect(p2.life).toBe(p2LifeBefore - 3);
         });
 
@@ -336,7 +350,7 @@ describe("advancePhase", () => {
             expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
         });
 
-        it("DECLARE_BLOCKERS auto-skips when all attackers fly and defender has no reach (CR 702.9b)", () => {
+        it("DECLARE_BLOCKERS auto-confirms an empty block when all attackers fly and defender has no reach (CR 702.9b)", () => {
             const state = makeGameState({
                 phase: "DECLARE_ATTACKERS",
                 combat: {
@@ -360,8 +374,11 @@ describe("advancePhase", () => {
             );
             p2.battlefield.push(makeCard({ id: "bears", types: ["Creature"] }));
             advancePhase(state);
-            expect(state.phase).not.toBe("DECLARE_BLOCKERS");
+            // CR 117.3a — confirmed without a prompt, but the priority round
+            // still opens (issue #3086).
+            expect(state.phase).toBe("DECLARE_BLOCKERS");
             expect(state.combat?.blockersConfirmed).toBe(true);
+            expect(state.priorityPlayerId).toBe("p1");
         });
 
         it("DECLARE_BLOCKERS is NOT auto-skipped if defender has a reach creature vs flying", () => {
@@ -1442,6 +1459,151 @@ describe("isSorceryTiming", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The declare-blockers priority round when the defender has no legal block
+// (CR 117.3a, issue #3086)
+// ---------------------------------------------------------------------------
+
+/** p1 attacks p2 with one 2/2 flier; p2 controls a ground creature that can
+ *  never block it (CR 702.9b), so no block is legal. State is parked at
+ *  DECLARE_ATTACKERS so every assertion below is reached by the ENGINE's own
+ *  phase advance, not by a hand-set `blockersConfirmed`. */
+function unblockableCombatState(): GameState {
+    const state = makeGameState({
+        phase: "DECLARE_ATTACKERS",
+        combat: {
+            attackerIds: ["flier"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        },
+    });
+    const p1 = state.players.find((p) => p.id === "p1")!;
+    const p2 = state.players.find((p) => p.id === "p2")!;
+    p1.battlefield.push(
+        makeCard({
+            id: "flier",
+            types: ["Creature"],
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["flying"],
+            isAttacking: true,
+        })
+    );
+    p2.battlefield.push(makeCard({ id: "ground", types: ["Creature"] }));
+    return state;
+}
+
+describe("declare-blockers priority with no legal block (CR 117.3a, issue #3086)", () => {
+    it("gives BOTH players priority before combat damage", () => {
+        const state = unblockableCombatState();
+        advancePhase(state);
+
+        // CR 117.3a — the active player receives priority first.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(state.passCount).toBe(0);
+
+        // One pass hands it to the defender, who is still in the step: this is
+        // their last chance to act knowing the flier is unblocked.
+        state.singleShotAutoPass = "p1";
+        drainAutoPasses(state);
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.priorityPlayerId).toBe("p2");
+    });
+
+    it("does not prompt the defender to assign blockers (ADR 0047 expected input)", () => {
+        const state = unblockableCombatState();
+        advancePhase(state);
+
+        // The block-assignment prompt is genuinely skipped — the defender has
+        // no legal target to assign — but the game is resting IN the step,
+        // waiting for PRIORITY rather than for a blocker declaration.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.combat?.blockersConfirmed).toBe(true);
+        expect(() =>
+            assertExpectedInput(state, { playerId: "p1", expect: "blockers" })
+        ).toThrow(/waiting for priority input/);
+        expect(() =>
+            assertExpectedInput(state, { playerId: "p1", expect: "priority" })
+        ).not.toThrow();
+        // Anchored to THIS step: no combat damage has been dealt yet, so the
+        // `priority` verdict above is the declare-blockers window's and not a
+        // later step's.
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(20);
+    });
+
+    it("resolves an instant cast in the window BEFORE combat damage", () => {
+        const state = unblockableCombatState();
+        advancePhase(state);
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        const lifeBefore = p2.life;
+
+        // Giant Growth on the unblocked attacker, cast in the window the fix
+        // restored. If it resolved after combat damage (or never), the
+        // defender would take the flier's printed 2.
+        pushSpell(state, giantGrowth.id, "p1", [
+            { type: "permanent", id: "flier" },
+        ]);
+        state.priorityPlayerId = "p2";
+        state.passCount = 0;
+        state.autoPassPlayers = ["p1", "p2"];
+        drainAutoPasses(state);
+
+        expect(p2.life).toBe(lifeBefore - 5);
+    });
+
+    it("costs no extra input when neither player acts (auto-pass drain)", () => {
+        const state = unblockableCombatState();
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        const lifeBefore = p2.life;
+
+        // Both seats standing-pass: the restored window must drain like every
+        // other priority step, never park waiting for a click.
+        state.autoPassPlayers = ["p1", "p2"];
+        advancePhase(state);
+        // The window really is there to drain — without this the assertions
+        // below would hold just as well for the old no-window behavior.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+
+        drainAutoPasses(state);
+        expect(state.phase).not.toBe("DECLARE_BLOCKERS");
+        expect(p2.life).toBe(lifeBefore - 2);
+    });
+
+    it("opens the window for Camouflage's forced piles too (ADR 0012)", () => {
+        // The equivalent forced-block path: Camouflage replaces the block
+        // DECLARATION, not the step. CR 117.3a knows no exception for it.
+        const state = makeGameState({
+            phase: "DECLARE_ATTACKERS",
+            camouflageCombat: true,
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { blk: ["atk"] },
+                blockersConfirmed: false,
+            },
+        });
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        p1.battlefield.push(
+            makeCard({
+                id: "atk",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                isAttacking: true,
+            })
+        );
+        p2.battlefield.push(makeCard({ id: "blk", types: ["Creature"] }));
+
+        advancePhase(state);
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.combat?.blockersConfirmed).toBe(true);
+        expect(state.priorityPlayerId).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
 // drainAutoPasses — auto-pass priority for the rest of the turn
 // ---------------------------------------------------------------------------
 
@@ -1466,6 +1628,67 @@ function makeStackItem(
         ...overrides,
     };
 }
+
+describe("drainAutoPasses — the iteration bound (CR 500.8, issue #3086)", () => {
+    /** A turn where p1 attacks every combat with an evasive vigilant creature
+     *  the defender can never block, under full auto-pass, with `extraCombats`
+     *  additional combat phases queued (CR 500.8). Every priority step in the
+     *  turn costs the drain two iterations, so this is the shape that decides
+     *  whether `maxIterations` is big enough. */
+    function autoPassTurn(extraCombats: number, firstStrike: boolean) {
+        const state = makeGameState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        p1.life = 200;
+        p2.life = 200;
+        p1.battlefield.push(
+            makeCard({
+                id: "flier",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                staticAbilities: firstStrike
+                    ? ["flying", "vigilance", "first strike"]
+                    : ["flying", "vigilance"],
+            })
+        );
+        p2.battlefield.push(makeCard({ id: "ground", types: ["Creature"] }));
+        // CR 508.1d — the whole turn's combats declare themselves, so the drain
+        // never stops for an attack decision.
+        state.allCreaturesMustAttack = "p1";
+        state.autoPassPlayers = ["p1", "p2"];
+        state.extraPhases = Array.from({ length: extraCombats }, () => ({
+            kind: "combat" as const,
+        }));
+        return { state, p2 };
+    }
+
+    // Hitting the bound does not throw: the loop returns with priority PARKED
+    // on a player who asked not to be asked, and the client will not recover
+    // (`computeAutoPassBlocked` refuses to auto-pass for a member of
+    // `autoPassPlayers`, and there is no server-side priority timeout). So the
+    // assertion is "the turn finished", not "no error".
+    for (const firstStrike of [false, true]) {
+        for (const extraCombats of [0, 4, 8]) {
+            it(`drains a whole turn with ${extraCombats} extra combats (first strike: ${firstStrike})`, () => {
+                const { state, p2 } = autoPassTurn(extraCombats, firstStrike);
+                drainAutoPasses(state);
+
+                // The turn ended: `advanceTurn` cleared the auto-pass roster.
+                expect(state.turn).toBe(2);
+                expect(state.autoPassPlayers).toBeUndefined();
+                expect(state.extraPhases ?? []).toEqual([]);
+                // Every combat actually happened — otherwise this would prove
+                // nothing about the bound.
+                expect(p2.life).toBe(200 - 2 * (extraCombats + 1));
+            });
+        }
+    }
+});
 
 describe("drainAutoPasses", () => {
     it("does nothing when no autoPassPlayers are set", () => {

@@ -1338,9 +1338,10 @@ export function getRequiredAttackerIds(
 
 /**
  * True if the defender has at least one creature that can legally block at
- * least one declared attacker. Used by the phase engine to auto-skip
- * DECLARE_BLOCKERS when every attacker is unblockable (e.g. all attackers
- * have evasion the defender can't beat).
+ * least one declared attacker. Used by the phase engine to auto-confirm an
+ * empty block DECLARATION when every attacker is unblockable (e.g. all
+ * attackers have evasion the defender can't beat) — never to skip the step's
+ * priority round, which CR 117.3a owes every step (issue #3086).
  */
 export function hasAnyLegalBlock(
     attackers: CardInstanceState[],

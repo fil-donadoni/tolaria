@@ -2075,7 +2075,8 @@ function performPhaseEntry(state: GameState): void {
             // Camouflage (ADR 0012) locks the forced pile blocks into
             // `blockerAssignments` at the spell's resolution (DECLARE_ATTACKERS),
             // and replaces this step entirely — so do NOT reset the assignments;
-            // the auto-skip below confirms them with no blocking priority.
+            // the auto-confirm below declares them with no blocker prompt
+            // (the step still opens its own priority round — CR 117.3a).
             if (state.combat && !state.camouflageCombat) {
                 state.combat.blockerAssignments = {};
                 state.combat.blockedAttackerIds = undefined;
@@ -3596,42 +3597,56 @@ export function advancePhase(state: GameState): Phase[] {
             state.phase === "END_OF_COMBAT") &&
         !hadAttackers;
 
-    // Auto-skip DECLARE_BLOCKERS when every declared attacker is unblockable
-    // (e.g. flying with no reach defender, or landwalk on a matching land —
-    // CR 702.9, 702.14). Matches the UX where the defender has no legal
-    // target to assign, avoiding a dead-end priority window.
-    const skipUnblockableCombat =
+    // The declare-blockers step holds TWO independent decisions, and issue
+    // #3086 was the bug of collapsing them into one:
+    //
+    //   1. WHO declares the blockers. When the defender has no legal block at
+    //      all, or Camouflage already locked the piles in, the engine confirms
+    //      the declaration itself instead of prompting for a choice with no
+    //      options. That is UX, and the two `autoConfirm*` flags below own it.
+    //   2. WHETHER the step opens a priority round. CR 117.3a: it always
+    //      does — the untap step and (usually) the cleanup step are the only
+    //      steps where no player receives priority. This window is the last
+    //      moment either player can act KNOWING which attackers are unblocked:
+    //      Ninjutsu (CR 702.49a) is activatable only here, and it is where a
+    //      held instant or pump is cast.
+    //
+    // So neither auto-confirm suppresses the window any more. An unused window
+    // costs no click: the auto-pass drain walks it like every other step.
+
+    // Auto-confirm an empty declaration when no block at all is legal: every
+    // declared attacker evades what the defender controls (CR 702.9 flying vs
+    // no reach, CR 702.14 landwalk on a matching land), or the defender
+    // controls no creature that could be declared as a blocker.
+    const autoConfirmNoLegalBlock =
         state.phase === "DECLARE_BLOCKERS" &&
         hadAttackers &&
         !!state.combat &&
+        !state.combat.blockersConfirmed &&
         !defenderHasAnyLegalBlock(state);
-    // Snapshot the stack before any auto blocker-confirm so we can tell whether
-    // it pushed "attacks and isn't blocked" triggers (Cloak of Confusion,
-    // Farrel's Mantle, Murk Dwellers) that now need a priority window to resolve.
-    const stackBeforeBlockerConfirm = state.stack.length;
-    if (skipUnblockableCombat && state.combat) {
+    if (autoConfirmNoLegalBlock && state.combat) {
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
         // CR 509.1h — even when the defender has no legal block, the
-        // ATTACKER_UNBLOCKED turn-based event still fires, so "attacks and
-        // isn't blocked" triggers reach the stack. Without this the auto-skip
-        // jumps straight to combat damage and silently drops those triggers.
+        // ATTACKER_UNBLOCKED turn-based action still fires, so "attacks and
+        // isn't blocked" triggers (Cloak of Confusion, Farrel's Mantle, Murk
+        // Dwellers) reach the stack before the step's priority round.
         emitBlockersConfirmedEvents(state);
     }
 
-    // Camouflage (ADR 0012) — the defender's declare-blockers step is replaced:
+    // Camouflage (ADR 0012) — the defender's block DECLARATION is replaced:
     // the forced pile blocks were already locked into `blockerAssignments` at
-    // the spell's resolution, so confirm them here with no blocking priority
-    // window. Marking blockers as blocking + firing the confirmed events keeps
-    // the rest of combat (damage assignment, triggers) identical to a normal
-    // declare-blockers.
-    const skipCamouflageBlockers =
+    // the spell's resolution, so confirm them here rather than prompting.
+    // Marking blockers as blocking + firing the confirmed events keeps the
+    // rest of combat (damage assignment, triggers) identical to a normal
+    // declare-blockers — and so does the priority round that follows.
+    const autoConfirmCamouflageBlockers =
         state.phase === "DECLARE_BLOCKERS" &&
         hadAttackers &&
         !!state.combat &&
         !!state.camouflageCombat &&
         !state.combat.blockersConfirmed;
-    if (skipCamouflageBlockers && state.combat) {
+    if (autoConfirmCamouflageBlockers && state.combat) {
         markDeclaredBlockers(state);
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
@@ -3656,15 +3671,6 @@ export function advancePhase(state: GameState): Phase[] {
         return traversed;
     }
 
-    // A blocker-confirm auto-skip (unblockable / camouflage) may have pushed
-    // "attacks and isn't blocked" triggers onto the stack. When it did, the
-    // attacking player needs a priority window to resolve them — do NOT skip
-    // straight to combat damage. `emitBlockersConfirmedEvents` already routed
-    // priority to the active player, and the else branch below re-affirms it.
-    const blockerConfirmPushedTriggers =
-        (skipUnblockableCombat || skipCamouflageBlockers) &&
-        state.stack.length > stackBeforeBlockerConfirm;
-
     // CR 514.3 / 514.3a — CLEANUP is an AUTO_PHASE, so without this the
     // recursion below would step straight into the next turn and silently throw
     // away the one priority window the cleanup step is allowed to open. The
@@ -3676,13 +3682,10 @@ export function advancePhase(state: GameState): Phase[] {
         state.phase === "CLEANUP" && !!state.pendingExtraCleanupStep;
 
     if (
-        !blockerConfirmPushedTriggers &&
         !cleanupWindowOpen &&
         (AUTO_PHASES.has(state.phase) ||
             drawStepSkippedForActivePlayer ||
             skipEmptyCombat ||
-            skipUnblockableCombat ||
-            skipCamouflageBlockers ||
             skipFirstStrikeDamage)
     ) {
         // Auto-phase, empty combat, or a fully-skipped draw step (CR 500.8):
@@ -3704,16 +3707,26 @@ export function advancePhase(state: GameState): Phase[] {
  * (which clears autoPassPlayers).
  */
 export function drainAutoPasses(state: GameState): void {
-    // Safety bound. Sized against ONE turn's phase walk with room to spare:
-    // CR 500.8 (issue #2886) makes that walk longer, since each extra combat
-    // adds roughly ten passes (five priority steps x two seats), and the
-    // `extraPhases` queue is unbounded — a script can queue more than one
-    // grant. At 50 the headroom covers a turn with three extra combats under
-    // full auto-pass; a queue deeper than that would hit the cap, which
-    // `return`s with priority parked rather than erroring, so raise this
-    // bound (or bound the queue) before shipping a card that can stack grants
-    // arbitrarily.
-    const maxIterations = 50;
+    // Safety bound, and it is worth stating the arithmetic rather than a
+    // remembered headroom, because hitting it does not error — the loop
+    // `return`s with priority PARKED on a player who asked not to be asked,
+    // and the client cannot recover (`computeAutoPassBlocked` refuses to
+    // auto-pass for anyone in `autoPassPlayers`, and there is no server-side
+    // priority timeout in `game.ts`). Every iteration is exactly one pass:
+    //
+    //   base turn        20  (10 priority steps x 2 seats: upkeep, draw,
+    //                         precombat main, the 5 combat steps, postcombat
+    //                         main, end step)
+    //   per extra combat +10 (CR 500.8, issue #2886 — 5 more priority steps)
+    //   first strike     +2  per combat that has one (CR 510.4 stops skipping
+    //                         the first-strike damage step)
+    //
+    // and the `extraPhases` queue is unbounded — a script can stack grants.
+    // 200 covers a turn with ~16 extra combats. Measured, not assumed: at the
+    // old bound of 50 a four-extra-combat turn parked mid-drain (issue #3086,
+    // whose restored declare-blockers window is the tenth of those 20 base
+    // passes; the same turn cost 8 passes per unblockable combat before it).
+    const maxIterations = 200;
     for (let i = 0; i < maxIterations; i++) {
         // Consume a queued "Pass Turn" intent: a player who pressed Enter
         // without priority is promoted into a rest-of-turn auto-pass the
@@ -3803,8 +3816,8 @@ export function drainAutoPasses(state: GameState): void {
         // turn once they confirm blockers.
         //
         // When the defender has no legal block, phase entry already set
-        // `blockersConfirmed` (`skipUnblockableCombat`), so we only reach this
-        // branch unconfirmed when a real block exists; the fall-through
+        // `blockersConfirmed` (`autoConfirmNoLegalBlock`), so we only reach
+        // this branch unconfirmed when a real block exists; the fall-through
         // auto-confirm below is a defensive no-op for any edge that slips past.
         if (
             state.phase === "DECLARE_BLOCKERS" &&

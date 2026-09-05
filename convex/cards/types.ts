@@ -5129,8 +5129,9 @@ export interface SpellContext {
      *  random via the seeded PRNG (deterministic for replay), then each creature
      *  in a pile that can legally block its assigned attacker is forced to do so
      *  — the blocks are written straight into `combat.blockerAssignments`. Sets
-     *  `state.camouflageCombat` so the DECLARE_BLOCKERS step auto-confirms with
-     *  no blocking priority. No-op if there is no active combat. */
+     *  `state.camouflageCombat` so the DECLARE_BLOCKERS step auto-confirms the
+     *  declaration with no blocker prompt (the step's own priority round still
+     *  opens — CR 117.3a). No-op if there is no active combat. */
     applyCamouflagePileBlocks: (defenderId: string, piles: string[][]) => void;
     /** Melee (CR 509.1 variant — attacker-driven block override, #669). Sets
      *  `state.meleeCombat` so that, for THIS combat, the ATTACKING (active)

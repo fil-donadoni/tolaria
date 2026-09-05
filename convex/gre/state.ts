@@ -4402,8 +4402,9 @@ export type GameState = {
      *  of Raging River, ADR 0012). When true, the defending player's
      *  declare-blockers step is REPLACED for this combat: the engine has
      *  already locked the forced pile blocks into `combat.blockerAssignments`
-     *  at the spell's resolution, so the DECLARE_BLOCKERS step grants no
-     *  blocking priority and auto-confirms (see `phases.ts`). Combat-scoped:
+     *  at the spell's resolution, so the DECLARE_BLOCKERS step confirms them
+     *  with no blocker prompt (see `phases.ts`) — it still opens the step's own
+     *  priority round, which CR 117.3a owes every step. Combat-scoped:
      *  cleared at end of combat. Persisted so a mid-combat stable-point save
      *  preserves the "blockers already declared" state. */
     camouflageCombat?: boolean;

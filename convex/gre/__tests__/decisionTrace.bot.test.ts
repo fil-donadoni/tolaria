@@ -265,8 +265,16 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         // life with a Bolt + an untapped Mountain. The ONLY survival is to Bolt
         // the attacker; passing (or bolting p1's face) is death — a large,
         // decisive mean-reward gap, so the root pick settles before the budget.
+        //
+        // The position is the declare-blockers priority round with blockers
+        // already confirmed (p2 has no creature, so nothing was prompted —
+        // CR 117.3a, issue #3086). That is deliberately the LAST window before
+        // damage: combat damage applies on the COMBAT_DAMAGE step's entry, so
+        // passing here really is death and the pick really is dominant. Posed
+        // one step earlier, at declare-attackers, passing merely defers the
+        // same Bolt to this window and the decision is not dominant at all.
         const state = makeState({
-            phase: "DECLARE_ATTACKERS",
+            phase: "DECLARE_BLOCKERS",
             activePlayerId: "p1",
             priorityPlayerId: "p2",
             players: [
@@ -296,7 +304,7 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
                 attackerIds: ["ogre"],
                 confirmed: true,
                 blockerAssignments: {},
-                blockersConfirmed: false,
+                blockersConfirmed: true,
             },
         });
         const { trace, move } = searchWithTrace(
