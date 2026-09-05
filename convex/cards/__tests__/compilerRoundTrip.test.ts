@@ -29,7 +29,12 @@
 //      story 9). "The compiler can't do this card" is not a fragment.
 //   3. Be in the one-time BASELINE (`compilerRoundTrip.baseline.ts`), which
 //      only ever shrinks — see that file's header for the three mechanisms,
-//      each asserted below.
+//      each asserted below. Every baseline row also declares the DIRECTION of
+//      its defect (compiler gap / card defect / undetermined, issue #3050,
+//      ADR 0114 §5), checked here against the card's live verdict, so a card
+//      bug cannot hide in a list that reads as "the compiler can't do this
+//      yet" — and a marker, the only way a NEW exemption can be written, must
+//      name a card the grammar actually refused.
 //
 // ── What this guard deliberately does NOT do ───────────────────────────────
 //
@@ -57,7 +62,17 @@ import {
     SETS_DIR,
     collectSetFiles,
 } from "../../../scripts/lib/divergence-markers";
-import { COMPILER_ROUND_TRIP_BASELINE } from "./compilerRoundTrip.baseline";
+import {
+    BASELINE_ROWS,
+    CARD_DEFECT_ROWS,
+    COMPILER_GAP_ROWS,
+    COMPILER_ROUND_TRIP_BASELINE,
+    UNDETERMINED_ROWS,
+} from "./compilerRoundTrip.baseline";
+import {
+    describeInconsistent,
+    triageBaseline,
+} from "../../../scripts/lib/baseline-triage";
 
 /**
  * The size the baseline was born at. LOWER it when cards graduate; never raise
@@ -187,16 +202,81 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
             COMPILER_ROUND_TRIP_BASELINE.length,
             "the baseline gained rows. It is a one-time amnesty for the cards that predate " +
                 "Guard C, not a parking space: a new failing card carries a compiler-gap " +
-                "marker instead. BASELINE_CEILING is lowered as cards graduate, never raised."
+                "marker instead. BASELINE_CEILING is lowered as cards graduate, never raised. " +
+                "The ceiling is taken on the UNION of the three direction arrays, so moving a " +
+                "row between them cannot buy a slot."
         ).toBeLessThanOrEqual(BASELINE_CEILING);
-        expect(
-            [...COMPILER_ROUND_TRIP_BASELINE].sort(),
-            "the baseline is kept sorted so a diff reads as the cards a change graduated"
-        ).toEqual([...COMPILER_ROUND_TRIP_BASELINE]);
+        // Sortedness is asserted PER ARRAY, not on the union: the union is
+        // DERIVED (`BASELINE_ROWS` sorts it), so asserting it sorted would
+        // assert `sort()` works. The three arrays are what a human edits, and
+        // per-array sortedness plus a duplicate-free union is exactly as strong
+        // as the single-array assertion it replaces.
+        for (const [label, names] of [
+            ["COMPILER_GAP_ROWS", COMPILER_GAP_ROWS],
+            ["CARD_DEFECT_ROWS", CARD_DEFECT_ROWS],
+            ["UNDETERMINED_ROWS", UNDETERMINED_ROWS],
+        ] as const) {
+            expect(
+                [...names].sort(),
+                `${label} is kept sorted so a diff reads as the cards a change graduated`
+            ).toEqual([...names]);
+        }
         expect(
             new Set(COMPILER_ROUND_TRIP_BASELINE).size,
-            "the baseline holds a duplicate row"
+            "the baseline holds a duplicate row — a name may appear in exactly ONE of the " +
+                "three direction arrays, or a card would carry two directions at once"
         ).toBe(COMPILER_ROUND_TRIP_BASELINE.length);
+    });
+
+    it("every compiler-gap MARKER sits on a card the compiler actually refused (issue #3050)", () => {
+        // The direction discipline has to reach the marker path, because the
+        // baseline can never grow: every FUTURE exemption is a marker, and a
+        // marker's deliverable is the Oracle FRAGMENT that beat the grammar.
+        // A card the compiler read and disagreed with produces no fragment, so
+        // a `compiler-gap:` marker on a `mismatch` card is the same mislabel
+        // the baseline split exists to stop — a card defect exempted by a note
+        // that says the grammar is at fault.
+        const misfiled = WELL_FORMED.filter(
+            (m) =>
+                VERDICTS.get(m.card)?.ok === false &&
+                (VERDICTS.get(m.card) as { kind: string }).kind !== "unparsed"
+        ).map(
+            (m) =>
+                `${where(m)}: ${m.card} — the compiler DID produce a definition ` +
+                `(${(VERDICTS.get(m.card) as { kind: string }).kind}), so there is no ` +
+                `unconsumed fragment to name`
+        );
+        expect(
+            misfiled,
+            "compiler-gap markers on cards the grammar did not refuse. The marker's fragment " +
+                "is what ranks the next grammar rule (PRD #2693 user story 9) and a card the " +
+                "compiler READ has none: the disagreement is a ruling, not a gap. File it in " +
+                "`compilerRoundTrip.baseline.ts` under the direction the ruling reaches, or " +
+                "fix the card."
+        ).toEqual([]);
+    });
+
+    it("every baseline row's direction is supported by the card's live verdict (issue #3050)", () => {
+        // The direction split is only worth having if it cannot rot. Each
+        // direction enumerates the verdict kinds that can support it
+        // (`DIRECTION_ALLOWED_KINDS`, argued field by field in
+        // `scripts/lib/baseline-triage.ts`); the verdicts here are the SAME
+        // ones every other assertion in this file reads, so the classification
+        // and the gate can never disagree about a row. On a `mismatch` the
+        // table is deliberately silent — see that file's header, and
+        // `KNOWN_DIVERGENCES` in `convex/oracle/__tests__/gold.test.ts`, which
+        // is what forces the ruling into prose.
+        const { inconsistent } = triageBaseline(CARDS, BASELINE_ROWS);
+        expect(
+            inconsistent.map(describeInconsistent),
+            "baseline rows filed under a direction their own round-trip verdict cannot " +
+                "support. A row the compiler REFUSES outright (`unparsed`) has no compiled " +
+                "twin to argue with, so it can only be a compiler gap; a row with no " +
+                "`oracleText` never reached the grammar at all, so it can only be a card " +
+                "defect. Only a `mismatch` is a judgement call — and one that has to be made " +
+                "in the diff, not inherited. See the baseline file's header for what moves a " +
+                "row between the arrays."
+        ).toEqual([]);
     });
 
     it("catalogue card names are unique — every exemption is looked up by name", () => {

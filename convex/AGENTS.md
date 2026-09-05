@@ -83,11 +83,16 @@ the Op vocabulary.
   Oracle span, never "the compiler can't do this card". A marker inside the
   object literal, two paragraphs up, or with no issue ref exempts NOTHING and
   reds. (3) Sits in the one-time **baseline**
-  (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`, 1,756 cards), which
+  (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`, 1,719 cards), which
   cannot be APPENDED to and drains as cards graduate. Enforced by
   `compilerRoundTrip.test.ts`; scanner in
   `scripts/lib/compiler-gap-markers.ts`. Presence only — liveness is the
   network sweep's job, exactly as for Guard B.
+
+    Each baseline row declares the DIRECTION of its defect (`COMPILER_GAP_ROWS`
+    / `CARD_DEFECT_ROWS` / `UNDETERMINED_ROWS`, issue #3050, ADR 0114 §5), and
+    the label is CHECKED against the card's live verdict rather than written
+    (`scripts/lib/baseline-triage.ts`; report: `bun run oracle:triage`).
 
 **Guard B polices markers; it does not licence them.** A `tracked-by:` ref
 makes an already-accepted divergence findable — it never makes one

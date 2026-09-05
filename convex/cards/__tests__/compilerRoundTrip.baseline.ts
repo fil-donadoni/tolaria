@@ -1,5 +1,6 @@
 // Guard C's BASELINE — the hand-written cards that do not round-trip through
-// the Oracle compiler today (issue #2701, PRD #2693).
+// the Oracle compiler today (issue #2701, PRD #2693), split by DIRECTION OF
+// DEFECT (issue #3050, ADR 0114 §5).
 //
 // ── What this list is ──────────────────────────────────────────────────────
 //
@@ -10,6 +11,61 @@
 // at once would mean 1756 markers written blind in one commit — noise that
 // would say nothing about any card and would have to be re-derived every time
 // a grammar slot ships. This file is the one-time amnesty instead.
+//
+// ── DIRECTION OF DEFECT ────────────────────────────────────────────────────
+//
+// A row records that a card does not round-trip. That single fact covers two
+// OPPOSITE defects, and merging them is how a card bug ends up parked in a list
+// labelled "the compiler can't read this yet" — a bug nobody is looking for
+// (ADR 0114 §5). So the rows live in three arrays:
+//
+//   COMPILER_GAP_ROWS — the compiler refused the card outright (`unparsed`,
+//     every row here today), or read it and got it wrong. Feeds the grammar
+//     backlog with its fragment.
+//   CARD_DEFECT_ROWS — the defect is on the HAND-WRITTEN side. Feeds a fix
+//     ticket. Two shapes: the compiler produced a definition that disagrees and
+//     the corpus sides with the compiler (#3046, #3047, #3073, #3074), and the
+//     definition carries no `oracleText` at all, so the compiler's input is
+//     missing rather than empty (#3075).
+//   UNDETERMINED_ROWS — the compiler produced a definition, the two disagree,
+//     and nobody has yet decided which encoding is canonical. A legitimate
+//     terminal state for a row, but a QUEUE, not a resting place.
+//
+// What MOVES a row between them: an adjudication, recorded in the diff. A row
+// leaves `UNDETERMINED_ROWS` for one of the other two when somebody decides
+// which side is wrong; a `card-defect` row leaves the file entirely when its
+// card is fixed; a `compiler-gap` row leaves when the grammar catches up. A row
+// never arrives in the FILE — see SHRINK-ONLY below — but it may move BETWEEN
+// the arrays, and one such move is already scheduled: backfilling `oracleText`
+// on the 23 `no-oracle-text` rows (#3075) turns 8 of them (Berserk, Channel,
+// Conservator, Dwarven Warriors, Fear, Samite Healer, The Hive, Tireless
+// Tracker) into `unparsed`, so those 8 must be INSERTED into
+// `COMPILER_GAP_ROWS` in the same change — the union does not grow, the ceiling
+// holds, and refusing that insertion is the only way to leave the guard red.
+//
+// The limit, stated rather than overclaimed: on a `mismatch` the table
+// constrains nothing — all three directions are legal — so a card defect
+// downgraded to `undetermined` passes this gate. What catches that is the same
+// thing that catches a bogus baseline edit: the diff, under review, plus
+// `KNOWN_DIVERGENCES` in `convex/oracle/__tests__/gold.test.ts`, which no card
+// can start mismatching without joining, in prose.
+//
+// The eight rows the compiler DID read and disagreed with are the same eight
+// `KNOWN_DIVERGENCES` enumerates in `convex/oracle/__tests__/gold.test.ts`, and
+// that list is where each one's argument is written out in full. Six resolved
+// against the card, two are encoding ties; this file records the verdict, that
+// one records the reasoning.
+//
+// The direction is not decorative. `scripts/lib/baseline-triage.ts` enumerates
+// the live `RoundTripVerdict` kinds each direction may rest on, recomputed
+// through the same single comparator Guard C and the gold harness use, and the
+// guard reds on a row whose verdict cannot support its declared direction. Read
+// that file's header for why the table is asymmetric; the short version is that
+// `unparsed` can only ever mean the compiler (there is no twin to argue with)
+// and `no-oracle-text` can only ever mean the card (no grammar was involved).
+//
+// `bun run oracle:triage` prints the per-class counts and lists the two small
+// classes by name.
 //
 // ── SHRINK-ONLY ────────────────────────────────────────────────────────────
 //
@@ -26,7 +82,8 @@
 //      is what removes the row.
 //   3. It may never GROW — `BASELINE_CEILING` is a literal a human has to
 //      lower, never raise. A new hand-written card cannot be APPENDED here; it
-//      round-trips or it carries a marker.
+//      round-trips or it carries a marker. The ceiling is taken on the UNION,
+//      so moving a row between the three arrays cannot buy a slot.
 //
 // What mechanism 3 does NOT stop, stated plainly rather than overclaimed: a
 // diff that deletes a graduating row and spends the freed slot on a new failing
@@ -37,9 +94,18 @@
 // are both in the diff, on adjacent lines, under review. Treat a baseline edit
 // that is not a pure deletion as a change that needs a reason in the PR body.
 //
-// Sorted by name (code-unit order), one per line, so a diff reads as the list
-// of cards a change graduated.
-export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
+// Each array is sorted by name (code-unit order), one per line, so a diff reads
+// as the list of cards a change graduated.
+
+import type { BaselineRow } from "../../../scripts/lib/baseline-triage";
+
+/**
+ * The compiler could not read the card, or read it and got it wrong. The
+ * dominant class by three orders of magnitude, and the one PRD #2693 user
+ * story 9 drains: each row's `unparsed` verdict carries the Oracle fragment
+ * that beat the grammar, which is what ranks the next grammar rule.
+ */
+export const COMPILER_GAP_ROWS: readonly string[] = [
     "Aang's Iceberg",
     "Abandoned Air Temple",
     "Abeyance",
@@ -48,7 +114,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Abyssal Specter",
     "Accumulated Knowledge",
     "Acid Rain",
-    "Active Volcano",
     "Adarkar Unicorn",
     "Adarkar Wastes",
     "Addle",
@@ -125,7 +190,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Arwen, Mortal Queen",
     "Ashen Ghoul",
     "Ashes to Ashes",
-    "Ashnod's Altar",
     "Ashnod's Battle Gear",
     "Ashnod's Transmogrant",
     "Aspect of Wolf",
@@ -169,7 +233,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Benalish Emissary",
     "Benalish Lancer",
     "Bend or Break",
-    "Berserk",
     "Bind",
     "Binding Grasp",
     "Birds of Paradise",
@@ -257,7 +320,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Chain Lightning",
     "Chain of Vapor",
     "Chandra, Torch of Defiance",
-    "Channel",
     "Chaos Lord",
     "Chaos Moon",
     "Chaoslace",
@@ -299,7 +361,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Confound",
     "Conquer",
     "Consecrate Land",
-    "Conservator",
     "Consider",
     "Consult the Star Charts",
     "Consuming Aetherborn",
@@ -318,7 +379,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Coveted Jewel",
     "Craterhoof Behemoth",
     "Craw Giant",
-    "Craw Wurm",
     "Creature Bond",
     "Creeping Tar Pit",
     "Cremate",
@@ -383,7 +443,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Derelor",
     "Desert",
     "Desert Nomads",
-    "Desert Twister",
     "Desperate Research",
     "Despotic Scepter",
     "Destructive Flow",
@@ -437,9 +496,7 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Dwarven Hold",
     "Dwarven Soldier",
     "Dwarven Song",
-    "Dwarven Warriors",
     "Eagles of the North",
-    "Earth Elemental",
     "Earthbind",
     "Earthcraft",
     "Earthlink",
@@ -525,7 +582,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Fastbond",
     "Fasting",
     "Fatal Push",
-    "Fear",
     "Fear of Missing Out",
     "Feedback",
     "Feldon's Cane",
@@ -536,7 +592,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Figure of Destiny",
     "Figure of Fable",
     "Fire Covenant",
-    "Fire Elemental",
     "Fire and Brimstone",
     "Fireball",
     "Fireblast",
@@ -547,7 +602,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Flare",
     "Flash",
     "Flash Counter",
-    "Flash Flood",
     "Flash of Insight",
     "Flashfires",
     "Fleetfoot Panther",
@@ -650,7 +704,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Gorilla Pack",
     "Gravebind",
     "Gravity Sphere",
-    "Gray Ogre",
     "Great Defender",
     "Great Wall",
     "Greater Realm of Preservation",
@@ -661,7 +714,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Grief",
     "Grist, the Hunger Tide",
     "Grizzled Wolverine",
-    "Grizzly Bears",
     "Guard Dogs",
     "Guardian Angel",
     "Guardian Beast",
@@ -696,7 +748,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Hibernation",
     "Hidden Path",
     "High Tide",
-    "Hill Giant",
     "Hipparion",
     "History of Benalia",
     "Hobble",
@@ -713,7 +764,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Honorable Scout",
     "Horned Cheetah",
     "Horned Kavu",
-    "Horror of Horrors",
     "Hot Springs",
     "Howl from Beyond",
     "Howling Mine",
@@ -723,7 +773,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Hunting Drake",
     "Hunting Kavu",
     "Hurkyl's Recall",
-    "Hurloon Minotaur",
     "Hurricane",
     "Hyalopterous Lemure",
     "Hydroblast",
@@ -777,7 +826,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Iron Star",
     "Iron-Shield Elf",
     "Ironclaw Orcs",
-    "Ironroot Treefolk",
     "Island",
     "Island Fish Jasconius",
     "Island Sanctuary",
@@ -853,7 +901,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Lapis Lazuli Talisman",
     "Lashknife Barrier",
     "Lava Burst",
-    "Lava Dart",
     "Lava Spike",
     "Lava Tubes",
     "Lava Zombie",
@@ -955,7 +1002,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Memory Lapse",
     "Mercenaries",
     "Merfolk Assassin",
-    "Merfolk of the Pearl Trident",
     "Merieke Ri Berit",
     "Merseine",
     "Mesmeric Trance",
@@ -997,7 +1043,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Mold Demon",
     "Mole Worms",
     "Molimo, Maro-Sorcerer",
-    "Mons's Goblin Raiders",
     "Monsoon",
     "Moonshadow",
     "Moor Fiend",
@@ -1051,13 +1096,11 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Nomadic Elf",
     "Norritt",
     "North Star",
-    "Northern Paladin",
     "Noxious Vapors",
     "Oasis",
     "Oath of Lim-Dûl",
     "Obelisk of Undoing",
     "Obliterate",
-    "Obsianus Golem",
     "Obsidian Acolyte",
     "Occult Epiphany",
     "Ocelot Pride",
@@ -1104,7 +1147,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Paralyze",
     "Part Water",
     "Path to Exile",
-    "Pearled Unicorn",
     "Pendelhaven",
     "Pentad Prism",
     "Pentagram of the Ages",
@@ -1283,7 +1325,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Safe Haven",
     "Samite Archer",
     "Samite Elder",
-    "Samite Healer",
     "Samite Pilgrim",
     "Sand Silos",
     "Sandstorm",
@@ -1297,14 +1338,12 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Savage Offensive",
     "Savai Triome",
     "Savannah",
-    "Savannah Lions",
     "Sawtooth Loon",
     "Scalding Tarn",
     "Scarecrow",
     "Scarred Puma",
     "Scarwood Bandits",
     "Scarwood Hag",
-    "Scathe Zombies",
     "Scavenged Weaponry",
     "Scavenging Ghoul",
     "Scorching Lava",
@@ -1524,7 +1563,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "The Abyss",
     "The Brute",
     "The Fallen",
-    "The Hive",
     "The One Ring",
     "The Rack",
     "The Tabernacle at Pendrell Vale",
@@ -1569,7 +1607,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Timetwister",
     "Tinder Wall",
     "Tinker",
-    "Tireless Tracker",
     "Tishana's Tidebinder",
     "Titania's Song",
     "Titania, Protector of Argoth",
@@ -1680,7 +1717,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Voracious Cobra",
     "Walking Ballista",
     "Walking Wall",
-    "Wall of Brambles",
     "Wall of Caltrops",
     "Wall of Light",
     "Wall of Tombstones",
@@ -1694,7 +1730,6 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Warped Devotion",
     "Wash Out",
     "Wastewood Verge",
-    "Water Elemental",
     "Water Wurm",
     "Waterspout Elemental",
     "Watery Grave",
@@ -1760,3 +1795,96 @@ export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] = [
     "Zur's Weirding",
     "Zuran Enchanter",
 ];
+
+/**
+ * The defect is on the HAND-WRITTEN side: the compiler's reading is the
+ * CR-faithful one.
+ *
+ * Usually that means fixing the card graduates the row — but not always, and
+ * Ashnod's Altar below is the counter-example: the reading is right and the
+ * remedy is engine-side, because the engine cannot yet pay the cost the correct
+ * encoding implies. "Card-defect" names the SIDE the defect is on, never the
+ * shape of its fix.
+ *
+ * The six adjudicated mismatches carry their ticket inline. The remaining 23
+ * are the `no-oracle-text` half (#3075): the definition omits `oracleText`, so
+ * the compiler's input is missing rather than empty and the card can never
+ * round-trip until it is backfilled — no grammar is involved at any point,
+ * which is exactly why the direction is `card-defect` and not `compiler-gap`
+ * (`docs/findings/2694-gold-cards-without-oracletext.md`).
+ */
+export const CARD_DEFECT_ROWS: readonly string[] = [
+    "Active Volcano", // #3073 — `type: ["any"]` for "blue permanent"
+    // A DELIBERATE deviation, not a slip: the engine's non-stack mana path
+    // cannot pay a `sacrificeFilter`, so the card is modelled on the stack on
+    // purpose and flipping `useStack` today makes the ability payable without
+    // paying its cost (docs/findings/2697-gold-catalogue-divergences.md §3).
+    // Still `card-defect` — CR 605.1a says the compiler's reading is the right
+    // one — but the fix is the engine gap, not the flag.
+    "Ashnod's Altar", // #3047 — mana ability on the stack, CR 605.3b
+    "Berserk",
+    "Channel",
+    "Conservator",
+    "Craw Wurm",
+    "Desert Twister", // #3073 — `type: ["any"]` for "permanent"
+    "Dwarven Warriors",
+    "Earth Elemental",
+    "Fear",
+    "Fire Elemental",
+    "Flash Flood", // #3073 — `type: ["any"]` for "red permanent"
+    "Gray Ogre",
+    "Grizzly Bears",
+    "Hill Giant",
+    "Hurloon Minotaur",
+    "Ironroot Treefolk",
+    "Merfolk of the Pearl Trident",
+    "Mons's Goblin Raiders",
+    "Northern Paladin", // #3046 — "black creature" for "black permanent"
+    "Obsianus Golem",
+    "Pearled Unicorn",
+    "Samite Healer",
+    "Savannah Lions",
+    "Scathe Zombies",
+    "The Hive",
+    "Tireless Tracker",
+    "Wall of Brambles", // #3074 — ships without its regenerate ability
+    "Water Elemental",
+];
+
+/**
+ * The compiler produced a definition, the two disagree, and which encoding is
+ * canonical is an open question rather than a defect on either side.
+ *
+ * Both rows here are the same question: a sacrifice cost whose Oracle text
+ * names a LAND TYPE. The catalogue writes `{ types: ["Land"], subtypes:
+ * ["Swamp"] }`; the compiler emits `{ subtypes: ["Swamp"] }`. CR 205.3i puts
+ * land types on lands only, so the two select the same permanents today — but
+ * `cost` is a field the engine reads to decide, and ADR 0114 §4 forbids the
+ * comparator folding it. Somebody has to say which form is canonical and make
+ * both sides write it; until then the row is honestly undetermined, and it is
+ * NOT evidence of a grammar gap or of a card bug.
+ */
+export const UNDETERMINED_ROWS: readonly string[] = [
+    "Horror of Horrors",
+    "Lava Dart",
+];
+
+const rows = (
+    names: readonly string[],
+    direction: BaselineRow["direction"]
+): BaselineRow[] => names.map((name) => ({ name, direction }));
+
+/**
+ * The three classes as one list, sorted by name — what `triageBaseline` and
+ * Guard C consume. Derived, never hand-maintained: a name appears here because
+ * it appears in exactly one of the arrays above.
+ */
+export const BASELINE_ROWS: readonly BaselineRow[] = [
+    ...rows(COMPILER_GAP_ROWS, "compiler-gap"),
+    ...rows(CARD_DEFECT_ROWS, "card-defect"),
+    ...rows(UNDETERMINED_ROWS, "undetermined"),
+].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
+/** The baseline's names alone — the exemption lookup Guard C does per card. */
+export const COMPILER_ROUND_TRIP_BASELINE: readonly string[] =
+    BASELINE_ROWS.map((row) => row.name);
