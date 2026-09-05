@@ -61,6 +61,7 @@
         "seed:backlog": "bun scripts/seed-scenario-backlog.ts",
         "seed:scenario": "bun scripts/seed-scenario.ts",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
+        "telemetry:context": "bun scripts/telemetry-context.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
         "telemetry:ingest": "bun scripts/telemetry-ingest.ts",
         "test": "bun scripts/gate.ts heavy 'bun run test:app && bun run test:bot && bun run test:blade'",

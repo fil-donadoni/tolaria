@@ -452,3 +452,118 @@ documentation path must be either in `DOC_GATE_TESTS` or in
 `DOC_GATE_TESTS_EXCLUDED` with a recorded reason, and `check:docs:inner` in
 `package.json` must run exactly the covered set. A new doc guard that nobody
 adds to the lane fails the census rather than silently narrowing the gate.
+
+## Context hygiene — the measurement, and why it is not a gate
+
+ADR 0110 moved an issue from an orchestrator fanning out to subagents into ONE
+main-thread context. Per issue that trade paid (median $59 → $42), but it also
+retired the doctrine that had kept the orchestrator's context small — delegate
+read-only search, pipe noisy stdout — and put nothing in its place. Nothing in
+the pipeline caps or prunes what accumulates, and a prompt is re-read as
+cache-read by every turn that follows it, so the cost of a session grows
+super-linearly in its own length.
+
+**`bun run telemetry:context`** is what makes that visible:
+
+```bash
+bun run telemetry:context                                # last 7 days
+bun run telemetry:context --from 2026-08-28 --to 2026-09-05
+bun run telemetry:context --json                         # machine-readable
+```
+
+It reads the SQLite mirror (`bun run telemetry:ingest` fills it) from the
+primary checkout, so it works unchanged from inside a worktree. A session is
+taken WHOLE when any of its turns falls in the window — deciles are positions
+within a session, and truncating one at the window edge would report its middle
+as its start.
+
+### The committed baseline — 2026-08-28 → 2026-09-05, 121 sessions
+
+This is the state the hygiene contract in `.claude/skills/next-issue/SKILL.md`
+was written against. Re-run the command over a later window to say whether it
+held.
+
+```
+  decile   turns   mean $/turn   mean ctx
+  0         1740       $0.0744        93k
+  1         1680       $0.0834       140k
+  2         1693       $0.0962       172k
+  3         1686       $0.1094       200k
+  4         1668       $0.1192       229k
+  5         1702       $0.1308       253k
+  6         1704       $0.1449       276k
+  7         1675       $0.1612       303k
+  8         1698       $0.1689       328k
+  9         1635       $0.1855       353k
+
+  last/first turn cost: 2.49x — back half = 62% of main-thread spend
+  per API response (one response = one turn): $0.0744 → $0.1864 over 16868 turns
+
+  bucket        calls   tok added   solo    tok/call     p90
+  fs             7906     5158657    4707        960     2122
+  other          5892     2983028    5074        551     1186
+  gh              927      729439     702        919     2029
+  git            1273      504301     864        512      846
+  test            798      264235     608        386      676
+  convex          345      213938     211        901     2573
+  bun             451      206311     319        546     1277
+  skill            36      134470      31       4058     5540
+  gate            140       52822     112        449      769
+  agent            95       22310      31        409      418
+  task              6        6756       5       1220     1520
+
+  untracked (Read/Edit/Grep/user text): 13111747 tok over 3247 intervals; 48 intervals dropped (context compacted)
+```
+
+**These are not the numbers issue #3078 quotes**, and the difference is not
+noise. That issue was written against a store in which one API response was
+billed once per content block, because `llm` was keyed on the transcript line
+rather than on `message.id`; measuring the growth curve is what surfaced it, and
+the same PR fixed the ingest and re-keyed the history. Reading the two side by
+side:
+
+|                          | as recorded before the fix |          after |
+| ------------------------ | -------------------------: | -------------: |
+| first decile             |              $0.0843 @ 88k |  $0.0744 @ 93k |
+| last decile              |             $0.1989 @ 349k | $0.1855 @ 353k |
+| last / first             |                      2.36x |          2.49x |
+| back half's share        |                        62% |            62% |
+| main-thread rows, window |                      24895 |          16452 |
+
+The finding the contract rests on is **unchanged, and slightly stronger**: the
+inflation was close to uniform across the deciles, so it moved the absolute
+dollars and not the shape. Sessions whose transcripts are no longer on disk keep
+their old keys — the response id cannot be recovered for them — so figures
+reaching further back than the retained transcripts stay somewhat high.
+
+### How to read it
+
+The **decile table** is the headline: a turn in the last tenth of a session cost
+2.49x one in the first, and the back half burned 62% of main-thread spend for
+50% of the turns. Running the back half at the front half's context is worth
+roughly a quarter of total spend.
+
+The **bucket table** attributes context growth to the calls that caused it.
+There is no record of how big any tool result was — the hook stores a command,
+never its stdout — so growth is derived from the one thing that IS recorded,
+each turn's prompt size: `added = ctx(i+1) - ctx(i) - out_tok(i)`, credited to
+the spans whose pre-event falls between the two turns. `tokAdded` splits a
+shared interval evenly; `tok/call` and `p90` are reported over SOLO intervals
+only, where no split is needed and the number is a measurement rather than an
+average of an average. The derivation, and the two things it deliberately
+cannot see, are documented on `scripts/lib/telemetry-context.ts`.
+
+`untracked` is the honest hole: the hook records spans for Bash, Agent, Skill
+and Task only, so Read/Edit/Grep/Write and the user's own text have no span to
+attribute to and are reported as a lump rather than folded into `other`. At 13.1M
+tokens it is the largest single line in the table — worth naming, not hiding.
+
+### Why prose and not a ratchet
+
+Issue #3078 scoped enforcement out on purpose. A hook that refuses an unfielded
+`gh` call, or a ratchet on tokens-per-issue, prices every legitimate exception
+(an issue whose comments genuinely must be read in full) at the same rate as the
+waste, and the pipeline already carries more mechanical gates than any single
+session reads. The contract is three habits in the one document every
+issue-closing session reads, and this command is how anyone checks, after the
+fact, whether they took.

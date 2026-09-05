@@ -9,6 +9,54 @@ One session, one issue, no orchestrator, no implement subagents (ADR 0110).
 Target: a median issue lands in 10-15 minutes. Everything below happens in
 THIS session's context.
 
+## Context hygiene — the contract
+
+One long context is the whole design (ADR 0110), and its one weakness is that
+**nothing ever leaves it**. Every token a tool result adds is re-read as
+cache-read by every later turn, so a session's cost is super-linear in its
+length: measured over 2026-08-28 → 2026-09-05, a turn cost **$0.074 at 93k of
+context and $0.186 at 353k** — 2.5x — and the back half of a session burned
+**62% of main-thread spend for 50% of the turns**. The baseline and the command
+that re-derives it: `docs/agents/quality-gates.md` § Context hygiene.
+
+This is prose, not a gate — deliberately (issue #3078). It is three habits:
+
+1. **Ask `gh` for fields, not for a page.** `gh issue view N` and `gh pr view N`
+   render the whole record; name what you will read instead —
+   `gh issue view N --json number,title,body,labels,state`, adding `comments`
+   only when you are going to read them (§0 wants the comments, not the
+   reactions and the project cards). One field is one field:
+   `gh pr view N --json state --jq .state`, never a full view to check whether a
+   PR is still open. `--jq` any list down to the columns you will use, and cap
+   `--limit` — an unfielded `gh issue list` measured 7.6k tokens in one call,
+   and `gh` as a bucket runs 919 tokens a call against a 512-token `git`.
+
+2. **Noisy stdout goes to a file; the verdict comes back.** Gates, test runs,
+   builds and broad searches reach the transcript as an exit code plus the lines
+   that carry the answer, with the full log left on disk for a targeted re-read:
+
+    ```bash
+    L="$SCRATCHPAD/check-lane.log"   # session scratchpad — NEVER a shared /tmp
+    bun run check:lane >"$L" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$L"
+    ```
+
+    `deny-guard.sh` § 3 already refuses a `bun run` piped into a pager, and this
+    is the idiom it is asking for. The same applies to reading: `grep -c` or
+    `grep -n 'export function'` before `cat`, `sed -n 'A,Bp'` for a known region,
+    `--files-with-matches` when you only need the list. `fs` calls were the
+    single largest sink measured — 7.9k calls, 5.2M tokens, p90 2.1k per call.
+
+3. **Never poll.** A `sleep N; echo` round-trip is a full-price turn at tail
+   context carrying zero information, and 437 of them were measured in one week.
+   Background work re-invokes you when it exits — start it with
+   `run_in_background` and answer the notification. For external state the
+   harness cannot see (a deploy, a remote queue), use `Monitor` with an
+   until-loop, not a sequence of turns.
+
+None of this narrows what you may read. It is about the SHAPE of what enters
+the transcript: read the whole issue, run the whole gate — just don't carry
+the rendering of either for the rest of the session.
+
 ## 0. Pick
 
 - `/next-issue 1234` → that issue. Otherwise: `bun run queue:plan --cap 1
