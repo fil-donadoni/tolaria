@@ -192,17 +192,79 @@ const writeBunUsageWindowStub = (body: string): void => {
     );
 };
 
-/** Body of the default `bun` stub: no-op the orphan-claim sweep, forward
- * everything else to the real `bun`. */
+/** A one-issue `queue:plan` plan, JSON-encoded for a shell stub to echo. The
+ *  driver's pre-flight (#3083) reads `batch[0].number` and `batch[0].model`
+ *  off this and nothing else, so the other fields are present only because a
+ *  real plan has them. */
+const planJson = (number: number, model: string): string =>
+    JSON.stringify({
+        version: 1,
+        lane: "engine",
+        batch: [
+            {
+                number,
+                title: `issue ${number}`,
+                type: "feat",
+                model,
+                hitl: false,
+                targetFiles: [],
+                blastRadius: "declared",
+                lane: "engine",
+                reason: "admitted",
+            },
+        ],
+        deferred: [],
+        skipped: [],
+        staleClaims: [],
+    });
+
+/** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the
+ * pre-flight's `queue:plan` with a one-issue plan, forward everything else to
+ * the real `bun`.
+ *
+ * The `queue:plan` branch is not optional politeness: without it every test in
+ * this file would fork the REAL planner — which calls out to `gh` — from a
+ * scratch cwd. That is the same isolation hole the file docstring describes
+ * for `claude`, and it is closed the same way, by default rather than per
+ * test. `bun -e` (the pre-flight's JSON read, and `claims_held_check`) still
+ * falls through to the real `bun`, which is what those need. */
 const stubBunDefaultBody = (): string =>
     [
         `case "$*" in`,
         `  *loop-doctor.ts*) exit 0 ;;`,
         `esac`,
+        `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+        `  cat <<'PLANEOF'`,
+        planJson(101, "sonnet"),
+        `PLANEOF`,
+        `  exit 0`,
+        `fi`,
         `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
         `echo "unstubbed bun invocation in test: $*" >&2`,
         `exit 1`,
     ].join("\n");
+
+/** `bun` stub whose `queue:plan` branch answers with a plan naming `number`
+ *  on `model` — the pre-flight's only input. Everything else behaves as the
+ *  default stub does. */
+const stubBunPlanHead = (number: number, model: string): void => {
+    writeStub(
+        "bun",
+        [
+            `case "$*" in`,
+            `  *loop-doctor.ts*) exit 0 ;;`,
+            `esac`,
+            `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+            `  cat <<'PLANEOF'`,
+            planJson(number, model),
+            `PLANEOF`,
+            `  exit 0`,
+            `fi`,
+            `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+            `exit 1`,
+        ].join("\n")
+    );
+};
 
 /** `bun` stub whose `loop-doctor.ts --release` branch runs `body` (which owns
  * its own exit code — that is the point, each test picks a different sweep
@@ -751,7 +813,9 @@ describe("background-wait ceiling — a pass runs to completion (#2622)", () => 
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p/
+            // `claude --model <tier> -p` on the default path (#3083) — the
+            // assertion is about the ceiling override, not the tier flag.
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model \S+ -p/
         );
     });
 });
@@ -1062,13 +1126,31 @@ describe("--prompt — the prompt each pass runs", () => {
         return fs.readFileSync(argvFile, "utf8").trim().split("\n");
     };
 
-    it("defaults to /process-gh-issues — every existing caller is unchanged", () => {
-        // The regression that protects every invocation predating this flag:
-        // no --prompt must mean byte-identical behaviour.
+    it("defaults to /next-issue with the resolved issue appended and its tier injected (#3083)", () => {
+        // The default path is the single-session pipeline (ADR 0110), and the
+        // pass is HANDED its issue and its tier rather than re-deriving both
+        // from inside the model's context. The default `bun` stub answers the
+        // pre-flight with issue 101 on sonnet.
         expect(argvForOnePass([])).toEqual([
+            "argc=5",
+            "arg=--model",
+            "arg=sonnet",
+            "arg=-p",
+            "arg=/next-issue 101",
+            "arg=x",
+        ]);
+    });
+
+    it("a --prompt override switches the pre-flight OFF — no issue appended, no --model injected", () => {
+        // An operator who names the prompt owns the whole invocation: the
+        // driver must not append an issue number to a scoped prompt, nor
+        // second-guess the tier they launched with.
+        expect(
+            argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
+        ).toEqual([
             "argc=3",
             "arg=-p",
-            "arg=/process-gh-issues",
+            "arg=/process-gh-issues figli di 2405",
             "arg=x",
         ]);
     });

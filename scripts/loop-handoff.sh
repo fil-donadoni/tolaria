@@ -46,13 +46,20 @@ DRIVER="scripts/loop-drain.sh"
 # i.e. it is not an AFK run at all. It is written into the conf file in plain
 # text so the choice is visible and revocable (`--disarm`), never implicit.
 DEFAULT_CLAUDE_ARGS="--dangerously-skip-permissions"
-# The prompt every pass of the armed run executes. The default drains the
-# WHOLE queue by board priority; `--prompt` scopes the run instead
-# (`/process-gh-issues figli di 2405` = only PRD #2405's children). It is
-# recorded in the conf, and printed by --status, precisely because an armed
-# run that LOOKS unscoped but isn't (or vice versa) is a trap for whoever
-# reads the file the next morning.
-DEFAULT_PROMPT="/process-gh-issues"
+# The prompt every pass of the armed run executes. EMPTY BY DEFAULT, and
+# deliberately so: an empty PROMPT means the conf states no opinion and the
+# driver's own default is the single authority (`launch_driver` omits the flag
+# entirely). Restating the driver's default here would be worse than
+# redundant — `--prompt` is what switches the driver's pre-flight OFF (#3083),
+# so a conf that echoed the default would silently disable the issue/tier
+# resolution for every run started through this script.
+#
+# `--prompt` therefore means exactly one thing: SCOPE this run
+# (`/process-gh-issues figli di 2405` = only PRD #2405's children, or any
+# other skill). It is recorded in the conf, and printed by --status, precisely
+# because an armed run that LOOKS unscoped but isn't (or vice versa) is a trap
+# for whoever reads the file the next morning.
+DEFAULT_PROMPT=""
 # Seconds the driver waits before its first pass: the calling pass is still
 # releasing claims when the handoff fires.
 DEFAULT_START_DELAY=45
@@ -82,8 +89,11 @@ loop-handoff — start / stop / inspect the detached AFK driver.
 
 Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --claude-args <str>          default: --dangerously-skip-permissions
-  --prompt <text>              prompt each pass runs (default: /process-gh-issues).
-                               Use it to SCOPE an unattended run, e.g.
+  --prompt <text>              SCOPE the run (default: unset — the driver
+                               drains the queue with /next-issue, one issue and
+                               one tier resolved per pass). Setting it turns
+                               that pre-flight OFF: you own the whole
+                               invocation, e.g.
                                --prompt "/process-gh-issues figli di 2405"
   --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097)
   --max-passes <n>             0 = unlimited
@@ -195,15 +205,17 @@ driver_pid() {
 write_conf() {
     _claude_args=${ARG_CLAUDE_ARGS:-$(conf_get CLAUDE_ARGS)}
     [ -n "$_claude_args" ] || _claude_args="$DEFAULT_CLAUDE_ARGS"
+    # No `|| _prompt=$DEFAULT_PROMPT` fallback: DEFAULT_PROMPT is empty and
+    # an empty PROMPT is meaningful (see its declaration above).
     _prompt=${ARG_PROMPT:-$(conf_get PROMPT)}
-    [ -n "$_prompt" ] || _prompt="$DEFAULT_PROMPT"
     _start_delay=${ARG_START_DELAY:-$(conf_get START_DELAY)}
     [ -n "$_start_delay" ] || _start_delay="$DEFAULT_START_DELAY"
     {
         echo "# Written by scripts/loop-handoff.sh — the AFK arming marker."
-        echo "# Its presence is what lets a finished /process-gh-issues pass"
-        echo "# launch the next one. Delete it (bun run loop:afk --disarm) to"
-        echo "# go back to one-batch-per-invocation."
+        echo "# It stores DEFAULTS for --start (ADR 0109: a pass never starts"
+        echo "# the driver, and this file never causes anything to run on its"
+        echo "# own). Delete it with: bun run loop:afk --disarm"
+        echo "# An empty PROMPT means the driver's own default applies."
         echo "CLAUDE_ARGS=$_claude_args"
         echo "PROMPT=$_prompt"
         echo "BUDGET=${ARG_BUDGET:-$(conf_get BUDGET)}"
@@ -293,7 +305,7 @@ case "$MODE" in
             if [ -n "$_p" ]; then
                 echo "prompt:     $_p"
             else
-                echo "prompt:     $DEFAULT_PROMPT (default — the whole queue, by board priority)"
+                echo "prompt:     (unscoped — the driver drains the queue with /next-issue, resolving one issue and one tier per pass)"
             fi
         else
             echo "armed:      no — no stored defaults for --start"
