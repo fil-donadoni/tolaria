@@ -281,6 +281,20 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
         expect(driverArgv()).not.toMatch(/--prompt/);
     });
 
+    it('never announces `claude -p ""` on --start when the run is unscoped', () => {
+        // This line is the last thing an operator reads before walking away.
+        // With the conf's PROMPT now empty by default, an unbranched echo
+        // announces a pass that does nothing forever — the opposite of what
+        // the driver's pre-flight actually does.
+        run({ args: ["--arm"] });
+        const out = run({
+            args: ["--start", "--dry-run"],
+            env: { TOLARIA_LOOP_TOKEN_BUDGET: "1" },
+        }).stdout;
+        expect(out).not.toMatch(/claude -p ""/);
+        expect(out).toMatch(/every pass will run: \/next-issue/);
+    });
+
     it("round-trips a multi-word prompt through the conf into the driver argv", () => {
         run({ args: ["--arm", "--prompt", SCOPED] });
         expect(fs.readFileSync(CONF(), "utf8")).toContain(`PROMPT=${SCOPED}`);

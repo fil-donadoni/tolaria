@@ -371,7 +371,17 @@ case "$MODE" in
         fi
         write_conf
         echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
-        echo "loop-handoff: every pass will run: claude -p \"$(conf_get PROMPT)\""
+        # Branch on an empty PROMPT exactly as --status does. This line is the
+        # last thing an operator reads before walking away, so "claude -p \"\""
+        # — which is what an unbranched echo prints now that the conf's default
+        # is empty — would announce a pass that does nothing, forever, when the
+        # driver actually resolves an issue and a tier per pass.
+        _start_prompt=$(conf_get PROMPT)
+        if [ -n "$_start_prompt" ]; then
+            echo "loop-handoff: every pass will run: claude -p \"$_start_prompt\""
+        else
+            echo "loop-handoff: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
+        fi
         case "$(conf_get CLAUDE_ARGS)" in
             *--dangerously-skip-permissions*)
                 echo "loop-handoff: WARNING — this run answers every permission prompt automatically." >&2

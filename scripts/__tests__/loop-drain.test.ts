@@ -1205,6 +1205,36 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         expect(r.stderr).toMatch(/pre-flight FAILED/);
     });
 
+    it("falls back rather than trusting a head the planner returned in an unusable shape", () => {
+        // A plan whose batch[0].number is not an integer must not reach the
+        // pass as a prompt argument — `/next-issue not-a-number` burns a pass,
+        // and unattended it burns one EVERY pass. Two layers reject it (the
+        // `bun -e` type check, then the shell revalidation of what it
+        // returned) and this stays green with either one alone: it was proven
+        // red only with BOTH removed, which is the honest statement of what it
+        // guards — the pair, not one of them.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo '{"version":1,"batch":[{"number":"not-a-number","model":"opus"}],"deferred":[],"skipped":[],"staleClaims":[]}'`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        expect(argvForOnePass()).toEqual([
+            "argc=2",
+            "arg=-p",
+            "arg=/next-issue",
+        ]);
+    });
+
     it("parses a plan even though `bun run` prints a banner on stderr (regression)", () => {
         // The bug a real dry run found and no unit test could: the pre-flight
         // captured `bun run queue:plan 2>&1`, so `bun run`'s own
