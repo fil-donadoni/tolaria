@@ -31,6 +31,7 @@ import {
     costOf,
     dayHour,
     issueFromDescription,
+    llmDedupeSql,
     normalizeModel,
 } from "./lib/telemetry-db.ts";
 import {
@@ -220,6 +221,13 @@ interface TranscriptLine {
     lastPrompt?: string;
     prNumber?: number;
     message?: {
+        /**
+         * The API response id. Several transcript lines share one when a
+         * response has several content blocks (text, then tool_use), and each
+         * of them carries the response's FULL usage payload — so this, not the
+         * per-line `uuid`, is what identifies a billable response.
+         */
+        id?: string;
         model?: string;
         usage?: {
             input_tokens?: number;
@@ -370,8 +378,17 @@ async function ingestTranscript(
             const cRead = usage.cache_read_input_tokens ?? 0;
             const cWrite = usage.cache_creation_input_tokens ?? 0;
 
+            // Key on the API response, NOT on the transcript line. A response
+            // with several content blocks writes one line per block and repeats
+            // its whole usage payload on each, so keying on `uuid` billed such
+            // a response twice or more — 24895 main-thread rows for 15325
+            // responses over 2026-08-28 -> 2026-09-05, inflating every cost
+            // figure over this store by 42% (issue #3078). `INSERT OR REPLACE`
+            // then collapses the repeats onto one row instead of accumulating
+            // them. The `uuid` fallback keeps a line with no `message.id`
+            // ingestable rather than silently dropped.
             insert.run(
-                e.uuid ?? `${path}:${n}`,
+                msg.id ?? e.uuid ?? `${path}:${n}`,
                 e.sessionId ?? e.session_id ?? "",
                 harness,
                 agentId,
@@ -487,6 +504,45 @@ function backfillSessions(db: Sqlite): void {
         "INSERT OR REPLACE INTO meta (k, v) VALUES ('sessions_backfill_v1', ?)",
         [String(Date.now())]
     );
+}
+
+/**
+ * One-time collapse of the rows that one API response wrote before the insert
+ * key moved from the transcript `uuid` to `message.id` (issue #3078).
+ *
+ * The byte cursors are past those lines, so re-running the ingest would never
+ * revisit them and every historical cost figure would stay 42% high. The rows
+ * hold no `message.id` — it was never stored — so the response is identified by
+ * what a repeated payload actually looks like: same session, same surface, same
+ * second, same model, and all four token counters equal. Two DISTINCT responses
+ * cannot collide on that, because the second one's prompt contains the first
+ * one's output, which moves `in_tok`/`cache_read`/`cache_write`.
+ *
+ * `agent_runs` is rebuilt from `llm` on every ingest, so it corrects itself
+ * once this has run.
+ */
+function dedupeLlmResponses(db: Sqlite): number {
+    const done = db
+        .query<
+            { v: string },
+            []
+        >("SELECT v FROM meta WHERE k = 'llm_response_dedupe_v1'")
+        .get();
+    if (done) return 0;
+
+    const before = db
+        .query<{ n: number }, []>("SELECT count(*) AS n FROM llm")
+        .get()!.n;
+    db.run(llmDedupeSql());
+    const after = db
+        .query<{ n: number }, []>("SELECT count(*) AS n FROM llm")
+        .get()!.n;
+
+    db.run(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('llm_response_dedupe_v1', ?)",
+        [String(Date.now())]
+    );
+    return before - after;
 }
 
 /**
@@ -890,6 +946,8 @@ async function main(): Promise<void> {
     backfillSessions(db);
     const oc = ingestOpencode(db, PROJECT_DIR, OPENCODE_DB_PATH);
     const ocFacts = await ingestOpencodeFacts(db, OPENCODE_FACTS);
+    // Before the agent_runs rebuild, which reads straight off `llm`.
+    const deduped = dedupeLlmResponses(db);
     const runs = rebuildAgentRuns(db);
     const attributed = attributeIssues(db);
     const fetched = refreshIssueMeta(db);
@@ -909,6 +967,7 @@ async function main(): Promise<void> {
             `(+${oc.llm} opencode messages, ${oc.sessions} sessions, ${oc.runs} runs, ${ocFacts} pr facts) ` +
             `in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
             `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
+            (deduped ? `${deduped} duplicate response rows collapsed, ` : "") +
             `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
     );
     db.close();

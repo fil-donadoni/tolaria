@@ -30,16 +30,24 @@ function bash(ts: number, cmdBucket: string, session = "s"): Span {
 }
 
 describe("decileIndex", () => {
-    it("puts the last turn of a session in decile 9, never a tenth bucket", () => {
-        // The off-by-one that `Math.floor(i / (n / 10))` produces: with n = 10,
-        // i = 9 lands in bucket 9 either way, but n = 7, i = 6 gives 8.57 -> 8
-        // there and must stay <= 9 here for every n.
-        for (const n of [1, 3, 7, 10, 11, 97, 1000]) {
-            expect(decileIndex(n - 1, n)).toBe(
-                n === 1 ? 0 : Math.min(9, Math.floor(((n - 1) * 10) / n))
-            );
-            expect(decileIndex(n - 1, n)).toBeLessThanOrEqual(9);
+    it("puts the last turn in decile 9 once a session has ten turns", () => {
+        // 9 is the answer for every n >= 10, which a widened divisor (n + 1) or
+        // a floor over the wrong operand breaks. Below ten turns the last turn
+        // lands short of decile 9 (n = 7 -> 8, n = 3 -> 6) — which is precisely
+        // why `summariseDeciles` excludes those sessions rather than reporting
+        // them; the exclusion is asserted separately.
+        for (const n of [10, 11, 97, 1000]) {
+            expect(decileIndex(n - 1, n)).toBe(9);
         }
+        expect(decileIndex(6, 7)).toBe(8);
+        expect(decileIndex(2, 3)).toBe(6);
+    });
+
+    it("bounds an out-of-range index instead of indexing past decile 9", () => {
+        // The accumulators are ten elements wide; `i >= n` is the only input
+        // that can reach past them, and the clamp exists for exactly that.
+        expect(decileIndex(10, 10)).toBe(9);
+        expect(decileIndex(99, 10)).toBe(9);
     });
 
     it("puts the first turn in decile 0 and spreads a 10-turn session one per decile", () => {

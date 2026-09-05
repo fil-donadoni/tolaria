@@ -333,6 +333,48 @@ export function bucketCmd(cmd: string | null): string | null {
     return "other";
 }
 
+/**
+ * The columns that together identify one API RESPONSE in the `llm` table.
+ *
+ * A response with several content blocks (text, then tool_use) writes one
+ * transcript line per block and repeats its whole usage payload on each, so
+ * keying the table on the per-line `uuid` billed such a response once per
+ * block — 42% inflation over 2026-08-28 -> 2026-09-05 (issue #3078). New rows
+ * key on `message.id`; rows ingested before that fix carry no response id at
+ * all, so the one-time migration has to recognise a repeat by its payload.
+ *
+ * Every usage counter belongs here. Dropping one would merge two DISTINCT
+ * responses whenever they agreed on the rest — and it is exactly the counters
+ * that separate them, since the second response's prompt contains the first
+ * one's output.
+ */
+export const RESPONSE_IDENTITY_COLUMNS = [
+    "session",
+    "harness",
+    "agent_id",
+    "surface",
+    "ts",
+    "model",
+    "in_tok",
+    "out_tok",
+    "cache_read",
+    "cache_write",
+] as const;
+
+/**
+ * The one-time migration that collapses those repeats, keeping the
+ * lowest-keyed row of each group. Built from the constant above so the two can
+ * never drift apart.
+ */
+export function llmDedupeSql(): string {
+    return (
+        "DELETE FROM llm WHERE uuid NOT IN (" +
+        "SELECT min(uuid) FROM llm GROUP BY " +
+        RESPONSE_IDENTITY_COLUMNS.join(", ") +
+        ")"
+    );
+}
+
 export function openDb(path: string): Database {
     const { Database: SqliteDb } =
         require("bun:sqlite") as typeof import("bun:sqlite");

@@ -45,7 +45,12 @@
  * - it does not clamp a negative delta to zero. Context shrinks when the
  *   harness compacts a session; counting that as "nothing was added" would
  *   quietly credit the following calls with a discount they did not earn, so
- *   the interval is dropped and counted in `droppedIntervals`.
+ *   the interval is dropped and counted in `droppedIntervals`. **The calls
+ *   inside a dropped interval leave the report entirely** — not just their
+ *   tokens but their `calls` count too, since a call whose growth is unknown
+ *   is not a sample of anything. So summing `calls` across buckets does NOT
+ *   reach the span count for the window, and the shortfall is
+ *   `droppedIntervals` worth of calls, not a bug.
  *
  * ## One response, several rows
  *
@@ -63,11 +68,12 @@
  * forgetting to.
  *
  * `summariseDeciles` deliberately does NOT: it reports the table as recorded,
- * which is what every other view over this store does and what the committed
- * baseline was taken from. The per-turn cost that results is inflated by the
- * same duplication — see `docs/findings/3078-llm-rows-double-count-a-response.md`
- * — so `formatReport` prints the response-level figures beside it rather than
- * quietly picking one.
+ * which is what every other view over this store does. The ingest now keys
+ * `llm` on `message.id` and collapses the historical repeats once
+ * (`telemetry-ingest.ts` § `dedupeLlmResponses`), so on a migrated store the
+ * two readings agree and `formatReport`'s per-response line simply restates
+ * the table. On a store that has not been re-ingested they diverge, which is
+ * why both are printed rather than one being picked.
  */
 
 /** One assistant message on the main thread. */
@@ -122,9 +128,9 @@ export interface GrowthReport {
 /**
  * Which tenth of an `n`-turn session turn `i` (0-based) falls in.
  *
- * Integer division, so the last decile absorbs the remainder rather than a
- * lone 11th bucket appearing for `i === n - 1` (the classic `i / (n / 10)`
- * off-by-one).
+ * For any in-range `i` the floor is already below 10, so `Math.min` is not
+ * doing the bucketing — it is a bound on a caller passing `i >= n`, which
+ * would otherwise index past the ten-element accumulators.
  */
 export function decileIndex(i: number, n: number): number {
     if (n <= 0) return 0;
@@ -156,9 +162,12 @@ export function groupSessions(turns: Turn[]): Map<string, Turn[]> {
  * Collapse the rows of one API response into a single turn.
  *
  * Adjacent rows of the same response share their whole usage payload, so an
- * identical `(ctx, outTok)` pair identifies them. It cannot merge two genuine
- * responses by accident: the second one's prompt necessarily contains the
- * first one's output, so its `ctx` is strictly larger.
+ * identical `(ctx, outTok)` pair identifies them. Two genuine responses collide
+ * only if the second one's prompt grew by exactly nothing — which needs the
+ * first one's output AND whatever its tools returned to be zero tokens
+ * together. A `tool_use` block is not free, so nothing in a real transcript
+ * reaches that; it is improbable rather than impossible, and a collision would
+ * cost one merged turn, not a wrong bucket.
  */
 export function dedupeTurns(sorted: Turn[]): Turn[] {
     const out: Turn[] = [];
