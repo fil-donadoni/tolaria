@@ -305,6 +305,10 @@ next person does not re-derive them
 | `MAX_UNZIPPED_PACKAGES_SIZE` | 230,000,000 B               | 28,926,718 B    |
 | `MAX_USER_MODULES`           | 4,096 files under `convex/` | 1,455           |
 
+All three "today" figures come from the same `--debug-bundle-path` dump as the
+table below; the zipped one is per-entry `deflate -9` over its modules and
+source maps, the way `upload_download.rs` builds the pushed zip.
+
 Refusal is an `ErrorMetadata::bad_request("ModulesTooLarge", ...)`. Its shape,
 from a real refusing deploy (a self-hosted backend running a lowered
 `MAX_ZIPPED_PACKAGES_SIZE`, [tale-project/tale#2579](https://github.com/tale-project/tale/issues/2579)):

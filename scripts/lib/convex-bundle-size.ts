@@ -39,22 +39,52 @@
  * | user modules      |      1,455 |       1,455 |      0 |
  * | emitted modules   |      2,816 |       2,816 |      0 |
  *
- * 0.028% low, and low for a known reason. The CLI bundles two files
+ * WHAT THE REPRODUCTION ASSUMES, and asserts where it can. The CLI's
+ * `doEsbuild` also wires in four plugins this module does not: `nodeShimsPlugin`,
+ * `serverOnlyPlugin`, `wasmPlugin`, and the external-packages plugin driven by
+ * `convex.json`'s `node.externalPackages`. All four are inert on a tree with no
+ * `convex.json`, no `.wasm` import and no `server-only` import — this repo — and
+ * `assertReproducible()` reds if that stops being true, because an
+ * `externalPackages` entry would make this module OVERcount: it would bundle
+ * what the real push marks external. It also pins the resolved `esbuild` to the
+ * one `convex` itself depends on, since `esbuild` reaches this file only by
+ * hoisting and a version split would measure with a different bundler than the
+ * CLI runs. Last, the CLI's `hasUseNodeDirective` parses the module and only
+ * falls back to a regex; this module uses the regex alone, a looser match on a
+ * `"use node"` string that is not in directive position.
+ *
+ * The measurement is 0.028% low, and low for a known reason. The CLI bundles two files
  * `entryPoints()` excludes: `auth.config.ts` (`bundleAuthConfig`), which IS a
  * pushed module and is bundled here too, and `schema.ts` (`bundleSchema`),
  * which is NOT — the dump's 1,455 non-`_deps` entries carry `auth.config.js`
  * and no `schema.js` — so it is not counted. The residue is `metadata.json`,
- * whose length Convex also adds to `unzipped_size_bytes`. The budget carries
- * three orders of magnitude more margin than that residue.
+ * whose length Convex also adds to `unzipped_size_bytes`. The budget's own
+ * margin is ~313x that residue, so the residue can never be what decides a red.
  */
 import esbuild from "esbuild";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep, parse } from "node:path";
 
-/** Copied from `convex/dist/esm/bundler/index.js`. */
-const ENTRY_POINT_EXTENSIONS = [".js", ".jsx", ".ts", ".tsx"] as const;
+/** Copied verbatim from `convex/dist/esm/bundler/index.js`. */
+const ENTRY_POINT_EXTENSIONS = [
+    // ESBuild js loader
+    ".js",
+    ".mjs",
+    ".cjs",
+    // ESBuild ts loader
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    // ESBuild jsx loader
+    ".jsx",
+] as const;
 
-/** `mustBeIsolate` in the Convex bundler: these never go to the node runtime. */
+/** The extensions the CLI's "no import/export, not a module" filter applies to. */
+const TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
+
+/** `useNodeDirectiveRegex` in the Convex bundler — what routes a file to the
+ *  Node runtime, whose esbuild graph is separate from the isolate one. */
 const USE_NODE_DIRECTIVE = /^\s*("|')use node("|');?\s*$/m;
 
 export interface ConvexBundleMeasurement {
@@ -150,7 +180,7 @@ function discoverEntryPoints(convexDir: string): string[] {
         if (base === "schema.ts" || base === "schema.js") continue;
         if ((base.match(/\./g) ?? []).length > 1) continue;
         if (relPath.includes(" ")) continue;
-        if (base.endsWith(".ts") || base.endsWith(".tsx")) {
+        if (TS_EXTENSIONS.some((ext) => base.endsWith(ext))) {
             const contents = readFileSync(fpath, "utf8");
             if (!/^\s{0,100}(import|export)/m.test(contents)) continue;
         }
@@ -165,8 +195,9 @@ async function build(
     entryPoints: string[],
     platform: "browser" | "node",
     chunksFolder: string
-): Promise<{ source: number; map: number; files: number }> {
-    if (entryPoints.length === 0) return { source: 0, map: 0, files: 0 };
+): Promise<{ source: number; map: number; files: number; inputs: string[] }> {
+    if (entryPoints.length === 0)
+        return { source: 0, map: 0, files: 0, inputs: [] };
     const result = await esbuild.build({
         entryPoints,
         bundle: true,
@@ -203,7 +234,64 @@ async function build(
             files += 1;
         }
     }
-    return { source, map, files };
+    return {
+        source,
+        map,
+        files,
+        inputs: Object.keys(result.metafile?.inputs ?? {}),
+    };
+}
+
+/**
+ * Reds when one of the assumptions this reproduction rests on stops holding.
+ * Each of these makes the CLI's bundle diverge from this one SILENTLY, and a
+ * budget guard that has quietly stopped measuring the pushed artifact is worse
+ * than no guard at all.
+ */
+function assertReproducible(repoRoot: string, inputs: string[]): void {
+    const convexPkg = JSON.parse(
+        readFileSync(
+            join(repoRoot, "node_modules", "convex", "package.json"),
+            "utf8"
+        )
+    ) as { version: string; dependencies?: Record<string, string> };
+    const pinned = convexPkg.dependencies?.esbuild;
+    if (pinned !== undefined && pinned !== esbuild.version) {
+        throw new Error(
+            `esbuild version drift: convex ${convexPkg.version} bundles with esbuild ` +
+                `${pinned}, this process resolved ${esbuild.version}. \`esbuild\` reaches ` +
+                `scripts/lib/convex-bundle-size.ts only by hoisting, so a split resolution ` +
+                `measures the Convex bundle with a different bundler than \`convex deploy\` ` +
+                `runs. Align the versions, or declare esbuild explicitly at convex's pin.`
+        );
+    }
+
+    const convexJsonPath = join(repoRoot, "convex.json");
+    if (existsSync(convexJsonPath)) {
+        const cfg = JSON.parse(readFileSync(convexJsonPath, "utf8")) as {
+            node?: { externalPackages?: string[] };
+        };
+        const external = cfg.node?.externalPackages ?? [];
+        if (external.length > 0) {
+            throw new Error(
+                `convex.json declares node.externalPackages [${external.join(", ")}]. ` +
+                    `The real push marks those external and does NOT bundle them; this ` +
+                    `module has no external-packages plugin, so it would OVERcount. Wire ` +
+                    `\`createExternalPlugin\` in before trusting the number again.`
+            );
+        }
+    }
+
+    const exotic = inputs.filter(
+        (i) => i.endsWith(".wasm") || /(^|\/)server-only(\/|$)/.test(i)
+    );
+    if (exotic.length > 0) {
+        throw new Error(
+            `the convex graph now imports ${exotic.slice(0, 3).join(", ")}. The CLI ` +
+                `bundles those through \`wasmPlugin\` / \`serverOnlyPlugin\`, which this ` +
+                `module does not run, so the measurement no longer matches the push.`
+        );
+    }
 }
 
 export async function measureConvexBundle(
@@ -231,6 +319,11 @@ export async function measureConvexBundle(
         build(convexDir, node, "node", join("_deps", "node")),
         build(convexDir, extras, "browser", join("_deps", "extra")),
     ]);
+
+    assertReproducible(
+        join(convexDir, ".."),
+        parts.flatMap((p) => p.inputs)
+    );
 
     const sourceBytes = parts.reduce((n, p) => n + p.source, 0);
     const sourceMapBytes = parts.reduce((n, p) => n + p.map, 0);
