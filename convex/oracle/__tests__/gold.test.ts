@@ -68,8 +68,13 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // "any target" is a creature, planeswalker, battle or PLAYER, which is
     // what `matchesTargetRequirement` (src/lib/card-utils.ts) and
     // `getLegalTargets` (gre/rules.ts) both implement. So as shipped these two
-    // can destroy a blue PLAYER and cannot destroy a blue artifact. The
-    // compiler emits the six permanent card types (CR 110.4).
+    // cannot destroy a blue artifact, enchantment or land. (An earlier version
+    // of this comment also said they can destroy a blue PLAYER; they cannot —
+    // `getLegalTargets` gates its player branch on `!colorFilter &&
+    // !colorFilterAny` (gre/rules.ts, CR 109.3), and both carry a
+    // `colorFilter`. Desert Twister below, which has none, IS reachable that
+    // way. Corrected while triaging the baseline, issue #3050.) The compiler
+    // emits the six permanent card types (CR 110.4).
     "Active Volcano (spell)",
     "Flash Flood (spell)",
     // Oracle: "Flashback—Sacrifice a Mountain." The hand-written flashback

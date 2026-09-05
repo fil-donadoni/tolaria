@@ -51,6 +51,7 @@
         "oracle:pool": "bun scripts/oracle-pool.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
         "oracle:retire": "bun scripts/oracle-retire.ts",
+        "oracle:triage": "bun scripts/oracle-baseline-triage.ts",
         "prepare": "husky",
         "preview": "vite preview",
         "queue:lint": "bun scripts/queue-lint.ts",

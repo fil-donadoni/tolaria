@@ -106,7 +106,7 @@ trap:
 > not a shorthand and not equivalent.
 
 What Guard C does **not** do is distinguish _why_ a card fails to round-trip.
-Both cards above sit in `compilerRoundTrip.baseline.ts` among 1,756 entries, a
+Both cards above sit in `compilerRoundTrip.baseline.ts` among 1,719 entries, a
 list whose only stated property is that it shrinks. A baseline entry today
 conflates two opposite defects:
 
@@ -208,10 +208,28 @@ the comparator is the right place to absorb it.
 
 ### 5. The Guard C baseline is triaged by direction of defect
 
-The 1,756 baseline entries are split into "compiler gap" (feeds the grammar
-backlog) and "card defect" (feeds a fix). Shrinking the baseline is not enough
-if the two classes stay merged: a card bug parked in a list labelled "the
-compiler can't read this yet" is a bug nobody is looking for.
+The baseline entries are split into "compiler gap" (feeds the grammar backlog)
+and "card defect" (feeds a fix). Shrinking the baseline is not enough if the two
+classes stay merged: a card bug parked in a list labelled "the compiler can't
+read this yet" is a bug nobody is looking for.
+
+**Realised by issue #3050 with a THIRD class.** Implementing the split showed
+that two classes cannot cover the rows honestly: a row where the compiler
+produced a definition and the two disagree is neither, until somebody rules on
+which side is wrong, and pretending otherwise would have put a ruling nobody
+made into the file. So the shipped shape is `COMPILER_GAP_ROWS` /
+`CARD_DEFECT_ROWS` / `UNDETERMINED_ROWS` (1,688 / 29 / 2 at the time of
+writing) — the third being a queue, not a resting place.
+
+The direction is CHECKED against the card's live `roundTripCard` verdict
+(`DIRECTION_ALLOWED_KINDS`, `scripts/lib/baseline-triage.ts`), and the check
+has force exactly where no ruling is possible: `unparsed` can only ever mean
+the compiler, `no-oracle-text` can only ever mean the card. On a `mismatch` all
+three directions are legal, because a compiler MISREAD, a card defect and an
+open question are all real outcomes of one — what forces that ruling into prose
+is `KNOWN_DIVERGENCES` in `convex/oracle/__tests__/gold.test.ts`, which no
+mismatching card can reach `main` without joining. Report:
+`bun run oracle:triage`.
 
 ## Consequences
 
