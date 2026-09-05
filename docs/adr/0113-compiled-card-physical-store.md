@@ -140,8 +140,15 @@ pre-hydrated asset delivers that without touching the seam.
 - **Server (Convex):** compiled definitions stay in the module graph. Zero
   reads, zero bandwidth, zero billing. The bound is the Convex function bundle
   limit, **not** the 2 MB artifact budget, which was a client-bundle proxy all
-  along. That limit is unverified and must be measured before the corpus grows
-  into it.
+  along. That limit was unverified when this ADR was accepted; it is now
+  measured — **32 MiB per deployment, 86% of it already spent, and the full
+  corpus does not fit**. See § Amendment (issue #3051), which this bullet
+  survives only for today's pool size.
+
+    ⚠️ **This half of the asymmetry has a known expiry.** Guarded by
+    `bun run check:convex-bundle` and
+    `scripts/__tests__/convex-bundle-size.test.ts`.
+
 - **Client:** one **content-addressed, `immutable`** static asset, fetched at
   the loading gate. It leaves the `card-catalogue` and `brain.worker` chunks
   entirely, so both return to their pre-#2702 baselines instead of growing.
@@ -263,10 +270,118 @@ duplicates; it never reaches 100%, and is not meant to.
   generated from the same source as the asset rather than from that
   population.
 
+## Amendment (issue #3051, 2026-09-05) — the server bound is measured, and the full corpus does not fit
+
+This section answers the first bullet that stood under _Open, deliberately not
+decided here_. Nothing is implemented here beyond a gate guard; what § 2 now
+owes is named at the end.
+
+### The limit
+
+> "The total size of your bundled function code in your `convex/` folder is
+> **limited to 32MiB (~33.55MB)**."
+> — [Convex docs, Bundling § Code size limits](https://docs.convex.dev/functions/bundling#code-size-limits)
+
+Mirrored in the platform limits table as `Code size | 32 MiB | ... | Per
+deployment.`
+([limits](https://docs.convex.dev/production/state/limits)). 32 MiB =
+**33,554,432 B**, and it is a per-deployment ceiling, not a per-module one.
+
+**Source maps count.** The open-source backend builds the pushed package in
+`crates/model/src/source_packages/upload_download.rs`, adding per module
+`module.source.as_bytes().len()` and, when present,
+`source_map.as_bytes().len()`, plus the length of `metadata.json`. A
+`.js`-only reading of the bundle reports 69% of the real number and would have
+claimed three times the headroom that exists.
+
+Three further caps sit behind it, none of them binding here — recorded so the
+next person does not re-derive them
+(`crates/common/src/knobs.rs`, `crates/application/src/lib.rs`,
+`crates/model/src/source_packages/types.rs`):
+
+| Cap                          | Value                       | This repo today |
+| ---------------------------- | --------------------------- | --------------- |
+| `MAX_ZIPPED_PACKAGES_SIZE`   | 90,000,000 B                | 6,610,861 B     |
+| `MAX_UNZIPPED_PACKAGES_SIZE` | 230,000,000 B               | 28,926,718 B    |
+| `MAX_USER_MODULES`           | 4,096 files under `convex/` | 1,455           |
+
+All three "today" figures come from the same `--debug-bundle-path` dump as the
+table below; the zipped one is per-entry `deflate -9` over its modules and
+source maps, the way `upload_download.rs` builds the pushed zip.
+
+Refusal is an `ErrorMetadata::bad_request("ModulesTooLarge", ...)`. Its shape,
+from a real refusing deploy (a self-hosted backend running a lowered
+`MAX_ZIPPED_PACKAGES_SIZE`, [tale-project/tale#2579](https://github.com/tale-project/tale/issues/2579)):
+
+> `Error fetching POST http://convex:3210/api/deploy2/evaluate_push 400 Bad Request: ModulesTooLarge:`
+> `Total module size exceeded the zipped maximum (42.97 MiB > maximum size 42.92 MiB)`
+
+### Where this deploy sits
+
+Measured 2026-09-05 with Convex's own documented procedure — `npx convex dev
+--once --debug-bundle-path <dir>`, convex 1.39.1, at `63b0e8754` with a 2,278-row pool:
+
+|                         | bytes          | share of 32 MiB |
+| ----------------------- | -------------- | --------------- |
+| module source           | 20,048,189     | 59.7%           |
+| source maps             | 8,878,529      | 26.5%           |
+| **total pushed**        | **28,926,718** | **86.2%**       |
+| headroom to the ceiling | 4,627,714      | 13.8%           |
+
+2,816 modules: 1,455 files under `convex/` plus 1,361 `_deps/**` shared
+chunks. The single largest is the `"use node"` module
+`debugScenarioGenerator.js` at 7,010,508 B (24% of the whole push) — a Node
+runtime module gets its own esbuild graph, so it re-inlines the compiled pool
+rather than sharing the isolate chunk.
+
+### Headroom in rows
+
+Marginal cost of one compiled-pool row, measured by re-bundling the real
+`convex/` tree at +2,000 and +6,000 synthetic rows (uniquified `id` and
+`name`): **2,086 B/row** — 1,258 source + 828 source map — linear to three
+digits across both deltas.
+
+- **2,218 rows** of headroom, against a pool of 2,278 today. The compiled pool
+  can roughly double, once.
+- The full corpus, 34,890 rows, costs **~72.8 MB bundled** — more than **twice
+  the entire 32 MiB ceiling**, for the pool alone.
+
+That is 6x this ADR's own ~12.1 MB projection, and the 6x is exactly
+accounted for: the pool is inlined **twice** (isolate chunk + the `"use node"`
+graph), the bundled JS object literal is fatter than the JSON it came from
+(Convex sets `minifyWhitespace: false` — it breaks their source maps), and
+source maps add ~66% on top. The old projection extrapolated the **raw
+artifact** at 347 B/row; the ceiling applies to the **bundled** form.
+
+### What § 2 has to change (not implemented here)
+
+- **"Bundling costs zero reads, zero bandwidth, zero billing" is still true,
+  and no longer sufficient.** It priced the recurring cost and never priced
+  capacity. The server half of the asymmetry is bounded at ~2,200 more
+  compiled rows; the client half is unaffected and stands.
+- **The decision that has to be re-taken is the one § 2 dismissed in a
+  sentence**: a table read. A Convex mutation cannot fetch, so the content-
+  addressed asset that solves the client cannot solve the server, and the
+  remaining server-side options are the module graph (now bounded) or a read.
+  What § 2 correctly rejected was attaching the corpus to `game_state` — a fat
+  cold field on the hottest reactive row. A per-id read of the ~40 definitions
+  a game references, from a table nothing subscribes to, is a different design
+  and was never actually priced against the usage model.
+- **The 30 MiB budget in `scripts/check-convex-bundle-size.ts` is the trigger**,
+  the way the 2 MB pool budget was meant to be. Crossing it means building that
+  store, not raising the number.
+- **`MAX_USER_MODULES` is a second axis, moving the other way.** Every
+  hand-written definition is one file under `convex/` and one user module;
+  retiring proven duplicates into compiled data (issue #2703) spends bundle
+  bytes to buy module slots. At 1,455 of 4,096 neither is urgent, but they
+  are not the same budget and a change can improve one while spending the
+  other.
+- **`debugScenarioGenerator.js` is 24% of the push for a debug tool.** Whether
+  a `"use node"` module needs the whole compiled pool in its own graph is a
+  cheaper question than the store, and worth asking first.
+
 ## Open, deliberately not decided here
 
-- The Convex function bundle limit — unverified; the server-side "bundling is
-  free" claim is bounded by a number nobody in this repo has measured.
 - Whether retiring a hand-written card in favour of its proven-equal compiled
   twin (issue #2703) is safe when ADR 0108 §4 makes the hand-written
   definition permanently authoritative — retirement deletes the very artifact
