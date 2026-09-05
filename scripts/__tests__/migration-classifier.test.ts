@@ -1823,10 +1823,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // cards, which this census never counted — it parses
         // `resolve()`/`resolveSteps()` bodies only.) Net: total 475->472,
         // FREE 320->317, AFK-ready 311->308, Op-blocked unchanged at 140.
-        // Partition: 317+15+140=472.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(317);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(308);
+        //
+        // Issue #2390 then ADDS one: Fallen Shinobi (`mh1/multicolor.ts`), the
+        // card Ninjutsu (CR 702.49) shipped for. Its KEYWORD half is entirely
+        // declarative and invisible to this census (an `activatedAbilities[]`
+        // Effect Script, not a closure); what it adds is the combat-damage
+        // trigger's `resolve()` — the cross-player impulse draw whose Op skin
+        // does not exist, Ragavan's shape (`mh2/red.ts`) line for line. The
+        // clause-mapper sees `exile` + `grantCastFromExile`, both COVERED Ops,
+        // so the closure lands in FREE; the card ships its own
+        // `describe("Fallen Shinobi …")` block (`mh1/__tests__/multicolor.test.ts`),
+        // which is what `hasPerCardTest` looks for, so it lands in AFK-ready
+        // too. Net: total 472->473, FREE 317->318, AFK-ready 308->309,
+        // Op-blocked unchanged at 140. Partition: 318+15+140=473.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
     });

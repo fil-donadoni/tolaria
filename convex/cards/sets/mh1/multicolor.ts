@@ -2,6 +2,8 @@
 
 import type { CardDefinition } from "../../types";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../emblems";
+import { ninjutsuAbility } from "../../abilities/ninjutsu";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
 // Hogaak, Arisen Necropolis — {5}{B/G}{B/G} Legendary Creature — Avatar, 8/8
 // (issue #1338, PRD #702, ADR 0063). "You can't spend mana to cast this spell.
@@ -48,23 +50,105 @@ export const hogaakArisenNecropolis: CardDefinition = {
     castableFromOwnGraveyard: true,
 };
 
-// TODO(issue #679 stub — Fallen Shinobi needs Ninjutsu (CR 702.49):
-// mechanicsRegistry.ts lists it `status: "planned"` — no keyword name and no
-// "return an unblocked attacker to hand, put this onto the battlefield
-// tapped and attacking" alternate-cast primitive exist yet. Ninjutsu is the
-// card's entire reason to exist in a Cube context, so — matching the
-// Evoke-gated stub precedent (Solitude/Subtlety/Fury/Endurance) — the whole
-// card stays a stub. Stop-and-issue per gre-development.md; tracked stub.
-// export const fallenShinobi: CardDefinition = {
-//     id: "900c9dfd-ece1-4b09-a801-0fa05e1994b9",
-//     name: "Fallen Shinobi",
-//     rarity: "rare",
-//     manaCost: { X: 3, U: 1, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie", "Ninja"],
-//     power: 5,
-//     toughness: 4,
-// };
+// Fallen Shinobi — {3}{U}{B} Creature — Zombie Ninja, 5/4 (MH1, issue #2390).
+// "Ninjutsu {2}{U}{B}. Whenever this creature deals combat damage to a player,
+// that player exiles the top two cards of their library. Until end of turn, you
+// may play those cards without paying their mana costs."
+//
+// The card Ninjutsu (CR 702.49) shipped for, and the pool's only exposure of
+// the keyword. The keyword half is entirely declarative — `ninjutsuAbility`
+// (`convex/cards/abilities/ninjutsu.ts`) builds an ordinary `activateFromHand`
+// activated ability whose body is a plain `moveZone` Effect Script; nothing
+// about the keyword lives on this card.
+//
+// protocol card: the combat-damage trigger is a CROSS-PLAYER impulse draw —
+// exile off the DAMAGED player's library, grant the ATTACKER the play
+// permission — which has no Op skin (`grantCastFromExile`'s Op form consumes a
+// preceding `choice(zone: "exile")` pick, and no choice happens here). Ragavan,
+// Nimble Pilferer (`mh2/red.ts`) is the shipped precedent for exactly this
+// shape, itself following Robber of the Rich (`eld/red.ts`); this trigger is
+// that composition with N=2 and the two riders the Oracle text adds.
+// `aiEffects` below is the shadow script the bot's value model walks, since a
+// bare closure gives `cardValueById`/`latentValue` nothing to read.
+//
+// TWO riders distinguish it from Ragavan's line, both straight off the Oracle
+// text. "PLAY those cards" (not "cast") is CR 305.9 — `includesLand: true`, so
+// an exiled land is a legal land drop rather than a dead card (the bug issue
+// #1689 fixed for Ragavan, which says "cast" and so correctly omits it).
+// "without paying their mana costs" is CR 118.9 — `withoutPayingManaCost`,
+// which for a land leg is simply vacuous (playing a land pays nothing).
+//
+// The Oracle grammar consumes neither line: the keyword has no expansion rule,
+// and the trigger's exile-and-play clause is the cross-player impulse-draw
+// shape that has no Op for the compiler to emit.
+// compiler-gap: "Ninjutsu {2}{U}{B}" (#2693)
+// compiler-gap: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs." (#2693)
+export const fallenShinobi: CardDefinition = {
+    id: "900c9dfd-ece1-4b09-a801-0fa05e1994b9", // MH1 199
+    name: "Fallen Shinobi",
+    rarity: "rare",
+    oracleText:
+        "Ninjutsu {2}{U}{B} ({2}{U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs.",
+    manaCost: { X: 3, U: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie", "Ninja"],
+    power: 5,
+    toughness: 4,
+    // CR 702.49a — the keyword ability, usable only from hand.
+    activatedAbilities: [ninjutsuAbility({ X: 2, U: 1, B: 1 })],
+    triggeredAbilities: [
+        {
+            ...damageDealtTrigger({
+                id: "fallen-shinobi-combat-damage",
+                oracleText:
+                    "Whenever this creature deals combat damage to a player, that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs.",
+                source: "self",
+                target: { kind: "player", player: { relation: "any" } },
+                isCombat: true,
+                resolve: (ctx, _event, damage) => {
+                    if (damage.target.type !== "player") return;
+                    const damagedPlayerId = damage.target.id;
+                    // CR 608.2b — "the top TWO cards" takes as many as are
+                    // there; a one-card library exiles one, an empty one none.
+                    const top = ctx.peekLibraryTop(damagedPlayerId, 2);
+                    for (const cardId of top) {
+                        // CR 406.3 — exiled hidden from the card's own owner's
+                        // opponents' view but known to this card's controller,
+                        // who is about to play it (the Robber of the Rich /
+                        // Ragavan precedent).
+                        ctx.exileFaceDown(
+                            damagedPlayerId,
+                            cardId,
+                            "library",
+                            ctx.controller
+                        );
+                        // CR 601.3 / 305.9 / 118.9 — the cross-player grant:
+                        // the card stays owned by (and exiled in) the DAMAGED
+                        // player's zone (CR 400.7) while THIS card's controller
+                        // may play it until end of turn, paying nothing.
+                        ctx.grantCastFromExile(
+                            cardId,
+                            ctx.controller,
+                            damagedPlayerId,
+                            "this-turn",
+                            {
+                                withoutPayingManaCost: true,
+                                includesLand: true,
+                            }
+                        );
+                    }
+                },
+            }),
+            // aiEffects (PRD #1423) — the shadow script for the closure above.
+            // Two impulse-drawn cards, valued through the same
+            // `CARD_SELECTION_VALUE` lever `lookDistribute`/`digMatchingToHand`
+            // use for "look at N, keep one" (`gre/ai/opValuers.ts`), which is
+            // this codebase's own stand-in for exile-and-may-play upside — the
+            // identical approximation Ragavan's shadow script makes.
+            aiEffects: [{ op: "draw", player: "controller", count: 2 }],
+        },
+    ],
+};
 
 // Wrenn and Six — {R}{G} Legendary Planeswalker — Wrenn, loyalty 3 (MH1,
 // issue #2358). All three loyalty abilities use the shipped loyalty framework

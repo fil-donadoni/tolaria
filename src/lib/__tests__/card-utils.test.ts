@@ -5524,6 +5524,103 @@ describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
             activePlayerId
         );
 
+    // CR 702.49a (issue #2390) — the ninjutsu affordance is gated by its COST,
+    // not by a phase test: the menu reads `ninjutsuReturnCandidateIds`, the same
+    // authority the mutation's legality gate reads. Through the real reducer,
+    // per the frontend-wiring rule — a hand-built view would mask exactly the
+    // drop this gate exists to prevent.
+    describe("Ninjutsu (CR 702.49a) — offered only while the return leg is payable", () => {
+        const FALLEN_SHINOBI_ID = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
+
+        const shinobiInHand = () =>
+            makeCardInstance({
+                id: "shinobi-1",
+                card: { id: FALLEN_SHINOBI_ID },
+                types: ["Creature"],
+                ownerId: "p1",
+                controllerId: "p1",
+                zone: "hand",
+            });
+
+        /** p1 controls one attacker; `blockedIds` are the ones that got
+         *  blocked (CR 509.1h). */
+        const combatScopeFor = (
+            attackerIds: string[],
+            blockedIds: string[] = [],
+            blockersConfirmed = true
+        ) => ({
+            combat: {
+                attackerIds,
+                blockedAttackerIds: blockedIds,
+                blockersConfirmed,
+            },
+            players: [
+                {
+                    id: "p1",
+                    battlefield: attackerIds.map((id) => ({ id })),
+                },
+                { id: "p2", battlefield: [] },
+            ],
+        });
+
+        it("offers it with an unblocked attacker after blockers are declared", () => {
+            const shinobi = shinobiInHand();
+            expect(
+                getHandStackAbilities(
+                    shinobi,
+                    "DECLARE_BLOCKERS",
+                    viewFor(shinobi),
+                    combatScopeFor(["a1"])
+                ).map((a) => a.id)
+            ).toEqual(["ninjutsu"]);
+        });
+
+        it("hides it when the only attacker is blocked (CR 509.1h)", () => {
+            const shinobi = shinobiInHand();
+            expect(
+                getHandStackAbilities(
+                    shinobi,
+                    "DECLARE_BLOCKERS",
+                    viewFor(shinobi),
+                    combatScopeFor(["a1"], ["a1"])
+                )
+            ).toEqual([]);
+        });
+
+        it("hides it before blockers are declared", () => {
+            const shinobi = shinobiInHand();
+            expect(
+                getHandStackAbilities(
+                    shinobi,
+                    "DECLARE_ATTACKERS",
+                    viewFor(shinobi),
+                    combatScopeFor(["a1"], [], false)
+                )
+            ).toEqual([]);
+        });
+
+        it("hides it outside combat, and with no scope supplied at all", () => {
+            const shinobi = shinobiInHand();
+            expect(
+                getHandStackAbilities(
+                    shinobi,
+                    "PRECOMBAT_MAIN",
+                    viewFor(shinobi),
+                    { players: [{ id: "p1", battlefield: [] }] }
+                )
+            ).toEqual([]);
+            // Fail CLOSED: a caller that forgets the scope must not be shown a
+            // menu entry whose mutation would throw.
+            expect(
+                getHandStackAbilities(
+                    shinobi,
+                    "DECLARE_BLOCKERS",
+                    viewFor(shinobi)
+                )
+            ).toEqual([]);
+        });
+    });
+
     it("surfaces the Cycling ability for a Triome in the viewer's own hand (through the reducer)", () => {
         const triome = makeTriomeInHand();
         const abilities = getHandStackAbilities(

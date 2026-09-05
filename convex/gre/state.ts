@@ -1623,6 +1623,27 @@ export type CardInstanceState = {
      *  step" half of Dash fires. See {@link PermanentView.dashed} for the
      *  full doc. */
     dashed?: boolean;
+    /** CR 702.49c — the planeswalker (or battle) the returned creature was
+     *  attacking, captured when a Ninjutsu cost was paid so the card entering
+     *  the battlefield attacking joins combat against the SAME defender.
+     *
+     *  A STAMP consumed once, not a lasting property (the `entersAsTypeLine`
+     *  shape): the ability's cost payment writes it on the source card while
+     *  it is still in hand, `moveZone`'s hand carrier reads it at
+     *  resolution and clears it as the permanent enters. Absent means the
+     *  returned creature was attacking a PLAYER — the default defender, which
+     *  `combat.attackTargets` records nothing for — so the entering creature
+     *  needs no entry there either.
+     *
+     *  A stamp CAN outlive its activation: an ability that is countered, or
+     *  whose card left hand in response, never reaches the consuming Op, and
+     *  nothing on the fizzle path clears it. That is inert rather than unsafe,
+     *  and deliberately so — the ONLY writer is the cost payment
+     *  (`captureNinjutsuAttackTarget`), which re-stamps or deletes on every
+     *  activation, so the next ninjutsu of that card cannot read a stale
+     *  defender; and the only reader refuses a defender that is no longer a
+     *  live planeswalker or battle (CR 506.3c). */
+    enterAttackingTarget?: string;
     /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
      *  for its Bestow cost and has not yet ceased to be bestowed
      *  (CR 702.103e–g). Set on the stack item at cast commit
@@ -2730,6 +2751,14 @@ export type PendingActivation = {
      *  at resolve via getAdditionalSacrificeMv/Power — Priest of Yawgmoth,
      *  Freyalise Supplicant). */
     sacrificeSelection?: SacrificeSelection;
+    /** CR 702.49a — true iff `sacrificeSelection` above is a NINJUTSU return
+     *  leg rather than a sacrifice. A marker qualifying the selection, read at
+     *  commit (the `cyclingCost` shape): the selection itself already carries
+     *  `action: "return"`, but the commit path works off `pendingActivation`
+     *  and never re-resolves the ability, so this is what tells it to capture
+     *  the returned creature's defender (CR 702.49c) before the bounce removes
+     *  it from combat. Nothing to submit, so nobody is waiting on the payer. */
+    returnUnblockedAttacker?: boolean;
     /** In-progress "exile N cards from a single graveyard" cost picker
      *  (CR 602.1, 118.5, 406 — Night Soil). Set when the ability has
      *  `cost.exileFromGraveyard`. `count`/`cardType` mirror the cost; both
@@ -17315,6 +17344,50 @@ export function buildSpellContext(
 
         setAllCreaturesMustAttack(playerId: string): void {
             state.allCreaturesMustAttack = playerId;
+        },
+
+        // CR 506.3c / 508.4 — join the CURRENT combat as an attacker without
+        // ever having been declared as one. The single shared `markAttacking`
+        // helper sets both representations; `recordAttackerDeclared` is
+        // deliberately NOT called, so "whenever a creature attacks" watchers
+        // never see this entry.
+        enterCombatAttacking(cardInstanceId: string): void {
+            if (!state.combat) return;
+            const found = findOnBattlefield(state, cardInstanceId);
+            if (!found) return;
+            const card = found.card;
+            // CR 508.1a / 702.49c — a stamped planeswalker or battle defender
+            // is consumed here; without one the creature attacks the defending
+            // player, for which `attackTargets` holds no entry. Consumed even
+            // when it turns out to be dead, so no later entry inherits it.
+            const stamped = card.enterAttackingTarget;
+            delete card.enterAttackingTarget;
+            // CR 506.3c — a stamped defender that is no longer on the
+            // battlefield (the planeswalker was killed in response to the
+            // ninjutsu ability) means the creature "does enter the
+            // battlefield, but it's never considered to be an attacking
+            // creature". Marking it attacking anyway left it in
+            // `attackerIds` and `isAttacking` while attacking nothing, which
+            // every attacking-creature static, `combatRoleFilter:
+            // "attacking"` target and a chained ninjutsu would then believe.
+            if (stamped) {
+                const defenderLive = state.players.some((p) =>
+                    p.battlefield.some(
+                        (c) =>
+                            c.id === stamped &&
+                            (c.types.includes("Planeswalker") ||
+                                c.types.includes("Battle"))
+                    )
+                );
+                if (!defenderLive) return;
+                markAttacking(state, card);
+                state.combat.attackTargets = {
+                    ...(state.combat.attackTargets ?? {}),
+                    [cardInstanceId]: stamped,
+                };
+                return;
+            }
+            markAttacking(state, card);
         },
 
         removeFromCombat(target: TargetSelection): void {

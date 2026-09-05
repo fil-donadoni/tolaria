@@ -180,6 +180,10 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         /** CR 702.29c/f — a marker qualifying `discardThisSource`, read at
          *  commit. Nothing to submit, so nobody is waiting on the payer. */
         cyclingCost: "non-park",
+        /** CR 702.49a — a marker qualifying `sacrificeSelection` as a ninjutsu
+         *  RETURN leg, read at commit. The pick it needs is the selection's
+         *  own, so this flag blocks nothing. */
+        returnUnblockedAttacker: "non-park",
         /** CR 702.129a — Eternalize exiles THIS card from the graveyard; no
          *  pick. */
         exileThisSource: "non-park",

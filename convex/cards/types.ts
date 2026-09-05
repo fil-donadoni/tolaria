@@ -1124,6 +1124,33 @@ export interface ActivatedAbility {
          *  (`getAdditionalSacrificeMv()`) is taken only for a count of 1,
          *  since "the sacrificed permanent" is ambiguous above that. */
         sacrificeFilterCount?: number;
+        /** "Return an unblocked attacking creature you control to its owner's
+         *  hand" as an activation cost (CR 702.49a — the Ninjutsu cost's
+         *  non-mana component, alongside its mana leg and the reveal).
+         *
+         *  A cost that GIVES UP a permanent, so it routes through the ONE
+         *  unified selection layer every sacrifice and return-to-hand cost
+         *  uses (`gre/sacrificeChoice.ts`, `action: "return"`) rather than
+         *  auto-picking a victim: with two unblocked attackers, WHICH one goes
+         *  back is a real tactical choice and the payer must make it. The
+         *  candidate set is not expressible as a `PermanentFilter` — CR 509.1h
+         *  "unblocked" lives in `combat.blockedAttackerIds` (ADR 0019), not on
+         *  the permanent — so the requirement is narrowed by `candidateIds`,
+         *  computed once at announcement from `unblockedAttackerIds`
+         *  (`gre/combat.ts`) and read back by every consumer.
+         *
+         *  The cost is also the TIMING rule. CR 702.49a places no window on the
+         *  ability, but a creature is neither blocked nor unblocked until
+         *  blockers are declared (CR 509.1h), so the candidate set is empty
+         *  before that and the activation is simply unaffordable — the
+         *  "declare blockers step or later" window falls out of CR 601.2/118.4
+         *  affordability instead of being a second, separately-drifting rule.
+         *
+         *  CR 702.49c is why the payment is not merely a bounce: the returned
+         *  creature's defender is captured at commit onto the source card
+         *  (`CardInstanceState.enterAttackingTarget`) so the ninja enters
+         *  attacking the same player or planeswalker. */
+        returnUnblockedAttacker?: boolean;
         /** "Tap untapped permanents matching <filter> you control" as an
          *  activation cost (CR 602.1, 118.8). The activating player chooses
          *  which untapped permanents to tap while paying the cost; the
@@ -4946,6 +4973,27 @@ export interface SpellContext {
      *  combat damage to the defender without trample. Use `becomeUnblocked`
      *  for the rare effect that actually un-blocks an attacker. */
     removeFromCombat: (target: TargetSelection) => void;
+    /** CR 506.3c / 508.4 — puts a permanent that is ALREADY on the battlefield
+     *  into the CURRENT combat as an attacking creature, the inverse of
+     *  `removeFromCombat`. Sets BOTH representations of "attacking"
+     *  (`combat.attackerIds` membership and the per-permanent `isAttacking`
+     *  flag) through the one shared `markAttacking` helper the enters-attacking
+     *  token path uses, so a creature that joins here is not half-attacking.
+     *
+     *  Deliberately does NOT record the creature as having been DECLARED as an
+     *  attacker: CR 506.3c makes such a creature "attacking" but never
+     *  "attacked", so "whenever a creature attacks" abilities correctly never
+     *  see it (the same split `markAttacking` / `recordAttackerDeclared` draws).
+     *
+     *  DEFENDER (CR 508.1a): a planeswalker or battle stamped on the permanent
+     *  as `enterAttackingTarget` is consumed here — that is CR 702.49c's "the
+     *  same player, planeswalker or battle as the creature that was returned".
+     *  No stamp means the defending player, which `combat.attackTargets`
+     *  records nothing for.
+     *
+     *  No-op when there is no combat to join, or when the id is on no
+     *  battlefield (CR 608.2b). */
+    enterCombatAttacking: (cardInstanceId: string) => void;
     /** Makes an attacker that became blocked count as unblocked (CR 509.1h),
      *  so it deals its combat damage to the defending player. Strips it from
      *  the blocked set and from every blocker's assignment. Used by Ydwen
@@ -12403,15 +12451,63 @@ export type EffectOp =
      *  graveyard → exile replacement redirect, a token that ceased to exist —
      *  CR 704.5d) is simply not found and the Op no-ops (CR 608.2b — the
      *  effect does as much as it can). `tapped: true` (CR 110.5a) makes the
-     *  returned permanent enter tapped; valid only with `to: "battlefield"`. */
+     *  returned permanent enter tapped; valid only with `to: "battlefield"`.
+     *
+     *  HAND SOURCE (issue #2390) — `{ ref: "$source" }` on an ability whose
+     *  source is a card in its owner's HAND (`activateFromHand`) resolves to
+     *  the hand-card carrier and, with `to: "battlefield"`, routes through
+     *  `putFromHandOntoBattlefield` — the SAME primitive the `cards` shape's
+     *  own `from: "hand"` branch already calls (Stoneforge Mystic), reached
+     *  from a bare `$source` rather than from a `choice` Op's picks. This is
+     *  what makes Ninjutsu's "Put this card onto the battlefield from your hand
+     *  tapped and attacking" (CR 702.49a) an ordinary Effect Script rather than
+     *  a keyword-shaped Op: `tapped` and `attacking` are the two riders, and
+     *  the zone move itself is the one this Op already owned. The hand carrier
+     *  accepts NO other destination — a hand → graveyard/exile/library move is
+     *  the `cards` shape's filter-driven or picks-driven business, and admitting
+     *  it here would give one Op two ways to say the same thing. */
     | {
           op: "moveZone";
           target: EffectObjectSelector;
           to: EffectMoveZone;
-          from?: "graveyard" | "exile";
+          /** The zone the named object is recovered FROM when it is not on the
+           *  battlefield. `"graveyard"` / `"exile"` re-derive a departed object
+           *  (issue #1469). `"hand"` (issue #2390) is the Ninjutsu source and
+           *  is valid only with `to: "battlefield"`: it must be DECLARED, never
+           *  inferred, because the shipped cards that reanimate their own
+           *  `$source` from a graveyard name no `from` at all, and inferring a
+           *  hand source when the pile lookup misses would put THEIR card onto
+           *  the battlefield after it moved to hand mid-resolution — a new
+           *  object (CR 400.7) the ability must not touch. */
+          from?: "graveyard" | "exile" | "hand";
           bind?: string;
           controller?: EffectPlayerRef;
           tapped?: boolean;
+          /** CR 506.3c / 702.49a (issue #2390) — the entering permanent joins
+           *  the CURRENT combat as an attacking creature. Valid only with
+           *  `to: "battlefield"` (validator-enforced), and only on the HAND
+           *  source below, which is the one zone a printed "put this onto the
+           *  battlefield tapped and attacking" ever names (Ninjutsu).
+           *
+           *  Composed AFTER the entry through the `enterCombatAttacking`
+           *  primitive, the same way `tapped` is a direct `tap` after entry
+           *  rather than an as-enters replacement. CR 506.3c removes the half
+           *  of the ordering that would otherwise be observable — such a
+           *  creature is attacking but was never DECLARED as an attacker, so
+           *  no "whenever a creature attacks" watcher can see the gap. What
+           *  the gap DOES leave visible is the entry itself: `PERMANENT_ENTERED`
+           *  and every "whenever a creature enters" watcher observe the
+           *  permanent untapped and not yet attacking, so a static keyed on
+           *  "attacking creatures get +X/+0" would snapshot the pre-attack
+           *  P/T. No shipped card is affected (no such static exists in the
+           *  pool), and closing it means threading the two flags through
+           *  `putFromHandOntoBattlefield` into the entry funnel — the same
+           *  as-enters gap `tapped` has carried on this Op since issue #1469.
+           *  tracked-by: #2390. The defender comes from the
+           *  permanent's own `enterAttackingTarget` stamp (CR 702.49c),
+           *  consumed by that primitive; with no stamp it attacks the defending
+           *  player. Outside combat it is a clean no-op. */
+          attacking?: boolean;
           /** issue #1726 — battlefield → library at a POSITION (1-based from
            *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
            *  −3). Valid only with `to: "library"` on this shape

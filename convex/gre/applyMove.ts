@@ -111,7 +111,11 @@ import {
 } from "./activationCostPicks";
 // CR 118.8 / 608.2h — the single authority that removes the chosen victims AND
 // returns the snapshot-flagged one's characteristics (issue #2375).
-import { applySacrificeSelection } from "./sacrificeChoice";
+import {
+    applySacrificeSelection,
+    isSacrificeSelectionComplete,
+} from "./sacrificeChoice";
+import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -666,11 +670,11 @@ export function applyActivationCostsForSearch(
         // CR 113.6 / 702.29a — a HAND-source activation (Cycling, Harvester of
         // Misery's `activateFromHand` discard ability). Its one board-changing
         // cost leg is "Discard this card", paid through the shared choke point
-        // so CARD_DISCARDED fires. `enumerateAbilityMoves` scans only the
-        // battlefield and the graveyard, so no enumerated move reaches this
-        // branch today — it is here so the helper pays EVERY leg it can be
-        // handed, rather than leaving one silently free (issue #1920 review,
-        // finding 2).
+        // so CARD_DISCARDED fires. Reachable since issue #2390 gave
+        // `enumerateAbilityMoves` its hand scan; before that no enumerated move
+        // arrived here, and the branch existed so the helper would pay EVERY
+        // leg it can be handed rather than leaving one silently free (issue
+        // #1920 review, finding 2).
         const handOwner = state.players.find((p) =>
             p.hand.some((c) => c.id === move.cardInstanceId)
         );
@@ -684,6 +688,36 @@ export function applyActivationCostsForSearch(
             : undefined;
         if (handOwner && handAbility?.cost.discardThis) {
             discardToGraveyard(state, handOwner.id, move.cardInstanceId);
+        }
+        // CR 702.49a — the NINJUTSU return leg, the other board-changing cost a
+        // hand-source ability can carry. Paid through the same
+        // `activationSacrificePayment` → `applySacrificeSelection` pair the
+        // battlefield branch below uses, so the search gives up the attacker
+        // exactly as the mutation does. Left unpaid it is the failure this
+        // function's own header warns about: the tree keeps a 5/4 attacking
+        // AND the creature it was supposed to return, and ranks a line the
+        // server would price very differently.
+        if (
+            handOwner &&
+            handCard &&
+            handAbility?.cost.returnUnblockedAttacker
+        ) {
+            const payment = activationSacrificePayment(
+                state,
+                handOwner,
+                handCard,
+                handAbility,
+                move.costPicks
+            );
+            // Fail CLOSED: an incomplete selection means no legal victim was
+            // available (or none was named), so the activation is one the
+            // server would refuse — report it rather than buying the effect.
+            if (!payment || !isSacrificeSelectionComplete(payment))
+                return false;
+            // CR 702.49c — capture the defender before the bounce removes the
+            // returned creature from combat.
+            captureNinjutsuAttackTarget(state, handCard, payment);
+            applySacrificeSelection(state, payment);
         }
         return true;
     }

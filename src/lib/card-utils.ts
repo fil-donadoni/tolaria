@@ -44,6 +44,8 @@ import {
     grantOutrankedByAbilityLoss,
 } from "@convex/gre/activatedAbilities";
 import { findTriggeredAbility } from "@convex/gre/copy";
+import type { UnblockedAttackerScope } from "@convex/gre/combat";
+import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 // CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
 // STATE-ONLY clauses from it; the timing clause stays a documented narrowing
 // (this view has no stack length / priority holder), with the server the gate.
@@ -2337,7 +2339,14 @@ export function getGraveyardStackAbilities(
 export function getHandStackAbilities(
     card: CardInstance,
     phase: Phase | undefined,
-    stateView: TriggerStateView
+    stateView: TriggerStateView,
+    /** CR 702.49a (issue #2390) — combat, for the ninjutsu return leg's
+     *  affordability. `TriggerStateView` carries no combat state, and this runs
+     *  while merely rendering the hand, so the scope is passed in by the one
+     *  caller that has it rather than widened onto the view. Omitted, an
+     *  ability with that cost leg is HIDDEN — fail closed, the right default
+     *  for a menu entry whose mutation would throw. */
+    combatScope?: UnblockedAttackerScope
 ): { id: string; oracleText: string }[] {
     // A card whose id resolves to no definition (synthetic tokens, test
     // fixtures) has no hand-activatable ability — never throw here, since this
@@ -2376,6 +2385,21 @@ export function getHandStackAbilities(
                 )
             ) {
                 return false;
+            }
+            // CR 702.49a — the ninjutsu return leg is unpayable with no
+            // unblocked attacker to return, and CR 509.1h leaves the candidate
+            // set empty until blockers are declared. That is the keyword's
+            // whole timing window, so the menu reads it off the SAME engine
+            // authority the mutation's legality gate uses rather than
+            // re-deriving "after blockers" as a phase test that could drift.
+            if (a.cost.returnUnblockedAttacker) {
+                if (
+                    !combatScope ||
+                    ninjutsuReturnCandidateIds(combatScope, card.ownerId)
+                        .length === 0
+                ) {
+                    return false;
+                }
             }
             if (a.canActivate) {
                 if (!a.canActivate(card as unknown as PermanentView, stateView))

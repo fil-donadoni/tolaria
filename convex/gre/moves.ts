@@ -2497,7 +2497,10 @@ function enumerateAbilityMoves(
     state: GameState,
     player: PlayerState,
     perm: CardInstanceState,
-    opts?: { anyPlayerOnly?: boolean; zone?: "battlefield" | "graveyard" }
+    opts?: {
+        anyPlayerOnly?: boolean;
+        zone?: "battlefield" | "graveyard" | "hand";
+    }
 ): Move[] {
     // CR 611.2a / 613.1f (layer 6) — read the POST-LAYER ability set, the
     // same authority every other consumer reads (`getEffectiveActivatedAbilities`),
@@ -2514,6 +2517,7 @@ function enumerateAbilityMoves(
     if (effectiveAbilities.length === 0) return [];
 
     const fromGraveyard = opts?.zone === "graveyard";
+    const fromHand = opts?.zone === "hand";
     const moves: Move[] = [];
     for (const { ability } of effectiveAbilities) {
         // When scanning an opponent's permanent (CR 113.3c / 602.1), only "any
@@ -2545,6 +2549,16 @@ function enumerateAbilityMoves(
             if (!ability.activateFromGraveyard) continue;
             // A card in a graveyard is not a permanent (CR 110.1), so it has no
             // tap state and a {T} leg is unpayable there.
+            if (ability.cost.tap) continue;
+        } else if (fromHand) {
+            // CR 702.29a / 702.49a (issue #2390) — the HAND scan, the exact
+            // twin of the graveyard one above. Until this issue no caller
+            // passed `zone: "hand"` at all, so the `else` below skipped every
+            // `activateFromHand` ability and the bot was structurally blind to
+            // Cycling and to Ninjutsu alike: not a bad evaluation, no move.
+            if (!ability.activateFromHand) continue;
+            // A card in hand is not a permanent (CR 110.1) — no tap state, so
+            // a {T} leg is unpayable there.
             if (ability.cost.tap) continue;
         } else if (ability.activateFromHand || ability.activateFromGraveyard) {
             continue;
@@ -3520,6 +3534,16 @@ export function enumerateMoves(
             ...enumerateAbilityMoves(state, player, card, {
                 zone: "graveyard",
             })
+        );
+    }
+    // CR 113.6 / 702.29a / 702.49a (issue #2390) — HAND-source activated
+    // abilities (Cycling, Ninjutsu). Only the hand's owner may activate them,
+    // so only this player's hand is scanned. The mirror of the graveyard loop
+    // above, and it closes the same class of blindness: without it the bot
+    // never cycles and never ninjutsus, with no test anywhere going red.
+    for (const card of player.hand) {
+        moves.push(
+            ...enumerateAbilityMoves(state, player, card, { zone: "hand" })
         );
     }
     // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be

@@ -37,6 +37,25 @@ const MOUNTAINS_5 = Array.from({ length: 5 }, () => ({
     tapped: false,
 }));
 
+/** CR 702.49a — exactly Fallen Shinobi's {2}{U}{B} ninjutsu cost. Basics
+ *  rather than `landCount` for the same reason {@link MOUNTAINS_5} is: the cost
+ *  is coloured, and a generic land count would leave the mana leg unpayable and
+ *  the entry silently testing nothing. */
+const NINJUTSU_LANDS_4 = [
+    ...Array.from({ length: 2 }, () => ({
+        name: "Island",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        tapped: false,
+    })),
+    ...Array.from({ length: 2 }, () => ({
+        name: "Swamp",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        tapped: false,
+    })),
+];
+
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable
  *  expectation (holding an instant through your own main phase is legitimate
@@ -365,6 +384,54 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "play-land", card: "Forest" }] },
         note: "Harness end-to-end control. Guards the issue-#149 land-drop invariant.",
+    },
+    {
+        // NINJUTSU reachability (CR 702.49a, issue #2390). The bot attacks with
+        // a lone 2/2, the defender declines to block, and the position lands in
+        // the priority round after blocks are declared — the ONLY window in
+        // which the ninjutsu cost is payable at all, because CR 509.1h makes an
+        // attacker neither blocked nor unblocked before then.
+        //
+        // The claim is REACHABILITY, not preference: swapping an unblocked 2/2
+        // for a 5/4 that keeps attacking is not a matter of opinion, but the
+        // reason this entry exists is that until this issue `enumerateMoves`
+        // never scanned the HAND for activated abilities at all
+        // (`enumerateAbilityMoves` took the battlefield and the graveyard), so
+        // EVERY `activateFromHand` ability — Cycling included — was a move the
+        // bot could not see. That failure is invisible to every other suite:
+        // nothing goes red, the bot simply never ninjutsus.
+        label: "ninjutsu: swaps its unblocked attacker for Fallen Shinobi",
+        spec: {
+            cards: [
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Fallen Shinobi", owner: "me", zone: "hand" },
+                // A body the defender COULD block with — `declare-blockers`
+                // with no blocks is still a real declaration, and the engine
+                // never opens the window for a defender with nothing to
+                // declare.
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                // {2}{U}{B} — basics rather than `landCount` because the
+                // ninjutsu cost is coloured: two Islands and two Swamps cover
+                // the {U}, the {B} and the {2}.
+                ...NINJUTSU_LANDS_4,
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Grizzly Bears"] },
+            { kind: "declare-blockers" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Fallen Shinobi" }],
+        },
+        note: "Bot reachability for Ninjutsu (issue #2390). Guards the hand scan `enumerateAbilityMoves` gained in the same change: without it no `activateFromHand` ability is ever enumerated, and the bot holds a Fallen Shinobi it can never play. The window is the cost's own (CR 509.1h), which is why the setup walks all the way through the block declaration.",
     },
     {
         // STRETCH. A lone 3/3 facing an empty board: attacking is free damage

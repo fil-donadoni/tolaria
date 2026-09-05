@@ -42,7 +42,7 @@ import {
 import { requirementFromPendingTarget } from "./pendingTargetOrigin";
 import { computeExpectedInput, type GateRequest } from "./expectedInput";
 import {
-    sacrificeCandidates,
+    requirementCandidates,
     nextUnmetRequirement,
     isSacrificeCandidateLegal,
 } from "./sacrificeChoice";
@@ -582,7 +582,7 @@ function sacrificeActions(
     if (!sel) return [];
     const req = nextUnmetRequirement(sel);
     if (!req) return [];
-    return sacrificeCandidates(state, sel.playerId, req.filter)
+    return requirementCandidates(state, sel.playerId, req)
         .filter((c) => isSacrificeCandidateLegal(state, sel, c.id))
         .map((c) => ({
             expect: "sacrifice" as const,

@@ -91,6 +91,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     tappedLandIds: [],
     tapSource: false,
     sacrificeSource: false,
+    returnUnblockedAttacker: false,
     sacrificeSelection: {
         playerId: P1,
         reason: "r",

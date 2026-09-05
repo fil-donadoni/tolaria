@@ -27,6 +27,7 @@
 import type { ActivatedAbility } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getStaticAdditionalSacrifices } from "./state";
+import { ninjutsuReturnRequirement } from "./ninjutsu";
 import type {
     SacrificeRequirement,
     SacrificeSelection,
@@ -201,6 +202,18 @@ export function buildActivationSacrificeSelection(
     reason: string
 ): SacrificeSelection | undefined {
     const specs: SacrificeRequirement[] = [];
+    // CR 702.49a — Ninjutsu's return leg is a give-up-a-permanent cost like any
+    // other, so it rides this same layer; what differs is only its terminal
+    // action, which the REQUIREMENT carries (`action: "return"`). Pushed FIRST
+    // and then falling through to everything below, because an activation can
+    // owe this leg AND a static additional-sacrifice tax (Drought,
+    // `ice/white.ts`, taxes any activation cost with a black pip — which
+    // Fallen Shinobi's {2}{U}{B} has). An earlier version returned here
+    // instead, which skipped the tax loop entirely and let the activation pay
+    // nothing for it: fail-open on a mandatory additional cost.
+    if (ability.cost.returnUnblockedAttacker) {
+        specs.push(ninjutsuReturnRequirement(state, player.id));
+    }
     if (ability.cost.sacrificeFilter) {
         specs.push({
             // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact". This is

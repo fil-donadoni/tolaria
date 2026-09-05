@@ -1814,11 +1814,11 @@ function findPermanentOnBattlefield(
  *    * a GRAVEYARD card, for an ability that opts into functioning there
  *      (CR 702.129a — Ashen Ghoul, Eternalize), and
  *    * a HAND card, for an `activateFromHand` ability (CR 702.29a — Cycling,
- *      Harvester of Misery).
+ *      Harvester of Misery; CR 702.49a — Ninjutsu).
  *
- *  The hand branch is deliberately UNREACHABLE through `enumerateMoves` today
- *  (`enumerateAbilityMoves` scans the battlefield and the graveyard only), so
- *  it exists for symmetry rather than for a live path. It was previously omitted
+ *  The hand branch became LIVE in issue #2390, which gave
+ *  `enumerateAbilityMoves` the hand scan it had never had; until then it
+ *  existed for symmetry only. It was previously omitted
  *  on the grounds that pushing a hand-source ability would put an item on the
  *  stack while its `discardThis` cost went unpaid — true when it was written,
  *  and no longer: `applyActivationCostsForSearch` pays that leg (issue #1920
