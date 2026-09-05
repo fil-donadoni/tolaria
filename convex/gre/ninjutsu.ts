@@ -20,7 +20,10 @@
 //     paid through the ONE unified give-up-a-permanent selection layer
 //     (`sacrificeChoice.ts`, `action: "return"`) so the payer picks WHICH
 //     attacker goes back.
-//   - the `putSourceOntoBattlefield` Effect Script Op is the ability's body.
+//   - the ability's BODY is a plain Effect Script: `moveZone` from the hand
+//     carrier, with the `tapped` and `attacking` riders. No keyword-shaped Op
+//     was added — the zone move is the one `moveZone` already owned, reached
+//     from a bare `$source` instead of a `choice` Op's picks.
 //
 // This module owns the two facts none of those seams can answer on their own:
 // which creatures the cost may legally return, and which defender the entering

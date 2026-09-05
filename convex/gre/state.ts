@@ -1629,7 +1629,7 @@ export type CardInstanceState = {
      *
      *  A STAMP consumed once, not a lasting property (the `entersAsTypeLine`
      *  shape): the ability's cost payment writes it on the source card while
-     *  it is still in hand, the `putSourceOntoBattlefield` Op reads it at
+     *  it is still in hand, `moveZone`'s hand carrier reads it at
      *  resolution and clears it as the permanent enters. Absent means the
      *  returned creature was attacking a PLAYER — the default defender, which
      *  `combat.attackTargets` records nothing for — so the entering creature
