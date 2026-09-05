@@ -3499,9 +3499,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     !isExiledWithSourceTarget &&
                     "from" in entry
                 ) {
-                    if (entry.from !== "graveyard" && entry.from !== "exile") {
+                    // issue #2390 — `"hand"` joins them as the NINJUTSU source
+                    // (CR 702.49a, "Put this card onto the battlefield from
+                    // your hand"). Unlike the other two it names a zone the
+                    // object never left, and it must be DECLARED: the shipped
+                    // cards that reanimate their own `$source` from a graveyard
+                    // name no `from`, and inferring a hand source when the pile
+                    // lookup misses would move THEIR card once it reached hand
+                    // (CR 400.7 — a new object).
+                    if (
+                        entry.from !== "graveyard" &&
+                        entry.from !== "exile" &&
+                        entry.from !== "hand"
+                    ) {
                         errors.push(
-                            'field "from" with "target" accepts only "graveyard" or "exile" (the zone a bound, already-departed object was put into)'
+                            'field "from" with "target" accepts only "graveyard", "exile" or "hand"'
                         );
                     }
                     if (entry.to !== "battlefield") {
@@ -3668,18 +3680,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // token), never a picked set or a bulk sweep, and there is no
             // defender to inherit for a card that was never linked to one — so
             // widening it would create shapes with no CR reading.
-            // issue #2390 — `from: "hand"` is the Ninjutsu source: the object
-            // shape only, into the battlefield only. The `cards` shape has its
-            // own `from: "hand"` branch (Stoneforge Mystic) and keeps it.
-            if (
-                hasTarget &&
-                entry.from === "hand" &&
-                entry.to !== "battlefield"
-            ) {
-                errors.push(
-                    'from: "hand" on "target" is only valid with to: "battlefield"'
-                );
-            }
             if (
                 "attacking" in entry &&
                 (!hasTarget || entry.to !== "battlefield")

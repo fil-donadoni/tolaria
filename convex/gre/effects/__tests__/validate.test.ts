@@ -1437,6 +1437,70 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
         expect(validateEffectScript(host({ effects }))).toEqual([]);
     });
 
+    // CR 702.49a (issue #2390) — the Ninjutsu hand source. Both riders are
+    // narrow on purpose: `from: "hand"` and `attacking` mean nothing except
+    // for one object entering the battlefield, and a shape that validated
+    // elsewhere would be a second way to say something the Op cannot do.
+    it('accepts from: "hand" with to: "battlefield" on the target shape', () => {
+        const effects: EffectOp[] = [
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                from: "hand",
+                to: "battlefield",
+                tapped: true,
+                attacking: true,
+            },
+        ];
+        expect(
+            validateAbilityEffectScript(host({ effects }), "Test Card")
+        ).toEqual([]);
+    });
+
+    it('rejects from: "hand" with any other destination', () => {
+        const effects: EffectOp[] = [
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                from: "hand",
+                to: "graveyard",
+            },
+        ];
+        const errors = validateAbilityEffectScript(
+            host({ effects }),
+            "Test Card"
+        );
+        expect(errors.some((e) => /field "from"/.test(e))).toBe(true);
+    });
+
+    it("rejects attacking outside the target shape into the battlefield", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                from: "hand",
+                to: "battlefield",
+                attacking: true,
+            },
+        ];
+        expect(
+            validateAbilityEffectScript(host({ effects }), "Test Card")
+        ).toEqual([]);
+        const onHand: EffectOp[] = [
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                to: "hand",
+                attacking: true,
+            } as EffectOp,
+        ];
+        const errors = validateAbilityEffectScript(
+            host({ effects: onHand }),
+            "Test Card"
+        );
+        expect(errors.some((e) => /field "attacking"/.test(e))).toBe(true);
+    });
+
     it("rejects isAttacking on a forEach graveyard selector", () => {
         const effects: EffectOp[] = [
             {

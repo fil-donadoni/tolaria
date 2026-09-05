@@ -1633,9 +1633,16 @@ export type CardInstanceState = {
      *  resolution and clears it as the permanent enters. Absent means the
      *  returned creature was attacking a PLAYER — the default defender, which
      *  `combat.attackTargets` records nothing for — so the entering creature
-     *  needs no entry there either. Cleared even on the CR 608.2b fizzle path
-     *  (the card left hand in response), so a later, unrelated ninjutsu
-     *  activation of the same card can never inherit a stale defender. */
+     *  needs no entry there either.
+     *
+     *  A stamp CAN outlive its activation: an ability that is countered, or
+     *  whose card left hand in response, never reaches the consuming Op, and
+     *  nothing on the fizzle path clears it. That is inert rather than unsafe,
+     *  and deliberately so — the ONLY writer is the cost payment
+     *  (`captureNinjutsuAttackTarget`), which re-stamps or deletes on every
+     *  activation, so the next ninjutsu of that card cannot read a stale
+     *  defender; and the only reader refuses a defender that is no longer a
+     *  live planeswalker or battle (CR 506.3c). */
     enterAttackingTarget?: string;
     /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
      *  for its Bestow cost and has not yet ceased to be bestowed
@@ -17349,18 +17356,38 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, cardInstanceId);
             if (!found) return;
             const card = found.card;
-            markAttacking(state, card);
             // CR 508.1a / 702.49c — a stamped planeswalker or battle defender
             // is consumed here; without one the creature attacks the defending
-            // player, for which `attackTargets` holds no entry.
+            // player, for which `attackTargets` holds no entry. Consumed even
+            // when it turns out to be dead, so no later entry inherits it.
             const stamped = card.enterAttackingTarget;
             delete card.enterAttackingTarget;
+            // CR 506.3c — a stamped defender that is no longer on the
+            // battlefield (the planeswalker was killed in response to the
+            // ninjutsu ability) means the creature "does enter the
+            // battlefield, but it's never considered to be an attacking
+            // creature". Marking it attacking anyway left it in
+            // `attackerIds` and `isAttacking` while attacking nothing, which
+            // every attacking-creature static, `combatRoleFilter:
+            // "attacking"` target and a chained ninjutsu would then believe.
             if (stamped) {
+                const defenderLive = state.players.some((p) =>
+                    p.battlefield.some(
+                        (c) =>
+                            c.id === stamped &&
+                            (c.types.includes("Planeswalker") ||
+                                c.types.includes("Battle"))
+                    )
+                );
+                if (!defenderLive) return;
+                markAttacking(state, card);
                 state.combat.attackTargets = {
                     ...(state.combat.attackTargets ?? {}),
                     [cardInstanceId]: stamped,
                 };
+                return;
             }
+            markAttacking(state, card);
         },
 
         removeFromCombat(target: TargetSelection): void {

@@ -12491,11 +12491,19 @@ export type EffectOp =
            *
            *  Composed AFTER the entry through the `enterCombatAttacking`
            *  primitive, the same way `tapped` is a direct `tap` after entry
-           *  rather than an as-enters replacement. CR 506.3c is what makes the
-           *  simplification exact here rather than approximate: such a creature
-           *  is attacking but was never DECLARED as an attacker, so there is no
-           *  declaration event whose ordering relative to the entry could
-           *  matter — nothing observes the gap. The defender comes from the
+           *  rather than an as-enters replacement. CR 506.3c removes the half
+           *  of the ordering that would otherwise be observable — such a
+           *  creature is attacking but was never DECLARED as an attacker, so
+           *  no "whenever a creature attacks" watcher can see the gap. What
+           *  the gap DOES leave visible is the entry itself: `PERMANENT_ENTERED`
+           *  and every "whenever a creature enters" watcher observe the
+           *  permanent untapped and not yet attacking, so a static keyed on
+           *  "attacking creatures get +X/+0" would snapshot the pre-attack
+           *  P/T. No shipped card is affected (no such static exists in the
+           *  pool), and closing it means threading the two flags through
+           *  `putFromHandOntoBattlefield` into the entry funnel — the same
+           *  as-enters gap `tapped` has carried on this Op since issue #1469.
+           *  tracked-by: #2390. The defender comes from the
            *  permanent's own `enterAttackingTarget` stamp (CR 702.49c),
            *  consumed by that primitive; with no stamp it attacks the defending
            *  player. Outside combat it is a clean no-op. */

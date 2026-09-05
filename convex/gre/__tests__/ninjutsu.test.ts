@@ -25,6 +25,7 @@ import { unblockedAttackerIds } from "../combat";
 import { ninjutsuReturnCandidateIds } from "../ninjutsu";
 import { refreshExpectedInput } from "../expectedInput";
 import { drought } from "../../cards/sets/ice/white";
+import { wrennAndSix } from "../../cards/sets/mh1/multicolor";
 import { swamp } from "../../cards/sets/lea/colorless";
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
@@ -66,6 +67,14 @@ function combatBoard(opts: {
         controllerId: "p1",
         ownerId: "p1",
     });
+    // CR 508.1a — a real planeswalker for p2, so an `attackTargets` entry
+    // names something that is actually on the battlefield (CR 506.3c cares).
+    const walker = makeInstance(wrennAndSix.id, {
+        id: "pw-1",
+        controllerId: "p2",
+        ownerId: "p2",
+        counters: { loyalty: 3 },
+    });
     const state = makeState({
         phase: "DECLARE_BLOCKERS",
         activePlayerId: "p1",
@@ -79,7 +88,7 @@ function combatBoard(opts: {
                 // the immediate-commit path unless a real pick is owed.
                 manaPool: { W: 0, U: 1, B: 1, R: 0, G: 0, C: 2 },
             }),
-            makePlayer("p2"),
+            makePlayer("p2", { battlefield: [walker] }),
         ],
         combat: {
             attackerIds: [...opts.attackerIds],
@@ -214,6 +223,32 @@ describe("Ninjutsu activation and resolution (CR 702.49a)", () => {
         expect(battlefieldOf(state, "p1").some((c) => c.id === "a1")).toBe(
             false
         );
+    });
+
+    it("never becomes an attacker when the stamped planeswalker died in response (CR 506.3c)", () => {
+        const { state, shinobiId } = combatBoard({
+            attackerIds: ["a1"],
+            attackTargets: { a1: "pw-1" },
+        });
+
+        ninjutsu(state, shinobiId);
+        // The defender is killed while the ability is on the stack.
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "pw-1"
+        );
+        resolveTopOfStack(state);
+
+        const shinobi = battlefieldOf(state, "p1").find(
+            (c) => c.id === shinobiId
+        );
+        // CR 506.3c — "that creature does enter the battlefield, but it's
+        // never considered to be an attacking creature."
+        expect(shinobi).toBeDefined();
+        expect(shinobi!.isAttacking).toBeUndefined();
+        expect(state.combat!.attackerIds).not.toContain(shinobiId);
+        expect(state.combat!.attackTargets?.[shinobiId]).toBeUndefined();
+        // The stamp is consumed either way — no later entry inherits it.
+        expect(shinobi!.enterAttackingTarget).toBeUndefined();
     });
 
     it("attacks the defending player when the returned creature did (CR 702.49c)", () => {
