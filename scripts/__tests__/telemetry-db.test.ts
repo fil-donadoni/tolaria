@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-    costOf,
-    llmDedupeSql,
-    normalizeModel,
-    RESPONSE_IDENTITY_COLUMNS,
-} from "../lib/telemetry-db";
+import { costOf, normalizeModel } from "../lib/telemetry-db";
 
 /**
  * Model pricing (telemetry-db.ts). The DeepSeek rows are the off-peak rates
@@ -54,47 +49,5 @@ describe("normalizeModel", () => {
     it("strips the [1m] suffix and dated snapshots", () => {
         expect(normalizeModel("claude-opus-5[1m]")).toBe("claude-opus-5");
         expect(normalizeModel("claude-opus-5-20250829")).toBe("claude-opus-5");
-    });
-});
-
-/**
- * Response identity (issue #3078). One API response with several content
- * blocks writes one transcript line per block, each repeating the response's
- * full usage payload; keying `llm` on the per-line `uuid` billed it once per
- * block. New rows key on `message.id`, and the rows ingested before that fix
- * carry no response id at all — so the one-time migration has to recognise a
- * repeat from its payload, and these columns are the whole of that judgment.
- */
-describe("RESPONSE_IDENTITY_COLUMNS", () => {
-    it("includes every usage counter, so two distinct responses never merge", () => {
-        // These are the four fields that MOVE between consecutive responses:
-        // the later prompt contains the earlier output. Dropping any one lets
-        // the migration delete a real response that agreed on the rest.
-        for (const col of ["in_tok", "out_tok", "cache_read", "cache_write"]) {
-            expect(RESPONSE_IDENTITY_COLUMNS).toContain(col);
-        }
-    });
-
-    it("scopes a group to one session, surface and instant", () => {
-        // Without these, two sessions' equally-sized responses collapse into
-        // one row and a whole session's cost silently disappears.
-        for (const col of ["session", "harness", "agent_id", "surface", "ts"]) {
-            expect(RESPONSE_IDENTITY_COLUMNS).toContain(col);
-        }
-    });
-});
-
-describe("llmDedupeSql", () => {
-    it("keeps one row per response and deletes only the repeats", () => {
-        const sql = llmDedupeSql();
-        expect(sql).toContain("DELETE FROM llm WHERE uuid NOT IN");
-        expect(sql).toContain("SELECT min(uuid) FROM llm GROUP BY");
-    });
-
-    it("groups by exactly the identity columns, never a hand-written list", () => {
-        // The statement is generated from the constant, so a column added there
-        // reaches the migration without anyone editing SQL.
-        const groupBy = llmDedupeSql().split("GROUP BY ")[1].replace(")", "");
-        expect(groupBy.split(", ")).toEqual([...RESPONSE_IDENTITY_COLUMNS]);
     });
 });

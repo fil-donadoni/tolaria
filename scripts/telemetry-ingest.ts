@@ -31,7 +31,6 @@ import {
     costOf,
     dayHour,
     issueFromDescription,
-    llmDedupeSql,
     normalizeModel,
 } from "./lib/telemetry-db.ts";
 import {
@@ -510,36 +509,97 @@ function backfillSessions(db: Sqlite): void {
  * One-time collapse of the rows that one API response wrote before the insert
  * key moved from the transcript `uuid` to `message.id` (issue #3078).
  *
- * The byte cursors are past those lines, so re-running the ingest would never
- * revisit them and every historical cost figure would stay 42% high. The rows
- * hold no `message.id` — it was never stored — so the response is identified by
- * what a repeated payload actually looks like: same session, same surface, same
- * second, same model, and all four token counters equal. Two DISTINCT responses
- * cannot collide on that, because the second one's prompt contains the first
- * one's output, which moves `in_tok`/`cache_read`/`cache_write`.
+ * The byte cursors are past those lines, so an ordinary re-run never revisits
+ * them and every historical figure would stay high. This re-reads the
+ * transcripts for the ONE field that was thrown away — the response id — and
+ * re-keys each row onto it. `UPDATE OR REPLACE` does the collapsing: the first
+ * line of a response renames its row to the response id, and every later line
+ * of the same response replaces that row rather than adding one. The rows carry
+ * identical payloads, so which one survives does not matter.
+ *
+ * It is re-keyed rather than pattern-matched because the payload is NOT a safe
+ * identity. Grouping by (session, model, all four counters) — the obvious
+ * heuristic — merges rows measured **428578 seconds apart** in this very store:
+ * two cheap responses in one long session collide on every counter without
+ * being the same response. Only `message.id` actually says.
  *
  * `agent_runs` is rebuilt from `llm` on every ingest, so it corrects itself
  * once this has run.
  */
-function dedupeLlmResponses(db: Sqlite): number {
+function backfillResponseIds(db: Sqlite): number {
     const done = db
         .query<
             { v: string },
             []
-        >("SELECT v FROM meta WHERE k = 'llm_response_dedupe_v1'")
+        >("SELECT v FROM meta WHERE k = 'llm_response_id_backfill_v1'")
         .get();
     if (done) return 0;
 
+    const root = join(PROJECTS_ROOT, PROJECT_SLUG);
+    const files: string[] = [];
+    if (existsSync(root)) {
+        for (const entry of readdirSync(root)) {
+            const full = join(root, entry);
+            if (entry.endsWith(".jsonl")) {
+                files.push(full);
+                continue;
+            }
+            const subs = join(full, "subagents");
+            if (!existsSync(subs)) continue;
+            for (const f of readdirSync(subs))
+                if (f.endsWith(".jsonl")) files.push(join(subs, f));
+        }
+    }
+
+    // Only rows this store actually holds are worth a statement, and the set
+    // doubles as the guard against re-keying a row that is already correct.
+    const known = new Set(
+        db
+            .query<{ uuid: string }, []>("SELECT uuid FROM llm")
+            .all()
+            .map((r) => r.uuid)
+    );
     const before = db
         .query<{ n: number }, []>("SELECT count(*) AS n FROM llm")
         .get()!.n;
-    db.run(llmDedupeSql());
+
+    const rekey = db.prepare(
+        "UPDATE OR REPLACE llm SET uuid = ? WHERE uuid = ?"
+    );
+    db.transaction(() => {
+        for (const file of files) {
+            let text: string;
+            try {
+                text = readFileSync(file, "utf8");
+            } catch {
+                continue;
+            }
+            for (const line of text.split("\n")) {
+                // Cheap substring gate before the parse — a transcript is
+                // mostly lines this pass has no use for.
+                if (!line.includes('"assistant"') || !line.includes('"msg_'))
+                    continue;
+                let e: TranscriptLine;
+                try {
+                    e = JSON.parse(line);
+                } catch {
+                    continue;
+                }
+                const id = e.message?.id;
+                const uuid = e.uuid;
+                if (!id || !uuid || id === uuid || !known.has(uuid)) continue;
+                rekey.run(id, uuid);
+                known.delete(uuid);
+                known.add(id);
+            }
+        }
+    })();
+
     const after = db
         .query<{ n: number }, []>("SELECT count(*) AS n FROM llm")
         .get()!.n;
-
     db.run(
-        "INSERT OR REPLACE INTO meta (k, v) VALUES ('llm_response_dedupe_v1', ?)",
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('llm_response_id_backfill_v1', ?)",
         [String(Date.now())]
     );
     return before - after;
@@ -947,7 +1007,7 @@ async function main(): Promise<void> {
     const oc = ingestOpencode(db, PROJECT_DIR, OPENCODE_DB_PATH);
     const ocFacts = await ingestOpencodeFacts(db, OPENCODE_FACTS);
     // Before the agent_runs rebuild, which reads straight off `llm`.
-    const deduped = dedupeLlmResponses(db);
+    const deduped = backfillResponseIds(db);
     const runs = rebuildAgentRuns(db);
     const attributed = attributeIssues(db);
     const fetched = refreshIssueMeta(db);

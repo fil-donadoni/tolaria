@@ -14,8 +14,8 @@ THIS session's context.
 One long context is the whole design (ADR 0110), and its one weakness is that
 **nothing ever leaves it**. Every token a tool result adds is re-read as
 cache-read by every later turn, so a session's cost is super-linear in its
-length: measured over 2026-08-28 → 2026-09-05, a turn cost **$0.084 at 88k of
-context and $0.199 at 349k** — 2.4x — and the back half of a session burned
+length: measured over 2026-08-28 → 2026-09-05, a turn cost **$0.074 at 93k of
+context and $0.186 at 353k** — 2.5x — and the back half of a session burned
 **62% of main-thread spend for 50% of the turns**. The baseline and the command
 that re-derives it: `docs/agents/quality-gates.md` § Context hygiene.
 
@@ -28,7 +28,8 @@ This is prose, not a gate — deliberately (issue #3078). It is three habits:
    reactions and the project cards). One field is one field:
    `gh pr view N --json state --jq .state`, never a full view to check whether a
    PR is still open. `--jq` any list down to the columns you will use, and cap
-   `--limit` — an unfielded `gh issue list` measured 7.6k tokens in one call.
+   `--limit` — an unfielded `gh issue list` measured 7.6k tokens in one call,
+   and `gh` as a bucket runs 919 tokens a call against a 512-token `git`.
 
 2. **Noisy stdout goes to a file; the verdict comes back.** Gates, test runs,
    builds and broad searches reach the transcript as an exit code plus the lines
@@ -43,7 +44,7 @@ This is prose, not a gate — deliberately (issue #3078). It is three habits:
     is the idiom it is asking for. The same applies to reading: `grep -c` or
     `grep -n 'export function'` before `cat`, `sed -n 'A,Bp'` for a known region,
     `--files-with-matches` when you only need the list. `fs` calls were the
-    single largest sink measured — 7.4k calls, 4.9M tokens, p90 2.1k per call.
+    single largest sink measured — 7.9k calls, 5.2M tokens, p90 2.1k per call.
 
 3. **Never poll.** A `sleep N; echo` round-trip is a full-price turn at tail
    context carrying zero information, and 437 of them were measured in one week.
