@@ -475,9 +475,15 @@ reap_orphan_claims() {
 # the session tier already works (`/next-issue` §4; the telemetry records
 # sonnet-main sessions spawning opus reviewers).
 #
+# `--exclude-hitl` (#3088). An HITL issue asks for a human to look before it
+# merges; an unattended pass ends in `land`, which merges. So the driver does
+# not "handle" that work carefully — it never considers it, and says so to the
+# planner rather than growing a second, shell-side notion of eligibility here.
+# An interactive `/next-issue` passes no such flag and still sees them.
+#
 # CONSUMED, NOT REIMPLEMENTED. The ordering (board Priority, then bugs, then
-# oldest lineage) and the label→tier resolution both belong to `queue:plan`;
-# this reads `batch[0]` off its plan and nothing more. The read goes through
+# oldest lineage), the eligibility filter and the label→tier resolution all
+# belong to `queue:plan`; this reads `batch[0]` off its plan and nothing more. The read goes through
 # `bun -e` rather than a `grep -o` on the JSON because the plan's OTHER arrays
 # (`deferred`, `skipped`) carry `number` fields too — a first-match scan
 # silently returns a DEFERRED issue's number the moment the batch is empty,
@@ -499,8 +505,8 @@ resolve_head() {
     # queue resolved nothing at all for exactly this reason. Only stdout is
     # the plan.
     _plan_err=$(mktemp)
-    if ! _plan=$(bun run queue:plan --cap 1 2>"$_plan_err"); then
-        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1) — this pass falls back to the bare prompt, so the pass picks its own issue on this session's tier." >&2
+    if ! _plan=$(bun run queue:plan --cap 1 --exclude-hitl 2>"$_plan_err"); then
+        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1 --exclude-hitl) — this pass falls back to the bare prompt, so the pass picks its own issue on this session's tier." >&2
         cat "$_plan_err" >&2 || true
         rm -f "$_plan_err"
         return 1

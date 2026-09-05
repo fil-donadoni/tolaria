@@ -140,6 +140,24 @@ export interface PlanConfig {
      * actual touched paths.
      */
     inferredTargetFiles?: Record<number, string[]>;
+    /**
+     * Leave HITL candidates out of the batch entirely (#3088).
+     *
+     * `HITL` in a body means "an agent may implement this, but a human must
+     * look before it merges". That is a precondition on the CALLER, not a
+     * property of the issue, which is why this is a config flag and not a
+     * blanket rule: an interactive session IS the human the flag asks for, so
+     * it still admits them and the default stays `false`. An unattended run
+     * cannot supply one — and since ADR 0110 retired the merge-train, the pass
+     * it is handed to ends in `land`, which merges. So for the AFK driver the
+     * flag is not "handle carefully", it is "never consider": the work is not
+     * eligible for a process with no person in it.
+     *
+     * Excluded issues are DEFERRED, not skipped. Nothing is wrong with them and
+     * no human action is owed — a `SkipAction` would be a lie, and would put
+     * perfectly good issues in front of whoever triages malformed ones.
+     */
+    excludeHitl?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -702,6 +720,15 @@ export function planBatch(
                     .map((f) => `${f.rule}: ${f.message}`)
                     .join("; "),
                 action: lintAction(lintBlockers),
+            });
+            continue;
+        }
+
+        if (config.excludeHitl && isHitl(detail.body)) {
+            deferred.push({
+                number: issue.number,
+                reason: "HITL — needs a human before it merges, so an unattended run never considers it",
+                conflictsWith: null,
             });
             continue;
         }

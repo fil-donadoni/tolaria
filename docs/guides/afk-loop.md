@@ -121,6 +121,15 @@ rather than in the [pass](#g-pass):
 - The [pass](#g-pass) no longer pays for the [queue](#g-queue) read inside the
   model's context.
 
+**An unattended run never sees HITL work.** `HITL` in an issue body means a
+person must look before the PR merges; a [pass](#g-pass) ends in `land`, which
+merges. So the pre-flight asks the planner to exclude those issues outright —
+they are not handled carefully, they are not candidates. They are reported as
+deferred, not skipped: nothing is wrong with them and no action is owed, they
+are simply not this caller's work. An interactive `/next-issue` passes no such
+exclusion and still picks them up, because a human at the keyboard is exactly
+the precondition the flag is asking for.
+
 It resolves nothing else — review routing is untouched, and a reviewer subagent
 still escalates above the session tier on its own (`/next-issue` §4). If
 `queue:plan` cannot answer, the pre-flight degrades **loudly** to the bare

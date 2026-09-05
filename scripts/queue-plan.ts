@@ -588,6 +588,10 @@ function main(): void {
         defaultImplModel: DEFAULTS.defaultImplModel,
         now: new Date().toISOString(),
         inferredTargetFiles: inferredTargetFiles(),
+        // Opt-in, and only the AFK driver passes it (#3088): an interactive
+        // session is the human an HITL flag is asking for, so it keeps seeing
+        // that work. See `PlanConfig.excludeHitl`.
+        excludeHitl: process.argv.includes("--exclude-hitl"),
     };
 
     const plan = planBatch(issues, config, port);

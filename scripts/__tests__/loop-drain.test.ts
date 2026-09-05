@@ -1235,6 +1235,40 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         ]);
     });
 
+    it("asks the planner to EXCLUDE HITL work — an unattended pass cannot supply the human it wants (#3088)", () => {
+        // HITL means "a person looks before it merges". Since ADR 0110 retired
+        // the merge-train the pass ends in `land`, which merges — so an
+        // unattended run must never be handed that work at all. Asserted on
+        // the argv the driver passes the planner, because the eligibility rule
+        // lives in the planner and the driver's only job is to ask for it: a
+        // shell-side filter here would be a second definition of eligible.
+        stubGhCountingFrom(5);
+        const planArgvFile = path.join(tmp, "plan-argv");
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo "$*" > "${planArgvFile}"`,
+                `  cat <<'PLANEOF'`,
+                planJson(4242, "sonnet"),
+                `PLANEOF`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.readFileSync(planArgvFile, "utf8")).toContain(
+            "--exclude-hitl"
+        );
+    });
+
     it("parses a plan even though `bun run` prints a banner on stderr (regression)", () => {
         // The bug a real dry run found and no unit test could: the pre-flight
         // captured `bun run queue:plan 2>&1`, so `bun run`'s own

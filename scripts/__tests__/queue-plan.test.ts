@@ -954,6 +954,71 @@ describe("queue planner — model routing (issue #2181)", () => {
     });
 });
 
+describe("HITL is not eligible for an unattended run (#3088)", () => {
+    const hitlBody = (files: string[]) =>
+        `⚠️ HITL\n\n${body({ targetFiles: files })}`;
+    const AFK: PlanConfig = { ...CONFIG, excludeHitl: true };
+
+    it("admits HITL by default — an interactive session IS the human the flag asks for", () => {
+        const issues = [issue(100, {})];
+        const plan = planBatch(
+            issues,
+            CONFIG,
+            makePort({ 100: { body: hitlBody(["src/a.ts"]) } })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([100]);
+    });
+
+    it("leaves an HITL issue out of the batch when asked to exclude it", () => {
+        const issues = [issue(100, {})];
+        const plan = planBatch(
+            issues,
+            AFK,
+            makePort({ 100: { body: hitlBody(["src/a.ts"]) } })
+        );
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("DEFERS it rather than skipping it — nothing is wrong with it and no human action is owed", () => {
+        // A SkipAction means "the loop must DO this about the issue"
+        // (relabel-human / strip-ready / needs-info). An HITL issue is
+        // well-formed, unblocked and ready; it is simply not this caller's
+        // work. Filing it as a skip would put good issues in front of whoever
+        // triages malformed ones.
+        const issues = [issue(100, {})];
+        const plan = planBatch(
+            issues,
+            AFK,
+            makePort({ 100: { body: hitlBody(["src/a.ts"]) } })
+        );
+        expect(plan.skipped).toEqual([]);
+        expect(plan.deferred).toEqual([
+            {
+                number: 100,
+                reason: "HITL — needs a human before it merges, so an unattended run never considers it",
+                conflictsWith: null,
+            },
+        ]);
+    });
+
+    it("keeps draining PAST an HITL head instead of stopping at it", () => {
+        // The behaviour the driver depends on: the pre-flight takes batch[0],
+        // so an HITL issue at the head must yield the next ELIGIBLE issue, not
+        // an empty batch. Dropping the head and stopping would stall the drain
+        // exactly as the tier mismatch used to.
+        const issues = [issue(100, {}), issue(101, {})];
+        const plan = planBatch(
+            issues,
+            { ...AFK, batchCap: 1 },
+            makePort({
+                100: { body: hitlBody(["src/a.ts"]) },
+                101: { body: body({ targetFiles: ["src/b.ts"] }) },
+            })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([101]);
+    });
+});
+
 describe("queue planner — determinism and cost (issue #2181)", () => {
     it("returns the same plan for the same snapshot", () => {
         const details: Record<number, { body: string }> = {};
