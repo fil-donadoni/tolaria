@@ -493,11 +493,19 @@ RESOLVED_MODEL=""
 resolve_head() {
     RESOLVED_ISSUE=""
     RESOLVED_MODEL=""
-    if ! _plan=$(bun run queue:plan --cap 1 2>&1); then
+    # stderr goes to a FILE, never into `$_plan`: `bun run <script>` prints a
+    # `$ bun scripts/… ` banner on stderr, and folding that into the captured
+    # stdout makes the JSON unparseable — a real dry run against a 230-issue
+    # queue resolved nothing at all for exactly this reason. Only stdout is
+    # the plan.
+    _plan_err=$(mktemp)
+    if ! _plan=$(bun run queue:plan --cap 1 2>"$_plan_err"); then
         echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1) — this pass falls back to the bare prompt, so the pass picks its own issue on this session's tier." >&2
-        printf '%s\n' "$_plan" >&2
+        cat "$_plan_err" >&2 || true
+        rm -f "$_plan_err"
         return 1
     fi
+    rm -f "$_plan_err"
     # `bun -e` reads the plan off the environment, never argv: a plan is
     # multi-KB of JSON with quotes in it, and interpolating that into a shell
     # word is how a quoting bug becomes an arbitrary-command bug.

@@ -233,7 +233,12 @@ const stubBunDefaultBody = (): string =>
         `case "$*" in`,
         `  *loop-doctor.ts*) exit 0 ;;`,
         `esac`,
+        // `bun run <script>` prints this banner on STDERR before the script's
+        // own output. Reproducing it is load-bearing: the pre-flight's first
+        // implementation captured `2>&1` and could not parse a single real
+        // plan, while every stub here was silent on stderr and stayed green.
         `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+        `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
         `  cat <<'PLANEOF'`,
         planJson(101, "sonnet"),
         `PLANEOF`,
@@ -255,6 +260,7 @@ const stubBunPlanHead = (number: number, model: string): void => {
             `  *loop-doctor.ts*) exit 0 ;;`,
             `esac`,
             `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+            `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
             `  cat <<'PLANEOF'`,
             planJson(number, model),
             `PLANEOF`,
@@ -1197,6 +1203,41 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         stubClaudeProgress();
         const r = run({ args: ["--max-passes", "1"] });
         expect(r.stderr).toMatch(/pre-flight FAILED/);
+    });
+
+    it("parses a plan even though `bun run` prints a banner on stderr (regression)", () => {
+        // The bug a real dry run found and no unit test could: the pre-flight
+        // captured `bun run queue:plan 2>&1`, so `bun run`'s own
+        // `$ bun scripts/queue-plan.ts …` banner landed inside the captured
+        // stdout and JSON.parse threw on every real plan. Against a 230-issue
+        // queue it resolved NOTHING, silently degrading every pass. Only
+        // stdout is the plan.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
+                `  echo "warning: something on stderr" >&2`,
+                `  cat <<'PLANEOF'`,
+                planJson(2288, "opus"),
+                `PLANEOF`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        expect(argvForOnePass()).toEqual([
+            "argc=4",
+            "arg=--model",
+            "arg=opus",
+            "arg=-p",
+            "arg=/next-issue 2288",
+        ]);
     });
 
     it("resolves nothing when an empty batch is all the planner returns — a deferred issue's number is not a head", () => {
