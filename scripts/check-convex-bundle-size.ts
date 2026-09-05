@@ -36,38 +36,16 @@
  */
 import { join, dirname } from "node:path";
 import {
+    CONVEX_BUNDLE_BUDGET_BYTES,
     CONVEX_CODE_SIZE_LIMIT_BYTES,
     CONVEX_MAX_USER_MODULES,
+    CONVEX_USER_MODULE_BUDGET,
+    MEASURED_BYTES_PER_POOL_ROW,
     compiledPoolRows,
     measureConvexBundle,
 } from "./lib/convex-bundle-size";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-
-/**
- * 30 MiB, against Convex's hard 32 MiB. The 2 MiB gap is the room a red gate
- * needs to be actionable rather than an outage: a deploy that is already
- * refused cannot be fixed by a smaller next commit. At the measured
- * 2,086 B/row it is ~1,000 rows of warning distance, and the 2 MB budget on
- * `data/oracle-compiled-pool.json` (`oracle-pool-size.test.ts`) fires far
- * sooner than that — this guard is the backstop for everything else that
- * grows the server bundle, not only the pool.
- */
-export const CONVEX_BUNDLE_BUDGET_BYTES = 30 * 1024 * 1024;
-
-/**
- * `MAX_USER_MODULES` is 4096 (`crates/common/src/knobs.rs`), and it counts
- * files under `convex/`, excluding `_deps/**` chunks
- * (`crates/application/src/lib.rs`: "Too many function files ({} > maximum
- * {}) in \"convex/\""). Every hand-written card definition is one such file,
- * so this is a SECOND ceiling the corpus grows into, on a different axis from
- * bytes. 3,072 is 75% of it; at 1,455 today there is no risk, and the point of
- * the row is that the number is now visible in a receipt.
- */
-export const CONVEX_USER_MODULE_BUDGET = 3072;
-
-/** Measured at issue #3051 by re-bundling at +2,000 and +6,000 pool rows. */
-const MEASURED_BYTES_PER_POOL_ROW = 2086;
 
 function fmt(n: number): string {
     return n.toLocaleString("en-US");
@@ -132,4 +110,6 @@ async function main(): Promise<void> {
     }
 }
 
-await main();
+// Guarded: this file is a CLI, and a stray import of it must not run the
+// gate (and its `process.exit`) as a side effect.
+if (import.meta.main) await main();

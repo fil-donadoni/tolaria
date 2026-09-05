@@ -81,6 +81,45 @@ export const CONVEX_CODE_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
 /** `MAX_USER_MODULES` default in the open-source backend's knobs. */
 export const CONVEX_MAX_USER_MODULES = 4096;
 
+/**
+ * 30 MiB, against Convex's hard 32 MiB. The 2 MiB gap is the room a red gate
+ * needs to be actionable rather than an outage: a deploy that is already
+ * refused cannot be fixed by a smaller next commit. At the measured
+ * 2,086 B/row (below) it is ~1,000 rows of warning distance, and the 2 MB
+ * budget on `data/oracle-compiled-pool.json`
+ * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner than that —
+ * this guard is the backstop for everything else that grows the server
+ * bundle, not only the pool.
+ *
+ * Crossing it is the signal to stop bundling the compiled pool server-side,
+ * not to raise the number. See ADR 0113 § Amendment.
+ */
+export const CONVEX_BUNDLE_BUDGET_BYTES = 30 * 1024 * 1024;
+
+/**
+ * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
+ * chunks (`crates/application/src/lib.rs`: "Too many function files ({} >
+ * maximum {}) in \"convex/\""). Every hand-written card definition is one
+ * such file, so this is a SECOND ceiling the corpus grows into, on a
+ * different axis from bytes. 3,072 is 75% of Convex's 4,096; at 1,455 today
+ * there is no risk, and the point of the row is that the number is now
+ * visible in a receipt.
+ */
+export const CONVEX_USER_MODULE_BUDGET = 3072;
+
+/**
+ * Marginal bundled cost of one compiled-pool row — 1,258 B of source plus
+ * 828 B of source map — measured at issue #3051 by re-bundling the real
+ * `convex/` tree at +2,000 and +6,000 synthetic rows (uniquified `id` and
+ * `name`), linear to three digits across both deltas. Six times the 347 B/row
+ * of the raw definition: the pool is inlined TWICE (the shared isolate chunk,
+ * and the `"use node"` module that imports it, whose graph is separate), the
+ * bundled object literal is fatter than the JSON it came from (Convex sets
+ * `minifyWhitespace: false` — it breaks their source maps), and source maps
+ * count.
+ */
+export const MEASURED_BYTES_PER_POOL_ROW = 2086;
+
 function* walk(dir: string): Generator<string> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const full = join(dir, entry.name);

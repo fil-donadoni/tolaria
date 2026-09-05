@@ -2,14 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+    CONVEX_BUNDLE_BUDGET_BYTES,
     CONVEX_CODE_SIZE_LIMIT_BYTES,
     CONVEX_MAX_USER_MODULES,
+    CONVEX_USER_MODULE_BUDGET,
     measureConvexBundle,
 } from "../lib/convex-bundle-size";
-import {
-    CONVEX_BUNDLE_BUDGET_BYTES,
-    CONVEX_USER_MODULE_BUDGET,
-} from "../check-convex-bundle-size";
 
 /**
  * Gate guard for the Convex function bundle — the server-side ceiling ADR
@@ -35,6 +33,12 @@ import {
  */
 
 const REPO_ROOT = resolve(__dirname, "..", "..");
+
+// The budgets live in the lib, NOT in `scripts/check-convex-bundle-size.ts`:
+// that script is a CLI with a top-level `await main()`, so importing a
+// constant from it would RUN it — and its `process.exit(1)` would kill the
+// suite at collection instead of failing an assertion. Observed, not feared
+// (issue #3051 proof-of-failure round 1).
 
 /** One esbuild pass for the whole file — it costs ~1s, the assertions are cheap. */
 let measured: ReturnType<typeof measureConvexBundle> | undefined;
