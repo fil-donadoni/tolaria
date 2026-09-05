@@ -192,17 +192,85 @@ const writeBunUsageWindowStub = (body: string): void => {
     );
 };
 
-/** Body of the default `bun` stub: no-op the orphan-claim sweep, forward
- * everything else to the real `bun`. */
+/** A one-issue `queue:plan` plan, JSON-encoded for a shell stub to echo. The
+ *  driver's pre-flight (#3083) reads `batch[0].number` and `batch[0].model`
+ *  off this and nothing else, so the other fields are present only because a
+ *  real plan has them. */
+const planJson = (number: number, model: string): string =>
+    JSON.stringify({
+        version: 1,
+        lane: "engine",
+        batch: [
+            {
+                number,
+                title: `issue ${number}`,
+                type: "feat",
+                model,
+                hitl: false,
+                targetFiles: [],
+                blastRadius: "declared",
+                lane: "engine",
+                reason: "admitted",
+            },
+        ],
+        deferred: [],
+        skipped: [],
+        staleClaims: [],
+    });
+
+/** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the
+ * pre-flight's `queue:plan` with a one-issue plan, forward everything else to
+ * the real `bun`.
+ *
+ * The `queue:plan` branch is not optional politeness: without it every test in
+ * this file would fork the REAL planner — which calls out to `gh` — from a
+ * scratch cwd. That is the same isolation hole the file docstring describes
+ * for `claude`, and it is closed the same way, by default rather than per
+ * test. `bun -e` (the pre-flight's JSON read, and `claims_held_check`) still
+ * falls through to the real `bun`, which is what those need. */
 const stubBunDefaultBody = (): string =>
     [
         `case "$*" in`,
         `  *loop-doctor.ts*) exit 0 ;;`,
         `esac`,
+        // `bun run <script>` prints this banner on STDERR before the script's
+        // own output. Reproducing it is load-bearing: the pre-flight's first
+        // implementation captured `2>&1` and could not parse a single real
+        // plan, while every stub here was silent on stderr and stayed green.
+        `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+        `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
+        `  cat <<'PLANEOF'`,
+        planJson(101, "sonnet"),
+        `PLANEOF`,
+        `  exit 0`,
+        `fi`,
         `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
         `echo "unstubbed bun invocation in test: $*" >&2`,
         `exit 1`,
     ].join("\n");
+
+/** `bun` stub whose `queue:plan` branch answers with a plan naming `number`
+ *  on `model` — the pre-flight's only input. Everything else behaves as the
+ *  default stub does. */
+const stubBunPlanHead = (number: number, model: string): void => {
+    writeStub(
+        "bun",
+        [
+            `case "$*" in`,
+            `  *loop-doctor.ts*) exit 0 ;;`,
+            `esac`,
+            `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+            `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
+            `  cat <<'PLANEOF'`,
+            planJson(number, model),
+            `PLANEOF`,
+            `  exit 0`,
+            `fi`,
+            `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+            `exit 1`,
+        ].join("\n")
+    );
+};
 
 /** `bun` stub whose `loop-doctor.ts --release` branch runs `body` (which owns
  * its own exit code — that is the point, each test picks a different sweep
@@ -751,7 +819,9 @@ describe("background-wait ceiling — a pass runs to completion (#2622)", () => 
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p/
+            // `claude --model <tier> -p` on the default path (#3083) — the
+            // assertion is about the ceiling override, not the tier flag.
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model \S+ -p/
         );
     });
 });
@@ -1028,6 +1098,252 @@ describe("--claude-args warning", () => {
     });
 });
 
+describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
+    /** One pass with an argv-recording `claude`, then stop on max-passes.
+     *  Returns the argv the driver handed to `claude`. */
+    const argvForOnePass = (extraArgs: string[] = []): string[] => {
+        const argvFile = path.join(tmp, "claude-argv");
+        writeStub(
+            "claude",
+            [
+                `{ echo "argc=$#"; for a in "$@"; do echo "arg=$a"; done; } > "${argvFile}"`,
+                `echo "recorded"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({ args: ["--max-passes", "1", ...extraArgs] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=max-passes/);
+        return fs.readFileSync(argvFile, "utf8").trim().split("\n");
+    };
+
+    it("drains a queue whose head is ESCALATED instead of stalling on it", () => {
+        // The wall this exists to remove: /next-issue §1 stops the pass —
+        // BEFORE claiming — when the issue's model:* label outranks the
+        // session tier. Nothing gets claimed, so the same issue is at the head
+        // next pass, and an unattended run dies on no-progress with the queue
+        // untouched. 47 of 233 open ready-for-agent issues carry model:opus.
+        stubGhCountingFrom(5);
+        stubBunPlanHead(2707, "opus");
+        expect(argvForOnePass()).toEqual([
+            "argc=4",
+            "arg=--model",
+            "arg=opus",
+            "arg=-p",
+            "arg=/next-issue 2707",
+        ]);
+    });
+
+    it("uses the DEFAULT tier for an unlabelled head, not a blanket escalation", () => {
+        // The other half of the same guard: routing follows the label, so an
+        // unlabelled issue must not be dragged up to the escalated tier just
+        // because the previous one was.
+        stubGhCountingFrom(5);
+        stubBunPlanHead(3083, "sonnet");
+        expect(argvForOnePass()).toEqual([
+            "argc=4",
+            "arg=--model",
+            "arg=sonnet",
+            "arg=-p",
+            "arg=/next-issue 3083",
+        ]);
+    });
+
+    it("the --dry-run echo names the resolved issue and tier", () => {
+        // A dry run is how a human checks a night BEFORE committing to it; an
+        // echo that hid which issue and which tier were resolved would make
+        // the pre-flight unauditable.
+        stubGhCountingFrom(5);
+        stubBunPlanHead(2707, "opus");
+        const r = run({ args: ["--max-passes", "1", "--dry-run"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(/issue #2707 on tier opus/);
+        expect(r.stderr).toMatch(
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model opus -p "\/next-issue 2707"/
+        );
+    });
+
+    it("degrades LOUDLY to the bare prompt when the planner cannot answer, rather than ending the run", () => {
+        // Non-fatal by construction, like the orphan-claim sweep: a planner
+        // outage at 3am must not end a budgeted night. It must also never be
+        // silent — the degraded pass carries back the stall risk this
+        // pre-flight exists to remove.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo "queue:plan: gh API error" >&2`,
+                `  exit 1`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        const argv = argvForOnePass();
+        expect(argv).toEqual(["argc=2", "arg=-p", "arg=/next-issue"]);
+    });
+
+    it("says so on stderr when it degrades, never silently", () => {
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then exit 1; fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        stubClaudeProgress();
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.stderr).toMatch(/pre-flight FAILED/);
+    });
+
+    it("falls back rather than trusting a head the planner returned in an unusable shape", () => {
+        // A plan whose batch[0].number is not an integer must not reach the
+        // pass as a prompt argument — `/next-issue not-a-number` burns a pass,
+        // and unattended it burns one EVERY pass. Two layers reject it (the
+        // `bun -e` type check, then the shell revalidation of what it
+        // returned) and this stays green with either one alone: it was proven
+        // red only with BOTH removed, which is the honest statement of what it
+        // guards — the pair, not one of them.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo '{"version":1,"batch":[{"number":"not-a-number","model":"opus"}],"deferred":[],"skipped":[],"staleClaims":[]}'`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        expect(argvForOnePass()).toEqual([
+            "argc=2",
+            "arg=-p",
+            "arg=/next-issue",
+        ]);
+    });
+
+    it("parses a plan even though `bun run` prints a banner on stderr (regression)", () => {
+        // The bug a real dry run found and no unit test could: the pre-flight
+        // captured `bun run queue:plan 2>&1`, so `bun run`'s own
+        // `$ bun scripts/queue-plan.ts …` banner landed inside the captured
+        // stdout and JSON.parse threw on every real plan. Against a 230-issue
+        // queue it resolved NOTHING, silently degrading every pass. Only
+        // stdout is the plan.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo "$ bun scripts/queue-plan.ts --cap \\"1\\"" >&2`,
+                `  echo "warning: something on stderr" >&2`,
+                `  cat <<'PLANEOF'`,
+                planJson(2288, "opus"),
+                `PLANEOF`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        expect(argvForOnePass()).toEqual([
+            "argc=4",
+            "arg=--model",
+            "arg=opus",
+            "arg=-p",
+            "arg=/next-issue 2288",
+        ]);
+    });
+
+    it("resolves nothing when an empty batch is all the planner returns — a deferred issue's number is not a head", () => {
+        // The reason the plan is read through `bun -e` and not a `grep -o` on
+        // the JSON: `deferred` and `skipped` entries carry `number` fields
+        // too, so a first-match scan hands the pass a DEFERRED issue exactly
+        // when the batch is empty and it must hand it nothing.
+        stubGhCountingFrom(5);
+        writeStub(
+            "bun",
+            [
+                `case "$*" in`,
+                `  *loop-doctor.ts*) exit 0 ;;`,
+                `esac`,
+                `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
+                `  echo '{"version":1,"batch":[],"deferred":[{"number":9999,"reason":"blocked","conflictsWith":null}],"skipped":[],"staleClaims":[]}'`,
+                `  exit 0`,
+                `fi`,
+                `if [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+                `exit 1`,
+            ].join("\n")
+        );
+        const argv = argvForOnePass();
+        expect(argv).toEqual(["argc=2", "arg=-p", "arg=/next-issue"]);
+        expect(argv.join(" ")).not.toContain("9999");
+    });
+});
+
+describe("health RED — the green-main invariant (ADR 0110)", () => {
+    const redMarker = (): string =>
+        path.join(tmp, ".claude", "telemetry", "health", "RED");
+
+    const writeRed = (): void => {
+        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
+        fs.writeFileSync(redMarker(), "main @ deadbeef red at test:app\n");
+    };
+
+    it("stops before running any pass when the marker exists", () => {
+        // "A RED marker means fix-forward FIRST — never stack unrelated work
+        // on a red tip" (ADR 0110). `land` only WARNS, which is the right
+        // strength for a human who can read it; unattended there is nobody to.
+        stubGhCountingFrom(5);
+        stubClaudeProgress();
+        writeRed();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.stdout).toMatch(/reason=health-red/);
+        expect(passLogCount()).toBe(0);
+    });
+
+    it("exits non-zero — a red tip is a fault, not a clean finish", () => {
+        // stop-file / max-passes / queue-empty / budget all exit 0; this must
+        // not join them, or a wrapper that checks the exit code reads a night
+        // aborted on a broken main as a night that finished its work.
+        stubGhCountingFrom(5);
+        writeRed();
+        expect(run({ args: ["--claude-args", "x"] }).status).toBe(1);
+    });
+
+    it("names the marker's contents on stderr, so the morning log says what to fix", () => {
+        stubGhCountingFrom(5);
+        writeRed();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.stderr).toMatch(/main is RED/);
+        expect(r.stderr).toMatch(/red at test:app/);
+    });
+
+    it("runs normally when the marker is absent (proof the check is the marker, not the directory)", () => {
+        stubGhCountingFrom(1);
+        stubClaudeProgress();
+        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.stdout).not.toMatch(/reason=health-red/);
+        expect(passLogCount()).toBe(1);
+    });
+});
+
 describe("--prompt — the prompt each pass runs", () => {
     /** `claude` stub that RECORDS its own argv, one line per element, and
      * exits 0. This is what makes the quoting assertions real: a dry-run
@@ -1062,13 +1378,31 @@ describe("--prompt — the prompt each pass runs", () => {
         return fs.readFileSync(argvFile, "utf8").trim().split("\n");
     };
 
-    it("defaults to /process-gh-issues — every existing caller is unchanged", () => {
-        // The regression that protects every invocation predating this flag:
-        // no --prompt must mean byte-identical behaviour.
+    it("defaults to /next-issue with the resolved issue appended and its tier injected (#3083)", () => {
+        // The default path is the single-session pipeline (ADR 0110), and the
+        // pass is HANDED its issue and its tier rather than re-deriving both
+        // from inside the model's context. The default `bun` stub answers the
+        // pre-flight with issue 101 on sonnet.
         expect(argvForOnePass([])).toEqual([
+            "argc=5",
+            "arg=--model",
+            "arg=sonnet",
+            "arg=-p",
+            "arg=/next-issue 101",
+            "arg=x",
+        ]);
+    });
+
+    it("a --prompt override switches the pre-flight OFF — no issue appended, no --model injected", () => {
+        // An operator who names the prompt owns the whole invocation: the
+        // driver must not append an issue number to a scoped prompt, nor
+        // second-guess the tier they launched with.
+        expect(
+            argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
+        ).toEqual([
             "argc=3",
             "arg=-p",
-            "arg=/process-gh-issues",
+            "arg=/process-gh-issues figli di 2405",
             "arg=x",
         ]);
     });

@@ -100,23 +100,43 @@ kill the pid `--status` prints.
 | Flag                           | Default                          | Effect                                                                             |
 | ------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------- |
 | `--claude-args <str>`          | `--dangerously-skip-permissions` | permission mode for each [pass](#g-pass)                                           |
-| `--prompt <text>`              | `/process-gh-issues`             | the prompt each [pass](#g-pass) runs — **scopes** the run (see below)              |
+| `--prompt <text>`              | unset — `/next-issue` per pass   | **scopes** the run and turns the pre-flight off (see below)                        |
 | `--budget <n>` `--max-pct <n>` | off / 80                         | local-proxy token [budget guard](#g-budget-guard) (see below)                      |
 | `--max-passes <n>`             | 0 (unlimited)                    | hard cap on [passes](#g-pass)                                                      |
 | `--max-consecutive-errors <n>` | 3                                | crashes tolerated in a row before stopping                                         |
 | `--start-delay <secs>`         | 45                               | grace before the first [pass](#g-pass) (the calling one is still releasing claims) |
 | `--no-caffeinate`              | off                              | do not hold the Mac awake — an overnight run needs it awake                        |
 
-**`--prompt` scopes an unattended run to part of the [queue](#g-queue).**
+**By default each [pass](#g-pass) closes ONE issue, and the driver resolves
+which one and on which tier before spawning it.** That pre-flight reads
+`queue:plan --cap 1` and hands the [pass](#g-pass) both facts —
+`claude --model <tier> -p "/next-issue N"`. Two reasons it lives in the driver
+rather than in the [pass](#g-pass):
+
+- `/next-issue` §1 **stops before claiming** when the issue's `model:*` label
+  outranks the session tier. Unattended that is a wall, not a stall: nothing is
+  claimed, so the same issue is still at the head next [pass](#g-pass), and the
+  run dies on `no-progress` with the [queue](#g-queue) untouched. Roughly a
+  fifth of the open `ready-for-agent` [queue](#g-queue) carries `model:opus`.
+- The [pass](#g-pass) no longer pays for the [queue](#g-queue) read inside the
+  model's context.
+
+It resolves nothing else — review routing is untouched, and a reviewer subagent
+still escalates above the session tier on its own (`/next-issue` §4). If
+`queue:plan` cannot answer, the pre-flight degrades **loudly** to the bare
+prompt and the [pass](#g-pass) picks for itself: a planner outage must not end
+a budgeted night.
+
+**`--prompt` scopes an unattended run to part of the [queue](#g-queue), and
+switches that pre-flight OFF.** An operator who names the prompt owns the whole
+invocation: no issue number is appended and no `--model` is injected.
 `/process-gh-issues` takes free-text args that narrow which issues a
 [pass](#g-pass) considers, so `--prompt "/process-gh-issues figli di 2405"`
-[drains](#g-drain) only PRD #2405's children — without it an unattended run can
-only ever take the global [queue](#g-queue) in board-priority order
-(`--claude-args` appends CLI _flags_ to `claude`, not prompt text). The value is
-recorded in the conf and printed by `--status`, because an
-[armed](#g-arming) run that _looks_ unscoped but isn't is a trap. It must be a
-single line: a newline would be truncated when the conf is read back, so it is
-rejected at [arm](#g-arming) time.
+[drains](#g-drain) only PRD #2405's children (`--claude-args` appends CLI
+_flags_ to `claude`, not prompt text). The value is recorded in the conf and
+printed by `--status`, because an [armed](#g-arming) run that _looks_ unscoped
+but isn't is a trap. It must be a single line: a newline would be truncated when
+the conf is read back, so it is rejected at [arm](#g-arming) time.
 
 **A scoped run still releases claims globally.** [Claim](#g-claim) release
 (§1a of the skill) is deliberately outside whatever the `--prompt` narrows to —
@@ -125,12 +145,33 @@ scoping which issues a [pass](#g-pass) _works_ must never scope which
 outside its scope. This was the shape of an eight-[claim](#g-claim) pile-up on
 2026-08-20.
 
-**The [budget guard](#g-budget-guard) is opt-in and fails closed.** With no
-`--budget` it is disabled and says so once. With one, it reads
-`bun run usage:window` before every [pass](#g-pass), and any unreadable answer
-stops the run (`usage-error`) rather than skipping the check. It is a **local
-proxy** for relative burn — there is no quota endpoint to poll — so treat it as
-a brake, not a meter.
+**The [budget guard](#g-budget-guard) is MANDATORY and fails closed (ADR
+0109).** Without `--budget` the driver refuses to start, exit 1 — it used to be
+opt-in, every launch after 2026-08-23 omitted it, and the 2026-08-25→27 burn
+took ~91% of a weekly allowance in 48h with the guard silently off. With one, it
+reads `bun run usage:window` before every [pass](#g-pass), and any unreadable
+answer stops the run (`usage-error`) rather than skipping the check. It is a
+**local proxy** for relative burn — there is no quota endpoint to poll — so
+treat it as a brake, not a meter. (`TOLARIA_LOOP_ALLOW_NO_BUDGET=1` exists for
+the driver's own test suite, announces itself on stderr, and must never be set
+for a real run.)
+
+**Sizing `--budget`.** It is a ceiling on WEIGHTED tokens over a rolling window
+(`--window-hours`, default 5), tripped at `--max-pct` (default 80) — not a
+total for the night. The weight table is anchored at list price ÷ 3
+(`scripts/lib/usage-window.ts`), so **`dollars = weighted × 3e-6`**. Work
+backwards from what an issue costs:
+
+| Want                                                | Arithmetic     | `--budget`   |
+| --------------------------------------------------- | -------------- | ------------ |
+| a measured median issue (~$42 as of 2026-09)        | $42 ÷ 3e-6     | ~14M / issue |
+| ~4 issues inside one 5h window, guard silent        | 4 × 14M ÷ 0.80 | `70000000`   |
+| a night draining in series, headroom for a slow one | 8 × 14M ÷ 0.80 | `140000000`  |
+
+At `140000000` the guard trips at 112M weighted ≈ $336 per 5h window ≈ $67/h
+sustained — well under the ~$167/h the 2026-08 incident ran at. Re-derive the
+per-issue figure from telemetry rather than trusting the number above once the
+cost per issue moves.
 
 ## Monitoring
 
@@ -161,6 +202,7 @@ issue does not move the progress signal — only a real landing does.
 | `max-passes`   | the cap you set                                                                              | nothing                                                                                                                                                                                                                                                                                                                                                         |
 | `stop-file`    | you asked                                                                                    | `--resume`                                                                                                                                                                                                                                                                                                                                                      |
 | `budget`       | burn ≥ `--max-pct`                                                                           | wait for the window, or raise the [budget](#g-budget-guard) deliberately                                                                                                                                                                                                                                                                                        |
+| `health-red`   | the post-merge health gate is RED on `main`                                                  | `bun run health:status`, then fix forward. ADR 0110's green-main invariant: no work stacks on a red tip, and unattended there is nobody to read `land`'s warning                                                                                                                                                                                                |
 | `rate-limit`   | the transcript matched a usage-limit shape                                                   | wait. Never retried on purpose: there is no quota to poll, so a backoff would be a guess                                                                                                                                                                                                                                                                        |
 | `claude-error` | `claude` exited non-zero `--max-consecutive-errors` times in a row                           | read the last [pass](#g-pass) log                                                                                                                                                                                                                                                                                                                               |
 | `usage-error`  | the [budget](#g-budget-guard) reader failed                                                  | fix `usage:window`; the guard refuses to run blind                                                                                                                                                                                                                                                                                                              |

@@ -1,14 +1,20 @@
 #!/bin/sh
-# scripts/loop-drain.sh — the AFK driver for `/process-gh-issues` (ADR 0097).
+# scripts/loop-drain.sh — the AFK driver for `/next-issue` (ADR 0097 + 0110).
 #
-# `/process-gh-issues` runs exactly ONE batch per process — MAX_PASSES=1 is
-# enforced by the skill itself, and `.claude/hooks/deny-guard.sh` denies a
-# second `queue:plan` inside the same conversation. That is deliberate: the
-# context reset between batches IS the cost-containment mechanism. Continuous
-# draining is therefore an OUT-OF-PROCESS loop — this script — around a fresh
-# `claude -p "/process-gh-issues"` per pass. All the state a resumed pass
-# needs already survives a process boundary: the `in-progress` GitHub label,
-# the branch/PR, and `.claude/telemetry/green-sha`.
+# `/next-issue` closes exactly ONE issue per process (ADR 0110): the context
+# reset between issues IS the cost-containment mechanism, and the skill's own
+# §6 ends with "one issue per invocation. The user (or the budgeted AFK
+# driver, ADR 0109) decides whether there is a next one." This script is that
+# driver — an OUT-OF-PROCESS loop around a fresh `claude -p "/next-issue N"`
+# per pass. All the state a resumed pass needs already survives a process
+# boundary: the `in-progress` GitHub label, the branch/PR, and
+# `.claude/telemetry/green-sha`.
+#
+# THE DRIVER IS NOT AN ORCHESTRATOR. It decides exactly two things per pass —
+# WHICH issue and on WHICH tier (see `resolve_head` below) — and nothing about
+# what the pass then does. The orchestrator that ADR 0110 retired lived inside
+# the `/process-gh-issues` skill, in the model's context, not here; this loop
+# was never the expensive part and must not become it.
 #
 # This is the "Ralph" pattern: a shell `while` loop around an ephemeral agent
 # process. See ADR 0097 for the full rationale, including why the budget
@@ -41,17 +47,27 @@ MAX_PCT=80
 WINDOW_HOURS=5
 MAX_PASSES=0
 STOP_FILE=".claude/telemetry/loop-stop"
+# The post-merge health verdict (ADR 0110). `health-main.ts` writes this
+# marker iff the last completed full gate on the merged tip was RED, and
+# removes it on green. Relative to the caller's cwd like STOP_FILE and
+# GREEN_SHA_FILE, deliberately — see the header on why every path here is.
+HEALTH_RED_FILE=".claude/telemetry/health/RED"
 CLAUDE_ARGS=""
-# The prompt each pass runs. Default = the whole queue, drained by board
-# priority — byte-identical to what this driver has always run. `--prompt`
-# SCOPES a run instead: `/process-gh-issues` takes free-text args that narrow
-# which issues a pass considers (e.g. "figli di 2405" = only that PRD's
-# children), and without this flag an unattended run could never express that
-# — `--claude-args` appends CLI FLAGS to the `claude` invocation, not prompt
-# text. Unlike CLAUDE_ARGS this is ONE argument and stays quoted at the call
-# site: word-splitting it would turn "figli di 2405" into three prompts' worth
-# of stray argv.
-PASS_PROMPT="/process-gh-issues"
+# The prompt each pass runs. Default = drain the queue one issue per pass, the
+# issue chosen by board priority — see `resolve_head`, which appends the
+# resolved issue number so the pass is HANDED its issue instead of re-reading
+# the queue from inside the model's context.
+#
+# `--prompt` SCOPES a run instead, and switches the pre-flight OFF entirely:
+# an operator who names the prompt owns the whole invocation, so the driver
+# neither appends an issue number nor injects a `--model`. That is the only
+# way to express "drain just this slice" (or to point the driver at a
+# different skill) — `--claude-args` appends CLI FLAGS to the `claude`
+# invocation, not prompt text. Unlike CLAUDE_ARGS this is ONE argument and
+# stays quoted at the call site: word-splitting it would turn "figli di 2405"
+# into three prompts' worth of stray argv.
+PASS_PROMPT="/next-issue"
+PROMPT_OVERRIDDEN=0
 DRY_RUN=0
 # A single `claude` crash used to end an overnight run outright. It is now
 # retried with a doubling backoff, bounded by CONSECUTIVE failures — a
@@ -98,6 +114,11 @@ while [ $# -gt 0 ]; do
             ;;
         --prompt)
             PASS_PROMPT="$2"
+            PROMPT_OVERRIDDEN=1
+            shift 2
+            ;;
+        --health-red-file)
+            HEALTH_RED_FILE="$2"
             shift 2
             ;;
         --max-consecutive-errors)
@@ -158,7 +179,7 @@ is_number() {
 # nobody watching. Reject it at startup rather than discovering it in the
 # morning's telemetry as N passes of `no-progress`.
 if [ -z "$PASS_PROMPT" ]; then
-    echo "loop-drain: --prompt must not be empty (omit it for the default '/process-gh-issues')" >&2
+    echo "loop-drain: --prompt must not be empty (omit it for the default '/next-issue')" >&2
     exit 2
 fi
 
@@ -434,6 +455,82 @@ reap_orphan_claims() {
     return 0
 }
 
+# ── pre-flight: WHICH issue, on WHICH tier (#3083) ──────────────────────────
+# `/next-issue` §0 will pick its own issue when handed none, and §1 will STOP
+# the pass when the issue carries a `model:*` label above the session's tier.
+# Unattended, that combination is a wall rather than a stall: the stopped pass
+# claims nothing, so the same issue is still at the head next pass, and the run
+# dies on the no-progress streak with the queue untouched. 47 of the 233 open
+# `ready-for-agent` issues carry `model:opus` — a 20% chance per drain, not an
+# edge case.
+#
+# So the driver resolves the head BEFORE spawning and hands the pass both
+# facts: the issue number in the prompt, the tier as `--model`. Two
+# consequences beyond unblocking the drain: the pass no longer pays for the
+# queue read inside the model's context, and the tier is now decided by the
+# label rather than by whatever tier the operator happened to launch.
+#
+# It resolves nothing else. Review routing is untouched and must stay so — the
+# reviewer is a subagent with its own explicit `model`, and escalating above
+# the session tier already works (`/next-issue` §4; the telemetry records
+# sonnet-main sessions spawning opus reviewers).
+#
+# CONSUMED, NOT REIMPLEMENTED. The ordering (board Priority, then bugs, then
+# oldest lineage) and the label→tier resolution both belong to `queue:plan`;
+# this reads `batch[0]` off its plan and nothing more. The read goes through
+# `bun -e` rather than a `grep -o` on the JSON because the plan's OTHER arrays
+# (`deferred`, `skipped`) carry `number` fields too — a first-match scan
+# silently returns a DEFERRED issue's number the moment the batch is empty,
+# which is precisely when it must return nothing.
+#
+# NON-FATAL BY CONSTRUCTION, like the orphan-claim sweep: a planner that
+# cannot answer must not end an unattended run. It degrades — loudly — to the
+# bare prompt, letting the pass pick for itself exactly as it did before this
+# existed. That reinstates the stall risk for that one pass, which is why the
+# degrade is never silent.
+RESOLVED_ISSUE=""
+RESOLVED_MODEL=""
+resolve_head() {
+    RESOLVED_ISSUE=""
+    RESOLVED_MODEL=""
+    # stderr goes to a FILE, never into `$_plan`: `bun run <script>` prints a
+    # `$ bun scripts/… ` banner on stderr, and folding that into the captured
+    # stdout makes the JSON unparseable — a real dry run against a 230-issue
+    # queue resolved nothing at all for exactly this reason. Only stdout is
+    # the plan.
+    _plan_err=$(mktemp)
+    if ! _plan=$(bun run queue:plan --cap 1 2>"$_plan_err"); then
+        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1) — this pass falls back to the bare prompt, so the pass picks its own issue on this session's tier." >&2
+        cat "$_plan_err" >&2 || true
+        rm -f "$_plan_err"
+        return 1
+    fi
+    rm -f "$_plan_err"
+    # `bun -e` reads the plan off the environment, never argv: a plan is
+    # multi-KB of JSON with quotes in it, and interpolating that into a shell
+    # word is how a quoting bug becomes an arbitrary-command bug.
+    _head=$(LOOP_PLAN="$_plan" bun -e '
+const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
+const head = (plan.batch || [])[0];
+if (head && Number.isInteger(head.number) && typeof head.model === "string") {
+    process.stdout.write(head.number + " " + head.model);
+}
+' 2>/dev/null) || _head=""
+    if [ -z "$_head" ]; then
+        echo "loop-drain: pre-flight resolved no head issue from the plan — this pass falls back to the bare prompt." >&2
+        return 1
+    fi
+    RESOLVED_ISSUE=${_head% *}
+    RESOLVED_MODEL=${_head#* }
+    if ! is_uint "$RESOLVED_ISSUE" || [ -z "$RESOLVED_MODEL" ]; then
+        echo "loop-drain: pre-flight returned an unusable head ('$_head') — this pass falls back to the bare prompt." >&2
+        RESOLVED_ISSUE=""
+        RESOLVED_MODEL=""
+        return 1
+    fi
+    return 0
+}
+
 if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
@@ -462,6 +559,22 @@ while :; do
     # is a plain comparison — no error-swallowing redirect needed.
     if [ "$MAX_PASSES" -gt 0 ] && [ "$pass" -ge "$MAX_PASSES" ]; then
         stop_reason="max-passes"
+        break
+    fi
+
+    # 2b. health RED — the post-merge full gate failed on the merged tip and
+    # nobody has fixed it. ADR 0110's green-main invariant: "A RED marker
+    # means fix-forward FIRST — never stack unrelated work on a red tip."
+    # `land` already WARNS on this, which is the right strength for a human
+    # who can read the warning and judge; unattended there is nobody to read
+    # it, so the driver stops instead. Checked BEFORE the budget read (which
+    # forks `bun`) and before the orphan sweep, because a red tip means no
+    # pass should happen at all — and reported as its own reason rather than
+    # folded into `no-progress`, so the morning's log says what to fix.
+    if [ -f "$HEALTH_RED_FILE" ]; then
+        stop_reason="health-red"
+        echo "loop-drain: main is RED (post-merge health gate, ADR 0110) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
+        cat "$HEALTH_RED_FILE" >&2 || true
         break
     fi
 
@@ -516,8 +629,34 @@ while :; do
     green_before=$(read_green_sha)
     total_before=$(count_total_open 2>/dev/null) || total_before=""
 
+    # Resolve WHICH issue and WHICH tier for this pass, unless the operator
+    # named the prompt (see PASS_PROMPT above — an override owns the whole
+    # invocation). `pass_model_arg` is EITHER empty or the two words
+    # `--model <tier>`, and is expanded UNQUOTED at the call site for exactly
+    # that reason — same idiom as $CLAUDE_ARGS, and the same reason
+    # "$pass_prompt" next to it stays quoted.
+    pass_prompt="$PASS_PROMPT"
+    pass_model_arg=""
+    if [ "$PROMPT_OVERRIDDEN" -eq 0 ]; then
+        if resolve_head; then
+            pass_prompt="$PASS_PROMPT $RESOLVED_ISSUE"
+            pass_model_arg="--model $RESOLVED_MODEL"
+            echo "loop-drain: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+        fi
+    fi
+
     if [ "$DRY_RUN" -eq 1 ]; then
-        echo "loop-drain: [dry-run] pass $pass would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p \"$PASS_PROMPT\" $CLAUDE_ARGS" >&2
+        # Echo the command as it will actually be typed. `$pass_model_arg` is
+        # empty on the override path, and interpolating an empty variable
+        # between two words leaves a double space — which the real invocation
+        # never has (the shell collapses it), so an echo that showed one would
+        # be a dry run of a command nobody runs.
+        if [ -n "$pass_model_arg" ]; then
+            _dry_claude="claude $pass_model_arg -p"
+        else
+            _dry_claude="claude -p"
+        fi
+        echo "loop-drain: [dry-run] pass $pass would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 $_dry_claude \"$pass_prompt\" $CLAUDE_ARGS" >&2
         : >"$pass_log"
         claude_exit=0
     else
@@ -547,13 +686,15 @@ while :; do
             # wall-clock cutoff on background subagents is not one of them
             # (#2622); it killed subagents mid-edit (18 of ~34 recorded
             # passes on 2026-08-19).
-            # "$PASS_PROMPT" stays QUOTED — it is ONE argument that normally
-            # contains spaces ("/process-gh-issues figli di 2405"); splitting
-            # it is the exact opposite of what the unquoted $CLAUDE_ARGS
-            # below deliberately does.
-            # shellcheck disable=SC2086  # intentional word-splitting of a
-            # user-supplied flag string, documented above.
-            TOLARIA_LOOP_DRAIN=1 CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "$PASS_PROMPT" $CLAUDE_ARGS 2>&1
+            # "$pass_prompt" stays QUOTED — it is ONE argument that normally
+            # contains spaces ("/next-issue 3083", or an operator's
+            # "/process-gh-issues figli di 2405"); splitting it is the exact
+            # opposite of what the unquoted $pass_model_arg and $CLAUDE_ARGS
+            # beside it deliberately do.
+            # shellcheck disable=SC2086  # intentional word-splitting of the
+            # resolved tier flag and of a user-supplied flag string, both
+            # documented above.
+            TOLARIA_LOOP_DRAIN=1 CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg -p "$pass_prompt" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e

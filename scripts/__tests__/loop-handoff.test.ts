@@ -271,14 +271,28 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
             env: { TOLARIA_LOOP_TOKEN_BUDGET: "1" },
         }).stdout;
 
-    it("records the default prompt when --prompt is absent", () => {
-        // The regression that protects every existing armed checkout: no
-        // --prompt must still mean the whole queue, by board priority.
+    it("records an EMPTY prompt when --prompt is absent, and passes no --prompt to the driver (#3083)", () => {
+        // An unscoped arming must state no opinion: `--prompt` is what turns
+        // the driver's issue/tier pre-flight OFF, so a conf that echoed the
+        // driver's own default would silently disable it for every run
+        // started through this script.
         run({ args: ["--arm"] });
-        expect(fs.readFileSync(CONF(), "utf8")).toMatch(
-            /^PROMPT=\/process-gh-issues$/m
-        );
-        expect(driverArgv()).toMatch(/--prompt \/process-gh-issues/);
+        expect(fs.readFileSync(CONF(), "utf8")).toMatch(/^PROMPT=$/m);
+        expect(driverArgv()).not.toMatch(/--prompt/);
+    });
+
+    it('never announces `claude -p ""` on --start when the run is unscoped', () => {
+        // This line is the last thing an operator reads before walking away.
+        // With the conf's PROMPT now empty by default, an unbranched echo
+        // announces a pass that does nothing forever — the opposite of what
+        // the driver's pre-flight actually does.
+        run({ args: ["--arm"] });
+        const out = run({
+            args: ["--start", "--dry-run"],
+            env: { TOLARIA_LOOP_TOKEN_BUDGET: "1" },
+        }).stdout;
+        expect(out).not.toMatch(/claude -p ""/);
+        expect(out).toMatch(/every pass will run: \/next-issue/);
     });
 
     it("round-trips a multi-word prompt through the conf into the driver argv", () => {
@@ -328,16 +342,15 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
         );
     });
 
-    it("--status on a conf armed before this flag existed shows the default, not a blank", () => {
+    it("--status on a conf carrying no PROMPT says unscoped, not a blank", () => {
         fs.writeFileSync(
             CONF(),
             "CLAUDE_ARGS=--dangerously-skip-permissions\n"
         );
         const out = run({ args: ["--status"] }).stdout;
-        expect(out).toMatch(/prompt:\s+\/process-gh-issues \(default/);
-        // …and a --start normalises the legacy conf through write_conf, so
-        // the driver gets the DEFAULT prompt explicitly — never a blank or
-        // truncated one.
-        expect(driverArgv()).toMatch(/--prompt \/process-gh-issues/);
+        expect(out).toMatch(/prompt:\s+\(unscoped/);
+        // …and --start leaves it unscoped all the way to the driver argv: no
+        // --prompt at all, so the driver's pre-flight stays ON (#3083).
+        expect(driverArgv()).not.toMatch(/--prompt/);
     });
 });
