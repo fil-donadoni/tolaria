@@ -75,10 +75,12 @@ import {
     type ChoiceCandidateHint,
 } from "./choicePriors";
 import {
+    graveyardRecursionAccessFor,
     libraryTargetWorth,
     permanentWorth,
     prospectiveCardWorth,
 } from "./candidateValue";
+import { searchFindDestination } from "./searchDestination";
 
 /** One opened branch of a choice node. */
 export type ChoiceCandidate = {
@@ -563,11 +565,45 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
 
     // Rank by worth, breaking ties on stable identity so the ordering — and
     // therefore the emitted candidate set — is world-order independent.
+    //
+    // The worth is DESTINATION-AWARE (issue #3041), and it has to be here and
+    // not only in the prior: this ranking is also the top-K ADMISSION gate, so
+    // a destination-blind worth can prune every graveyard-relevant find out of
+    // the answer set of a graveyard-bound search, and a candidate that was
+    // never emitted is one no amount of reward can choose. Derived once per
+    // node — it is a read over the SOURCE's script, identical for every card in
+    // the pool.
+    const destination = searchFindDestination(state, choice);
+    // Node-invariant, so it is derived ONCE for the whole pool rather than per
+    // card: the recursion half of the graveyard reach gate is a PLAYER-level
+    // predicate that scans a hand and a battlefield, and paying it per pool
+    // card made a graveyard-bound node 3.6x the cost of a hand-bound one
+    // (measured in review of PR #3077). Skipped entirely for every other
+    // destination — the pricing never asks.
+    const pricing = {
+        destination,
+        ...(destination === "graveyard"
+            ? // CR 400.7 — the find lands in its OWNER's graveyard, which for
+              // every shipped search is the searcher's own.
+              {
+                  recursionAccess: graveyardRecursionAccessFor(
+                      state,
+                      zoneOwner.id
+                  ),
+              }
+            : {}),
+    };
     const ranked = pool
         .map((card) => ({
             card,
             identity: stableCardIdentity(card),
-            worth: libraryTargetWorth(state, searcherId, card),
+            worth: libraryTargetWorth(
+                state,
+                searcherId,
+                card,
+                undefined,
+                pricing
+            ),
         }))
         .sort(
             (a, b) =>

@@ -30,11 +30,13 @@ import type { Move } from "../moves";
 import type { Color } from "../../cards/types";
 import {
     contextAwareGroundingForChoice,
+    graveyardRecursionAccessFor,
     libraryTargetWorth,
     permanentWorth,
     scriptOpValueOf,
 } from "./candidateValue";
 import type { GroundingContext } from "./grounding";
+import { searchFindDestination } from "./searchDestination";
 import { isNoOpChoiceAnswer } from "./dominance";
 import { observedOpponentColors } from "./observedColors";
 
@@ -351,13 +353,48 @@ function dslSearchLibraryPrior(
     }
     const zoneOwner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
     const ctx = contextAwareGroundingForChoice(state, choice.playerId);
+    // Issue #3041 — the SAME destination the candidate generator ranked and
+    // admitted on (`choiceCandidates.ts`), derived by the same function, so the
+    // ordering here can never disagree with the admission there.
+    const destination = searchFindDestination(state, choice);
+    const pricing = {
+        destination,
+        ...(destination === "graveyard"
+            ? {
+                  recursionAccess: graveyardRecursionAccessFor(
+                      state,
+                      zoneOwner.id
+                  ),
+              }
+            : {}),
+    };
+    // The removal bonus prices "what this card would do WHEN CAST at the
+    // opposing board", so it is exactly as destination-blind as the worth was:
+    // a Swords to Plowshares buried in a graveyard kills nothing, and adding
+    // the bonus on top of a near-floor graveyard worth would lift it back over
+    // the reanimation target this fix exists to rank first.
+    //
+    // The gate is the GRAVEYARD destination specifically, NOT "every zone the
+    // card could be cast from" — `"exile"` (Jester's Cap, Lobotomy) keeps the
+    // bonus even though the card is not castable from there either. That is
+    // deliberate and is the same narrowness the worth itself has: this fix
+    // changes graveyard-bound pricing and leaves every other destination
+    // byte-identical, so exile's own (separate) mis-pricing stays exactly as it
+    // was rather than being half-corrected here on the way past.
+    const buriedInGraveyard = destination === "graveyard";
     let worth = 0;
     for (const id of ids) {
         const card = zoneOwner.library.find((c) => c.id === id);
         if (!card) continue;
-        worth +=
-            libraryTargetWorth(state, choice.playerId, card, ctx) +
-            contextAwareRemovalBonus(state, choice.playerId, card, ctx);
+        worth += libraryTargetWorth(state, choice.playerId, card, ctx, pricing);
+        if (!buriedInGraveyard) {
+            worth += contextAwareRemovalBonus(
+                state,
+                choice.playerId,
+                card,
+                ctx
+            );
+        }
     }
     return clampPrior(SEARCH_FIND_PRIOR_FLOOR + worth / MATERIAL_PRIOR_SCALE);
 }
