@@ -1,0 +1,19 @@
+# Generated, committed artifacts whose form carries WHOLE-FILE state — content
+# hashes and tallies — and which are therefore REGENERATED, never merged
+# (issue #3069).
+#
+# The `regenerated` driver runs the ordinary 3-way merge first and keeps a clean
+# result; only on a genuine conflict does it take ours and mark the path, and
+# `scripts/resolve-generated-artifacts.ts` re-derives it once at the rebased tip.
+#
+# The driver itself lives in LOCAL git config (it cannot be committed) and is
+# registered by `bun run worktree:init`. Without that registration git falls
+# back to the default text merge, i.e. exactly the behaviour that predates this
+# file — a missing bootstrap degrades, it does not corrupt.
+#
+# This list is not hand-maintained: `scripts/__tests__/generated-artifact-merge.test.ts`
+# pins it to REGENERATED_ARTIFACTS in `scripts/lib/generated-artifacts.ts`,
+# which also records why every OTHER committed `data/` artifact is out of the
+# class.
+data/oracle-compiled.json merge=regenerated
+data/oracle-legality.json merge=regenerated

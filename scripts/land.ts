@@ -93,6 +93,7 @@ import {
 import { changedPaths, classifyLane, type Lane } from "./check-lane";
 import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
+import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -227,6 +228,7 @@ export function safeRetirementRefusal(
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
+const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -354,8 +356,31 @@ export function rebaseStep(): string {
     return (
         "git fetch origin main && " +
         "(git rebase origin/main || " +
-        "{ git --no-pager diff --name-only --diff-filter=U; git rebase --abort; exit 1; })"
+        "{ git --no-pager diff --name-only --diff-filter=U; git rebase --abort; " +
+        // Clear the regenerate marker ONLY on the abort path. `--abort`
+        // restores the pre-rebase tree, so anything the merge driver marked
+        // during this attempt is moot. Clearing it BEFORE the rebase instead
+        // would erase a debt from a rebase or merge the developer ran BY HAND —
+        // the driver is registered in local config and fires there too, and
+        // that side-taken artifact would then land with nothing to catch it
+        // (review of issue #3069).
+        `rm -f "$(git rev-parse --git-path ${REGENERATE_MARKER})"; ` +
+        "exit 1; })"
     );
+}
+
+/**
+ * Re-derive any generated artifact the `merge=regenerated` driver took a side
+ * of during the rebase, ONCE, at the rebased tip — the second half of "a
+ * generated artifact is regenerated, not merged" (issue #3069).
+ *
+ * Sits between the rebase and `check:lane` because the whole point is that the
+ * tree the LANE GATE sees is the tree a fresh regeneration produces; running it
+ * after the gate would gate a tree nobody ships. A no-op (exit 0, no output) on
+ * every landing where nothing conflicted, which is nearly all of them.
+ */
+export function resolveGeneratedArtifactsStep(): string {
+    return `bun ${shQuote(RESOLVE_ARTIFACTS)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -490,6 +515,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
     const steps: string[] = [
         UNSET_GITHUB_TOKEN,
         rebaseStep(),
+        resolveGeneratedArtifactsStep(),
         "bun run check:lane",
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];

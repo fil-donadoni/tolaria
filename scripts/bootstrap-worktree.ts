@@ -16,6 +16,12 @@
  *                              → `core.hooksPath` points at nothing → pre-commit
  *                              never runs → prettier drift reaches the merge-train.
  *
+ * It also registers the ONE piece of repo behaviour git refuses to take from a
+ * committed file: the `merge=regenerated` merge driver (issue #3069). Merge
+ * drivers live in local config by design, so `.gitattributes` can name one but
+ * nothing in the repo can define it — this is the only repo-controlled place
+ * that can.
+ *
  * The rule "copy these from the main checkout" lived in prose in the
  * process-gh-issues skill and was measurably ignored (twice: a phantom red
  * baseline, and a re-gate on format drift). This makes it one idempotent command.
@@ -127,6 +133,37 @@ if (!existsSync(join(cwd, ".husky", "_")) || force) {
     else failed.push("bunx husky");
 } else {
     skipped.push(".husky/_ (present)");
+}
+
+// ── merge driver for regenerated artifacts (issue #3069) ────────────────────
+// `.gitattributes` marks the generated `data/` artifacts that carry whole-file
+// state with `merge=regenerated`; git resolves that name against LOCAL config,
+// which is not committed, so without this step the attribute silently falls
+// back to the default text merge and every such rebase conflicts by hand again.
+//
+// Written to the COMMON config on purpose (no `--worktree`): the object store
+// and `config` are shared by every linked worktree, so bootstrapping any one of
+// them arms all of them. Idempotent — `git config` overwrites the key.
+//
+// The name is hand-typed here rather than imported from
+// `scripts/lib/generated-artifacts.ts` because this script is node-builtins-only
+// so it can run before `bun install`; `generated-artifact-merge.test.ts` pins
+// the two together.
+const MERGE_DRIVER_NAME = "regenerated";
+const MERGE_DRIVER_COMMAND =
+    "bun scripts/merge-driver-regenerated.ts %O %A %B %P";
+try {
+    git(
+        "config",
+        `merge.${MERGE_DRIVER_NAME}.name`,
+        "regenerate generated data/ artifacts instead of merging them (issue #3069)"
+    );
+    git("config", `merge.${MERGE_DRIVER_NAME}.driver`, MERGE_DRIVER_COMMAND);
+    done.push(`merge.${MERGE_DRIVER_NAME} driver (git config)`);
+} catch (err) {
+    failed.push(
+        `git config merge.${MERGE_DRIVER_NAME}.driver — ${String(err)}`
+    );
 }
 
 // ── receipt ─────────────────────────────────────────────────────────────────
