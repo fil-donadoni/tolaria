@@ -48,6 +48,18 @@ export type SacrificeRequirement = {
      *  subtly differently. Absent = no narrowing, the historical behaviour of
      *  every existing producer. */
     candidateIds?: string[];
+    /** How the permanents picked for THIS requirement leave the battlefield,
+     *  overriding the selection-wide {@link SacrificeSelection.action}.
+     *
+     *  A selection can carry legs that differ: Ninjutsu's CR 702.49a leg
+     *  RETURNS its creature to hand, while a static additional-sacrifice tax
+     *  the same activation also owes (Drought, `ice/white.ts`) genuinely
+     *  SACRIFICES. Before this existed the two could not share a selection at
+     *  all, and the ninjutsu path returned early — which silently skipped the
+     *  static tax entirely (an activation that owed a Swamp paid nothing).
+     *  Absent = the selection's action, which is the shape every pre-existing
+     *  producer uses. */
+    action?: "sacrifice" | "return";
 };
 
 export type SacrificeSelection = {
@@ -295,24 +307,25 @@ function manaValueOf(c: CardInstanceState): number {
     return manaValue(def?.manaCost);
 }
 
-function pickSnapshotFlags(sel: SacrificeSelection): Map<string, boolean> {
-    const flags = new Map<string, boolean>();
+function pickRequirements(
+    sel: SacrificeSelection
+): Map<string, SacrificeRequirement> {
+    const owner = new Map<string, SacrificeRequirement>();
     let remaining = [...sel.picked];
     for (const req of sel.requirements) {
         const take = Math.min(req.count, remaining.length);
-        for (let i = 0; i < take; i++) {
-            flags.set(remaining[i], req.snapshot ?? false);
-        }
+        for (let i = 0; i < take; i++) owner.set(remaining[i], req);
         remaining = remaining.slice(take);
     }
-    return flags;
+    return owner;
 }
 
 /** Execute the chosen permanent-cost picks. The ONLY place
  *  removePermanentTo(…, "sacrifice") runs for the converted seams. Re-checks
  *  each victim is still on the battlefield (CR 608.2b); a vanished victim is
  *  skipped. Routes to the graveyard with a sacrifice cause (CR 701.21) or —
- *  when `sel.action === "return"` — to the owner's hand as a causeless bounce
+ *  when the pick's own requirement (or the selection) says `"return"` — to the
+ *  owner's hand as a causeless bounce
  *  (CR 400.7 / 118.9). Returns per-victim MV/subtypes for snapshot-flagged
  *  requirements (return picks never snapshot). */
 export function applySacrificeSelection(
@@ -320,13 +333,17 @@ export function applySacrificeSelection(
     sel: SacrificeSelection
 ): SacrificeResult[] {
     const results: SacrificeResult[] = [];
-    const flags = pickSnapshotFlags(sel);
-    const isReturn = sel.action === "return";
+    const owners = pickRequirements(sel);
     for (const id of sel.picked) {
         const player: PlayerState = getPlayer(state, sel.playerId);
         const victim = player.battlefield.find((c) => c.id === id);
         if (!victim) continue; // CR 608.2b — already gone
-        const snapshot = flags.get(id) ?? false;
+        const req = owners.get(id);
+        const snapshot = req?.snapshot ?? false;
+        // CR 702.49a / 701.21 — the terminal action is the REQUIREMENT's when it
+        // declares one, so one selection can return a ninjutsu attacker AND
+        // sacrifice a static tax's victim in the same payment.
+        const isReturn = (req?.action ?? sel.action) === "return";
         const subtypes =
             victim.subtypes && victim.subtypes.length > 0
                 ? [...victim.subtypes]

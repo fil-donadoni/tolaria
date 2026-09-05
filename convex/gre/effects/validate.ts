@@ -3668,6 +3668,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // token), never a picked set or a bulk sweep, and there is no
             // defender to inherit for a card that was never linked to one — so
             // widening it would create shapes with no CR reading.
+            // issue #2390 — `from: "hand"` is the Ninjutsu source: the object
+            // shape only, into the battlefield only. The `cards` shape has its
+            // own `from: "hand"` branch (Stoneforge Mystic) and keeps it.
+            if (
+                hasTarget &&
+                entry.from === "hand" &&
+                entry.to !== "battlefield"
+            ) {
+                errors.push(
+                    'from: "hand" on "target" is only valid with to: "battlefield"'
+                );
+            }
             if (
                 "attacking" in entry &&
                 (!hasTarget || entry.to !== "battlefield")

@@ -2921,24 +2921,19 @@ export const OP_EXECUTORS: {
                     ? ctx.sourceInstanceId
                     : readBinding(ctx, op.target.ref)?.[SNAP_ID];
                 if (gid !== undefined) {
-                    // issue #1469 — `from: "exile"` re-derives the departed
-                    // object in an EXILE zone instead (an `exile` Op's own
-                    // bind, or a `graveyardDestinationFor` replacement that
-                    // redirected the dying permanent to exile — in which case
-                    // a `from: "graveyard"` return correctly finds nothing).
-                    const zone = explicitFrom ?? "graveyard";
-                    const owner =
-                        zone === "exile"
-                            ? ctx.getExileCardOwner(gid)
-                            : ctx.getGraveyardCardOwner(gid);
-                    // CR 702.49a (issue #2390) — a HAND-source ability
-                    // (`activateFromHand`): its `$source` is in no graveyard
-                    // and no exile, so recover it from the controller's hand.
-                    // Checked only after the graveyard/exile lookups miss, so
-                    // no existing recovery changes shape; the resulting
-                    // hand-card carrier is accepted by the `to: "battlefield"`
-                    // branch alone (see the shape's doc, cards/types.ts).
-                    if (owner === undefined && isSource && !explicitFrom) {
+                    // CR 702.49a (issue #2390) — the HAND source, reachable
+                    // ONLY through an explicit `from: "hand"`. Declared rather
+                    // than inferred on purpose: the three shipped cards that
+                    // reanimate their own `$source` (Ashen Ghoul,
+                    // `ice/black.ts`; Sword of the Meek, `fut/colorless.ts`;
+                    // Otharri, Suns' Glory, `onc/multicolor.ts`) name no
+                    // `from` at all, and a fallback that merely checked "not
+                    // in a graveyard or exile" would find their card in HAND
+                    // if it moved there while the ability was on the stack and
+                    // put it onto the battlefield — CR 400.7 makes that a new
+                    // object the ability must do nothing to, and it correctly
+                    // no-ops today.
+                    if (explicitFrom === "hand") {
                         const handOwner = ctx.controller;
                         if (
                             ctx
@@ -2951,18 +2946,30 @@ export const OP_EXECUTORS: {
                                 playerId: handOwner,
                             };
                         }
-                    }
-                    if (owner !== undefined) {
-                        recoveredZone = zone;
-                        // The `graveyard-card` carrier is the generic
-                        // "card sitting in a non-battlefield zone" selection
-                        // shape; `recoveredZone` is what the move below acts
-                        // on, so an exile-sourced return is not mis-zoned.
-                        target = {
-                            type: "graveyard-card",
-                            id: gid,
-                            playerId: owner,
-                        };
+                    } else {
+                        // issue #1469 — `from: "exile"` re-derives the departed
+                        // object in an EXILE zone instead (an `exile` Op's own
+                        // bind, or a `graveyardDestinationFor` replacement that
+                        // redirected the dying permanent to exile — in which case
+                        // a `from: "graveyard"` return correctly finds nothing).
+                        const zone =
+                            explicitFrom === "exile" ? "exile" : "graveyard";
+                        const owner =
+                            zone === "exile"
+                                ? ctx.getExileCardOwner(gid)
+                                : ctx.getGraveyardCardOwner(gid);
+                        if (owner !== undefined) {
+                            recoveredZone = zone;
+                            // The `graveyard-card` carrier is the generic
+                            // "card sitting in a non-battlefield zone" selection
+                            // shape; `recoveredZone` is what the move below acts
+                            // on, so an exile-sourced return is not mis-zoned.
+                            target = {
+                                type: "graveyard-card",
+                                id: gid,
+                                playerId: owner,
+                            };
+                        }
                     }
                 }
             }

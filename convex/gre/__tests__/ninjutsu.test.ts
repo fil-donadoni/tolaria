@@ -24,6 +24,8 @@ import { projectPublicState } from "../../gameProjections";
 import { unblockedAttackerIds } from "../combat";
 import { ninjutsuReturnCandidateIds } from "../ninjutsu";
 import { refreshExpectedInput } from "../expectedInput";
+import { drought } from "../../cards/sets/ice/white";
+import { swamp } from "../../cards/sets/lea/colorless";
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
 /** Grizzly Bears — a vanilla body to attack with. */
@@ -249,7 +251,10 @@ describe("Ninjutsu activation and resolution (CR 702.49a)", () => {
         // parks on the unified selection rather than auto-picking a victim.
         const sel = state.pendingActivation?.sacrificeSelection;
         expect(sel).toBeDefined();
-        expect(sel!.action).toBe("return");
+        // CR 702.49a — the terminal action rides the REQUIREMENT, not the
+        // selection, so this leg can share one payment with a static
+        // additional-SACRIFICE tax the same activation owes (Drought).
+        expect(sel!.requirements[0].action).toBe("return");
         expect(sel!.picked).toEqual([]);
         // The requirement is narrowed to the unblocked attackers — a plain
         // creature filter would offer any creature p1 controls.
@@ -275,6 +280,59 @@ describe("Ninjutsu activation and resolution (CR 702.49a)", () => {
         expect(state.pendingActivation).toBeUndefined();
         expect(state.players[0].hand.map((c) => c.id)).toContain("a2");
         expect(battlefieldOf(state, "p1").map((c) => c.id)).toEqual(["a1"]);
+    });
+});
+
+describe("Ninjutsu alongside a static additional-sacrifice tax (CR 601.2f)", () => {
+    // Review finding on PR #3084. The ninjutsu leg used to short-circuit
+    // `buildActivationSacrificeSelection`, which skipped the static tax loop
+    // entirely: with Drought on the battlefield the {2}{U}{B} ninjutsu cost
+    // owed a Swamp per black pip and paid none. Both legs now share ONE
+    // selection, each carrying its own terminal action.
+    function boardWithDrought(): { state: GameState; shinobiId: string } {
+        const { state, shinobiId } = combatBoard({ attackerIds: ["a1"] });
+        const p1 = state.players[0];
+        p1.battlefield.push(
+            makeInstance(drought.id, {
+                id: "drought",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        p1.battlefield.push(
+            makeInstance(swamp.id, {
+                id: "swamp-1",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        refreshExpectedInput(state);
+        return { state, shinobiId };
+    }
+
+    it("pays BOTH legs — the attacker goes to hand, the Swamp to the graveyard", () => {
+        const { state, shinobiId } = boardWithDrought();
+
+        ninjutsu(state, shinobiId);
+
+        const p1 = state.players[0];
+        // CR 702.49a — the attacker was RETURNED.
+        expect(p1.hand.map((c) => c.id)).toContain("a1");
+        expect(p1.graveyard.map((c) => c.id)).not.toContain("a1");
+        // CR 601.2f — the Swamp was SACRIFICED, in the same payment.
+        expect(p1.graveyard.map((c) => c.id)).toContain("swamp-1");
+        expect(p1.battlefield.map((c) => c.id)).not.toContain("swamp-1");
+    });
+
+    it("is illegal with no Swamp to pay the tax (CR 601.2f)", () => {
+        const { state, shinobiId } = boardWithDrought();
+        const p1 = state.players[0];
+        p1.battlefield = p1.battlefield.filter((c) => c.id !== "swamp-1");
+        refreshExpectedInput(state);
+
+        expect(() => ninjutsu(state, shinobiId)).toThrow();
+        // Nothing was paid: the attacker is still attacking.
+        expect(p1.battlefield.map((c) => c.id)).toContain("a1");
     });
 });
 

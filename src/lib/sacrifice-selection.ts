@@ -48,8 +48,13 @@ function withArticle(noun: string): string {
  *  Shared by the payment banner (cast/activation) and the sacrifice banner
  *  (attack-declaration land tax). */
 export function describeSacrificeChoice(sel: SacrificeSelection): string {
-    const verb = sel.action === "return" ? "return" : "sacrifice";
     const req = nextSacrificeRequirement(sel);
+    // CR 702.49a — the verb belongs to the REQUIREMENT being answered, not to
+    // the selection: one payment can return a ninjutsu attacker and then
+    // sacrifice a static tax's victim, and the banner must say which one it is
+    // asking for right now.
+    const verb =
+        (req?.action ?? sel.action) === "return" ? "return" : "sacrifice";
     if (!req) return `${verb} a permanent`;
     const label = formatFilterLabel(req.filter);
     const total = sel.requirements.reduce((a, r) => a + r.count, 0);

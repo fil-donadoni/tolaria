@@ -12470,7 +12470,16 @@ export type EffectOp =
           op: "moveZone";
           target: EffectObjectSelector;
           to: EffectMoveZone;
-          from?: "graveyard" | "exile";
+          /** The zone the named object is recovered FROM when it is not on the
+           *  battlefield. `"graveyard"` / `"exile"` re-derive a departed object
+           *  (issue #1469). `"hand"` (issue #2390) is the Ninjutsu source and
+           *  is valid only with `to: "battlefield"`: it must be DECLARED, never
+           *  inferred, because the shipped cards that reanimate their own
+           *  `$source` from a graveyard name no `from` at all, and inferring a
+           *  hand source when the pile lookup misses would put THEIR card onto
+           *  the battlefield after it moved to hand mid-resolution — a new
+           *  object (CR 400.7) the ability must not touch. */
+          from?: "graveyard" | "exile" | "hand";
           bind?: string;
           controller?: EffectPlayerRef;
           tapped?: boolean;

@@ -36,7 +36,6 @@ import type {
     SacrificeRequirement,
     SacrificeSelection,
 } from "./sacrificeChoice";
-import { autoResolveFungible } from "./sacrificeChoice";
 
 /** CR 702.49a / 509.1h — the creatures `playerId` may return to pay a ninjutsu
  *  cost right now.
@@ -75,6 +74,11 @@ export function ninjutsuReturnRequirement(
         filter: { types: ["Creature"] },
         count: 1,
         candidateIds,
+        // CR 702.49a — the creature goes to its owner's HAND, not a graveyard.
+        // Declared per-REQUIREMENT rather than on the selection so this leg can
+        // share one payment with a static additional-SACRIFICE tax the same
+        // activation owes (Drought).
+        action: "return" as const,
         // ADR 0079 — opt OUT of `autoResolveFungible` as soon as there is more
         // than one candidate. The default fungibility test (`identityKey`:
         // same card, same tapped state, no counters, no attachments) would
@@ -91,26 +95,6 @@ export function ninjutsuReturnRequirement(
         // make and no defender ambiguity to resolve.
         ...(candidateIds.length > 1 ? { explicit: true } : {}),
     };
-}
-
-/** The selection a ninjutsu activation announces, auto-resolved when the board
- *  offers no real choice (a single unblocked attacker) exactly like every other
- *  give-up-a-permanent cost. */
-export function buildNinjutsuReturnSelection(
-    state: GameState,
-    playerId: string,
-    reason: string
-): SacrificeSelection {
-    const selection: SacrificeSelection = {
-        playerId,
-        reason,
-        requirements: [ninjutsuReturnRequirement(state, playerId)],
-        picked: [],
-        // CR 702.49a — the creature goes to its owner's HAND, not a graveyard.
-        action: "return",
-    };
-    autoResolveFungible(state, selection);
-    return selection;
 }
 
 /** CR 702.49c — stamp the defender the returned creature was attacking onto the

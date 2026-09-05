@@ -95,6 +95,9 @@ export function ninjutsuAbility(
             {
                 op: "moveZone",
                 target: { ref: "$source" },
+                // CR 702.49a — "from your hand", declared rather than inferred
+                // (see the shape's doc in cards/types.ts).
+                from: "hand",
                 to: "battlefield",
                 tapped: true,
                 attacking: true,
