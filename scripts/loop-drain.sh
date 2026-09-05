@@ -475,19 +475,30 @@ reap_orphan_claims() {
 # the session tier already works (`/next-issue` §4; the telemetry records
 # sonnet-main sessions spawning opus reviewers).
 #
+# `--exclude-hitl` (#3088). An HITL issue asks for a human to look before it
+# merges; an unattended pass ends in `land`, which merges. So the driver does
+# not "handle" that work carefully — it never considers it, and says so to the
+# planner rather than growing a second, shell-side notion of eligibility here.
+# An interactive `/next-issue` passes no such flag and still sees them.
+#
 # CONSUMED, NOT REIMPLEMENTED. The ordering (board Priority, then bugs, then
-# oldest lineage) and the label→tier resolution both belong to `queue:plan`;
-# this reads `batch[0]` off its plan and nothing more. The read goes through
+# oldest lineage), the eligibility filter and the label→tier resolution all
+# belong to `queue:plan`; this reads `batch[0]` off its plan and nothing
+# more. The read goes through
 # `bun -e` rather than a `grep -o` on the JSON because the plan's OTHER arrays
 # (`deferred`, `skipped`) carry `number` fields too — a first-match scan
 # silently returns a DEFERRED issue's number the moment the batch is empty,
 # which is precisely when it must return nothing.
 #
-# NON-FATAL BY CONSTRUCTION, like the orphan-claim sweep: a planner that
-# cannot answer must not end an unattended run. It degrades — loudly — to the
-# bare prompt, letting the pass pick for itself exactly as it did before this
-# existed. That reinstates the stall risk for that one pass, which is why the
-# degrade is never silent.
+# FATAL, unlike the orphan-claim sweep — and this is the one place that trade
+# goes the other way (#3088). A pass handed the bare prompt picks its own
+# issue, and `/next-issue` knows nothing about HITL: it would implement an
+# HITL-flagged issue and then `land` it, merging the very thing the flag
+# exists to hold for a human. So "the planner could not answer" must not
+# degrade into "run something anyway". It stops the run, next to `gh-error`,
+# which already stops it for the strictly milder failure of not being able to
+# COUNT the queue. A safety that yields the moment it is inconvenient is not
+# a safety.
 RESOLVED_ISSUE=""
 RESOLVED_MODEL=""
 resolve_head() {
@@ -499,8 +510,8 @@ resolve_head() {
     # queue resolved nothing at all for exactly this reason. Only stdout is
     # the plan.
     _plan_err=$(mktemp)
-    if ! _plan=$(bun run queue:plan --cap 1 2>"$_plan_err"); then
-        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1) — this pass falls back to the bare prompt, so the pass picks its own issue on this session's tier." >&2
+    if ! _plan=$(bun run queue:plan --cap 1 --exclude-hitl 2>"$_plan_err"); then
+        echo "loop-drain: pre-flight FAILED (bun run queue:plan --cap 1 --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
         cat "$_plan_err" >&2 || true
         rm -f "$_plan_err"
         return 1
@@ -517,13 +528,13 @@ if (head && Number.isInteger(head.number) && typeof head.model === "string") {
 }
 ' 2>/dev/null) || _head=""
     if [ -z "$_head" ]; then
-        echo "loop-drain: pre-flight resolved no head issue from the plan — this pass falls back to the bare prompt." >&2
+        echo "loop-drain: pre-flight resolved no ELIGIBLE head issue from the plan — stopping rather than letting a pass pick for itself." >&2
         return 1
     fi
     RESOLVED_ISSUE=${_head% *}
     RESOLVED_MODEL=${_head#* }
     if ! is_uint "$RESOLVED_ISSUE" || [ -z "$RESOLVED_MODEL" ]; then
-        echo "loop-drain: pre-flight returned an unusable head ('$_head') — this pass falls back to the bare prompt." >&2
+        echo "loop-drain: pre-flight returned an unusable head ('$_head') — stopping rather than letting a pass pick for itself." >&2
         RESOLVED_ISSUE=""
         RESOLVED_MODEL=""
         return 1
@@ -622,28 +633,33 @@ while :; do
         break
     fi
 
-    # ── run one pass ────────────────────────────────────────────────────────
-    pass=$((pass + 1))
-    epoch=$(date +%s)
-    pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
-    green_before=$(read_green_sha)
-    total_before=$(count_total_open 2>/dev/null) || total_before=""
-
-    # Resolve WHICH issue and WHICH tier for this pass, unless the operator
-    # named the prompt (see PASS_PROMPT above — an override owns the whole
-    # invocation). `pass_model_arg` is EITHER empty or the two words
-    # `--model <tier>`, and is expanded UNQUOTED at the call site for exactly
-    # that reason — same idiom as $CLAUDE_ARGS, and the same reason
-    # "$pass_prompt" next to it stays quoted.
+    # 4b. resolve WHICH issue and WHICH tier, unless the operator named the
+    # prompt (see PASS_PROMPT above — an override owns the whole invocation,
+    # including responsibility for what it selects). Before the pass counter
+    # moves, so a failure stops the run without booking a phantom pass.
+    # `pass_model_arg` is EITHER empty or the two words `--model <tier>`, and
+    # is expanded UNQUOTED at the call site for exactly that reason — same
+    # idiom as $CLAUDE_ARGS, and the same reason "$pass_prompt" stays quoted.
     pass_prompt="$PASS_PROMPT"
     pass_model_arg=""
     if [ "$PROMPT_OVERRIDDEN" -eq 0 ]; then
         if resolve_head; then
             pass_prompt="$PASS_PROMPT $RESOLVED_ISSUE"
             pass_model_arg="--model $RESOLVED_MODEL"
-            echo "loop-drain: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+        else
+            stop_reason="preflight-error"
+            break
         fi
     fi
+
+    # ── run one pass ────────────────────────────────────────────────────────
+    pass=$((pass + 1))
+    [ "$PROMPT_OVERRIDDEN" -eq 1 ] ||
+        echo "loop-drain: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}." >&2
+    epoch=$(date +%s)
+    pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
+    green_before=$(read_green_sha)
+    total_before=$(count_total_open 2>/dev/null) || total_before=""
 
     if [ "$DRY_RUN" -eq 1 ]; then
         # Echo the command as it will actually be typed. `$pass_model_arg` is
