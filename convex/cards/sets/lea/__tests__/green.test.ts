@@ -482,7 +482,7 @@ describe("Giant Growth (+3/+3 until end of turn, CR 611.1 / 514.2)", () => {
 
         expect(getEffectivePower(state, elf)).toBe(1);
         expect(getEffectiveToughness(state, elf)).toBe(1);
-        expect(elf.temporaryPTMods).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
     });
 
     it("stacks two casts to +6/+6 that both expire together at cleanup", () => {
@@ -602,7 +602,7 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         finalizeCleanup(state);
 
         expect(getEffectivePower(state, bear)).toBe(2);
-        expect(bear.temporaryPTMods).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
     });
 
     it("schedules a next-end-step delayed trigger tied to the target id", () => {
