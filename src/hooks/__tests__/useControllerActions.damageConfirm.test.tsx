@@ -6,6 +6,7 @@
 // predicate) for any buffed multi-blocked attacker: the panel reads "5/5
 // complete" while Confirm stays disabled forever.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
@@ -110,7 +111,8 @@ function renderCtrl(
     me: Player,
     opp: Player,
     combatOverrides: Record<string, unknown>,
-    emblems?: EmblemInstance[]
+    emblems?: EmblemInstance[],
+    continuousEffects?: ContinuousEffect[]
 ) {
     const ctx = {
         gameId: "game-id",
@@ -124,6 +126,7 @@ function renderCtrl(
         stackItems: [],
         allPlayers: [me, opp],
         emblems,
+        continuousEffects,
         combat: {
             attackerIds: [],
             confirmed: true,
@@ -226,17 +229,38 @@ describe("useControllerActions — Confirm Damage budgets on effective power (#2
     it("reads a shrunk source's base-power-equal total as incomplete", () => {
         // 3/3 base, -2/-0 temporary mod -> effective power 1. A stored total
         // equal to the (now stale) base power, 3, must NOT read as complete.
-        const source = creature("shrunk", 3, 3, "me", {
-            temporaryPTMods: [{ power: -2, toughness: 0 }],
-        });
+        const source = creature("shrunk", 3, 3, "me");
         const blocker = creature("b1", 1, 3, "opp");
         const me = player("me", [source]);
         const opp = player("opp", [blocker]);
 
-        const { result } = renderCtrl(me, opp, {
-            damageAssignerIds: { shrunk: "me" },
-            damageAssignments: { shrunk: { b1: 3 } },
-        });
+        const { result } = renderCtrl(
+            me,
+            opp,
+            {
+                damageAssignerIds: { shrunk: "me" },
+                damageAssignments: { shrunk: { b1: 3 } },
+            },
+            undefined,
+            // CR 613.4c (PRD #2064 S6) — the shrink is a registry entry the
+            // hook must be handed, not a field on the permanent.
+            [
+                {
+                    id: "ce-1",
+                    layer: 7,
+                    sublayer: "7c",
+                    timestamp: 1,
+                    expiry: {
+                        kind: "duration",
+                        duration: { phase: "end-of-turn" },
+                        controllerId: "me",
+                    },
+                    affected: { kind: "instances", instanceIds: ["shrunk"] },
+                    payload: { kind: "pt-modify", power: -2, toughness: 0 },
+                    characteristicDefining: false,
+                },
+            ]
+        );
 
         expect(findAction(result, "confirm-damage")!.disabled).toBe(true);
     });

@@ -18,6 +18,7 @@ import {
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { resetBattlefieldTransientState } from "../state";
 import { crusade } from "../../cards/sets/lea";
 
 /** A vanilla creature with no registry entry — every effect in this file
@@ -377,5 +378,84 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         gear.isTapped = false;
         expect(getPermanentEffectivePower(state, bear)).toBe(2);
         expect(getPermanentEffectiveToughness(state, bear)).toBe(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 400.7 — the zone-change purge (PRD #2064 S6).
+//
+// The instance fields the registry replaced were DELETED on the way out
+// (`delete card.temporaryPTSet`), and they had to be: the engine reuses the
+// instance record across a zone change, so a residue entry that survives
+// re-attaches itself to what CR 400.7 says is a NEW object.
+// ---------------------------------------------------------------------------
+
+describe("CR 400.7 — a permanent that leaves takes its registry residue with it", () => {
+    it("drops an entry scoped only to the departing instance", () => {
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [entry("ce-set", 10, "7b", { kind: "pt-set", toughness: 9 })]
+        );
+        expect(getEffectiveToughness(state, bear)).toBe(9);
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toBeUndefined();
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("keeps a SHARED entry alive for the instances that did not leave", () => {
+        // CR 611.2c — an effect from a resolving spell has a FIXED affected
+        // set; one member leaving does not end it for the others, so the
+        // purge strikes the id rather than dropping the entry.
+        const bear = creature("bear", 2, 2);
+        const ox = creature("ox", 1, 1);
+        const state = stateWith(
+            [bear, ox],
+            [
+                entry(
+                    "ce-mass",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 3, toughness: 3 },
+                    { affected: { kind: "instances", instanceIds: ["bear", "ox"] } }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, ox)).toBe(4);
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toHaveLength(1);
+        expect(getEffectivePower(state, ox)).toBe(4);
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("leaves a `predicate`-affected entry alone", () => {
+        // Its affected set IS the live board, re-evaluated at every read, so a
+        // departure removes the permanent from it for free. Purging it would
+        // delete a live anthem because one creature bounced.
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [
+                entry(
+                    "ce-anthem",
+                    10,
+                    "7c",
+                    {
+                        kind: "template",
+                        sourceCardId: "src",
+                        effectIndex: 0,
+                    },
+                    { affected: { kind: "predicate" }, expiry: { kind: "source", sourceId: "src" } }
+                ),
+            ]
+        );
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toHaveLength(1);
     });
 });
