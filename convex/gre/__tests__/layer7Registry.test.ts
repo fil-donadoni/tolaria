@@ -395,6 +395,95 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
 // re-attaches itself to what CR 400.7 says is a NEW object.
 // ---------------------------------------------------------------------------
 
+describe("CR 611.2 — a stored layer-7 entry stops applying when its expiry ends", () => {
+    // Layer 6 has always filtered stored entries through `layer6ExpiryLive`;
+    // layer 7 checked only `affected`. That was survivable while
+    // `addContinuousEffect` refused every expiry it could not tick, but PRD
+    // #2064 S6 lifted that refusal, so an entry whose end nothing checks would
+    // apply for the rest of the game.
+
+    it("drops a `counter` entry once the last counter is gone (CR 122.1)", () => {
+        const bear = creature("bear", 2, 2, { counters: { charge: 1 } });
+        const state = stateWith(
+            [bear],
+            [
+                entry(
+                    "ce-counter-borne",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 5, toughness: 5 },
+                    {
+                        expiry: {
+                            kind: "counter",
+                            permanentId: "bear",
+                            counterType: "charge",
+                        },
+                    }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(7);
+
+        bear.counters = {};
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("drops a `while-source-tapped` entry when the source untaps (CR 611.2b)", () => {
+        const gear = creature("gear", 0, 0, {
+            types: ["Artifact"],
+            isTapped: true,
+        });
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [gear, bear],
+            [
+                entry(
+                    "ce-tapped",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 2, toughness: -2 },
+                    {
+                        expiry: {
+                            kind: "while-source-tapped",
+                            sourceId: "gear",
+                        },
+                    }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(4);
+
+        gear.isTapped = false;
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("drops a `source` entry when the source leaves the battlefield", () => {
+        const anthemSource = creature("src", 1, 1);
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [anthemSource, bear],
+            [
+                entry(
+                    "ce-src-bound",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 3, toughness: 3 },
+                    { expiry: { kind: "source", sourceId: "src" } }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(5);
+
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "src"
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+});
+
 describe("CR 400.7 — a permanent that leaves takes its registry residue with it", () => {
     it("drops an entry scoped only to the departing instance", () => {
         const bear = creature("bear", 2, 2);
