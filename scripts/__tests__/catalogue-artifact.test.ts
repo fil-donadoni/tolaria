@@ -52,10 +52,8 @@ import {
     baselineKey,
 } from "../lib/catalogue-divergence-baseline";
 import { getAllCards, getAllRawCards } from "../../convex/cards/catalogue";
-import {
-    compiledReadyDefinitions,
-    excludeHandWritten,
-} from "../../convex/cards/compiledCatalogue";
+import { excludeHandWritten } from "../../convex/cards/compiledCatalogue";
+import { compiledReadyDefinitions } from "../../convex/cards/compiledPool";
 import type { CardDefinition } from "../../convex/cards/types";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
