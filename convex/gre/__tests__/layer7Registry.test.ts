@@ -352,7 +352,12 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         const bear = creature("bear", 2, 2, { subtypes: [] });
         const state = stateWith(
             [bear],
-            [entry("ce-set-forever", 10, "7b", { kind: "pt-set", toughness: 7 })]
+            [
+                entry("ce-set-forever", 10, "7b", {
+                    kind: "pt-set",
+                    toughness: 7,
+                }),
+            ]
         );
         expect(getEffectiveToughness(state, bear)).toBe(7);
         expect(getPermanentEffectiveToughness(state, bear)).toBe(7);
@@ -419,7 +424,12 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
                     10,
                     "7c",
                     { kind: "pt-modify", power: 3, toughness: 3 },
-                    { affected: { kind: "instances", instanceIds: ["bear", "ox"] } }
+                    {
+                        affected: {
+                            kind: "instances",
+                            instanceIds: ["bear", "ox"],
+                        },
+                    }
                 ),
             ]
         );
@@ -449,7 +459,10 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
                         sourceCardId: "src",
                         effectIndex: 0,
                     },
-                    { affected: { kind: "predicate" }, expiry: { kind: "source", sourceId: "src" } }
+                    {
+                        affected: { kind: "predicate" },
+                        expiry: { kind: "source", sourceId: "src" },
+                    }
                 ),
             ]
         );

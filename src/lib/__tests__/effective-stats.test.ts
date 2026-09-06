@@ -103,14 +103,18 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         const me = makePlayer("me", [creature, makeEnchant(CASTLE)]);
         const players: Player[] = [me];
         expect(effectivePower(players, creature, undefined, undefined)).toBe(2);
-        expect(effectiveToughness(players, creature, undefined, undefined)).toBe(3);
+        expect(
+            effectiveToughness(players, creature, undefined, undefined)
+        ).toBe(3);
     });
 
     it("Castle does NOT grant toughness to tapped creatures", () => {
         const creature = makeCreature({ id: "lion", isTapped: true });
         const me = makePlayer("me", [creature, makeEnchant(CASTLE)]);
         const players: Player[] = [me];
-        expect(effectiveToughness(players, creature, undefined, undefined)).toBe(1);
+        expect(
+            effectiveToughness(players, creature, undefined, undefined)
+        ).toBe(1);
     });
 
     it("Castle of one player does NOT affect the opponent's creatures", () => {
@@ -127,8 +131,12 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         const me = makePlayer("me", [myLion, makeEnchant(CASTLE, "me")]);
         const opp = makePlayer("opp", [oppLion]);
         const players: Player[] = [me, opp];
-        expect(effectiveToughness(players, myLion, undefined, undefined)).toBe(3);
-        expect(effectiveToughness(players, oppLion, undefined, undefined)).toBe(1);
+        expect(effectiveToughness(players, myLion, undefined, undefined)).toBe(
+            3
+        );
+        expect(effectiveToughness(players, oppLion, undefined, undefined)).toBe(
+            1
+        );
     });
 
     it("Bad Moon buffs black creatures +1/+1 even when the card def is slimmed (regression)", () => {
@@ -164,8 +172,12 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         };
         const me = makePlayer("me", [blackCreature, makeEnchant(BAD_MOON)]);
         const players: Player[] = [me];
-        expect(effectivePower(players, blackCreature, undefined, undefined)).toBe(2);
-        expect(effectiveToughness(players, blackCreature, undefined, undefined)).toBe(2);
+        expect(
+            effectivePower(players, blackCreature, undefined, undefined)
+        ).toBe(2);
+        expect(
+            effectiveToughness(players, blackCreature, undefined, undefined)
+        ).toBe(2);
     });
 
     it("Holy Armor static +0/+2 reaches host via attachedTo (regression: client view)", () => {
@@ -290,7 +302,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 attachedTo: "bear",
             };
             const me = makePlayer("me", [bear, aura]);
-            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(
+                4
+            );
         });
 
         it("a registry pump entry reaches the target (Firebreathing)", () => {
@@ -316,7 +330,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             });
             const me = makePlayer("me", [bear]);
             expect(effectivePower([me], bear, undefined, undefined)).toBe(4);
-            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(
+                4
+            );
         });
 
         it("isTapped reaches predicates (Castle skips tapped creatures)", () => {
@@ -327,7 +343,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 isTapped: true,
             });
             const me = makePlayer("me", [tapped, makeEnchant(CASTLE)]);
-            expect(effectiveToughness([me], tapped, undefined, undefined)).toBe(1);
+            expect(effectiveToughness([me], tapped, undefined, undefined)).toBe(
+                1
+            );
         });
 
         it("controllerId reaches predicates (Castle scopes to controller)", () => {
@@ -341,7 +359,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             });
             const me = makePlayer("me", [myLion, makeEnchant(CASTLE, "me")]);
             const opp = makePlayer("opp", [oppLion]);
-            expect(effectiveToughness([me, opp], oppLion, undefined, undefined)).toBe(1);
+            expect(
+                effectiveToughness([me, opp], oppLion, undefined, undefined)
+            ).toBe(1);
         });
 
         it("types reach the layer fast-path (non-creature target skipped)", () => {
@@ -361,7 +381,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 toughness: 1,
             };
             const me = makePlayer("me", [fakeArtifact, makeEnchant(CASTLE)]);
-            expect(effectiveToughness([me], fakeArtifact, undefined, undefined)).toBe(1);
+            expect(
+                effectiveToughness([me], fakeArtifact, undefined, undefined)
+            ).toBe(1);
         });
 
         it("card.id reaches getStaticEffects (aura source resolves its def)", () => {
@@ -386,7 +408,9 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 attachedTo: "bear",
             };
             const me = makePlayer("me", [bear, aura]);
-            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(2);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(
+                2
+            );
         });
     });
 
@@ -400,8 +424,12 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         });
         const me = makePlayer("me", [whiteLion, makeEnchant(BAD_MOON)]);
         const players: Player[] = [me];
-        expect(effectivePower(players, whiteLion, undefined, undefined)).toBe(2);
-        expect(effectiveToughness(players, whiteLion, undefined, undefined)).toBe(1);
+        expect(effectivePower(players, whiteLion, undefined, undefined)).toBe(
+            2
+        );
+        expect(
+            effectiveToughness(players, whiteLion, undefined, undefined)
+        ).toBe(1);
     });
 
     // CR 114 (issue #1221) — a command-zone emblem is a source-less, owner-
@@ -424,18 +452,29 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             const players: Player[] = [makePlayer("me", [lion])];
             // Baseline (no emblem forwarded): 2/1.
             expect(effectivePower(players, lion, undefined, undefined)).toBe(2);
-            expect(effectiveToughness(players, lion, undefined, undefined)).toBe(1);
+            expect(
+                effectiveToughness(players, lion, undefined, undefined)
+            ).toBe(1);
             // With the emblem: +1/+0 → 3/1 (toughness unchanged).
-            expect(effectivePower(players, lion, [sorinEmblem("me")], undefined)).toBe(3);
-            expect(effectiveToughness(players, lion, [sorinEmblem("me")], undefined)).toBe(
-                1
-            );
+            expect(
+                effectivePower(players, lion, [sorinEmblem("me")], undefined)
+            ).toBe(3);
+            expect(
+                effectiveToughness(
+                    players,
+                    lion,
+                    [sorinEmblem("me")],
+                    undefined
+                )
+            ).toBe(1);
         });
 
         it("is owner-scoped — an opponent's emblem does not buff my creatures", () => {
             const lion = makeCreature({ id: "my-lion" });
             const players: Player[] = [makePlayer("me", [lion])];
-            expect(effectivePower(players, lion, [sorinEmblem("opp")], undefined)).toBe(2);
+            expect(
+                effectivePower(players, lion, [sorinEmblem("opp")], undefined)
+            ).toBe(2);
         });
     });
 });

@@ -171,8 +171,8 @@ function tapForPayment(
         payManaCost(player.manaPool, state.pendingCast.manaCost);
         commitLandsForCost(player, state.pendingCast.manaCost);
         const spellCard = removeFromZone(
-           state,
-           player,
+            state,
+            player,
             state.pendingCast.cardInstanceId,
             "hand"
         );

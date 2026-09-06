@@ -169,7 +169,12 @@ function renderPanel(
 describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     it("shows effective power (5) as the budget, not base power (2)", () => {
         const { combat, allPlayers, continuousEffects } = buffedScenario(3);
-        const { getByText } = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         // Source label carries the effective budget.
         expect(getByText(/Elvish Archers \(5 dmg\)/)).toBeTruthy();
         // assigned/budget counter starts at 0/5.
@@ -181,7 +186,12 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
         // unicorn must still be live because the effective budget is 5.
         const { combat, allPlayers, continuousEffects } = buffedScenario(3);
         combat.damageAssignments = { archers: { lions: 2 } };
-        const { getByText, getAllByText } = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const { getByText, getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         // counter reflects 2 assigned out of 5.
         expect(getByText("2/5")).toBeTruthy();
         // Click + on the unicorn row.
@@ -199,7 +209,12 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     it("+ button clamps at effective power (no dispatch once total === 5)", () => {
         const { combat, allPlayers, continuousEffects } = buffedScenario(3);
         combat.damageAssignments = { archers: { lions: 5 } };
-        const { getByText, getAllByText } = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const { getByText, getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(getByText("5/5")).toBeTruthy();
         const plusButtons = getAllByText("+");
         fireEvent.click(plusButtons[1]); // try to add to unicorn
@@ -233,13 +248,23 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
 
     it("lowers the budget for a negative temporary modifier (-1/-1 -> 1)", () => {
         const { combat, allPlayers, continuousEffects } = buffedScenario(-1);
-        const { getByText } = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(getByText(/Elvish Archers \(1 dmg\)/)).toBeTruthy();
         expect(getByText("0/1")).toBeTruthy();
         // First + is allowed; assign 1 to lions.
         combat.damageAssignments = { archers: { lions: 1 } };
         cleanup();
-        const second = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const second = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(second.getByText("1/1")).toBeTruthy();
         const plusButtons = within(second.container).getAllByText("+");
         fireEvent.click(plusButtons[1]);
@@ -251,7 +276,12 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     // control in the mobile controls meets.
     it("sizes the +/- steppers to the 44px touch-target floor", () => {
         const { combat, allPlayers, continuousEffects } = buffedScenario(0);
-        const { getAllByText } = renderPanel(combat, allPlayers, undefined, continuousEffects);
+        const { getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         for (const btn of [...getAllByText("-"), ...getAllByText("+")]) {
             expect(btn.className).toContain("w-11");
             expect(btn.className).toContain("h-11");

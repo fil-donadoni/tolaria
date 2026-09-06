@@ -160,7 +160,12 @@ export default function DamageAssignmentPanel({
                     // low.
                     const power = Math.max(
                         0,
-                        effectivePower(allPlayers, source, emblems, continuousEffects)
+                        effectivePower(
+                            allPlayers,
+                            source,
+                            emblems,
+                            continuousEffects
+                        )
                     );
                     const hasTrample =
                         source.staticAbilities?.includes("trample") ?? false;
