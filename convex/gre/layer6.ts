@@ -26,8 +26,9 @@
 // at every apply/unapply site, so the ~90 consult sites that read
 // `card.staticAbilities.includes("trample")` keep working unchanged while
 // reading something the registry produced. PRD #2064 S6 deletes the field and
-// points those sites at `deriveLayer6` directly; S5 puts the registry on the
-// wire so the client can do the same. The pre-layer-6 keyword multiset lives in
+// points those sites at `deriveLayer6` directly; S5 (#3094) put the registry on
+// the wire and pointed the PROJECTION at `deriveLayer6Board` through
+// `gre/wireCharacteristics.ts`, so the client derives the same answer. The pre-layer-6 keyword multiset lives in
 // `baseStaticAbilities`, the layer-6 twin of `printedSubtypes` (layer 4).
 //
 // WHAT REVOCATION IS. Nothing. An entry applies while its expiry says it does;
@@ -1041,6 +1042,26 @@ export function syncLayer6(
      *  catches up. */
     opts?: { stoppedSourceIds?: ReadonlySet<string> }
 ): void {
+    for (const { card, result } of deriveLayer6Board(state, opts)) {
+        Object.assign(card, layer6DerivedFields(card, result));
+    }
+}
+
+/** One board pass of the CR 613.1f derivation, as a PURE result list: what
+ *  every battlefield permanent's layer-6 keyword multiset and granted-ability
+ *  rows are, computed from the registry against one fixed board, applied to
+ *  nothing.
+ *
+ *  Split out of `syncLayer6` so the wire projection reads the SAME derivation
+ *  the engine writes (PRD #2064 S5, `gre/wireCharacteristics.ts`) rather than
+ *  the field the sync happened to leave behind. The twin of
+ *  `deriveLayers2to5Board`, and it carries the same caveat: the one-shot base
+ *  capture and legacy migration below mutate the cards they are given, so the
+ *  wire path hands this function CLONES. */
+export function deriveLayer6Board(
+    state: GameState,
+    opts?: { stoppedSourceIds?: ReadonlySet<string> }
+): { card: CardInstanceState; result: Layer6Derivation }[] {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
         ? {
@@ -1067,36 +1088,46 @@ export function syncLayer6(
             });
         }
     }
-    for (const { card, result } of derived) {
-        card.staticAbilities = result.staticAbilities;
-        card.abilitiesSuppressedBy =
+    return derived;
+}
+
+/** The layer-6 derived output as a plain FIELD PATCH — the single mapping from
+ *  a `Layer6Derivation` to the instance fields that hold it, shared by the sync
+ *  (which `Object.assign`s it onto the live permanent) and the wire projection
+ *  (which spreads it onto the slimmed wire card, PRD #2064 S5).
+ *
+ *  Reads `card` for the half of the granted-ability rows that is NOT derived:
+ *  source-provenance grants are derived output, duration- and residue-borne
+ *  ones stay on the instance until PRD #2064 S6, so the derived rows replace
+ *  only the `auraId`-keyed half. */
+export function layer6DerivedFields(
+    card: CardInstanceState,
+    result: Layer6Derivation
+): Partial<CardInstanceState> {
+    const keptStatic = (card.grantedStaticAbilities ?? []).filter(
+        (g) => !g.auraId
+    );
+    const staticRows = [...keptStatic, ...result.grantedStatic];
+    const keptActivated = (card.grantedActivatedAbilities ?? []).filter(
+        (g) => !g.auraId
+    );
+    const activated = [...keptActivated, ...result.grantedActivated];
+    const keptTriggered = (card.grantedTriggeredAbilities ?? []).filter(
+        (g) => !g.auraId
+    );
+    const triggered = [...keptTriggered, ...result.grantedTriggered];
+    return {
+        staticAbilities: result.staticAbilities,
+        abilitiesSuppressedBy:
             result.abilitiesSuppressedBy.length > 0
                 ? result.abilitiesSuppressedBy
-                : undefined;
-        card.removedKeywords =
+                : undefined,
+        removedKeywords:
             result.removedKeywords.length > 0
                 ? result.removedKeywords
-                : undefined;
-        // Source-provenance grants are derived; duration- and residue-borne
-        // ones stay on the instance until PRD #2064 S6, so they are preserved
-        // and the derived rows replace only the `auraId`-keyed half.
-        const keptStatic = (card.grantedStaticAbilities ?? []).filter(
-            (g) => !g.auraId
-        );
-        const staticRows = [...keptStatic, ...result.grantedStatic];
-        card.grantedStaticAbilities =
-            staticRows.length > 0 ? staticRows : undefined;
-        const keptActivated = (card.grantedActivatedAbilities ?? []).filter(
-            (g) => !g.auraId
-        );
-        const activated = [...keptActivated, ...result.grantedActivated];
-        card.grantedActivatedAbilities =
-            activated.length > 0 ? activated : undefined;
-        const keptTriggered = (card.grantedTriggeredAbilities ?? []).filter(
-            (g) => !g.auraId
-        );
-        const triggered = [...keptTriggered, ...result.grantedTriggered];
-        card.grantedTriggeredAbilities =
-            triggered.length > 0 ? triggered : undefined;
-    }
+                : undefined,
+        grantedStaticAbilities: staticRows.length > 0 ? staticRows : undefined,
+        grantedActivatedAbilities: activated.length > 0 ? activated : undefined,
+        grantedTriggeredAbilities: triggered.length > 0 ? triggered : undefined,
+    };
 }

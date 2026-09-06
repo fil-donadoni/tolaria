@@ -21,9 +21,11 @@
 // union today; that is the incoherence, not a reason to widen the boundary.
 //
 // STATUS — every CR 613 layer now derives from this registry: layer 7 (S2,
-// #3003), layer 6 (S3, #3004), layers 2-5 (S4, #3005). What remains is the wire
-// (S5), deleting the materialised fields and the old helpers (S6), and the perf
-// pass (S7).
+// #3003), layer 6 (S3, #3004), layers 2-5 (S4, #3005). S5 (#3094) put the
+// registry ON THE WIRE and made `projectPublicState` derive its snapshot from
+// it (`gre/wireCharacteristics.ts`), so the client-side engine run reads the
+// same entries the server does. What remains is deleting the materialised
+// fields and the old helpers (S6) and the perf pass (S7).
 
 import type {
     CardSupertype,
