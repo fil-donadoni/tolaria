@@ -193,6 +193,58 @@ describe("catalogue artifact — divergence is a RED (ADR 0114 §3)", () => {
         ]);
     });
 
+    it("reports EVERY differing field, so a baseline row cannot cover a second one", () => {
+        // The property the baseline's `card|field` key depends on. No card
+        // diverges on two fields today, so without this unit the whole
+        // mechanism is untested: reporting only the first differing key leaves
+        // the suite green while a second divergence rides in on the first
+        // card's baseline row.
+        const hand = {
+            id: "x",
+            name: "X",
+            rarity: "common",
+            types: ["Creature"],
+            effects: [{ op: "draw", count: 1 }],
+            targetRequirement: { type: "Creature", count: 1 },
+        } as unknown as CardDefinition;
+        const twin = {
+            ...hand,
+            effects: [{ op: "draw", count: 2 }],
+            targetRequirement: { type: "any", count: 1 },
+        } as unknown as CardDefinition;
+        expect(twinDivergence(hand, twin, "o").map((d) => d.field)).toEqual([
+            "effects",
+            "targetRequirement",
+        ]);
+    });
+
+    it("a closure BODY is incomparable; everything else on that card is not", () => {
+        // gold.ts's rule, and the review finding that produced this test: a
+        // whole-card exemption on the sentinel is how Desert Twister's target
+        // defect hid behind its `effect: "destroy-target"` shorthand body.
+        const hand = {
+            id: "x",
+            name: "X",
+            rarity: "common",
+            types: ["Instant"],
+            effect: "destroy-target",
+            targetRequirement: { type: "any", count: 1 },
+        } as unknown as CardDefinition;
+        const sameTarget = { ...hand, effects: [{ op: "destroy" }] };
+        expect(twinDivergence(hand, sameTarget as CardDefinition, "o")).toEqual(
+            []
+        );
+        const otherTarget = {
+            ...sameTarget,
+            targetRequirement: { type: "Creature", count: 1 },
+        };
+        expect(
+            twinDivergence(hand, otherTarget as CardDefinition, "o").map(
+                (d) => d.field
+            )
+        ).toEqual(["targetRequirement"]);
+    });
+
     it("a twin is checked, never allowed to supply the row", () => {
         // ADR 0114 §3 forbids a silent winner. The hand-written row is the
         // one written BECAUSE it is the copy the deep-equality claim covers —
