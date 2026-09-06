@@ -3738,6 +3738,63 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2927. The flooded leg of the `manaDevelopment` set (the Zuran Orb pair above is the on-curve leg). #2686 derived demand from the SUM of the hand's mana values, which in this position is 8 against five lands — so the board read as ON CURVE and the flooded branch, the half of #2686 that priced a surplus land DOWN, never fired in any realistic position. Demand is now the curve's top end (MV 2 here), so the fifth land is flat 17 and the same land is 29 once the library's Craw Wurm reaches hand. Proven to fail by zeroing `manaDevWeight` (the two readings collapse into each other) and by restoring the sum proxy (the position reads on curve and the flat-17 assertion goes red).",
     },
+    {
+        // CAST-INVARIANCE (issue #2928) — the fourth leg of the
+        // `manaDevelopment` set, and the one that reaches a DECISION.
+        //
+        // THE POSITION. Eight untapped Forests and an 8-MV Aladdin's Ring in
+        // hand, against an opponent 2/2. Casting is plainly right: the Ring is
+        // exactly affordable, it is a mana sink the board has nothing else to
+        // spend on, and a card held in hand does nothing.
+        //
+        // WHY IT WAS WRONG. Demand used to be read off the HAND alone, so the
+        // Ring was worth `manaDevWeight` on each of the eight lands it
+        // justified — 96 points the term took away the instant the card left
+        // the hand. Since a card's latent worth in hand and the permanent's
+        // realized worth roughly cancel across a cast by design (ADR 0018),
+        // that 96 was the tie-break: measured, the bot chose `pass` on all
+        // three seeds rather than pay it. Counting the board's non-land
+        // permanents in the same demand makes the cast shift the card between
+        // two halves of one number, and the bot casts on all three.
+        //
+        // WHY AN 8-MV MANA SINK AND NOT A CREATURE. The toll is
+        // `manaDevWeight x MV`, so it only decides the pick when the spell's
+        // own board impact is smaller than that. Measured and discarded on the
+        // way here: a 4-MV Hill Giant (toll 48) and a 6-MV Craw Wurm (toll 72,
+        // with and without a cheap alternative in hand) are cast on every seed
+        // BOTH before and after the fix — bodies that big outrun the toll, and
+        // an entry built on one would have been vacuous.
+        label: "cast-invariance: casts an affordable creature off a base its curve already justifies (issue #2928)",
+        spec: {
+            cards: [
+                ...Array.from({ length: 8 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aladdin's Ring", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Aladdin's Ring" }],
+        },
+        note: "Issue #2928. The decision leg of the `manaDevelopment` set: with demand read off the hand alone, casting the card that set the curve's top end cost `manaDevWeight` per land it justified — 96 here — and since a card's latent hand value and the permanent's realized worth roughly cancel across a cast (ADR 0018), that toll was the tie-break and it pointed at holding. Counting non-land permanents in the same demand makes a cast net zero. Proven to fail against the pre-fix formula (hand-only demand): the bot chose `pass` on all 3 seeds. A 4-MV or 6-MV creature does NOT write this entry — measured, both are cast on every seed either way, because a body that size outruns the toll.",
+    },
 
     // ── Wasted-mana hold (the Metamorphosis report) ───────────────────────
     // A cast whose resolution leaves the bot holding floating mana NOTHING in

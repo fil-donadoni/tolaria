@@ -1285,6 +1285,81 @@ describe("manaDevelopment term (issue #2686)", () => {
         );
     });
 
+    // Issue #2928: casting is not a mana-development change. A card moving
+    // hand → battlefield must leave the term where it was, or the evaluator
+    // pays a flooded bot to sit on its hand in exactly the positions where
+    // emptying it is mandatory.
+    const onBattlefield = (cardId: string, id: string) =>
+        makeInstance(cardId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            isSummoningSick: false,
+        });
+    const board = (
+        lands: number,
+        hand: CardInstanceState[],
+        nonLands: CardInstanceState[]
+    ) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        ...Array.from({ length: lands }, (_, i) =>
+                            land(`l${i}`)
+                        ),
+                        ...nonLands,
+                    ],
+                    hand,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+    it("does not move when a card leaves the hand for the battlefield (issue #2928)", () => {
+        // Six lands and one 4-MV Hill Giant: the hand tops out at 4, which the
+        // six lands already cover. Casting it is the move the bot is supposed
+        // to make, and the term must not charge for it.
+        const inHand = board(6, [held("g")], []);
+        const inPlay = board(6, [], [onBattlefield(GIANT, "g")]);
+        expect(devTerm(inPlay)).toBe(devTerm(inHand));
+    });
+
+    it("charges the cast nothing that zeroing manaDevWeight would refund (issue #2928)", () => {
+        // The invariant asserted where it bites — on `evaluate` itself, not on
+        // the term in isolation. The delta of CASTING is computed twice, at
+        // `manaDevWeight` 12 and at 0: if the term is cast-invariant the two
+        // deltas are identical, and if it is not, the difference IS the toll
+        // the flooded bot pays for emptying its hand.
+        const inHand = board(6, [held("g")], []);
+        const inPlay = board(6, [], [onBattlefield(GIANT, "g")]);
+        const zeroed = { ...DEFAULT_EVAL_WEIGHTS, manaDevWeight: 0 };
+        const castDelta = (w: typeof DEFAULT_EVAL_WEIGHTS) =>
+            evaluate(inPlay, "p1", w) - evaluate(inHand, "p1", w);
+        expect(castDelta(DEFAULT_EVAL_WEIGHTS)).toBe(castDelta(zeroed));
+    });
+
+    it("keeps the base justified once the spell that wanted it is in play (issue #2928)", () => {
+        // The board is the other half of the same demand: a 4-MV permanent in
+        // play wants its four lands exactly as the card in hand did. With an
+        // empty hand and that permanent out, the fourth land is still on curve
+        // — 29, above 2 life — while a seventh is flooded at 17.
+        const four = board(4, [], [onBattlefield(GIANT, "g")]);
+        const three = board(3, [], [onBattlefield(GIANT, "g")]);
+        const seven = board(7, [], [onBattlefield(GIANT, "g")]);
+        const six = board(6, [], [onBattlefield(GIANT, "g")]);
+        const onCurveLand =
+            materialMargin(four, "p1") - materialMargin(three, "p1");
+        const floodedLand =
+            materialMargin(seven, "p1") - materialMargin(six, "p1");
+        expect(onCurveLand).toBeGreaterThan(
+            2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
+        );
+        expect(onCurveLand - floodedLand).toBe(
+            DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        );
+    });
+
     it("does not pay for hand SIZE — drawing a card no bigger than the curve leaves the term flat (issue #2927)", () => {
         // The #2686 sum proxy raised demand on every draw, so a bot could gain
         // development by drawing a card while gaining no land at all. Demand is
