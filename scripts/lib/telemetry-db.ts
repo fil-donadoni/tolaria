@@ -16,6 +16,11 @@
 
 import type { Database } from "bun:sqlite";
 import { createRequire } from "node:module";
+import {
+    DEFAULT_WEIGHTS,
+    classifyModel,
+    type CategoryWeights,
+} from "./usage-window.ts";
 
 // `bun:sqlite` is a Bun-only builtin with no Node equivalent. A type-only
 // import keeps this module (and its pure pricing/classification helpers)
@@ -247,6 +252,80 @@ export function costOf(
     );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// THE OTHER DENOMINATOR — allowance units, not list-price dollars.
+//
+// `costOf` above prices a row in USD at published API list price. That number
+// compares two eras of this project against each other and nothing else: the
+// work is not bought at list price, it is drawn against a subscription
+// allowance, and ADR 0110's second target ("an issue costs <0.5% of the weekly
+// budget") is stated in THAT currency. Issue #3080: the target had no
+// denominator, so it had never been checked — while the incident that
+// motivated it, 91% of a weekly allowance burnt in 48h, is precisely a
+// denominator failure.
+//
+// The unit below is the one `scripts/lib/usage-window.ts` already defined for
+// the AFK driver's budget guard (ADR 0097/0109): weighted tokens, anchored so
+// 1 unit == 1 Sonnet input token. It is reused rather than re-derived — a
+// second weight table would be a second answer to the same question, and the
+// guard and the report must not be able to disagree. What is NOT reused is the
+// budget: the guard's `TOLARIA_LOOP_TOKEN_BUDGET` is a per-pass window, the
+// allowance here is weekly. Resolution of that value lives in exactly one
+// place, `scripts/lib/telemetry-budget.ts`.
+//
+// Neither number is a quota reading. There is no supported way to read the
+// real Anthropic allowance (ADR 0097); the weekly figure is user-declared, and
+// every report that quotes a share says so.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Does this model draw on the CLAUDE weekly allowance?
+ *
+ * The store is not single-vendor: the opencode harness contributes DeepSeek
+ * and Kimi rows (4.5k of them at time of writing), which cost real money and
+ * draw on no Claude allowance at all. Counting them would inflate every share;
+ * dropping them silently would lose them. So they are excluded HERE and
+ * reported separately in list-price dollars by the budget report.
+ *
+ * The test is the normalised model family, not the harness: a Claude model
+ * driven through another harness still bills the same account, and a
+ * hypothetical non-Claude model driven through Claude Code still does not.
+ * `<synthetic>` — Claude Code's own placeholder rows — falls outside too.
+ */
+export function drawsOnClaudeAllowance(model: string): boolean {
+    return normalizeModel(model).startsWith("claude-");
+}
+
+/**
+ * Allowance units consumed by one row — the weighted-token counterpart of
+ * {@link costOf}, in the unit `usage-window.ts` anchors at "1 Sonnet input
+ * token".
+ *
+ * Returns 0 for anything that does not draw on the Claude allowance, so a
+ * caller summing this over a mixed store gets the allowance-relevant total and
+ * nothing else. An unrecognised CLAUDE model keeps `classifyModel`'s
+ * fail-expensive fallback (it prices as the most expensive class), because the
+ * error this must never make is reporting a new model as cheap.
+ */
+export function unitsOf(
+    model: string,
+    inTok: number,
+    outTok: number,
+    cacheRead: number,
+    cacheWrite: number,
+    weights: Record<string, CategoryWeights> = DEFAULT_WEIGHTS
+): number {
+    if (!drawsOnClaudeAllowance(model)) return 0;
+    const w = weights[classifyModel(model)];
+    if (!w) return 0;
+    return (
+        inTok * w.input +
+        outTok * w.output +
+        cacheRead * w.cacheRead +
+        cacheWrite * w.cacheCreation
+    );
+}
+
 /** Roles are the prefix the spawn-guard hook requires on every `description`. */
 const ROLE_PREFIXES = [
     "implement",
@@ -384,6 +463,48 @@ export function issueFromDescription(desc: string | null): number | null {
         if (!/PR ?$/i.test(before)) return Number(m[1]);
     }
     return null;
+}
+
+/**
+ * Extract the issue a SESSION is about, from its opening slash command.
+ *
+ * Deliberately stricter than {@link issueFromDescription}, which reads agent
+ * spawn descriptions written to a known template. A session command is free
+ * text a human typed (`/next-issue figli di 2064`,
+ * `/process-gh-issues #2469 poi #2468`), so:
+ *
+ * - it must BE a slash command — an arbitrary prompt that happens to contain a
+ *   number is not an issue claim;
+ * - the number must STAND ALONE, not be a fragment of a longer token. A plain
+ *   `\b` boundary reads `/mtg-rules-check 704.5a` as issue 704 and merges that
+ *   session's whole cost into a real issue #704, inside the very cohort ADR
+ *   0110's target is measured against. Dots and word characters on either side
+ *   therefore disqualify a match, which also rejects CR ids (`605.1a`),
+ *   versions (`1.3.9`), durations (`45m`) and dates (`2026-09-05` matches three
+ *   times and so falls to the ambiguity rule below);
+ * - it must name exactly ONE such number. Several is the legacy
+ *   `/process-gh-issues` batch shape, where one session worked many issues and
+ *   no split between them is recoverable; charging that session to whichever
+ *   number came first would inflate that issue and erase the others.
+ *
+ * The residual risk is a slash command that takes a single bare argument in
+ * issue range and does not mean an issue. It fails toward attributing, so it is
+ * left to the report's coverage line rather than to a hand-maintained list of
+ * command names, which rots open: a new numeric-argument skill would be
+ * attributed anyway on the day it is added, and the list would then be a
+ * guarantee nobody could rely on.
+ *
+ * This is what attributes MAIN-THREAD cost to an issue, which under ADR 0110 is
+ * 87% of it (issue #3080) — `agent_runs.issue` only ever saw the subagent
+ * remainder.
+ */
+export function issueFromSessionCommand(cmd: string | null): number | null {
+    if (!cmd || !cmd.startsWith("/")) return null;
+    const found = new Set<number>();
+    for (const m of cmd.matchAll(/(?<![\w.])#?(\d{2,5})(?![\w.])/g))
+        found.add(Number(m[1]));
+    if (found.size !== 1) return null;
+    return [...found][0];
 }
 
 /** Local-day and local-hour, matching how a human reads "when did this run". */
