@@ -220,7 +220,12 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
         };
         // buffedScenario(0): base 2/1 attacker, no temporary mod.
         const { combat, allPlayers, continuousEffects } = buffedScenario(0);
-        const { getByText } = renderPanel(combat, allPlayers, [sorinEmblem]);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            [sorinEmblem],
+            continuousEffects
+        );
         // Emblem lifts the effective-power budget from base 2 to 3.
         expect(getByText(/Elvish Archers \(3 dmg\)/)).toBeTruthy();
         expect(getByText("0/3")).toBeTruthy();
