@@ -33,7 +33,7 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
     mana: { short: "M", name: "Mana (available)" },
     manaDevelopment: {
         short: "Md",
-        name: "Mana development (lands the hand still wants to spend)",
+        name: "Mana development (lands the hand's curve still wants)",
     },
     flexibility: { short: "Fx", name: "Flexibility (options / reach)" },
     library: { short: "Lb", name: "Library (cards left before decking)" },

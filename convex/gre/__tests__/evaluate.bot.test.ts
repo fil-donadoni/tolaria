@@ -13,7 +13,7 @@ import {
     materialMargin,
     WIN_SCORE,
 } from "../evaluate";
-import type { GameState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
 import {
     dangerClock,
     predictUnblockedDamage,
@@ -1206,5 +1206,94 @@ describe("manaDevelopment term (issue #2686)", () => {
         );
         // Flooded land < a relevant card (the held Hill Giant's latent worth).
         expect(floodedLand).toBeLessThan(cardValue(sevenLands, held("h1")));
+    });
+
+    // Issue #2927: the fixture above proves the FORMULA but not the BEHAVIOUR —
+    // its flooded position holds an EMPTY hand, the one hand shape no real
+    // position has. With demand as the SUM of hand mana values (the #2686
+    // proxy) the flooded branch was unreachable in play: any realistic hand
+    // sums past every land count a game reaches, so `min(lands, handNeed)`
+    // always selected `lands`. These fixtures all hold cards.
+    const cheap = (id: string) =>
+        makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id,
+            zone: "hand",
+        });
+    const withLands = (count: number, hand: CardInstanceState[]) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: Array.from({ length: count }, (_, i) =>
+                        land(`l${i}`)
+                    ),
+                    hand,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    const devTerm = (state: GameState) =>
+        evaluateBreakdown(state, "p1").self.manaDevelopment;
+
+    it("reaches the flooded branch from a REALISTIC position — a full hand of cheap spells (issue #2927)", () => {
+        // Four 2-MV Grizzly Bears in hand: the top of the curve is 2, so a
+        // board of seven lands is flooded. Under the #2686 sum proxy this same
+        // hand demanded 4 x 2 = 8 lands — MORE than the seven on the board —
+        // so the position read as ON CURVE and the flooded branch never fired.
+        const hand = ["h1", "h2", "h3", "h4"].map(cheap);
+        const sumOfHand = hand.length * 2;
+        expect(sumOfHand).toBeGreaterThan(7); // the old proxy's dead branch
+
+        const sevenLands = withLands(7, hand);
+        const eightLands = withLands(8, hand);
+        const floodedLand =
+            materialMargin(eightLands, "p1") - materialMargin(sevenLands, "p1");
+
+        // Demand is the top of the curve (2), so the term is pinned at 2 lands'
+        // worth of development in BOTH positions: the eighth land buys none.
+        expect(devTerm(sevenLands)).toBe(
+            2 * DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        );
+        expect(devTerm(eightLands)).toBe(devTerm(sevenLands));
+        // ... and that surplus land is back at the flat 17: a point ABOVE a
+        // 2-life gain (16), which is the rollout-noise tie the term's header
+        // documents, and well below a card in hand.
+        expect(floodedLand).toBe(
+            DEFAULT_EVAL_WEIGHTS.permanentWeight +
+                DEFAULT_EVAL_WEIGHTS.manaWeight
+        );
+        expect(floodedLand).toBeLessThan(cardValue(sevenLands, held("h1")));
+    });
+
+    it("keeps an on-curve land above 2 life with the same realistic hand (issue #2927)", () => {
+        // Same four cheap cards plus one 4-MV Hill Giant: the top of the curve
+        // is now 4, so lands 1-4 are on curve and the fourth still earns the
+        // development bonus.
+        const hand = [...["h1", "h2", "h3", "h4"].map(cheap), held("big")];
+        const threeLands = withLands(3, hand);
+        const fourLands = withLands(4, hand);
+        const onCurveLand =
+            materialMargin(fourLands, "p1") - materialMargin(threeLands, "p1");
+        expect(onCurveLand).toBeGreaterThan(
+            2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
+        );
+        expect(onCurveLand).toBe(
+            DEFAULT_EVAL_WEIGHTS.permanentWeight +
+                DEFAULT_EVAL_WEIGHTS.manaWeight +
+                DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        );
+    });
+
+    it("does not pay for hand SIZE — drawing a card no bigger than the curve leaves the term flat (issue #2927)", () => {
+        // The #2686 sum proxy raised demand on every draw, so a bot could gain
+        // development by drawing a card while gaining no land at all. Demand is
+        // the curve's top end, so a second copy of a card already in hand moves
+        // nothing; a card ABOVE the top end is the only thing that does.
+        const oneCheap = withLands(3, [cheap("h1")]);
+        const twoCheap = withLands(3, [cheap("h1"), cheap("h2")]);
+        const withBigger = withLands(3, [cheap("h1"), held("big")]);
+        expect(devTerm(twoCheap)).toBe(devTerm(oneCheap));
+        expect(devTerm(withBigger)).toBeGreaterThan(devTerm(oneCheap));
     });
 });

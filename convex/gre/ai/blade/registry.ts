@@ -23,7 +23,10 @@ import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
-import { getCardByName } from "../../../cards";
+import { materialMargin } from "../../evaluate";
+import { isLand, manaValue } from "../../constants";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { getCardByName, getInstanceManaCost } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
@@ -55,6 +58,78 @@ const NINJUTSU_LANDS_4 = [
         tapped: false,
     })),
 ];
+
+/** Issue #2927 — the `manaDevelopment` term's FLOODED branch, asserted on a
+ *  position built through the real `ScenarioSpec` pipeline rather than a
+ *  hand-assembled `GameState`.
+ *
+ *  The scenario is seven untapped Forests against a hand whose curve tops out
+ *  at MV 2, plus a 6-MV Craw Wurm sitting in the library. Two readings are
+ *  taken of the SAME board, and the entry demands both:
+ *
+ *   - as built, the hand no longer wants a seventh land, so the marginal land
+ *     is priced flat (`permanentWeight + manaWeight`, no development bonus);
+ *   - move the Craw Wurm from library to hand — the curve's top end becomes 6,
+ *     the board is back on curve — and the SAME land gains exactly
+ *     `manaDevWeight`.
+ *
+ *  It also asserts the position is one the #2686 SUM proxy would have called
+ *  ON CURVE (hand mana values sum past the land count): without that, the entry
+ *  would be pinning a reading both proxies agree on, and the flooded branch
+ *  would still be the unreachable one #2927 found. Zeroing `manaDevWeight`
+ *  collapses the two readings into each other and this goes red. */
+function floodedLandEarnsNoDevelopmentBonus(
+    _move: Move | null,
+    state: GameState
+): boolean {
+    const pid = seatPlayerId(state, "me");
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    const lands = player.battlefield.filter((c) => isLand(c));
+    if (lands.length === 0) return false;
+    const handSum = player.hand.reduce(
+        (total, c) => total + manaValue(getInstanceManaCost(c)),
+        0
+    );
+    // The #2686 proxy's reading of this position: on curve. If the hand ever
+    // stops summing past the board, the entry no longer discriminates.
+    if (handSum <= lands.length) return false;
+
+    // The marginal land: this board minus one Forest.
+    const marginalLand = (from: GameState): number => {
+        const minusOne = cloneGameState(from);
+        const p = minusOne.players.find((q) => q.id === pid);
+        if (!p) return Number.NaN;
+        p.battlefield = p.battlefield.filter((c) => c.id !== lands[0].id);
+        return materialMargin(from, pid) - materialMargin(minusOne, pid);
+    };
+
+    const flat =
+        DEFAULT_EVAL_WEIGHTS.permanentWeight + DEFAULT_EVAL_WEIGHTS.manaWeight;
+    const flooded = marginalLand(state);
+    if (flooded !== flat) return false;
+
+    // Raise the hand's curve with the Craw Wurm the scenario left in the
+    // library (a real instance, so no fabricated card ever enters the state).
+    const onCurveState = cloneGameState(state);
+    const p = onCurveState.players.find((q) => q.id === pid);
+    if (!p) return false;
+    const wurmIndex = p.library.findIndex(
+        (c) => manaValue(getInstanceManaCost(c)) === 6
+    );
+    if (wurmIndex === -1) return false;
+    p.hand = [...p.hand, p.library[wurmIndex]];
+    p.library = p.library.filter((_, i) => i !== wurmIndex);
+
+    // Strictly greater FIRST: tying the delta to `manaDevWeight` alone would
+    // be self-referential — zero the weight and `0 === 0` still holds. The two
+    // readings must actually differ; the second clause then pins the size.
+    const onCurve = marginalLand(onCurveState);
+    return (
+        onCurve > flooded &&
+        onCurve - flooded === DEFAULT_EVAL_WEIGHTS.manaDevWeight
+    );
+}
 
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable
@@ -3601,6 +3676,67 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)". Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.',
+    },
+    {
+        // THE FLOODED READING (issue #2927) — the third leg of the
+        // `manaDevelopment` set, and the one #2686's demand proxy left
+        // unreachable in play.
+        //
+        // The two Zuran Orb halves above pin the ON-CURVE reading (a land the
+        // hand still wants outprices 2 life). This one pins its opposite on a
+        // REALISTIC position: five Forests against a hand topping out at MV 2.
+        // Under #2686's SUM proxy that hand demanded 2 + 2 + 2 + 2 = 8 lands —
+        // more than the five on the board — so the position read as on curve
+        // and the flooded branch never fired. No real hand ever sums below its
+        // land count, which is why the branch was dead everywhere, not just
+        // here.
+        //
+        // WHY A PREDICATE AND NOT A CHOSEN MOVE. `manaDevWeight` is 12 and the
+        // flooded floor is `permanentWeight + manaWeight` = 17, so pinning this
+        // reading through a decision needs a play whose alternative is valued
+        // inside (17, 29). Measured against the catalogue, nothing lands there:
+        // Zuran Orb's 2 life is 16 (below the floor, so the bot refuses under
+        // BOTH readings), a card in hand is ~28 and a +2/+2 counter 58 (above
+        // the ceiling, so it acts under both). A chosen-move entry here would
+        // therefore pass identically before and after the fix — vacuous. The
+        // predicate asserts the two readings directly, on a state built through
+        // the real ScenarioSpec pipeline, and dies when `manaDevWeight` is
+        // zeroed.
+        label: "flooded base: a land the hand's curve no longer wants earns no development bonus (issue #2927)",
+        spec: {
+            cards: [
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // Curve tops out at MV 2 — but four of them, so the hand SUMS
+                // to 8 and the retired proxy would have called this on curve.
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                // The on-curve half of the comparison, drawn by the predicate:
+                // a 6-MV card that puts the same five lands back to work.
+                { name: "Craw Wurm", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 60 },
+        seeds: [0xb1ade],
+        tier: "must",
+        expect: {
+            predicate: floodedLandEarnsNoDevelopmentBonus,
+            describe:
+                "on a board of five lands whose hand tops out at MV 2, the marginal land is priced flat (17, no development bonus) — and drawing the 6-MV card in the library restores exactly manaDevWeight (12) to it",
+        },
+        note: "Issue #2927. The flooded leg of the `manaDevelopment` set (the Zuran Orb pair above is the on-curve leg). #2686 derived demand from the SUM of the hand's mana values, which in this position is 8 against five lands — so the board read as ON CURVE and the flooded branch, the half of #2686 that priced a surplus land DOWN, never fired in any realistic position. Demand is now the curve's top end (MV 2 here), so the fifth land is flat 17 and the same land is 29 once the library's Craw Wurm reaches hand. Proven to fail by zeroing `manaDevWeight` (the two readings collapse into each other) and by restoring the sum proxy (the position reads on curve and the flat-17 assertion goes red).",
     },
 
     // ── Wasted-mana hold (the Metamorphosis report) ───────────────────────
