@@ -92,7 +92,24 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
             "keywords in opposite order. `staticAbilities` is a set, not a sequence — " +
             "no engine path reads its order — but sorting it would be a new " +
             "normalisation axis over a field the layer system reads, which ADR 0114 §4 " +
-            "puts out of reach of this ticket. docs/findings/3052-keyword-order.md",
+            "puts out of reach of this ticket. docs/findings/3052-keyword-order-divergence.md",
+    },
+    {
+        card: "Desert Twister",
+        field: "targetRequirement",
+        direction: "card-defect",
+        issue: 3073,
+        why:
+            'Oracle: "Destroy target permanent." The hand-written ' +
+            '`targetRequirement` is `type: ["any"]`, and "any target" is NOT a ' +
+            "synonym for a permanent — CR 115.4 makes it a creature, planeswalker, " +
+            "battle or player, which is what `getLegalTargets` and " +
+            "`matchesTargetRequirement` both implement. So the card as shipped " +
+            "cannot destroy an artifact, an enchantment or a land. The compiled row " +
+            "emits the six permanent card types (CR 110.4). The compiler is right. " +
+            'It is the card whose body is the `effect: "destroy-target"` shorthand, ' +
+            "so a comparator that exempted a whole card on the closure sentinel " +
+            "would hide this — see `twinDivergence`.",
     },
 ] as const;
 
@@ -102,7 +119,7 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
  * the stale-row check forces a fixed card out, and this stops a new one being
  * parked in.
  */
-export const BASELINE_CEILING = 4;
+export const BASELINE_CEILING = 5;
 
 /** `card|field` — the key a divergence is matched on. */
 export const baselineKey = (row: {

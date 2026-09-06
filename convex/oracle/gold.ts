@@ -449,14 +449,28 @@ const BODY_KEYS: ReadonlySet<string> = new Set([
     "resolveSteps",
 ]);
 
-/** A projection with the resolution body removed from BOTH sides. */
-function withoutBody(projection: Record<string, unknown>): string {
+/** A projection with the resolution body removed from BOTH sides.
+ *
+ *  Exported for `scripts/lib/catalogue-merge.ts`, which needs the same rule
+ *  the verdict below is taken on — and needs the OBJECT, not its rendering,
+ *  because it names the field a divergence sits on. Keeping one implementation
+ *  is the point: a merge that exempted a closure card more broadly than this
+ *  would reintroduce exactly the Desert Twister blind spot `roundTripCard`
+ *  documents. */
+export function withoutBodyProjection(
+    projection: Record<string, unknown>
+): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(projection)) {
         if (BODY_KEYS.has(key)) continue;
         out[key] = value;
     }
-    return JSON.stringify(out);
+    return out;
+}
+
+/** A projection with the resolution body removed from BOTH sides. */
+function withoutBody(projection: Record<string, unknown>): string {
+    return JSON.stringify(withoutBodyProjection(projection));
 }
 
 /** What `sortKeys` renders a function-valued field as (`gates.ts`).

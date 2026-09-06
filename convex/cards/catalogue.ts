@@ -167,7 +167,7 @@ import {
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import {
     compiledReadyDefinitions,
-    assertNoHandWrittenCollision,
+    excludeHandWritten,
 } from "./compiledCatalogue";
 
 function isCardPrint(value: unknown): value is CardPrint {
@@ -385,13 +385,13 @@ for (const print of allPrints) {
 // and a hand-written definition for the same print id is resolved at BUILD
 // (ADR 0114 §2, issue #3052) — `scripts/oracle-pool.ts` excludes a
 // hand-written oracle id at generation and `scripts/catalogue-artifact.ts`
-// merges the two populations into one artifact — so nothing is filtered here.
-// What remains is the assertion that the build did its job: a stale pool is a
-// loud stop, not a silent drop, because `preloadDefinitions` is
-// last-write-wins and a dropped row would OVERWRITE the hand-written
-// definition the engine is meant to run.
+// merges the two populations into one artifact — so this filter has nothing
+// left to drop. That it never does is asserted in the GATE
+// (`scripts/__tests__/catalogue-artifact.test.ts`), never here: see
+// `excludeHandWritten`'s own comment for why a module-load throw is the wrong
+// place to notice a stale pool.
 const handWrittenIds = new Set(allCards.map((c) => c.id));
-const compiledToRegister = assertNoHandWrittenCollision(
+const compiledToRegister = excludeHandWritten(
     compiledReadyDefinitions,
     handWrittenIds
 );

@@ -100,6 +100,11 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         raw,
         oracleId: oracleIdByPrintId.get(raw.id),
     }));
+    // `rarity` lives on the card-index row for a COMPILED card and on the
+    // definition for a hand-written one — measured: 2,280/2,280 compiled rows
+    // carry it, 0/2,059 hand-written rows do. So this map is what lets a TWIN
+    // be joined at all, and without it every twin would fall out of the join
+    // unchecked rather than be compared.
     const rarityByOracleId = new Map(
         handWritten
             .filter((c) => c.oracleId !== undefined)
@@ -115,12 +120,14 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
             unjoinable++;
             continue;
         }
-        // `rarity` is on the index row for a compiled card and on the
-        // definition for a hand-written one; a twin needs neither for the
-        // comparison (both are `PASSTHROUGH_KEYS`), but a row this join
-        // cannot complete can never be EMITTED, so it is counted rather than
-        // written with a placeholder — the same rule `scripts/oracle-pool.ts`
-        // states for its own join.
+        // A row this join cannot complete can never be EMITTED, so it is
+        // COUNTED and the build stops on it (see `main`) rather than written
+        // with a placeholder. `scripts/oracle-pool.ts` tolerates the same hole
+        // silently; here it must not, because a `ready` row dropped for a
+        // missing index field is also a twin that never gets CHECKED — a
+        // divergence would leave through the JOIN rather than through the
+        // comparator, which is the one way past a gate that is otherwise
+        // fail-closed.
         const rarity = entry.rarity ?? rarityByOracleId.get(row.oracleId);
         if (rarity === undefined) {
             unjoinable++;
@@ -176,6 +183,15 @@ function main() {
         process.exit(1);
     }
 
+    if (build.unjoinable > 0) {
+        console.error(
+            `${RED}✗ ${build.unjoinable} compiled \`ready\` row(s) have no card-index id/rarity${RESET}\n` +
+                "  A row the join cannot complete is a card missing from the artifact AND a twin\n" +
+                "  nobody checked. Run: bun run oracle:index"
+        );
+        process.exit(1);
+    }
+
     const unbaselined = unbaselinedDivergences(build);
     if (unbaselined.length > 0) {
         console.error(
@@ -201,7 +217,7 @@ function main() {
         `${merge.divergences.length} baselined)\n` +
         `  ${merge.unrelocatable.length} hand-written definition(s) carry code and stay modules ` +
         `(${merge.withheld.length} compiled twin(s) withheld with them)\n` +
-        `  ${build.unjoinable} ready row(s) skipped (no card-index id/rarity — run \`bun run oracle:index\`)`;
+        `  ${build.unjoinable} ready row(s) unjoinable (a stop, not a tally — see above)`;
 
     const existing = committedArtifacts(repoRoot);
     const dir = resolve(repoRoot, CATALOGUE_DIR);

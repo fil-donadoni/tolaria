@@ -51,7 +51,11 @@ import {
     CATALOGUE_DIVERGENCE_BASELINE,
     baselineKey,
 } from "../lib/catalogue-divergence-baseline";
-import { getAllRawCards } from "../../convex/cards/catalogue";
+import { getAllCards, getAllRawCards } from "../../convex/cards/catalogue";
+import {
+    compiledReadyDefinitions,
+    excludeHandWritten,
+} from "../../convex/cards/compiledCatalogue";
 import type { CardDefinition } from "../../convex/cards/types";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
@@ -107,6 +111,13 @@ describe("catalogue artifact — relocation is a MOVE, not a recompile", () => {
         expect(BUILD.merge.lossy).toEqual([]);
     });
 
+    it("no compiled `ready` row is dropped by an incomplete join", () => {
+        // A row the join cannot complete is a card missing from the artifact
+        // AND a twin nobody checked, so it is pinned at zero rather than
+        // reported as a tally the way `scripts/oracle-pool.ts` reports its own.
+        expect(BUILD.unjoinable).toBe(0);
+    });
+
     it("`isPlainData` refuses what JSON would silently swallow", () => {
         // The vacuity guard for the check above: a predicate that answered
         // `true` for everything would relocate a closure card and the
@@ -117,6 +128,9 @@ describe("catalogue artifact — relocation is a MOVE, not a recompile", () => {
         expect(isPlainData({ when: new Date(0) })).toBe(false);
         expect(isPlainData({ seen: new Set([1]) })).toBe(false);
         expect(isPlainData({ n: NaN })).toBe(false);
+        // A conditional array element: JSON renders the hole as `null` on BOTH
+        // sides, so `relocationLoss` cannot see it and only this can.
+        expect(isPlainData({ effects: [1, undefined] })).toBe(false);
         expect(isPlainData({ n: Infinity })).toBe(false);
     });
 
@@ -173,8 +187,10 @@ describe("catalogue artifact — divergence is a RED (ADR 0114 §3)", () => {
             ...hand,
             effects: [{ op: "draw", count: 2 }],
         } as unknown as CardDefinition;
-        expect(twinDivergence(hand, hand, "o")).toBeNull();
-        expect(twinDivergence(hand, twin, "o")?.field).toBe("effects");
+        expect(twinDivergence(hand, hand, "o")).toEqual([]);
+        expect(twinDivergence(hand, twin, "o").map((d) => d.field)).toEqual([
+            "effects",
+        ]);
     });
 
     it("a twin is checked, never allowed to supply the row", () => {
@@ -222,6 +238,25 @@ describe("catalogue artifact — divergence is a RED (ADR 0114 §3)", () => {
                 ]);
             }
         }
+    });
+});
+
+describe("catalogue artifact — the runtime backstop never fires", () => {
+    it("the compiled pool and the hand-written definitions are disjoint", () => {
+        // ADR 0114 §2's claim, stated where a failure is DIAGNOSABLE. The same
+        // assertion inside `excludeHandWritten` would throw at module load of
+        // `convex/cards/catalogue.ts` — every mutation, the browser bundle and
+        // every suite's collection — on a tree that, filtered, runs correctly.
+        // Here it names the card and stays one red test.
+        const handWrittenIds = new Set(getAllCards().map((c) => c.id));
+        expect(
+            compiledReadyDefinitions
+                .filter((c) => handWrittenIds.has(c.id))
+                .map((c) => `${c.name} (${c.id})`)
+        ).toEqual([]);
+        expect(
+            excludeHandWritten(compiledReadyDefinitions, handWrittenIds)
+        ).toHaveLength(compiledReadyDefinitions.length);
     });
 });
 

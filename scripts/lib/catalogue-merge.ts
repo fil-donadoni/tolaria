@@ -39,11 +39,16 @@
  * mana-ability closure elision) and nothing added — ADR 0114 §4 forbids
  * folding any field the engine reads to decide (`useStack`, `cost`, `effects`,
  * `targetRequirement`, `manaProduced`), and those are exactly the fields the
- * projection keeps. A card whose hand-written projection carries the closure
- * sentinel is INCOMPARABLE rather than divergent, the same verdict
- * `roundTripCard` reaches for it: a `resolve()` and an Effect Script are not
- * comparable in either direction. Its relocation is unaffected — the sentinel
- * can come from the `effect: "<name>"` string shorthand, which is data.
+ * projection keeps.
+ *
+ * A closure on the hand-written side makes that card's BODY incomparable and
+ * NOTHING ELSE — `roundTripCard`'s own rule, taken through the same
+ * `withoutBodyProjection`. Exempting a whole card on the mere PRESENCE of the
+ * sentinel is the blind spot gold.ts records by name: Desert Twister writes its
+ * body as the `effect: "destroy-target"` string shorthand, so a whole-card
+ * exemption hides its `type: "any"` target defect behind a field nobody
+ * compared. Relocation is unaffected either way — that shorthand is a STRING,
+ * which is data.
  */
 import { createHash } from "node:crypto";
 import type { CardDefinition } from "../../convex/cards/types";
@@ -51,6 +56,7 @@ import { expandDefinition } from "../../convex/cards/registry";
 import {
     behaviouralProjection,
     CLOSURE_SENTINEL,
+    withoutBodyProjection,
 } from "../../convex/oracle/gold";
 import { sortKeys } from "../../convex/oracle/gates";
 
@@ -106,7 +112,13 @@ export function isPlainData(value: unknown): boolean {
             // function, symbol, bigint
             return false;
     }
-    if (Array.isArray(value)) return value.every(isPlainData);
+    // `undefined` INSIDE an array is not the absent-key case above: JSON
+    // renders the hole as `null`, and `relocationLoss` cannot see it either
+    // (`sortKeys` maps element-wise and leaves the hole in place, so both
+    // sides stringify to `null`). A conditional array element —
+    // `effects: [op, flag ? op2 : undefined]` — is the shape this refuses.
+    if (Array.isArray(value))
+        return value.every((v) => v !== undefined && isPlainData(v));
     if (Object.getPrototypeOf(value) !== Object.prototype) return false;
     return Object.values(value as Record<string, unknown>).every(isPlainData);
 }
@@ -132,11 +144,13 @@ export function relocationLoss(
 }
 
 /** One field on which a hand-written definition and its compiled twin
- *  disagree after the enumerated normalisation. */
+ *  disagree after the enumerated normalisation. A card that disagrees on TWO
+ *  fields yields two of these, so the baseline — keyed on `card|field` —
+ *  cannot amnesty a second divergence under the row written for the first. */
 export interface Divergence {
     readonly card: string;
     readonly oracleId: string;
-    /** The projected key that differs — the first one, in sorted order. */
+    /** The projected key that differs. */
     readonly field: string;
     readonly expected: string;
     readonly actual: string;
@@ -144,8 +158,8 @@ export interface Divergence {
 
 /**
  * Compare a hand-written definition against the compiled row that would
- * replace it. `null` means they agree, or that the hand-written side is
- * incomparable (see this file's header).
+ * replace it. An empty array means they agree — or that the only thing they
+ * disagree about is a body this projection cannot compare (see the header).
  *
  * Both sides are EXPANDED first (ADR 0054), the same way `roundTripCard`
  * does it: the artifact stores raw definitions and the registry expands on
@@ -156,34 +170,36 @@ export function twinDivergence(
     handWrittenRaw: CardDefinition,
     compiled: CardDefinition,
     oracleId: string
-): Divergence | null {
-    const expectedProjection = behaviouralProjection(
-        expandDefinition(handWrittenRaw)
-    );
-    const expected = JSON.stringify(expectedProjection);
-    if (expected.includes(CLOSURE_SENTINEL)) return null;
-    const actualProjection = behaviouralProjection(expandDefinition(compiled));
-    const actual = JSON.stringify(actualProjection);
-    if (expected === actual) return null;
-    const keys = [
-        ...new Set([
-            ...Object.keys(expectedProjection),
-            ...Object.keys(actualProjection),
-        ]),
-    ].sort();
-    const field =
-        keys.find(
+): readonly Divergence[] {
+    let expected = behaviouralProjection(expandDefinition(handWrittenRaw));
+    let actual = behaviouralProjection(expandDefinition(compiled));
+    if (JSON.stringify(expected) === JSON.stringify(actual)) return [];
+    if (JSON.stringify(expected).includes(CLOSURE_SENTINEL)) {
+        const bodiless = withoutBodyProjection(expected);
+        // The sentinel SURVIVING the strip is a closure nested inside an
+        // ability, which this projection cannot separate from that ability's
+        // comparable fields — the one case where the whole card is exempt.
+        if (JSON.stringify(bodiless).includes(CLOSURE_SENTINEL)) return [];
+        expected = bodiless;
+        actual = withoutBodyProjection(actual);
+        if (JSON.stringify(expected) === JSON.stringify(actual)) return [];
+    }
+    const expectedFields = expected;
+    const actualFields = actual;
+    return [...new Set([...Object.keys(expected), ...Object.keys(actual)])]
+        .sort()
+        .filter(
             (k) =>
-                JSON.stringify(expectedProjection[k]) !==
-                JSON.stringify(actualProjection[k])
-        ) ?? "(whole definition)";
-    return {
-        card: handWrittenRaw.name,
-        oracleId,
-        field,
-        expected: JSON.stringify(expectedProjection[field] ?? null),
-        actual: JSON.stringify(actualProjection[field] ?? null),
-    };
+                JSON.stringify(expectedFields[k]) !==
+                JSON.stringify(actualFields[k])
+        )
+        .map((field) => ({
+            card: handWrittenRaw.name,
+            oracleId,
+            field,
+            expected: JSON.stringify(expectedFields[field] ?? null),
+            actual: JSON.stringify(actualFields[field] ?? null),
+        }));
 }
 
 /** A hand-written definition, as its module declares it, plus the oracle id
@@ -257,12 +273,9 @@ export function mergeCatalogue(
                 : compiledByOracleId.get(card.oracleId);
         if (twin !== undefined) {
             twins++;
-            const divergence = twinDivergence(
-                card.raw,
-                twin.definition,
-                twin.oracleId
+            divergences.push(
+                ...twinDivergence(card.raw, twin.definition, twin.oracleId)
             );
-            if (divergence !== null) divergences.push(divergence);
         }
         rows.push(card.raw);
         relocated++;

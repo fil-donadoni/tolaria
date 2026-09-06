@@ -37,39 +37,29 @@ export const compiledReadyDefinitions: CardDefinition[] =
     compiledPool as unknown as CardDefinition[];
 
 /**
- * The collision is resolved at BUILD; this asserts that it was (ADR 0114 §2,
- * issue #3052).
+ * The runtime backstop, kept as a FILTER and asserted to be a no-op
+ * (ADR 0114 §2, issue #3052).
  *
- * This function used to be `excludeHandWritten`, a runtime FILTER: a compiled
- * row whose id a hand-written definition already claimed was silently dropped.
- * ADR 0114 §2 deletes that class rather than managing it — one generator
- * (`scripts/catalogue-artifact.ts`) merges the two populations into a single
- * artifact, so by the time anything hydrates there is nothing left to resolve,
- * and `bun run catalogue:check` reds on a hand-written card added without
- * regenerating. What used to be silently filtered is therefore a stale
- * `data/oracle-compiled-pool.json`, and silence is the wrong answer to it:
- * `preloadDefinitions` is last-write-wins, so a dropped assertion here would
- * let a compiled row OVERWRITE the hand-written definition the engine is
- * meant to run.
+ * The collision between a compiled row and a hand-written definition for the
+ * same print id is resolved at BUILD: `scripts/oracle-pool.ts` excludes a
+ * hand-written oracle id at generation, and `scripts/catalogue-artifact.ts`
+ * merges the two populations into one artifact, where a divergence is a red.
+ * So this never has anything to drop, and the assertion that it never does
+ * lives in `scripts/__tests__/catalogue-artifact.test.ts`.
  *
- * It never fires on a regenerated tree — `scripts/oracle-pool.ts` excludes a
- * hand-written oracle id at generation, and the merge asserts the same
- * disjointness — which is exactly what makes throwing affordable.
+ * The assertion is THERE and not here on purpose. This function is called at
+ * module load of `convex/cards/catalogue.ts`, which every Convex mutation, the
+ * browser bundle and every test file transitively imports; throwing on a stale
+ * pool would turn a tree that runs correctly today — dropping the compiled
+ * twin LEAVES the hand-written definition, which PRD #2693 makes authoritative
+ * — into a white screen, a failed deploy and a collection error in every suite
+ * at once. A gate that reds with the name of the card and the command to run
+ * is strictly better than an outage, and it is the same staleness
+ * `bun run catalogue:check` already names.
  */
-export function assertNoHandWrittenCollision(
-    compiled: CardDefinition[],
+export function excludeHandWritten(
+    compiled: readonly CardDefinition[],
     handWrittenIds: ReadonlySet<string>
 ): CardDefinition[] {
-    const collisions = compiled
-        .filter((c) => handWrittenIds.has(c.id))
-        .map((c) => `${c.name} (${c.id})`);
-    if (collisions.length > 0) {
-        throw new Error(
-            `compiled pool collides with ${collisions.length} hand-written ` +
-                `definition(s): ${collisions.join(", ")}. The pool is stale — ` +
-                `run \`bun run oracle:pool\` (ADR 0114 §2: the collision is ` +
-                `resolved at BUILD, never at hydration).`
-        );
-    }
-    return compiled;
+    return compiled.filter((c) => !handWrittenIds.has(c.id));
 }

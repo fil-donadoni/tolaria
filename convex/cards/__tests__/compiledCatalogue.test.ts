@@ -4,11 +4,7 @@ import { resolve } from "node:path";
 import { getDefinition, tryGetDefinition, tryGetCardByName } from "../index";
 import { resolveTopOfStack, type GameState } from "../../gre/state";
 import { projectPublicState } from "../../gameProjections";
-import {
-    assertNoHandWrittenCollision,
-    compiledReadyDefinitions,
-} from "../compiledCatalogue";
-import { getAllCards } from "../catalogue";
+import { excludeHandWritten } from "../compiledCatalogue";
 import type { CardDefinition } from "../types";
 import { makeInstance, makePlayer, makeState } from "./setup";
 
@@ -132,43 +128,31 @@ describe("compiled card id scheme (ADR 0108, issue #2702)", () => {
     });
 });
 
-describe("assertNoHandWrittenCollision (the collision is resolved at BUILD, ADR 0114 §2)", () => {
+describe("excludeHandWritten — the collision is resolved at BUILD (ADR 0114 §2)", () => {
     const stub = (id: string, name: string): CardDefinition =>
         ({ id, name, rarity: "common", types: ["Creature"] }) as CardDefinition;
 
-    it("passes the pool through untouched when no id collides", () => {
+    it("drops a compiled definition whose id a hand-written card already claims", () => {
+        // Kept as a FILTER rather than promoted to a module-load throw: on a
+        // stale pool, dropping the twin leaves the hand-written definition —
+        // the one PRD #2693 makes authoritative — so the tree still runs
+        // correctly. That this never has anything to drop is asserted in the
+        // gate (`scripts/__tests__/catalogue-artifact.test.ts`), where a
+        // failure names the card instead of failing every suite's collection.
+        const kept = excludeHandWritten(
+            [
+                stub("shared-id", "Compiled Twin"),
+                stub("only-compiled", "Only Compiled"),
+            ],
+            new Set(["shared-id"])
+        );
+        expect(kept.map((c) => c.id)).toEqual(["only-compiled"]);
+    });
+
+    it("keeps every compiled definition when there is no id collision", () => {
         const compiled = [stub("a", "A"), stub("b", "B")];
-        expect(
-            assertNoHandWrittenCollision(compiled, new Set(["unrelated"]))
-        ).toEqual(compiled);
-    });
-
-    it("throws and NAMES the card when a compiled row claims a hand-written id", () => {
-        // The old `excludeHandWritten` dropped this row silently. It cannot
-        // stay silent: `preloadDefinitions` is last-write-wins and compiled
-        // rows are registered AFTER `allCards`, so a filter that stopped
-        // filtering would let the compiled row overwrite the definition the
-        // engine runs — the one failure this seam exists to prevent.
-        expect(() =>
-            assertNoHandWrittenCollision(
-                [
-                    stub("shared-id", "Compiled Twin"),
-                    stub("only-compiled", "Only Compiled"),
-                ],
-                new Set(["shared-id"])
-            )
-        ).toThrow(/Compiled Twin \(shared-id\)/);
-    });
-
-    it("never fires on the REAL pool — the assertion the build makes true", () => {
-        // The vacuity guard for the two unit cases above, and the live
-        // statement of ADR 0114 §2's claim: on a regenerated tree the two
-        // populations are disjoint, which is what makes throwing affordable.
-        expect(() =>
-            assertNoHandWrittenCollision(
-                compiledReadyDefinitions,
-                new Set(getAllCards().map((c) => c.id))
-            )
-        ).not.toThrow();
+        expect(excludeHandWritten(compiled, new Set(["unrelated"]))).toEqual(
+            compiled
+        );
     });
 });
