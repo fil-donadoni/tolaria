@@ -125,7 +125,20 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
         );
 
         // The aura leaves play → grant is spliced back out (CR 704.5q / 611).
+        // BOTH halves, in the engine's own order: `unapplySourceStaticEffects`
+        // runs while the permanent is still in the array (it tells the two
+        // syncs to skip it via `stoppedSourceIds`), and the caller splices it
+        // out immediately afterwards. The splice is not decoration here. Since
+        // PRD #2064 S5 the projection DERIVES layer 6 from the registry on
+        // every read, so an aura left sitting on the battlefield is a live
+        // source generating a live effect (CR 611.2) and the flying comes
+        // straight back — correctly. The stopped-but-still-present window is
+        // real inside a mutation and is never persisted: every save point is
+        // downstream of the splice, which is what this fixture now models.
         unapplySourceStaticEffects(state, aura);
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== aura.id
+        );
 
         const ended = projectedCard(state, "creature-1");
         const disp = getDisplayAbilities(BEAR_ID, ended);
