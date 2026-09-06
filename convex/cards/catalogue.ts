@@ -165,10 +165,14 @@ import {
 // Compiled-card hydration seam (issue #2702) — see that module's header for
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
-import {
-    compiledReadyDefinitions,
-    excludeHandWritten,
-} from "./compiledCatalogue";
+import { excludeHandWritten } from "./compiledCatalogue";
+// The pool as a BUNDLED module. On the SERVER this is
+// `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
+// aliases this exact relative specifier to an empty array and the rows arrive
+// from the fetched artifact instead (ADR 0113 §2, issue #3053). Keep it the
+// only importer of `./compiledPool` — pinned by
+// `scripts/__tests__/compiled-pool-client-seam.test.ts`.
+import { compiledReadyDefinitions } from "./compiledPool";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -385,30 +389,51 @@ for (const print of allPrints) {
 // and a hand-written definition for the same print id is resolved at BUILD
 // (ADR 0114 §2, issue #3052) — `scripts/oracle-pool.ts` excludes a
 // hand-written oracle id at generation and `scripts/catalogue-artifact.ts`
-// merges the two populations into one artifact — so this filter has nothing
-// left to drop. That it never does is asserted in the GATE
+// merges the two populations into one artifact — so on the server this filter
+// has nothing left to drop. That it never does is asserted in the GATE
 // (`scripts/__tests__/catalogue-artifact.test.ts`), never here: see
 // `excludeHandWritten`'s own comment for why a module-load throw is the wrong
 // place to notice a stale pool.
 const handWrittenIds = new Set(allCards.map((c) => c.id));
-const compiledToRegister = excludeHandWritten(
-    compiledReadyDefinitions,
-    handWrittenIds
-);
-preloadDefinitions(compiledToRegister);
 
 // Compiled names join the SAME lookup debug scenarios use
 // (`tryGetCardByName` — `convex/debugScenarios.ts`), so a compiled `ready`
 // card is reachable by name exactly like a hand-written one (issue #2702
-// acceptance criterion). Compiled entries are listed FIRST so a hand-written
-// card with the same name (should one ever exist post-`handWrittenIds`
-// filtering above) always wins the `Map` key.
+// acceptance criterion). A hand-written card always wins its name key: it is
+// seeded here first and `registerCompiledDefinitions` never overwrites an
+// entry — the same precedence the previous `[...compiled, ...allCards]` Map
+// construction expressed by write order.
 const nameRegistry = new Map<string, CardDefinition>(
-    [...compiledToRegister, ...allCards].map((card) => [
-        card.name.toLowerCase(),
-        card,
-    ])
+    allCards.map((card) => [card.name.toLowerCase(), card])
 );
+
+/**
+ * Register compiled definitions into the runtime registry — the ONE seam
+ * both halves of ADR 0113 §2's asymmetric delivery go through.
+ *
+ * The server calls it once at module load, below, with the bundled pool
+ * (`./compiledPool`). The client calls it from the loading gate with the rows
+ * it FETCHED (`src/lib/catalogueArtifact.ts`, issue #3053), where the same
+ * `excludeHandWritten` filter drops the artifact's relocated hand-written
+ * rows in favour of the module the engine actually runs.
+ *
+ * Idempotent by construction: `preloadDefinitions` is a keyed write and the
+ * name map never overwrites. Returns how many rows it actually registered, so
+ * a caller can assert the fetch was not a no-op.
+ */
+export function registerCompiledDefinitions(
+    rows: readonly CardDefinition[]
+): number {
+    const fresh = excludeHandWritten(rows, handWrittenIds);
+    preloadDefinitions(fresh);
+    for (const card of fresh) {
+        const key = card.name.toLowerCase();
+        if (!nameRegistry.has(key)) nameRegistry.set(key, card);
+    }
+    return fresh.length;
+}
+
+registerCompiledDefinitions(compiledReadyDefinitions);
 
 export const getCardByName = (name: string): CardDefinition => {
     const card = nameRegistry.get(name.toLowerCase());

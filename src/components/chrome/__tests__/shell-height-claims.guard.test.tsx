@@ -124,6 +124,17 @@ const VIEWPORT_HEIGHT_ALLOWLIST: Record<
         why: "Rendered by `auth-gate.tsx`, i.e. also above the shell — never inside `<main>`.",
         outsideShell: true,
     },
+    // Same position and the same reason as `auth-gate.tsx`: `router.tsx` wraps
+    // `<AppShell/>` in `<CatalogueGate>` too, so its pending and failed states
+    // render in place of the shell rather than inside `<main>`. It needs a
+    // DEFINITE height for the opposite reason the shell contract exists —
+    // `LoadingScreen`'s `min-h-full` has nothing to be a remainder OF up
+    // there. The ancestor premise is traced from `router.tsx` below, not
+    // declared (issue #3053, ADR 0113 §3).
+    "components/ui/catalogue-gate.tsx": {
+        why: "Renders ABOVE the shell — `router.tsx` puts `<CatalogueGate>` outside `<AppShell/>`, so it is never inside `<main>`.",
+        outsideShell: true,
+    },
 };
 
 const VIEWPORT_CLAIM_RE = new RegExp(
@@ -191,11 +202,14 @@ describe("no component under the shared header claims a whole viewport height (i
             shellLine,
             "<AppShell/> not found in router.tsx"
         ).toBeGreaterThan(0);
-        // `<AuthGate>` is an ANCESTOR of `<AppShell/>`, so everything AuthGate
-        // renders in place of the shell is outside `<main>` by construction.
-        expect(
-            jsxAncestorsOf(router.code, shellLine).map((a) => a.tag)
-        ).toContain("AuthGate");
+        // `<AuthGate>` and `<CatalogueGate>` are ANCESTORS of `<AppShell/>`,
+        // so everything either renders in place of the shell is outside
+        // `<main>` by construction.
+        const ancestors = jsxAncestorsOf(router.code, shellLine).map(
+            (a) => a.tag
+        );
+        expect(ancestors).toContain("AuthGate");
+        expect(ancestors).toContain("CatalogueGate");
 
         const gate = SOURCE_FILES.find(
             (f) => f.rel === "components/auth/auth-gate.tsx"
@@ -210,6 +224,7 @@ describe("no component under the shared header claims a whole viewport height (i
                 [
                     "components/auth/auth-gate.tsx",
                     "components/auth/auth-form.tsx",
+                    "components/ui/catalogue-gate.tsx",
                 ],
                 `${rel} claims to render outside the shell but is not one of the files this test traced`
             ).toContain(rel);

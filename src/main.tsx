@@ -11,6 +11,19 @@ import * as Sentry from "@sentry/react";
 // config — the main bundle drops the set-module tree (~1.63 MB raw / 431 KB
 // gzip), and this chunk is cached independently from the app code.
 import "@convex/cards/catalogue";
+// Start the catalogue fetch at module load, so the ~1 MB artifact download
+// overlaps the auth round trip instead of queuing behind it (ADR 0113 §3,
+// issue #3053). `CatalogueGate` (`src/router.tsx`) awaits this SAME promise
+// singleton and renders nothing that reads the registry until it resolves; a
+// rejection is surfaced there with a retry, so it is deliberately not handled
+// here.
+import { hydrateCatalogue } from "~/lib/catalogueArtifact";
+
+void hydrateCatalogue().catch(() => {
+    // Owned by `CatalogueGate`, which surfaces the failure with a retry. This
+    // only keeps the eager kick-off from becoming an unhandled rejection in
+    // the window before the gate mounts.
+});
 
 Sentry.init({
     dsn: "https://82a4e88a462f5637f13141dc3b7a37d9@o4505113193218048.ingest.us.sentry.io/4511609765691393",
