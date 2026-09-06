@@ -2770,6 +2770,14 @@ function isWastefulAttack(state: GameState, move: Move): boolean {
     return outcome.deadBlockerIds.length === 0 && outcome.faceDamage === 0;
 }
 
+/** Whether `move` is the EMPTY block declaration — the defender declining to
+ *  block at all (CR 509.1: declaring no blockers is a legal declaration, not
+ *  the absence of one). Structural, no card knowledge: the null baseline every
+ *  `blockDeltaOf` reading is measured against. */
+export function isEmptyBlockDeclaration(move: Move): boolean {
+    return move.kind === "declare-blockers" && move.assignments.length === 0;
+}
+
 /** The defender's value of a specific declared block, from `botId`'s view: the
  *  `declaredBlockDelta` of the post-block state (kills gained − blockers lost −
  *  face taken, minus the cautious-block discount). The principled measure of a
@@ -3413,6 +3421,33 @@ export function selectRootMove(
         }
     }
 
+    //
+    // THE EMPTY DECLARATION IS ALWAYS A CONTENDER (issue #3086 fallout, the
+    // #2147 life-dependent entry). Declining to block is not a rival block —
+    // it is the BASELINE `blockDeltaOf` is defined against (kills gained minus
+    // blockers lost minus face taken), so excluding it leaves the tie-break
+    // ranking declared blocks against each other with the null option missing,
+    // and the only survivor of "every block here is a pure material loss" gone.
+    // It is excluded exactly when the gate is least trustworthy. `outcomeEps`
+    // is a band on MEAN REWARD, and reward carries material only inside
+    // +/-`materialFull` (`materialSignal` clips): in a position already a
+    // thousand-odd points behind, every leaf maps to the same clipped reward,
+    // so the reward spread between "chump" and "decline" is not a material
+    // reading at all — it is the residue of which rollouts happened to reach a
+    // terminal. MEASURED on the #2147 board (4 x Craw Wurm into a lone Grizzly
+    // Bears, defender at 40): leaf `evaluate` prefers declining by 125 points
+    // and `blockDeltaOf` by 120, while mean reward prefers the chump by 0.035
+    // at EVERY budget from 400 to 3200 iterations — a stable gap under the 0.05
+    // gate, so the correct move survived only while sampling noise stayed
+    // small enough to keep it inside the band, and a search-model change that
+    // moved the noise (PR #3092's restored declare-blockers priority window)
+    // flipped it. Admitting the baseline unconditionally is also the same
+    // shape every other rule in this function already uses -- the lower-
+    // variance, lower-visit line is pulled from the FULL pool -- and it does
+    // not make the bot block-shy: `blockDeltaOf` folds in
+    // `lethalUnblockedDelta`, worth +/-2 x `winScore`, so a block that stops
+    // lethal still out-scores declining by a margin nothing here can reach
+    // (blade charter scenario 4, the same board at 20 life, still blocks).
     // Block-quality tie-break. A block decision is decided by the same material
     // tie-break / rollout noise, which cannot tell a clean kill-block from a
     // wasteful over-commit: a double chump that loses two creatures to kill
@@ -3427,7 +3462,8 @@ export function selectRootMove(
         const blocks = pool.filter(
             (e) =>
                 e.move.kind === "declare-blockers" &&
-                mean(e) >= bestMean - weights.outcomeEps
+                (mean(e) >= bestMean - weights.outcomeEps ||
+                    isEmptyBlockDeclaration(e.move))
         );
         if (blocks.length > 0) {
             const prev = best;

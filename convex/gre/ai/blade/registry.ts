@@ -1094,6 +1094,23 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // this entry is the other half of that pair, proving the FLIP rather
         // than one more position at the default.
         //
+        // WHAT CARRIES THE VERDICT, and why this entry went red once (PR #3092).
+        // The reward scale is SATURATED here: the position sits ~1 100
+        // `evaluate` points behind, past `materialFull` (500), so
+        // `materialSignal` clips and both branches map to the same reward —
+        // the spread that remains is rollout terminal residue, and it favours
+        // the chump by a stable 0.035 at every budget from 400 to 3 200
+        // iterations. Both saturation-proof measures say decline (`meanMargin`
+        // -1103 vs -1185, `blockDeltaOf` -192 vs -312), and both sit behind
+        // `selectRootMove`'s `outcomeEps` (0.05) gate — so the correct move
+        // rode a 0.015 clearance. #3092's restored declare-blockers priority
+        // window moved the sampling noise and seed 727774 crossed to 0.052,
+        // taking the entry red with nothing about the bot's PREFERENCE having
+        // changed. `selectRootMove` now admits the empty declaration — the
+        // baseline `blockDeltaOf` is defined against — unconditionally, so the
+        // verdict no longer depends on that clearance: measured 0/12 seeds
+        // blocking at 200, 400, 800 and 1 600 iterations.
+        //
         // Before #2147 this position was simply unwritable: `ScenarioSpec`
         // had no way to say "opp at 40", so the only life-dependent board
         // reachable was the ambient default — which is what would have made

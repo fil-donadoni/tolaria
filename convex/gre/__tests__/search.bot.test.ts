@@ -2495,3 +2495,160 @@ describe("search — action priors + FPU (issue #2684)", () => {
         );
     });
 });
+
+describe("selectRootMove — the empty block declaration is always a contender (issue #2147)", () => {
+    const WURM = getCardByName("Craw Wurm").id; // 6/4
+
+    const NO_BLOCK: Move = { kind: "declare-blockers", assignments: [] };
+    const CHUMP: Move = {
+        kind: "declare-blockers",
+        assignments: [{ blockerId: "blk", attackerId: "atk1" }],
+    };
+
+    /** Four 6/4s attacking a lone 2/2 — 24 damage in the air, the exact board
+     *  the #2147 blade entry pins. `life` is the whole variable: 40 survives
+     *  the swing, 20 does not. */
+    function boardAt(life: number): GameState {
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        creature(WURM, "p1", "atk1"),
+                        creature(WURM, "p1", "atk2"),
+                        creature(WURM, "p1", "atk3"),
+                        creature(WURM, "p1", "atk4"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    life,
+                    battlefield: [creature(BEARS, "p2", "blk")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["atk1", "atk2", "atk3", "atk4"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    /** A synthetic root carrying the MEASURED readings of that position at 400
+     *  iterations, seed 727774 (the seed the entry went red on): the chump out-
+     *  rewards declining by 0.052 — past `outcomeEps` (0.05) — and out-visits it
+     *  86 to 66, so declining is outside BOTH bands. */
+    function rootOf(
+        edges: {
+            move: Move;
+            meanReward: number;
+            meanMargin: number;
+            visits: number;
+        }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            children.set(`blk:${i}`, {
+                move: e.move,
+                key: `blk:${i}`,
+                mover: "p2",
+                node: { children: new Map() },
+                visits: e.visits,
+                totalReward: e.meanReward * e.visits,
+                totalMargin: e.meanMargin * e.visits,
+                avail: e.visits,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: declines the chump when the damage is not lethal, though reward puts it past OUTCOME_EPS", () => {
+        // The reward scale carries no material here: at ~-1100 `evaluate` points
+        // the position is past `materialFull` (500), so `materialSignal` clips and
+        // both leaves map to the same reward. What is left in the spread is
+        // rollout terminal residue — and it favours the chump by a stable 0.035
+        // at every budget from 400 to 3200. The saturation-proof measures both
+        // say decline (`meanMargin` -1103 vs -1185, `blockDeltaOf` -192 vs -312),
+        // so the baseline must be admitted for either of them to fire.
+        const root = rootOf([
+            { move: CHUMP, meanReward: 0.24128, meanMargin: -1185, visits: 86 },
+            {
+                move: NO_BLOCK,
+                meanReward: 0.18939,
+                meanMargin: -1103,
+                visits: 66,
+            },
+        ]);
+        const chosen = selectRootMove(
+            root,
+            [CHUMP, NO_BLOCK],
+            boardAt(40),
+            "p2"
+        );
+        expect(chosen.kind).toBe("declare-blockers");
+        if (chosen.kind !== "declare-blockers") throw new Error("kind");
+        expect(chosen.assignments).toEqual([]);
+    });
+
+    it("NO-FIRE: still chumps when the damage IS lethal — the SAME readings, only life moved", () => {
+        // The discriminating half, and the pair is life-only: byte-identical
+        // edge readings to the FIRE case above, board at 20 instead of 40. Now
+        // 24 unblocked damage kills, so `lethalUnblockedDelta` (+/-2 x
+        // winScore) folded into `blockDeltaOf` swamps the material loss (-312
+        // for the chump against -1000192 for declining) and the baseline —
+        // admitted, weighed, and rejected — loses the tie-break. Admitting it
+        // unconditionally can therefore never make the bot block-shy: it can
+        // only win when no declared block beat it on the block metric. This is
+        // blade charter scenario 4's decision.
+        const root = rootOf([
+            { move: CHUMP, meanReward: 0.24128, meanMargin: -1185, visits: 86 },
+            {
+                move: NO_BLOCK,
+                meanReward: 0.18939,
+                meanMargin: -1103,
+                visits: 66,
+            },
+        ]);
+        const chosen = selectRootMove(
+            root,
+            [CHUMP, NO_BLOCK],
+            boardAt(20),
+            "p2"
+        );
+        expect(chosen.kind).toBe("declare-blockers");
+        if (chosen.kind !== "declare-blockers") throw new Error("kind");
+        expect(chosen.assignments).toEqual([
+            { blockerId: "blk", attackerId: "atk1" },
+        ]);
+    });
+
+    it("NO-FIRE: the unconditional pass is the EMPTY declaration only, not any block", () => {
+        // Scope guard. A second declared block that trails the robust pick by
+        // more than `outcomeEps` stays out of the contender pool exactly as
+        // before — only the null baseline is admitted unconditionally. Here the
+        // double chump (a dominated over-commit: two creatures lost, nothing
+        // killed) has the better `blockDeltaOf` of the two ONLY because it is
+        // outside the band; it must not be pulled in.
+        const DOUBLE: Move = {
+            kind: "declare-blockers",
+            assignments: [
+                { blockerId: "blk", attackerId: "atk1" },
+                { blockerId: "blk2", attackerId: "atk2" },
+            ],
+        };
+        const state = boardAt(40);
+        state.players[1].battlefield.push(creature(BEARS, "p2", "blk2"));
+        const root = rootOf([
+            { move: CHUMP, meanReward: 0.24128, meanMargin: -1185, visits: 86 },
+            { move: DOUBLE, meanReward: 0.1, meanMargin: -1000, visits: 66 },
+        ]);
+        const chosen = selectRootMove(root, [CHUMP, DOUBLE], state, "p2");
+        expect(chosen.kind).toBe("declare-blockers");
+        if (chosen.kind !== "declare-blockers") throw new Error("kind");
+        expect(chosen.assignments).toEqual([
+            { blockerId: "blk", attackerId: "atk1" },
+        ]);
+    });
+});
