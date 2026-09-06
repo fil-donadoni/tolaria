@@ -18,7 +18,7 @@ import {
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
-import { resetBattlefieldTransientState } from "../state";
+import { removePermanentTo, resetBattlefieldTransientState } from "../state";
 import { crusade } from "../../cards/sets/lea";
 
 /** A vanilla creature with no registry entry — every effect in this file
@@ -440,6 +440,24 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
         expect(state.continuousEffects).toHaveLength(1);
         expect(getEffectivePower(state, ox)).toBe(4);
         expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("purges on a DEATH too, not only on a bounce (the full-reset branch)", () => {
+        // `resetBattlefieldTransientState` — and therefore the purge — runs
+        // only for `toZone === "hand" | "library"`. A departure to graveyard or
+        // exile takes the other branch, so it needs its own purge call, or an
+        // `indefinite` entry leaks into a SHARED, persisted, wire-shipped list
+        // for the rest of the game: Wall of Tombstones pushes one such entry
+        // per upkeep, and nothing would ever end them.
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [entry("ce-set", 10, "7b", { kind: "pt-set", toughness: 9 })]
+        );
+
+        removePermanentTo(state, "bear", "graveyard");
+
+        expect(state.continuousEffects ?? []).toHaveLength(0);
     });
 
     it("leaves a `predicate`-affected entry alone", () => {
