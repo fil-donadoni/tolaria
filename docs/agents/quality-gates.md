@@ -602,8 +602,8 @@ latency per issue — 2026-08-28 → 2026-09-05 (sessions over 12h excluded)
   wall                          91.0m   504.4m   178.2m
   tool                          42.5m    90.6m    51.7m
     of which gate/test/build    27.3m    59.7m    29.7m
-  model                         24.5m    45.2m    26.0m
-  machine (tool + model)        70.1m   126.5m    77.7m
+  model                         24.0m    45.2m    26.0m
+  machine (tool + model)        70.0m   126.5m    77.7m
   idle                          22.8m   420.6m   100.5m
 
   /next-issue sessions (the ADR 0110 pipeline) — 58 sessions
@@ -611,9 +611,9 @@ latency per issue — 2026-08-28 → 2026-09-05 (sessions over 12h excluded)
   wall                          85.4m   369.9m   159.4m
   tool                          40.8m    82.9m    48.6m
     of which gate/test/build    26.6m    51.8m    26.0m
-  model                         24.5m    46.1m    27.0m
-  machine (tool + model)        67.3m   126.0m    75.6m
-  idle                          14.3m   299.7m    83.8m
+  model                         24.0m    45.6m    27.0m
+  machine (tool + model)        67.3m   126.0m    75.5m
+  idle                          14.3m   299.7m    83.9m
 
   all sessions in window — 113 sessions
   component                    median      p90     mean
@@ -670,15 +670,22 @@ so far gets close.** At the median `/next-issue` session:
 | ------------------------------ | -----: | ------------------------------------------------- |
 | gate / test / build            |  26.6m | Yes — the one real lever                          |
 | tool, everything else          |  15.7m | Marginally: `gh`, `git`, greps, the worktree init |
-| model generation               |  24.5m | Only by making the session shorter                |
+| model generation               |  24.0m | Only by making the session shorter                |
 | **machine floor (tool+model)** |  67.3m |                                                   |
 | idle                           |  14.3m | Yes, but it is not the median session's problem   |
 | **wall**                       |  85.4m |                                                   |
 
+**Every row is its own median over the 58 sessions, so no row is any other row
+minus a third.** "tool, everything else" is the median of each session's own
+`tool − gate` — 15.7m, not the 14.2m that subtracting the two published medians
+would give. Same reason the components never sum to `wall`: the session in the
+middle of one distribution is not the session in the middle of another.
+
 Delete the entire gate/test/build block — every check, every suite, `land`
-included — and the median session still needs **40.4 minutes** of machine time.
-Model generation alone is 24.5m and shrinks only if the session runs fewer
-turns, which is the context-hygiene lever above, not a latency lever.
+included — and the median session still needs **40.4 minutes** of machine time
+(again a per-session median of `machine − gate`, not 67.3 − 26.6). Model
+generation alone is 24.0m and shrinks only if the session runs fewer turns,
+which is the context-hygiene lever above, not a latency lever.
 
 So the target recorded in ADR 0110 and repeated in
 `.claude/skills/next-issue/SKILL.md` is replaced by the measured-supported pair:

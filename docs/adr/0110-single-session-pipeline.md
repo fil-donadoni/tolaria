@@ -87,8 +87,9 @@ issue #3079 and does not hold** — see Consequences.
 - **Latency, measured (issue #3079).** The 10-15 minute target was never
   checked and is not reachable in this shape. Over 2026-08-28 → 2026-09-05,
   58 `/next-issue` sessions: **85.4m median wall, 67.3m median machine time**
-  (40.8m tool + 24.5m model), of which 26.6m is gate/test/build and only 14.3m
-  is human idle. Deleting every gate still leaves a 40.4m machine floor. The
+  (tool 40.8m, model 24.0m — each its own median, so the parts do not sum), of
+  which 26.6m is gate/test/build and only 14.3m is human idle. Deleting every
+  gate still leaves a 40.4m machine floor. The
   target this ADR carries from now on is **60 minutes median wall**, which
   halving the gate block and removing median idle would buy; the standing
   measurement is `bun run telemetry:latency` and the baseline is committed in

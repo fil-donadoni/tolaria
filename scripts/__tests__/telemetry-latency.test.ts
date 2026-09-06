@@ -202,16 +202,32 @@ describe("sessionLatency", () => {
         expect(row.idleS).toBe(3600 - row.modelS);
     });
 
-    it("collapses the rows of one API response instead of paying generation twice", () => {
+    it("collapses the rows of one API response", () => {
         const rows = [
             turn({ ts: 0, ctx: 100, outTok: 50 }),
-            // Same response, second content block: identical usage payload.
+            // Same response, second content block: identical usage payload AND
+            // identical timestamp.
             turn({ ts: 0, ctx: 100, outTok: 50 }),
             turn({ ts: 600, ctx: 900, outTok: 50 }),
         ];
+        expect(sessionLatency("s", rows, [])!.turns).toBe(2);
+    });
+
+    it("keeps two distinct turns that merely share (ctx, outTok)", () => {
+        // A prompt that did not grow between two real turns. Keying the dedupe
+        // on (ctx, outTok) alone collapsed these, and with them the six-minute
+        // gap between them — over the 2026-08-28 window every match on that
+        // looser key was a false positive of exactly this shape.
+        const rows = [
+            turn({ ts: 0, ctx: 100, outTok: 50 }),
+            turn({ ts: 351, ctx: 100, outTok: 50 }),
+        ];
         const row = sessionLatency("s", rows, [])!;
         expect(row.turns).toBe(2);
+        expect(row.wallS).toBe(351);
+        // The gap is real and it is a human's: only the estimate is machine.
         expect(row.modelS).toBe(GEN_FIXED_S + 1);
+        expect(row.idleS).toBe(351 - (GEN_FIXED_S + 1));
     });
 
     it("reports the gate share of tool time separately", () => {
@@ -225,6 +241,23 @@ describe("sessionLatency", () => {
         )!;
         expect(row.toolS).toBe(400);
         expect(row.gateS).toBe(300);
+    });
+
+    it("sees a span that started before the interval it is still running in", () => {
+        // The span starts in the first interval and returns during the second.
+        // Its end, not the estimator, is where the second gap's generation
+        // begins — otherwise 100s of machine time is filed as human idle.
+        const turns = [
+            turn({ ts: 0 }),
+            turn({ ts: 50 }),
+            turn({ ts: 210, outTok: 0 }),
+        ];
+        const spans = [span({ ts: 10, durS: 190 })];
+        const row = sessionLatency("s", turns, spans)!;
+        expect(row.toolS).toBe(190);
+        // 200 -> 210 is the generation of the last message, taken whole.
+        expect(row.modelS).toBe(10);
+        expect(row.idleS).toBe(10);
     });
 
     it("ignores rows belonging to another session", () => {

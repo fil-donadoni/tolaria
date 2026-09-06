@@ -62,7 +62,12 @@
  * - **It does not classify from the stored `cmd_bucket`.** Gate classification
  *   runs at query time through `classifyKind` in `telemetry-db.ts`, so widening
  *   what counts as a gate reclassifies the whole history instead of only the
- *   rows ingested afterwards.
+ *   rows ingested afterwards. The DASHBOARD does read the stored `kind` and
+ *   `cmd_bucket` columns, which are written once at insert time — so widening
+ *   the classifier without touching them would have shown the same command in
+ *   two different buckets either side of the change. `reclassifySpans` in
+ *   `telemetry-ingest.ts` closes that on the next ingest; bump its
+ *   `SPAN_CLASSIFIER_VERSION` alongside any future classifier change.
  */
 
 import { classifyKind } from "./telemetry-db.ts";
@@ -169,15 +174,33 @@ function byTurnOrder(a: LatencyTurn, b: LatencyTurn): number {
  * Collapse the rows of one API response into a single turn.
  *
  * The transcript writes one record per content block and every record of a
- * multi-block response carries that response's full usage payload, so an
- * identical `(ctx, outTok)` pair identifies siblings. Left in, they read as
+ * multi-block response carries that response's full usage payload, so siblings
+ * share their whole `(ts, ctx, outTok)` triple. Left in, they read as
  * zero-second turns and would each be credited a fresh generation.
+ *
+ * The timestamp is part of the key and not an afterthought. `(ctx, outTok)`
+ * alone also matches two GENUINELY distinct turns whose prompt happened not to
+ * grow, and collapsing one of those deletes a real turn boundary — which, when
+ * the two are minutes apart, deletes the gap between them from the split
+ * entirely. On the store as it stands the tighter key is the only correct one:
+ * the ingest keys `llm` on `message.id` since issue #3078, so no true sibling
+ * pair survives, and over the 2026-08-28 → 2026-09-05 window `(ctx, outTok)`
+ * matched 13 pairs, every one of them at a DIFFERENT timestamp (up to 351s
+ * apart) — i.e. every match was a false positive. On an older store that was
+ * never re-ingested the tighter key collapses less, which costs a few seconds
+ * of estimated generation; the looser one silently ate a six-minute gap.
  */
 export function dedupeTurns(sorted: LatencyTurn[]): LatencyTurn[] {
     const out: LatencyTurn[] = [];
     for (const t of sorted) {
         const prev = out[out.length - 1];
-        if (prev && prev.ctx === t.ctx && prev.outTok === t.outTok) continue;
+        if (
+            prev &&
+            prev.ts === t.ts &&
+            prev.ctx === t.ctx &&
+            prev.outTok === t.outTok
+        )
+            continue;
         out.push(t);
     }
     return out;
@@ -249,6 +272,13 @@ export function sessionLatency(
 
     let modelS = 0;
     let cursor = 0;
+    // The furthest any span seen so far reaches. A span that STARTS before an
+    // interval can still be running inside it — a backgrounded call, or one
+    // whose turn was written before it returned — and the cursor, which only
+    // ever moves forward, would otherwise make that interval look tool-free.
+    // It would then take the estimator branch and file real machine time as
+    // human idle, which is the one error this report exists to avoid.
+    let reach = -Infinity;
     for (let i = 0; i + 1 < turns.length; i++) {
         const t0 = turns[i].ts;
         const t1 = turns[i + 1].ts;
@@ -257,9 +287,15 @@ export function sessionLatency(
         // latest end among those that started inside it. The cursor is advanced
         // even for intervals that contribute nothing, or the sweep
         // desynchronises from the turn timeline.
-        while (cursor < spans.length && spans[cursor].ts < t0) cursor++;
+        while (cursor < spans.length && spans[cursor].ts < t0) {
+            reach = Math.max(
+                reach,
+                spans[cursor].ts + Math.max(0, spans[cursor].durS)
+            );
+            cursor++;
+        }
         let end = cursor;
-        let lastSpanEnd = -Infinity;
+        let lastSpanEnd = reach > t0 ? reach : -Infinity;
         while (end < spans.length && spans[end].ts < t1) {
             lastSpanEnd = Math.max(
                 lastSpanEnd,
@@ -268,7 +304,7 @@ export function sessionLatency(
             end++;
         }
 
-        const afterTool = end > cursor;
+        const afterTool = end > cursor || reach > t0;
         const from = afterTool ? Math.min(Math.max(t0, lastSpanEnd), t1) : t0;
         const remaining = Math.max(0, t1 - from);
         const estimate = estimateGenerationSeconds(turns[i + 1].outTok);
