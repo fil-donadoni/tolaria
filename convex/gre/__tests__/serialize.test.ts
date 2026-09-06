@@ -434,7 +434,7 @@ describe("game_state serialize round-trip", () => {
         // CR 400.7 — the permanent leaves the battlefield and becomes a new
         // object; `resetBattlefieldTransientState` is the entry point that
         // runs on that transition.
-        resetBattlefieldTransientState(got);
+        resetBattlefieldTransientState(got, reloaded);
         expect(got.subtypes).toEqual(["Plains"]);
         expect(got.indefiniteSubtypeSet).toBeUndefined();
     });
@@ -1002,15 +1002,6 @@ describe("game_state serialize round-trip", () => {
         // snapshotted for untap refund.
         lion.manaCounterRemoval = { type: "charge", count: 2 };
         lion.attachedTo = "host-id";
-        lion.temporaryPTMods = [
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ];
-        lion.temporaryPTSet = [
-            { power: 0, duration: { phase: "end-of-turn" } },
-            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
-            // Indefinite set (#487, Wall of Tombstones): no duration field.
-            { toughness: 4 },
-        ];
         lion.sourceTappedPTMods = [
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ];
@@ -1180,14 +1171,6 @@ describe("game_state serialize round-trip", () => {
         expect(got.chosenMana).toEqual({ R: 1, G: 1 });
         expect(got.manaCounterRemoval).toEqual({ type: "charge", count: 2 });
         expect(got.attachedTo).toBe("host-id");
-        expect(got.temporaryPTMods).toEqual([
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ]);
-        expect(got.temporaryPTSet).toEqual([
-            { power: 0, duration: { phase: "end-of-turn" } },
-            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
-            { toughness: 4 },
-        ]);
         expect(got.sourceTappedPTMods).toEqual([
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ]);

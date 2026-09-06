@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { effectivePower, effectiveToughness } from "../effective-stats";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
@@ -63,28 +64,53 @@ function makeEnchant(cardId: string, controllerId = "me"): CardInstance {
     };
 }
 
+/** CR 613.4c — one layer-7c until-end-of-turn pump as the Continuous Effects
+ *  Registry stores it (ADR 0082, PRD #2064 S6). The client walks the SAME
+ *  entries the server does, so a client-side test states the pump the way the
+ *  wire carries it. */
+function pumpEntry(
+    instanceId: string,
+    power: number,
+    toughness: number
+): ContinuousEffect {
+    return {
+        id: `ce-pump-${instanceId}`,
+        layer: 7,
+        sublayer: "7c",
+        timestamp: 1,
+        expiry: {
+            kind: "duration",
+            duration: { phase: "end-of-turn" },
+            controllerId: "me",
+        },
+        affected: { kind: "instances", instanceIds: [instanceId] },
+        payload: { kind: "pt-modify", power, toughness },
+        characteristicDefining: false,
+    };
+}
+
 describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
     it("returns base stats when no static effects are present", () => {
         const me = makePlayer("me", [makeCreature()]);
         const players: Player[] = [me];
         const card = me.battlefield[0];
-        expect(effectivePower(players, card)).toBe(2);
-        expect(effectiveToughness(players, card)).toBe(1);
+        expect(effectivePower(players, card, undefined, undefined)).toBe(2);
+        expect(effectiveToughness(players, card, undefined, undefined)).toBe(1);
     });
 
     it("Castle grants +0/+2 to untapped creatures the controller controls", () => {
         const creature = makeCreature({ id: "lion" });
         const me = makePlayer("me", [creature, makeEnchant(CASTLE)]);
         const players: Player[] = [me];
-        expect(effectivePower(players, creature)).toBe(2);
-        expect(effectiveToughness(players, creature)).toBe(3);
+        expect(effectivePower(players, creature, undefined, undefined)).toBe(2);
+        expect(effectiveToughness(players, creature, undefined, undefined)).toBe(3);
     });
 
     it("Castle does NOT grant toughness to tapped creatures", () => {
         const creature = makeCreature({ id: "lion", isTapped: true });
         const me = makePlayer("me", [creature, makeEnchant(CASTLE)]);
         const players: Player[] = [me];
-        expect(effectiveToughness(players, creature)).toBe(1);
+        expect(effectiveToughness(players, creature, undefined, undefined)).toBe(1);
     });
 
     it("Castle of one player does NOT affect the opponent's creatures", () => {
@@ -101,8 +127,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         const me = makePlayer("me", [myLion, makeEnchant(CASTLE, "me")]);
         const opp = makePlayer("opp", [oppLion]);
         const players: Player[] = [me, opp];
-        expect(effectiveToughness(players, myLion)).toBe(3);
-        expect(effectiveToughness(players, oppLion)).toBe(1);
+        expect(effectiveToughness(players, myLion, undefined, undefined)).toBe(3);
+        expect(effectiveToughness(players, oppLion, undefined, undefined)).toBe(1);
     });
 
     it("Bad Moon buffs black creatures +1/+1 even when the card def is slimmed (regression)", () => {
@@ -138,8 +164,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         };
         const me = makePlayer("me", [blackCreature, makeEnchant(BAD_MOON)]);
         const players: Player[] = [me];
-        expect(effectivePower(players, blackCreature)).toBe(2);
-        expect(effectiveToughness(players, blackCreature)).toBe(2);
+        expect(effectivePower(players, blackCreature, undefined, undefined)).toBe(2);
+        expect(effectiveToughness(players, blackCreature, undefined, undefined)).toBe(2);
     });
 
     it("Holy Armor static +0/+2 reaches host via attachedTo (regression: client view)", () => {
@@ -172,13 +198,16 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             attachedTo: "bear",
         };
         const me = makePlayer("me", [bear, aura]);
-        expect(effectivePower([me], bear)).toBe(2);
-        expect(effectiveToughness([me], bear)).toBe(4);
+        expect(effectivePower([me], bear, undefined, undefined)).toBe(2);
+        expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
     });
 
-    it("Firebreathing temporaryPTMods reach the host (regression: client view)", () => {
-        // Regression: toPermanentView used to strip `temporaryPTMods`, so a
-        // +1/+0 pump that resolved server-side never showed up on the client.
+    it("a Firebreathing pump reaches the host (regression: client view)", () => {
+        // Regression, restated for PRD #2064 S6: the pump used to be
+        // `temporaryPTMods` on the instance and `toPermanentView` stripped it;
+        // it is a Continuous Effects Registry entry now and `toLayerState` is
+        // what can drop it. Either way the symptom is the same — a +1/+0 that
+        // resolved server-side never showing up on the client.
         const bear: CardInstance = {
             id: "bear",
             card: { id: GRIZZLY_BEARS },
@@ -191,7 +220,6 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             isTapped: false,
             power: 2,
             toughness: 2,
-            temporaryPTMods: [{ power: 1, toughness: 0 }],
         };
         const aura: CardInstance = {
             id: "fb",
@@ -206,8 +234,12 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             attachedTo: "bear",
         };
         const me = makePlayer("me", [bear, aura]);
-        expect(effectivePower([me], bear)).toBe(3);
-        expect(effectiveToughness([me], bear)).toBe(2);
+        expect(
+            effectivePower([me], bear, undefined, [pumpEntry("bear", 1, 0)])
+        ).toBe(3);
+        expect(
+            effectiveToughness([me], bear, undefined, [pumpEntry("bear", 1, 0)])
+        ).toBe(2);
     });
 
     it("Counters layer 7d reach the host (regression: client view)", () => {
@@ -228,8 +260,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             counters: { "+1/+1": 2 },
         };
         const me = makePlayer("me", [bear]);
-        expect(effectivePower([me], bear)).toBe(4);
-        expect(effectiveToughness([me], bear)).toBe(4);
+        expect(effectivePower([me], bear, undefined, undefined)).toBe(4);
+        expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
     });
 
     // Wire-format invariant: every PermanentView field the layer system can
@@ -258,19 +290,20 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 attachedTo: "bear",
             };
             const me = makePlayer("me", [bear, aura]);
-            expect(effectiveToughness([me], bear)).toBe(4);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
         });
 
-        it("temporaryPTMods reach the target (Firebreathing pump)", () => {
+        it("a registry pump entry reaches the target (Firebreathing)", () => {
             const bear = makeCreature({
                 id: "bear",
                 cardId: GRIZZLY_BEARS,
                 power: 2,
                 toughness: 2,
-                temporaryPTMods: [{ power: 1, toughness: 0 }],
             });
             const me = makePlayer("me", [bear]);
-            expect(effectivePower([me], bear)).toBe(3);
+            expect(
+                effectivePower([me], bear, undefined, [pumpEntry("bear", 1, 0)])
+            ).toBe(3);
         });
 
         it("counters reach layer 7d (+1/+1 counters)", () => {
@@ -282,8 +315,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 counters: { "+1/+1": 2 },
             });
             const me = makePlayer("me", [bear]);
-            expect(effectivePower([me], bear)).toBe(4);
-            expect(effectiveToughness([me], bear)).toBe(4);
+            expect(effectivePower([me], bear, undefined, undefined)).toBe(4);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(4);
         });
 
         it("isTapped reaches predicates (Castle skips tapped creatures)", () => {
@@ -294,7 +327,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 isTapped: true,
             });
             const me = makePlayer("me", [tapped, makeEnchant(CASTLE)]);
-            expect(effectiveToughness([me], tapped)).toBe(1);
+            expect(effectiveToughness([me], tapped, undefined, undefined)).toBe(1);
         });
 
         it("controllerId reaches predicates (Castle scopes to controller)", () => {
@@ -308,7 +341,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             });
             const me = makePlayer("me", [myLion, makeEnchant(CASTLE, "me")]);
             const opp = makePlayer("opp", [oppLion]);
-            expect(effectiveToughness([me, opp], oppLion)).toBe(1);
+            expect(effectiveToughness([me, opp], oppLion, undefined, undefined)).toBe(1);
         });
 
         it("types reach the layer fast-path (non-creature target skipped)", () => {
@@ -328,7 +361,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 toughness: 1,
             };
             const me = makePlayer("me", [fakeArtifact, makeEnchant(CASTLE)]);
-            expect(effectiveToughness([me], fakeArtifact)).toBe(1);
+            expect(effectiveToughness([me], fakeArtifact, undefined, undefined)).toBe(1);
         });
 
         it("card.id reaches getStaticEffects (aura source resolves its def)", () => {
@@ -353,7 +386,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
                 attachedTo: "bear",
             };
             const me = makePlayer("me", [bear, aura]);
-            expect(effectiveToughness([me], bear)).toBe(2);
+            expect(effectiveToughness([me], bear, undefined, undefined)).toBe(2);
         });
     });
 
@@ -367,8 +400,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         });
         const me = makePlayer("me", [whiteLion, makeEnchant(BAD_MOON)]);
         const players: Player[] = [me];
-        expect(effectivePower(players, whiteLion)).toBe(2);
-        expect(effectiveToughness(players, whiteLion)).toBe(1);
+        expect(effectivePower(players, whiteLion, undefined, undefined)).toBe(2);
+        expect(effectiveToughness(players, whiteLion, undefined, undefined)).toBe(1);
     });
 
     // CR 114 (issue #1221) — a command-zone emblem is a source-less, owner-
@@ -390,11 +423,11 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             const lion = makeCreature({ id: "my-lion" });
             const players: Player[] = [makePlayer("me", [lion])];
             // Baseline (no emblem forwarded): 2/1.
-            expect(effectivePower(players, lion)).toBe(2);
-            expect(effectiveToughness(players, lion)).toBe(1);
+            expect(effectivePower(players, lion, undefined, undefined)).toBe(2);
+            expect(effectiveToughness(players, lion, undefined, undefined)).toBe(1);
             // With the emblem: +1/+0 → 3/1 (toughness unchanged).
-            expect(effectivePower(players, lion, [sorinEmblem("me")])).toBe(3);
-            expect(effectiveToughness(players, lion, [sorinEmblem("me")])).toBe(
+            expect(effectivePower(players, lion, [sorinEmblem("me")], undefined)).toBe(3);
+            expect(effectiveToughness(players, lion, [sorinEmblem("me")], undefined)).toBe(
                 1
             );
         });
@@ -402,7 +435,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
         it("is owner-scoped — an opponent's emblem does not buff my creatures", () => {
             const lion = makeCreature({ id: "my-lion" });
             const players: Player[] = [makePlayer("me", [lion])];
-            expect(effectivePower(players, lion, [sorinEmblem("opp")])).toBe(2);
+            expect(effectivePower(players, lion, [sorinEmblem("opp")], undefined)).toBe(2);
         });
     });
 });

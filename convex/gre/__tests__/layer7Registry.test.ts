@@ -272,9 +272,10 @@ describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", (
 });
 
 describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", () => {
-    it("drops instance-duration entries and keeps every other expiry", () => {
-        // `temporaryPTMods` / `temporaryPTSet` derive to `instance-duration`,
-        // so a combat trick is not scored as permanent material. A counter, a
+    it("drops `duration` entries and keeps every other expiry", () => {
+        // A combat trick is a `duration` entry since PRD #2064 S6 (it was
+        // `temporaryPTMods` on the instance, tagged `instance-duration` on the
+        // way through), so it is not scored as permanent material. A counter, a
         // static buff and an indefinite registry entry all are.
         const anthem = {
             id: "crusade",
@@ -295,15 +296,14 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
             subtypes: [],
             card: { id: "synth-bear", manaCost: { W: 1 } },
             counters: { "+1/+1": 1 },
-            temporaryPTMods: [
-                {
-                    power: 5,
-                    toughness: 5,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-            temporaryPTSet: [{ power: 9 }],
         });
+        const untilEOT = {
+            expiry: {
+                kind: "duration" as const,
+                duration: { phase: "end-of-turn" as const },
+                controllerId: "p1",
+            },
+        };
         const state = stateWith(
             [anthem as CardInstanceState, bear],
             [
@@ -312,6 +312,20 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
                     power: 1,
                     toughness: 1,
                 }),
+                entry(
+                    "ce-trick",
+                    20,
+                    "7c",
+                    { kind: "pt-modify", power: 5, toughness: 5 },
+                    untilEOT
+                ),
+                entry(
+                    "ce-set-eot",
+                    5,
+                    "7b",
+                    { kind: "pt-set", power: 9 },
+                    untilEOT
+                ),
             ]
         );
 
@@ -325,6 +339,22 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         // the anthem, the counter and the indefinite entry all remain.
         expect(getPermanentEffectivePower(state, bear)).toBe(5);
         expect(getPermanentEffectiveToughness(state, bear)).toBe(5);
+    });
+
+    it("counts an INDEFINITE 7b base-P/T set as permanent material (CR 611.2a)", () => {
+        // The correction PRD #2064 S6 carries. `SpellContext.setBasePT` with
+        // `"indefinite"` (Wall of Tombstones — "change its base toughness ...
+        // indefinitely") used to land in `temporaryPTSet` beside the timed
+        // form, and the whole array was tagged `instance-duration`, so the bot
+        // dropped it as if it were a combat trick. It holds no boundary at all,
+        // so it is material.
+        const bear = creature("bear", 2, 2, { subtypes: [] });
+        const state = stateWith(
+            [bear],
+            [entry("ce-set-forever", 10, "7b", { kind: "pt-set", toughness: 7 })]
+        );
+        expect(getEffectiveToughness(state, bear)).toBe(7);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(7);
     });
 
     it("keeps a while-source-tapped effect as permanent material (CR 611.2b)", () => {
