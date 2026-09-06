@@ -6,7 +6,11 @@ description: Close ONE ready-for-agent issue end-to-end in THIS session — the 
 # /next-issue — one context closes one issue
 
 One session, one issue, no orchestrator, no implement subagents (ADR 0110).
-Target: a median issue lands in 10-15 minutes. Everything below happens in
+Target: a median issue lands in **60 minutes** wall — the measured-supported
+figure (issue #3079) that replaced ADR 0110's unchecked 10-15, against a
+measured 85m median wall / 67m median machine time. `bun run telemetry:latency`
+is how anyone checks; the baseline and the arithmetic are in
+`docs/agents/quality-gates.md` § Latency per issue. Everything below happens in
 THIS session's context.
 
 ## Context hygiene — the contract

@@ -37,7 +37,8 @@ Three structural findings:
 
 The user's target: **a median issue closes in 10-15 minutes for <0.5% of the
 weekly budget** — the rate every other project on this machine gets from
-plain single-session work.
+plain single-session work. **The latency half of that target was measured in
+issue #3079 and does not hold** — see Consequences.
 
 ## Decision
 
@@ -83,6 +84,16 @@ plain single-session work.
   the transition, scheduled for removal once `/next-issue` has drained real
   issues for a while. Receipts, claims-cross-checking and the merge-train
   retire with it.
+- **Latency, measured (issue #3079).** The 10-15 minute target was never
+  checked and is not reachable in this shape. Over 2026-08-28 → 2026-09-05,
+  58 `/next-issue` sessions: **85.4m median wall, 67.3m median machine time**
+  (40.8m tool + 24.5m model), of which 26.6m is gate/test/build and only 14.3m
+  is human idle. Deleting every gate still leaves a 40.4m machine floor. The
+  target this ADR carries from now on is **60 minutes median wall**, which
+  halving the gate block and removing median idle would buy; the standing
+  measurement is `bun run telemetry:latency` and the baseline is committed in
+  `docs/agents/quality-gates.md` § Latency per issue. The cost half of the
+  target is unaffected.
 - The defect classes reviews caught most get structural answers instead of
   opus time: shared-state pollution → the frozen catalogue
   (vitest.setup.node.ts, #2871); vacuous tests → a mechanized
