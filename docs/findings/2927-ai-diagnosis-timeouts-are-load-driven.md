@@ -1,7 +1,7 @@
 ---
 title: ai-diagnosis episodes time out on machine load, so health:main reds for reasons unrelated to the diff under test
 discoveredBy: 2927
-status: draft
+status: declined
 confidence: high
 ---
 
@@ -36,3 +36,19 @@ broader question — a wall-clock ceiling in a suite whose own doctrine says
 "iterations, never wall-clock" — may belong to whatever tracks gate flakiness
 rather than to a ticket of its own. What is NOT optional is that `health:main`
 currently leaves durable RED markers that mean "the machine was busy".
+
+**Declined as a ticket — fixed inline instead (2026-09-06).** It reproduced once more, one level
+up: `health:main` left a durable RED on `de77aa04d` — episode #12 timing out at
+60s on a tip whose blade suite was green — while the same test passed alone at
+51s under load ~11. Acted on as the finding proposed: `DIAGNOSIS_TIMEOUT_MS`
+raised 60s -> 300s, sized against the worst CONTENDED measurement (92s) rather
+than the uncontended one (~15s), with the measurement table moved into the
+constant's doc comment. The doctrine question the finding raises is answered
+there too: the SEARCH budget was already iterations-only, so the ceiling is a
+hang guard and never a verdict — raising it makes no result wall-clock
+dependent.
+
+No issue is owed: the finding's own "why it may not deserve its own issue"
+paragraph called the fix as small as raising the constant, and it was. The
+broader question it flags — gate flakiness under shared-machine load — is not
+defensible without this episode, which is the drawer's bar for a ticket.
