@@ -82,8 +82,26 @@ export function deriveWireCharacteristics(
     for (const { card, result } of deriveLayers2to5Board(board, {
         deriveAll: true,
     })) {
+        const fields = layers2to5DerivedFields(card, result);
+        // Two of the sync's writes are NOT characteristics and are dropped
+        // before the patch reaches the wire, because `deriveAll` would
+        // otherwise put them on every permanent the sync's fast path skips —
+        // measured at 884 bytes on a 16-permanent, 6.5 KB projection (13.5%) on
+        // the hottest row in the system (#1780, #3051).
+        //
+        //  * `layers2to5Derived` is an ENGINE marker gating a one-shot pre-S4
+        //    migration, not something any client renders. A skipped permanent
+        //    ships without it today and is unharmed: the migration reads only
+        //    ledger fields, and "skipped" means it carries none.
+        //  * `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which
+        //    rides the wire already — `layer4SubtypeBase` reads the alias only
+        //    when `baseSubtypes` is absent, and it never is. Paying for the
+        //    same array twice per permanent is the read-amplification class
+        //    #1780 interned card ids to fix.
+        delete fields.layers2to5Derived;
+        delete fields.printedSubtypes;
         const patch: WireCharacteristics = {
-            ...layers2to5DerivedFields(card, result),
+            ...fields,
             // CR 613.1b — layer 2's answer. The engine applies it by RELOCATING
             // the permanent between battlefield arrays; a projection cannot
             // (and must not) move a card between the seats it is projecting, so
@@ -92,6 +110,18 @@ export function deriveWireCharacteristics(
             // over yet, which `getPublicState` never sees: every save point is
             // downstream of a sync.
             controllerId: result.controllerId,
+            // THE BASES, alongside the derived output — not an afterthought.
+            // `layer4TypeBase` and friends fall back to the OUTPUT field when
+            // the base is absent, which is exactly the feedback loop
+            // `baseSubtypes` / `baseStaticAbilities` were introduced to break:
+            // a client handed `types: [Creature, Artifact]` and no `baseTypes`
+            // re-derives the type-change entry on top of its own answer and
+            // adds Artifact twice. The capture happened on the clone
+            // (`ensureLayers2to5Base`), so without these three the wire would
+            // carry a derivation the client cannot reproduce.
+            baseControllerId: card.baseControllerId,
+            baseTypes: card.baseTypes,
+            baseSubtypes: card.baseSubtypes,
         };
         patches.set(card.id, patch);
         // Feed the layer-2-5 answer back into the clone so layer 6 derives
@@ -103,6 +133,12 @@ export function deriveWireCharacteristics(
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
+            // The layer-6 base, for the reason the layer-2-5 bases ride along
+            // above: `layer6Base` falls back to `staticAbilities`, so a wire
+            // card carrying the DERIVED multiset and no base makes the client's
+            // own `deriveLayer6` grant every keyword a second time and remove
+            // printed ones that are no longer in what it reads as the base.
+            baseStaticAbilities: card.baseStaticAbilities,
         });
     }
 
