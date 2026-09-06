@@ -584,12 +584,26 @@ function flexibilityTerm(
  *  is `2 × lifeWeight (8) = 16` — a 1-point gap, inside the rollout-noise band,
  *  so "sacrifice a land for 2 life" (Zuran Orb) ties with passing and is decided
  *  by noise. The term prices the DEVELOPMENT a land buys: a land on curve —
- *  the player has fewer lands than the total mana value their hand still wants
- *  to spend casting — is worth `manaDevWeight` (12, symmetric with `manaWeight`)
+ *  the player has fewer lands than the largest mana value their hand still
+ *  wants to reach — is worth `manaDevWeight` (12, symmetric with `manaWeight`)
  *  ON TOP of the flat 17, i.e. 29, decisively above 16. A land whose mana the
  *  hand no longer needs (the base is flooded) earns no development bonus and
  *  returns to 17 — the mana it produces has nothing to cast, so it is worth
  *  less than the cards that would use it.
+ *
+ *  DEMAND IS THE CURVE, NOT THE HAND (issue #2927). The demand proxy shipped by
+ *  #2686 was the SUM of every hand card's mana value, and a sum binds at land
+ *  counts a game never reaches: a 7-card hand of average MV 3 asks for 20
+ *  lands, so `min(lands, handNeed)` selected `lands` in virtually every real
+ *  position, the flooded branch never fired, and the term degenerated to a flat
+ *  `manaDevWeight` per land. A sum also encodes the wrong quantity twice over —
+ *  it rewards holding MORE cards (drawing raises demand with no land gained),
+ *  and it reads two 6-drops as "this player needs 12 lands", which is not what
+ *  being on curve means. The largest mana value in hand is the quantity being
+ *  on curve is ABOUT: it binds at 1-7 (the range boards actually reach), it
+ *  moves only when the top of the curve moves, and a hand whose most expensive
+ *  card is a 2-drop stops wanting a third land — which is exactly the "flooded"
+ *  reading. The cap is the hand's own top end, so no magic constant is needed.
  *
  *  This is a SNAPSHOT of the position (the owner's framing on this ticket): it
  *  reads only the land count and the hand's mana values (castability), never a
@@ -624,11 +638,13 @@ function manaDevelopmentTerm(
     player: PlayerState,
     weights: EvalWeights
 ): number {
-    // Total mana value the hand still wants to spend casting. Lands count as 0
+    // The TOP OF THE CURVE the hand still wants to reach: the largest mana
+    // value in hand, never the sum of them (issue #2927). Lands count as 0
     // (played, not cast — CR 305.1; no mana cost → MV 0 — CR 202.3a).
     let handNeed = 0;
     for (const c of player.hand) {
-        handNeed += manaValue(getInstanceManaCost(c));
+        const mv = manaValue(getInstanceManaCost(c));
+        if (mv > handNeed) handNeed = mv;
     }
     // Every land counts — tapped or untapped — because development is about the
     // BASE the hand can draw on, not the current-turn tap state (which the
