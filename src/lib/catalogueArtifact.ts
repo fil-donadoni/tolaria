@@ -46,8 +46,13 @@ const artifacts = import.meta.glob<string>(
  * brought in a second artifact (`scripts/lib/generated-artifacts.ts` names
  * that case), and picking one of them arbitrarily would ship a catalogue
  * nobody chose.
+ *
+ * A FUNCTION, not a module-level constant, so that failure surfaces through
+ * `CatalogueGate`'s error panel with a name on it. `src/main.tsx` imports this
+ * module ABOVE `Sentry.init(...)`: a module-load throw there is an unreported
+ * white screen, which is the one outcome worse than a bad build.
  */
-export const CATALOGUE_ARTIFACT_URL: string = (() => {
+export function catalogueArtifactUrl(): string {
     const urls = Object.entries(artifacts).sort(([a], [b]) =>
         a.localeCompare(b)
     );
@@ -60,7 +65,23 @@ export const CATALOGUE_ARTIFACT_URL: string = (() => {
         );
     }
     return urls[0]![1];
-})();
+}
+
+/**
+ * How long one attempt may take before it becomes a REJECTION.
+ *
+ * `fetch` has no deadline of its own, and a request that never settles is the
+ * worst shape this module can take: the gate would sit on "Loading cards..."
+ * with no Retry (its error branch renders on a rejection, and a pending
+ * promise is not one) and the Brain's Worker would post nothing for the rest
+ * of the session — every consult expiring on `BRAIN_CONSULT_TIMEOUT_MS` and
+ * resolving `move: null`, i.e. a bot that passes every window, which is
+ * exactly the issue #2450 symptom. A stall is therefore turned into a
+ * rejection, which the gate's Retry and the Worker's re-arm both already
+ * handle. Generous on purpose — 1,461,663 B raw over a slow link is a real
+ * download, and this bounds a STALL, not slowness.
+ */
+const FETCH_TIMEOUT_MS = 60_000;
 
 let hydration: Promise<number> | null = null;
 
@@ -89,16 +110,33 @@ export function hydrateCatalogue(): Promise<number> {
 }
 
 async function fetchCatalogue(): Promise<number> {
-    const response = await fetch(CATALOGUE_ARTIFACT_URL);
+    const url = catalogueArtifactUrl();
+    // An explicit controller rather than `AbortSignal.timeout`: the deadline
+    // has to be an ordinary `setTimeout` so it is one thing a test can drive
+    // and one thing every runtime this module loads in already has.
+    const controller = new AbortController();
+    const deadline = setTimeout(() => {
+        controller.abort(
+            new Error(
+                `catalogue artifact ${url} — no response in ${FETCH_TIMEOUT_MS} ms`
+            )
+        );
+    }, FETCH_TIMEOUT_MS);
+    let response: Response;
+    try {
+        response = await fetch(url, { signal: controller.signal });
+    } finally {
+        clearTimeout(deadline);
+    }
     if (!response.ok) {
         throw new Error(
-            `catalogue artifact ${CATALOGUE_ARTIFACT_URL} — HTTP ${response.status} ${response.statusText}`
+            `catalogue artifact ${url} — HTTP ${response.status} ${response.statusText}`
         );
     }
     const rows = (await response.json()) as CardDefinition[];
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new Error(
-            `catalogue artifact ${CATALOGUE_ARTIFACT_URL} is not a non-empty array of definitions`
+            `catalogue artifact ${url} is not a non-empty array of definitions`
         );
     }
     return registerCompiledDefinitions(rows);

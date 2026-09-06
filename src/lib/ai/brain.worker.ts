@@ -60,22 +60,60 @@ function serve(request: BrainRequest): void {
     post(response);
 }
 
+function toBrainError(cause: unknown): { name: string; message: string } {
+    return cause instanceof Error
+        ? { name: cause.name, message: cause.message }
+        : { name: "Error", message: String(cause) };
+}
+
+/** How long a failed hydration is left failed before another request pays for
+ *  a fresh attempt. The driver re-consults on every state change, so an
+ *  un-cooled re-arm turns a deploy window into one ~1.4 MB request per
+ *  consult; the caller still gets a named error immediately either way. */
+const REARM_COOLDOWN_MS = 5_000;
+let lastFailureAt = 0;
+
 function failHydration(id: number, cause: unknown): void {
-    hydrated = arm();
-    const error =
-        cause instanceof Error
-            ? { name: cause.name, message: cause.message }
-            : { name: "Error", message: String(cause) };
+    const now = Date.now();
+    if (now - lastFailureAt >= REARM_COOLDOWN_MS) {
+        lastFailureAt = now;
+        hydrated = arm();
+    }
+    const error = toBrainError(cause);
     console.error("[AI] catalogue hydration failed", error);
     post({ id, move: null, trace: null, error });
 }
 
 self.onmessage = (e: MessageEvent<BrainRequest>) => {
     const request = e.data;
-    chain = chain.then(() =>
-        hydrated.then(
-            () => serve(request),
-            (cause: unknown) => failHydration(request.id, cause)
+    chain = chain
+        .then(() =>
+            hydrated.then(
+                () => serve(request),
+                (cause: unknown) => failHydration(request.id, cause)
+            )
         )
-    );
+        // TERMINAL, and load-bearing. Without it a throw out of `serve` — in
+        // practice `postMessage` raising `DataCloneError` on a value the
+        // structured clone refuses — leaves `chain` permanently rejected, and
+        // every later `chain.then(...)` never runs: the Worker goes silent for
+        // the rest of the session. It also restores what the old synchronous
+        // `onmessage` gave for free: a throw there fired the Worker's `error`
+        // event, which `brain-client.ts`'s `worker.onerror` turns into
+        // `outcome: "worker-error"` for every in-flight consult. An unhandled
+        // promise rejection reaches none of that.
+        .catch((cause: unknown) => {
+            console.error("[AI] worker request failed", cause);
+            try {
+                post({
+                    id: request.id,
+                    move: null,
+                    trace: null,
+                    error: toBrainError(cause),
+                });
+            } catch {
+                // The channel itself is broken — nothing left to say on it.
+                // `brain-client.ts`'s consult timeout owns this case.
+            }
+        });
 };

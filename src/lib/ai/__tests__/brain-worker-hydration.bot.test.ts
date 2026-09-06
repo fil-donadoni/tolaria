@@ -118,4 +118,54 @@ describe("the Brain's Worker shell", () => {
         await settle();
         expect(posted.map((r) => r.id)).toEqual([4]);
     });
+
+    it("re-arms at most once per cooldown, so a deploy window is not one artifact fetch per consult", async () => {
+        await loadWorker();
+        send(5);
+        rejectHydration(new Error("HTTP 503"));
+        await settle();
+        expect(hydrateCatalogue).toHaveBeenCalledTimes(2);
+
+        // The re-armed promise fails too, immediately — the driver
+        // re-consults on every state change, so without a cooldown each of
+        // these would pay for another ~1.4 MB request.
+        for (const id of [6, 7, 8]) {
+            send(id);
+            rejectHydration(new Error("HTTP 503"));
+            await settle();
+        }
+        expect(hydrateCatalogue).toHaveBeenCalledTimes(2);
+        // ...and every one of them still got a named answer, never silence.
+        expect(posted.map((r) => r.id)).toEqual([5, 6, 7, 8]);
+        expect(posted.every((r) => r.error?.message === "HTTP 503")).toBe(true);
+    });
+
+    it("survives a throw out of the handler — it answers, and keeps answering", async () => {
+        // The realistic throw is `postMessage` refusing a value the structured
+        // clone cannot carry. Without a terminal `.catch` the request chain
+        // stays rejected and the Worker goes silent for the rest of the
+        // session — the same frozen game as never hydrating.
+        await loadWorker();
+        resolveHydration(2278);
+        handleBrainRequest.mockImplementationOnce(() => {
+            throw new Error("DataCloneError");
+        });
+
+        send(9);
+        await settle();
+        expect(posted).toEqual([
+            {
+                id: 9,
+                move: null,
+                trace: null,
+                error: { name: "Error", message: "DataCloneError" },
+            },
+        ]);
+
+        posted.length = 0;
+        send(10);
+        await settle();
+        expect(posted.map((r) => r.id)).toEqual([10]);
+        expect(posted[0]!.error).toBeUndefined();
+    });
 });

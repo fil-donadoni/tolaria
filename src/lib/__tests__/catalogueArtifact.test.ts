@@ -3,7 +3,7 @@ import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { getCardByName, getAllRawCards } from "@convex/cards/catalogue";
 import type { CardDefinition } from "@convex/cards/types";
 import {
-    CATALOGUE_ARTIFACT_URL,
+    catalogueArtifactUrl,
     hydrateCatalogue,
     resetCatalogueHydrationForTests,
 } from "../catalogueArtifact";
@@ -51,8 +51,8 @@ afterEach(() => {
 
 describe("catalogue artifact URL", () => {
     it("is the one content-addressed artifact, resolved at build", () => {
-        expect(CATALOGUE_ARTIFACT_URL).toMatch(/catalogue-[0-9a-f]{16}/);
-        expect(CATALOGUE_ARTIFACT_URL).toMatch(/\.json$/);
+        expect(catalogueArtifactUrl()).toMatch(/catalogue-[0-9a-f]{16}/);
+        expect(catalogueArtifactUrl()).toMatch(/\.json$/);
     });
 });
 
@@ -76,7 +76,10 @@ describe("hydrateCatalogue", () => {
         await hydrateCatalogue();
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(fetchMock).toHaveBeenCalledWith(CATALOGUE_ARTIFACT_URL);
+        expect(fetchMock).toHaveBeenCalledWith(
+            catalogueArtifactUrl(),
+            expect.objectContaining({ signal: expect.anything() })
+        );
     });
 
     it("never overwrites a hand-written definition with the artifact's relocated copy", async () => {
@@ -107,6 +110,37 @@ describe("hydrateCatalogue", () => {
         vi.stubGlobal("fetch", succeeding);
         await expect(hydrateCatalogue()).resolves.toBe(1);
         expect(succeeding).toHaveBeenCalledTimes(1);
+    });
+
+    it("bounds a stalled fetch, so the gate and the Worker see a rejection", async () => {
+        // The failure this guards is a `fetch` that never settles: a pending
+        // promise reaches neither the gate's error branch nor the Worker's
+        // re-arm, and both would wait for the rest of the session.
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((_url: string, init?: RequestInit) => {
+                return new Promise<Response>((_resolve, reject) => {
+                    init?.signal?.addEventListener("abort", () =>
+                        reject(
+                            (init.signal as AbortSignal & { reason?: unknown })
+                                .reason
+                        )
+                    );
+                });
+            })
+        );
+        vi.useFakeTimers();
+        try {
+            const inFlight = hydrateCatalogue();
+            const settled = vi.fn();
+            void inFlight.catch(settled);
+            await vi.advanceTimersByTimeAsync(59_000);
+            expect(settled).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(2_000);
+            await expect(inFlight).rejects.toThrow();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("refuses a non-OK response instead of registering nothing in silence", async () => {

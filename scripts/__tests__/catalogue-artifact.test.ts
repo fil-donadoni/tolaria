@@ -310,6 +310,43 @@ describe("catalogue artifact — the runtime backstop never fires", () => {
     });
 });
 
+describe("catalogue artifact — the client registers what the server does (issue #3053)", () => {
+    // ADR 0113 §2's asymmetry has ONE price: the server reads the compiled
+    // rows from the module graph (`data/oracle-compiled-pool.json`) and the
+    // client fetches the artifact and drops its hand-written rows. Those two
+    // populations agree today, and nothing else asserts it — a change to
+    // `scripts/oracle-pool.ts` or to `mergeCatalogue`'s withheld/unrelocatable
+    // rules would hand the browser a DIFFERENT card set from the one every
+    // Convex mutation and every test sees, with no red anywhere. The client is
+    // only a view, but the Brain decides moves off this registry.
+    const clientRows = () => {
+        const handWrittenIds = new Set(getAllRawCards().map((c) => c.id));
+        return excludeHandWritten(BUILD.merge.rows, handWrittenIds);
+    };
+
+    it("the artifact minus the hand-written rows IS the bundled pool, in order", () => {
+        expect(clientRows().map((c) => c.id)).toEqual(
+            compiledReadyDefinitions.map((c) => c.id)
+        );
+    });
+
+    it("compiled names are unique, which is what makes first-write-wins safe", () => {
+        // `registerCompiledDefinitions` seeds `nameRegistry` from the
+        // hand-written cards and never overwrites a key, so among COMPILED
+        // rows the FIRST name wins where the old Map construction let the LAST
+        // win. Equivalent only while no two compiled rows share a name.
+        const seen = new Map<string, string>();
+        const collisions: string[] = [];
+        for (const card of clientRows()) {
+            const key = card.name.toLowerCase();
+            const first = seen.get(key);
+            if (first) collisions.push(`${card.name}: ${first} vs ${card.id}`);
+            else seen.set(key, card.id);
+        }
+        expect(collisions).toEqual([]);
+    });
+});
+
 describe("catalogue artifact — the merge is deterministic", () => {
     it("re-serialising the same inputs yields the same bytes", () => {
         expect(serializeCatalogue(BUILD.merge.rows)).toBe(BUILD.bytes);

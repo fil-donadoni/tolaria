@@ -88,7 +88,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
-import { consultBrain } from "~/lib/ai/brain-client";
+import { consultBrain, warmBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
     recordAiEscalation,
@@ -171,6 +171,15 @@ export function useVsAiDriver(
     // query that found no row, as opposed to `undefined` while still
     // loading) fails OPEN — mount the state rather than risk a permanent
     // deadlock on a game that predates this feature (finding 4).
+    // Spawn the Brain's Worker as soon as there IS a bot seat, not on the
+    // first consult. Since issue #3053 the Worker hydrates the card catalogue
+    // over the network before it answers anything, and doing that inside the
+    // first `consultBrain` would spend `BRAIN_CONSULT_TIMEOUT_MS` on a
+    // download instead of on the search.
+    useEffect(() => {
+        if (botId) warmBrain();
+    }, [botId]);
+
     const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
     const botOwesInput = !!(
         botId &&

@@ -39,7 +39,14 @@ import { join, relative, resolve } from "node:path";
 const ROOT = resolve(__dirname, "../..");
 const SCANNED = ["convex", "src", "scripts"];
 const POOL_IMPORT_RE =
-    /(?:from|import)\s*\(?\s*["']([^"']*(?:^|\/)compiledPool)["']/g;
+    /(?:from|import)\s*\(?\s*["']([^"']*\/compiledPool)["']/g;
+
+/** The OTHER way the data walks back into a client graph: importing the JSON
+ *  itself, which no alias covers and no spelling rule reaches. Only
+ *  `convex/cards/compiledPool.ts` may, plus the scripts that generate and
+ *  measure it. */
+const POOL_JSON_RE = /["'][^"']*oracle-compiled-pool\.json["']/;
+const POOL_JSON_ALLOWED = new Set(["convex/cards/compiledPool.ts"]);
 
 interface Hit {
     readonly file: string;
@@ -102,6 +109,30 @@ describe("the compiled pool's client seam (issue #3053)", () => {
                 `${hit.file}:${hit.line} imports the pool as "${hit.specifier}", which the Vite alias does not match — the pool would re-enter the client bundle`
             ).toBe(true);
         }
+    });
+
+    it("nothing outside the pool module imports the JSON directly", () => {
+        // The alias swaps a MODULE. A new file writing
+        // `import pool from "../../data/oracle-compiled-pool.json"` bypasses
+        // it entirely, and only `check:bundle`'s ~10% headroom would notice —
+        // in a lane that runs a full `vite build`. Named here instead.
+        const offenders: string[] = [];
+        for (const dir of SCANNED) {
+            for (const file of walk(join(ROOT, dir))) {
+                const rel = relative(ROOT, file).replaceAll("\\", "/");
+                if (rel.startsWith("scripts/")) continue;
+                if (POOL_JSON_ALLOWED.has(rel)) continue;
+                if (/(^|\/)__tests__\//.test(rel) || /\.test\.tsx?$/.test(rel))
+                    continue;
+                for (const [index, text] of readFileSync(file, "utf8")
+                    .split("\n")
+                    .entries()) {
+                    if (POOL_JSON_RE.test(text))
+                        offenders.push(`${rel}:${index + 1}`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
     });
 
     it("the browser replacement exports the same name, and nothing else", () => {

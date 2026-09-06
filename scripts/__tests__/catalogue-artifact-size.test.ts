@@ -19,18 +19,23 @@ import { committedArtifacts } from "../catalogue-artifact";
  * a user pays for. What the user pays for now is this artifact, over the wire
  * once per content hash, and resident in the heap for the session.
  *
- * WHAT CROSSING THIS MEANS IS ALSO DIFFERENT. The old budget's message was
- * "build the store, don't raise the number". ADR 0113 §3 has since BUILT that
- * store and decided, on measurements, that it carries the WHOLE corpus: at
- * 34,890 rows that is ~13.9 MB raw, ~1.09 MB Brotli, ~29.5 MB of heap and
- * ~100 ms to become resident — all of it deliberate. So this budget is a
- * DISCLOSURE trigger, not a redesign trigger. Crossing it means the cold-load
- * cost has roughly tripled since it was last measured in a real browser, and
- * the honest response is to re-measure fetch/parse/heap
+ * WHAT CROSSING THIS MEANS IS ALSO DIFFERENT, and it is NOT "never raise the
+ * number". The old budget's message was "build the store, don't raise it".
+ * ADR 0113 §3 has since BUILT that store and decided, on measurements, that it
+ * carries the WHOLE corpus: at 34,890 rows that is ~13.9 MB raw, ~1.09 MB
+ * Brotli, ~29.5 MB of heap and ~100 ms to become resident — all of it
+ * deliberate, and all of it roughly 3.5x ABOVE the ceilings below. So these
+ * ceilings sit deliberately below the end state the ADR sanctions: they are a
+ * DISCLOSURE trigger, and raising them IS the correct outcome of crossing one
+ * — but only after the re-measure, never as the way to get a green run.
+ *
+ * Concretely, crossing means the cold-load cost has roughly tripled since it
+ * was last measured in a real browser. Re-measure fetch/parse/heap
  * (`performance.measureUserAgentSpecificMemory()` under `crossOriginIsolated`,
- * the way ADR 0113 § Measured, not assumed did) and restate the ADR's table —
- * not to bump the constant. The number that ends the whole-corpus design is
- * heap, at the 45-60 MB ADR 0113 names, and it is not this one.
+ * the way ADR 0113 § Measured, not assumed did), restate the ADR's table with
+ * the new numbers, and set the ceiling from that measurement. What ENDS the
+ * whole-corpus design is heap, at the 45-60 MB ADR 0113 names — not this
+ * number, which can be raised as far as that table stays honest.
  *
  * Measured 2026-09-06 on the committed artifact, 3,168 rows:
  * 1,461,663 B raw / 181,211 B Brotli (`brotliCompressSync` defaults, i.e.

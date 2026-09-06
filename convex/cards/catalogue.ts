@@ -403,6 +403,12 @@ const handWrittenIds = new Set(allCards.map((c) => c.id));
 // seeded here first and `registerCompiledDefinitions` never overwrites an
 // entry — the same precedence the previous `[...compiled, ...allCards]` Map
 // construction expressed by write order.
+//
+// Among COMPILED rows the precedence is inverted, and that is not a hidden
+// equivalence: the old construction let the LAST row with a given name win,
+// first-write-wins makes it the FIRST. It is only safe because compiled names
+// are unique, which `scripts/__tests__/catalogue-artifact.test.ts` asserts
+// rather than assumes — a duplicate there would make the two shapes disagree.
 const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
