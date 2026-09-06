@@ -72,6 +72,7 @@ import {
     PENDING_TARGET_FILTER_KEYS,
     resolveTargetRequirementCount,
 } from "./gre/state";
+import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
     selectCompanion,
     canSummonCompanion,
@@ -1448,9 +1449,18 @@ function manaTapNeedsChoice(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    ability: ActivatedAbility | null
+    ability: ActivatedAbility | null,
+    /** CR 613 (PRD #2064 S6) — forwarded to the layer-7 read behind a
+     *  board-conditional `manaAmount` (`gre/constants.ts`'s `manaLayerView`). */
+    continuousEffects?: readonly ContinuousEffect[]
 ): boolean {
-    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    const options = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        undefined,
+        continuousEffects
+    );
     if (options.length === 0) return false;
     return (
         options.length >= 2 ||
@@ -1483,9 +1493,17 @@ function resolveManaTapChoice(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    manaChoiceIndex: number
+    manaChoiceIndex: number,
+    /** CR 613 (PRD #2064 S6) — see `manaTapNeedsChoice`. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): ResolvedManaTapChoice | null {
-    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    const options = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        undefined,
+        continuousEffects
+    );
     const opt = options[manaChoiceIndex];
     if (!opt) return null;
     const source = opt.source;
@@ -1809,7 +1827,13 @@ export function tapSourceIntoPayment(
     // Urborg) requires the activator to pick which ability to activate. A single
     // choice-based ability (Fellwar Stone) also routes here.
     if (
-        manaTapNeedsChoice(card, player.id, manaTapBattlefields(state), ability)
+        manaTapNeedsChoice(
+            card,
+            player.id,
+            manaTapBattlefields(state),
+            ability,
+            state.continuousEffects
+        )
     ) {
         if (manaChoiceIndex === undefined) {
             throw new Error("Must choose a mana color");
@@ -1822,7 +1846,8 @@ export function tapSourceIntoPayment(
             card,
             player.id,
             manaTapBattlefields(state),
-            manaChoiceIndex
+            manaChoiceIndex,
+            state.continuousEffects
         );
         if (!resolved) {
             throw new Error(MANA_CHOICE_REJECTION);
@@ -1959,14 +1984,23 @@ export function tapSourceIntoPayment(
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
-    const amount = getFixedManaAmount(card, manaColor, player.battlefield);
+    const amount = getFixedManaAmount(
+        card,
+        manaColor,
+        player.battlefield,
+        state.continuousEffects
+    );
     // CR 614 — Deep Water rewrites a land's produced mana to {U} (no-op for
     // non-lands / unaffected players).
     const added = applyLandManaReplacement(state, player.id, card, {
         [manaColor]: amount,
     } as ManaCost);
     if (
-        getDynamicManaProduced(card, player.battlefield) ||
+        getDynamicManaProduced(
+            card,
+            player.battlefield,
+            state.continuousEffects
+        ) ||
         added[manaColor] === undefined
     ) {
         card.chosenMana = added;
@@ -14770,7 +14804,8 @@ export const tapUntap = mutation({
                 card,
                 player.id,
                 manaTapBattlefields(state),
-                ability
+                ability,
+                state.continuousEffects
             )
         ) {
             // 2+ mana-tap options: the source's own ability and/or one per basic
@@ -14789,7 +14824,8 @@ export const tapUntap = mutation({
                     card,
                     player.id,
                     manaTapBattlefields(state),
-                    args.manaChoiceIndex
+                    args.manaChoiceIndex,
+                    state.continuousEffects
                 );
                 if (!resolved) {
                     throw new Error(MANA_CHOICE_REJECTION);
@@ -14973,7 +15009,8 @@ export const tapUntap = mutation({
                 // fresh computation only for legacy/untracked instances.
                 const isDynamic = !!getDynamicManaProduced(
                     card,
-                    player.battlefield
+                    player.battlefield,
+                    state.continuousEffects
                 );
                 const refundAmount =
                     isDynamic && wasTapped && card.chosenMana
@@ -14981,11 +15018,17 @@ export const tapUntap = mutation({
                         : getFixedManaAmount(
                               card,
                               manaColor,
-                              player.battlefield
+                              player.battlefield,
+                              state.continuousEffects
                           );
                 const amount = wasTapped
                     ? refundAmount
-                    : getFixedManaAmount(card, manaColor, player.battlefield);
+                    : getFixedManaAmount(
+                          card,
+                          manaColor,
+                          player.battlefield,
+                          state.continuousEffects
+                      );
                 // CR 106.6 — Mishra's Workshop produces mana spendable only on
                 // artifact spells; it floats in a parallel `restrictedMana`
                 // pool rather than the fungible pool. Refund (untap, blocked
@@ -15252,7 +15295,8 @@ export function resolveNonTapManaChoice(
     const manaChoices = getEffectiveManaChoices(
         card,
         player.id,
-        manaTapBattlefields(state)
+        manaTapBattlefields(state),
+        state.continuousEffects
     );
     if (!manaChoices) return null;
     if (manaChoiceIndex === undefined) {

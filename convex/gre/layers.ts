@@ -464,11 +464,56 @@ function layer7EffectsFor(
     for (const stored of state.continuousEffects ?? []) {
         if (stored.layer !== 7) continue;
         if (!layer7EntryApplies(stored, target)) continue;
+        if (!layer7ExpiryLive(state, stored)) continue;
         entries.push(stored);
     }
 
     entries.sort(compareContinuousEffects);
     return { entries, templates };
+}
+
+/** CR 611.2 — whether a STORED entry has ENDED, for the expiries whose end is a
+ *  board FACT rather than a boundary the tick counts. The twin of layer 6's
+ *  `layer6ExpiryLive`, and it exists for the same reason: with PRD #2064 S6
+ *  lifting `addContinuousEffect`'s blanket refusal, a card can store a layer-7
+ *  entry with any expiry, and one whose end nothing checks applies forever.
+ *
+ *  `duration` is deliberately NOT checked here — it is checked at the boundary
+ *  instead, where `tickContinuousEffectDurations` (`gre/phases.ts`) splices the
+ *  expired entry out, so an entry this walk can still see is one whose boundary
+ *  has not come. `indefinite` ends only with the game (CR 611.2a). */
+function layer7ExpiryLive(
+    state: LayerStateView,
+    entry: ContinuousEffect
+): boolean {
+    const expiry = entry.expiry;
+    switch (expiry.kind) {
+        case "source":
+            return findLayerPermanent(state, expiry.sourceId) !== undefined;
+        case "counter": {
+            // CR 122.1 — ends when the last counter of that kind is removed.
+            const bearer = findLayerPermanent(state, expiry.permanentId);
+            return (bearer?.counters?.[expiry.counterType] ?? 0) > 0;
+        }
+        case "while-source-tapped":
+            return isSourceTappedLive(state, expiry.sourceId);
+        case "duration":
+        case "indefinite":
+            return true;
+    }
+}
+
+/** The battlefield permanent with `id`, if any. */
+function findLayerPermanent(
+    state: LayerStateView,
+    id: string
+): PermanentView | undefined {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if (card.id === id) return card;
+        }
+    }
+    return undefined;
 }
 
 /** Whether a STORED entry applies to `target`. A `predicate`-affected entry is

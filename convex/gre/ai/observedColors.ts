@@ -166,7 +166,8 @@ function untappedProducibleColors(
             card,
             card.controllerId,
             battlefields,
-            { requireTap: true }
+            { requireTap: true },
+            state.continuousEffects
         );
         for (const option of options) {
             if (!isNonDestructiveManaOption(card, option)) continue;

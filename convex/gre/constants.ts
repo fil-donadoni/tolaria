@@ -27,6 +27,7 @@ import { getDefinition, tryGetDefinition } from "../cards";
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { CardInstanceState, GameState, PendingTarget } from "./state";
+import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import {
     STATIC_EFFECT_CTX,
@@ -619,10 +620,15 @@ export function getFixedSacrificeManaAbility(
 export function getFixedManaAmount(
     card: CardInstanceState,
     color: Color,
-    controllerBattlefield?: readonly CardInstanceState[]
+    controllerBattlefield?: readonly CardInstanceState[],
+    continuousEffects?: readonly ContinuousEffect[]
 ): number {
     if (controllerBattlefield) {
-        const dynamic = getDynamicManaProduced(card, controllerBattlefield);
+        const dynamic = getDynamicManaProduced(
+            card,
+            controllerBattlefield,
+            continuousEffects
+        );
         if (dynamic) return dynamic[color] ?? 0;
     }
     const produced = getActivatedManaProduced(card);
@@ -642,9 +648,17 @@ function manaLayerView(
     battlefields: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry.
+     *  Layer 7's until-boundary modifications are ENTRIES since S6, and this is
+     *  the one `LayerStateView` in the codebase that is HAND-BUILT rather than
+     *  being a `GameState`, so it is the one place `tsc` cannot force the
+     *  threading. Omitted, a Viridian Joiner under a Giant Growth reports its
+     *  BASE power and taps for one mana instead of four. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): LayerStateView {
     return {
+        continuousEffects,
         players: battlefields.map((b) => ({
             id: b.playerId,
             battlefield: b.battlefield as unknown as readonly PermanentView[],
@@ -698,16 +712,18 @@ function withEffectivePT(
  *  board-conditional tap mana ability scales like a printed one. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
-    controllerBattlefield: readonly CardInstanceState[]
+    controllerBattlefield: readonly CardInstanceState[],
+    continuousEffects?: readonly ContinuousEffect[]
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
         ({ ability: a }) => a.cost.tap && !a.useStack && a.manaAmount
     )?.ability;
     if (!ability?.manaAmount) return null;
-    const layerView = manaLayerView([
-        { playerId: card.controllerId, battlefield: controllerBattlefield },
-    ]);
+    const layerView = manaLayerView(
+        [{ playerId: card.controllerId, battlefield: controllerBattlefield }],
+        continuousEffects
+    );
     return ability.manaAmount(
         withEffectivePT(card, layerView),
         controllerBattlefield as unknown as readonly PermanentView[]
@@ -1013,7 +1029,8 @@ export function getDynamicManaChoices(
     battlefields: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    continuousEffects?: readonly ContinuousEffect[]
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
@@ -1032,7 +1049,7 @@ export function getDynamicManaChoices(
         );
     }
     if (!ability.getManaChoices) return null;
-    const layerView = manaLayerView(battlefields);
+    const layerView = manaLayerView(battlefields, continuousEffects);
     // Precompute each permanent's producible colours via the shared helper so
     // the card definition (Fellwar Stone) reads board mana without importing the
     // engine's mana machinery (CR 106.4).
@@ -1065,9 +1082,15 @@ export function getEffectiveManaChoices(
     battlefields: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    continuousEffects?: readonly ContinuousEffect[]
 ): ManaCost[] | null {
-    const dynamic = getDynamicManaChoices(card, controllerId, battlefields);
+    const dynamic = getDynamicManaChoices(
+        card,
+        controllerId,
+        battlefields,
+        continuousEffects
+    );
     if (dynamic) return dynamic;
     // CR 602.5b (issue #947) — gate on the ability's own `canActivate` using
     // the battlefields already available here (Chrome Mox's imprint gate
@@ -1418,7 +1441,10 @@ export function getManaTapOptionsDetailed(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    opts?: { requireTap?: boolean }
+    opts?: { requireTap?: boolean },
+    /** CR 613 (PRD #2064 S6) — the Continuous Effects Registry, for the layer-7
+     *  read behind a board-conditional `manaAmount`. See `manaLayerView`. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): ManaTapOption[] {
     const nonSacrifice: ManaTapOption[] = [];
     const sacrifice: ManaTapOption[] = [];
@@ -1478,7 +1504,12 @@ export function getManaTapOptionsDetailed(
                 (ability.getManaChoices || ability.manaColorSource) &&
                 controllerId &&
                 battlefields
-                    ? getDynamicManaChoices(card, controllerId, battlefields)
+                    ? getDynamicManaChoices(
+                          card,
+                          controllerId,
+                          battlefields,
+                          continuousEffects
+                      )
                     : (ability.manaChoices ?? null);
             if (choices) {
                 // CR 605.1a (issue #1889) — the zero-output drop below is
@@ -1508,7 +1539,11 @@ export function getManaTapOptionsDetailed(
                 // CR 106.1 — resolve a board-conditional amount (Urza trio) when
                 // the board is available; else the static output is the snapshot.
                 const dynamic = controllerBattlefield
-                    ? getDynamicManaProduced(card, controllerBattlefield)
+                    ? getDynamicManaProduced(
+                          card,
+                          controllerBattlefield,
+                          continuousEffects
+                      )
                     : null;
                 const mana = dynamic ?? ability.manaProduced;
                 // CR 605.1a (issue #1889) — a mana ability whose CURRENT output
@@ -1862,13 +1897,18 @@ export function manaAbilityPaidWithoutTapping(
 export function hasManaAbility(
     card: CardInstanceState,
     state?: TriggerStateView,
-    controllerBattlefield?: readonly CardInstanceState[]
+    controllerBattlefield?: readonly CardInstanceState[],
+    continuousEffects?: readonly ContinuousEffect[]
 ): boolean {
     if (getBasicLandMana(card) !== null) return true;
     const ability = getActivatedManaAbility(card, state);
     if (!ability) return false;
     if (controllerBattlefield && ability.manaAmount) {
-        const dynamic = getDynamicManaProduced(card, controllerBattlefield);
+        const dynamic = getDynamicManaProduced(
+            card,
+            controllerBattlefield,
+            continuousEffects
+        );
         if (dynamic && totalManaCount(dynamic) === 0) return false;
     }
     return true;

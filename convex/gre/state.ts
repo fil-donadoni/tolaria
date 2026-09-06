@@ -7859,16 +7859,22 @@ function nextContinuousEffectOrdinal(
  *  Registry, minting both things an entry may not choose for itself: its
  *  deterministic `ce-N` id and its CR 613.7 layer timestamp.
  *
- *  THE single write path into `state.continuousEffects`. Every producer goes
- *  through it — the `SpellContext.addContinuousEffect` channel a card reaches,
- *  and the primitives S6 converted from writing an instance field
- *  (`addTemporaryPTBuff`, `setBasePT`, `grantStaticAbility`,
- *  `grantStaticAbilityPermanent`, `removeStaticAbilities`, the keyword-counter
- *  grant, `animateAsCreature`). One write path is what makes "every entry
- *  carries a stamp minted by `allocStaticTimestamp`" a property of the code
- *  rather than a convention: there is no second place a stamp could come from,
- *  so the derived-ordinal floors the layer walks used as a proxy
- *  (`DERIVED_TIMESTAMP_BASE` and friends) have nothing left to order against.
+ *  THE single write path into `state.continuousEffects`. Its three callers are
+ *  the whole of S6a: the `SpellContext.addContinuousEffect` channel a card
+ *  reaches, plus the two layer-7 primitives this slice converted from writing
+ *  an instance field (`addTemporaryPTBuff`, `setBasePT`). One write path is
+ *  what makes "an entry's stamp is minted by `allocStaticTimestamp`" a property
+ *  of the code rather than a convention.
+ *
+ *  It is NOT yet true that every layer effect comes through here. Layer 6's
+ *  producers (`grantStaticAbility`, `grantStaticAbilityPermanent`,
+ *  `removeStaticAbilities`, the keyword-counter grant, `animateAsCreature`)
+ *  still write instance ledgers and stamp them from `allocStaticTimestamp`
+ *  directly, and layers 2-5 and layer 7 still DERIVE source- and
+ *  counter-provenance entries per read against the ordinal floors
+ *  (`DERIVED_TIMESTAMP_BASE` and friends). Both go when S6b routes those
+ *  producers through here; until then the floors are still load-bearing, and a
+ *  slice reading this comment as a completed precondition would be wrong.
  *
  *  The stamp is minted BEFORE the list is extended, so `allocStaticTimestamp`'s
  *  scan of the live registry cannot see the entry it is stamping. */
@@ -9763,6 +9769,18 @@ export function removePermanentTo(
         // characteristics (CR 113.6c, Grist), which is every card but a
         // handful.
         revertTypeLine(creature);
+        // CR 400.7 (ADR 0082, PRD #2064 S6) — but the registry residue goes on
+        // EVERY departure, not only the two the full reset covers. The card
+        // that lands in the graveyard or in exile is a new object, so an
+        // `indefinite` entry naming this instance id must end here: nothing
+        // else would ever end it, and `state.continuousEffects` is a shared,
+        // PERSISTED, wire-shipped list, so a leaked entry is unbounded growth
+        // on the hottest row rather than a self-healing local field. (A
+        // `duration` entry would tick out on its own — the registry tick walks
+        // the whole list regardless of where the card is — but relying on that
+        // would leave the indefinite case open, which is Wall of Tombstones
+        // pushing one entry per upkeep.)
+        purgeContinuousEffectsForInstance(state, creature.id);
     }
     // CR 122.2 / 400.7 — counters on a permanent cease to exist the moment it
     // leaves the battlefield; the card in the graveyard/exile is a NEW object
