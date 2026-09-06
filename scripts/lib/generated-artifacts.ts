@@ -25,6 +25,15 @@
  *   - `data/oracle-compiled-pool.json` — IMMUNE BY SHAPE. A bare array of
  *     resolved card rows; no header, no hash, no tally (ADR 0114 §2 keeps it a
  *     catalogue with nothing left to resolve at runtime).
+ *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
+ *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
+ *     Its bytes are whole-file state, but two branches that regenerate it
+ *     produce two DIFFERENTLY NAMED files, so git sees an add/add of unrelated
+ *     paths rather than a textual conflict — and the merged tree then holds two
+ *     artifacts, which `scripts/__tests__/catalogue-artifact.test.ts` reds on
+ *     by name before it ever compares bytes. The remedy is the same
+ *     (`bun run catalogue:pack`); what differs is that the merge driver has
+ *     nothing to drive.
  *   - `data/oracle-corpus.pin.json` — whole-file state, but NOT in this class:
  *     it is not re-derivable from the tree at all (its generator needs the
  *     network, and the gate is offline by contract), and it moves only in a

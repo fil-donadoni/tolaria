@@ -36,14 +36,27 @@ import compiledPool from "../../data/oracle-compiled-pool.json";
 export const compiledReadyDefinitions: CardDefinition[] =
     compiledPool as unknown as CardDefinition[];
 
-/** A hand-written `CardDefinition` is ALWAYS authoritative (PRD #2693 "gold
- *  as oracle"). `scripts/oracle-pool.ts` already excludes an oracle id that
- *  has a hand-written `data/card-index.json` entry at GENERATION time; this
- *  is the runtime backstop for a hand-written card added since the pool was
- *  last regenerated (a fresher `handWrittenIds` than the pool's own join
- *  saw) — a pure function so the collision-avoidance itself is unit-testable
- *  without needing two conflicting definitions to share an id in the real,
- *  module-load-once catalogue (ADR 0108). */
+/**
+ * The runtime backstop, kept as a FILTER and asserted to be a no-op
+ * (ADR 0114 §2, issue #3052).
+ *
+ * The collision between a compiled row and a hand-written definition for the
+ * same print id is resolved at BUILD: `scripts/oracle-pool.ts` excludes a
+ * hand-written oracle id at generation, and `scripts/catalogue-artifact.ts`
+ * merges the two populations into one artifact, where a divergence is a red.
+ * So this never has anything to drop, and the assertion that it never does
+ * lives in `scripts/__tests__/catalogue-artifact.test.ts`.
+ *
+ * The assertion is THERE and not here on purpose. This function is called at
+ * module load of `convex/cards/catalogue.ts`, which every Convex mutation, the
+ * browser bundle and every test file transitively imports; throwing on a stale
+ * pool would turn a tree that runs correctly today — dropping the compiled
+ * twin LEAVES the hand-written definition, which PRD #2693 makes authoritative
+ * — into a white screen, a failed deploy and a collection error in every suite
+ * at once. A gate that reds with the name of the card and the command to run
+ * is strictly better than an outage, and it is the same staleness
+ * `bun run catalogue:check` already names.
+ */
 export function excludeHandWritten(
     compiled: readonly CardDefinition[],
     handWrittenIds: ReadonlySet<string>
