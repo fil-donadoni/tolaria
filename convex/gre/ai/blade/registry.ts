@@ -25,9 +25,8 @@ import { cloneGameState } from "../../clone";
 import { instanceIdsForName, seatPlayerId } from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
-import { getInstanceManaCost } from "../../../cards";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
-import { getCardByName } from "../../../cards";
+import { getCardByName, getInstanceManaCost } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback

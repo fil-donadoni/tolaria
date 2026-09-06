@@ -1256,8 +1256,9 @@ describe("manaDevelopment term (issue #2686)", () => {
             2 * DEFAULT_EVAL_WEIGHTS.manaDevWeight
         );
         expect(devTerm(eightLands)).toBe(devTerm(sevenLands));
-        // ... and that surplus land is worth the flat 17, below 2 life (16 is
-        // the Zuran Orb comparison) plus nothing, and below a card in hand.
+        // ... and that surplus land is back at the flat 17: a point ABOVE a
+        // 2-life gain (16), which is the rollout-noise tie the term's header
+        // documents, and well below a card in hand.
         expect(floodedLand).toBe(
             DEFAULT_EVAL_WEIGHTS.permanentWeight +
                 DEFAULT_EVAL_WEIGHTS.manaWeight

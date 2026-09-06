@@ -576,44 +576,6 @@ function flexibilityTerm(
     return castable * weights.flexWeight;
 }
 
-/** The mana-development term (issue #2686) — the value of a player's mana base
- *  relative to what their hand still wants to cast.
- *
- *  CALIBRATION (the numbers the ticket asks to document). A land's flat worth
- *  today is `permanentWeight (5) + manaWeight (12) = 17`, while a 2-life gain
- *  is `2 × lifeWeight (8) = 16` — a 1-point gap, inside the rollout-noise band,
- *  so "sacrifice a land for 2 life" (Zuran Orb) ties with passing and is decided
- *  by noise. The term prices the DEVELOPMENT a land buys: a land on curve —
- *  the player has fewer lands than the largest mana value their hand still
- *  wants to reach — is worth `manaDevWeight` (12, symmetric with `manaWeight`)
- *  ON TOP of the flat 17, i.e. 29, decisively above 16. A land whose mana the
- *  hand no longer needs (the base is flooded) earns no development bonus and
- *  returns to 17 — the mana it produces has nothing to cast, so it is worth
- *  less than the cards that would use it.
- *
- *  DEMAND IS THE CURVE, NOT THE HAND (issue #2927). The demand proxy shipped by
- *  #2686 was the SUM of every hand card's mana value, and a sum binds at land
- *  counts a game never reaches: a 7-card hand of average MV 3 asks for 20
- *  lands, so `min(lands, handNeed)` selected `lands` in virtually every real
- *  position, the flooded branch never fired, and the term degenerated to a flat
- *  `manaDevWeight` per land. A sum also encodes the wrong quantity twice over —
- *  it rewards holding MORE cards (drawing raises demand with no land gained),
- *  and it reads two 6-drops as "this player needs 12 lands", which is not what
- *  being on curve means. The largest mana value in hand is the quantity being
- *  on curve is ABOUT: it binds at 1-7 (the range boards actually reach), it
- *  moves only when the top of the curve moves, and a hand whose most expensive
- *  card is a 2-drop stops wanting a third land — which is exactly the "flooded"
- *  reading. The cap is the hand's own top end, so no magic constant is needed.
- *
- *  This is a SNAPSHOT of the position (the owner's framing on this ticket): it
- *  reads only the land count and the hand's mana values (castability), never a
- *  forecast ("a land is worth a lot because flooding loses games later" — that
- *  belongs to the search, not a weight). Lands in hand contribute zero demand:
- *  a land is played, never cast (CR 305.1 — a land "is never a spell"), and a
- *  card with no mana cost has mana value 0 (CR 202.3a), so a held land is not
- *  something this term should urge the player to ramp toward.
- *
- *  Zero card names, pure, and state-only by construction. */
 /** The flat `KEYWORD_BONUS` value `creatureValueRaw` has already added for
  *  defensive keyword occurrences that reached `card` through a DURATION-SCOPED
  *  grant, in a position where nothing can currently reach it (issue #2937).
@@ -634,6 +596,57 @@ function quietDefensiveGrantFlat(
     return flat;
 }
 
+/** The mana-development term (issue #2686) — the value of a player's mana base
+ *  relative to what their hand still wants to cast.
+ *
+ *  CALIBRATION (the numbers the ticket asks to document). A land's flat worth
+ *  today is `permanentWeight (5) + manaWeight (12) = 17`, while a 2-life gain
+ *  is `2 × lifeWeight (8) = 16` — a 1-point gap, inside the rollout-noise band,
+ *  so "sacrifice a land for 2 life" (Zuran Orb) ties with passing and is decided
+ *  by noise. The term prices the DEVELOPMENT a land buys: a land on curve —
+ *  the player has fewer lands than the largest mana value their hand still
+ *  wants to reach — is worth `manaDevWeight` (12, symmetric with `manaWeight`)
+ *  ON TOP of the flat 17, i.e. 29, decisively above 16. A land whose mana the
+ *  hand no longer needs (the base is flooded) earns no development bonus and
+ *  returns to 17 — the mana it produces has nothing to cast, so it is worth
+ *  less than the cards that would use it.
+ *
+ *  DEMAND IS THE CURVE, NOT THE HAND (issue #2927). The demand proxy shipped
+ *  by #2686 was the SUM of every hand card's mana value, and a sum binds at
+ *  land counts a game never reaches: a 7-card hand of average MV 3 asks for 21
+ *  lands, so `min(lands, handNeed)` selected `lands` in virtually every real
+ *  position, the flooded branch never fired, and the term degenerated to a flat
+ *  `manaDevWeight` per land. A sum also read two 6-drops as "this player needs
+ *  12 lands", which is not what being on curve means. Demand is now the largest
+ *  mana value in hand — the quantity being on curve is ABOUT. It binds at the
+ *  card costs a hand actually holds (nothing caps it at 7; an 8-MV card demands
+ *  8 lands), it moves only when the TOP of the curve moves, and its ceiling is
+ *  the hand's own top end, so no magic constant is needed.
+ *
+ *  WHAT THIS PROXY DELIBERATELY DOES NOT SEE, and why each is left standing:
+ *
+ *  - HAND WIDTH. Four 2-drops read as demand 2, though that hand wants four or
+ *    more lands to double-spell. A width-aware proxy is a different quantity
+ *    (how fast the hand empties) and belongs to a term that models turns; the
+ *    curve's top end is the half that being ON CURVE is about, and it is the
+ *    half a sum destroyed. Stated as a simplification, not as settled.
+ *  - THE CAST-SIDE STEP (issue #2928). Because demand is read off the hand,
+ *    casting the card that SETS the top of the curve drops the term by
+ *    `manaDevWeight` per land it was justifying (a 6-drop leaving a 6-land
+ *    board costs 4 x 12 = 48 when the rest of the hand tops out at 2), and the
+ *    mirror image pays the same for drawing above the curve. That sign defect
+ *    is #2686's, not this proxy's — the sum lost 12 x MV on every cast — and it
+ *    is tracked and fixed on its own axis by issue #2928, which is why it is
+ *    not smoothed here. Measured across 5-seed/400-iteration decisions, it
+ *    flips no root pick today; the search washes it out.
+ *  - THE 17-vs-16 GAP. A flooded land is back at the flat 17 against a 2-life
+ *    gain's 16 — the same 1-point tie the CALIBRATION paragraph above calls
+ *    rollout noise, now reachable whenever the curve's top end sits at or below
+ *    the land count. That is the intended shape (a surplus land SHOULD price
+ *    near a small life swing), and the tie-break that settles it is #2939's
+ *    activation-timing rule, not this weight.
+ *
+ *  Zero card names, pure, and state-only by construction. */
 function manaDevelopmentTerm(
     player: PlayerState,
     weights: EvalWeights
