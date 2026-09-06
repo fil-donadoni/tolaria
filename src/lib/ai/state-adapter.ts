@@ -396,5 +396,17 @@ export function projectedToGameState(
                 ),
         })),
         stack: state.stack,
+        // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry.
+        // Restated rather than left to the `...state` spread above, which
+        // already carries it, for the reason the projection restates it: the
+        // client-side engine run this adapter feeds is DEFINED against this
+        // field. Every CR 613 layer derives from it (S2-S4), so a rebuild that
+        // dropped it would run `deriveLayer6` over an empty registry and lose
+        // every granted and every removed keyword — the bot would enumerate
+        // moves for a board that does not exist, and no suite would go red.
+        // A field nothing names is a field the next reducer edit drops
+        // silently; that is the recurring bug class this file's header already
+        // records for `attachedTo` / `temporaryPTMods` / `counters`.
+        continuousEffects: state.continuousEffects,
     } as unknown as GameState;
 }

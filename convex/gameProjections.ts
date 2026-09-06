@@ -8,6 +8,11 @@ import type {
 } from "./gre/state";
 import { getPendingChoiceMax, getPlayer } from "./gre/state";
 import type { CardAction } from "./gre/types";
+import type { WireCharacteristics } from "./gre/wireCharacteristics";
+import {
+    applyWireCharacteristics,
+    deriveWireCharacteristics,
+} from "./gre/wireCharacteristics";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
@@ -474,7 +479,16 @@ function projectLibrary(
 function projectBattlefieldCard(
     card: CardInstanceState,
     viewerId: string,
-    state?: GameState
+    state?: GameState,
+    /** CR 613 (PRD #2064 S5) — this permanent's characteristics as DERIVED from
+     *  the Continuous Effects Registry by `deriveWireCharacteristics`, computed
+     *  once per projection for the whole board. Applied over the slimmed card
+     *  so every characteristic on the wire is a read of the registry, not of
+     *  whatever `syncLayers2to5` / `syncLayer6` last cached on the instance —
+     *  the field PRD #2064 S6 deletes. Absent for a PHASED-OUT permanent
+     *  (CR 702.26b: not on the battlefield, so no continuous effect applies and
+     *  there is nothing to derive). */
+    characteristics?: WireCharacteristics
 ): SlimBattlefieldCard {
     // CR 116.2b / 702.37e (issue #2705) — the turn-face-up affordance. Derived
     // server-side and carried on the wire for the same reason the companion's
@@ -497,12 +511,17 @@ function projectBattlefieldCard(
         turnUp && viewerId === card.controllerId
             ? { ...slim, canTurnFaceUp: true }
             : slim;
-    if (!card.faceDown) return slimCard(card);
+    // The derivation is applied to the INSTANCE and `slimCard` runs last, so
+    // its privacy strip can never be undone by a patch field (see
+    // `applyWireCharacteristics`).
+    const slim = (): SlimBattlefieldCard =>
+        slimCard(applyWireCharacteristics(card, characteristics));
+    if (!card.faceDown) return slim();
     // slimCard returns a fresh object, so deleting the marker below never
     // mutates live state. `card.card.id` is ALREADY the sentinel in raw state
     // (turnFaceDown swaps it there, not per-viewer) — it needs no
     // special-casing here at all, only `faceDownOf` is viewer-gated.
-    const slimmed = slimCard(card);
+    const slimmed = slim();
     if (viewerId === card.controllerId && card.faceDownOf) {
         // The controller knows what they cast — `faceDownOf` keeps carrying
         // the real id (pre-existing wire shape, unchanged), and `knownCardId`
@@ -1173,6 +1192,16 @@ export function projectPublicState(
     // revealed; their hand identities cross the wire to opponents (below).
     const handRevealedPlayers = computeHandRevealedPlayers(state);
 
+    // CR 613 (ADR 0082, PRD #2064 S5) — every battlefield permanent's
+    // characteristics, DERIVED from `state.continuousEffects` once for the whole
+    // board, so the wire carries a read of the registry rather than the
+    // materialised fields the syncs cache on each instance. Those fields are
+    // what S6 deletes; a projection still reading them would ship nothing the
+    // day they go, and the client-side engine run (ADR 0074) would silently
+    // lose every granted and every removed keyword. The registry itself rides
+    // the `...state` spread below, so a client derivation has the same input.
+    const characteristics = deriveWireCharacteristics(state);
+
     // CR 401.5 (issue #1095) — players playing with the top card of their
     // library revealed (Goblin Spy). Derived live off the battlefield, once per
     // projection; the top card then crosses the wire to BOTH seats (below).
@@ -1246,7 +1275,12 @@ export function projectPublicState(
                 })
             ),
             battlefield: player.battlefield.map((c) =>
-                projectBattlefieldCard(c, viewerId, state)
+                projectBattlefieldCard(
+                    c,
+                    viewerId,
+                    state,
+                    characteristics.get(c.id)
+                )
             ),
             // ADR 0026 — sparse library: only cards the viewer knows
             // (`viewer ∈ knownTo`) cross the wire, each at its top-relative
@@ -1409,6 +1443,19 @@ export function projectPublicState(
         pendingReveals: state.pendingReveals?.filter((r) =>
             r.audience.includes(viewerId)
         ),
+        // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry
+        // crosses the wire. It is PUBLIC by construction: every entry describes
+        // a characteristic-changing effect applying to objects in public zones,
+        // which is exactly what the projected characteristics above already
+        // state; nothing here is knowledge a viewer does not already hold.
+        //
+        // Restated explicitly rather than left to the `...state` spread above,
+        // which already carries it: the client-side engine run (ADR 0074 —
+        // `src/lib/ai/state-adapter.ts`, `src/lib/effective-stats.ts`) is
+        // DEFINED against this field, and a field nothing names is a field the
+        // next `Omit` on `PublicGameState` silently removes. The wire-format
+        // test pins it for the same reason.
+        continuousEffects: state.continuousEffects,
     };
 }
 
@@ -1435,6 +1482,8 @@ export function projectFullState(
         revealZoneOwner,
     } = computeChoiceExposure(state, head?.playerId);
     const exileAssoc = buildExileAssociation(state);
+    // CR 613 (ADR 0082, PRD #2064 S5) — see `projectPublicState`.
+    const characteristics = deriveWireCharacteristics(state);
 
     const players = state.players.map(
         (player): FullPlayer => ({
@@ -1505,7 +1554,12 @@ export function projectFullState(
                     ? { ...out, exiledByPermanentId: host }
                     : out;
             }),
-            battlefield: player.battlefield.map(slimCard),
+            // CR 613 (PRD #2064 S5) — same registry derivation as the public
+            // projection, so the debug view and the wire never disagree about a
+            // permanent's characteristics.
+            battlefield: player.battlefield.map((c) =>
+                slimCard(applyWireCharacteristics(c, characteristics.get(c.id)))
+            ),
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
             // CR 702.139c (ADR 0064) — full debug view has no single viewer,
             // so every player's own companion carries its `canSummon`

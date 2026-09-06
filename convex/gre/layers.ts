@@ -39,7 +39,10 @@ const ZERO: PTBuff = { power: 0, toughness: 0 };
  *  `StaticEffectStateView` itself to keep `cards/types.ts` a dependency-free
  *  leaf; it is optional because a caller that constructs the view by hand
  *  (`gre/constants.ts`'s `manaLayerView`, `src/lib/effective-stats.ts`'s
- *  `toLayerState`) has no registry to pass until S5 puts one on the wire. */
+ *  `toLayerState`) may have none to pass. PRD #2064 S5 puts the registry on the
+ *  wire, so a client caller that reconstructs a whole `GameState`
+ *  (`src/lib/ai/state-adapter.ts`) now has one; `toLayerState` still does not —
+ *  see the note in `layer7EffectsFor`. */
 export type LayerStateView = StaticEffectStateView & {
     readonly continuousEffects?: readonly ContinuousEffect[];
 };
@@ -476,7 +479,7 @@ function layer7EffectsFor(
     // later needs no second consumer, and so the registry, not this walk, is
     // what layer 7 is defined against.
     //
-    // Two hazards the flip must clear, neither guarded here because the stored
+    // Three hazards the flip must clear, none guarded here because the stored
     // set is empty and a guard on an empty set proves nothing:
     //
     // 1. DOUBLE COUNT. A provenance that starts being stored must stop being
@@ -486,13 +489,18 @@ function layer7EffectsFor(
     // 2. ORDER. A stored entry always outranks a derived one (see
     //    `DERIVED_TIMESTAMP_BASE`), which is invisible in the summing sublayer
     //    7c but decides the winner in the last-wins sublayers 7a and 7b.
-    //
-    // The FIRST producer of a stored layer-7 entry must ship with PRD #2064 S5:
-    // `projectPublicState` does not carry `continuousEffects`, so the client
-    // (`src/lib/effective-stats.ts`, which runs this same pipeline through
-    // `toLayerState`) would compute P/T without it and silently disagree with
-    // the server. Harmless today because the set is empty; a landmine the
-    // moment it is not.
+    // 3. THE CLIENT'S OWN LAYER-7 READ. PRD #2064 S5 put the registry on the
+    //    wire and carried it into the Brain's `GameState`
+    //    (`src/lib/ai/state-adapter.ts`), so a client-side ENGINE run derives
+    //    layer 7 from the same entries the server does. The board's P/T
+    //    reducer does NOT: `src/lib/effective-stats.ts` builds its
+    //    `LayerStateView` in `toLayerState`, which passes `emblems` and no
+    //    registry, so `state.continuousEffects` reads `undefined` and this
+    //    loop sees nothing. Harmless while the stored set is empty — no
+    //    producer writes a layer-7 entry until S6 — and it is S6's first
+    //    producer that must thread the field through `toLayerState` and its
+    //    `effectivePower` / `effectiveToughness` callers, or a stored +1/+1
+    //    residue will be invisible on the board while the server counts it.
     for (const stored of state.continuousEffects ?? []) {
         if (stored.layer !== 7) continue;
         if (!layer7EntryApplies(stored, target)) continue;

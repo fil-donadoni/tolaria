@@ -624,12 +624,20 @@ describe("projection forwards every transient battlefield field", () => {
                 { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
             ],
             counters: { "+1/+1": 1, "+1/+0": 2 },
-            grantedStaticAbilities: [{ ability: "flying", auraId: "aura-1" }],
+            // No `auraId` on either row, deliberately: PRD #2064 S5 made the
+            // projection DERIVE layer 6 from the registry, and the
+            // `auraId`-keyed half of these two arrays is exactly the derived
+            // half (`layer6DerivedFields`) — a row naming an aura that is not
+            // on this fixture's board is a stale cache the wire now correctly
+            // drops (see "a stale aura-keyed grant does not reach the wire"
+            // below). The residue-borne rows kept here are the half that stays
+            // on the instance until S6, so the spread-not-enumeration invariant
+            // this suite guards is still what is being asserted.
+            grantedStaticAbilities: [{ ability: "flying" }],
             grantedActivatedAbilities: [
                 {
                     sourceCardId: "src",
                     abilityId: "ability",
-                    auraId: "aura-1",
                 },
             ],
             damagedBySources: ["bolt-1", "bolt-2"],
@@ -674,11 +682,9 @@ describe("projection forwards every transient battlefield field", () => {
             { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
         ]);
         expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
-        expect(card.grantedStaticAbilities).toEqual([
-            { ability: "flying", auraId: "aura-1" },
-        ]);
+        expect(card.grantedStaticAbilities).toEqual([{ ability: "flying" }]);
         expect(card.grantedActivatedAbilities).toEqual([
-            { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
+            { sourceCardId: "src", abilityId: "ability" },
         ]);
         expect(card.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
         expect(card.controlChanges).toEqual([

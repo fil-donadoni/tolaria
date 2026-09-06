@@ -1298,6 +1298,48 @@ export function syncLayers2to5(
      *  Same contract as `syncLayer6`'s. */
     opts?: { stoppedSourceIds?: ReadonlySet<string> }
 ): void {
+    const derived = deriveLayers2to5Board(state, opts);
+    for (const { card, result } of derived) {
+        writeDerivedCharacteristics(card, result);
+    }
+    // Layer 2 LAST, and in its own pass: relocating a permanent mutates the
+    // battlefield arrays the derivation walk above is iterating, and the CR
+    // 613.7 answer for every permanent was computed against the board as it
+    // stood at the top of this sync (CR 613.1 — one recompute, one board).
+    for (const { card, result } of derived) {
+        if (card.controllerId === result.controllerId) continue;
+        const previous = card.controllerId;
+        card.controllerId = result.controllerId;
+        relocateControl(state, card, previous, result.controllerId);
+    }
+}
+
+/** One board pass of the CR 613.1b-e derivation, as a PURE result list: what
+ *  every battlefield permanent's layers 2-5 answer is, computed from the
+ *  registry against one fixed board, applied to nothing.
+ *
+ *  Split out of `syncLayers2to5` so the wire projection can read the SAME
+ *  derivation the engine writes (PRD #2064 S5, `gre/wireCharacteristics.ts`)
+ *  instead of the fields the sync happened to leave behind. One derivation
+ *  authority, two consumers — a second walk here is a second answer.
+ *
+ *  Base capture (`ensureLayers2to5Base`) is deliberately still performed on the
+ *  cards it is given: it is the one-shot pre-S4 migration, and it is only
+ *  correct while the output fields still hold nothing but the base. The wire
+ *  path hands this function CLONES for exactly that reason. */
+export function deriveLayers2to5Board(
+    state: GameState,
+    opts?: {
+        stoppedSourceIds?: ReadonlySet<string>;
+        /** Derive EVERY permanent, including the ones the fast path below can
+         *  prove are already at their base. The sync skips those because the
+         *  fields it would write already hold the answer; a consumer that reads
+         *  the RESULT rather than the fields has nothing to read for a skipped
+         *  permanent, so the wire path asks for all of them (PRD #2064 S5 AC 1:
+         *  no projected characteristic is read out of a field `sync*` wrote). */
+        deriveAll?: boolean;
+    }
+): { card: CardInstanceState; result: Layers2to5Derivation }[] {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
         ? {
@@ -1329,7 +1371,13 @@ export function syncLayers2to5(
             // site on every node it expands. Most boards declare no layer-2-5
             // static effect at all, and without this each of those pays a full
             // per-permanent derivation.
-            if (noSourceEffects && !carriesLayer2to5State(card)) continue;
+            if (
+                opts?.deriveAll !== true &&
+                noSourceEffects &&
+                !carriesLayer2to5State(card)
+            ) {
+                continue;
+            }
             derived.push({
                 card,
                 result: deriveLayers2to5(
@@ -1340,60 +1388,70 @@ export function syncLayers2to5(
             });
         }
     }
-
-    for (const { card, result } of derived) {
-        writeDerivedCharacteristics(card, result);
-    }
-    // Layer 2 LAST, and in its own pass: relocating a permanent mutates the
-    // battlefield arrays the derivation walk above is iterating, and the CR
-    // 613.7 answer for every permanent was computed against the board as it
-    // stood at the top of this sync (CR 613.1 — one recompute, one board).
-    for (const { card, result } of derived) {
-        if (card.controllerId === result.controllerId) continue;
-        const previous = card.controllerId;
-        card.controllerId = result.controllerId;
-        relocateControl(state, card, previous, result.controllerId);
-    }
+    return derived;
 }
 
-/** Writes the layer-3-to-5 derived output onto one permanent. Layer 2 is not
- *  here: its output is the permanent's PLACEMENT, which only the board-level
- *  pass above can perform. */
+/** The layer-3-to-5 derived output as a plain FIELD PATCH — the single mapping
+ *  from a `Layers2to5Derivation` to the instance fields that hold it. Layer 2
+ *  is not here: its output is the permanent's PLACEMENT, which only the
+ *  board-level pass can perform, and its `controllerId` half is applied
+ *  separately by each consumer.
+ *
+ *  Pure, and shared with the wire projection (PRD #2064 S5): the sync
+ *  `Object.assign`s it onto the live permanent, the projection spreads it onto
+ *  the slimmed wire card. Two consumers writing this list by hand is how a
+ *  projected characteristic drifts from the engine's answer. */
+export function layers2to5DerivedFields(
+    card: CardInstanceState,
+    result: Layers2to5Derivation
+): Partial<CardInstanceState> {
+    return {
+        // The one-way marker `ensureLayers2to5Base` gates the pre-S4 migration
+        // on.
+        layers2to5Derived: true,
+        textChanges:
+            result.textChanges.length > 0 ? result.textChanges : undefined,
+        types: result.types,
+        subtypes: result.subtypes,
+        grantedTypes:
+            result.grantedTypes.length > 0 ? result.grantedTypes : undefined,
+        suppressedTypes:
+            result.suppressedTypes.length > 0
+                ? result.suppressedTypes
+                : undefined,
+        grantedSubtypes:
+            result.grantedSubtypes.length > 0
+                ? result.grantedSubtypes
+                : undefined,
+        grantedSubtypesAdd:
+            result.grantedSubtypesAdd.length > 0
+                ? result.grantedSubtypesAdd
+                : undefined,
+        grantedSupertypes:
+            result.grantedSupertypes.length > 0
+                ? result.grantedSupertypes
+                : undefined,
+        removedSupertypes:
+            result.removedSupertypes.length > 0
+                ? result.removedSupertypes
+                : undefined,
+        grantedColors:
+            result.grantedColors.length > 0 ? result.grantedColors : undefined,
+        // `printedSubtypes` is the pre-slice name for the layer-4 subtype base
+        // and is still read by the wire projection and by `bestow.ts`'s
+        // re-anchor. It is now derived output of `baseSubtypes`, kept in step so
+        // no consult site has to learn a second field before PRD #2064 S6
+        // deletes both.
+        printedSubtypes: card.baseSubtypes,
+    };
+}
+
+/** Writes the layer-3-to-5 derived output onto one permanent. */
 function writeDerivedCharacteristics(
     card: CardInstanceState,
     result: Layers2to5Derivation
 ): void {
-    // The one-way marker `ensureLayers2to5Base` gates the pre-S4 migration on.
-    card.layers2to5Derived = true;
-    card.textChanges =
-        result.textChanges.length > 0 ? result.textChanges : undefined;
-    card.types = result.types;
-    card.subtypes = result.subtypes;
-    card.grantedTypes =
-        result.grantedTypes.length > 0 ? result.grantedTypes : undefined;
-    card.suppressedTypes =
-        result.suppressedTypes.length > 0 ? result.suppressedTypes : undefined;
-    card.grantedSubtypes =
-        result.grantedSubtypes.length > 0 ? result.grantedSubtypes : undefined;
-    card.grantedSubtypesAdd =
-        result.grantedSubtypesAdd.length > 0
-            ? result.grantedSubtypesAdd
-            : undefined;
-    card.grantedSupertypes =
-        result.grantedSupertypes.length > 0
-            ? result.grantedSupertypes
-            : undefined;
-    card.removedSupertypes =
-        result.removedSupertypes.length > 0
-            ? result.removedSupertypes
-            : undefined;
-    card.grantedColors =
-        result.grantedColors.length > 0 ? result.grantedColors : undefined;
-    // `printedSubtypes` is the pre-slice name for the layer-4 subtype base and
-    // is still read by the wire projection and by `bestow.ts`'s re-anchor. It
-    // is now derived output of `baseSubtypes`, kept in step so no consult site
-    // has to learn a second field before PRD #2064 S6 deletes both.
-    card.printedSubtypes = card.baseSubtypes;
+    Object.assign(card, layers2to5DerivedFields(card, result));
 }
 
 /** CR 400.7 / 613.1b-e — recomposes layers 2-5 for ONE permanent whose copiable
