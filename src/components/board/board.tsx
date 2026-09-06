@@ -391,6 +391,7 @@ export default function Board({
                 gameOver,
                 allPlayers,
                 emblems: state.emblems,
+                continuousEffects: state.continuousEffects,
                 phasedOutCards,
                 monarchId: state.monarchId,
                 cityBlessingIds: state.cityBlessingIds,

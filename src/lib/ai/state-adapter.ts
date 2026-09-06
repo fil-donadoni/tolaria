@@ -406,7 +406,7 @@ export function projectedToGameState(
         // moves for a board that does not exist, and no suite would go red.
         // A field nothing names is a field the next reducer edit drops
         // silently; that is the recurring bug class this file's header already
-        // records for `attachedTo` / `temporaryPTMods` / `counters`.
+        // records for `attachedTo` / `counters`.
         continuousEffects: state.continuousEffects,
     } as unknown as GameState;
 }

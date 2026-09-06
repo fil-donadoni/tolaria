@@ -39,7 +39,7 @@
  * changed (CR 613.1a), so the undo anchor must be re-derived from the NEW base
  * or the expiry writes a P/T and subtype line that never belonged to this face.
  *
- * **What is deliberately NOT here.** `temporaryPTSet`, `temporaryPTMods`,
+ * **What is deliberately NOT here.** The registry's own layer-7 entries,
  * `sourceTappedPTMods`, `colorOverride`, `grantedColors`,
  * `grantedSupertypes`, `grantedActivatedAbilities` and
  * `grantedTriggeredAbilities` are READ-TIME records (`gre/layers.ts`,

@@ -6556,19 +6556,11 @@ export interface PermanentView {
      *  intervening-if; the trigger system passes the raw `CardInstanceState`
      *  as `self`, so this flag is populated for trigger predicates. */
     echoPending?: boolean;
-    /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
-     *  Each entry adds to `power`/`toughness` at read time; the engine purges
-     *  entries whose `duration` has expired during phase-boundary cleanup
-     *  (END_OF_COMBAT or CLEANUP). Used by "+X/+Y until end of turn" spells
-     *  and pump activations (Firebreathing, Howl from Beyond, ...). */
-    temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
-    /** Layer 7b set-P/T effects scoped to a phase boundary (CR 613.4b, ADR
-     *  0017). Each entry sets `power` and/or `toughness` to a fixed value
-     *  (independently optional); the latest entry per characteristic wins
-     *  (array order is the timestamp). Purged at the same phase boundary as
-     *  `temporaryPTMods`. Used by Singing Tree / Island of Wak-Wak (set power
-     *  0) and Sorceress Queen (set 0/2). */
-    temporaryPTSet?: ReadonlyArray<{ power?: number; toughness?: number }>;
+    // CR 611.1 / 613.4b-c — the until-boundary P/T families that stood here
+    // (`temporaryPTMods`, `temporaryPTSet`) are Continuous Effects Registry
+    // entries since PRD #2064 S6, read off `LayerStateView.continuousEffects`
+    // rather than off the permanent. Nothing views them through a
+    // `PermanentView` any more, so nothing declares them here.
     /** Conditional P/T modifications held "for as long as [the source] remains
      *  tapped" (CR 611.2; ATQ Ashnod's Battle Gear, Tawnos's Weaponry). Each
      *  entry adds to `power`/`toughness` at read time (layer 7d) while its

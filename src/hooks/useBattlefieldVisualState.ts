@@ -97,6 +97,7 @@ export function useBattlefieldVisualState(
         stackItems,
         engineTurn,
         controlChangedThisTurn,
+        continuousEffects,
     } = useGameContext();
     // The two wire fields a "…controlled since the beginning of the turn"
     // choice filter needs (`@convex/gre/controlContinuity`). Passed to every
@@ -128,7 +129,14 @@ export function useBattlefieldVisualState(
     // ability's own `canActivate` precondition (Chrome Mox's imprint gate) so
     // an un-imprinted source doesn't read as a usable mana source here — the
     // same UI-hint convention `getActivatable` already uses (#436).
-    const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
+    const manaGateView = buildTriggerStateView(
+        allPlayers,
+        activePlayerId,
+        undefined,
+        undefined,
+        undefined,
+        continuousEffects
+    );
 
     // CR 106.1 (issue #1889) — `allPlayers` is also handed to `hasManaAbility`
     // below, so a source whose CURRENT unified tap option list is empty (an

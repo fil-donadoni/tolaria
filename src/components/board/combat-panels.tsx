@@ -30,6 +30,7 @@ export default function CombatPanels({ player }: { player: Player }) {
         combat,
         allPlayers,
         emblems,
+        continuousEffects,
     } = useGameContext();
     const isMe = player.id === playerId;
 
@@ -115,6 +116,7 @@ export default function CombatPanels({ player }: { player: Player }) {
                         ""
                     }
                     emblems={emblems}
+                    continuousEffects={continuousEffects}
                 />
             )}
         </>

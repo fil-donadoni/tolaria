@@ -1,5 +1,6 @@
 import type { CardInstance, Combat, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ReactMutation } from "convex/react";
 import { useMutation } from "convex/react";
@@ -115,6 +116,7 @@ export default function DamageAssignmentPanel({
     playerId,
     defenderId,
     emblems,
+    continuousEffects,
 }: {
     combat: Combat;
     allPlayers: Player[];
@@ -127,6 +129,11 @@ export default function DamageAssignmentPanel({
     // a prop rather than read via context so the panel stays renderable in
     // isolation (its other game data — combat, allPlayers — are props too).
     emblems?: EmblemInstance[];
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry,
+     *  threaded from the parent for the same reason `emblems` is: layer 7's
+     *  until-boundary pumps are entries since S6, so the damage budget below
+     *  is short by every combat trick without it. */
+    continuousEffects?: ContinuousEffect[];
 }) {
     const setDamageAssignment = useMutation(api.game.setDamageAssignment);
 
@@ -153,7 +160,7 @@ export default function DamageAssignmentPanel({
                     // low.
                     const power = Math.max(
                         0,
-                        effectivePower(allPlayers, source, emblems)
+                        effectivePower(allPlayers, source, emblems, continuousEffects)
                     );
                     const hasTrample =
                         source.staticAbilities?.includes("trample") ?? false;
@@ -177,7 +184,8 @@ export default function DamageAssignmentPanel({
                         allPlayers,
                         sourceId,
                         defenderId,
-                        emblems
+                        emblems,
+                        continuousEffects
                     );
                     const rowGating = (targetId: string, dmg: number) => ({
                         decDisabled: assignmentIsRejected(plan, {

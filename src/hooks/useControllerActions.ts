@@ -86,6 +86,7 @@ export function useControllerActions(): ControllerState {
         pendingExtraCleanupStep,
         allPlayers,
         emblems,
+        continuousEffects,
     } = useGameContext();
 
     const cancelCast = useMutation(api.game.cancelCast);
@@ -257,7 +258,7 @@ export function useControllerActions(): ControllerState {
             if (!source) continue;
             const power = Math.max(
                 0,
-                effectivePower(allPlayers, source, emblems)
+                effectivePower(allPlayers, source, emblems, continuousEffects)
             );
             const total = Object.values(
                 combat.damageAssignments?.[sourceId] ?? {}
@@ -265,7 +266,14 @@ export function useControllerActions(): ControllerState {
             if (total !== power) return false;
         }
         return true;
-    }, [isAssigningDamage, combat, allPlayers, emblems, playerId]);
+    }, [
+        isAssigningDamage,
+        combat,
+        allPlayers,
+        emblems,
+        continuousEffects,
+        playerId,
+    ]);
 
     const handlePass = useCallback(async () => {
         if (isBusy || !hasPriority || isAutoPass) return;
