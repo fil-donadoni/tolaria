@@ -621,7 +621,25 @@ function quietDefensiveGrantFlat(
  *  mana value in hand — the quantity being on curve is ABOUT. It binds at the
  *  card costs a hand actually holds (nothing caps it at 7; an 8-MV card demands
  *  8 lands), it moves only when the TOP of the curve moves, and its ceiling is
- *  the hand's own top end, so no magic constant is needed.
+ *  the curve's own top end, so no magic constant is needed.
+ *
+ *  CASTING IS NOT A DEVELOPMENT CHANGE (issue #2928). Demand is read off the
+ *  hand AND the non-land permanents already on the battlefield, so a card that
+ *  moves hand → battlefield simply changes which half it is counted in and the
+ *  term does not move. Read off the hand alone, it did: with six lands and a
+ *  4-MV creature in hand the term is `12 x min(6, 4) = 48`, and casting the
+ *  creature emptied the hand and took the whole 48 away — 12 per mana value,
+ *  charged for making the play the position demands. That is not a small bias
+ *  inside a larger gain: the hand's latent `cardValue` and the permanent's
+ *  realized worth roughly cancel across that move by design (ADR 0018), so the
+ *  toll WAS the tie-break, and it pointed at holding the card. Counting the
+ *  board also states the right thing: a 6-drop resolved is exactly as much
+ *  proof that six lands are earning their keep as the same card held.
+ *
+ *  The invariant is one-directional by construction, and deliberately so — a
+ *  card leaving the hand for the GRAVEYARD (discarded, countered, milled) does
+ *  lower demand, because the mana that would have cast it is no longer wanted
+ *  by anything.
  *
  *  WHAT THIS PROXY DELIBERATELY DOES NOT SEE, and why each is left standing:
  *
@@ -630,15 +648,11 @@ function quietDefensiveGrantFlat(
  *    (how fast the hand empties) and belongs to a term that models turns; the
  *    curve's top end is the half that being ON CURVE is about, and it is the
  *    half a sum destroyed. Stated as a simplification, not as settled.
- *  - THE CAST-SIDE STEP (issue #2928). Because demand is read off the hand,
- *    casting the card that SETS the top of the curve drops the term by
- *    `manaDevWeight` per land it was justifying (a 6-drop leaving a 6-land
- *    board costs 4 x 12 = 48 when the rest of the hand tops out at 2), and the
- *    mirror image pays the same for drawing above the curve. That sign defect
- *    is #2686's, not this proxy's — the sum lost 12 x MV on every cast — and it
- *    is tracked and fixed on its own axis by issue #2928, which is why it is
- *    not smoothed here. Measured across 5-seed/400-iteration decisions, it
- *    flips no root pick today; the search washes it out.
+ *  - THE DRAW SIDE. Drawing a card ABOVE the curve's current top end still
+ *    raises the term with no land gained. That is the same statement read
+ *    forwards — the hand now wants mana it did not want before — and unlike
+ *    the cast side it is not an accounting error: nothing left the board's
+ *    half of the count. It is a real, if blunt, "your base is now behind".
  *  - THE 17-vs-16 GAP. A flooded land is back at the flat 17 against a 2-life
  *    gain's 16 — the same 1-point tie the CALIBRATION paragraph above calls
  *    rollout noise, now reachable whenever the curve's top end sits at or below
@@ -651,21 +665,30 @@ function manaDevelopmentTerm(
     player: PlayerState,
     weights: EvalWeights
 ): number {
-    // The TOP OF THE CURVE the hand still wants to reach: the largest mana
-    // value in hand, never the sum of them (issue #2927). Lands count as 0
-    // (played, not cast — CR 305.1; no mana cost → MV 0 — CR 202.3a).
-    let handNeed = 0;
-    for (const c of player.hand) {
+    // The TOP OF THE CURVE this player's mana base is for: the largest mana
+    // value across the hand AND the non-land permanents already in play, never
+    // the sum of them (issue #2927), and never the hand alone (issue #2928 —
+    // casting is not a development change, so the card has to keep counting
+    // from the zone it lands in). Lands count 0 on both sides: a land is
+    // played, not cast (CR 305.1), and a card with no mana cost has mana value
+    // 0 (CR 202.3a).
+    let curveTop = 0;
+    const raise = (c: CardInstanceState) => {
         const mv = manaValue(getInstanceManaCost(c));
-        if (mv > handNeed) handNeed = mv;
-    }
+        if (mv > curveTop) curveTop = mv;
+    };
+    for (const c of player.hand) raise(c);
     // Every land counts — tapped or untapped — because development is about the
     // BASE the hand can draw on, not the current-turn tap state (which the
-    // `mana` term already prices). Each land up to the hand's need is "earning
-    // its keep"; beyond that the base is flooded and a further land unlocks
-    // nothing.
-    const lands = player.battlefield.filter((c) => isLand(c)).length;
-    return weights.manaDevWeight * Math.min(lands, handNeed);
+    // `mana` term already prices). Each land up to the curve's top end is
+    // "earning its keep"; beyond that the base is flooded and a further land
+    // unlocks nothing.
+    let lands = 0;
+    for (const c of player.battlefield) {
+        if (isLand(c)) lands += 1;
+        else raise(c);
+    }
+    return weights.manaDevWeight * Math.min(lands, curveTop);
 }
 
 /** CR 104.3c / 704.5b — the cost of a library running out.
