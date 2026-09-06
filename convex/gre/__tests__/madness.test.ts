@@ -239,6 +239,7 @@ describe("Madness capability (CR 702.35)", () => {
             // Commit the cast: exile → stack (clears the madness/exile markers),
             // then resolve the creature onto the battlefield.
             const moved = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 card.id,
                 "exile"

@@ -161,6 +161,7 @@ describe("Yawgmoth's Will (CR 305.1-analog / 601 permission + CR 614 redirect, i
         expect(src.zone).toBe("graveyard");
         expect(castRawManaCost(state, src.card!, src.zone)).toEqual({ R: 1 });
         const removed = removeFromZone(
+            state,
             getPlayer(state, "p1"),
             "gy-bolt",
             src.zone

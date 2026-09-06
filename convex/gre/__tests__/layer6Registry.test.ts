@@ -718,27 +718,28 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         });
     });
 
-    it("a duration-scoped registry entry is REFUSED — nothing ticks one yet", () => {
-        // Fail-closed: the phase-boundary purge ticks the instance-borne
-        // records, never `state.continuousEffects`, so an entry created with a
-        // duration expiry would apply for the rest of the game (PRD #2064 S6
-        // moves the countdown in).
+    it("a duration-scoped registry entry is ACCEPTED and holds its own boundary", () => {
+        // PRD #2064 S6 moved the countdown into the entry, so the fail-closed
+        // refusal that stood here (nothing ticked `state.continuousEffects`, so
+        // a duration entry would have applied for the rest of the game) is
+        // gone: `tickAllDurations` splices the registry at the boundary like
+        // every other duration in the engine.
         const bear = makeInstance(grizzlyBears.id, { id: "bear" });
         const state = boardOf(bear);
         const ctx = ctxFor(state);
-        expect(() =>
-            ctx.addContinuousEffect({
-                layer: 6,
-                affected: { kind: "instances", instanceIds: ["bear"] },
-                expiry: {
-                    kind: "duration",
-                    duration: { phase: "end-of-turn" },
-                    controllerId: "p1",
-                },
-                payload: { kind: "keyword-grant", keyword: "flying" },
-                characteristicDefining: false,
-            })
-        ).toThrow(/not ticked yet/);
+        ctx.addContinuousEffect({
+            layer: 6,
+            affected: { kind: "instances", instanceIds: ["bear"] },
+            expiry: {
+                kind: "duration",
+                duration: { phase: "end-of-turn" },
+                controllerId: "p1",
+            },
+            payload: { kind: "keyword-grant", keyword: "flying" },
+            characteristicDefining: false,
+        });
+        expect(state.continuousEffects).toHaveLength(1);
+        expect(bear.staticAbilities).toContain("flying");
     });
 
     it("entry ids do not collide once an entry is removed", () => {

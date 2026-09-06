@@ -103,6 +103,7 @@ describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", 
 
         // Commit: move graveyard -> stack with the flashback flags, then resolve.
         const removed = removeFromZone(
+            state,
             getPlayer(state, "p1"),
             dart.id,
             src.zone

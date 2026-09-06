@@ -9,6 +9,7 @@
 // this test.
 
 import { describe, it, expect } from "vitest";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import {
     getPlayer,
     getOpponentId,
@@ -118,11 +119,24 @@ describe("Coral Helm random-discard cost (CR 118.3 / 701.8, #292)", () => {
         expect(p1.hand.length).toBe(1);
         expect(p1.graveyard.length).toBe(1);
         expect(p1.manaPool.C).toBe(0);
-        // The pump resolved.
+        // The pump resolved. CR 613.4c (ADR 0082, PRD #2064 S6): it is a
+        // Continuous Effects Registry entry scoped to the bear, not a field on
+        // it, and the until-end-of-turn boundary rides in the entry's expiry.
         const bear = p1.battlefield.find((c) => c.id === "bear")!;
-        expect(bear.temporaryPTMods).toEqual([
-            { power: 2, toughness: 2, duration: { phase: "end-of-turn" } },
+        expect(state.continuousEffects).toEqual([
+            expect.objectContaining({
+                layer: 7,
+                sublayer: "7c",
+                affected: { kind: "instances", instanceIds: ["bear"] },
+                expiry: expect.objectContaining({
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                }),
+                payload: { kind: "pt-modify", power: 2, toughness: 2 },
+            }),
         ]);
+        expect(getEffectivePower(state, bear)).toBe(4);
+        expect(getEffectiveToughness(state, bear)).toBe(4);
     });
 
     it("is illegal to activate with an empty hand", () => {

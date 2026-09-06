@@ -363,7 +363,7 @@ describe("granted restrictions are battlefield-scoped (CR 400.7 / 303.4f)", () =
             ownerId: "p1",
             grantedEnchantRestriction: { types: ["Creature"] },
         });
-        resetBattlefieldTransientState(aura);
+        resetBattlefieldTransientState(aura, state);
         expect(aura.grantedEnchantRestriction).toBeUndefined();
         expect(resolveEnchantRestriction(aura)).toEqual([]);
     });

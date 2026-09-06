@@ -1460,7 +1460,7 @@ describe("Verduran Enchantress (may draw on enchantment cast)", () => {
         // Next turn: recast it from hand. Mirrors the exact no-target commit
         // branch in `announceCast` (game.ts) — `removeFromZone` onto the
         // stack, then the CR 601.2i cast-trigger choke point.
-        const card = removeFromZone(player, "guile", "hand");
+        const card = removeFromZone(state, player, "guile", "hand");
         const stackItem: StackItem = { ...card, castById: "p1" };
         state.stack.push(stackItem);
         emitSpellCastEvent(state, stackItem);

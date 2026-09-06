@@ -317,8 +317,11 @@ describe("removeFromZone", () => {
     it("removes card from hand and sets zone to stack", () => {
         const card = makeCard({ zone: "hand" });
         const player = makePlayer({ hand: [card] });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
 
-        const removed = removeFromZone(player, card.id, "hand");
+        const removed = removeFromZone(state, player, card.id, "hand");
 
         expect(player.hand).toHaveLength(0);
         expect(removed.zone).toBe("stack");
@@ -327,7 +330,10 @@ describe("removeFromZone", () => {
 
     it("throws when card not found", () => {
         const player = makePlayer();
-        expect(() => removeFromZone(player, "nope", "hand")).toThrow(
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        expect(() => removeFromZone(state, player, "nope", "hand")).toThrow(
             "Card nope not found in hand"
         );
     });
@@ -338,8 +344,11 @@ describe("removeFromZone", () => {
     it("clears knownTo when moving a known card to the stack", () => {
         const card = makeCard({ id: "k0", zone: "hand", knownTo: ["p2"] });
         const player = makePlayer({ id: "p1", hand: [card] });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
 
-        const removed = removeFromZone(player, "k0", "hand");
+        const removed = removeFromZone(state, player, "k0", "hand");
 
         expect(removed.knownTo).toBeUndefined();
     });

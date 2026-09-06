@@ -376,6 +376,7 @@ describe("Retrace capability (CR 702.81)", () => {
                 bolt.id
             );
             const removed = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 bolt.id,
                 src.zone

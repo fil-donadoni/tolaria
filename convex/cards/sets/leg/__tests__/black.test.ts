@@ -930,8 +930,12 @@ describe("Wall of Tombstones (upkeep: base toughness = 1 + GY creatures, indefin
                 break;
             }
         }
-        // The wall's stored set persists (still 3) before its trigger re-fires.
-        expect(wall.temporaryPTSet?.length).toBe(1);
+        // The wall's stored set persists (still 3) before its trigger
+        // re-fires. CR 611.2a (PRD #2064 S6): an indefinite `setBasePT` is an
+        // `indefinite`-expiry registry entry, which `tickAllDurations` has no
+        // boundary to tick it out at — that is the whole assertion.
+        expect(state.continuousEffects).toHaveLength(1);
+        expect(state.continuousEffects?.[0].expiry.kind).toBe("indefinite");
         expect(getEffectiveToughness(state, wall)).toBe(3);
     });
 
