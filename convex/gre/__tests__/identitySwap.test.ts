@@ -856,7 +856,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.types).not.toContain("Artifact");
     });
 
-    it("read-time layer-7 records (temporaryPTSet) are neither dropped nor double-applied by a swap", () => {
+    it("read-time layer-7 records (a 7b base-P/T set) are neither dropped nor double-applied by a swap", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "pt-1" });
         const state = makeBoard(card);
         const ctx = ctxFor(state);

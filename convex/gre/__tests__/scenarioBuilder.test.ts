@@ -978,13 +978,35 @@ describe("specFromState (issue #2148)", () => {
         expect(dropped.some((d) => d.startsWith("me's library:"))).toBe(true);
     });
 
-    it("reports a per-card continuous effect (e.g. a temporary P/T buff) the spec has no field for", () => {
+    it("reports a continuous effect (e.g. a temporary P/T buff) the spec has no field for", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
         });
-        state.players[0].battlefield[0].temporaryPTMods = [
-            { power: 3, toughness: 3, duration: { phase: "end-of-turn" } },
+        // CR 613.4c (ADR 0082, PRD #2064 S6) — an until-end-of-turn pump is a
+        // Continuous Effects Registry entry, so the residue it leaves is on the
+        // GAME state rather than on the permanent. `continuousEffects` is
+        // deliberately absent from `GAME_STATE_ALLOWLIST`: a scenario spec has
+        // no field that can express one, and silently rebuilding a board
+        // without the pump is exactly what this report exists to prevent.
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 7,
+                sublayer: "7c",
+                timestamp: 1,
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    controllerId: state.players[0].id,
+                },
+                affected: {
+                    kind: "instances",
+                    instanceIds: [state.players[0].battlefield[0].id],
+                },
+                payload: { kind: "pt-modify", power: 3, toughness: 3 },
+                characteristicDefining: false,
+            },
         ];
 
         const { dropped } = specFromState(state, {
@@ -992,7 +1014,12 @@ describe("specFromState (issue #2148)", () => {
         });
 
         expect(
-            dropped.some((d) => d.includes("live-only state not captured"))
+            dropped.some(
+                (d) =>
+                    d.startsWith("game state:") &&
+                    d.includes("live-only state not captured") &&
+                    d.includes("continuousEffects")
+            )
         ).toBe(true);
     });
 

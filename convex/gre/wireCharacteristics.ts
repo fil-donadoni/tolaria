@@ -28,13 +28,26 @@
 // derivation writes below the permanent.
 
 import type { CardInstanceState, GameState } from "./state";
+import { continuousEffectsInLayer } from "./continuousEffects";
 import { deriveLayer6Board, layer6DerivedFields } from "./layer6";
 import { deriveLayers2to5Board, layers2to5DerivedFields } from "./layers2to5";
 
 /** The derived characteristics of one permanent, as the exact instance fields
  *  the wire has always carried. Shapes and names are unchanged — only the
- *  provenance is (PRD #2064 S5 AC 3: the client call sites stay untouched). */
-export type WireCharacteristics = Partial<CardInstanceState>;
+ *  provenance is (PRD #2064 S5 AC 3: the client call sites stay untouched).
+ *
+ *  `temporaryPTMods` is the one field here that no longer exists on
+ *  `CardInstanceState` at all: PRD #2064 S6 deleted it from the instance and
+ *  moved the effect into the registry. It survives on the WIRE because ADR 0082
+ *  decision 4 says it should — the client keeps a materialised snapshot and does
+ *  not re-derive — and because two client reducers key off "is this permanent
+ *  pumped?" without wanting a layer walk: `isAltered`
+ *  (`src/lib/battlefield-stacks.ts`, whether the card may collapse into a
+ *  stack) and the preview's cache signature (`src/lib/card-image-signature.ts`).
+ *  It is DERIVED OUTPUT here, exactly like every other field in this type. */
+export type WireCharacteristics = Partial<CardInstanceState> & {
+    temporaryPTMods?: { power: number; toughness: number }[];
+};
 
 /** A shallow clone of the board: fresh player objects, a fresh array of fresh
  *  permanent objects, everything below shared with `state`. Cheap enough to pay
@@ -68,6 +81,30 @@ function cloneBoard(state: GameState): GameState {
  *  get no entry: they are treated as though they do not exist, no continuous
  *  effect applies to them, and the projection ships their instance fields
  *  unchanged. */
+/** CR 613.4c — the layer-7c `duration`-scoped modifications naming `instanceId`,
+ *  in CR 613.7 order, as the flat `{ power, toughness }` rows the wire has
+ *  always carried. Undefined when there are none, so the field stays absent on
+ *  the wire for the overwhelming majority of permanents (#1780's
+ *  read-amplification rule: a projection pays for what it says, not for what it
+ *  could say). */
+function temporaryPTModsFor(
+    state: GameState,
+    instanceId: string
+): { power: number; toughness: number }[] | undefined {
+    const rows: { power: number; toughness: number }[] = [];
+    for (const entry of continuousEffectsInLayer(state, 7, "7c")) {
+        if (entry.expiry.kind !== "duration") continue;
+        if (entry.affected.kind !== "instances") continue;
+        if (!entry.affected.instanceIds.includes(instanceId)) continue;
+        if (entry.payload.kind !== "pt-modify") continue;
+        rows.push({
+            power: entry.payload.power,
+            toughness: entry.payload.toughness,
+        });
+    }
+    return rows.length > 0 ? rows : undefined;
+}
+
 export function deriveWireCharacteristics(
     state: GameState
 ): Map<string, WireCharacteristics> {
@@ -133,6 +170,12 @@ export function deriveWireCharacteristics(
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
+            // CR 613.4c (PRD #2064 S6) — the until-boundary pumps applying to
+            // this permanent, flattened for the two client reducers that ask
+            // "is it pumped?" rather than "what is its P/T?". The P/T question
+            // is answered by the client's own layer walk over the registry the
+            // projection ships (`src/lib/effective-stats.ts`), not by this.
+            temporaryPTMods: temporaryPTModsFor(state, card.id),
             // The layer-6 base, for the reason the layer-2-5 bases ride along
             // above: `layer6Base` falls back to `staticAbilities`, so a wire
             // card carrying the DERIVED multiset and no base makes the client's

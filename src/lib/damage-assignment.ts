@@ -17,6 +17,7 @@
  */
 import type { CardInstance, Combat, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     assignmentThresholds,
     underAssignedBlockerBlockingExcess,
@@ -48,7 +49,11 @@ export function damageAssignmentPlan(
     allPlayers: Player[],
     sourceId: string,
     defenderId: string,
-    emblems?: EmblemInstance[]
+    emblems?: EmblemInstance[],
+    /** CR 613 (PRD #2064 S6) — the Continuous Effects Registry; layer 7's
+     *  until-boundary modifications are entries, so the lethal thresholds below
+     *  ignore every pump without it. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): DamageAssignmentPlan {
     const isAttacker = combat.attackerIds.includes(sourceId);
     if (!isAttacker) return { thresholds: {} };
@@ -86,7 +91,8 @@ export function damageAssignmentPlan(
                               effectiveToughness: effectiveToughness(
                                   allPlayers,
                                   blocker,
-                                  emblems
+                                  emblems,
+                                  continuousEffects
                               ),
                               damageMarked: blocker.damageMarked,
                           },

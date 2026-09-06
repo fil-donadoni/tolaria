@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
 import type { EmblemInstance } from "@convex/cards/types";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type {
     CardInstance,
     Combat,
@@ -117,6 +118,12 @@ type GameContext = {
      *  client-side; without this the P/T reducer recomputes without the emblem
      *  and the buff is invisible. */
     emblems?: EmblemInstance[];
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry,
+     *  forwarded from the wire `GameState.continuousEffects`. Layer 7's
+     *  until-boundary P/T modifications are ENTRIES since S6, so this is what
+     *  `effectivePower`/`effectiveToughness` need in order to see a pump at
+     *  all — the exact role `emblems` plays for an emblem anthem. */
+    continuousEffects?: ContinuousEffect[];
     /** CR 702.26 — permanents currently phased out (host + attachments),
      *  flattened across all bundles. Each card keeps its `controllerId` so the
      *  battlefield renders it dimmed/inert on the controller's side rather than

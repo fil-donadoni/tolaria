@@ -267,6 +267,7 @@ import {
     type CopySource,
 } from "./copy";
 import type { ContinuousEffect } from "./continuousEffects";
+import { purgeContinuousEffectsForInstance } from "./continuousEffects";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -856,30 +857,6 @@ export type CardInstanceState = {
          *  CR 400.7) clears it. */
         duration?: Duration;
     };
-    /** Temporary P/T modifications scoped to a phase boundary (CR 611.1,
-     *  611.2). Pushed by `addTemporaryPTBuff` ("until end of turn" /
-     *  "until end of combat" pump effects). Each entry contributes additively
-     *  to effective power/toughness at read time and is spliced out by
-     *  `tickAllDurations` when its `duration` expires (CR 514.2, 511.3). */
-    temporaryPTMods?: {
-        power: number;
-        toughness: number;
-        duration: Duration;
-    }[];
-    /** Layer 7b set-P/T effects (CR 613.4b, ADR 0017). Each entry SETS power
-     *  and/or toughness to a fixed value (independently optional). The latest
-     *  entry per characteristic wins at read time (array order = timestamp,
-     *  CR 613.7). A phase-scoped `duration` is spliced out by `tickAllDurations`
-     *  when it expires, exactly like `temporaryPTMods` (Singing Tree, Halfdane
-     *  "until your next upkeep"). When `duration` is undefined the set is
-     *  INDEFINITE — it lasts until the source leaves or another set overrides
-     *  it (CR 613.4b; Wall of Tombstones "change ... base toughness ...
-     *  indefinitely"). Pushed by `setBasePT`. */
-    temporaryPTSet?: {
-        power?: number;
-        toughness?: number;
-        duration?: Duration;
-    }[];
     /** Timed subtype change (CR 305.7 / 611.2 — "becomes a Swamp until its
      *  controller's next untap step", Orcish Farmer). While present, the
      *  permanent's `subtypes` are overwritten with `subtypes` (so subtype-driven
@@ -947,7 +924,8 @@ export type CardInstanceState = {
      *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
      *  state rather than a phase boundary; ATQ cluster E — Ashnod's Battle Gear,
      *  Tawnos's Weaponry). Each entry adds to effective power/toughness at read
-     *  time (layer 7d, alongside `temporaryPTMods`) while its `sourceId`
+     *  time (layer 7c, alongside the registry's own `duration` entries) while
+     *  its `sourceId`
      *  permanent is on the battlefield AND tapped; `checkSourceTappedEffects`
      *  (SBA) splices out entries whose source has left or untapped. Pushed by
      *  `SpellContext.addSourceTappedPTBuff`. */
@@ -7877,6 +7855,43 @@ function nextContinuousEffectOrdinal(
     return max + 1;
 }
 
+/** ADR 0082 / PRD #2064 S6 — appends one entry to the Continuous Effects
+ *  Registry, minting both things an entry may not choose for itself: its
+ *  deterministic `ce-N` id and its CR 613.7 layer timestamp.
+ *
+ *  THE single write path into `state.continuousEffects`. Its three callers are
+ *  the whole of S6a: the `SpellContext.addContinuousEffect` channel a card
+ *  reaches, plus the two layer-7 primitives this slice converted from writing
+ *  an instance field (`addTemporaryPTBuff`, `setBasePT`). One write path is
+ *  what makes "an entry's stamp is minted by `allocStaticTimestamp`" a property
+ *  of the code rather than a convention.
+ *
+ *  It is NOT yet true that every layer effect comes through here. Layer 6's
+ *  producers (`grantStaticAbility`, `grantStaticAbilityPermanent`,
+ *  `removeStaticAbilities`, the keyword-counter grant, `animateAsCreature`)
+ *  still write instance ledgers and stamp them from `allocStaticTimestamp`
+ *  directly, and layers 2-5 and layer 7 still DERIVE source- and
+ *  counter-provenance entries per read against the ordinal floors
+ *  (`DERIVED_TIMESTAMP_BASE` and friends). Both go when S6b routes those
+ *  producers through here; until then the floors are still load-bearing, and a
+ *  slice reading this comment as a completed precondition would be wrong.
+ *
+ *  The stamp is minted BEFORE the list is extended, so `allocStaticTimestamp`'s
+ *  scan of the live registry cannot see the entry it is stamping. */
+function pushContinuousEffect(
+    state: GameState,
+    entry: Omit<ContinuousEffect, "id" | "timestamp">
+): ContinuousEffect {
+    const existing = state.continuousEffects ?? [];
+    const created = {
+        ...entry,
+        id: `ce-${nextContinuousEffectOrdinal(existing)}`,
+        timestamp: allocStaticTimestamp(state),
+    } as ContinuousEffect;
+    state.continuousEffects = [...existing, created];
+    return created;
+}
+
 /** CR 613.7 (issue #1715) — mints the next layer timestamp. Monotonic over
  *  the live battlefield: strictly greater than every `staticSeq` currently
  *  stamped, so a source applying now sorts AFTER every source already
@@ -7904,7 +7919,7 @@ function nextContinuousEffectOrdinal(
  *  existing indefinite add or set instead of strictly outranking it, silently
  *  reintroducing the exact ordering bug this function exists to prevent one
  *  layer down (CR 613 layer 4 instead of layer 6). */
-function allocStaticTimestamp(state: GameState): number {
+export function allocStaticTimestamp(state: GameState): number {
     let max = 0;
     const bump = (seq: number | undefined) => {
         if (seq !== undefined && seq > max) max = seq;
@@ -9739,7 +9754,7 @@ export function removePermanentTo(
     // the exiled card, and the stamp is what the returning permanent shows.
     revertTransform(creature);
     if (toZone === "hand" || toZone === "library") {
-        resetBattlefieldTransientState(creature);
+        resetBattlefieldTransientState(creature, state);
     } else {
         // CR 400.7 (issue #2084) — graveyard / exile deliberately PRESERVE the
         // instance's history (the counters snapshot, the damage record a death
@@ -9754,6 +9769,18 @@ export function removePermanentTo(
         // characteristics (CR 113.6c, Grist), which is every card but a
         // handful.
         revertTypeLine(creature);
+        // CR 400.7 (ADR 0082, PRD #2064 S6) — but the registry residue goes on
+        // EVERY departure, not only the two the full reset covers. The card
+        // that lands in the graveyard or in exile is a new object, so an
+        // `indefinite` entry naming this instance id must end here: nothing
+        // else would ever end it, and `state.continuousEffects` is a shared,
+        // PERSISTED, wire-shipped list, so a leaked entry is unbounded growth
+        // on the hottest row rather than a self-healing local field. (A
+        // `duration` entry would tick out on its own — the registry tick walks
+        // the whole list regardless of where the card is — but relying on that
+        // would leave the indefinite case open, which is Wall of Tombstones
+        // pushing one entry per upkeep.)
+        purgeContinuousEffectsForInstance(state, creature.id);
     }
     // CR 122.2 / 400.7 — counters on a permanent cease to exist the moment it
     // leaves the battlefield; the card in the graveyard/exile is a NEW object
@@ -11509,7 +11536,21 @@ export function revertTypeLine(card: CardInstanceState): void {
  *  grants) is a battlefield entry from exactly those two preserve-state zones,
  *  so it owes the same CR 400.7 clean — a land that DIED tapped otherwise
  *  re-entered tapped, carrying its damage/attack history with it. */
-export function resetBattlefieldTransientState(card: CardInstanceState): void {
+export function resetBattlefieldTransientState(
+    card: CardInstanceState,
+    /** CR 400.7 — the state whose Continuous Effects Registry holds this
+     *  object's residue. REQUIRED, not optional: the purge below is the only
+     *  thing that ends an `indefinite` entry pointed at this instance id, and
+     *  an optional parameter is one a caller can forget silently. */
+    state: GameState
+): void {
+    // CR 400.7 (ADR 0082, PRD #2064 S6) — the registry half of this reset.
+    // Every duration- and indefinite-scoped continuous effect naming this
+    // instance goes with the old object, exactly as the instance-borne ledgers
+    // below do. Source- and counter-provenance entries need nothing: they are
+    // re-derived from the live board at every read and the departing permanent
+    // is simply no longer in it.
+    purgeContinuousEffectsForInstance(state, card.id);
     card.isTapped = false;
     delete card.damageMarked;
     delete card.dealtDeathtouchDamage;
@@ -11601,15 +11642,14 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // CR 122.2 / 400.7 — the departure-time counter memory is meaningless on a
     // permanent that has re-entered the battlefield as a new object.
     delete card.countersAtLeave;
-    delete card.temporaryPTMods;
-    // CR 400.7 / 611.2a (issue #1746) — a layer-7b base-P/T SET and a subtype
-    // REPLACEMENT both survive a phase boundary when they are indefinite (and
-    // the timed forms outlive a zone change too, which is equally wrong), so
-    // they must be undone here or a bounced Figure of Destiny comes back an 8/8
-    // Kithkin Spirit Warrior Avatar. The subtype line is restored from the
-    // recorded printed value BEFORE the record is dropped — the instance's
-    // `subtypes` were overwritten in place.
-    delete card.temporaryPTSet;
+    // CR 400.7 / 611.2a (issue #1746) — a subtype REPLACEMENT survives a phase
+    // boundary when it is indefinite (and the timed form outlives a zone change
+    // too, which is equally wrong), so it must be undone here or a bounced
+    // Figure of Destiny comes back a Kithkin Spirit Warrior Avatar. The subtype
+    // line is restored from the recorded printed value BEFORE the record is
+    // dropped — the instance's `subtypes` were overwritten in place. The
+    // layer-7b base-P/T SET that stood beside it is a registry entry since PRD
+    // #2064 S6 and is purged at the top of this function.
     revertTypeLine(card);
     delete card.sourceTappedPTMods;
     delete card.untapLockedBy;
@@ -11770,7 +11810,7 @@ function stageReanimatedOnBattlefield(
     // (the caller already removed it from its origin zone). Covers every
     // reanimation / search-to-battlefield path that funnels through this helper.
     if (!canLandEnterBattlefield(state, card.types)) {
-        resetBattlefieldTransientState(card);
+        resetBattlefieldTransientState(card, state);
         // CR 614 — it never entered, so the entry type line never began
         // (CR 611.2c). Drop the stamp with it (PR #3023 review, B1).
         discardEntryTypeLine(card);
@@ -11799,7 +11839,7 @@ function stageReanimatedOnBattlefield(
         { asEntersResolved: entryOpts?.asEntersResolved }
     );
     if (enterDestination === "exile") {
-        resetBattlefieldTransientState(card);
+        resetBattlefieldTransientState(card, state);
         // CR 614 — same as the land block above: nothing entered, so nothing
         // may carry the pending line into exile (PR #3023 review, B1).
         discardEntryTypeLine(card);
@@ -11830,7 +11870,7 @@ function stageReanimatedOnBattlefield(
     }
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
-    resetBattlefieldTransientState(card);
+    resetBattlefieldTransientState(card, state);
     // CR 400.7 / 608.2h (issue #2001) — this id is genuinely entering the
     // battlefield (the land-blocked and exile-redirect branches above return
     // before this point), so any exile link a PREVIOUS incarnation of this
@@ -14299,10 +14339,13 @@ export function buildSpellContext(
             const card = requirePermanent(target);
             card.toughness = (card.toughness ?? 0) + amount;
         },
-        // CR 611.1, 611.2: layered P/T modification scoped to a phase boundary.
-        // Stored as a list on the card so the cleanup pass can splice each
-        // entry out independently when its duration expires; effective P/T
-        // reads sum these on top of base + static buffs.
+        // CR 611.1 / 611.2a / 613.4c — a layer-7c P/T modification scoped to a
+        // phase boundary (Giant Growth, Firebreathing). One Continuous Effects
+        // Registry entry (ADR 0082, PRD #2064 S6): the countdown rides on the
+        // ENTRY's `duration` expiry, ticked by `tickAllDurations`, where until
+        // this slice it rode on `CardInstanceState.temporaryPTMods` and the
+        // registry could only mirror it as the placeholder `instance-duration`
+        // expiry — an entry claiming a boundary it did not hold.
         addTemporaryPTBuff(
             target: TargetSelection,
             power: number,
@@ -14312,14 +14355,21 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            found.card.temporaryPTMods = [
-                ...(found.card.temporaryPTMods ?? []),
-                {
-                    power,
-                    toughness,
+            pushContinuousEffect(state, {
+                layer: 7,
+                sublayer: "7c",
+                affected: { kind: "instances", instanceIds: [target.id] },
+                expiry: {
+                    kind: "duration",
                     duration: resolveDuration(duration, item.castById, state),
+                    // CR 611.2c — the controller of an effect from a resolving
+                    // spell is fixed when the effect is created; the spell is
+                    // gone, so it is stored rather than read off a live source.
+                    controllerId: item.castById,
                 },
-            ];
+                payload: { kind: "pt-modify", power, toughness },
+                characteristicDefining: false,
+            });
         },
         // CR 611.2 (ATQ Ashnod's Battle Gear, Tawnos's Weaponry): a P/T
         // modification whose lifetime is tied to the source staying tapped,
@@ -14380,30 +14430,43 @@ export function buildSpellContext(
             if (power === undefined && toughness === undefined) return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            // CR 613.4b / 613.7 — append; the latest entry per characteristic
-            // wins at read time. A phase-scoped set is purged with
-            // temporaryPTMods at the boundary; "indefinite" (Wall of
-            // Tombstones) carries no duration and is never ticked out.
-            const entry: {
+            // CR 613.4b / 613.7 — one layer-7b registry entry; the LATEST
+            // stamp per characteristic wins at read time, and the stamp is now
+            // minted (`allocStaticTimestamp`) instead of being the entry's
+            // position in an instance array (ADR 0082, PRD #2064 S6). Both
+            // halves stay independently optional: Island of Wak-Wak sets power
+            // and leaves toughness to the 7a value.
+            //
+            // CR 611.2a — "indefinite" (Wall of Tombstones) is an `indefinite`
+            // expiry, not a missing duration: an entry that ends only with the
+            // game says so in its expiry, where the tick can see it and skip
+            // it, rather than by omitting a field the tick has to interpret.
+            const payload: {
+                kind: "pt-set";
                 power?: number;
                 toughness?: number;
-                duration?: Duration;
-            } =
-                duration === "indefinite"
-                    ? {}
-                    : {
-                          duration: resolveDuration(
-                              duration,
-                              item.castById,
-                              state
-                          ),
-                      };
-            if (power !== undefined) entry.power = power;
-            if (toughness !== undefined) entry.toughness = toughness;
-            found.card.temporaryPTSet = [
-                ...(found.card.temporaryPTSet ?? []),
-                entry,
-            ];
+            } = { kind: "pt-set" };
+            if (power !== undefined) payload.power = power;
+            if (toughness !== undefined) payload.toughness = toughness;
+            pushContinuousEffect(state, {
+                layer: 7,
+                sublayer: "7b",
+                affected: { kind: "instances", instanceIds: [target.id] },
+                expiry:
+                    duration === "indefinite"
+                        ? { kind: "indefinite", controllerId: item.castById }
+                        : {
+                              kind: "duration",
+                              duration: resolveDuration(
+                                  duration,
+                                  item.castById,
+                                  state
+                              ),
+                              controllerId: item.castById,
+                          },
+                payload,
+                characteristicDefining: false,
+            });
         },
         // CR 122.1: put `count` counters of `type` on the permanent. Stored
         // on the card itself so wire-format projection carries them; layer 7d
@@ -16643,38 +16706,14 @@ export function buildSpellContext(
         // 0082, PRD #2064). See the interface doc in `cards/types.ts` for why
         // this channel exists and why it has no revoke sibling.
         addContinuousEffect(entry): void {
-            // A `duration` expiry has no countdown yet — nothing ticks or
-            // splices `state.continuousEffects` until PRD #2064 S6 moves the
-            // boundary in — so an entry created with one would apply forever.
-            // Refused rather than silently made indefinite (fail-closed): the
-            // duration-scoped channel a card wants today is
-            // `grantStaticAbility` / `removeStaticAbilities`, which the
-            // phase-boundary purge does tick.
-            if (
-                entry.expiry.kind === "duration" ||
-                entry.expiry.kind === "instance-duration"
-            ) {
-                throw new Error(
-                    "addContinuousEffect: duration-scoped entries are not ticked yet (PRD #2064 S6)"
-                );
-            }
-            const existing = state.continuousEffects ?? [];
-            state.continuousEffects = [
-                ...existing,
-                {
-                    ...entry,
-                    // Deterministic (`ce-N`) so a replay of the same event log
-                    // reproduces the same id. Derived from the highest suffix
-                    // in use, not from the LENGTH: an id is the documented
-                    // removal handle, so the moment anything removes an entry
-                    // (PRD #2064 S6) a length-derived suffix would re-issue a
-                    // live one and the removal would take the wrong effect.
-                    id: `ce-${nextContinuousEffectOrdinal(existing)}`,
-                    // CR 613.7 — the SAME sequence every other layer effect is
-                    // stamped from, never a second counter.
-                    timestamp: allocStaticTimestamp(state),
-                } as ContinuousEffect,
-            ];
+            // CR 611.2a — a `duration` expiry is now a real countdown: PRD
+            // #2064 S6 moved the phase boundary into the entry, and
+            // `tickAllDurations` (`gre/phases.ts`) ticks and splices the
+            // registry alongside every other duration in the game. The
+            // fail-closed refusal that stood here until this slice is gone
+            // because the thing it was protecting against — an entry claiming
+            // a boundary nothing would ever count — cannot happen any more.
+            pushContinuousEffect(state, entry);
             syncLayer6(state);
         },
         // CR 113.1 / 611.2a: grants an ACTIVATED ability for a limited
@@ -19365,7 +19404,7 @@ export function buildSpellContext(
             ) {
                 return; // forbidden — not cast (CR 601.3a / 117.3 "if able")
             }
-            const card = removeFromZone(player, cardInstanceId, "hand");
+            const card = removeFromZone(state, player, cardInstanceId, "hand");
             turnFaceDown(card, "cast-face-down");
             const stackItem: StackItem = {
                 ...card,
@@ -19830,7 +19869,12 @@ export function buildSpellContext(
             // cast / resolution routes to the acting player (ADR 0037). For a
             // graveyard/exile source (issue #1477) the card leaves that zone
             // exactly as a hand cast leaves the hand.
-            const card = removeFromZone(owner, cardInstanceId, sourceZone);
+            const card = removeFromZone(
+                state,
+                owner,
+                cardInstanceId,
+                sourceZone
+            );
             const stackItem: StackItem = {
                 ...card,
                 zone: "stack",
@@ -20983,6 +21027,10 @@ export function exileFaceDownCard(
 
 /** Removes a card from a player zone and returns it. */
 export function removeFromZone(
+    /** CR 400.7 — needed only to reach the Continuous Effects Registry for the
+     *  battlefield-transient reset below (ADR 0082, PRD #2064 S6). Threaded
+     *  rather than made optional so no caster can skip the purge silently. */
+    state: GameState,
     player: PlayerState,
     cardInstanceId: string,
     from: Exclude<Zone, "stack">
@@ -21043,7 +21091,7 @@ export function removeFromZone(
     // rides onto the battlefield to kill the fresh permanent via SBA. No-op for
     // a hand cast. Mirrors the reset every reanimation entry runs
     // (`stageReanimatedOnBattlefield`).
-    resetBattlefieldTransientState(card);
+    resetBattlefieldTransientState(card, state);
     // CR 111 (issue #791) — the per-source exile provenance link is only
     // meaningful while the card sits in exile; drop it once the card leaves so a
     // later re-exile never re-reads a stale source.

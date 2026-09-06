@@ -2,7 +2,7 @@
 //
 // CR 510.1c: a creature assigns combat damage equal to its power. "Power" here
 // is the EFFECTIVE power after the CR 613.4 layer pipeline, which includes
-// one-shot temporary P/T modifications (`temporaryPTMods`) from combat tricks
+// one-shot temporary P/T modifications (layer-7c registry entries) from combat tricks
 // such as Giant Growth. The `setDamageAssignment` mutation in `convex/game.ts`
 // validates `total <= getEffectivePower(state, source)`; reading the raw base
 // `power` field instead wrongly rejected legal assignments for buffed
@@ -57,15 +57,7 @@ describe("combat damage assignment budget (CR 510.1c, issue #366)", () => {
         state: GameState;
         attacker: CardInstanceState;
     } {
-        const attacker = creature("archers", 2, 1, {
-            temporaryPTMods: [
-                {
-                    power: powerMod,
-                    toughness: powerMod,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        });
+        const attacker = creature("archers", 2, 1);
         const lions = creature("lions", 2, 1, {
             controllerId: "p2",
             ownerId: "p2",
@@ -81,6 +73,28 @@ describe("combat damage assignment budget (CR 510.1c, issue #366)", () => {
                 makePlayer("p2", { battlefield: [lions, unicorn] }),
             ],
         });
+        // CR 613.4c (ADR 0082, PRD #2064 S6) — the Giant Growth pump is a
+        // Continuous Effects Registry entry, not a field on the attacker.
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 7,
+                sublayer: "7c",
+                timestamp: 1,
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    controllerId: "p1",
+                },
+                affected: { kind: "instances", instanceIds: ["archers"] },
+                payload: {
+                    kind: "pt-modify",
+                    power: powerMod,
+                    toughness: powerMod,
+                },
+                characteristicDefining: false,
+            },
+        ];
         return { state, attacker };
     }
 
@@ -127,7 +141,7 @@ describe("combat damage assignment budget (CR 510.1c, issue #366)", () => {
     it("survives the wire projection: the panel reads the same effective budget", () => {
         // The UI panel computes the budget from the projected (slim) state via
         // the frontend `effectivePower` helper, which feeds the SAME layer
-        // pipeline. The projection must preserve `temporaryPTMods`, or the
+        // pipeline. The projection must carry `continuousEffects`, or the
         // client would clamp to base power again (the regression class).
         const { state } = buffedAttackerState(3);
         const projected = projectFullState(state, 1);

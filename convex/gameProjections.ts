@@ -300,6 +300,16 @@ export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
 export type SlimBattlefieldCard = SlimCardInstance & {
     canTurnFaceUp?: boolean;
     knownCardId?: string;
+    /** CR 613.4c (ADR 0082, PRD #2064 S6) — the until-boundary P/T
+     *  modifications applying to this permanent, DERIVED from
+     *  `state.continuousEffects` by `gre/wireCharacteristics.ts`. It is the one
+     *  wire characteristic with no `CardInstanceState` field behind it any
+     *  more: S6 deleted the instance ledger, and ADR 0082 decision 4 keeps the
+     *  client's materialised snapshot rather than making it re-derive. Read by
+     *  `isAltered` (`src/lib/battlefield-stacks.ts`) and the preview's cache
+     *  signature — never for P/T itself, which the client computes from the
+     *  registry through the same layer walk the server uses. */
+    temporaryPTMods?: { power: number; toughness: number }[];
 };
 
 export type PublicGameState = Omit<

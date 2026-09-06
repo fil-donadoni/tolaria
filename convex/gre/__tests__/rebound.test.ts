@@ -290,6 +290,7 @@ describe("Rebound capability (CR 702.88)", () => {
             expect(state.reboundCastWindow).toBeUndefined();
 
             const moved = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 item.id,
                 "exile"

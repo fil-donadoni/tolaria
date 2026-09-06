@@ -697,7 +697,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
     });
 
     it("CROSS-PLAYER EXILE GRANT (CR 400.7): the card leaves the OPPONENT's exile, not the caster's", () => {
-        // The shape a hard-coded `removeFromZone(player, …)` cannot express at
+        // The shape a hard-coded `removeFromZone(state, player, …)` cannot express at
         // all: before the shared resolver both sandboxes threw
         // `Card <id> not found in hand` here.
         const exiled = makeInstance(firebolt.id, {

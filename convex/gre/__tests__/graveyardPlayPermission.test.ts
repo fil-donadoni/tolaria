@@ -293,6 +293,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 "gy-bolt"
             );
             const removed = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 "gy-bolt",
                 src.zone

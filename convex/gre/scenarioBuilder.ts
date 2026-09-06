@@ -969,7 +969,7 @@ function reportDanglingStripperResidue(
 
 /** Generic "continuous effect residue" detector — the fallback for the many
  *  optional `CardInstanceState` fields NOT named individually above
- *  (`temporaryPTMods`, `animation`, `controlChanges`, `chosenMana`,
+ *  (`animation`, `controlChanges`, `chosenMana`,
  *  `regenerationShields`, …): any key present that isn't in the allowlist is
  *  live state the spec has no field for. */
 function reportCardResidue(

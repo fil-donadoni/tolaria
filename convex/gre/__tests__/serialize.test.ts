@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import {
     compactState,
     expandState,
@@ -434,9 +435,65 @@ describe("game_state serialize round-trip", () => {
         // CR 400.7 — the permanent leaves the battlefield and becomes a new
         // object; `resetBattlefieldTransientState` is the entry point that
         // runs on that transition.
-        resetBattlefieldTransientState(got);
+        resetBattlefieldTransientState(got, reloaded);
         expect(got.subtypes).toEqual(["Plains"]);
         expect(got.indefiniteSubtypeSet).toBeUndefined();
+    });
+
+    it("migrates a pre-S6 state's instance-borne layer-7 ledgers into the registry (PRD #2064 S6)", () => {
+        // A state written by the engine BEFORE this slice carries the pump and
+        // the base-P/T set on the permanent (`temporaryPTMods` /
+        // `temporaryPTSet`). Those fields no longer exist on
+        // `CardInstanceState`, so `expandCard` cannot restore them — without
+        // the migration every Giant Growth and every "base power 0 until end of
+        // turn" in a saved game would come back silently gone.
+        const state = freshState();
+        const lion = state.players[1].battlefield[0];
+        const compact = compactState(state) as Record<string, unknown>;
+        const compactLion = (
+            (compact.players as Array<Record<string, unknown>>)[1]
+                .battlefield as Array<Record<string, unknown>>
+        )[0];
+        compactLion.temporaryPTMods = [
+            { power: 1, toughness: 1, duration: { phase: "end-of-turn" } },
+        ];
+        compactLion.temporaryPTSet = [
+            { power: 0, duration: { phase: "end-of-turn" } },
+            // CR 611.2a — no duration means INDEFINITE (Wall of Tombstones),
+            // and it must not come back claiming a boundary it never held.
+            { toughness: 4 },
+        ];
+
+        const reloaded = expandState(compact);
+        const entries = reloaded.continuousEffects ?? [];
+
+        expect(entries).toHaveLength(3);
+        // Order is preserved and RESTAMPED: array order WAS the CR 613.7
+        // timestamp under the old model, and 7b is last-wins.
+        const stamps = entries.map((e) => e.timestamp);
+        expect([...stamps].sort((a, b) => a - b)).toEqual(stamps);
+        expect(
+            entries.every(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(lion.id)
+            )
+        ).toBe(true);
+        expect(entries.map((e) => e.expiry.kind)).toEqual([
+            "duration",
+            "indefinite",
+            "duration",
+        ]);
+        expect(entries.map((e) => e.payload)).toEqual([
+            { kind: "pt-set", power: 0 },
+            { kind: "pt-set", toughness: 4 },
+            { kind: "pt-modify", power: 1, toughness: 1 },
+        ]);
+        // And the effect is live: base 1/1 Savannah-Lions-shaped permanent
+        // reads the 7b set of power 0 plus the +1/+1 pump.
+        const got = reloaded.players[1].battlefield[0];
+        expect(getEffectivePower(reloaded, got)).toBe(1);
+        expect(getEffectiveToughness(reloaded, got)).toBe(5);
     });
 
     it("preserves an EMPTY mana-cost override and the art pin (CR 707.2 / 111, issue #2339)", () => {
@@ -1002,15 +1059,6 @@ describe("game_state serialize round-trip", () => {
         // snapshotted for untap refund.
         lion.manaCounterRemoval = { type: "charge", count: 2 };
         lion.attachedTo = "host-id";
-        lion.temporaryPTMods = [
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ];
-        lion.temporaryPTSet = [
-            { power: 0, duration: { phase: "end-of-turn" } },
-            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
-            // Indefinite set (#487, Wall of Tombstones): no duration field.
-            { toughness: 4 },
-        ];
         lion.sourceTappedPTMods = [
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ];
@@ -1180,14 +1228,6 @@ describe("game_state serialize round-trip", () => {
         expect(got.chosenMana).toEqual({ R: 1, G: 1 });
         expect(got.manaCounterRemoval).toEqual({ type: "charge", count: 2 });
         expect(got.attachedTo).toBe("host-id");
-        expect(got.temporaryPTMods).toEqual([
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ]);
-        expect(got.temporaryPTSet).toEqual([
-            { power: 0, duration: { phase: "end-of-turn" } },
-            { power: 0, toughness: 2, duration: { phase: "end-of-turn" } },
-            { toughness: 4 },
-        ]);
         expect(got.sourceTappedPTMods).toEqual([
             { power: 2, toughness: -2, sourceId: "gear-1" },
         ]);

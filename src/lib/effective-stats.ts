@@ -9,6 +9,7 @@ import {
     getEffectiveToughness,
     type LayerStateView,
 } from "@convex/gre/layers";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 
 /**
  * Projects a frontend CardInstance into the PermanentView the layer system expects.
@@ -46,7 +47,8 @@ export type LayerPlayersInput = ReadonlyArray<{
 
 function toLayerState(
     players: LayerPlayersInput,
-    emblems?: EmblemInstance[]
+    emblems: EmblemInstance[] | undefined,
+    continuousEffects: readonly ContinuousEffect[] | undefined
 ): LayerStateView {
     return {
         players: players.map((p) => ({
@@ -72,16 +74,28 @@ function toLayerState(
         // visible client-side (dropping it would recompute P/T without the
         // buff — the classic "reducer drops a field" bug).
         emblems,
+        // CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry,
+        // forwarded from the wire `GameState.continuousEffects`. Layer 7's
+        // until-boundary modifications (a Giant Growth pump, a "base power 0
+        // until end of turn" set) are ENTRIES since S6, so a walk that does not
+        // receive this field recomputes P/T without them and the pump is
+        // invisible on the board while the server counts it. That is why the
+        // parameter is REQUIRED at every call site rather than optional like
+        // `emblems`: this is the exact reducer-drops-a-field class the doc
+        // comment above is about, and `tsc` is the only thing that can make
+        // forgetting it impossible.
+        continuousEffects,
     };
 }
 
 export function effectivePower(
     allPlayers: LayerPlayersInput,
     card: CardInstance,
-    emblems?: EmblemInstance[]
+    emblems: EmblemInstance[] | undefined,
+    continuousEffects: readonly ContinuousEffect[] | undefined
 ): number {
     return getEffectivePower(
-        toLayerState(allPlayers, emblems),
+        toLayerState(allPlayers, emblems, continuousEffects),
         toPermanentView(card)
     );
 }
@@ -89,10 +103,11 @@ export function effectivePower(
 export function effectiveToughness(
     allPlayers: LayerPlayersInput,
     card: CardInstance,
-    emblems?: EmblemInstance[]
+    emblems: EmblemInstance[] | undefined,
+    continuousEffects: readonly ContinuousEffect[] | undefined
 ): number {
     return getEffectiveToughness(
-        toLayerState(allPlayers, emblems),
+        toLayerState(allPlayers, emblems, continuousEffects),
         toPermanentView(card)
     );
 }

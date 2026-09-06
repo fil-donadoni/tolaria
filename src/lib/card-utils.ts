@@ -9,6 +9,7 @@ import type {
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
     type FilterMatchContext,
@@ -1529,7 +1530,16 @@ export function buildTriggerStateView(
      *  below). No shipped `sacrificeFilter`/`tapOtherFilter` cost uses
      *  either dimension yet, so no existing caller is required to pass
      *  this — it exists so a FUTURE one can, without another silent gap. */
-    turnState?: ControlContinuityView
+    turnState?: ControlContinuityView,
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry,
+     *  forwarded from the wire `GameState.continuousEffects`. The battlefield
+     *  rows below carry EFFECTIVE P/T, and layer 7's until-boundary
+     *  modifications are registry entries since S6, so a caller that omits this
+     *  hands the crew/affordability hint a P/T with every pump missing — the
+     *  precise hint-vs-server divergence the effective-P/T note below exists to
+     *  prevent. Optional to match every other forwarded wire field on this
+     *  signature; `TRIGGER_STATE_VIEW_CENSUS` is what keeps it honest. */
+    continuousEffects?: readonly ContinuousEffect[]
 ): TriggerStateView {
     return {
         players: players.map((p) => ({
@@ -1560,8 +1570,13 @@ export function buildTriggerStateView(
                 // threshold had the ability hidden; a shrunk one was offered
                 // and then rejected). Same computation as the server's, via
                 // the shared client-side layer projection.
-                power: effectivePower(players, c),
-                toughness: effectiveToughness(players, c),
+                power: effectivePower(players, c, undefined, continuousEffects),
+                toughness: effectiveToughness(
+                    players,
+                    c,
+                    undefined,
+                    continuousEffects
+                ),
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
                 // colour clause (Hand of Justice), via the single colour

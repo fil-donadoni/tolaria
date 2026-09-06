@@ -57,7 +57,7 @@ export default function BattlefieldCard({
     onActivateAbility?: (abilityId: string, keepPriority: boolean) => void;
 }) {
     const hasAbilities = !!activatableAbilities?.length;
-    const { allPlayers, emblems } = useGameContext();
+    const { allPlayers, emblems, continuousEffects } = useGameContext();
 
     const abilities = activatableAbilities ?? [];
     const activate = (abilityId: string, keepPriority: boolean) =>
@@ -131,8 +131,13 @@ export default function BattlefieldCard({
                 </div>
             )}
             <div className="bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
-                {effectivePower(allPlayers, card, emblems)}/
-                {effectiveToughness(allPlayers, card, emblems)}
+                {effectivePower(allPlayers, card, emblems, continuousEffects)}/
+                {effectiveToughness(
+                    allPlayers,
+                    card,
+                    emblems,
+                    continuousEffects
+                )}
             </div>
         </div>
     ) : null;

@@ -116,6 +116,7 @@ export function useBattlefieldInteraction(player: Player) {
         stackItems,
         engineTurn,
         controlChangedThisTurn,
+        continuousEffects,
     } = useGameContext();
     // CR 302.6 / 400.7 (issue #1824) — the continuity facts a
     // `controlledSinceTurnStart` target filter is evaluated against. Must be
@@ -273,7 +274,14 @@ export function useBattlefieldInteraction(player: Player) {
     // feeds `hasManaAbility` as `manaGateView`, reused here so the Improvise
     // routing branch below (`handleClick`) agrees with the `canInteract` gate
     // that decided the click was legal in the first place.
-    const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
+    const manaGateView = buildTriggerStateView(
+        allPlayers,
+        activePlayerId,
+        undefined,
+        undefined,
+        undefined,
+        continuousEffects
+    );
 
     /** The FULL viewer-visible board projection every ability-menu gate and
      *  every cost-pick computation reads. One builder, deliberately: the menu
@@ -289,7 +297,8 @@ export function useBattlefieldInteraction(player: Player) {
             activePlayerId,
             cannotActivateAbilitiesThisTurn,
             lifeGainedThisTurn,
-            controlContinuity
+            controlContinuity,
+            continuousEffects
         );
     }
 

@@ -415,6 +415,7 @@ describe("Escape capability (CR 702.138)", () => {
                 ],
             });
             const removed = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 "uro",
                 "graveyard"

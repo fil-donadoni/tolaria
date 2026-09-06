@@ -12440,14 +12440,6 @@ describe("Effect Script at ability sites (issue #803)", () => {
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: false,
-            // +2/+2 until end of turn — the ref must read 5, not the printed 3.
-            temporaryPTMods: [
-                {
-                    power: 2,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" as const },
-                },
-            ],
         });
         const state = makeState({
             players: [
@@ -12455,6 +12447,24 @@ describe("Effect Script at ability sites (issue #803)", () => {
                 makePlayer("p2"),
             ],
         });
+        // +2/+2 until end of turn — the ref must read 5, not the printed 3.
+        // CR 613.4c (PRD #2064 S6): a registry entry, not an instance field.
+        state.continuousEffects = [
+            {
+                id: "ce-1",
+                layer: 7,
+                sublayer: "7c",
+                timestamp: 1,
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    controllerId: "p1",
+                },
+                affected: { kind: "instances", instanceIds: ["pinger2"] },
+                payload: { kind: "pt-modify", power: 2, toughness: 2 },
+                characteristicDefining: false,
+            },
+        ];
         const src = state.players[0].battlefield[0];
         state.stack.push({
             ...src,
@@ -30473,7 +30483,7 @@ describe("Effect Script Op: grantCastFromExile — the object-scoped costIncreas
         const card = exiledCard(state);
         // The owner casts it: `removeFromZone` (the one exile→stack transition
         // every cast goes through) consumes the whole grant.
-        removeFromZone(state.players[1], "taxed1", "exile");
+        removeFromZone(state, state.players[1], "taxed1", "exile");
         expect(card.castableFromExileBy).toBeUndefined();
         expect(card.castFromExileCostIncrease).toBeUndefined();
     });

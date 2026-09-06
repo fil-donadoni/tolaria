@@ -35,7 +35,9 @@
 // writes v2 going forward; there is no code path that writes v1 anymore.
 
 import { tryGetDefinition } from "../cards";
-import { getEffectiveStaticEffects } from "./state";
+import { allocStaticTimestamp, getEffectiveStaticEffects } from "./state";
+import type { ContinuousEffect } from "./continuousEffects";
+import type { Duration } from "./state";
 import type {
     CardInstanceState,
     GameState,
@@ -282,8 +284,6 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "tapBonusMana",
     "tapTriggerCommitted",
     "temporaryColorOverride",
-    "temporaryPTMods",
-    "temporaryPTSet",
     "temporaryRemovedKeywords",
     "temporarySubtypeChange",
     "textChangeHolds",
@@ -439,12 +439,6 @@ function compactCard(
     if (card.attachedTo) out.attachedTo = card.attachedTo;
     if (card.controlChanges?.length) out.controlChanges = card.controlChanges;
     if (card.animation) out.animation = card.animation;
-    if (card.temporaryPTMods?.length) {
-        out.temporaryPTMods = card.temporaryPTMods;
-    }
-    if (card.temporaryPTSet?.length) {
-        out.temporaryPTSet = card.temporaryPTSet;
-    }
     if (card.temporarySubtypeChange) {
         out.temporarySubtypeChange = card.temporarySubtypeChange;
     }
@@ -947,14 +941,6 @@ function expandCard(
     }
     if (compact.animation) {
         result.animation = compact.animation as CardInstanceState["animation"];
-    }
-    if (compact.temporaryPTMods) {
-        result.temporaryPTMods =
-            compact.temporaryPTMods as CardInstanceState["temporaryPTMods"];
-    }
-    if (compact.temporaryPTSet) {
-        result.temporaryPTSet =
-            compact.temporaryPTSet as CardInstanceState["temporaryPTSet"];
     }
     if (compact.temporarySubtypeChange) {
         result.temporarySubtypeChange =
@@ -2269,7 +2255,129 @@ export function expandState(data: Record<string, unknown>): GameState {
         })) as GameState["stagedEntries"];
     }
     backfillLegacyStaticSeq(result);
+    migrateLegacyInstancePTLedgers(result, data);
     return result;
+}
+
+/** One-shot migration for a state persisted BEFORE PRD #2064 S6, when the
+ *  layer-7 residue of a resolved spell lived on the affected permanent
+ *  (`temporaryPTMods` for a CR 613.4c pump, `temporaryPTSet` for a CR 613.4b
+ *  base-P/T set) and the phase-boundary cleanup ticked it there.
+ *
+ *  Both are Continuous Effects Registry entries now, so a state written by the
+ *  old engine would otherwise come back with every Giant Growth and every
+ *  "base power 0 until end of turn" silently gone — the fields no longer exist
+ *  on `CardInstanceState`, so `expandCard` drops them and nothing reds.
+ *
+ *  Read off the COMPACT record rather than the expanded card for exactly that
+ *  reason: the expanded card cannot hold them any more. Order is preserved and
+ *  restamped, because array order WAS the CR 613.7 timestamp under the old
+ *  model and the last entry per characteristic still has to win in 7b.
+ *  A row with no `duration` was the INDEFINITE base-P/T set (CR 611.2a, Wall of
+ *  Tombstones), and becomes an `indefinite` entry rather than a duration one. */
+function migrateLegacyInstancePTLedgers(
+    state: GameState,
+    data: Record<string, unknown>
+): void {
+    type LegacyMod = { power: number; toughness: number; duration: Duration };
+    type LegacySet = {
+        power?: number;
+        toughness?: number;
+        duration?: Duration;
+    };
+    const compactPlayers = data.players as CompactPlayer[] | undefined;
+    if (!compactPlayers?.length) return;
+    for (let index = 0; index < compactPlayers.length; index++) {
+        const live = state.players[index];
+        if (!live) continue;
+        for (const compact of compactPlayers[index].battlefield ?? []) {
+            const legacy = compact as unknown as {
+                id?: string;
+                temporaryPTSet?: LegacySet[];
+                temporaryPTMods?: LegacyMod[];
+            };
+            if (!legacy.id) continue;
+            if (
+                !legacy.temporaryPTSet?.length &&
+                !legacy.temporaryPTMods?.length
+            )
+                continue;
+            const card = live.battlefield.find((c) => c.id === legacy.id);
+            if (!card) continue;
+            // 7b before 7c, mirroring the order the old read path pushed them
+            // in — within a sublayer the relative order is what decides the
+            // winner, and across sublayers CR 613.4 decides it regardless.
+            for (const entry of legacy.temporaryPTSet ?? []) {
+                const payload: {
+                    kind: "pt-set";
+                    power?: number;
+                    toughness?: number;
+                } = { kind: "pt-set" };
+                if (entry.power !== undefined) payload.power = entry.power;
+                if (entry.toughness !== undefined)
+                    payload.toughness = entry.toughness;
+                appendMigratedEffect(state, {
+                    layer: 7,
+                    sublayer: "7b",
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: entry.duration
+                        ? {
+                              kind: "duration",
+                              duration: entry.duration,
+                              controllerId: card.controllerId,
+                          }
+                        : {
+                              kind: "indefinite",
+                              controllerId: card.controllerId,
+                          },
+                    payload,
+                    characteristicDefining: false,
+                });
+            }
+            for (const mod of legacy.temporaryPTMods ?? []) {
+                appendMigratedEffect(state, {
+                    layer: 7,
+                    sublayer: "7c",
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: {
+                        kind: "duration",
+                        duration: mod.duration,
+                        controllerId: card.controllerId,
+                    },
+                    payload: {
+                        kind: "pt-modify",
+                        power: mod.power,
+                        toughness: mod.toughness,
+                    },
+                    characteristicDefining: false,
+                });
+            }
+        }
+    }
+}
+
+/** Appends one migrated entry, minting its id and its CR 613.7 stamp the same
+ *  way the live producer does (`allocStaticTimestamp` — never a second
+ *  counter), so a migrated effect and one created after the load are ordered
+ *  against each other by the one authority. */
+function appendMigratedEffect(
+    state: GameState,
+    entry: Omit<ContinuousEffect, "id" | "timestamp">
+): void {
+    const existing = state.continuousEffects ?? [];
+    let max = 0;
+    for (const e of existing) {
+        const suffix = /^ce-(\d+)$/.exec(e.id);
+        if (suffix) max = Math.max(max, Number(suffix[1]));
+    }
+    state.continuousEffects = [
+        ...existing,
+        {
+            ...entry,
+            id: `ce-${max + 1}`,
+            timestamp: allocStaticTimestamp(state),
+        } as ContinuousEffect,
+    ];
 }
 
 /** One (field, id-key) pair per CR 613.7-timestamped layer-4/6 record a

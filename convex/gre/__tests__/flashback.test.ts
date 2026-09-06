@@ -176,6 +176,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
             // Commit: move graveyard → stack with the flashback flags, then resolve.
             const removed = removeFromZone(
+                state,
                 getPlayer(state, "p1"),
                 fb.id,
                 src.zone

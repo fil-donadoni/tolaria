@@ -79,16 +79,6 @@ export type ContinuousEffectSlot =
  *                 to a live source. Its timestamp follows CR 613.7c.
  *  - `indefinite` — CR 611.2a: "If no duration is stated, it lasts until the
  *                 end of the game." Source-independent by construction.
- *  - `instance-duration` — CR 611.2a as well, but the remaining boundary
- *                 countdown is still held on the AFFECTED INSTANCE
- *                 (`temporaryPTMods` / `temporaryPTSet`, ticked by the
- *                 phase-boundary cleanup in `gre/phases.ts`) rather than in
- *                 this entry. Carried by the entries layer 7 derives per read
- *                 while those fields remain authoritative (S2, #3003); PRD
- *                 #2064 S6 replaces it with `duration` when the producers write
- *                 the entries and the countdown moves in here. Distinct from
- *                 `duration` on purpose — an entry must never claim a boundary
- *                 it does not actually hold.
  *  - `while-source-tapped` — CR 611.2b, the state-tied "for as long as ..."
  *                 duration this union deliberately lacked at S1 ("a later slice
  *                 adding it adds a variant"). Ends the moment `sourceId` stops
@@ -121,7 +111,6 @@ export type ContinuousEffectExpiry =
     | { kind: "counter"; permanentId: string; counterType: string }
     | { kind: "duration"; duration: Duration; controllerId: string }
     | { kind: "indefinite"; controllerId: string }
-    | { kind: "instance-duration" }
     | { kind: "while-source-tapped"; sourceId: string };
 
 /** An effect declared in a card (or emblem) definition's `staticEffects[]`,
@@ -310,6 +299,56 @@ export type ContinuousEffect = ContinuousEffectSlot &
          *  pass over every producer. */
         characteristicDefining: boolean;
     };
+
+/** CR 400.7 — every registry entry that applies to `instanceId` and to nothing
+ *  else, gone; and `instanceId` struck from the affected set of every entry
+ *  that also applies to others.
+ *
+ *  A permanent that leaves the battlefield is a NEW object when it comes back,
+ *  and the engine reuses the instance id across that boundary (the object is
+ *  the same JS record; `resetBattlefieldTransientState` is what makes it a new
+ *  object). So a residue entry that is not purged here would re-attach itself
+ *  to the returning permanent: a bounced Figure of Destiny would come back with
+ *  the base P/T an `indefinite` `pt-set` gave it, which is precisely the bug
+ *  `delete card.temporaryPTSet` used to prevent while the countdown lived on
+ *  the instance (PRD #2064 S6 moved it here).
+ *
+ *  A `predicate`-affected entry is NOT touched: its affected set is the live
+ *  board evaluated at every read (CR 611.2c), so a departure removes the
+ *  permanent from it for free and there is nothing to purge. Entries are
+ *  SPLICED rather than blanked — `id` is the removal handle, and
+ *  `nextContinuousEffectOrdinal` mints past the highest suffix in use so a
+ *  removal cannot let a later entry re-issue a live id. */
+export function purgeContinuousEffectsForInstance(
+    state: GameState,
+    instanceId: string
+): void {
+    const entries = state.continuousEffects;
+    if (!entries?.length) return;
+    let changed = false;
+    const kept: ContinuousEffect[] = [];
+    for (const entry of entries) {
+        if (entry.affected.kind === "predicate") {
+            kept.push(entry);
+            continue;
+        }
+        if (!entry.affected.instanceIds.includes(instanceId)) {
+            kept.push(entry);
+            continue;
+        }
+        changed = true;
+        const remaining = entry.affected.instanceIds.filter(
+            (id) => id !== instanceId
+        );
+        if (remaining.length === 0) continue;
+        kept.push({
+            ...entry,
+            affected: { kind: "instances", instanceIds: remaining },
+        });
+    }
+    if (!changed) return;
+    state.continuousEffects = kept.length > 0 ? kept : undefined;
+}
 
 /** CR 613.7 — the ONE timestamp comparison in the codebase. "An effect with an
  *  earlier timestamp is applied before an effect with a later timestamp."

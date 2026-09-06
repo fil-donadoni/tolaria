@@ -4,6 +4,7 @@
 // buttons assign up to that effective power — not the raw base power, which
 // clamped the prompt too low and made the server reject legal assignments.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import { render, fireEvent, cleanup, within } from "@testing-library/react";
 import type { CardInstance, Combat, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
@@ -97,9 +98,9 @@ beforeEach(() => {
 function buffedScenario(powerMod: number): {
     combat: Combat;
     allPlayers: Player[];
+    continuousEffects: ContinuousEffect[];
 } {
     const archers = creature("archers", "def-archers", 2, 1, "p1", {
-        temporaryPTMods: [{ power: powerMod, toughness: powerMod }],
         isAttacking: true,
     });
     const lions = creature("lions", "def-lions", 2, 1, "p2");
@@ -119,13 +120,38 @@ function buffedScenario(powerMod: number): {
             makePlayer("p1", [archers]),
             makePlayer("p2", [lions, unicorn]),
         ],
+        // CR 613.4c (ADR 0082, PRD #2064 S6) — the combat trick is a
+        // Continuous Effects Registry entry the panel must be handed, exactly
+        // as it must be handed `emblems`. Without it the budget clamps back to
+        // base power, which is the regression this suite guards.
+        continuousEffects: [
+            {
+                id: "ce-1",
+                layer: 7,
+                sublayer: "7c",
+                timestamp: 1,
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    controllerId: "p1",
+                },
+                affected: { kind: "instances", instanceIds: ["archers"] },
+                payload: {
+                    kind: "pt-modify",
+                    power: powerMod,
+                    toughness: powerMod,
+                },
+                characteristicDefining: false,
+            },
+        ],
     };
 }
 
 function renderPanel(
     combat: Combat,
     allPlayers: Player[],
-    emblems?: EmblemInstance[]
+    emblems?: EmblemInstance[],
+    continuousEffects?: ContinuousEffect[]
 ) {
     return render(
         <DamageAssignmentPanel
@@ -135,14 +161,20 @@ function renderPanel(
             playerId="p1"
             defenderId="p2"
             emblems={emblems}
+            continuousEffects={continuousEffects}
         />
     );
 }
 
 describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     it("shows effective power (5) as the budget, not base power (2)", () => {
-        const { combat, allPlayers } = buffedScenario(3);
-        const { getByText } = renderPanel(combat, allPlayers);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(3);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         // Source label carries the effective budget.
         expect(getByText(/Elvish Archers \(5 dmg\)/)).toBeTruthy();
         // assigned/budget counter starts at 0/5.
@@ -152,9 +184,14 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     it("+ button allows assigning up to effective power (5), not base power (2)", () => {
         // Already at base power (2) assigned to lions: the + button on the
         // unicorn must still be live because the effective budget is 5.
-        const { combat, allPlayers } = buffedScenario(3);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(3);
         combat.damageAssignments = { archers: { lions: 2 } };
-        const { getByText, getAllByText } = renderPanel(combat, allPlayers);
+        const { getByText, getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         // counter reflects 2 assigned out of 5.
         expect(getByText("2/5")).toBeTruthy();
         // Click + on the unicorn row.
@@ -170,9 +207,14 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     });
 
     it("+ button clamps at effective power (no dispatch once total === 5)", () => {
-        const { combat, allPlayers } = buffedScenario(3);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(3);
         combat.damageAssignments = { archers: { lions: 5 } };
-        const { getByText, getAllByText } = renderPanel(combat, allPlayers);
+        const { getByText, getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(getByText("5/5")).toBeTruthy();
         const plusButtons = getAllByText("+");
         fireEvent.click(plusButtons[1]); // try to add to unicorn
@@ -192,22 +234,37 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
             text: "Creatures you control get +1/+0.",
         };
         // buffedScenario(0): base 2/1 attacker, no temporary mod.
-        const { combat, allPlayers } = buffedScenario(0);
-        const { getByText } = renderPanel(combat, allPlayers, [sorinEmblem]);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(0);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            [sorinEmblem],
+            continuousEffects
+        );
         // Emblem lifts the effective-power budget from base 2 to 3.
         expect(getByText(/Elvish Archers \(3 dmg\)/)).toBeTruthy();
         expect(getByText("0/3")).toBeTruthy();
     });
 
     it("lowers the budget for a negative temporary modifier (-1/-1 -> 1)", () => {
-        const { combat, allPlayers } = buffedScenario(-1);
-        const { getByText } = renderPanel(combat, allPlayers);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(-1);
+        const { getByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(getByText(/Elvish Archers \(1 dmg\)/)).toBeTruthy();
         expect(getByText("0/1")).toBeTruthy();
         // First + is allowed; assign 1 to lions.
         combat.damageAssignments = { archers: { lions: 1 } };
         cleanup();
-        const second = renderPanel(combat, allPlayers);
+        const second = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         expect(second.getByText("1/1")).toBeTruthy();
         const plusButtons = within(second.container).getAllByText("+");
         fireEvent.click(plusButtons[1]);
@@ -218,8 +275,13 @@ describe("DamageAssignmentPanel effective-power budget (issue #366)", () => {
     // `w-6 h-6` (24px) — well under the 44px floor every other bar/pill
     // control in the mobile controls meets.
     it("sizes the +/- steppers to the 44px touch-target floor", () => {
-        const { combat, allPlayers } = buffedScenario(0);
-        const { getAllByText } = renderPanel(combat, allPlayers);
+        const { combat, allPlayers, continuousEffects } = buffedScenario(0);
+        const { getAllByText } = renderPanel(
+            combat,
+            allPlayers,
+            undefined,
+            continuousEffects
+        );
         for (const btn of [...getAllByText("-"), ...getAllByText("+")]) {
             expect(btn.className).toContain("w-11");
             expect(btn.className).toContain("h-11");

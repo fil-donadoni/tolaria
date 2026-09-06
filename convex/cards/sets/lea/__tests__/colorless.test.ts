@@ -3381,7 +3381,7 @@ describe("knownTo cross-zone rules (ADR 0026 slice 5, CR 121.1 / 405)", () => {
         expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
 
         // p2 casts it: hand → stack (public zone) clears the knowledge.
-        const onStack = removeFromZone(state.players[1], "h1", "hand");
+        const onStack = removeFromZone(state, state.players[1], "h1", "hand");
         expect(onStack.knownTo).toBeUndefined();
 
         // It later returns to hand (e.g. countered to hand / bounced): no stale

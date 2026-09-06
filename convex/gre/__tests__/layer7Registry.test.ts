@@ -18,6 +18,7 @@ import {
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
+import { removePermanentTo, resetBattlefieldTransientState } from "../state";
 import { crusade } from "../../cards/sets/lea";
 
 /** A vanilla creature with no registry entry — every effect in this file
@@ -272,9 +273,10 @@ describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", (
 });
 
 describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", () => {
-    it("drops instance-duration entries and keeps every other expiry", () => {
-        // `temporaryPTMods` / `temporaryPTSet` derive to `instance-duration`,
-        // so a combat trick is not scored as permanent material. A counter, a
+    it("drops `duration` entries and keeps every other expiry", () => {
+        // A combat trick is a `duration` entry since PRD #2064 S6 (it was
+        // `temporaryPTMods` on the instance, tagged `instance-duration` on the
+        // way through), so it is not scored as permanent material. A counter, a
         // static buff and an indefinite registry entry all are.
         const anthem = {
             id: "crusade",
@@ -295,15 +297,14 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
             subtypes: [],
             card: { id: "synth-bear", manaCost: { W: 1 } },
             counters: { "+1/+1": 1 },
-            temporaryPTMods: [
-                {
-                    power: 5,
-                    toughness: 5,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-            temporaryPTSet: [{ power: 9 }],
         });
+        const untilEOT = {
+            expiry: {
+                kind: "duration" as const,
+                duration: { phase: "end-of-turn" as const },
+                controllerId: "p1",
+            },
+        };
         const state = stateWith(
             [anthem as CardInstanceState, bear],
             [
@@ -312,6 +313,20 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
                     power: 1,
                     toughness: 1,
                 }),
+                entry(
+                    "ce-trick",
+                    20,
+                    "7c",
+                    { kind: "pt-modify", power: 5, toughness: 5 },
+                    untilEOT
+                ),
+                entry(
+                    "ce-set-eot",
+                    5,
+                    "7b",
+                    { kind: "pt-set", power: 9 },
+                    untilEOT
+                ),
             ]
         );
 
@@ -325,6 +340,27 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         // the anthem, the counter and the indefinite entry all remain.
         expect(getPermanentEffectivePower(state, bear)).toBe(5);
         expect(getPermanentEffectiveToughness(state, bear)).toBe(5);
+    });
+
+    it("counts an INDEFINITE 7b base-P/T set as permanent material (CR 611.2a)", () => {
+        // The correction PRD #2064 S6 carries. `SpellContext.setBasePT` with
+        // `"indefinite"` (Wall of Tombstones — "change its base toughness ...
+        // indefinitely") used to land in `temporaryPTSet` beside the timed
+        // form, and the whole array was tagged `instance-duration`, so the bot
+        // dropped it as if it were a combat trick. It holds no boundary at all,
+        // so it is material.
+        const bear = creature("bear", 2, 2, { subtypes: [] });
+        const state = stateWith(
+            [bear],
+            [
+                entry("ce-set-forever", 10, "7b", {
+                    kind: "pt-set",
+                    toughness: 7,
+                }),
+            ]
+        );
+        expect(getEffectiveToughness(state, bear)).toBe(7);
+        expect(getPermanentEffectiveToughness(state, bear)).toBe(7);
     });
 
     it("keeps a while-source-tapped effect as permanent material (CR 611.2b)", () => {
@@ -347,5 +383,199 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         gear.isTapped = false;
         expect(getPermanentEffectivePower(state, bear)).toBe(2);
         expect(getPermanentEffectiveToughness(state, bear)).toBe(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 400.7 — the zone-change purge (PRD #2064 S6).
+//
+// The instance fields the registry replaced were DELETED on the way out
+// (`delete card.temporaryPTSet`), and they had to be: the engine reuses the
+// instance record across a zone change, so a residue entry that survives
+// re-attaches itself to what CR 400.7 says is a NEW object.
+// ---------------------------------------------------------------------------
+
+describe("CR 611.2 — a stored layer-7 entry stops applying when its expiry ends", () => {
+    // Layer 6 has always filtered stored entries through `layer6ExpiryLive`;
+    // layer 7 checked only `affected`. That was survivable while
+    // `addContinuousEffect` refused every expiry it could not tick, but PRD
+    // #2064 S6 lifted that refusal, so an entry whose end nothing checks would
+    // apply for the rest of the game.
+
+    it("drops a `counter` entry once the last counter is gone (CR 122.1)", () => {
+        const bear = creature("bear", 2, 2, { counters: { charge: 1 } });
+        const state = stateWith(
+            [bear],
+            [
+                entry(
+                    "ce-counter-borne",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 5, toughness: 5 },
+                    {
+                        expiry: {
+                            kind: "counter",
+                            permanentId: "bear",
+                            counterType: "charge",
+                        },
+                    }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(7);
+
+        bear.counters = {};
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("drops a `while-source-tapped` entry when the source untaps (CR 611.2b)", () => {
+        const gear = creature("gear", 0, 0, {
+            types: ["Artifact"],
+            isTapped: true,
+        });
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [gear, bear],
+            [
+                entry(
+                    "ce-tapped",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 2, toughness: -2 },
+                    {
+                        expiry: {
+                            kind: "while-source-tapped",
+                            sourceId: "gear",
+                        },
+                    }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(4);
+
+        gear.isTapped = false;
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("drops a `source` entry when the source leaves the battlefield", () => {
+        const anthemSource = creature("src", 1, 1);
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [anthemSource, bear],
+            [
+                entry(
+                    "ce-src-bound",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 3, toughness: 3 },
+                    { expiry: { kind: "source", sourceId: "src" } }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, bear)).toBe(5);
+
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "src"
+        );
+
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+});
+
+describe("CR 400.7 — a permanent that leaves takes its registry residue with it", () => {
+    it("drops an entry scoped only to the departing instance", () => {
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [entry("ce-set", 10, "7b", { kind: "pt-set", toughness: 9 })]
+        );
+        expect(getEffectiveToughness(state, bear)).toBe(9);
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toBeUndefined();
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+    });
+
+    it("keeps a SHARED entry alive for the instances that did not leave", () => {
+        // CR 611.2c — an effect from a resolving spell has a FIXED affected
+        // set; one member leaving does not end it for the others, so the
+        // purge strikes the id rather than dropping the entry.
+        const bear = creature("bear", 2, 2);
+        const ox = creature("ox", 1, 1);
+        const state = stateWith(
+            [bear, ox],
+            [
+                entry(
+                    "ce-mass",
+                    10,
+                    "7c",
+                    { kind: "pt-modify", power: 3, toughness: 3 },
+                    {
+                        affected: {
+                            kind: "instances",
+                            instanceIds: ["bear", "ox"],
+                        },
+                    }
+                ),
+            ]
+        );
+        expect(getEffectivePower(state, ox)).toBe(4);
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toHaveLength(1);
+        expect(getEffectivePower(state, ox)).toBe(4);
+        expect(getEffectivePower(state, bear)).toBe(2);
+    });
+
+    it("purges on a DEATH too, not only on a bounce (the full-reset branch)", () => {
+        // `resetBattlefieldTransientState` — and therefore the purge — runs
+        // only for `toZone === "hand" | "library"`. A departure to graveyard or
+        // exile takes the other branch, so it needs its own purge call, or an
+        // `indefinite` entry leaks into a SHARED, persisted, wire-shipped list
+        // for the rest of the game: Wall of Tombstones pushes one such entry
+        // per upkeep, and nothing would ever end them.
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [entry("ce-set", 10, "7b", { kind: "pt-set", toughness: 9 })]
+        );
+
+        removePermanentTo(state, "bear", "graveyard");
+
+        expect(state.continuousEffects ?? []).toHaveLength(0);
+    });
+
+    it("leaves a `predicate`-affected entry alone", () => {
+        // Its affected set IS the live board, re-evaluated at every read, so a
+        // departure removes the permanent from it for free. Purging it would
+        // delete a live anthem because one creature bounced.
+        const bear = creature("bear", 2, 2);
+        const state = stateWith(
+            [bear],
+            [
+                entry(
+                    "ce-anthem",
+                    10,
+                    "7c",
+                    {
+                        kind: "template",
+                        sourceCardId: "src",
+                        effectIndex: 0,
+                    },
+                    {
+                        affected: { kind: "predicate" },
+                        expiry: { kind: "source", sourceId: "src" },
+                    }
+                ),
+            ]
+        );
+
+        resetBattlefieldTransientState(bear, state);
+
+        expect(state.continuousEffects).toHaveLength(1);
     });
 });

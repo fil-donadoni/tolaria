@@ -482,6 +482,7 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
             // The real cast-commit path removes the card from its actual exile
             // owner (`applyMove.ts` / `search.ts` both call `removeFromZone`).
             const moved = removeFromZone(
+                state,
                 getPlayer(state, "p2"),
                 "voidLeaveExile1",
                 "exile"
@@ -543,6 +544,7 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
             });
             // Real cast-commit path: exile → stack via `removeFromZone`.
             const moved = removeFromZone(
+                state,
                 getPlayer(state, "p2"),
                 "recast1",
                 "exile"

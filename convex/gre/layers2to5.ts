@@ -70,6 +70,7 @@ import { applyLandTypeReplacement } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
+import type { Duration } from "./state";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
 import type { LayerStateView } from "./layers";
 import type {
@@ -460,6 +461,24 @@ function sourceStaticEffects(
  *  - stored `state.continuousEffects` — source-independent AND condition-gated
  *    at once, which no pre-registry channel could be.
  */
+/** CR 611.2a — the expiry of an ANIMATION's layer-4 entries. An animation with
+ *  a stored boundary ends at it; one without ends only with the game
+ *  (CR 611.2a's "if no duration is stated"). Derived per read, so the countdown
+ *  it names is still the instance ledger's — see the note in
+ *  `layers2to5EffectsFor` on why that cannot double-tick. */
+function animationExpiry(
+    instance: CardInstanceState,
+    animation: { duration?: Duration }
+): ContinuousEffect["expiry"] {
+    return animation.duration
+        ? {
+              kind: "duration",
+              duration: animation.duration,
+              controllerId: instance.controllerId,
+          }
+        : { kind: "indefinite", controllerId: instance.controllerId };
+}
+
 function layers2to5EffectsFor(
     state: LayerStateView,
     target: PermanentView,
@@ -699,7 +718,11 @@ function finishEffectsFor(
             layer: 2,
             timestamp: change.seq ?? ordinal++,
             expiry: change.duration
-                ? { kind: "instance-duration" }
+                ? {
+                      kind: "duration",
+                      duration: change.duration,
+                      controllerId: installed,
+                  }
                 : { kind: "indefinite", controllerId: installed },
             affected: { kind: "instances", instanceIds: [instance.id] },
             payload: { kind: "control-change", controllerId: installed },
@@ -754,7 +777,7 @@ function finishEffectsFor(
                 id: `ce-animate-types-${instance.id}`,
                 layer: 4,
                 timestamp: animation.seq ?? ordinal++,
-                expiry: { kind: "instance-duration" },
+                expiry: animationExpiry(instance, animation),
                 affected: { kind: "instances", instanceIds: [instance.id] },
                 payload: { kind: "type-change", add: added },
                 characteristicDefining: false,
@@ -765,7 +788,7 @@ function finishEffectsFor(
                 id: `ce-animate-subtype-${instance.id}`,
                 layer: 4,
                 timestamp: animation.seq ?? ordinal++,
-                expiry: { kind: "instance-duration" },
+                expiry: animationExpiry(instance, animation),
                 affected: { kind: "instances", instanceIds: [instance.id] },
                 payload: {
                     kind: "subtype-change",
@@ -797,15 +820,26 @@ function finishEffectsFor(
 
     // CR 305.7 / 611.2a layer 4 — a DURATION-scoped subtype replacement
     // (`SpellContext.setSubtypesUntil` — Orcish Farmer's "target land becomes a
-    // Swamp until end of turn"). The countdown stays on the instance until PRD
-    // #2064 S6, so the expiry says `instance-duration`.
+    // Swamp until end of turn"). Layers 2-5 keep their instance-borne
+    // countdown for now — PRD #2064 S6 moved layers 6 and 7's into the registry
+    // entry, and the layers-2-5 ledgers follow in the slice that deletes the
+    // syncs — but the entry states the boundary it actually ends at, because
+    // that is a fact about the effect, not about where the counter is stored.
+    // These entries are DERIVED per read and never enter
+    // `state.continuousEffects`, so the registry's own tick
+    // (`tickContinuousEffectDurations`, `gre/phases.ts`) cannot see them and
+    // cannot double-count the boundary the instance ledger is already counting.
     const temporarySet = instance.temporarySubtypeChange;
     if (temporarySet) {
         entries.push({
             id: `ce-subtypeset-timed-${instance.id}`,
             layer: 4,
             timestamp: temporarySet.seq ?? ordinal++,
-            expiry: { kind: "instance-duration" },
+            expiry: {
+                kind: "duration",
+                duration: temporarySet.duration,
+                controllerId: instance.controllerId,
+            },
             affected: { kind: "instances", instanceIds: [instance.id] },
             payload: {
                 kind: "subtype-change",

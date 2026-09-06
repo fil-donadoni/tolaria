@@ -16,6 +16,7 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
+import type { ContinuousEffect } from "../continuousEffects";
 import { tryGetDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import { checkCounterAnnihilationSBA } from "../sba";
@@ -577,7 +578,58 @@ describe("Bad Moon static effect (CR 611)", () => {
 describe("CR 613.4 ordered P/T pipeline (set effects, ADR 0017)", () => {
     const EOT = { phase: "end-of-turn" as const };
 
-    function bearWith(overrides: Partial<CardInstanceState>): {
+    /** CR 613.4b — one layer-7b `pt-set` registry entry (PRD #2064 S6 moved
+     *  these off the instance). `seq` IS the CR 613.7 timestamp, so the tests
+     *  below that care about "the latest entry wins" say so with numbers rather
+     *  than with array position. */
+    function ptSet(
+        instanceId: string,
+        pt: { power?: number; toughness?: number },
+        seq: number
+    ): ContinuousEffect {
+        const payload: {
+            kind: "pt-set";
+            power?: number;
+            toughness?: number;
+        } = { kind: "pt-set" };
+        if (pt.power !== undefined) payload.power = pt.power;
+        if (pt.toughness !== undefined) payload.toughness = pt.toughness;
+        return {
+            id: `ce-set-${instanceId}-${seq}`,
+            layer: 7,
+            sublayer: "7b",
+            timestamp: seq,
+            expiry: { kind: "duration", duration: EOT, controllerId: "p1" },
+            affected: { kind: "instances", instanceIds: [instanceId] },
+            payload,
+            characteristicDefining: false,
+        };
+    }
+
+    /** CR 613.4c — one layer-7c `pt-modify` registry entry (an until-end-of-turn
+     *  pump). */
+    function ptMod(
+        instanceId: string,
+        power: number,
+        toughness: number,
+        seq: number
+    ): ContinuousEffect {
+        return {
+            id: `ce-mod-${instanceId}-${seq}`,
+            layer: 7,
+            sublayer: "7c",
+            timestamp: seq,
+            expiry: { kind: "duration", duration: EOT, controllerId: "p1" },
+            affected: { kind: "instances", instanceIds: [instanceId] },
+            payload: { kind: "pt-modify", power, toughness },
+            characteristicDefining: false,
+        };
+    }
+
+    function bearWith(
+        overrides: Partial<CardInstanceState>,
+        continuousEffects: ContinuousEffect[] = []
+    ): {
         state: GameState;
         bear: CardInstanceState;
     } {
@@ -589,71 +641,68 @@ describe("CR 613.4 ordered P/T pipeline (set effects, ADR 0017)", () => {
                 makePlayer({ id: "p2" }),
             ],
         });
+        if (continuousEffects.length > 0) {
+            state.continuousEffects = continuousEffects;
+        }
         return { state, bear };
     }
 
     it("set base power 0 leaves toughness untouched", () => {
-        const { state, bear } = bearWith({
-            temporaryPTSet: [{ power: 0, duration: EOT }],
-        });
+        const { state, bear } = bearWith({}, [ptSet("bear", { power: 0 }, 1)]);
         expect(getEffectivePower(state, bear)).toBe(0);
         expect(getEffectiveToughness(state, bear)).toBe(2);
     });
 
     it("set base power and toughness to 0/2", () => {
-        const { state, bear } = bearWith({
-            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
-        });
+        const { state, bear } = bearWith({}, [
+            ptSet("bear", { power: 0, toughness: 2 }, 1),
+        ]);
         expect(getEffectivePower(state, bear)).toBe(0);
         expect(getEffectiveToughness(state, bear)).toBe(2);
     });
 
     it("set 0/2 + a +1/+1 counter computes 1/3 (7b then 7c)", () => {
-        const { state, bear } = bearWith({
-            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
-            counters: { "+1/+1": 1 },
-        });
+        const { state, bear } = bearWith({ counters: { "+1/+1": 1 } }, [
+            ptSet("bear", { power: 0, toughness: 2 }, 1),
+        ]);
         expect(getEffectivePower(state, bear)).toBe(1);
         expect(getEffectiveToughness(state, bear)).toBe(3);
     });
 
-    it("set 0/2 + a +2/+2 pump computes 2/4 (7b then 7d)", () => {
-        const { state, bear } = bearWith({
-            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
-            temporaryPTMods: [{ power: 2, toughness: 2, duration: EOT }],
-        });
+    it("set 0/2 + a +2/+2 pump computes 2/4 (7b then 7c)", () => {
+        const { state, bear } = bearWith({}, [
+            ptSet("bear", { power: 0, toughness: 2 }, 1),
+            ptMod("bear", 2, 2, 2),
+        ]);
         expect(getEffectivePower(state, bear)).toBe(2);
         expect(getEffectiveToughness(state, bear)).toBe(4);
     });
 
     it("two set effects resolve by timestamp — the latest entry wins", () => {
-        const { state, bear } = bearWith({
-            temporaryPTSet: [
-                { power: 5, duration: EOT },
-                { power: 0, duration: EOT },
-            ],
-        });
+        const { state, bear } = bearWith({}, [
+            ptSet("bear", { power: 5 }, 1),
+            ptSet("bear", { power: 0 }, 2),
+        ]);
         expect(getEffectivePower(state, bear)).toBe(0);
     });
 
     it("a set overrides the printed base entirely (not summed)", () => {
         // A 4/4 set to base power 1 reads 1, not 5.
         const big = makeCreature("big", "p1", { power: 4, toughness: 4 });
-        big.temporaryPTSet = [{ power: 1, duration: EOT }];
         const state = makeGameState({
             players: [
                 makePlayer({ id: "p1", battlefield: [big] }),
                 makePlayer({ id: "p2" }),
             ],
         });
+        state.continuousEffects = [ptSet("big", { power: 1 }, 1)];
         expect(getEffectivePower(state, big)).toBe(1);
     });
 
     it("wire format: set 0/2 + counter survives projectPublicState", () => {
-        const { state } = bearWith({
-            temporaryPTSet: [{ power: 0, toughness: 2, duration: EOT }],
-            counters: { "+1/+1": 1 },
-        });
+        const { state } = bearWith({ counters: { "+1/+1": 1 } }, [
+            ptSet("bear", { power: 0, toughness: 2 }, 1),
+        ]);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "bear"

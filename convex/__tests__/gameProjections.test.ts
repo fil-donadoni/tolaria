@@ -620,9 +620,6 @@ describe("projection forwards every transient battlefield field", () => {
             regenerationShields: 1,
             chosenMana: { R: 1 },
             attachedTo: "host-id",
-            temporaryPTMods: [
-                { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-            ],
             counters: { "+1/+1": 1, "+1/+0": 2 },
             // No `auraId` on either row, deliberately: PRD #2064 S5 made the
             // projection DERIVE layer 6 from the registry, and the
@@ -655,6 +652,28 @@ describe("projection forwards every transient battlefield field", () => {
             phase: "PRECOMBAT_MAIN",
             rngSeed: 0,
             rngCounter: 0,
+            // CR 613.4c (ADR 0082, PRD #2064 S6) — the until-end-of-turn pump
+            // that used to be `temporaryPTMods` on the permanent. The wire
+            // still CARRIES that field (ADR 0082 decision 4 — the client keeps
+            // a materialised snapshot), but as derived output computed here
+            // from the registry, so the assertions below are what prove the
+            // derivation reaches the wire at all.
+            continuousEffects: [
+                {
+                    id: "ce-1",
+                    layer: 7,
+                    sublayer: "7c",
+                    timestamp: 1,
+                    expiry: {
+                        kind: "duration",
+                        duration: { phase: "end-of-turn" },
+                        controllerId: "p1",
+                    },
+                    affected: { kind: "instances", instanceIds: ["p1-b1"] },
+                    payload: { kind: "pt-modify", power: 1, toughness: 0 },
+                    characteristicDefining: false,
+                },
+            ],
         };
     }
 
@@ -678,9 +697,7 @@ describe("projection forwards every transient battlefield field", () => {
         expect(card.regenerationShields).toBe(1);
         expect(card.chosenMana).toEqual({ R: 1 });
         expect(card.attachedTo).toBe("host-id");
-        expect(card.temporaryPTMods).toEqual([
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ]);
+        expect(card.temporaryPTMods).toEqual([{ power: 1, toughness: 0 }]);
         expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(card.grantedStaticAbilities).toEqual([{ ability: "flying" }]);
         expect(card.grantedActivatedAbilities).toEqual([
@@ -697,9 +714,7 @@ describe("projection forwards every transient battlefield field", () => {
         const me = result.players.find((p) => p.id === "p1")!;
         const card = me.battlefield[0];
         expect(card.attachedTo).toBe("host-id");
-        expect(card.temporaryPTMods).toEqual([
-            { power: 1, toughness: 0, duration: { phase: "end-of-turn" } },
-        ]);
+        expect(card.temporaryPTMods).toEqual([{ power: 1, toughness: 0 }]);
         expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(card.hasAttackedThisTurn).toBe(true);
         expect(card.hasBlockedThisTurn).toBe(true);
@@ -885,7 +900,7 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
         const cardId = p1.hand[0].id;
 
         // Cast it: hand → stack (public). Knowledge is emptied.
-        const onStack = removeFromZone(p1, cardId, "hand");
+        const onStack = removeFromZone(state, p1, cardId, "hand");
         expect(onStack.knownTo).toBeUndefined();
 
         // Simulate a return to a hidden zone (e.g. countered to hand): the card

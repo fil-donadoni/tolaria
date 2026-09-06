@@ -355,11 +355,14 @@ describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
     });
 
     it("strands no colour override when the animated land leaves the battlefield (CR 400.7)", () => {
-        const { live } = animate(creepingTarPit, "creeping-tar-pit-animate");
+        const { state, live } = animate(
+            creepingTarPit,
+            "creeping-tar-pit-animate"
+        );
         expect(live.colorOverride).toEqual(["U", "B"]);
         expect(live.temporaryColorOverride).toBeDefined();
 
-        resetBattlefieldTransientState(live);
+        resetBattlefieldTransientState(live, state);
 
         // Both the override AND its revert record go — a surviving record
         // would splice a stale colour back onto a NEW object at the next

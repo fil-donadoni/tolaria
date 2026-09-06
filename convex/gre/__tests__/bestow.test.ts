@@ -587,7 +587,7 @@ describe("Bestow — CR 400.7 zone-change reverts", () => {
         applyBestowCharacteristics(leaked);
         p1.graveyard.push(leaked);
 
-        removeFromZone(p1, "leaked", "graveyard");
+        removeFromZone(state, p1, "leaked", "graveyard");
 
         expect(leaked.bestowed).toBeUndefined();
         expect(leaked.types).toEqual(["Enchantment", "Creature"]);

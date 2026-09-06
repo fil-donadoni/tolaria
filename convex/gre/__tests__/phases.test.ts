@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { ContinuousEffect } from "../continuousEffects";
 import { readFileSync } from "node:fs";
 import {
     advancePhase,
@@ -147,8 +148,9 @@ describe("advancePhase", () => {
 
             // A synthetic "until end of combat" pump (the shape
             // `addTemporaryPTBuff` produces for Battering Ram / Murk
-            // Dwellers). `tickAllDurations` expires it with a direct write
-            // (`card.temporaryPTMods = ...`) — instrument that write too.
+            // Dwellers). Since PRD #2064 S6 it is a Continuous Effects Registry
+            // entry, and `tickAllDurations` expires it by rewriting
+            // `state.continuousEffects` — instrument THAT write.
             const pumped = makeCard({
                 id: "pumped",
                 card: {
@@ -159,30 +161,38 @@ describe("advancePhase", () => {
                 },
                 controllerId: "p1",
             });
-            pumped.temporaryPTMods = [
+            p1.battlefield.push(pumped);
+            let registryBacking: ContinuousEffect[] | undefined = [
                 {
-                    power: 3,
-                    toughness: 0,
-                    duration: { phase: "end-of-combat" },
+                    id: "ce-1",
+                    layer: 7,
+                    sublayer: "7c",
+                    timestamp: 1,
+                    expiry: {
+                        kind: "duration",
+                        duration: { phase: "end-of-combat" },
+                        controllerId: "p1",
+                    },
+                    affected: { kind: "instances", instanceIds: ["pumped"] },
+                    payload: { kind: "pt-modify", power: 3, toughness: 0 },
+                    characteristicDefining: false,
                 },
             ];
-            let modsBacking = pumped.temporaryPTMods;
-            Object.defineProperty(pumped, "temporaryPTMods", {
+            Object.defineProperty(state, "continuousEffects", {
                 configurable: true,
                 enumerable: true,
-                get: () => modsBacking,
-                set: (v) => {
+                get: () => registryBacking,
+                set: (v: ContinuousEffect[] | undefined) => {
                     order.push("duration-expired");
-                    modsBacking = v;
+                    registryBacking = v;
                 },
             });
-            p1.battlefield.push(pumped);
 
             advancePhase(state);
 
             // Both effects fired ...
             expect(p1.manaPool.R).toBe(0);
-            expect(pumped.temporaryPTMods).toBeUndefined();
+            expect(state.continuousEffects).toBeUndefined();
             // ... and CR 500.5's order: expiry, THEN the pool empties. Red
             // under the pre-fix statement order (mana emptied first) —
             // verified by temporarily restoring that order and watching
@@ -641,28 +651,39 @@ describe("advancePhase", () => {
                 controllerId: "p1",
                 isAttacking: true,
             });
-            pumped.temporaryPTMods = [
+            p1.battlefield.push(pumped);
+            // CR 613.4c (PRD #2064 S6) — the pump is a registry entry whose
+            // own `duration` expiry holds the boundary.
+            state.continuousEffects = [
                 {
-                    power: 3,
-                    toughness: 0,
-                    duration: { phase: "end-of-combat" },
+                    id: "ce-1",
+                    layer: 7,
+                    sublayer: "7c",
+                    timestamp: 1,
+                    expiry: {
+                        kind: "duration",
+                        duration: { phase: "end-of-combat" },
+                        controllerId: "p1",
+                    },
+                    affected: { kind: "instances", instanceIds: ["pumped"] },
+                    payload: { kind: "pt-modify", power: 3, toughness: 0 },
+                    characteristicDefining: false,
                 },
             ];
-            p1.battlefield.push(pumped);
 
             // COMBAT_DAMAGE → END_OF_COMBAT: entering the step must NOT
             // expire the duration (500.5a — "not at the beginning of the end
             // of combat step").
             advancePhase(state);
             expect(state.phase).toBe("END_OF_COMBAT");
-            expect(pumped.temporaryPTMods).toHaveLength(1);
+            expect(state.continuousEffects).toHaveLength(1);
 
             // END_OF_COMBAT → POSTCOMBAT_MAIN: exiting the step is where
             // 500.5a pins the expiry, and — because END_OF_COMBAT is the
             // last combat sub-phase — that is also the combat phase ending.
             advancePhase(state);
             expect(state.phase).toBe("POSTCOMBAT_MAIN");
-            expect(pumped.temporaryPTMods).toBeUndefined();
+            expect(state.continuousEffects).toBeUndefined();
         });
     });
 

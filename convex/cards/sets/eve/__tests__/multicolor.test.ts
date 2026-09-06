@@ -144,7 +144,9 @@ describe("Figure of Destiny — CR 400.7 (a new object forgets the respec)", () 
         removePermanentTo(state, "figure", "hand");
         const inHand = state.players[0].hand.find((c) => c?.id === "figure")!;
         expect(inHand.subtypes).toEqual(["Kithkin"]);
-        expect(inHand.temporaryPTSet).toBeUndefined();
+        // CR 400.7 (PRD #2064 S6) — the layer-7b set is a registry entry
+        // now, purged for this instance when the permanent left.
+        expect(state.continuousEffects ?? []).toHaveLength(0);
         expect(inHand.staticAbilities).not.toContain("flying");
         expect(inHand.staticAbilities).not.toContain("first strike");
     });

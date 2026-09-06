@@ -26,6 +26,7 @@ import {
 import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
+import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     computeEngineViewBadge,
     type EngineViewBadge,
@@ -150,6 +151,10 @@ type PreviewGameCtx = {
      *  P/T folds in an owner-scoped emblem anthem. Structurally forwarded from
      *  `GameContext.emblems`. */
     emblems?: EmblemInstance[];
+    /** CR 613 (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry,
+     *  structurally forwarded from `GameContext.continuousEffects`, so a
+     *  preview's effective P/T folds in an until-boundary pump. */
+    continuousEffects?: ContinuousEffect[];
     /** Manual Game discriminator (issue #2346) — structurally forwarded from
      *  `GameContext.isManualGame`. Only `makeManualGameContext`
      *  (`~/lib/manual-game-context`) ever sets it; the GRE's own context value
@@ -220,14 +225,20 @@ export function buildPreviewBody(
     // (deck builder, or the printed ORIGINAL face) fall back to printed P/T.
     const effPower =
         cardInstance && gameCtx
-            ? effectivePower(gameCtx.allPlayers, cardInstance, gameCtx.emblems)
+            ? effectivePower(
+                  gameCtx.allPlayers,
+                  cardInstance,
+                  gameCtx.emblems,
+                  gameCtx.continuousEffects
+              )
             : (cardInstance?.power ?? basePower);
     const effToughness =
         cardInstance && gameCtx
             ? effectiveToughness(
                   gameCtx.allPlayers,
                   cardInstance,
-                  gameCtx.emblems
+                  gameCtx.emblems,
+                  gameCtx.continuousEffects
               )
             : (cardInstance?.toughness ?? baseToughness);
     const ptModified =

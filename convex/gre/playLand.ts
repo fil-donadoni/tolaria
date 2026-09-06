@@ -479,7 +479,7 @@ function settleEnteredLand(
     // settlement, rather than per-source. A from-hand play is a no-op (the card
     // has no battlefield history). Runs FIRST: `markEnteredThisTurn` and the
     // `willEnterTapped` write below must not be undone by the reset.
-    resetBattlefieldTransientState(card);
+    resetBattlefieldTransientState(card, state);
     // CR 400.7 / 608.2h (issue #2001) — this is a genuine battlefield entry
     // (every `applyPlayLandFrom*` origin funnels here with the card already
     // moved to the battlefield). If this instance id held the battlefield

@@ -1405,6 +1405,7 @@ export function applyMoveForSearch(
                       )
                     : undefined;
             const spellCard = removeFromZone(
+                state,
                 castSource.owner,
                 move.cardInstanceId,
                 castFromZone

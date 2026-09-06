@@ -1574,7 +1574,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         )!;
         expect(getEffectivePower(state, after)).toBe(0);
         expect(getEffectiveToughness(state, after)).toBe(1);
-        expect(after.temporaryPTMods).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
     });
 
     it("wire format: temporary P/T mod survives the projection", () => {
@@ -1639,7 +1639,7 @@ describe("Howl from Beyond (target creature gets +X/+0 EOT)", () => {
         advancePhase(state);
         const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
         expect(getEffectivePower(state, bear)).toBe(2);
-        expect(bear.temporaryPTMods).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
     });
 });
 

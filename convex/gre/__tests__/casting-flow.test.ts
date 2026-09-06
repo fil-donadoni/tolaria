@@ -131,7 +131,7 @@ function announceCast(
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
-        const card = removeFromZone(player, cardInstanceId, "hand");
+        const card = removeFromZone(state, player, cardInstanceId, "hand");
         const stackItem: StackItem = { ...card, castById: playerId };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -171,6 +171,7 @@ function tapForPayment(
         payManaCost(player.manaPool, state.pendingCast.manaCost);
         commitLandsForCost(player, state.pendingCast.manaCost);
         const spellCard = removeFromZone(
+            state,
             player,
             state.pendingCast.cardInstanceId,
             "hand"

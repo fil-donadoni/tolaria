@@ -1510,7 +1510,7 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
         expect(raiseTriggerTargetSelection(state)).toBe(false);
         expect(state.stack).toHaveLength(0);
         expect(state.pendingTarget).toBeUndefined();
-        expect(hd.temporaryPTSet).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
         expect(getEffectivePower(state, hd)).toBe(3);
     });
 
@@ -1527,7 +1527,7 @@ describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613
             }
         }
         expect(state.phase).toBe("UPKEEP");
-        expect(hd.temporaryPTSet).toBeUndefined();
+        expect(state.continuousEffects ?? []).toHaveLength(0);
         expect(getEffectivePower(state, hd)).toBe(3);
         expect(getEffectiveToughness(state, hd)).toBe(3);
     });

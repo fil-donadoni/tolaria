@@ -101,6 +101,7 @@ export default function GreHandCard({
         pendingTarget,
         cannotActivateAbilitiesThisTurn,
         combat,
+        continuousEffects,
     } = useGameContext();
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
@@ -166,7 +167,10 @@ export default function GreHandCard({
                   buildTriggerStateView(
                       allPlayers,
                       activePlayerId,
-                      cannotActivateAbilitiesThisTurn
+                      cannotActivateAbilitiesThisTurn,
+                      undefined,
+                      undefined,
+                      continuousEffects
                   ),
                   // CR 702.49a — combat, so a ninjutsu ability is offered only
                   // while its return leg is payable (`getHandStackAbilities`
