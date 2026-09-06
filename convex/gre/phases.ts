@@ -11,6 +11,7 @@ import type {
     GameState,
     PlayerState,
 } from "./state";
+import type { ContinuousEffect } from "./continuousEffects";
 import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
 import { syncLayer6 } from "./layer6";
 import { syncLayers2to5 } from "./layers2to5";
@@ -2881,6 +2882,56 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
  *  scoped to a different boundary are left untouched. The turn-scoped GLOBAL
  *  flags carry no such parameter and are gated as a class — see
  *  {@link TURN_SCOPED_GLOBAL_FLAGS}. */
+/** CR 611.2a / 514.2 / 511.3 — one phase-boundary tick over the Continuous
+ *  Effects Registry (ADR 0082, PRD #2064 S6).
+ *
+ *  An entry whose expiry is a `duration` counts BOUNDARIES exactly as every
+ *  other duration in the engine does — same `tickDuration`, same
+ *  `DurationTickView`, same CR 514.3a repeat-cleanup guard — because it is the
+ *  same rule and there is no second implementation of it. Every other expiry
+ *  kind is untouched: `source`, `counter` and `while-source-tapped` end on a
+ *  board FACT the derivation re-reads at every look, and `indefinite` ends
+ *  only with the game (CR 611.2a).
+ *
+ *  The list is rebuilt only when something actually expired or advanced, so a
+ *  board with no duration-scoped effect pays one scan and no allocation. */
+function tickContinuousEffectDurations(
+    state: GameState,
+    view: DurationTickView
+): void {
+    const entries = state.continuousEffects;
+    if (!entries?.length) return;
+    let changed = false;
+    const kept: ContinuousEffect[] = [];
+    for (const entry of entries) {
+        if (entry.expiry.kind !== "duration") {
+            kept.push(entry);
+            continue;
+        }
+        const next = tickDuration(entry.expiry.duration, view);
+        if (next === null) {
+            changed = true;
+            continue;
+        }
+        if (next === entry.expiry.duration) {
+            kept.push(entry);
+            continue;
+        }
+        changed = true;
+        // The cast carries what `ContinuousEffectScope` already guarantees and
+        // tsc cannot correlate across a spread: only the `instances` arm of the
+        // union admits a `duration` expiry (the `predicate` arm is pinned to
+        // `source`), so an entry reaching this line is `instances`-affected and
+        // the spread preserves that half untouched.
+        kept.push({
+            ...entry,
+            expiry: { ...entry.expiry, duration: next },
+        } as ContinuousEffect);
+    }
+    if (!changed) return;
+    state.continuousEffects = kept.length > 0 ? kept : undefined;
+}
+
 function tickAllDurations(state: GameState): void {
     const view: DurationTickView = {
         phase: state.phase,
@@ -3139,40 +3190,18 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Temporary P/T modifications (e.g. Firebreathing's `{R}: ~ gets +1/+0
-    // until end of turn`). Purged at the same boundary as `grantedStaticAbilities`
-    // and `preventionEffects`.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
-            if (!card.temporaryPTMods?.length) continue;
-            const kept: typeof card.temporaryPTMods = [];
-            for (const mod of card.temporaryPTMods) {
-                const next = tickDuration(mod.duration, view);
-                if (next !== null) kept.push({ ...mod, duration: next });
-            }
-            card.temporaryPTMods = kept.length > 0 ? kept : undefined;
-        }
-    }
-
-    // Layer 7b set-P/T effects (Singing Tree, Sorceress Queen — "base power 0
-    // until end of turn"). Purged at the same boundary as `temporaryPTMods`.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
-            if (!card.temporaryPTSet?.length) continue;
-            const kept: typeof card.temporaryPTSet = [];
-            for (const entry of card.temporaryPTSet) {
-                // Indefinite set (CR 613.4b — Wall of Tombstones): no duration,
-                // never ticked out at a phase boundary. Kept as-is.
-                if (entry.duration === undefined) {
-                    kept.push(entry);
-                    continue;
-                }
-                const next = tickDuration(entry.duration, view);
-                if (next !== null) kept.push({ ...entry, duration: next });
-            }
-            card.temporaryPTSet = kept.length > 0 ? kept : undefined;
-        }
-    }
+    // CR 611.2a (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry's
+    // own countdown. Every duration-scoped continuous effect the engine holds
+    // is ONE entry here now (a Giant Growth pump, a "base power 0 until end of
+    // turn" set, an until-end-of-turn keyword grant or removal), so one tick
+    // replaces the per-field purges that used to stand in this function — one
+    // per instance ledger, each with its own copy of the same expiry rule.
+    //
+    // Entries are SPLICED, not blanked: `id` is the documented removal handle
+    // and `nextContinuousEffectOrdinal` (`gre/state.ts`) mints from the highest
+    // suffix in use precisely so a removal here cannot let a later entry
+    // re-issue a live id.
+    tickContinuousEffectDurations(state, view);
 
     // Timed subtype changes (CR 305.7 / 611.2 — Orcish Farmer "becomes a Swamp
     // until its controller's next untap step"). On expiry, restore the captured

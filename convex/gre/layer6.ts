@@ -633,13 +633,13 @@ function layer6ExpiryLive(
             return Boolean(source?.isTapped);
         }
         case "duration":
-        case "instance-duration":
-            // NOT checked here, and NOT yet ticked either: the phase-boundary
-            // cleanup (`gre/phases.ts`) ticks the instance-borne records, and
-            // nothing splices `state.continuousEffects`. A STORED entry with a
-            // duration expiry would therefore apply forever, which is why
-            // `addContinuousEffect` rejects one (`gre/state.ts`) — PRD #2064 S6
-            // moves the countdown in here and lifts the restriction.
+            // Not checked HERE because it is checked at the boundary instead:
+            // `tickContinuousEffectDurations` (`gre/phases.ts`) splices an
+            // expired entry out of `state.continuousEffects` (PRD #2064 S6), so
+            // an entry this walk can still see is by construction one whose
+            // boundary has not come. A liveness re-derivation here would be a
+            // second implementation of CR 611.2a's countdown, which is exactly
+            // the duplication the registry exists to end.
             return true;
         case "indefinite":
             return true;

@@ -303,13 +303,14 @@ type DerivedTemplate = { source: PermanentView; effect: StaticEffect };
  *  - counters — expiry `counter`, one entry per counter TYPE because CR 613.7c
  *    gives every counter of a kind the same timestamp.
  *
- *  The three instance-borne families (`temporaryPTSet`, `temporaryPTMods`,
- *  `sourceTappedPTMods`) are resolution residue with no source to walk. They
- *  are derived here too while their countdown still lives on the instance
- *  (expiry `instance-duration` / `while-source-tapped`); PRD #2064 S6 flips
- *  them to stored entries, which is a producer change this read path already
- *  accepts — stored layer-7 entries are unioned in below and resolve through
- *  the same payload resolver.
+ *  ONE instance-borne family is left: `sourceTappedPTMods` (expiry
+ *  `while-source-tapped`), whose lifetime is a live board FACT — the source
+ *  being tapped — and so is derivable by walking, exactly like a static
+ *  ability's effect. The two whose countdown was a stored boundary
+ *  (`temporaryPTSet`, `temporaryPTMods`) are stored registry entries since PRD
+ *  #2064 S6: their producers (`SpellContext.setBasePT` /
+ *  `addTemporaryPTBuff`) write the entry, and the boundary is ticked in the
+ *  entry's own `duration` expiry.
  */
 function layer7EffectsFor(
     state: LayerStateView,
@@ -386,28 +387,6 @@ function layer7EffectsFor(
         );
     }
 
-    // CR 613.4b layer 7b — set P/T. Array order is the timestamp; both halves
-    // are independently optional ("base power 0" leaves toughness alone).
-    const sets = target.temporaryPTSet ?? [];
-    for (let index = 0; index < sets.length; index++) {
-        entries.push({
-            id: `ce-set-${target.id}-${index}`,
-            layer: 7,
-            sublayer: "7b",
-            timestamp: ordinal++,
-            expiry: { kind: "instance-duration" },
-            affected: { kind: "instances", instanceIds: [target.id] },
-            // Built field by field: the instance entry also carries a
-            // `duration`, which belongs to the expiry, not to the payload.
-            payload: {
-                kind: "pt-set",
-                power: sets[index].power,
-                toughness: sets[index].toughness,
-            },
-            characteristicDefining: false,
-        });
-    }
-
     // CR 613.4c layer 7c — counters. One entry per TYPE: CR 613.7c gives every
     // counter of a kind the same timestamp, so they cannot interleave.
     for (const [counterType, count] of Object.entries(target.counters ?? {})) {
@@ -428,25 +407,6 @@ function layer7EffectsFor(
                 kind: "pt-modify",
                 power: contribution.power * count,
                 toughness: contribution.toughness * count,
-            },
-            characteristicDefining: false,
-        });
-    }
-
-    // CR 613.4c layer 7c — one-shot pumps scoped to a phase boundary.
-    const mods = target.temporaryPTMods ?? [];
-    for (let index = 0; index < mods.length; index++) {
-        entries.push({
-            id: `ce-mod-${target.id}-${index}`,
-            layer: 7,
-            sublayer: "7c",
-            timestamp: ordinal++,
-            expiry: { kind: "instance-duration" },
-            affected: { kind: "instances", instanceIds: [target.id] },
-            payload: {
-                kind: "pt-modify",
-                power: mods[index].power,
-                toughness: mods[index].toughness,
             },
             characteristicDefining: false,
         });
@@ -658,13 +618,20 @@ function computeEffectivePT(
     target: PermanentView,
     opts: { includeTemporary?: boolean } = {}
 ): PTBuff {
-    // When false, the until-boundary P/T entries are dropped — the ones whose
-    // countdown is held on the instance (`temporaryPTSet` 7b, `temporaryPTMods`
-    // 7c), which is exactly the `instance-duration` expiry. The persistent
-    // provenances (CDA, static buffs, counters, and the source-tapped effects
-    // of Ashnod's Battle Gear, which are state-tied rather than boundary-tied)
-    // are unaffected. Used only by the bot evaluation, so a combat trick's
-    // temporary buff is not scored as permanent material (ADR 0020 §2).
+    // When false, the until-boundary P/T entries are dropped — which is exactly
+    // the `duration` expiry now that PRD #2064 S6 has moved the countdown off
+    // the instance and into the entry. The persistent provenances (CDA, static
+    // buffs, counters, and the source-tapped effects of Ashnod's Battle Gear,
+    // which are state-tied rather than boundary-tied) are unaffected. Used only
+    // by the bot evaluation, so a combat trick's temporary buff is not scored
+    // as permanent material (ADR 0020 §2).
+    //
+    // One valuation change rides along, and it is a correction: an INDEFINITE
+    // base-P/T set (CR 613.4b, Wall of Tombstones) used to be dropped here
+    // too, because every `temporaryPTSet` row carried the same blanket
+    // `instance-duration` tag whether or not it held a boundary. It holds
+    // none — it ends only with the game — so it is permanent material and now
+    // counts as such.
     const includeTemporary = opts.includeTemporary ?? true;
     const basePower = target.power ?? 0;
     const baseToughness = target.toughness ?? 0;
@@ -683,10 +650,7 @@ function computeEffectivePT(
         let cdaToughness: number | undefined;
         for (const entry of entries) {
             if (entry.sublayer !== sublayer) continue;
-            if (
-                !includeTemporary &&
-                entry.expiry.kind === "instance-duration"
-            ) {
+            if (!includeTemporary && entry.expiry.kind === "duration") {
                 continue;
             }
             if (sublayer === "7d") {
@@ -739,8 +703,9 @@ export function getEffectiveToughness(
     return computeEffectivePT(state, target).toughness;
 }
 
-/** Effective power EXCLUDING until-boundary modifications (`temporaryPTSet`,
- *  `temporaryPTMods`). The bot evaluation uses this so a combat trick's
+/** Effective power EXCLUDING until-boundary modifications (the layer-7
+ *  registry entries whose expiry is a `duration`). The bot evaluation uses this
+ *  so a combat trick's
  *  "until end of turn" buff is not counted as permanent material (ADR 0020 §2).
  *  Persistent layers (CDA, counters, static buffs, +1/+1 counters) still count. */
 export function getPermanentEffectivePower(

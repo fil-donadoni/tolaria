@@ -471,7 +471,12 @@ export function applyProbeCast(
     if (!player) return false;
     if (!player.hand.some((c) => c.id === move.cardInstanceId)) return false;
     applyTapPlan(probe, pid, move.tapPlan);
-    const spellCard = removeFromZone(player, move.cardInstanceId, "hand");
+    const spellCard = removeFromZone(
+        probe,
+        player,
+        move.cardInstanceId,
+        "hand"
+    );
     const stackItem: StackItem = {
         ...spellCard,
         zone: "stack",

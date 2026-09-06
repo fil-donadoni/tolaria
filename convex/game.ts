@@ -3605,6 +3605,7 @@ export function tryAutoCommitPendingCast(
     // issue #1156 — a cross-player exile grant (Dauthi Voidwalker, Robber of
     // the Rich) removes from the ACTUAL exile owner, not the caster.
     const spellCard = removeFromZone(
+        state,
         castZoneOwner(
             state,
             player,
@@ -7199,6 +7200,7 @@ export function finalizeTargetSelection(
         // issue #1156 — a cross-player exile grant removes from the ACTUAL
         // exile owner, not the caster.
         const card = removeFromZone(
+            state,
             castZoneOwner(state, player, cardInstanceId, castZone),
             cardInstanceId,
             castZone
@@ -8549,6 +8551,7 @@ export const announceCast = mutation({
             // issue #1156 — a cross-player exile grant removes from the
             // ACTUAL exile owner, not the caster.
             const card = removeFromZone(
+                state,
                 castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
                 castFromZone
@@ -8960,6 +8963,7 @@ export const announceCast = mutation({
             // issue #1156 — a cross-player exile grant removes from the
             // ACTUAL exile owner, not the caster.
             const card = removeFromZone(
+                state,
                 castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
                 castFromZone
