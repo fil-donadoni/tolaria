@@ -567,3 +567,136 @@ waste, and the pipeline already carries more mechanical gates than any single
 session reads. The contract is three habits in the one document every
 issue-closing session reads, and this command is how anyone checks, after the
 fact, whether they took.
+
+## Latency per issue — the measurement, and what it does to ADR 0110's target
+
+ADR 0110 records a target it never checked: **"a median issue closes in 10-15
+minutes"**. Nothing reported per-issue latency at all, so the figure survived as
+folklore — and a session left open over lunch looked, in every existing view,
+exactly like a session grinding the gate.
+
+**`bun run telemetry:latency`** is what makes that visible:
+
+```bash
+bun run telemetry:latency                                # last 7 days
+bun run telemetry:latency --from 2026-08-28 --to 2026-09-05
+bun run telemetry:latency --json                         # machine-readable
+bun run telemetry:latency --sessions 10                  # slowest sessions too
+```
+
+It reads the same SQLite mirror `telemetry:context` does (`bun run
+telemetry:ingest` fills it) from the primary checkout, so it works unchanged
+from inside a worktree. A session is taken WHOLE when any of its turns falls in
+the window — wall clock is first-to-last message, and truncating a session at
+the window edge would report a fragment of it as the whole issue. Sessions
+longer than `--max-hours` (12 by default) are dropped as abandoned windows
+rather than closed issues.
+
+### The committed baseline — 2026-08-28 → 2026-09-05
+
+```
+latency per issue — 2026-08-28 → 2026-09-05 (sessions over 12h excluded)
+
+  issue-closing sessions (landed ≥1 PR) — 72 sessions
+  component                    median      p90     mean
+  wall                          91.0m   504.4m   178.2m
+  tool                          42.5m    90.6m    51.7m
+    of which gate/test/build    27.3m    59.7m    29.7m
+  model                         24.0m    45.2m    26.0m
+  machine (tool + model)        70.0m   126.5m    77.7m
+  idle                          22.8m   420.6m   100.5m
+
+  /next-issue sessions (the ADR 0110 pipeline) — 58 sessions
+  component                    median      p90     mean
+  wall                          85.4m   369.9m   159.4m
+  tool                          40.8m    82.9m    48.6m
+    of which gate/test/build    26.6m    51.8m    26.0m
+  model                         24.0m    45.6m    27.0m
+  machine (tool + model)        67.3m   126.0m    75.5m
+  idle                          14.3m   299.7m    83.9m
+
+  all sessions in window — 113 sessions
+  component                    median      p90     mean
+  wall                          64.7m   329.6m   130.0m
+  tool                          27.0m    79.5m    33.7m
+    of which gate/test/build    11.9m    48.0m    19.1m
+  model                         17.6m    41.4m    19.7m
+  machine (tool + model)        47.4m   118.1m    53.4m
+  idle                          12.2m   280.5m    76.6m
+```
+
+**These are not the numbers issue #3079 quotes** (93 sessions, 80m median wall,
+35m median tool), and the divergence is definitional, not noise. Three reasons,
+all of which make the finding stronger rather than weaker:
+
+- **"Issue-closing" is now a stated predicate.** A session counts when it
+  emitted at least one `pr-link` event — the only observable in the store that
+  says work landed. The issue's cohort was an ad-hoc query that cannot be
+  recovered.
+- **Tool time is a UNION, not a sum.** Three parallel Bash calls in one turn are
+  70 seconds of wall clock, not 150. Summing would have overstated it; the
+  figure went UP anyway, because of the third reason.
+- **`check:lane` and `land` were not classified as gates.** Both were bucketed
+  as plain `bun`, which put the two single largest commands by wall time in the
+  window (`check:lane` 334m over 80 runs, `land` 270m over 37) outside the
+  gate/test/build block entirely. Fixed in `telemetry-db.ts`; the report
+  classifies from `spans.cmd` at query time, so the whole history is
+  reclassified rather than only the rows ingested afterwards.
+
+### How to read it
+
+`wall` is first-to-last main-thread message. `tool` is the union of the recorded
+tool spans, clipped to the session. `model` is generation: a gap that follows a
+tool result is machine time whole (nothing can interject once the loop is
+running), and a gap with no tool call in it is split against a fitted estimator,
+with the remainder becoming `idle`. The estimator, the ceiling that catches an
+interrupted session, and the three things the derivation deliberately cannot see
+are documented on `scripts/lib/telemetry-latency.ts`.
+
+**Each component is summarised independently, so the medians do not add up to
+the median wall** — the session in the middle of the wall distribution is not
+the one in the middle of the idle distribution. The `mean` column is the one
+reading where the parts do sum.
+
+`machine` is the row that settles the target: tool plus model is the floor a
+session cannot go below whatever the human does.
+
+### The target, restated against the measurement
+
+**10-15 minutes is not reachable in this pipeline's shape, and no change named
+so far gets close.** At the median `/next-issue` session:
+
+| Block                          | Median | Can it be cut?                                    |
+| ------------------------------ | -----: | ------------------------------------------------- |
+| gate / test / build            |  26.6m | Yes — the one real lever                          |
+| tool, everything else          |  15.7m | Marginally: `gh`, `git`, greps, the worktree init |
+| model generation               |  24.0m | Only by making the session shorter                |
+| **machine floor (tool+model)** |  67.3m |                                                   |
+| idle                           |  14.3m | Yes, but it is not the median session's problem   |
+| **wall**                       |  85.4m |                                                   |
+
+**Every row is its own median over the 58 sessions, so no row is any other row
+minus a third.** "tool, everything else" is the median of each session's own
+`tool − gate` — 15.7m, not the 14.2m that subtracting the two published medians
+would give. Same reason the components never sum to `wall`: the session in the
+middle of one distribution is not the session in the middle of another.
+
+Delete the entire gate/test/build block — every check, every suite, `land`
+included — and the median session still needs **40.4 minutes** of machine time
+(again a per-session median of `machine − gate`, not 67.3 − 26.6). Model
+generation alone is 24.0m and shrinks only if the session runs fewer turns,
+which is the context-hygiene lever above, not a latency lever.
+
+So the target recorded in ADR 0110 and repeated in
+`.claude/skills/next-issue/SKILL.md` is replaced by the measured-supported pair:
+
+- **Today: 85 minutes median wall, 67 minutes median machine**, for a
+  `/next-issue` session.
+- **Target: 60 minutes median wall**, which is what halving the gate/test/build
+  block and removing the median session's idle would buy. Anything below ~40
+  minutes needs a change to what a session does, not to how fast it does it.
+
+Re-run the command over a later window to say whether that held. Note what the
+`idle` column is NOT saying: its p90 of 300m is real, but it is the abandoned
+long tail, not the median issue — which is exactly why this is reported as a
+distribution and not as the mean the issue was first argued from.

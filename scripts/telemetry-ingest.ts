@@ -606,6 +606,67 @@ function backfillResponseIds(db: Sqlite): number {
 }
 
 /**
+ * Re-run `classifyKind` / `bucketCmd` over every stored span whenever the
+ * classifier changes (issue #3079).
+ *
+ * Both columns are computed at INSERT time and the byte cursors mean an
+ * ordinary re-run never revisits a line, so widening what counts as a gate
+ * would otherwise only reach rows ingested afterwards — and the dashboard
+ * groups on both columns (`telemetry-serve.ts` § DIMENSIONS.spans), so the
+ * same command would read as two different buckets either side of the day the
+ * classifier changed. That split-brain is worse than either classification.
+ *
+ * **Bump `SPAN_CLASSIFIER_VERSION` in the same commit as any change to
+ * `classifyKind` or `bucketCmd`.** The pass is a full scan of `spans` (208k
+ * rows, ~1s) and writes only the rows whose classification actually moved, so
+ * paying it on a version bump costs nothing worth optimising.
+ */
+const SPAN_CLASSIFIER_VERSION = 2;
+
+function reclassifySpans(db: Sqlite): number {
+    const done = db
+        .query<
+            { v: string },
+            []
+        >("SELECT v FROM meta WHERE k = 'span_classifier_version'")
+        .get();
+    if (done?.v === String(SPAN_CLASSIFIER_VERSION)) return 0;
+
+    const rows = db
+        .query<
+            {
+                id: string;
+                tool: string | null;
+                cmd: string | null;
+                kind: string | null;
+                cmd_bucket: string | null;
+            },
+            []
+        >("SELECT id, tool, cmd, kind, cmd_bucket FROM spans")
+        .all();
+
+    const upd = db.prepare(
+        "UPDATE spans SET kind = ?, cmd_bucket = ? WHERE id = ?"
+    );
+    let changed = 0;
+    db.transaction(() => {
+        for (const r of rows) {
+            const kind = classifyKind(r.tool, r.cmd);
+            const bucket = r.tool === "Bash" ? bucketCmd(r.cmd) : r.cmd_bucket;
+            if (kind === r.kind && bucket === r.cmd_bucket) continue;
+            upd.run(kind, bucket, r.id);
+            changed++;
+        }
+    })();
+
+    db.run(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('span_classifier_version', ?)",
+        [String(SPAN_CLASSIFIER_VERSION)]
+    );
+    return changed;
+}
+
+/**
  * Attribute each agent run to a GitHub issue: its own description's issue ref,
  * else the parent's (an investigate spawned inside an implement works that
  * implement's issue). PR-only descriptions stay unattributed.
@@ -1008,6 +1069,7 @@ async function main(): Promise<void> {
     const ocFacts = await ingestOpencodeFacts(db, OPENCODE_FACTS);
     // Before the agent_runs rebuild, which reads straight off `llm`.
     const deduped = backfillResponseIds(db);
+    const reclassified = reclassifySpans(db);
     const runs = rebuildAgentRuns(db);
     const attributed = attributeIssues(db);
     const fetched = refreshIssueMeta(db);
@@ -1028,6 +1090,7 @@ async function main(): Promise<void> {
             `in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
             `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
             (deduped ? `${deduped} duplicate response rows collapsed, ` : "") +
+            (reclassified ? `${reclassified} spans reclassified, ` : "") +
             `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
     );
     db.close();
