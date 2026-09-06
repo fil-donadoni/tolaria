@@ -23,6 +23,8 @@ import { getCardByName } from "../../cards";
 import { enumerateMoves } from "../moves";
 import { isProbeEligibleMove } from "../ai/dominance";
 import { applyMoveInSearch } from "../search";
+import { resolveTopOfStack } from "../state";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { cloneGameState } from "../clone";
 import type { GameState } from "../state";
 import {
@@ -157,7 +159,7 @@ describe("hand-source activated abilities are enumerated (CR 113.6 / 702.49a)", 
 });
 
 // ---------------------------------------------------------------------------
-// The OTHER hand-source cost shape: "Discard this card" (CR 702.29a / 113.6c)
+// The OTHER hand-source cost shape: "Discard this card" (CR 702.29a / 113.6b)
 // ---------------------------------------------------------------------------
 //
 // Issue #2390 built the hand scan against Ninjutsu, whose board-changing cost
@@ -218,7 +220,7 @@ function activationsOf(state: GameState, instanceId: string) {
     );
 }
 
-describe("hand-source abilities whose cost DISCARDS the card (CR 113.6c)", () => {
+describe("hand-source abilities whose cost DISCARDS the card (CR 113.6b)", () => {
     it("offers the cycling activation off a card in hand", () => {
         const state = handSourceBoard(MOUNTAIN, 1, [
             { cardId: MARAUDING_MAKO, id: "mako" },
@@ -333,6 +335,22 @@ describe("a TARGETED hand-source ability enumerates its targets (CR 602.2b)", ()
         );
         expect(item).toBeDefined();
         expect(item!.targets?.[0]?.id).toBe("theirs");
+
+        // Resolve it. Carrying the target onto the stack item is only
+        // propagation — `applyMoveInSearch` spreads `move.targets` verbatim,
+        // so the assertion above can fail only if someone deletes that spread.
+        // What the search actually prices is the EFFECT landing on the chosen
+        // creature and on no other, which is what makes the target enumeration
+        // above worth anything.
+        resolveTopOfStack(sandbox);
+        const theirs = sandbox.players
+            .find((p) => p.id === "p2")!
+            .battlefield.find((c) => c.id === "theirs")!;
+        const mine = p1.battlefield.find((c) => c.id === "mine")!;
+        expect(getEffectivePower(sandbox, theirs)).toBe(0);
+        expect(getEffectiveToughness(sandbox, theirs)).toBe(0);
+        expect(getEffectivePower(sandbox, mine)).toBe(2);
+        expect(getEffectiveToughness(sandbox, mine)).toBe(2);
     });
 });
 
@@ -354,5 +372,17 @@ describe("dominance pruning never probes a hand-source activation", () => {
         expect(move).toBeDefined();
 
         expect(isProbeEligibleMove(state, "p1", move)).toBe(false);
+
+        // The behaviour that matters, asserted through the enumerator that
+        // consumes the predicate: ineligible means KEPT (`enumerateMoves`
+        // drops only moves the probe proves dominated), so the activation
+        // survives a pruning pass. This one holds through any refactor of the
+        // gate above it.
+        const kept = enumerateMoves(state, "p1", {
+            pruneDominatedNoOps: true,
+        }).filter(
+            (m) => m.kind === "activate-ability" && m.cardInstanceId === "mako"
+        );
+        expect(kept).toHaveLength(1);
     });
 });
