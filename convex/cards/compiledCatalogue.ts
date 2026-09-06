@@ -36,17 +36,40 @@ import compiledPool from "../../data/oracle-compiled-pool.json";
 export const compiledReadyDefinitions: CardDefinition[] =
     compiledPool as unknown as CardDefinition[];
 
-/** A hand-written `CardDefinition` is ALWAYS authoritative (PRD #2693 "gold
- *  as oracle"). `scripts/oracle-pool.ts` already excludes an oracle id that
- *  has a hand-written `data/card-index.json` entry at GENERATION time; this
- *  is the runtime backstop for a hand-written card added since the pool was
- *  last regenerated (a fresher `handWrittenIds` than the pool's own join
- *  saw) — a pure function so the collision-avoidance itself is unit-testable
- *  without needing two conflicting definitions to share an id in the real,
- *  module-load-once catalogue (ADR 0108). */
-export function excludeHandWritten(
+/**
+ * The collision is resolved at BUILD; this asserts that it was (ADR 0114 §2,
+ * issue #3052).
+ *
+ * This function used to be `excludeHandWritten`, a runtime FILTER: a compiled
+ * row whose id a hand-written definition already claimed was silently dropped.
+ * ADR 0114 §2 deletes that class rather than managing it — one generator
+ * (`scripts/catalogue-artifact.ts`) merges the two populations into a single
+ * artifact, so by the time anything hydrates there is nothing left to resolve,
+ * and `bun run catalogue:check` reds on a hand-written card added without
+ * regenerating. What used to be silently filtered is therefore a stale
+ * `data/oracle-compiled-pool.json`, and silence is the wrong answer to it:
+ * `preloadDefinitions` is last-write-wins, so a dropped assertion here would
+ * let a compiled row OVERWRITE the hand-written definition the engine is
+ * meant to run.
+ *
+ * It never fires on a regenerated tree — `scripts/oracle-pool.ts` excludes a
+ * hand-written oracle id at generation, and the merge asserts the same
+ * disjointness — which is exactly what makes throwing affordable.
+ */
+export function assertNoHandWrittenCollision(
     compiled: readonly CardDefinition[],
     handWrittenIds: ReadonlySet<string>
-): CardDefinition[] {
-    return compiled.filter((c) => !handWrittenIds.has(c.id));
+): readonly CardDefinition[] {
+    const collisions = compiled
+        .filter((c) => handWrittenIds.has(c.id))
+        .map((c) => `${c.name} (${c.id})`);
+    if (collisions.length > 0) {
+        throw new Error(
+            `compiled pool collides with ${collisions.length} hand-written ` +
+                `definition(s): ${collisions.join(", ")}. The pool is stale — ` +
+                `run \`bun run oracle:pool\` (ADR 0114 §2: the collision is ` +
+                `resolved at BUILD, never at hydration).`
+        );
+    }
+    return compiled;
 }

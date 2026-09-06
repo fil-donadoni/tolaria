@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import { getDefinition, tryGetDefinition, tryGetCardByName } from "../index";
 import { resolveTopOfStack, type GameState } from "../../gre/state";
 import { projectPublicState } from "../../gameProjections";
-import { excludeHandWritten } from "../compiledCatalogue";
+import {
+    assertNoHandWrittenCollision,
+    compiledReadyDefinitions,
+} from "../compiledCatalogue";
+import { getAllCards } from "../catalogue";
 import type { CardDefinition } from "../types";
 import { makeInstance, makePlayer, makeState } from "./setup";
 
@@ -128,23 +132,43 @@ describe("compiled card id scheme (ADR 0108, issue #2702)", () => {
     });
 });
 
-describe("excludeHandWritten (hand-written-always-wins backstop, ADR 0108)", () => {
+describe("assertNoHandWrittenCollision (the collision is resolved at BUILD, ADR 0114 §2)", () => {
     const stub = (id: string, name: string): CardDefinition =>
         ({ id, name, rarity: "common", types: ["Creature"] }) as CardDefinition;
 
-    it("drops a compiled definition whose id a hand-written card already claims", () => {
-        const compiled = [
-            stub("shared-id", "Compiled Twin"),
-            stub("only-compiled", "Only Compiled"),
-        ];
-        const handWrittenIds = new Set(["shared-id"]);
-        const kept = excludeHandWritten(compiled, handWrittenIds);
-        expect(kept.map((c) => c.id)).toEqual(["only-compiled"]);
+    it("passes the pool through untouched when no id collides", () => {
+        const compiled = [stub("a", "A"), stub("b", "B")];
+        expect(
+            assertNoHandWrittenCollision(compiled, new Set(["unrelated"]))
+        ).toEqual(compiled);
     });
 
-    it("keeps every compiled definition when there is no id collision", () => {
-        const compiled = [stub("a", "A"), stub("b", "B")];
-        const kept = excludeHandWritten(compiled, new Set(["unrelated"]));
-        expect(kept).toHaveLength(2);
+    it("throws and NAMES the card when a compiled row claims a hand-written id", () => {
+        // The old `excludeHandWritten` dropped this row silently. It cannot
+        // stay silent: `preloadDefinitions` is last-write-wins and compiled
+        // rows are registered AFTER `allCards`, so a filter that stopped
+        // filtering would let the compiled row overwrite the definition the
+        // engine runs — the one failure this seam exists to prevent.
+        expect(() =>
+            assertNoHandWrittenCollision(
+                [
+                    stub("shared-id", "Compiled Twin"),
+                    stub("only-compiled", "Only Compiled"),
+                ],
+                new Set(["shared-id"])
+            )
+        ).toThrow(/Compiled Twin \(shared-id\)/);
+    });
+
+    it("never fires on the REAL pool — the assertion the build makes true", () => {
+        // The vacuity guard for the two unit cases above, and the live
+        // statement of ADR 0114 §2's claim: on a regenerated tree the two
+        // populations are disjoint, which is what makes throwing affordable.
+        expect(() =>
+            assertNoHandWrittenCollision(
+                compiledReadyDefinitions,
+                new Set(getAllCards().map((c) => c.id))
+            )
+        ).not.toThrow();
     });
 });

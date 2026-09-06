@@ -167,7 +167,7 @@ import {
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import {
     compiledReadyDefinitions,
-    excludeHandWritten,
+    assertNoHandWrittenCollision,
 } from "./compiledCatalogue";
 
 function isCardPrint(value: unknown): value is CardPrint {
@@ -381,16 +381,17 @@ for (const print of allPrints) {
     registerPrintAlias(print.printId, print.definitionId);
 }
 
-// Compiled-card hydration (issue #2702). `scripts/oracle-pool.ts` already
-// excludes an oracle id that ALSO has a hand-written entry in
-// `data/card-index.json` — this is the runtime backstop against the same
-// collision for a hand-written card added since the pool was last
-// regenerated (a fresher `allCards` than the pool's join saw): a hand-written
-// `CardDefinition` for a given print id is ALWAYS authoritative (PRD #2693
-// "gold as oracle"), so a compiled row is simply dropped, never allowed to
-// overwrite it via `preloadDefinitions`' set-wins-last-write semantics.
+// Compiled-card hydration (issue #2702). The collision between a compiled row
+// and a hand-written definition for the same print id is resolved at BUILD
+// (ADR 0114 §2, issue #3052) — `scripts/oracle-pool.ts` excludes a
+// hand-written oracle id at generation and `scripts/catalogue-artifact.ts`
+// merges the two populations into one artifact — so nothing is filtered here.
+// What remains is the assertion that the build did its job: a stale pool is a
+// loud stop, not a silent drop, because `preloadDefinitions` is
+// last-write-wins and a dropped row would OVERWRITE the hand-written
+// definition the engine is meant to run.
 const handWrittenIds = new Set(allCards.map((c) => c.id));
-const compiledToRegister = excludeHandWritten(
+const compiledToRegister = assertNoHandWrittenCollision(
     compiledReadyDefinitions,
     handWrittenIds
 );
@@ -437,6 +438,18 @@ export const getAllCards = (): CardDefinition[] => {
         expandedAllCards = allCards.map((c) => getDefinition(c.id));
     return expandedAllCards;
 };
+
+/** The hand-written definitions exactly as their set modules declare them —
+ *  UNEXPANDED, unlike {@link getAllCards}.
+ *
+ *  The catalogue artifact generator (`scripts/catalogue-artifact.ts`, ADR 0113
+ *  §2 / ADR 0114 §2) relocates these verbatim, and it needs the raw form for
+ *  the same reason `convex/oracle/gold.ts`'s `TwinResult` documents: a
+ *  relocated row is handed back to `preloadDefinitions`, which expands on
+ *  read, and expanding an already-expanded definition injects an implicit
+ *  keyword's triggers a second time. Relocation is a MOVE of the module's own
+ *  bytes; expansion is the registry's job on the far side. */
+export const getAllRawCards = (): readonly CardDefinition[] => allCards;
 
 /** A single printing of a card: its image-key print id and the set it was
  *  printed in. */

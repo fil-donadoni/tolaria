@@ -63,3 +63,10 @@ data/oracle-compiled-pool.json
 # collapse the empty-array form, and the script's own output would then never
 # reproduce the committed bytes.
 data/oracle-retirements.json
+
+# The merged catalogue artifact (issue #3052, ADR 0114 §2) — minified and
+# content-addressed by `scripts/catalogue-artifact.ts`. Same rationale as
+# `data/oracle-compiled-pool.json` above: prettier would rewrite the committed
+# bytes on every `bun run format`, so `catalogue:pack` would no longer
+# reproduce what is on disk and the file name would stop matching its content.
+data/catalogue/
