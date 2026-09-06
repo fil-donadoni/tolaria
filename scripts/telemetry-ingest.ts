@@ -31,6 +31,7 @@ import {
     costOf,
     dayHour,
     issueFromDescription,
+    issueFromSessionCommand,
     normalizeModel,
 } from "./lib/telemetry-db.ts";
 import {
@@ -715,12 +716,50 @@ function attributeIssues(db: Sqlite): number {
  */
 function refreshIssueMeta(db: Sqlite): number {
     const now = Math.floor(Date.now() / 1000);
+    // Two sources of issue numbers, not one. `agent_runs.issue` is the subagent
+    // side, and under ADR 0110 there is barely a subagent left to read: the
+    // issue a session worked now lives in its opening slash command, and 87% of
+    // the cost is main-thread. Fetching only the agent_runs side left the
+    // per-issue budget report (issue #3080) unable to say whether an issue was
+    // even closed — 20 of 57 `/next-issue` issues had a row. Session-named
+    // issues are stubbed with a NULL state so the fetch loop below claims them;
+    // a number that turns out not to be an issue is stamped 'unknown' by the
+    // 404 branch and stops eating fetch slots, exactly as a misread PR ref does.
+    const stub = db.prepare(
+        `INSERT INTO issue_meta (issue, title, family, state, closed_at, fetched)
+         VALUES (?, NULL, NULL, NULL, NULL, 0)
+         ON CONFLICT(issue) DO NOTHING`
+    );
+    db.transaction(() => {
+        for (const { cmd } of db
+            .query<
+                { cmd: string | null },
+                []
+            >("SELECT DISTINCT cmd FROM sessions WHERE cmd IS NOT NULL")
+            .all()) {
+            const issue = issueFromSessionCommand(cmd);
+            if (issue !== null) stub.run(issue);
+        }
+    })();
+
     const wanted = db
         .query<{ issue: number }, [number]>(
-            `SELECT DISTINCT r.issue FROM agent_runs r
-             LEFT JOIN issue_meta m ON m.issue = r.issue
-             WHERE r.issue IS NOT NULL
-               AND (m.issue IS NULL OR (m.state = 'open' AND m.fetched < ?))
+            `SELECT DISTINCT src.issue AS issue FROM (
+                 SELECT r.issue AS issue FROM agent_runs r WHERE r.issue IS NOT NULL
+                 UNION
+                 SELECT m0.issue AS issue FROM issue_meta m0
+             ) src
+             LEFT JOIN issue_meta m ON m.issue = src.issue
+             WHERE m.issue IS NULL
+                OR m.state IS NULL
+                OR (m.state = 'open' AND m.fetched < ?)
+             -- Session-sourced stubs now share this 60-per-run cap with the
+             -- agent_runs side, and an unordered LIMIT would pick an arbitrary
+             -- 60 of them each run — a real open issue's state refresh could be
+             -- crowded out indefinitely by whichever rows the planner happened
+             -- to reach. Newest first: a report is about recent work, and the
+             -- order is at least deterministic.
+             ORDER BY src.issue DESC
              LIMIT 60`
         )
         .all(now - 6 * 3600);

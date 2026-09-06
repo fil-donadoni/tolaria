@@ -37,8 +37,8 @@ Three structural findings:
 
 The user's target: **a median issue closes in 10-15 minutes for <0.5% of the
 weekly budget** — the rate every other project on this machine gets from
-plain single-session work. **The latency half of that target was measured in
-issue #3079 and does not hold** — see Consequences.
+plain single-session work. **Both halves have since been measured and neither
+holds**: latency in issue #3079, cost share in issue #3080 — see Consequences.
 
 ## Decision
 
@@ -78,8 +78,10 @@ issue #3079 and does not hold** — see Consequences.
 ## Consequences
 
 - Projected cost per median issue: ~$45-65 API-equivalent (sonnet implement
-  ~$24-34, one routed review ~$5-19, no orchestration) — inside the 0.5%
-  target; wall-clock bounded by implement + lane gate, not by train position.
+  ~$24-34, one routed review ~$5-19, no orchestration); wall-clock bounded by
+  implement + lane gate, not by train position. **The list-price half of that
+  projection held and the "inside the 0.5% target" claim did not** — see the
+  cost-share consequence below.
 - `/process-gh-issues` and its fan-out machinery are legacy: kept working for
   the transition, scheduled for removal once `/next-issue` has drained real
   issues for a while. Receipts, claims-cross-checking and the merge-train
@@ -93,8 +95,25 @@ issue #3079 and does not hold** — see Consequences.
   target this ADR carries from now on is **60 minutes median wall**, which
   halving the gate block and removing median idle would buy; the standing
   measurement is `bun run telemetry:latency` and the baseline is committed in
-  `docs/agents/quality-gates.md` § Latency per issue. The cost half of the
-  target is unaffected.
+  `docs/agents/quality-gates.md` § Latency per issue.
+- **Cost share, measured (issue #3080).** The `<0.5% of the weekly budget`
+  half had never been checked either, and could not be: telemetry priced
+  everything in API list-price dollars, and no allowance had a value, so the
+  target had no denominator — the same failure as the incident it was written
+  for, where the guard reported `pct=n/a` and 91% of a week went unseen in
+  48h. `bun run telemetry:budget` now reports consumption as a share of a
+  declared weekly allowance (absent ⇒ "share unavailable", never a percentage),
+  per issue as median/p90/max. Over 2026-08-28 → 2026-09-05, 49 closed
+  `/next-issue` issues: **0.70-0.98% of the weekly allowance at the median**
+  across the two defensible calibrations of that incident — 1.4x to 2.0x the
+  target, with p90 1.5-2.1% and max 2.1-2.9%. A 0.5% median needs an allowance
+  of at least 2.12G units, which would put the incident's measured 48h at 46%
+  of a week against the 91% on record. The lever is not the gate but context
+  growth (issue #3078): flattening the back-half premium entirely reaches
+  0.55-0.77%. The target this ADR carries from now on is **0.75% median per
+  issue**; the standing measurement is `bun run telemetry:budget` and the
+  baseline, the calibration and its arithmetic are committed in
+  `docs/agents/quality-gates.md` § Budget share per issue.
 - The defect classes reviews caught most get structural answers instead of
   opus time: shared-state pollution → the frozen catalogue
   (vitest.setup.node.ts, #2871); vacuous tests → a mechanized

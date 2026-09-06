@@ -700,3 +700,203 @@ Re-run the command over a later window to say whether that held. Note what the
 `idle` column is NOT saying: its p90 of 300m is real, but it is the abandoned
 long tail, not the median issue — which is exactly why this is reported as a
 distribution and not as the mean the issue was first argued from.
+
+## Budget share per issue — the measurement, and what it does to ADR 0110's target
+
+ADR 0110 carries a second target nobody could check: **"an issue costs under
+0.5% of the weekly budget"**. The latency half was measured in issue #3079. This
+half had no denominator at all. Every figure the telemetry layer produced was an
+API **list-price equivalent** — what the same tokens would have cost at
+published rates — and the work is not bought that way, so "$140 for an issue"
+said nothing about whether the issue ran away.
+
+That is the same failure as the incident the target was written for. On
+2026-08-25→27 roughly 91% of a weekly allowance went in 48 hours and nobody saw
+it coming, because the driver's budget guard logged `pct=n/a` on every pass: no
+budget was configured, so the percentage was missing (ADR 0109). A target with
+no denominator is not a loose target; it is not a measurement.
+
+**`bun run telemetry:budget`** is what makes the share visible:
+
+```bash
+bun run telemetry:budget                                   # last 7 days
+bun run telemetry:budget --allowance 1.08G                 # with a denominator
+bun run telemetry:budget --from 2026-08-28 --to 2026-09-05
+bun run telemetry:budget --issues 15                       # the costliest issues
+bun run telemetry:budget --json
+```
+
+It reads the same SQLite mirror `telemetry:context` and `telemetry:latency` do
+(`bun run telemetry:ingest` fills it) from the primary checkout, so it works
+unchanged from inside a worktree.
+
+### Two currencies, and why the report never blends them
+
+| Figure              | Unit                                                       | Divides into an allowance?         |
+| ------------------- | ---------------------------------------------------------- | ---------------------------------- |
+| **list price**      | USD at published API rates (`costOf`)                      | No — nothing is denominated in USD |
+| **allowance units** | weighted tokens, 1 unit = 1 Sonnet input token (`unitsOf`) | Yes                                |
+
+On Claude rows the two are **proportional by construction**: the weight table in
+`scripts/lib/usage-window.ts` is list price divided by three, anchored at Sonnet
+input, so Opus output is 25/3 = 8.33 units — exactly its 25x dollar ratio.
+Dividing either gives the same share. The complaint issue #3080 makes is not
+that list price weights the models wrongly; it is that **it has no denominator.**
+
+That proportionality is a property of today's table and not a guarantee, and the
+store already breaks it: a DeepSeek row (the opencode harness contributes ~4.5k
+of them) has real list-price dollars and **exactly zero** allowance units,
+because it draws on no Claude allowance. So both are reported, every column is
+labelled with its currency, and non-Claude volume is shown on its own line
+rather than folded in or dropped.
+
+### The allowance is declared, never read, and its absence is not a zero
+
+There is no supported way to read the real Anthropic quota — no subcommand,
+nothing in the config or cache files, `/usage` interactive-only (ADR 0097). So
+the weekly allowance is a value the USER declares, in the same unit the AFK
+driver's budget guard already uses:
+
+```bash
+export TOLARIA_WEEKLY_ALLOWANCE=1.08G     # or --allowance 1.08G
+```
+
+**Unset, every share reads `n/a` and the target reads `UNEVALUATED`.** Nothing
+in the repo carries a default weekly figure, and nothing should: a committed
+number that looks like a measurement and is a guess is this issue's own bug one
+layer down. An unparsable value is refused with a message rather than silently
+treated as absent — it is a typo in the only number every percentage divides by.
+
+It shares the unit with `TOLARIA_LOOP_TOKEN_BUDGET` and is deliberately a
+different value: that one budgets a rolling few-hour window, this one a week.
+Sharing the unit is what lets the two be compared; sharing the value would be
+wrong.
+
+### The calibration — where 1.08G comes from
+
+No allowance reading exists, so the denominator is calibrated from the one
+event that recorded a percentage: the incident. ADR 0109 puts **~91% of the
+weekly allowance in the 48h of 2026-08-25→27**. Measured over the same days,
+this project consumed **981.7M units**, so:
+
+| Reading of "91% in 48h"             | Consumption | ⇒ allowance |
+| ----------------------------------- | ----------: | ----------: |
+| A — the 48h itself was the 91%      |      981.7M |   **1.08G** |
+| B — the rolling week it was read in |     1368.5M |   **1.50G** |
+
+Both are lower bounds on the true allowance, and in the same direction: the
+mirror covers THIS project only, so any work elsewhere on the account means the
+measured burn was less than 91% and the allowance is larger. **A larger
+allowance makes every share below smaller**, so the figures are upper bounds —
+conservative in the alarming direction, which is the error worth making.
+
+The account-wide reader is `bun run usage:window`, which walks every project's
+transcripts and shares this unit. A real `/usage` reading, taken deliberately at
+a known point, would replace this calibration outright — that is the right way
+to improve this number, not a better-tuned guess.
+
+### The committed baseline — 2026-08-28 → 2026-09-05, calibration A
+
+```
+budget share per issue — 2026-08-28 → 2026-09-05 (9d)
+
+  weekly allowance 1.08G units, declared via --allowance
+  (a USER-DECLARED figure, not a quota reading — no supported way to read the real one exists)
+
+  window consumption
+    allowance units               803.6M  = 74.48% of one week's allowance, over a 9d window
+      attributed to an issue      629.2M  (78% of the window)
+    list price                     $2408  API-equivalent — NOT a share of anything
+    non-Claude models                $14  list price only — draws on no Claude allowance
+
+  closed issues run by /next-issue (the ADR 0110 target's population) — 49 issues
+    per issue                     median       p90       max
+    allowance units                10.6M     22.2M     31.1M
+    share of weekly allowance      0.98%     2.06%     2.88%
+    list price (not a share)         $32       $66       $93
+    ADR 0110 target — under 0.5% of the week per issue: NOT MET (median 0.98%)
+
+  all issues run by /next-issue — 51 issues
+    per issue                     median       p90       max
+    allowance units                10.2M     21.5M     31.1M
+    share of weekly allowance      0.95%     1.99%     2.88%
+    list price (not a share)         $31       $64       $93
+    ADR 0110 target — under 0.5% of the week per issue: NOT MET (median 0.95%)
+
+  all attributed issues in window — 65 issues
+    per issue                     median       p90       max
+    allowance units                 8.0M     21.4M     31.1M
+    share of weekly allowance      0.74%     1.98%     2.88%
+    list price (not a share)         $24       $64       $93
+    ADR 0110 target — under 0.5% of the week per issue: NOT MET (median 0.74%)
+```
+
+### How to read it
+
+**Attribution runs at SESSION level, not from `agent_runs`.** Under ADR 0110 a
+session IS an issue, and 87% of the cost is main-thread ($2093 main vs $314
+subagent over this window). `agent_runs.issue` — what the dashboard's issue
+table has always used — sees only the subagent remainder and would report an
+eighth of an issue's cost as its cost. A session is attributed when its opening
+slash command names exactly ONE issue; naming several is the legacy
+`/process-gh-issues` batch shape, where no split between them is recoverable, so
+those sessions stay unattributed rather than being charged whole to whichever
+number came first. That reaches 78% of the window's units, and the report prints
+the coverage so the gap is never invisible.
+
+**median / p90 / max, and max rather than mean on purpose.** The failure mode is
+the runaway tail — under the orchestrator a single issue reached $1095 against a
+$59 median — and a mean both hides that and is dragged by it. Each row is its
+own statistic over the cohort, so the rows do not add up, for the same reason
+the latency components do not.
+
+**`closed issues run by /next-issue` is the cohort the target speaks about.**
+The wider cohorts are printed so a reader can see whether the headline is an
+artifact of the narrow one. Here it is not: all three land between 0.74% and
+0.98%.
+
+Issue state comes from `issue_meta`, which `telemetry:ingest` now fills from
+session commands as well as from subagent descriptions — before that widening
+only 20 of 57 `/next-issue` issues had a row at all, and the closed cohort was
+14 issues instead of 49.
+
+### The target, restated against the measurement
+
+**0.5% is not met, by a factor of 1.4x to 2.0x, and it is not reachable by any
+change named so far.** The median closed `/next-issue` issue:
+
+| Calibration                        | Median share | vs the 0.5% target |
+| ---------------------------------- | -----------: | -----------------: |
+| A — allowance 1.08G (conservative) |    **0.98%** |               2.0x |
+| B — allowance 1.50G (generous)     |    **0.70%** |               1.4x |
+
+Nothing in the range reaches it, and the range cannot be widened into it:
+**a 0.5% median needs an allowance of at least 2.12G units, which would put the
+incident's measured 48h at 46% of a week against the 91% on record.**
+
+The lever the measurement names is not the gate. Per-issue consumption is
+dominated by main-thread turns, and § Context hygiene above measures why they
+cost what they do: a turn cost 2.5x more at 353k of context than at 93k, and the
+back half of a session burned 62% of main-thread spend for 50% of its turns.
+Flatten that premium entirely — every turn in the back half costing what a
+front-half turn costs — and main-thread spend falls to 76% of today's, total
+per-issue consumption to 79%:
+
+- calibration A: 0.98% → **0.77%**
+- calibration B: 0.70% → **0.55%**
+
+So the target this ADR carries from now on is the measured-supported pair:
+
+- **Today: 0.7-1.0% of the weekly allowance for a median closed `/next-issue`
+  issue**, p90 1.5-2.1%, max 2.1-2.9%.
+- **Target: 0.75% median**, which flattening the context premium buys under the
+  conservative calibration. Below that needs a change to what a session DOES —
+  fewer turns, not cheaper ones — exactly as the latency finding concluded about
+  the gate.
+
+Re-run `bun run telemetry:budget --allowance <units>` over a later window to say
+whether that held. Note what the window total is NOT saying: 803.6M is **nine**
+days against a weekly allowance, so the comparable steady-state rate is the last
+seven days — 58% of the allowance under calibration A, 42% under B. That is a
+steady state, not an incident; the incident is the 981.7M in 48h this whole
+denominator is derived from.
