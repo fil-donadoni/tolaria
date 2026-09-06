@@ -1,32 +1,46 @@
 #!/usr/bin/env bun
 /**
  * `bun run check:bundle` — real `vite build`, THEN a size budget on the two
- * chunks the compiled-card pool JSON import (issue #2702) lands in.
+ * client chunks the card catalogue used to be imported into.
  *
- * Round-1 review of #2702 measured an undisclosed, unguarded client cost:
- * `src/main.tsx` eagerly imports `@convex/cards/catalogue`, which (via
- * `convex/cards/compiledCatalogue.ts`) imports `data/oracle-compiled-pool.json`
- * at module load — paid on every cold load, in BOTH the main app bundle
- * (`card-catalogue` chunk, `vite.config.ts`'s `manualChunks`) and the
- * separate Web Worker bundle (`brain.worker`, `src/lib/ai/brain-client.ts`),
- * since a Worker gets its own module graph. Measured at #2702 round 2's
- * landing (gzip): card-catalogue 533,558 B, brain.worker 682,833 B — +97 KB
- * gzip each over the pre-#2702 baseline, identical deltas because it is the
- * SAME JSON duplicated into both graphs.
+ * HISTORY, because the budgets only make sense with it. Round-1 review of
+ * issue #2702 measured an undisclosed, unguarded client cost: `src/main.tsx`
+ * eagerly imports `@convex/cards/catalogue`, which imported
+ * `data/oracle-compiled-pool.json` at module load — paid on every cold load,
+ * in BOTH the main app bundle (`card-catalogue` chunk, `vite.config.ts`'s
+ * `manualChunks`) and the separate Web Worker bundle (`brain.worker`,
+ * `src/lib/ai/brain-client.ts`), since a Worker gets its own module graph.
+ * Measured at #2702 round 2's landing (gzip): card-catalogue 533,558 B,
+ * brain.worker 682,833 B — +97 KB gzip each over the pre-#2702 baseline,
+ * identical deltas because it was the SAME JSON duplicated into both graphs.
+ *
+ * Issue #3053 removed the import (ADR 0113 §2/§3). The client FETCHES the
+ * merged, content-addressed artifact at the loading gate instead, so both
+ * chunks are back to carrying code only. Re-measured immediately after that
+ * change, on the same `vite build` this script runs (gzip, `zlib.gzipSync`
+ * defaults): **card-catalogue 440,553 B, brain.worker 610,101 B** — the pool
+ * gone from both, each chunk within a few KB of its pre-#2702 baseline plus
+ * the app/bot code that has landed since.
+ *
+ * SO THESE BUDGETS NOW GUARD RE-ENTRY, not growth. ~10% headroom over the
+ * measured post-#3053 numbers, which is deliberately tighter than the
+ * ~15-20% the eager-import era carried: re-adding the pool to either graph is
+ * +99 KB gzip and therefore a red on both rows, which is exactly the accident
+ * worth catching — an innocent-looking `import` of a `convex/` module that
+ * pulls `./compiledPool` back in past the Vite alias
+ * (`scripts/__tests__/compiled-pool-client-seam.test.ts` guards the alias's
+ * premise; this guards its EFFECT, in the bundler that ships).
+ *
+ * The SERVED artifact has its own budget —
+ * `scripts/__tests__/catalogue-artifact-size.test.ts` — and the server bundle
+ * a third (`bun run check:convex-bundle`, ADR 0113 § Amendment). Three
+ * numbers, three different costs; none of them is a proxy for another any
+ * more.
  *
  * `check:bundle` used to be a bare `vite build` with no assertion — nothing
- * caught this. This script keeps the exact same build (still fails loudly on
- * a build error, still the resolver-purity guard #2530 needs — see
- * `scripts/__tests__/client-bundle-lane.test.ts`) and adds a budget on the
- * two chunks this artifact can grow, so the NEXT undisclosed cost is a red,
- * not silence.
- *
- * The eager import itself is a deliberate, disclosed trade-off (PR #2838
- * round 2): the GRE, the client-side Brain and the Draft Lab all call
- * `getDefinition`/`tryGetDefinition` (ADR 0046) SYNCHRONOUSLY, on both server
- * and client — an async/lazy load would leave a real window where a compiled
- * card resolves as unknown mid-game, which is a correctness bug, not just a
- * perf one. Budgeted here instead of redesigned.
+ * caught the #2702 cost. This script keeps the exact same build (still fails
+ * loudly on a build error, still the resolver-purity guard #2530 needs — see
+ * `scripts/__tests__/client-bundle-lane.test.ts`) and adds the budget.
  */
 import { execSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
@@ -39,15 +53,17 @@ const DIST_ASSETS = join(ROOT, "dist", "assets");
 interface Budget {
     /** Chunk filename prefix (hash suffix varies per build). */
     prefix: string;
-    /** gzip bytes. ~15-20% headroom over the measured baseline at landing —
-     *  past this, the eager import's cost has grown enough to revisit
-     *  whether it should stay eager, not just re-raise the number. */
+    /** gzip bytes. ~10% headroom over the post-#3053 measurement in this
+     *  file's header — past this, either the chunk's own code has grown a
+     *  lot, or card data has come back into a client graph. */
     gzipBudgetBytes: number;
 }
 
 const BUDGETS: Budget[] = [
-    { prefix: "card-catalogue-", gzipBudgetBytes: 620_000 },
-    { prefix: "brain.worker-", gzipBudgetBytes: 790_000 },
+    // measured 440,553 B (issue #3053)
+    { prefix: "card-catalogue-", gzipBudgetBytes: 490_000 },
+    // measured 610,101 B (issue #3053)
+    { prefix: "brain.worker-", gzipBudgetBytes: 675_000 },
 ];
 
 function findChunk(prefix: string): string | null {

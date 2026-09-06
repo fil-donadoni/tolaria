@@ -187,6 +187,9 @@ vi.mock("~/lib/ai/brain-client", () => ({
               })
             : Promise.resolve(brainResult),
     disposeBrain: () => {},
+    // Spawns the Worker early so its catalogue fetch is not charged to the
+    // first consult (issue #3053); a no-op here, where consults are stubbed.
+    warmBrain: () => {},
 }));
 
 // The stub. `importOriginal` keeps every OTHER export real — the escalation

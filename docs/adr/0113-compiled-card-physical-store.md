@@ -261,6 +261,17 @@ duplicates; it never reaches 100%, and is not meant to.
   measured at 34,890 rows, plausibly 45–60 MB once complex cards compile. If
   that ceiling is ever reached, the fallback is a per-slice store — and
   re-introducing the second state this ADR spent 30 MB to avoid.
+- **Those heap figures are PER GRAPH, and a game screen has two.** The Brain's
+  Web Worker has its own module registry, so it fetches, parses and holds its
+  own copy: resident heap while a bot game is open is ~2x the row above —
+  ~3.2 MB today, ~60 MB at 34,890 rows, 90–120 MB at the fully-compiled
+  estimate, i.e. past the ceiling this ADR names as the end of the
+  whole-corpus design. The duplication is not new (the bundled pool was in
+  both graphs too, which is exactly why issue #2702 budgeted two chunks), but
+  it is what the fetch inherits, and the alternative — the main thread handing
+  the parsed rows to the Worker over `postMessage` — costs a structured clone
+  of the whole corpus per Worker and was not measured. Recorded here so the
+  45–60 MB trigger is read against the right number (issue #3053).
 - **The served asset must be minified.** `data/oracle-compiled-pool.json` is
   859 B/row as committed against 347 B/row for the raw definitions: roughly
   60% of the committed file is prettier whitespace.

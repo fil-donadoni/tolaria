@@ -36,6 +36,31 @@ export default defineConfig({
                 find: "@convex",
                 replacement: path.resolve(__dirname, "convex"),
             },
+            // ADR 0113 §2, issue #3053 — the asymmetric delivery of the card
+            // catalogue. `convex/cards/compiledPool.ts` imports
+            // `data/oracle-compiled-pool.json` at module load, which is right
+            // on the SERVER (a Convex mutation cannot fetch) and wrong in a
+            // browser: it landed the same ~1.6 MB of card data in BOTH the
+            // `card-catalogue` chunk and the `brain.worker` bundle, on every
+            // cold load. Swapping the module for an empty array here takes it
+            // out of both graphs — `resolve` is shared with the worker build,
+            // unlike `plugins` — and the client fetches the merged,
+            // content-addressed artifact instead
+            // (`src/lib/catalogueArtifact.ts`).
+            //
+            // The `find` matches the RELATIVE specifier because that is what
+            // `convex/cards/catalogue.ts` writes (a `convex/` module cannot
+            // use the `@convex` alias — the Convex bundler does not know it).
+            // So the alias is only sound while that file is the module's one
+            // importer, which is pinned by
+            // `scripts/__tests__/compiled-pool-client-seam.test.ts`.
+            {
+                find: /^\.\/compiledPool$/,
+                replacement: path.resolve(
+                    __dirname,
+                    "src/lib/catalogue/compiled-pool.browser.ts"
+                ),
+            },
         ],
     },
     build: {

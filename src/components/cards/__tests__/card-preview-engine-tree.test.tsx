@@ -11,7 +11,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { getCardByName, tryGetDefinition } from "@convex/cards";
-import { compiledReadyDefinitions } from "@convex/cards/compiledCatalogue";
+import { compiledReadyDefinitions } from "@convex/cards/compiledPool";
 import CardPreviewEngineTree from "../card-preview-engine-tree";
 import { buildEngineViewTree } from "~/lib/engine-view-tree";
 import type { CardDefinition } from "@convex/cards/types";

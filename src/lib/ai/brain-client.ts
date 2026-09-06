@@ -58,7 +58,13 @@ type Pending = (result: BrainResult) => void;
  *  and BELOW `BOT_WATCHDOG_MS`, so a wedged consult settles in time for the
  *  watchdog's first deadline to escalate rather than to find a still-in-flight
  *  dispatch. `brain-client-timeout.bot.test.ts` asserts both relations against
- *  the real constants. */
+ *  the real constants.
+ *
+ *  Those relations only bound the CONSULT. Since issue #3053 the Worker also
+ *  fetches the card catalogue in its own graph before its first answer, and
+ *  that is deliberately kept OUT of this budget by {@link warmBrain}, which
+ *  `useVsAiDriver` calls on mount. Without it the first consult on a cold
+ *  cache would be a ~1.4 MB download plus a 3,000 ms search inside 5,000 ms. */
 export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
 
 let worker: Worker | null = null;
@@ -99,6 +105,28 @@ function getWorker(): Worker | null {
         }
     };
     return worker;
+}
+
+/**
+ * Spawn the Worker now, so its own catalogue hydration is NOT charged to the
+ * first consult (issue #3053).
+ *
+ * Since ADR 0113 §3 the Worker fetches the card catalogue in its own module
+ * graph before it answers anything. `getWorker()` is lazy and was first
+ * called from inside `consultBrain`, which put that fetch inside
+ * {@link BRAIN_CONSULT_TIMEOUT_MS} together with the hardest search budget
+ * (3,000 ms) — a cold HTTP cache would spend the first consult on the
+ * download and settle it as `outcome: "timeout"`, i.e. the bot passing its
+ * first window, while the constant's own comment still claimed it sat
+ * "comfortably ABOVE the hardest search budget".
+ *
+ * Called on mount by `useVsAiDriver` whenever there is a bot seat, so the
+ * Worker's fetch overlaps the game's own setup — and normally hits the
+ * browser cache the main thread's gate already filled from the same
+ * `immutable` URL. Idempotent; safe where `Worker` is undefined.
+ */
+export function warmBrain(): void {
+    getWorker();
 }
 
 /** Ask the Brain to choose a move for `botId` from its projected `state`. The

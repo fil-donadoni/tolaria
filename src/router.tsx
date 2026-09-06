@@ -31,19 +31,30 @@ import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
 import AdminBugReportsRoute from "./routes/admin/admin-bug-reports.route";
 import AppShell from "./components/chrome/app-shell";
+import CatalogueGate from "./components/ui/catalogue-gate";
 import UserPreferencesEffect from "./components/settings/user-preferences-effect";
 import NotFoundPage from "./components/ui/not-found-page";
 import OfflineBanner from "./components/ui/offline-banner";
 
-// Root: auth first, then the shell, which mounts the shared header on every
-// route except the fullscreen board. `AppShell` owns the `Outlet`.
+// Root: auth first, then the card catalogue, then the shell, which mounts the
+// shared header on every route except the fullscreen board. `AppShell` owns
+// the `Outlet`.
+//
+// `CatalogueGate` sits ABOVE the shell on purpose (ADR 0113 §1/§3, issue
+// #3053). The card definitions are fetched, not bundled, and
+// `getDefinition`/`tryGetDefinition` stay SYNCHRONOUS — which is only sound if
+// nothing that reads the registry has rendered yet. Wrapping the whole tree,
+// rather than each surface that happens to read a card, is what makes that
+// structural instead of a convention nobody can check.
 const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
-            <UserPreferencesEffect />
-            <AppShell />
-            <BugReportButton />
-            <OfflineBanner />
+            <CatalogueGate>
+                <UserPreferencesEffect />
+                <AppShell />
+                <BugReportButton />
+                <OfflineBanner />
+            </CatalogueGate>
         </AuthGate>
     ),
 });
