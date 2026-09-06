@@ -295,8 +295,15 @@ export function classifyRole(tool: string | null, desc: string | null): string {
 
 const FULL_GATE =
     /\b(bun run test|bun run check:all|TOLARIA_ALLOW_FULL_SUITE)\b/;
-const CHECK_GATE = /\bbun run check:(pr|guards|ts|index|stubs)\b/;
-const PARTIAL_TEST = /\b(vitest run|bun run test:(app|bot)|eslint|prettier)\b/;
+// `check:lane` is the DEFAULT pre-PR path since #2738 and `land` runs it under
+// the machine mutex before merging; both were bucketed as plain `bun` until
+// issue #3079, which put the two single largest commands by wall time
+// (334 min and 270 min over the 2026-08-28 baseline) outside the gate bucket
+// entirely. `health:main` is the post-merge full gate ADR 0110 detached.
+const CHECK_GATE =
+    /\bbun run (check:(pr|guards|ts|index|stubs|lane|ui|docs)|land|health:main|docs:ship)\b/;
+const PARTIAL_TEST =
+    /\b(vitest run|bun run (test:(app|bot)|build)|tsc -b|eslint|prettier)\b/;
 
 /** Span kind — the closest thing the raw telemetry has to a workflow stage. */
 export function classifyKind(tool: string | null, cmd: string | null): string {

@@ -65,6 +65,7 @@
         "telemetry:context": "bun scripts/telemetry-context.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
         "telemetry:ingest": "bun scripts/telemetry-ingest.ts",
+        "telemetry:latency": "bun scripts/telemetry-latency.ts",
         "test": "bun scripts/gate.ts heavy 'bun run test:app && bun run test:bot && bun run test:blade'",
         "test:app": "bun scripts/gate.ts heavy 'vitest run --project node --project dom'",
         "test:blade": "BLADE_TIER=must vitest run --config vitest.blade.config.ts",
