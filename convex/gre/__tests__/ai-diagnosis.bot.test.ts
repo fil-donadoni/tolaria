@@ -64,10 +64,33 @@ const SEED = 0xc0ffee;
  *  measure ~15s uncontended on a warm cache, so a 30s ceiling left under 2x
  *  headroom and went red purely on machine load — measured at 14.7s on `main`
  *  vs 15.0s on the branch that first tripped it, i.e. no regression, just a
- *  slow box. 60s keeps a genuine-hang guard (4x the observed cost) without
- *  turning CPU contention into a false failure. NOTE: this raises a wall-clock
- *  ceiling ONLY — every episode's `expect` on the chosen move is unchanged. */
-const DIAGNOSIS_TIMEOUT_MS = 60_000;
+ *  slow box. NOTE: this raises a wall-clock ceiling ONLY — every episode's
+ *  `expect` on the chosen move is unchanged.
+ *
+ *  60s WAS STILL A LOAD SENSOR (issue #2927's finding, acted on here). Four
+ *  sessions share this machine by design (CLAUDE.md § CPU admission control),
+ *  and `health:main` holds the HEAVY mutex only — every other session's light
+ *  lane keeps burning CPU beside it. Under that contention the episodes cost
+ *  several times their uncontended figure, and the ceiling decided the verdict
+ *  instead of the code:
+ *
+ *    uncontended, warm cache              ~15s   (the figure above)
+ *    load ~11, another session landing     51s   (episode #12, alone, PASS)
+ *    load ~8, whole file in parallel       76s   FAIL — choice correct at
+ *                                                every budget in the printout
+ *    load ~14, `-t "episode #12"`          92s   FAIL — on `main`'s own code
+ *    health:main on de77aa04d              >60s  FAIL — RED marker on a tip
+ *                                                whose blade suite was green
+ *
+ *  The last row is the cost: a durable RED on `main` that means "the machine
+ *  was busy", which the green-main invariant (ADR 0110) then makes every other
+ *  session stop and investigate. The ceiling exists to catch a HANG, and a
+ *  hang is unbounded — so size it against the worst CONTENDED measurement, not
+ *  the uncontended one. 300s is 20x uncontended and 3x the worst observed
+ *  false red, while an actually-hung search still fails the run. The search
+ *  budget itself remains iterations-only (the rungs below), so nothing here
+ *  makes a VERDICT wall-clock dependent — only how long we wait for it. */
+const DIAGNOSIS_TIMEOUT_MS = 300_000;
 
 /** Run `searchWithTrace` at every budget rung and print a compact table. Returns
  *  the trace from the LARGEST budget (the most-resolved verdict) for assertions. */
