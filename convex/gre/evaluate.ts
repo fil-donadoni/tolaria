@@ -636,10 +636,40 @@ function quietDefensiveGrantFlat(
  *  board also states the right thing: a 6-drop resolved is exactly as much
  *  proof that six lands are earning their keep as the same card held.
  *
- *  The invariant is one-directional by construction, and deliberately so — a
- *  card leaving the hand for the GRAVEYARD (discarded, countered, milled) does
- *  lower demand, because the mana that would have cast it is no longer wanted
- *  by anything.
+ *  WHAT THE INVARIANT ACTUALLY IS, stated precisely: a ZONE test — "is this
+ *  card still a non-token permanent you control" — not a development test.
+ *  Three consequences follow, and each is a limit, not an accident:
+ *
+ *  - It covers PERMANENT spells only. A sorcery or instant goes hand →
+ *    graveyard, so casting Wrath of God (MV 4) on six lands still drops the
+ *    term by 12 x 4 = 48 — the #2928 shape, unfixed for roughly half a
+ *    catalogue. Reading a graveyard as continuing proof of a mana base is a
+ *    different claim from reading the battlefield that way (the spell is gone;
+ *    the permanent is still doing the thing the mana bought), and it wants its
+ *    own decision rather than a silent extension here.
+ *  - It runs between two ENDPOINTS. A spell on the stack is in neither half, so
+ *    the term reads 0 mid-cast; `applyMoveInSearch` really does produce those
+ *    nodes. `policyValue` settles the top of the stack before scoring a cast,
+ *    so the 1-ply lookahead is clean, but a leaf reached with something still
+ *    on the stack reads the gap.
+ *  - A permanent LEAVING the battlefield lowers demand the same way, and the
+ *    magnitude is not small: an 8-MV artifact destroyed on eight lands takes 96
+ *    with it, roughly doubling the 99 the permanent itself was worth, and
+ *    gaining CONTROL of an opponent's 8-drop swings the margin twice over
+ *    (the loop counts permanents you CONTROL, not ones you paid for). The sign
+ *    is right — a dead fatty does mean those lands have less to do — but the
+ *    size is inherited from `manaDevWeight`, not measured, and no guard pins
+ *    it today.
+ *
+ *  Also unseen, for the same zone-test reason: a face-down permanent has no
+ *  mana cost (CR 708.2), so its mana value is 0 and casting a morph creature
+ *  face down DOES drop the term; and `X` in a cost counts 0 from either
+ *  zone (symmetric across the cast, so the invariant holds, but an X-fatty
+ *  never raises the curve).
+ *
+ *  A card leaving the hand for the GRAVEYARD (discarded, countered, milled)
+ *  lowers demand by the same rule, and there it is simply correct: the mana
+ *  that would have cast it is no longer wanted by anything.
  *
  *  WHAT THIS PROXY DELIBERATELY DOES NOT SEE, and why each is left standing:
  *
@@ -686,7 +716,12 @@ function manaDevelopmentTerm(
     let lands = 0;
     for (const c of player.battlefield) {
         if (isLand(c)) lands += 1;
-        else raise(c);
+        // A TOKEN is not the other half of a cast — nobody paid its cost, and a
+        // token COPY presents the copied card's printed cost (copy.ts drops
+        // `manaCostOverride`), so counting it would read 12 x MV of development
+        // out of nothing while an ordinary token, having no mana cost at all
+        // (CR 202.3a), reads 0.
+        else if (c.isToken !== true) raise(c);
     }
     return weights.manaDevWeight * Math.min(lands, curveTop);
 }
