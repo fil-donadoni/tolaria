@@ -167,3 +167,59 @@ describe("the registry reaches the client-side engine run (ADR 0074)", () => {
         expect(card.staticAbilities).toEqual(["flying"]);
     });
 });
+
+describe("a pre-S3 legacy state stays reproducible on the client", () => {
+    // Supplying `baseStaticAbilities` on the wire DISARMS the client's own
+    // legacy pass — `deriveLayer6Board` reads `legacy = baseStaticAbilities
+    // === undefined` — so the wire must also carry that pass's OUTPUT. A
+    // `game_state` persisted before PRD #2064 S3 (#3004) carries a
+    // resolution-armed "loses all abilities" hold in `abilitiesSuppressedBy`
+    // and no `abilityLossHolds`; without the migrated ledger the Brain
+    // re-derives the permanent WITH the abilities the resolution took away.
+    function legacyState(): GameState {
+        return makeState({
+            players: [
+                makePlayer("bot", {
+                    battlefield: [
+                        makeInstance(WAR_MAMMOTH, {
+                            id: "m1",
+                            controllerId: "bot",
+                            ownerId: "bot",
+                            // Pre-S3 shape: the ledger IS this field, and no
+                            // base has been captured yet.
+                            // CR 611.2c — the `"indefinite"` sentinel is the
+                            // resolving arm that has no source to check
+                            // against the board, so it is the arm that
+                            // actually survives a re-derivation and the only
+                            // one the migrated ledger can be observed through.
+                            abilitiesSuppressedBy: [
+                                { sourceId: "indefinite", seq: 5 },
+                            ],
+                            baseStaticAbilities: undefined,
+                        }),
+                    ],
+                }),
+                makePlayer("human"),
+            ],
+            activePlayerId: "bot",
+            priorityPlayerId: "bot",
+        });
+    }
+
+    it("carries the migrated ability-loss ledger onto the Brain's GameState", () => {
+        const projected = projectPublicState(legacyState(), 1, "bot");
+        const card = projected.players.find((p) => p.id === "bot")!
+            .battlefield[0];
+        expect(card.abilityLossHolds).toEqual([
+            { sourceId: "indefinite", seq: 5 },
+        ]);
+
+        const client = projectedToGameState(projected);
+        const answer = deriveLayer6(
+            client as unknown as LayerStateView,
+            permanent(client)
+        ).staticAbilities;
+        // CR 611.2b — the strip still applies, so the printed trample is gone.
+        expect(answer).toEqual([]);
+    });
+});

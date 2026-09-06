@@ -26,8 +26,8 @@
 // at every apply/unapply site, so the ~90 consult sites that read
 // `card.staticAbilities.includes("trample")` keep working unchanged while
 // reading something the registry produced. PRD #2064 S6 deletes the field and
-// points those sites at `deriveLayer6` directly; S5 (#3094) put the registry on
-// the wire and pointed the PROJECTION at `deriveLayer6Board` through
+// points those sites at `deriveLayer6` directly; S5 (#3094) put the registry
+// on the wire and pointed the PROJECTION at `deriveLayer6Board` through
 // `gre/wireCharacteristics.ts`, so the client derives the same answer. The pre-layer-6 keyword multiset lives in
 // `baseStaticAbilities`, the layer-6 twin of `printedSubtypes` (layer 4).
 //

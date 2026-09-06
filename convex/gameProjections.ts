@@ -511,8 +511,11 @@ function projectBattlefieldCard(
         turnUp && viewerId === card.controllerId
             ? { ...slim, canTurnFaceUp: true }
             : slim;
+    // The derivation is applied to the INSTANCE and `slimCard` runs last, so
+    // its privacy strip can never be undone by a patch field (see
+    // `applyWireCharacteristics`).
     const slim = (): SlimBattlefieldCard =>
-        applyWireCharacteristics(slimCard(card), characteristics);
+        slimCard(applyWireCharacteristics(card, characteristics));
     if (!card.faceDown) return slim();
     // slimCard returns a fresh object, so deleting the marker below never
     // mutates live state. `card.card.id` is ALREADY the sentinel in raw state
@@ -1555,7 +1558,7 @@ export function projectFullState(
             // projection, so the debug view and the wire never disagree about a
             // permanent's characteristics.
             battlefield: player.battlefield.map((c) =>
-                applyWireCharacteristics(slimCard(c), characteristics.get(c.id))
+                slimCard(applyWireCharacteristics(c, characteristics.get(c.id)))
             ),
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
             // CR 702.139c (ADR 0064) — full debug view has no single viewer,

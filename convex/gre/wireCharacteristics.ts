@@ -139,13 +139,35 @@ export function deriveWireCharacteristics(
             // own `deriveLayer6` grant every keyword a second time and remove
             // printed ones that are no longer in what it reads as the base.
             baseStaticAbilities: card.baseStaticAbilities,
+            // CR 611.2b — and the migration's OUTPUT with it. Supplying the
+            // base above DISARMS the client's own legacy pass:
+            // `deriveLayer6Board` reads `legacy = baseStaticAbilities ===
+            // undefined`, so a client handed the base can never run
+            // `migrateLegacyAbilityLossHolds` for itself. On a `game_state`
+            // persisted before PRD #2064 S3 (#3004) that carries a
+            // resolution-armed "loses all abilities" hold in
+            // `abilitiesSuppressedBy` and no `abilityLossHolds`, the server
+            // clone migrates and the client cannot — so the Brain would
+            // re-derive the permanent WITH the abilities the resolution took
+            // away and enumerate moves for a board that does not exist. The
+            // ledger is the migration's product, and it costs nothing on every
+            // state that already has one (absent → absent). Dies with S6,
+            // alongside the migration itself.
+            abilityLossHolds: card.abilityLossHolds,
         });
     }
 
     return patches;
 }
 
-/** Applies a permanent's derived characteristics to its projected wire card.
+/** Applies a permanent's derived characteristics, producing a fresh instance.
+ *
+ *  Call it BEFORE `slimCard`, never after. `WireCharacteristics` is a
+ *  `Partial<CardInstanceState>`, so a future field mapper could name `knownTo`,
+ *  `sourceLki`, `capturedBindings` or `stormSnapshot` — the four fields
+ *  `slimCard` deletes — and reinstate one with no `tsc` error. Ordering the
+ *  strip last makes that impossible instead of merely unlikely, which is the
+ *  fail-closed default `slimCard`'s own header argues for (#1977/#1982).
  *
  *  Keys whose derived value is `undefined` are DELETED rather than assigned:
  *  the patch spells "this permanent has no granted subtypes" as
