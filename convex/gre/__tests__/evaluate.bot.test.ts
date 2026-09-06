@@ -1294,7 +1294,7 @@ describe("manaDevelopment term (issue #2686)", () => {
             controllerId: "p1",
             ownerId: "p1",
             id,
-            summoningSick: false,
+            isSummoningSick: false,
         });
     const board = (
         lands: number,
