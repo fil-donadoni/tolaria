@@ -57,9 +57,9 @@ export const compiledReadyDefinitions: CardDefinition[] =
  * disjointness — which is exactly what makes throwing affordable.
  */
 export function assertNoHandWrittenCollision(
-    compiled: readonly CardDefinition[],
+    compiled: CardDefinition[],
     handWrittenIds: ReadonlySet<string>
-): readonly CardDefinition[] {
+): CardDefinition[] {
     const collisions = compiled
         .filter((c) => handWrittenIds.has(c.id))
         .map((c) => `${c.name} (${c.id})`);
