@@ -1,44 +1,35 @@
 import { useSyncExternalStore } from "react";
 import { Shell } from "./components/Shell";
 import { Section } from "./components/Section";
+import { ShortcutsSheet } from "./components/ShortcutsSheet";
+import { NowView } from "./components/now/NowView";
 import { getView, subscribeToView } from "./lib/view";
+import { useShortcuts } from "./lib/shortcuts";
 
 /**
- * The dashboard's page (PRD #3148 S0 → S1).
+ * The dashboard's page (PRD #3148 S0 → S2).
  *
  * S0 reproduced the hand-written shell verbatim so the port could not change
- * anything. S1 replaces the CHROME — header, tabs, theme, shortcuts, the
- * framed section — with React and shadcn, and leaves the two view BODIES
- * exactly where they were: the vanilla modules under `scripts/dashboard/`
- * still fill them, still by `getElementById`, so every id below is load
- * bearing until the slice that ports its section (S2 for Now, S3 for History)
- * deletes both halves together.
+ * anything. S1 replaced the CHROME — header, tabs, theme, the framed section.
+ * S2 replaces the NOW view outright: `<NowView>` owns its own transport, so
+ * `scripts/dashboard/main.js` no longer starts a loop-status poll and no
+ * `getElementById` handle survives on that half.
  *
- * The legacy class names ride along for the same reason. `dashboard.css` is
- * unlayered and is imported after the Tailwind entry, so where the two overlap
- * the legacy rule still wins and an un-ported section looks exactly as it did.
- * Each class disappears with the module that needs it.
+ * HISTORY is still the vanilla graph, still filled by `getElementById`, so
+ * every id in that branch below is load bearing until S3 ports it. The legacy
+ * class names ride along for the same reason: `dashboard.css` is unlayered and
+ * is imported after the Tailwind entry, so where the two overlap the legacy
+ * rule still wins and an un-ported section looks exactly as it did. Each class
+ * disappears with the module that needs it.
  */
 export function App() {
     const view = useSyncExternalStore(subscribeToView, getView);
+    useShortcuts();
     return (
         <>
             <Shell
                 view={view}
-                now={
-                    <Section
-                        id="loop-status-card"
-                        className="card"
-                        title="Loop status"
-                        meta={
-                            <div className="h-sub" id="loop-status-sub">
-                                loading…
-                            </div>
-                        }
-                    >
-                        <div id="loop-status-body" />
-                    </Section>
-                }
+                now={<NowView />}
                 history={
                     <>
                         <div className="filters" id="filters" />
@@ -119,12 +110,15 @@ export function App() {
                     </>
                 }
             />
+            <ShortcutsSheet />
+
             {/*
                 Outside the shell: the vanilla tooltip layer is `position:fixed`
                 chrome, and `scripts/dashboard/tooltip.js` resolves it by id.
-                It serves the `data-term` strings the un-ported views still
-                paint; the React chrome uses `<Term>` and the shadcn tooltip.
-                Both read `dashboard/glossary.ts`, so they cannot drift.
+                It serves the `data-term` strings HISTORY still paints; every
+                React surface uses `<Term>` / `<DynamicTerm>` and the shadcn
+                tooltip. Both read `dashboard/glossary.ts`, so they cannot
+                drift. This element dies with S3.
             */}
             <div id="tip" />
         </>
