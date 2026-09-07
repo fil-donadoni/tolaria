@@ -25,6 +25,7 @@ const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 export default function LimitedDraftPack({
     pack,
     selectedPickId,
+    defaultPickId,
     onSelect,
     onPick,
     onOpenMenu,
@@ -35,6 +36,12 @@ export default function LimitedDraftPack({
 }: {
     pack: DraftPackCard[];
     selectedPickId: string | null;
+    /** Default Pick (ADR 0095, issue #2271) — `null` unless the caller's
+     *  "Show autopick" toggle is on, in which case it's the seat's
+     *  `defaultPickId`. Gating on the toggle happens in the caller
+     *  (`limited-draft-table.tsx`) so this component stays a pure "which
+     *  tile gets which ring" renderer, same discipline as `selectedPickId`. */
+    defaultPickId: string | null;
     onSelect: (pickId: string) => void;
     /** See `LimitedDraftPackCard`'s own doc comment (issue #2861): absent on
      *  desktop, retiring double-click-to-pick there. */
@@ -98,6 +105,7 @@ export default function LimitedDraftPack({
                     <LimitedDraftPackCard
                         card={card}
                         selected={card.pickId === selectedPickId}
+                        isDefault={card.pickId === defaultPickId}
                         onSelect={onSelect}
                         onPick={onPick}
                         onOpenMenu={onOpenMenu}

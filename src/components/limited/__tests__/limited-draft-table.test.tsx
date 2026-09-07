@@ -140,6 +140,7 @@ afterEach(() => {
 
 type EventRowOverrides = {
     selectedPickId?: string;
+    defaultPickId?: string;
     poolLength?: number;
     pickDeadline?: number;
     /** Explicit Pool, overriding the auto-generated all-Bolt one — the
@@ -187,6 +188,7 @@ function eventRow(overrides: EventRowOverrides): LimitedEventRow {
                     },
                 ],
                 selectedPickId: overrides.selectedPickId,
+                defaultPickId: overrides.defaultPickId,
                 pickDeadline: overrides.pickDeadline,
                 poolArrangement: overrides.poolArrangement,
             },
@@ -368,6 +370,62 @@ describe("LimitedDraftTable Booster gestures — desktop regime (default, issue 
         expect(surface().style.paddingRight).toBe("");
         expect(surface().style.paddingBottom).toBe("");
         expect(document.querySelector("[data-peek-panel]")).toBeNull();
+    });
+});
+
+describe("LimitedDraftTable — 'Show autopick' toggle (ADR 0095, issue #2271)", () => {
+    beforeEach(() => window.localStorage.clear());
+    afterEach(() => window.localStorage.clear());
+
+    it("shows no Default Pick ring by default (toggle off) even though a Default Pick is stamped", () => {
+        const { getByRole, queryAllByTestId } = renderTable({
+            defaultPickId: "r0-p0-c0",
+        });
+        expect(
+            getByRole("button", { name: "Show autopick" }).getAttribute(
+                "aria-pressed"
+            )
+        ).toBe("false");
+        expect(queryAllByTestId("default-pick-ring")).toHaveLength(0);
+    });
+
+    it("reveals exactly one Default Pick ring, on a real Booster tile, once toggled on", () => {
+        const { getByRole, getByTestId } = renderTable({
+            defaultPickId: "r0-p0-c0",
+        });
+        fireEvent.click(getByRole("button", { name: "Show autopick" }));
+
+        const ring = getByTestId("default-pick-ring"); // throws if 0 or >1
+        const ringedCard = ring.closest('[role="button"]');
+        expect(ringedCard?.getAttribute("aria-label")).toBe(
+            "Draft pick: Lightning Bolt"
+        );
+    });
+
+    it("toggling back off hides the ring again — no stale state left behind", () => {
+        const { getByRole, queryAllByTestId } = renderTable({
+            defaultPickId: "r0-p0-c0",
+        });
+        const toggle = getByRole("button", { name: "Show autopick" });
+        fireEvent.click(toggle); // on
+        expect(queryAllByTestId("default-pick-ring")).toHaveLength(1);
+        fireEvent.click(toggle); // off
+        expect(queryAllByTestId("default-pick-ring")).toHaveLength(0);
+    });
+
+    it("renders BOTH rings at once, on their own distinct cards, when a Selected Card and a Default Pick differ", () => {
+        const { getByRole, getByTestId } = renderTable({
+            selectedPickId: "r0-p0-c1",
+            defaultPickId: "r0-p0-c0",
+        });
+        fireEvent.click(getByRole("button", { name: "Show autopick" }));
+
+        const defaultRing = getByTestId("default-pick-ring");
+        const selectionRing = getByTestId("selection-ring");
+        // Two separate overlay elements, on two separate tiles.
+        expect(defaultRing.closest('[role="button"]')).not.toBe(
+            selectionRing.closest('[role="button"]')
+        );
     });
 });
 

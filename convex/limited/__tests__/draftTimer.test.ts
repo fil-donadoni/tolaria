@@ -23,6 +23,8 @@
 import { describe, it, expect, vi } from "vitest";
 import {
     applyPick,
+    clearUnattendedPicks,
+    markUnattendedPick,
     resolveAutoPickTimeout,
     runBotAutoPicks,
     startDraft,
@@ -405,6 +407,156 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
     });
 });
 
+describe("assignFreshPack / startDraft / applyPick — Default Pick stamping (ADR 0095, issue #2271)", () => {
+    it("stamps defaultPickId alongside pickDeadline at round 0 when a chooseBotPick adapter is supplied", () => {
+        const result = startDraft(
+            seatsOf(1),
+            ["tst1"],
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        const pack = result.seats[0].currentPack as DraftPackCard[];
+        expect(result.seats[0].defaultPickId).toBe(pack[0].pickId);
+    });
+
+    it("stamps no defaultPickId when no chooseBotPick adapter is supplied (every existing timer-on caller before this issue)", () => {
+        const result = startDraft(
+            seatsOf(1),
+            ["tst1"],
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig
+            // no chooseBotPick
+        );
+        expect(result.seats[0].pickDeadline).toBeDefined();
+        expect(result.seats[0].defaultPickId).toBeUndefined();
+    });
+
+    it("stamps no defaultPickId for a Bot Drafter seat", () => {
+        const seats: LimitedEventSeat[] = [{ seatIndex: 0, isBot: true }];
+        const result = startDraft(
+            seats,
+            ["tst1"],
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        expect(result.seats[0].defaultPickId).toBeUndefined();
+    });
+
+    it("stamps no defaultPickId in the 'auto' (1-card) case — no real choice to default", () => {
+        const single: Record<string, BoosterConfig> = {
+            r0: tinyConfig("r0", 1),
+        };
+        const oneCardConfig: GetBoosterConfig = (setCode) =>
+            single[setCode] ?? null;
+        const result = startDraft(
+            seatsOf(1),
+            ["r0"],
+            42,
+            oneCardConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        expect(result.seats[0].pickDeadline).toBeUndefined();
+        expect(result.seats[0].defaultPickId).toBeUndefined();
+    });
+
+    it("clears defaultPickId once the picker's own currentPack empties with nothing queued", () => {
+        const start = startDraft(
+            seatsOf(2),
+            ["tst1"],
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        expect(start.seats[0].defaultPickId).toBeDefined();
+        const pickId = (start.seats[0].currentPack as DraftPackCard[])[0]
+            .pickId;
+        const result = applyPick(
+            start.seats,
+            start.draftRound,
+            start.draftPacksRemaining,
+            ["tst1"],
+            0,
+            pickId,
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        expect(result.seats[0].currentPack).toBeUndefined();
+        expect(result.seats[0].defaultPickId).toBeUndefined();
+    });
+
+    it("stamps a fresh defaultPickId for a pass target seat whose OWN pack was already empty", () => {
+        // Mirrors "bumps pickSeq and stamps a fresh deadline..." above: seat
+        // 1 picks first (its own currentPack clears, nothing queued), THEN
+        // seat 0 picks and passes its remainder onto seat 1 — the
+        // fresh-stamp `assignFreshPack` path, not the "already holding a
+        // pack, queue it" one.
+        const start = startDraft(
+            seatsOf(3),
+            ["tst1"],
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        const afterSeat1 = applyPick(
+            start.seats,
+            start.draftRound,
+            start.draftPacksRemaining,
+            ["tst1"],
+            1,
+            (start.seats[1].currentPack as DraftPackCard[])[0].pickId,
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+        expect(afterSeat1.seats[1].currentPack).toBeUndefined();
+
+        const afterSeat0 = applyPick(
+            afterSeat1.seats,
+            afterSeat1.draftRound,
+            afterSeat1.draftPacksRemaining,
+            ["tst1"],
+            0,
+            (afterSeat1.seats[0].currentPack as DraftPackCard[])[0].pickId,
+            42,
+            getConfig,
+            resolveCardMeta,
+            timerConfig,
+            undefined,
+            firstCardPick
+        );
+
+        const passedPack = afterSeat0.seats[1].currentPack as DraftPackCard[];
+        expect(passedPack).toHaveLength(2);
+        expect(afterSeat0.seats[1].defaultPickId).toBe(passedPack[0].pickId);
+    });
+});
+
 describe("resolveAutoPickTimeout — seq-based cancellation guard (issue #1114)", () => {
     function humanSeatWithPack(pickSeq: number): LimitedEventSeat {
         return {
@@ -429,10 +581,10 @@ describe("resolveAutoPickTimeout — seq-based cancellation guard (issue #1114)"
         };
     }
 
-    it("returns the bot-engine's pickId when expectedSeq matches the live seat", () => {
+    it("returns the bot-engine's pickId (unattended) when expectedSeq matches the live seat", () => {
         const seats = [humanSeatWithPack(1)];
-        const pickId = resolveAutoPickTimeout(seats, 0, 1, firstCardPick);
-        expect(pickId).toBe("r0-p0-c0");
+        const resolution = resolveAutoPickTimeout(seats, 0, 1, firstCardPick);
+        expect(resolution).toEqual({ pickId: "r0-p0-c0", unattended: true });
     });
 
     it("is a no-op (null) when expectedSeq is stale — the human already picked (seq moved on)", () => {
@@ -491,35 +643,36 @@ describe("resolveAutoPickTimeout — Selected Card takes priority over the heuri
         };
     }
 
-    it("picks the seat's selectedPickId when set, WITHOUT ever consulting the heuristic engine", () => {
+    it("picks the seat's selectedPickId when set, WITHOUT ever consulting the heuristic engine — NOT an Unattended Pick", () => {
         const seat = humanSeatWithPack(1, "r0-p0-c1");
         const heuristic = vi.fn(() => "r0-p0-c0");
-        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
-        expect(pickId).toBe("r0-p0-c1");
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution).toEqual({ pickId: "r0-p0-c1", unattended: false });
         expect(heuristic).not.toHaveBeenCalled();
     });
 
-    it("falls back to the heuristic (Pick Rating engine) when nothing is selected", () => {
+    it("falls back to the heuristic (Pick Rating engine) when nothing is selected — Unattended", () => {
         const seat = humanSeatWithPack(1); // selectedPickId absent
         // A heuristic stand-in that deliberately does NOT pick position 0 —
         // proves the fallback result is whatever the heuristic returns, not
         // a hardcoded "first card"/random default.
         const heuristic: ChooseBotPick = (_seat, pack) => pack[1].pickId;
-        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
-        expect(pickId).toBe("r0-p0-c1");
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution).toEqual({ pickId: "r0-p0-c1", unattended: true });
     });
 
     it("falls back to the heuristic when the selected card is stale (no longer in currentPack) — never force-applies a phantom pickId", () => {
         const seat = humanSeatWithPack(1, "r0-p0-c99"); // not in currentPack
-        const pickId = resolveAutoPickTimeout([seat], 0, 1, firstCardPick);
-        expect(pickId).toBe("r0-p0-c0"); // heuristic's pick, never the stale id
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, firstCardPick);
+        // heuristic's pick, never the stale id
+        expect(resolution).toEqual({ pickId: "r0-p0-c0", unattended: true });
     });
 
     it("never falls back to random or position-1 by construction — the ONLY fallback path is the injected heuristic", () => {
         const seat = humanSeatWithPack(1); // nothing selected
         const heuristic = vi.fn<ChooseBotPick>(() => "r0-p0-c1");
-        const pickId = resolveAutoPickTimeout([seat], 0, 1, heuristic);
-        expect(pickId).toBe("r0-p0-c1");
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution?.pickId).toBe("r0-p0-c1");
         // Third argument: `packsSeen` (ADR 0073) — the pack in front of the
         // seat is the only history a timeout can account for. Unread by the
         // scorer today; supplied so the Draft Signals reader lands without
@@ -527,6 +680,68 @@ describe("resolveAutoPickTimeout — Selected Card takes priority over the heuri
         expect(heuristic).toHaveBeenCalledWith(seat, seat.currentPack, [
             seat.currentPack,
         ]);
+    });
+});
+
+describe("resolveAutoPickTimeout — Default Pick, three-arm resolution (ADR 0095, issue #2271)", () => {
+    function humanSeatWithDefault(
+        pickSeq: number,
+        opts: { selectedPickId?: string; defaultPickId?: string } = {}
+    ): LimitedEventSeat {
+        return {
+            seatIndex: 0,
+            pool: [],
+            currentPack: [
+                {
+                    scryfallId: "common-a",
+                    cardId: "common-a",
+                    cardName: "COMMON-A",
+                    pickId: "r0-p0-c0",
+                },
+                {
+                    scryfallId: "common-b",
+                    cardId: "common-b",
+                    cardName: "COMMON-B",
+                    pickId: "r0-p0-c1",
+                },
+            ],
+            pickSeq,
+            pickDeadline: deadlineFor(2),
+            ...opts,
+        };
+    }
+
+    it("honours the Default Pick, marked unattended, when nothing is selected", () => {
+        const seat = humanSeatWithDefault(1, { defaultPickId: "r0-p0-c1" });
+        const heuristic = vi.fn(() => "r0-p0-c0");
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution).toEqual({ pickId: "r0-p0-c1", unattended: true });
+        // The stamped default is honoured directly — the live heuristic call
+        // is only the safety-net arm, never reached here.
+        expect(heuristic).not.toHaveBeenCalled();
+    });
+
+    it("prefers the Selected Card over the Default Pick when both are set", () => {
+        const seat = humanSeatWithDefault(1, {
+            selectedPickId: "r0-p0-c0",
+            defaultPickId: "r0-p0-c1",
+        });
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, firstCardPick);
+        expect(resolution).toEqual({ pickId: "r0-p0-c0", unattended: false });
+    });
+
+    it("falls through to a fresh heuristic call (still unattended) when the Default Pick is stale (no longer in currentPack)", () => {
+        const seat = humanSeatWithDefault(1, { defaultPickId: "r0-p0-c99" });
+        const heuristic: ChooseBotPick = (_seat, pack) => pack[0].pickId;
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution).toEqual({ pickId: "r0-p0-c0", unattended: true });
+    });
+
+    it("falls through to a fresh heuristic call (still unattended) when no Default Pick was ever stamped", () => {
+        const seat = humanSeatWithDefault(1); // no default, no selection
+        const heuristic: ChooseBotPick = (_seat, pack) => pack[1].pickId;
+        const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
+        expect(resolution).toEqual({ pickId: "r0-p0-c1", unattended: true });
     });
 });
 
@@ -566,20 +781,20 @@ describe("Auto-Pick timeout end-to-end: expiry → auto-pick → pack passes on 
                 // Simulate the timer firing: the seat's own live pickSeq is
                 // the "expectedSeq" a real schedule would have captured.
                 const expectedSeq = seats[seatIndex].pickSeq!;
-                const pickId = resolveAutoPickTimeout(
+                const resolution = resolveAutoPickTimeout(
                     seats,
                     seatIndex,
                     expectedSeq,
                     firstCardPick
                 );
-                expect(pickId).not.toBeNull();
+                expect(resolution).not.toBeNull();
                 const picked = applyPick(
                     seats,
                     round,
                     remaining,
                     packSlots,
                     seatIndex,
-                    pickId!,
+                    resolution!.pickId,
                     seed,
                     getConfig,
                     resolveCardMeta,
@@ -702,5 +917,39 @@ describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (
         expect(result.timerUpdates).toEqual([
             { seatIndex: 1, pickSeq: 1, timeoutAt: deadlineFor(2) },
         ]);
+    });
+});
+
+describe("markUnattendedPick / clearUnattendedPicks — Unattended Pick bookkeeping (ADR 0095, issue #2271)", () => {
+    it("appends a Pool index to the target seat's unattendedPickIndices, leaving other seats untouched", () => {
+        const seats: LimitedEventSeat[] = [
+            { seatIndex: 0, pool: [] },
+            { seatIndex: 1, pool: [], unattendedPickIndices: [1] },
+        ];
+        const result = markUnattendedPick(seats, 1, 4);
+        expect(result[0].unattendedPickIndices).toBeUndefined();
+        expect(result[1].unattendedPickIndices).toEqual([1, 4]);
+    });
+
+    it("starts a fresh array on the first mark (no unattendedPickIndices yet)", () => {
+        const seats: LimitedEventSeat[] = [{ seatIndex: 0, pool: [] }];
+        const result = markUnattendedPick(seats, 0, 0);
+        expect(result[0].unattendedPickIndices).toEqual([0]);
+    });
+
+    it("clearUnattendedPicks removes every mark on the target seat only", () => {
+        const seats: LimitedEventSeat[] = [
+            { seatIndex: 0, pool: [], unattendedPickIndices: [0, 2] },
+            { seatIndex: 1, pool: [], unattendedPickIndices: [1] },
+        ];
+        const result = clearUnattendedPicks(seats, 0);
+        expect(result[0].unattendedPickIndices).toBeUndefined();
+        expect(result[1].unattendedPickIndices).toEqual([1]);
+    });
+
+    it("clearUnattendedPicks is a true no-op (same array reference) on a seat with nothing marked", () => {
+        const seats: LimitedEventSeat[] = [{ seatIndex: 0, pool: [] }];
+        const result = clearUnattendedPicks(seats, 0);
+        expect(result).toBe(seats);
     });
 });

@@ -84,6 +84,12 @@ export interface DeckCardTileProps {
      *  badge is `pointer-events-none` — it is a LABEL, not one of the overlay
      *  buttons this issue removed. */
     count?: number;
+    /** This tile is an Unattended Pick (ADR 0095, issue #2271) — the draft
+     *  Pool ONLY (`limited-draft-pool.tsx`); every other zone leaves it
+     *  unset. Draws a ring the caller's `title` already explains (no new
+     *  chrome). Distinct from `isFeatured`/`isSelected`'s accent tones — see
+     *  the ring's own comment below for why. */
+    isUnattended?: boolean;
 }
 
 export default function DeckCardTile({
@@ -98,6 +104,7 @@ export default function DeckCardTile({
     isSelected,
     readOnly = false,
     count,
+    isUnattended,
 }: DeckCardTileProps) {
     // Registered but disabled on a read-only mount: dnd-kit wants a stable id
     // per mounted draggable, exactly as `DeckColumnPile` documents for its
@@ -239,6 +246,24 @@ export default function DeckCardTile({
                 supplies its own colour. Transparent until hovered. */}
             {!readOnly && (
                 <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-danger-strong)_70%,transparent)]" />
+            )}
+            {/* Unattended Pick (ADR 0095, issue #2271) — the draft Pool only.
+                Painted BEFORE `isFeatured`/`isSelected` below so either of
+                those (never true for a draft-time Pool card today, but the
+                layering is what makes "mine always outranks the engine's"
+                true by construction rather than by a caller-side check) would
+                still read as dominant. `--color-signal-pending`: the same
+                tone the Booster's own Default Pick ring uses
+                (`limited-draft-pack-card.tsx`) — both mean "the engine acted
+                here, not you" — chosen to collide with neither this tile's
+                own hover hint (`--color-danger-strong`, just above) nor the
+                Column pile's active-drop-target ring
+                (`--color-accent`, `deck-column-pile.tsx`). */}
+            {isUnattended && (
+                <div
+                    data-testid="unattended-pick-ring"
+                    className="card-ring pointer-events-none absolute inset-0 [--card-ring-color:var(--color-signal-pending)]"
+                />
             )}
             {isFeatured && (
                 <div className="card-ring card-ring-selected pointer-events-none absolute inset-0" />

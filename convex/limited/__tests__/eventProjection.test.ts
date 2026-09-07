@@ -756,6 +756,113 @@ describe("projectLimitedEvent — selectedPickId (ADR 0060, issue #1248)", () =>
     });
 });
 
+describe("projectLimitedEvent — defaultPickId / unattendedPickIndices (ADR 0095, issue #2271)", () => {
+    it("preserves the viewer's own seat's Default Pick and Unattended Pick marks", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    currentPack: [
+                        {
+                            scryfallId: "s1",
+                            cardId: "c1",
+                            cardName: "Card One",
+                            pickId: "r0-p0-c0",
+                        },
+                    ],
+                    defaultPickId: "r0-p0-c0",
+                    unattendedPickIndices: [2, 5],
+                },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.defaultPickId).toBe("r0-p0-c0");
+        expect(own.unattendedPickIndices).toEqual([2, 5]);
+    });
+
+    it("strips every OTHER seat's Default Pick and Unattended Pick marks — same 'own seat only' discipline as currentPack/pickDeadline/selectedPickId", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    defaultPickId: "r0-p0-c0",
+                    unattendedPickIndices: [1],
+                },
+                {
+                    seatIndex: 1,
+                    userId: "user2",
+                    nickname: "Bob",
+                    pool: [],
+                    defaultPickId: "r0-p1-c0",
+                    unattendedPickIndices: [3],
+                },
+            ],
+        });
+
+        const view = projectLimitedEvent(event, "user1");
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.defaultPickId).toBeNull();
+        expect(other.unattendedPickIndices).toBeNull();
+    });
+
+    it("stays stripped for a NON-participant admin viewer too, even post-completion (unlike pool)", () => {
+        const event = row({
+            type: "draft",
+            draftCompletedAt: 999,
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [],
+                    defaultPickId: "r0-p0-c0",
+                    unattendedPickIndices: [0],
+                },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+
+        const view = projectLimitedEvent(
+            event,
+            "outsider-admin",
+            true,
+            2,
+            new Map(),
+            new Set<number>(),
+            true // admin
+        );
+        const alice = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(alice.defaultPickId).toBeNull();
+        expect(alice.unattendedPickIndices).toBeNull();
+        expect(alice.pool).not.toBeNull();
+    });
+
+    it("projects both to null for a viewer's own seat with nothing stamped", () => {
+        const event = row({
+            type: "draft",
+            seats: [
+                { seatIndex: 0, userId: "user1", nickname: "Alice", pool: [] },
+                { seatIndex: 1, userId: "user2", nickname: "Bob", pool: [] },
+            ],
+        });
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        expect(own.defaultPickId).toBeNull();
+        expect(own.unattendedPickIndices).toBeNull();
+    });
+});
+
 // --- Play phase on the wire (PRD #1628, ADR 0076, issue #1640) -------------
 // The mandatory wire-format assertions for the play-phase fields: every one is
 // checked against `projectLimitedEvent`'s OUTPUT — the exact object a client

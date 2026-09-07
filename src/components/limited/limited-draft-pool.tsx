@@ -6,6 +6,7 @@ import type {
 } from "@convex/limited/eventTypes";
 import {
     pinsByPoolIndex,
+    poolCopyPinKey,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
 import {
@@ -89,6 +90,7 @@ export default function LimitedDraftPool({
     eventId,
     pool,
     arrangement,
+    unattendedPickIndices = null,
     arrange = "row",
     selection = null,
     onCardSelect,
@@ -98,6 +100,12 @@ export default function LimitedDraftPool({
     eventId: Id<"limitedEvents">;
     pool: LimitedPoolCard[];
     arrangement: PoolArrangementEntry[] | null;
+    /** Unattended Pick indices (ADR 0095, issue #2271) —
+     *  `seat.unattendedPickIndices`, `null`/absent when nothing is marked.
+     *  Matched against each tile's own `pinKey` (`poolCopyPinKey`, the SAME
+     *  per-copy identity `onPin`/drag payloads already use), so a card moved
+     *  between Pool and Sideboard keeps its mark. */
+    unattendedPickIndices?: number[] | null;
     /** Where the Sideboard sits (issue #2588, ADR 0101 §6: "the portrait pool
      *  pane splits Main / Sideboard").
      *
@@ -145,6 +153,21 @@ export default function LimitedDraftPool({
     );
     const mainCards = useMemo(() => toZoneCards(split.cards), [split]);
     const sideCards = useMemo(() => toZoneCards(split.sideboard), [split]);
+
+    // Unattended Pick keys (ADR 0095, issue #2271), in the SAME per-copy
+    // vocabulary (`poolCopyPinKey`) the Pins/drag payloads use — a Set of
+    // `pinKey`s rather than raw indices, so the match below is a single
+    // lookup, and a card's mark survives a Pool<->Sideboard move (both panes
+    // render from the SAME `pool`, only `split` differs).
+    const unattendedPinKeys = useMemo(
+        () => new Set((unattendedPickIndices ?? []).map(poolCopyPinKey)),
+        [unattendedPickIndices]
+    );
+    const isUnattended = useCallback(
+        (card: ZoneCard) =>
+            card.pinKey !== undefined && unattendedPinKeys.has(card.pinKey),
+        [unattendedPinKeys]
+    );
 
     // The Pool's Column Layout. Its Pins come straight off the live Pool
     // Arrangement, keyed per physical copy — the SAME map
@@ -233,10 +256,14 @@ export default function LimitedDraftPool({
                     }
                     onPin={onPin}
                     cardTitle={(card) =>
-                        onCardSelect
+                        (isUnattended(card)
+                            ? "Auto-picked while you were away — "
+                            : "") +
+                        (onCardSelect
                             ? `Remove ${card.cardName} (drag to move zone)`
-                            : `Remove ${card.cardName} (double-click, drag, or click)`
+                            : `Remove ${card.cardName} (double-click, drag, or click)`)
                     }
+                    isUnattended={isUnattended}
                     emptyMessage="Every card you pick lands here."
                 />
             </div>
@@ -266,10 +293,14 @@ export default function LimitedDraftPool({
                             : null
                     }
                     cardTitle={(card) =>
-                        onCardSelect
+                        (isUnattended(card)
+                            ? "Auto-picked while you were away — "
+                            : "") +
+                        (onCardSelect
                             ? `Remove ${card.cardName} from the Sideboard (drag to move zone)`
-                            : `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`
+                            : `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`)
                     }
+                    isUnattended={isUnattended}
                     emptyMessage="Move a card here to park it out of your working deck."
                 />
             </div>

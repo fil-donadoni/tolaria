@@ -32,6 +32,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onPick={onPick}
                 onOpenContextMenu={vi.fn()}
@@ -49,6 +50,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 onPick={onPick}
                 onOpenContextMenu={vi.fn()}
@@ -67,6 +69,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onPick={onPick}
                 onOpenContextMenu={onOpenContextMenu}
@@ -90,6 +93,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onPick={onPick}
                 onOpenContextMenu={onOpenContextMenu}
@@ -114,6 +118,7 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onOpenMenu={onOpenMenu}
                 pending={false}
@@ -130,6 +135,7 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 onPick={onPick}
                 onOpenMenu={vi.fn()}
@@ -145,6 +151,7 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 onOpenMenu={vi.fn()}
                 pending={false}
@@ -168,6 +175,7 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onOpenMenu={onOpenMenu}
                 pending={false}
@@ -185,6 +193,7 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={onSelect}
                 onOpenMenu={onOpenMenu}
                 pending
@@ -204,6 +213,7 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
             <LimitedDraftPackCard
                 card={card}
                 selected
+                isDefault={false}
                 onSelect={vi.fn()}
                 pending={false}
             />
@@ -230,6 +240,7 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
             <LimitedDraftPackCard
                 card={card}
                 selected
+                isDefault={false}
                 onSelect={vi.fn()}
                 pending={false}
             />
@@ -261,11 +272,50 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 pending={false}
             />
         );
         expect(queryByTestId("selection-ring")).toBeNull();
+    });
+
+    it("renders the Default Pick ring, painted BEFORE the selection ring, when isDefault is true (ADR 0095, issue #2271)", () => {
+        const { getByRole, getByTestId } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected
+                isDefault
+                onSelect={vi.fn()}
+                pending={false}
+            />
+        );
+        const tile = getByRole("button");
+        const defaultRing = getByTestId("default-pick-ring");
+        const selectionRing = getByTestId("selection-ring");
+
+        expect(defaultRing.className).toContain("card-ring ");
+        expect(defaultRing.parentElement).toBe(tile);
+        // The subordinate ring precedes the Selected Card's dominant one in
+        // DOM order, so the solid ring paints on top when both apply to the
+        // same tile ("mine always outranks the engine's", ADR 0095).
+        expect(
+            defaultRing.compareDocumentPosition(selectionRing) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("renders no Default Pick ring overlay when isDefault is false", () => {
+        const { queryByTestId } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                isDefault={false}
+                onSelect={vi.fn()}
+                pending={false}
+            />
+        );
+        expect(queryByTestId("default-pick-ring")).toBeNull();
     });
 
     it("permits native vertical panning instead of blocking all touch (issue #2664)", () => {
@@ -292,6 +342,7 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
             <LimitedDraftPackCard
                 card={card}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 pending={false}
             />

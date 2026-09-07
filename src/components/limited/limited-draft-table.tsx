@@ -14,6 +14,8 @@ import CardImage from "~/components/cards/card-image";
 import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
+import { useShowAutopick } from "~/hooks/useShowAutopick";
+import { cn } from "@/lib/utils";
 import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
 import { CARD_TILE_ATTR } from "~/lib/card-tile-keyboard";
 import InspectOverlay from "~/components/editing/inspect-overlay";
@@ -227,6 +229,9 @@ export default function LimitedDraftTable({
         max: 2.2,
         initial: 1.2,
     });
+    // "Show autopick" toggle (ADR 0095, issue #2271) — see
+    // `useShowAutopick`'s doc comment: default OFF, opt-in only.
+    const showAutopick = useShowAutopick();
 
     // The PHONE fork (issue #2588). One derivation, read by everything below,
     // so "are we on a phone" is never asked twice with two different answers.
@@ -753,6 +758,9 @@ export default function LimitedDraftTable({
         <LimitedDraftPack
             pack={pack}
             selectedPickId={seat.selectedPickId ?? null}
+            defaultPickId={
+                showAutopick.value ? (seat.defaultPickId ?? null) : null
+            }
             onSelect={handleSelect}
             onPick={(pickId) => void handlePick(pickId)}
             onOpenMenu={phoneOrientation === null ? openBoosterMenu : undefined}
@@ -796,6 +804,7 @@ export default function LimitedDraftTable({
                 eventId={eventId}
                 pool={pool}
                 arrangement={seat.poolArrangement}
+                unattendedPickIndices={seat.unattendedPickIndices ?? null}
                 onCardSelect={openDesktopPoolMenu}
                 onCardDoubleClick={handleDesktopPoolDoubleClick}
                 onPin={handlePoolPin}
@@ -820,6 +829,7 @@ export default function LimitedDraftTable({
                 eventId={eventId}
                 pool={pool}
                 arrangement={seat.poolArrangement}
+                unattendedPickIndices={seat.unattendedPickIndices ?? null}
                 arrange={phoneOrientation === "portrait" ? "column" : "row"}
                 selection={poolSelection}
                 onCardSelect={handlePoolSelect}
@@ -912,7 +922,30 @@ export default function LimitedDraftTable({
                     affordance, and this row is 40px the 85% pane cannot
                     spare. */}
                 {phoneOrientation === null && (
-                    <div className="flex items-center justify-end gap-2 text-xs text-text-muted">
+                    <div className="flex items-center justify-end gap-3 text-xs text-text-muted">
+                        {/* ADR 0095: opt-in only, next to the zoom slider it
+                            shares this row with — never on by default (the
+                            standing recommendation would condition the
+                            seat's own Pick, see the ADR's Decision).
+
+                            An `aria-pressed` BUTTON, the same toggle idiom
+                            `limited-draft-bar.tsx` uses on this surface — not
+                            the `Checkbox` primitive, whose hidden native
+                            input is a zero-box control and lands on the draft
+                            rows of `check:ui` as `ctrlsZero`. */}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                showAutopick.set(!showAutopick.value)
+                            }
+                            aria-pressed={showAutopick.value}
+                            className={cn(
+                                "flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 transition-colors hover:text-parchment",
+                                showAutopick.value && "text-accent-strong"
+                            )}
+                        >
+                            Show autopick
+                        </button>
                         <CardZoomSlider
                             value={boosterZoom.value}
                             min={boosterZoom.min}

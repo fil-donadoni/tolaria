@@ -225,18 +225,40 @@ export interface SeatTimerUpdate {
  *  `pickSeq` is bumped in every timer-on case, including the unschedulable
  *  one — that is what invalidates any pending schedule from the seat's
  *  PREVIOUS pack, and what cancels this pack's own timeout when a present
- *  Seat picks before it fires. */
+ *  Seat picks before it fires.
+ *
+ *  ADR 0095 (issue #2271): exactly where a `pickDeadline` is stamped,
+ *  `defaultPickId` is stamped alongside it — the **Default Pick** the Pick
+ *  Heuristic would take from `pack` right now, known from the moment the pack
+ *  arrives rather than computed only at expiry (`resolveAutoPickTimeout`).
+ *  Same condition as the DISPLAY question above, no second rule: the 1-card
+ *  pack that schedules without displaying has no choice to pre-compute, and
+ *  its Auto-Pick takes the only card through the resolver's safety net.
+ *  `chooseBotPick` is optional only so callers with no timer-on path to
+ *  exercise (most existing tests) don't have to thread one through; every real
+ *  caller has one built already (`makeBotChoosePick`,
+ *  `convex/limitedEvents.ts`). */
 function assignFreshPack(
     seat: LimitedEventSeat,
     pack: DraftPackCard[],
-    timerConfig: TimerConfig | undefined
+    timerConfig: TimerConfig | undefined,
+    chooseBotPick?: ChooseBotPick
 ): { seat: LimitedEventSeat; update?: SeatTimerUpdate } {
     if (!timerConfig || seat.isBot) {
-        return { seat: { ...seat, currentPack: pack } };
+        return {
+            seat: { ...seat, currentPack: pack, defaultPickId: undefined },
+        };
     }
     const pickSeq = (seat.pickSeq ?? 0) + 1;
     const displaySeconds = pickTimerSecondsForCardsRemaining(pack.length);
     const timeoutSeconds = autoPickTimeoutSecondsForCardsRemaining(pack.length);
+    // ADR 0095: `packsSeen` (ADR 0073) is the one pack this call can account
+    // for — unread by today's scorer, same discipline as
+    // `resolveAutoPickTimeout`.
+    const defaultPickId =
+        displaySeconds === null
+            ? undefined
+            : chooseBotPick?.(seat, pack, [pack]);
     const stamped: LimitedEventSeat = {
         ...seat,
         currentPack: pack,
@@ -245,6 +267,7 @@ function assignFreshPack(
             displaySeconds === null
                 ? undefined
                 : timerConfig.now + displaySeconds * 1000,
+        defaultPickId,
     };
     if (timeoutSeconds === null) return { seat: stamped };
     return {
@@ -284,7 +307,11 @@ export function startDraft(
     getConfig: GetBoosterConfig,
     resolveCardMeta: ResolveCardMeta,
     timerConfig?: TimerConfig,
-    cubePool?: readonly string[]
+    cubePool?: readonly string[],
+    /** ADR 0095: computes round 0's `defaultPickId` for every human seat a
+     *  timer-on event stamps a deadline for. Optional so a timer-off /
+     *  no-default-needed call keeps working with no adapter to build. */
+    chooseBotPick?: ChooseBotPick
 ): StartDraftResult {
     if (packSlots.length === 0) {
         throw new Error("startDraft: packSlots is empty");
@@ -304,7 +331,8 @@ export function startDraft(
         const { seat: stamped, update } = assignFreshPack(
             { ...seat, pool: [], packQueue: [] },
             packs[i],
-            timerConfig
+            timerConfig,
+            chooseBotPick
         );
         if (update) timerUpdates.push(update);
         return stamped;
@@ -367,7 +395,12 @@ export function applyPick(
     /** The draft's FROZEN cube pool — the same array `startDraft` dealt round
      *  0 from. Mandatory for a cube draft (a round dealt from a re-derived
      *  pool breaks the singleton invariant), ignored for a per-set draft. */
-    cubePool?: readonly string[]
+    cubePool?: readonly string[],
+    /** ADR 0095: forwarded to every `assignFreshPack` this call makes, so a
+     *  pack passed on, dequeued, or dealt on round advance gets its
+     *  `defaultPickId` stamped alongside its deadline. Optional — see
+     *  `startDraft`. */
+    chooseBotPick?: ChooseBotPick
 ): ApplyPickResult {
     const seatCount = seats.length;
     const seat = seats[seatIndex];
@@ -400,8 +433,12 @@ export function applyPick(
         currentPack: undefined,
         // Nothing is timed for this seat until it either dequeues its own
         // next pack below or receives a fresh one later — clear any stale
-        // deadline so the UI never shows a countdown with no pack behind it.
-        ...(timerConfig ? { pickDeadline: undefined } : {}),
+        // deadline (and the Default Pick it was computed against, ADR 0095)
+        // so the UI never shows a countdown, or a stale ring, with no pack
+        // behind it.
+        ...(timerConfig
+            ? { pickDeadline: undefined, defaultPickId: undefined }
+            : {}),
     };
 
     let packsRemaining = draftPacksRemaining;
@@ -416,7 +453,8 @@ export function applyPick(
             const { seat: stamped, update } = assignFreshPack(
                 target,
                 remaining,
-                timerConfig
+                timerConfig,
+                chooseBotPick
             );
             nextSeats[targetIndex] = stamped;
             if (update) timerUpdates.push(update);
@@ -441,7 +479,8 @@ export function applyPick(
         const { seat: stamped, update } = assignFreshPack(
             { ...seatAfterPass, packQueue: restQueue },
             next,
-            timerConfig
+            timerConfig,
+            chooseBotPick
         );
         nextSeats[seatIndex] = stamped;
         if (update) timerUpdates.push(update);
@@ -465,7 +504,8 @@ export function applyPick(
                 const { seat: stamped, update } = assignFreshPack(
                     { ...s, packQueue: [] },
                     packs[i],
-                    timerConfig
+                    timerConfig,
+                    chooseBotPick
                 );
                 if (update) timerUpdates.push(update);
                 return stamped;
@@ -599,7 +639,8 @@ export function runBotAutoPicks(
             getConfig,
             resolveCardMeta,
             timerConfig,
-            cubePool
+            cubePool,
+            chooseBotPick
         );
         curSeats = result.seats;
         round = result.draftRound;
@@ -623,9 +664,19 @@ export function runBotAutoPicks(
     };
 }
 
+/** {@link resolveAutoPickTimeout}'s result: the `pickId` to Auto-Pick with,
+ *  plus whether it is an **Unattended Pick** (ADR 0095) — the seat chose
+ *  nothing, so the Pool card it produces is marked until the seat's next
+ *  hand-made Pick. `false` only for the Selected Card arm: the seat DID
+ *  choose that card, the clock only committed it. */
+export interface AutoPickResolution {
+    pickId: string;
+    unattended: boolean;
+}
+
 /** Checks whether a scheduled Auto-Pick timeout (issue #1114) is still valid
  *  to apply — the seq-based cancellation guard (see `SeatTimerUpdate`'s doc
- *  comment). Returns the `pickId` to Auto-Pick with, or `null` when the
+ *  comment). Returns the resolution to Auto-Pick with, or `null` when the
  *  schedule is stale and must be a no-op:
  *
  *  - the seat no longer exists (out-of-range index — defensive only),
@@ -647,21 +698,26 @@ export function runBotAutoPicks(
  *  heuristic exactly as if nothing were selected, instead of ever being
  *  force-applied to a pack that no longer contains it.
  *
- *  With NO (or a stale) selection, falls back to the SAME `chooseBotPick` a
- *  real Bot Drafter seat uses (PRD #1107 story 14 / PRD #1241 story 24: "an
- *  expired timer with nothing selected Auto-Picks with the bot engine, never
- *  randomly, never position-1").
+ *  ADR 0095 (issue #2271): with no live selection, the seat's **Default
+ *  Pick** (`defaultPickId`, stamped when the pack was assigned — see
+ *  `assignFreshPack`) is honoured SECOND, re-validated against the LIVE
+ *  `currentPack` on the same "never trusted blindly" discipline as the
+ *  selection above. Only with NEITHER a live selection nor a live default
+ *  does this fall back to a FRESH call to the SAME `chooseBotPick` a real Bot
+ *  Drafter seat uses (PRD #1107 story 14 / PRD #1241 story 24: "an expired
+ *  timer with nothing selected Auto-Picks with the bot engine, never
+ *  randomly, never position-1") — a safety net for a stale/absent default,
+ *  and the only arm a 1-card pack can reach (issue #2278 made those
+ *  schedulable, and `assignFreshPack` stamps no default for them).
  *
- *  Forward constraint for the **Unattended Pick** marking seam (#2271, which
- *  will hook in at this fallback): an Auto-Pick taken from a 1-card pack
- *  (`seat.currentPack.length === 1`, the case issue #2278 made schedulable)
- *  must NOT be marked unattended — there was no choice to deny the Seat. */
+ *  An Auto-Pick taken from a 1-card pack is NEVER marked unattended — there
+ *  was no choice to deny the Seat. */
 export function resolveAutoPickTimeout(
     seats: readonly LimitedEventSeat[],
     seatIndex: number,
     expectedSeq: number,
     chooseBotPick: ChooseBotPick
-): string | null {
+): AutoPickResolution | null {
     const seat = seats[seatIndex];
     if (!seat || seat.isBot) return null;
     if ((seat.pickSeq ?? 0) !== expectedSeq) return null;
@@ -671,10 +727,63 @@ export function resolveAutoPickTimeout(
         seat.selectedPickId !== undefined &&
         seat.currentPack.some((c) => c.pickId === seat.selectedPickId)
     ) {
-        return seat.selectedPickId;
+        return { pickId: seat.selectedPickId, unattended: false };
+    }
+
+    if (
+        seat.defaultPickId !== undefined &&
+        seat.currentPack.some((c) => c.pickId === seat.defaultPickId)
+    ) {
+        return { pickId: seat.defaultPickId, unattended: true };
     }
 
     // `packsSeen` (ADR 0073) is the one pack this timeout can account for —
     // the pack in front of the seat. Unread by today's scorer.
-    return chooseBotPick(seat, seat.currentPack, [seat.currentPack]);
+    return {
+        pickId: chooseBotPick(seat, seat.currentPack, [seat.currentPack]),
+        // A 1-card pack (schedulable since issue #2278, and stamped with no
+        // Default Pick) denied the Seat nothing — there was one card and it
+        // took it. Not an Unattended Pick.
+        unattended: seat.currentPack.length > 1,
+    };
+}
+
+/** Marks `poolIndex` as an Unattended Pick on `seatIndex` (ADR 0095, issue
+ *  #2271) — appends to the seat's transient `unattendedPickIndices`. The
+ *  mutation shell (`autoPickSeatTimeout`, `convex/limitedEvents.ts`) calls
+ *  this only when {@link resolveAutoPickTimeout} resolved with
+ *  `unattended: true`, with `poolIndex` the index `applyPick` is ABOUT to
+ *  append to that seat's `pool` (its `pool.length` before the call). */
+export function markUnattendedPick(
+    seats: readonly LimitedEventSeat[],
+    seatIndex: number,
+    poolIndex: number
+): LimitedEventSeat[] {
+    return seats.map((seat, i) =>
+        i === seatIndex
+            ? {
+                  ...seat,
+                  unattendedPickIndices: [
+                      ...(seat.unattendedPickIndices ?? []),
+                      poolIndex,
+                  ],
+              }
+            : seat
+    );
+}
+
+/** Clears every Unattended Pick mark on `seatIndex` (ADR 0095, issue #2271)
+ *  — the next hand-made Pick is the gesture that proves the seat is back at
+ *  the table. Called by `submitPick`'s mutation shell for every real human
+ *  Pick, regardless of whether that seat carried any marks — a no-op
+ *  (returns the SAME array reference) when it didn't, so a plain Pick on an
+ *  unmarked seat writes nothing extra. */
+export function clearUnattendedPicks(
+    seats: LimitedEventSeat[],
+    seatIndex: number
+): LimitedEventSeat[] {
+    if (seats[seatIndex]?.unattendedPickIndices === undefined) return seats;
+    return seats.map((seat, i) =>
+        i === seatIndex ? { ...seat, unattendedPickIndices: undefined } : seat
+    );
 }

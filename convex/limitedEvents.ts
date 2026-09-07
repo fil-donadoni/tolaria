@@ -60,6 +60,8 @@ import { computeEventCompletion } from "./limited/completion";
 import { SCORER_VERSION } from "./limited/scorerVersion";
 import {
     applyPick,
+    clearUnattendedPicks,
+    markUnattendedPick,
     resolveAutoPickTimeout,
     runBotAutoPicks,
     startDraft,
@@ -348,6 +350,11 @@ const limitedEventSeatViewValidator = v.object({
     // Selected Card (ADR 0060, issue #1248) — owner-only, same discipline as
     // `currentPack`/`pickDeadline`/`poolArrangement` above.
     selectedPickId: v.union(v.string(), v.null()),
+    // Default Pick (ADR 0095, issue #2271) — owner-only, same discipline.
+    defaultPickId: v.union(v.string(), v.null()),
+    // Unattended Pick indices (ADR 0095, issue #2271) — owner-only, same
+    // discipline.
+    unattendedPickIndices: v.union(v.array(v.number()), v.null()),
     // Deck-ready indicator (issue #1580) — true once THIS seat has a deck
     // (human: submitted; bot: Auto-Build computable). Always visible for
     // every seat, unlike `pool`/`humanDeck`/`autoBuiltDeck`: it's a readiness
@@ -1805,7 +1812,8 @@ export const startLimitedEvent = mutation({
                 getRuntimeBoosterConfig,
                 resolveCardMeta,
                 timerConfig,
-                cubePool
+                cubePool,
+                botChoosePick
             );
             const afterBots = runBotAutoPicks(
                 dealt.seats,
@@ -2067,6 +2075,14 @@ export const submitPick = mutation({
 
         const now = Date.now();
         const timerConfig = buildTimerConfig(event.timerEnabled, now);
+        // Built BEFORE `applyPick` (not just for the bot auto-picks below):
+        // `applyPick` itself calls `assignFreshPack` for every seat that
+        // receives a pack this turn — the pass target, the picker's own
+        // dequeued pack, or a whole round advance — and each of those needs
+        // its Default Pick stamped too (ADR 0095, issue #2271).
+        const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+        const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
         const result = applyPick(
             hydratedSeats,
             event.draftRound ?? 0,
@@ -2078,17 +2094,21 @@ export const submitPick = mutation({
             getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig,
-            cubePool
+            cubePool,
+            botChoosePick
         );
+        // A hand-made Pick is the gesture that proves the seat is back at the
+        // table (ADR 0095) — clears every Unattended Pick mark this seat was
+        // carrying, regardless of what THIS pick itself was resolved from
+        // (always a real human choice here, `submitPick` is never how a
+        // timeout resolves).
+        result.seats = clearUnattendedPicks(result.seats, seatIndex);
 
         // The human's pick can pass a pack straight onto a bot seat, or empty
         // the round and deal a fresh one into every seat including bots
         // (issue #1113) — resolve every such pending bot pick immediately so
         // the draft never stalls on a seat nobody drives (PRD #1107 story
         // 27). A no-op when no bot seat currently holds a pack.
-        const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-        const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
-        const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
         const afterBots = runBotAutoPicks(
             result.seats,
             result.draftRound,
@@ -2375,29 +2395,44 @@ export const autoPickSeatTimeout = internalMutation({
         const getPickRating = await loadEventPickRating(ctx, event.packSlots);
         const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
         const botChoosePick = makeBotChoosePick(getPickRating, getCardProfile);
-        const pickId = resolveAutoPickTimeout(
+        const resolution = resolveAutoPickTimeout(
             hydratedSeats,
             args.seatIndex,
             args.expectedSeq,
             botChoosePick
         );
-        if (pickId === null) return null; // stale schedule — no-op
+        if (resolution === null) return null; // stale schedule — no-op
 
         const now = Date.now();
         const timerConfig = buildTimerConfig(event.timerEnabled, now);
+        // The Pool index this pick is ABOUT to occupy — `applyPick` always
+        // appends one entry to the picking seat's `pool` (ADR 0095: this is
+        // what an Unattended Pick's mark ends up pointing at).
+        const poolIndexBeforePick =
+            hydratedSeats[args.seatIndex].pool?.length ?? 0;
         const result = applyPick(
             hydratedSeats,
             event.draftRound ?? 0,
             event.draftPacksRemaining ?? event.seats.length,
             event.packSlots,
             args.seatIndex,
-            pickId,
+            resolution.pickId,
             event.seed,
             getRuntimeBoosterConfig,
             resolveCardMeta,
             timerConfig,
-            cubePool
+            cubePool,
+            botChoosePick
         );
+        // An Auto-Pick resolved from anything but a Selected Card is an
+        // Unattended Pick (ADR 0095) — mark the Pool index it just produced.
+        if (resolution.unattended) {
+            result.seats = markUnattendedPick(
+                result.seats,
+                args.seatIndex,
+                poolIndexBeforePick
+            );
+        }
         const afterBots = runBotAutoPicks(
             result.seats,
             result.draftRound,

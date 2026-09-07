@@ -697,3 +697,65 @@ describe("LimitedDraftPool — the Booster and timer keep their vertical space (
         expect(classesOf(scroller!)).toContain("flex-1");
     });
 });
+
+describe("LimitedDraftPool — Unattended Pick ring through projectLimitedEvent (ADR 0095, issue #2271)", () => {
+    it("marks the Pool card at an unattended poolIndex, and none other", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const { getByTitle, getAllByTitle } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                unattendedPickIndices={[2]} // the Plains, poolIndex 2
+            />
+        );
+        const plains = getByTitle(/^Auto-picked while you were away.*Plains/);
+        expect(
+            plains.querySelector('[data-testid="unattended-pick-ring"]')
+        ).not.toBeNull();
+        for (const bolt of getAllByTitle(/^Remove Lightning Bolt/)) {
+            expect(
+                bolt.querySelector('[data-testid="unattended-pick-ring"]')
+            ).toBeNull();
+        }
+    });
+
+    it("marks nothing when unattendedPickIndices is null/absent", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const { queryAllByTestId } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+        expect(queryAllByTestId("unattended-pick-ring")).toHaveLength(0);
+    });
+
+    it("a card moved to the Sideboard keeps its mark — matched by poolIndex, not by pane", () => {
+        const view = projectLimitedEvent(
+            eventRow([{ poolIndex: 2, sideboard: true }]), // the Plains
+            "user1"
+        );
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const { getByTitle } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+                unattendedPickIndices={[2]}
+            />
+        );
+        const plains = getByTitle(
+            /^Auto-picked while you were away.*Plains.*Sideboard/
+        );
+        expect(
+            plains.querySelector('[data-testid="unattended-pick-ring"]')
+        ).not.toBeNull();
+    });
+});

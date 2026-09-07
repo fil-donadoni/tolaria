@@ -42,6 +42,7 @@ type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 export default function LimitedDraftPackCard({
     card,
     selected,
+    isDefault,
     onSelect,
     onPick,
     onOpenMenu,
@@ -52,6 +53,14 @@ export default function LimitedDraftPackCard({
     /** True when this card is the seat's current Selected Card
      *  (`seat.selectedPickId`). */
     selected: boolean;
+    /** True when this card is the seat's Default Pick (ADR 0095, issue
+     *  #2271) AND the caller's "Show autopick" toggle is on — `false`
+     *  otherwise (the caller nulls out `defaultPickId` when the toggle is
+     *  off, `limited-draft-pack.tsx`). Renders a ring SUBORDINATE to
+     *  `selected`'s: thinner, dimmed, painted first so a card that is
+     *  somehow both reads as "mine" — the Selected Card's solid ring always
+     *  outranks the engine's. */
+    isDefault: boolean;
     onSelect: (pickId: string) => void;
     /** Double-click commits the Pick, on both phone and desktop (issue
      *  #2894, reverting the desktop part of #2861). */
@@ -191,6 +200,19 @@ export default function LimitedDraftPackCard({
                 not the paint order. `[--card-ring-w:4px]` preserves the pack
                 card's heavier ring; every other card surface takes the 2px
                 default. */}
+            {/* Default Pick ring (ADR 0095, issue #2271) — painted BEFORE the
+                Selected Card ring below, so on the rare tile that is both,
+                the Selected Card's solid 4px ring layers on top and reads as
+                dominant. `--color-signal-pending` (amber): the same tone the
+                board already uses for "the engine has a pending action" —
+                fitting for "what the clock is about to do" — at reduced
+                opacity so it stays visually subordinate even alone. */}
+            {isDefault && (
+                <div
+                    data-testid="default-pick-ring"
+                    className="pointer-events-none absolute inset-0 card-ring [--card-ring-color:color-mix(in_oklab,var(--color-signal-pending)_55%,transparent)]"
+                />
+            )}
             {selected && (
                 <div
                     data-testid="selection-ring"
