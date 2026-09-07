@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
     CLAIM_STAGES,
     LOOP_VERDICT_STATES,
@@ -498,4 +500,45 @@ describe("claim stages and receipt roles read as words", () => {
         // Nothing needing attention is stated as GOOD, not as an absence.
         expect(stats.at(-1)).toMatchObject({ value: "0", tone: "good" });
     });
+});
+
+/**
+ * A design TOKEN that no `@theme` entry registers is invisible, not wrong.
+ *
+ * `--chart-2` existed in `dashboard/index.css` from S1 and `var(--chart-2)`
+ * resolved fine — but `bg-chart-2` is only a class Tailwind emits if a
+ * `--color-chart-2` entry exists, so the Now timeline's merge ticks rendered
+ * with NO background at all while the activity chart drawn from the same value
+ * looked correct. Nothing in a DOM test can catch that (happy-dom loads no
+ * stylesheet and has no layout); it took a real browser. This is the guard
+ * that generalises the class rather than the instance.
+ */
+describe("dashboard tokens — a role token is registered as a utility, or it is invisible", () => {
+    const css = readFileSync(
+        join(import.meta.dirname, "..", "..", "dashboard", "index.css"),
+        "utf8"
+    );
+
+    const declared = (prefix: string): string[] => [
+        ...new Set(
+            [
+                ...css.matchAll(
+                    new RegExp(`^\\s*--(${prefix}-[a-z0-9]+):`, "gm")
+                ),
+            ].map((m) => m[1])
+        ),
+    ];
+
+    it.each(["chart", "state"])(
+        "every --%s-* role has a --color-* entry, so `bg-<role>` is a class that exists",
+        (prefix) => {
+            const roles = declared(prefix);
+            // A floor, so an emptied stylesheet cannot make this vacuous.
+            expect(roles.length).toBeGreaterThanOrEqual(5);
+            const unregistered = roles.filter(
+                (role) => !css.includes(`--color-${role}:`)
+            );
+            expect(unregistered).toEqual([]);
+        }
+    );
 });
