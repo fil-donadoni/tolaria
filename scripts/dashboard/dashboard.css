@@ -1281,12 +1281,21 @@ tr.drill th:first-child {
 .ls-tbl-wrap {
     max-height: 380px;
 }
+/* Cells stay on one line and the table scrolls inside `.ls-tbl-wrap` on a
+   narrow screen (measured at 390px: wrapped titles made a six-row table
+   1,900px tall); the two prose columns are clamped with an ellipsis and
+   carry the full text in a `title`. */
 .ls-table th,
 .ls-table td {
     font-size: 12px;
     padding: 6px 8px;
     text-align: left;
+    white-space: nowrap;
+}
+.ls-table td.prose {
     white-space: normal;
+    min-width: 220px;
+    max-width: 520px;
 }
 .ls-table th.num,
 .ls-table td.num {
@@ -1408,6 +1417,11 @@ tr.drill th:first-child {
 }
 .ls-live-title {
     font-weight: 500;
+    display: inline-block;
+    max-width: 36ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
 }
 
 /* Tail drawer (#3135) — a fixed right-hand panel following one transcript.

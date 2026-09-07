@@ -111,7 +111,7 @@ export function tableHtml(columns, rows, { cls = "" } = {}) {
                 r
                     .map(
                         (cell, i) =>
-                            `<td class="${columns[i]?.align === "right" ? "num" : ""}">${cell}</td>`
+                            `<td class="${columns[i]?.align === "right" ? "num" : columns[i]?.prose ? "prose" : ""}">${cell}</td>`
                     )
                     .join("") +
                 `</tr>`

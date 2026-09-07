@@ -206,7 +206,7 @@ export const CLAIM_COLUMNS = [
     { term: "stage.claimed", label: "stage" },
     { term: "first_ts", label: "age" },
     { term: "claim.session", label: "session" },
-    { term: "issue", label: "title" },
+    { term: "issue", label: "title", prose: true },
 ];
 
 function claimsBodyHtml(data, nowMs) {
