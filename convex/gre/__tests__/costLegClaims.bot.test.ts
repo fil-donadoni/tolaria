@@ -2,10 +2,18 @@
 // Gap 2).
 //
 // The TOTALITY of the table is enforced by `tsc`, not here — that is the whole
-// design: `Record<keyof ActivatedAbility["cost"], CostLegClaim>` reds on a new
-// cost key at compile time, where a `satisfies readonly (keyof …)[]` list (the
-// `NEVER_AUTO_PAYABLE_COST_LEGS` this replaces) stayed green. A runtime
-// assertion would only fire in a suite somebody remembered to run.
+// design: `satisfies Record<keyof ActivatedAbility["cost"], CostLegClaim>` reds
+// on a new cost key at compile time. A runtime assertion would only fire in a
+// suite somebody remembered to run.
+//
+// Two compile-time guards, and both matter. The table's totality says a new leg
+// has a ROW; `constants.ts`' `_manaAbilityCostLegsExhaustive` witness says it
+// has been CLASSIFIED as auto-payable or not. The first draft of this change
+// derived the never-list as a `readonly (keyof …)[]` array and silently killed
+// the second — `(typeof ARRAY)[number]` widened to the whole key union, the
+// `Exclude` became `never`, and a new leg written `autoPayable: true` would have
+// been admitted by `isAutoPayableManaAbilityCost` and never paid. Review caught
+// it; the witness now consumes the derived `NeverAutoPayableCostLeg` TYPE.
 //
 // What is left for runtime is everything `tsc` cannot see:
 //
@@ -14,7 +22,9 @@
 //     it is not hypothetical: two of the twenty-one rows named a plausible
 //     symbol that was never there (`canActivateLoyaltyAbility`,
 //     `applyActivationCostReduction`) and this test is what found them;
-//   • a `hole` row with no sibling issue behind it;
+//   • a `hole` row whose tracking reference is not an issue number (the SHAPE
+//     only — `tsc` already enforces the template literal, and nothing here
+//     asks GitHub whether the issue exists or is still open);
 //   • the derived `NEVER_AUTO_PAYABLE_COST_LEGS` still saying what the
 //     hand-maintained list said, so the derivation is a refactor and not a
 //     behaviour change.
@@ -45,9 +55,18 @@ describe("COST_LEG_CLAIMS — the activation-cost leg census (issue #3007)", () 
                 stale.push(`${leg}: no such file ${claim.paidBy.file}`);
                 continue;
             }
-            if (!readFileSync(path, "utf8").includes(claim.paidBy.symbol)) {
+            // A DEFINITION, not a substring. `.includes()` passed on a
+            // symbol surviving only in a comment — this file's own header
+            // mentions `applyActivationCostsForSearch` forty lines from any
+            // code — and on any substring of a longer identifier. Review
+            // finding: it is also what let the two `hole` rows name a cost KEY
+            // (`xFromTargetSpellMv`) instead of a function and stay green.
+            const defined = new RegExp(
+                String.raw`(?:function|const|class|type)\s+${claim.paidBy.symbol}\b`
+            );
+            if (!defined.test(readFileSync(path, "utf8"))) {
                 stale.push(
-                    `${leg}: ${claim.paidBy.file} no longer contains ${claim.paidBy.symbol}`
+                    `${leg}: ${claim.paidBy.file} defines no ${claim.paidBy.symbol}`
                 );
             }
         }

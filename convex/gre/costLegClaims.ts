@@ -15,15 +15,40 @@
 // `Record<keyof ActivatedAbility["cost"], CostLegClaim>`, so `tsc` reds on the
 // next key — the `EvalTerms` / `eval-term-labels.ts` idiom
 // `.claude/rules/bot-development.md` already mandates for a different table.
-// That is strictly stronger than the `satisfies readonly (keyof …)[]` list this
-// replaces (`NEVER_AUTO_PAYABLE_COST_LEGS`, below): `satisfies` checks each
-// member IS a key, and stays green when a key is added.
+// Be precise about what that improves on, because the first draft of this file
+// got it wrong and review caught it. The list it replaces
+// (`NEVER_AUTO_PAYABLE_COST_LEGS`) was `as const satisfies readonly (keyof …)[]`,
+// and `satisfies` alone IS weak — it checks each member is a key and stays green
+// when a key is added. But the list was never alone: `constants.ts` carries a
+// compile-time witness, `_manaAbilityCostLegsExhaustive`, that `Exclude`s the
+// admitted three plus the never-list from the key union and asserts the
+// remainder is `never`. That already red on a new leg.
+//
+// So this table does not ADD the property, it moves it somewhere a human reads:
+// the witness proved a leg had been put on one list or the other, and said
+// nothing about anyone having thought about it. What matters is that the witness
+// stays LIVE, and a runtime array typed `readonly (keyof …)[]` silently kills it
+// — `[number]` widens to the whole key union and the `Exclude` becomes
+// unconditionally `never`. Hence `NeverAutoPayableCostLeg` below: the never-list
+// is derived at the TYPE level as well as at runtime, and `constants.ts`
+// consumes the type. Both guards red on a new leg; that is the bar this had to
+// clear, and the first draft did not.
 //
 // What it CANNOT prove: that the enumerator yields a legal, payable Move for
 // that leg on a real board. Reachability depends on board state and needs a
 // canned position per shape — a behavioural sweep, deliberately out of scope
 // here (issue #3007 § Out of scope). A `hole` row is where writing the claim
 // found the answer is "it does not".
+
+// SCOPE — one activation surface, not both. Every row below is written against
+// `enumerateAbilityMoves` and `applyActivationCostsForSearch`. The OTHER surface,
+// `enumerateGrantedAbilityMoves` (`moves.ts`) into `search.ts`'s
+// `activate-granted-ability` case, gates only `tap` / `sacrifice` / `mana` and
+// pays only `life`: every other leg on a player-scoped GRANT is both ungated and
+// free. Vacuous today (Channel is the only such grant, and its cost is `life`),
+// but a future leg's row will read "paidBy applyActivationCostsForSearch" and be
+// silently false for that path. Widening the table to both surfaces is the right
+// follow-up if a second granted ability ever ships.
 
 import type { ActivatedAbility } from "../cards/types";
 
@@ -52,17 +77,14 @@ export type CostLegClaim = {
 /** Every leg of `ActivatedAbility["cost"]`, and what answers for it.
  *  TOTAL BY CONSTRUCTION — adding a key to the type without a row here is a
  *  `tsc` error, which is the entire point of the table. */
-export const COST_LEG_CLAIMS: Record<
-    keyof ActivatedAbility["cost"],
-    CostLegClaim
-> = {
+export const COST_LEG_CLAIMS = {
     // ── Gated in the enumerator itself ───────────────────────────────────
     tap: {
         paidBy: {
             file: "convex/gre/moves.ts",
             symbol: "enumerateAbilityMoves",
         },
-        why: "CR 602.2a — the branch skips a tapped or summoning-sick permanent before emitting the move, and `enumerateGrantedAbilityMoves` excludes a granted ability carrying it.",
+        why: "CR 118.3 / 302.6 — the branch skips a permanent that is already tapped (nothing left to pay with) or summoning-sick, before emitting the move; `enumerateGrantedAbilityMoves` excludes a granted ability carrying it.",
         autoPayable: true,
     },
     mana: {
@@ -80,7 +102,7 @@ export const COST_LEG_CLAIMS: Record<
     },
     life: {
         paidBy: { file: "convex/gre/state.ts", symbol: "canPayLifeCost" },
-        why: "CR 118.4 / 602.1 — a life payment the enumerator gates on directly.",
+        why: "CR 119.4 / 602.1 — a life payment is legal only down to zero, and the enumerator gates on that directly.",
         autoPayable: false,
     },
     loyalty: {
@@ -96,7 +118,7 @@ export const COST_LEG_CLAIMS: Record<
             file: "convex/gre/state.ts",
             symbol: "canPayRemoveCounterCost",
         },
-        why: "CR 122.1 / 602.1 — checks the permanent carries enough counters of that type.",
+        why: "CR 118.3 / 122.1 — checks the permanent carries enough counters of that type to pay in full.",
         autoPayable: false,
     },
     discardLastDrawn: {
@@ -159,7 +181,7 @@ export const COST_LEG_CLAIMS: Record<
             file: "convex/gre/applyMove.ts",
             symbol: "applyActivationCostsForSearch",
         },
-        why: "CR 701.21 — always payable (the permanent is on the battlefield by definition), so there is nothing for the enumerator to gate; the search-side application sacrifices it exactly as the mutation does.",
+        why: "CR 701.21 — for a BATTLEFIELD-source ability, always payable (the permanent is there by definition), so there is nothing for the enumerator to gate; the search-side application sacrifices it exactly as the mutation does. A hand- or graveyard-source ability declaring this leg would be neither gated nor paid — unreachable today, and the shape to check if one ever ships.",
         autoPayable: false,
     },
     sacrificeFilter: {
@@ -191,35 +213,54 @@ export const COST_LEG_CLAIMS: Record<
             file: "convex/gre/applyMove.ts",
             symbol: "applyActivationCostsForSearch",
         },
-        why: "CR 702.29c — a hand-source ability discards itself as the cost; always payable (the card is in hand by definition), so the enumerator gates nothing and the search-side application discards it.",
+        why: "CR 118.1 / 601.2h — a hand-source ability discards itself as the cost. Cycling is the common carrier but not the only one (Harvester of Misery), so this is the generic leg, not CR 702.29a. For a HAND-source ability it is always payable — the card is in hand by definition — so the enumerator gates nothing and the search-side application discards it.",
         autoPayable: false,
     },
     exileThis: {
-        paidBy: { file: "convex/gre/state.ts", symbol: "payExileThisCost" },
-        why: "CR 118.1 / 601.2h — the single authority for both source zones, dispatched on the ability's declared `activateFromGraveyard`; always payable, so nothing to gate.",
+        paidBy: {
+            file: "convex/gre/applyMove.ts",
+            symbol: "applyActivationCostsForSearch",
+        },
+        why: "CR 118.1 / 601.2h — always payable, so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only HALF the Bot path: the graveyard leg delegates to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over.",
         autoPayable: false,
     },
 
     // ── Declared holes: writing the claim is what found them ─────────────
     xFromTargetSpellMv: {
-        paidBy: { file: "convex/game.ts", symbol: "xFromTargetSpellMv" },
+        paidBy: { file: "convex/game.ts", symbol: "finalizeTargetSelection" },
         why: "CR 107.3 — X is DERIVED from the targeted spell's mana value, and only the mutation derives it. `enumerateAbilityMoves` normalizes `cost.mana` with no `chosenX`, so `normalizeManaCost({ X: \"X\" })` yields the empty record: the Bot prices Reflecting Mirror's ability at just {T}, emits the move, and the mutation then charges 2x the spell's mana value.",
         autoPayable: false,
         hole: "#3117",
     },
     cyclingCost: {
-        paidBy: { file: "convex/game.ts", symbol: "cyclingCost" },
-        why: 'CR 702.29c — not a payable leg at all: it is a MARKER qualifying the `discardThis` payment so the discard carries `cause: "cycling"`. Only the mutation passes it; the search-side discard omits the cause, so a "when you cycle" trigger fires on the real board and not inside the tree.',
+        paidBy: { file: "convex/game.ts", symbol: "activateAbilityOnState" },
+        why: 'CR 702.29c — not a payable leg at all: it is a MARKER qualifying the `discardThis` payment so the discard carries `cause: "cycling"`. Only the mutation passes it; the search-side discard omits the cause, so a "when you cycle" trigger (CR 702.29c) would fire on the real board and not inside the tree. LATENT, not live: `cycledTrigger` (`cards/abilities/cycling.ts`) has no call site in `cards/sets/**` yet, so no shipped card is mis-valued today — it becomes a real defect with the first cycling trigger.',
         autoPayable: false,
         hole: "#3118",
     },
-};
+} as const satisfies Record<keyof ActivatedAbility["cost"], CostLegClaim>;
 
-/** CR 602.1 — the legs the AUTOMATIC mana-ability planner may never spend on
- *  the payer's behalf, DERIVED from {@link COST_LEG_CLAIMS} rather than listed.
- *  A new cost leg is excluded until its claim says otherwise, which is what the
- *  hand-maintained list this replaces only claimed to do (issue #3007). */
-export const NEVER_AUTO_PAYABLE_COST_LEGS: readonly (keyof ActivatedAbility["cost"])[] =
+/** CR 602.1 — the legs whose claim says the automatic mana-ability planner may
+ *  NOT spend them, as a TYPE. `as const` on the table keeps each `autoPayable` a
+ *  literal, so this is a real projection rather than a union of every key.
+ *
+ *  It exists because the runtime array below cannot carry the property.
+ *  `constants.ts`' `_manaAbilityCostLegsExhaustive` witness `Exclude`s the
+ *  never-list from the key union and asserts the remainder is `never`; fed
+ *  `(typeof ARRAY)[number]` where the array is typed `readonly (keyof …)[]`,
+ *  that `Exclude` is unconditionally `never` and the witness is vacuous — a
+ *  silent fail-open where a new leg marked `autoPayable: true` is admitted by
+ *  `isAutoPayableManaAbilityCost` and never paid. The witness consumes THIS type
+ *  instead. */
+export type NeverAutoPayableCostLeg = {
+    [K in keyof typeof COST_LEG_CLAIMS]: (typeof COST_LEG_CLAIMS)[K]["autoPayable"] extends true
+        ? never
+        : K;
+}[keyof typeof COST_LEG_CLAIMS];
+
+/** The runtime twin of {@link NeverAutoPayableCostLeg}, derived from the same
+ *  field so the two cannot disagree. */
+export const NEVER_AUTO_PAYABLE_COST_LEGS: readonly NeverAutoPayableCostLeg[] =
     (
         Object.entries(COST_LEG_CLAIMS) as [
             keyof ActivatedAbility["cost"],
@@ -227,4 +268,4 @@ export const NEVER_AUTO_PAYABLE_COST_LEGS: readonly (keyof ActivatedAbility["cos
         ][]
     )
         .filter(([, claim]) => !claim.autoPayable)
-        .map(([leg]) => leg);
+        .map(([leg]) => leg as NeverAutoPayableCostLeg);

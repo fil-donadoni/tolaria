@@ -19,7 +19,10 @@ import type { MatchablePermanent } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
-import { NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS } from "./costLegClaims";
+import {
+    NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
+    type NeverAutoPayableCostLeg,
+} from "./costLegClaims";
 import { getDefinition, tryGetDefinition } from "../cards";
 // CR 611.2a / 613.1f (issue #1880) — the POST-LAYER activated-ability set
 // (native + granted, minus a "loses all abilities" suppression). Every mana
@@ -1232,14 +1235,15 @@ function minimalManaGateView(
  *  automatic planner.
  *
  *  DERIVED from `COST_LEG_CLAIMS` (`gre/costLegClaims.ts`), not listed (issue
- *  #3007). It used to be a hand-maintained array whose own comment claimed "a
- *  NEW cost leg added to the type is excluded by default until someone
- *  deliberately reviews it here" — which was false: `as const satisfies
- *  readonly (keyof ActivatedAbility["cost"])[]` checks that each member IS a
- *  key and stays green when a key is ADDED, so a new leg was silently
- *  auto-payable-by-omission. The claim table is a total `Record` over the same
- *  keys, so `tsc` now reds on the new leg, and this list follows from its
- *  `autoPayable` field instead of being a second place to remember.
+ *  #3007). It used to be a hand-maintained array, and its own comment claimed
+ *  "a NEW cost leg added to the type is excluded by default until someone
+ *  deliberately reviews it here". That was overstated about the ARRAY —
+ *  `as const satisfies readonly (keyof …)[]` checks each member IS a key and
+ *  stays green when one is added — but not about the FILE: the witness below
+ *  already red on an unclassified leg. What the table adds is that the leg must
+ *  now be adjudicated in prose by a human, not merely appear on a list; the
+ *  witness below is unchanged in strength and consumes the derived
+ *  `NeverAutoPayableCostLeg` type so it stays that way.
  *
  *  Note what `cost.tap` does NOT get from this: it is admitted BEFORE this list
  *  is consulted (deliberately — that branch keeps its exact pre-existing
@@ -1330,7 +1334,13 @@ type _UnclassifiedManaAbilityCostLeg = Exclude<
     | "tap"
     | "mana"
     | "tapOtherFilter"
-    | (typeof NEVER_AUTO_PAYABLE_COST_LEGS)[number]
+    // NOT `(typeof NEVER_AUTO_PAYABLE_COST_LEGS)[number]` (issue #3007, caught
+    // in review): the derived runtime array is typed `readonly
+    // NeverAutoPayableCostLeg[]`, so `[number]` would be the projection anyway —
+    // but a later widening of that annotation to `readonly (keyof …)[]` would
+    // make this `Exclude` unconditionally `never` and leave the witness below
+    // vacuously true. Consuming the TYPE directly cannot fail that way.
+    | NeverAutoPayableCostLeg
 >;
 const _manaAbilityCostLegsExhaustive: _UnclassifiedManaAbilityCostLeg extends never
     ? true
