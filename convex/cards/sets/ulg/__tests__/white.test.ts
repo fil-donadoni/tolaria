@@ -1,8 +1,6 @@
 // ULG — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { motherOfRunes } from "../white";
-import { balduvianBears } from "../../ice";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -11,6 +9,10 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const motherOfRunes = getDefinition("0b1a46ab-95cb-4c24-924f-fc2afd4fcac7");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */

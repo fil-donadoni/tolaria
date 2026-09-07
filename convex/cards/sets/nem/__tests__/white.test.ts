@@ -9,9 +9,6 @@
 // convention.
 
 import { describe, it, expect } from "vitest";
-import { parallaxWave } from "..";
-import { grizzlyBears } from "../../lea";
-import { forest } from "../../lea/colorless";
 import {
     processPendingActionTriggers,
     removePermanentTo,
@@ -25,6 +22,11 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const parallaxWave = getDefinition("cef789e8-e4cc-4f61-bc15-debc2487777f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 // CR 610.3a — the ACTIVATED half of the exile-until-source-leaves family.
 // "If a resolving spell or activated ability creates the initial one-shot

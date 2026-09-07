@@ -5,30 +5,10 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    aeolipile,
-    balmOfRestoration,
-    bottomlessVault,
-    conchHorn,
-    delifsCone,
-    delifsCube,
-    draconianCylix,
-    dwarvenHold,
-    ebonStronghold,
-    elvenLyre,
-    hollowTrees,
-    icatianStore,
-    implementsOfSacrifice,
-    rainbowVale,
-    sandSilos,
-    spiritShield,
-    vodalianSoldiers,
-    zelyonSword,
-} from "..";
-import {
     getDefinition,
-    getCardByName,
     getAllCards,
     getAllSetCodes,
+    getCardByName,
 } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
@@ -46,7 +26,6 @@ import {
 import { tapSourceIntoPayment } from "../../../../game";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import { collectTriggers } from "../../../../gre/triggers";
-import { grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTrigger,
@@ -55,18 +34,36 @@ import {
     answerPendingChoices,
 } from "./helpers";
 
+const aeolipile = getDefinition("a09030ee-415c-45af-bf08-7623197a314f");
+const balmOfRestoration = getDefinition("7f95de4a-7fae-42bc-9660-39ea7685ca02");
+const bottomlessVault = getDefinition("639ae988-d1d1-4ead-b0f8-47fc39eb64a0");
+const conchHorn = getDefinition("860a9ba3-e4c4-4af9-bdfe-1ada39289fd5");
+const delifsCone = getDefinition("262b8788-c5a0-4c8e-9d58-b769b1b0a2ff");
+const delifsCube = getDefinition("14749600-9eca-4122-b04f-30ddda091b74");
+const draconianCylix = getDefinition("a419c9e3-5615-44f9-9256-94a3022bb69f");
+const dwarvenHold = getDefinition("a3142ded-ff62-4817-aa54-75a7ea4498a6");
+const ebonStronghold = getDefinition("3fb2a11f-a8e4-4acf-871a-11171e3304ef");
+const elvenLyre = getDefinition("c3a8cd72-04c0-46f7-a249-f1cecddfdc26");
+const hollowTrees = getDefinition("90845410-e09a-4753-ad4c-bf2b2f3c95ac");
+const icatianStore = getDefinition("d7cd8d8c-52c7-402f-92e1-5e5866f2555a");
+const implementsOfSacrifice = getDefinition(
+    "aa5deb95-79a6-4398-b82a-c1df169550d9"
+);
+const rainbowVale = getDefinition("c1b138e1-f8fc-435c-9aed-98004768479c");
+const sandSilos = getDefinition("3f6f1fcb-d903-4a31-abab-40488569eef6");
+const spiritShield = getDefinition("213d6e0d-5ec9-441e-a38d-50ce44583e4b");
+const vodalianSoldiers = getDefinition("7eb50256-9113-4b03-bcef-9aea24be8493");
+const zelyonSword = getDefinition("4137160b-5248-4fbd-8ae8-25e9afd8fb5c");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+
 // ---------------------------------------------------------------------------
 // Registry parity — the set must be reachable by id, by name and in the
 // deck-builder index (the pool / debug-panel lookup paths).
 // ---------------------------------------------------------------------------
 
 describe("FEM registry parity", () => {
-    it("registers Vodalian Soldiers by id", () => {
-        expect(getDefinition(vodalianSoldiers.id)).toBe(vodalianSoldiers);
-    });
-
     it("registers it by name (debug-panel / pool lookup path)", () => {
-        expect(getCardByName("Vodalian Soldiers")).toBe(vodalianSoldiers);
+        expect(getCardByName("Vodalian Soldiers").id).toBe(vodalianSoldiers.id);
     });
 
     it("includes it in getAllCards (deck-builder index)", () => {

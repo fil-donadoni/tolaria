@@ -6,9 +6,6 @@
 // (Polluted Delta) wires it correctly end to end.
 
 import { describe, it, expect } from "vitest";
-import { pollutedDelta } from "../colorless";
-import { island, swamp } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -17,6 +14,12 @@ import {
     buildPendingActivation,
     tryAutoCommitPendingActivation,
 } from "../../../../game";
+import { getDefinition } from "../../../index";
+
+const pollutedDelta = getDefinition("0f7585c8-9e21-4eef-afc1-2852de23db2f");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Polluted Delta (CR 701.23 / 400.7 / 701.24)", () => {
     it("fetches an Island or Swamp card onto the battlefield, then shuffles", () => {

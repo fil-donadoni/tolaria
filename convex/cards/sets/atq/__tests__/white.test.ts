@@ -6,21 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ornithopter,
-    yotianSoldier,
-    clayStatue,
-    grapeshotCatapult,
-    colossusOfSardia,
-    argivianArchaeologist,
-    triskelion,
-    argivianBlacksmith,
-    circleOfProtectionArtifacts,
-    artifactWard,
-    martyrsOfKorlis,
-    reversePolarity,
-} from "..";
-import { grizzlyBears, hillGiant } from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -42,6 +27,28 @@ import { validateBlockerEligibility } from "../../../../gre/combat";
 import { applyAllCombatDamage } from "../../../../gre/phases";
 import type { CardType } from "../../../types";
 import { resolveActivated, vanilla } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
+const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
+const grapeshotCatapult = getDefinition("4c7a7348-c82e-453c-975c-e5365e152a3a");
+const colossusOfSardia = getDefinition("067c44e9-1b23-42fd-9acb-daafb62c32a2");
+const argivianArchaeologist = getDefinition(
+    "ce83a3cb-467d-44f6-a051-4855c8cf52a6"
+);
+const triskelion = getDefinition("a79c99e1-722a-44b6-8fa3-2be3f0c193d8");
+const argivianBlacksmith = getDefinition(
+    "5f604338-5ee4-4c47-ad5a-5c805c96c8de"
+);
+const circleOfProtectionArtifacts = getDefinition(
+    "22ebd5a3-fef8-4097-b038-89a6cb38227d"
+);
+const artifactWard = getDefinition("b3a5101a-ec66-4658-950c-9ad49c29b836");
+const martyrsOfKorlis = getDefinition("bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88");
+const reversePolarity = getDefinition("da7ed8ba-3886-4779-a9b3-6892a7ed3527");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 
 describe("Argivian Archaeologist ({W}{W},{T}: return artifact from graveyard, CR 605 / 400.7)", () => {
     it("returns the targeted artifact card to the controller's hand", () => {

@@ -6,11 +6,13 @@
 // concealment of the hand does not un-reveal it. Same ADR 0026 `knownTo`
 // mechanism as Memory Lapse's library-top redirect, no parallel marker.
 import { describe, it, expect } from "vitest";
-import { remand } from "../blue";
 import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { grizzlyBears } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const remand = getDefinition("581f3780-c480-48c6-b15c-1618f2feccb9");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function setupRemand() {
     const state = makeState({ players: [makePlayer("p1"), makePlayer("p2")] });

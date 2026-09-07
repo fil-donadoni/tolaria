@@ -1,6 +1,5 @@
 // M3C red — per-colour card behavior tests (ADR 0043 parallel test file).
 import { describe, it, expect } from "vitest";
-import { pyrogoyf } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     getEffectivePower,
@@ -19,6 +18,9 @@ import type {
     TargetSelection,
     TriggerStateView,
 } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const pyrogoyf = getDefinition("f60be310-4461-4b84-95f0-b2095108bd79");
 
 // A dead card of a chosen card type sitting in a graveyard (the CDA reads the
 // instance `.types`), mirroring the Barrowgoyf fixture (m3c/black.ts test).

@@ -19,8 +19,6 @@
 //    registered `tapUntap` mutation handler;
 //  - the wire format — both branches survive `projectPublicState`.
 import { describe, it, expect } from "vitest";
-import { moxDiamond } from "../colorless";
-import { forest, mountain, grizzlyBears } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -44,6 +42,12 @@ import {
     runMutation,
     type Handler,
 } from "../../../../__tests__/gameMutationHarness";
+import { getDefinition } from "../../../index";
+
+const moxDiamond = getDefinition("28028830-83ed-45e2-b495-3b9ad9d3e988");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const GAME_ID = "game-1" as Id<"games">;
 

@@ -2,8 +2,6 @@
 // Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { ancientTomb, cursedScroll, lotusPetal, wasteland } from "../colorless";
-import { plains, badlands, grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     applyUnconditionalTapSelfDamage,
@@ -18,6 +16,15 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const ancientTomb = getDefinition("30e401e3-282b-4524-87e1-c6cd50cd6d00");
+const cursedScroll = getDefinition("31415b9b-fb30-4132-a9a3-795b4573a901");
+const lotusPetal = getDefinition("6c877da3-68fa-41d0-8a24-8c79fcd8ecc1");
+const wasteland = getDefinition("99ff731b-8399-40c8-b539-ba6ba5783771");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const badlands = getDefinition("717f6d10-9144-4ade-9ac6-a481cc66b875");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors the per-set `resolveActivated` shim). */

@@ -5,62 +5,6 @@
 // `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import {
-    ornithopter,
-    tawnossCoffin,
-    yotianSoldier,
-    wallOfSpears,
-    dragonEngine,
-    clayStatue,
-    grapeshotCatapult,
-    colossusOfSardia,
-    stripMine,
-    obeliskOfUndoing,
-    reconstruction,
-    argivianArchaeologist,
-    feldonsCane,
-    drafnasRestoration,
-    millstone,
-    jalumTome,
-    candelabraOfTawnos,
-    urzasChalice,
-    onulet,
-    suChi,
-    tabletOfEpityr,
-    ivoryTower,
-    armageddonClock,
-    triskelion,
-    clockworkAvian,
-    mightstone,
-    weakstone,
-    staffOfZegon,
-    mishrasFactory,
-    batteringRam,
-    urzasAvenger,
-    amuletOfKroog,
-    rakalite,
-    ashnodsTransmogrant,
-    mishrasWarMachine,
-    ashnodsAltar,
-    mishrasWorkshop,
-    urzasMine,
-    urzasPowerPlant,
-    urzasTower,
-    urzasChalice as urzasChaliceDef,
-    ashnodsBattleGear,
-    tawnossWeaponry,
-    primalClay,
-    shapeshifter,
-    cursedRack,
-    theRack,
-    urzasMiter,
-    coralHelm,
-    golgothianSylex,
-    rocketLauncher,
-    tawnossWand,
-    tetravus,
-} from "..";
-import { grizzlyBears, holyStrength, shatter } from "../../lea";
 import { getDefinition, getInstanceManaCost } from "../../..";
 import {
     makeInstance,
@@ -131,6 +75,71 @@ import {
     submitChoice,
     vanilla,
 } from "./helpers";
+
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const tawnossCoffin = getDefinition("c27bc1de-8246-4dc8-af51-ec21def9e226");
+const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
+const wallOfSpears = getDefinition("b1dda179-c49a-4995-ba5a-db93ac43dbe7");
+const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
+const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
+const grapeshotCatapult = getDefinition("4c7a7348-c82e-453c-975c-e5365e152a3a");
+const colossusOfSardia = getDefinition("067c44e9-1b23-42fd-9acb-daafb62c32a2");
+const stripMine = getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
+const obeliskOfUndoing = getDefinition("1ba61ccd-4429-4f7c-b9f3-30867878d88e");
+const reconstruction = getDefinition("1aa2d27b-cc25-4baa-86f4-4db45b30e2a4");
+const argivianArchaeologist = getDefinition(
+    "ce83a3cb-467d-44f6-a051-4855c8cf52a6"
+);
+const feldonsCane = getDefinition("bb6af436-bcfd-4d47-a1aa-e84b587a725a");
+const drafnasRestoration = getDefinition(
+    "4be2aa3b-207b-4d21-abfb-6788520c7676"
+);
+const millstone = getDefinition("107646bc-2181-49f4-8821-1eaa46291855");
+const jalumTome = getDefinition("5a5b7c5a-ee63-4a1b-9a0f-fb0a309168df");
+const candelabraOfTawnos = getDefinition(
+    "35a335bf-7358-460f-b7c9-1e8bc4300f64"
+);
+const urzasChalice = getDefinition("f3728537-86d3-42be-9046-90bba1bfafc1");
+const onulet = getDefinition("d77fe8e2-8438-473e-ace5-01baddd2c4ed");
+const suChi = getDefinition("a64d4f93-0c04-4078-aec0-7e9de92f260f");
+const tabletOfEpityr = getDefinition("6d7a2718-301f-4191-b348-0c44c7c07d43");
+const ivoryTower = getDefinition("a5f23039-45ca-4c15-af50-bfd40ea26453");
+const armageddonClock = getDefinition("44a31889-6a8d-450c-a73d-381a7ff28bf9");
+const triskelion = getDefinition("a79c99e1-722a-44b6-8fa3-2be3f0c193d8");
+const clockworkAvian = getDefinition("1dea8c2f-4aea-478d-aee7-cba1f74edd6c");
+const mightstone = getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
+const weakstone = getDefinition("46adf48f-99d2-440e-9129-794584c1ea21");
+const staffOfZegon = getDefinition("a6bf858d-bba9-4a16-9045-55384b1de633");
+const mishrasFactory = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428");
+const batteringRam = getDefinition("f7a69e35-d209-41c0-aa3c-c78414617075");
+const urzasAvenger = getDefinition("448e1811-fb16-4390-ac22-b7066a4a019c");
+const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
+const rakalite = getDefinition("0fd7c711-3ff4-4691-914f-242e6737066c");
+const ashnodsTransmogrant = getDefinition(
+    "2aa5b289-36ba-49b1-a5ac-f23bf71f8241"
+);
+const mishrasWarMachine = getDefinition("8f6b4652-a1d4-418f-a89b-6a977a920a9e");
+const ashnodsAltar = getDefinition("cdcccb0f-ce96-453b-9e82-41d87f52e58b");
+const mishrasWorkshop = getDefinition("135de5c7-6ac9-4b68-8f1a-97f120a4b125");
+const urzasMine = getDefinition("ddf85792-470b-4b42-99ac-9cb43a575523");
+const urzasPowerPlant = getDefinition("94896e0b-859c-47e4-bf27-35ed37b841e0");
+const urzasTower = getDefinition("8ed85655-fc59-4a57-bcf9-75e1899dff78");
+const urzasChaliceDef = getDefinition("f3728537-86d3-42be-9046-90bba1bfafc1");
+const ashnodsBattleGear = getDefinition("aeeec853-dd3f-4ac3-8b20-c07fada8888f");
+const tawnossWeaponry = getDefinition("3035cead-a501-4204-9154-5fd648577d32");
+const primalClay = getDefinition("ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8");
+const shapeshifter = getDefinition("cc278af4-b60d-41b7-b9d7-36c8aefca1a7");
+const cursedRack = getDefinition("720d871d-1e7b-482e-bd1e-8ec79519fb86");
+const theRack = getDefinition("ec0686ba-1277-4412-a397-7a6227808311");
+const urzasMiter = getDefinition("438f0c61-a61d-4a9e-b21f-4e86420c7913");
+const coralHelm = getDefinition("6c6df9db-0a46-40a5-ae9d-59f47dae9056");
+const golgothianSylex = getDefinition("856be1dd-a20b-49c2-be9d-7db76c7efd8b");
+const rocketLauncher = getDefinition("d5bb2093-78a8-4a6c-abe7-9a5afc181ec5");
+const tawnossWand = getDefinition("978f09dd-121a-4da5-ba16-5c03fbdce084");
+const tetravus = getDefinition("23eb19f9-2e8f-4bf0-9bf8-868e6da70e2d");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const holyStrength = getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03");
+const shatter = getDefinition("50dc7fc1-cb6a-4c68-b993-1a25cf16226e");
 
 // ---------------------------------------------------------------------------
 // Registry wiring — the atq set must be resolvable from the card registry

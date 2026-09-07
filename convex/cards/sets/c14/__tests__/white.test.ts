@@ -5,8 +5,6 @@
 // redirector at every chokepoint); this file proves the SHIPPED CARD's own
 // `appliesTo` filter (nontoken + creature + !wasCast) end to end.
 import { describe, it, expect, beforeAll } from "vitest";
-import { containmentPriest } from "..";
-import { grizzlyBears } from "../../lea";
 import { buildSpellContext, resolveTopOfStack } from "../../../../gre/state";
 import { registerTokenDefinition } from "../../..";
 import type { CardDefinition } from "../../../types";
@@ -17,6 +15,10 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const containmentPriest = getDefinition("c2c794b9-09da-49be-b258-b0e21f1663e3");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Throwaway vehicle sorcery — pushed on the stack purely to obtain a
 // resolving `StackItem` so `buildSpellContext` yields a `ctx` with

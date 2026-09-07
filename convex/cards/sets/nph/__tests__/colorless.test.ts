@@ -15,8 +15,6 @@
 //     printed play pattern and the one interaction a static-only test misses.
 
 import { describe, it, expect } from "vitest";
-import { batterskull } from "../colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -31,6 +29,10 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
+import { getDefinition } from "../../../index";
+
+const batterskull = getDefinition("cd114ec3-d286-4c70-a122-3043bc53cc88");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Board with a single Batterskull already on the battlefield. */
 function setup(): { state: GameState; skull: CardInstanceState } {

@@ -1,9 +1,6 @@
 // FUT (Future Sight) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { horizonCanopy, swordOfTheMeek } from "../colorless";
-import { savannahLions } from "../../lea/white";
-import { thopterFoundry } from "../../arb/multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -20,6 +17,12 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const horizonCanopy = getDefinition("d5dfc25d-a17b-4ead-9484-e8a18b8fa176");
+const swordOfTheMeek = getDefinition("e9f13705-6ede-4c29-a2b4-a082bf69e9c5");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const thopterFoundry = getDefinition("42b8d797-b01d-49cf-9818-d84bba17029d");
 
 const ONE_ONE_ID = "test-futc-one-one";
 registerTokenDefinition({

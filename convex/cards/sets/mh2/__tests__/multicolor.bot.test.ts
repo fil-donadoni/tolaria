@@ -23,13 +23,17 @@
 // See `docs/findings/2391-bot-skips-loyalty-abilities.md`.
 
 import { describe, it, expect } from "vitest";
-import { gristTheHungerTide } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { cardValue } from "../../../../gre/evaluate";
 import { isCreature } from "../../../../gre/constants";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { isRegisteredEffectOp } from "../../../mechanicsRegistry";
+import { getDefinition } from "../../../index";
+
+const gristTheHungerTide = getDefinition(
+    "69af2825-18c2-4463-b6ba-42eaa070ccc1"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Grist, the Hunger Tide — bot view (issue #2391)", () => {
     it("prices a Grist in hand as a creature card, not as a bare planeswalker card", () => {

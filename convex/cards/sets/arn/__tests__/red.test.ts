@@ -5,26 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    aladdin,
-    aliBaba,
-    aliFromCairo,
-    brassMan,
-    desert,
-    desertNomads,
-    flyingMen,
-    kirdApe,
-    magneticMountain,
-    mijaeDjinn,
-    rukhEgg,
-    ydwenEfreet,
-} from "..";
-import {
-    forest,
-    grizzlyBears,
-    prodigalSorcerer,
-    psionicBlast,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -58,6 +38,24 @@ import {
     WIN_SEED,
     LOSE_SEED,
 } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const aladdin = getDefinition("db52bad2-a3ec-4f6f-9418-12e8c40703f6");
+const aliBaba = getDefinition("29cd7064-3703-43e0-8702-d1ba13703fd8");
+const aliFromCairo = getDefinition("42027613-d261-4ce2-8ba1-7a2480c660f8");
+const brassMan = getDefinition("1a364362-e42b-415c-9d95-b6ec7139f5e7");
+const desert = getDefinition("201155ea-f474-4e13-acda-cb071a6ca977");
+const desertNomads = getDefinition("e46d0c10-ec09-48ba-9e93-1392dca8111a");
+const flyingMen = getDefinition("25ab9a2b-e248-4ae2-aac3-b49fdb3e260a");
+const kirdApe = getDefinition("ebe8845e-df1c-481c-949c-aab84af99a05");
+const magneticMountain = getDefinition("95fde48b-e40a-4183-b324-1ec276dde015");
+const mijaeDjinn = getDefinition("d3ddbe51-cd1a-4b2c-849a-7c82d622122a");
+const rukhEgg = getDefinition("b28f9e63-e5e4-44b5-a17e-8301ff17c623");
+const ydwenEfreet = getDefinition("efdba2a9-d171-45ed-8dd4-9d0046128f68");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
+const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 
 describe("Ali Baba ({R}: tap target Wall)", () => {
     it("taps a Wall", () => {

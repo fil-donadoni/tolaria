@@ -4,15 +4,18 @@
 // `kickedTargetRequirement`; here we assert the resolution exiles the target.
 
 import { describe, it, expect } from "vitest";
-import { tearAsunder } from "../green";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { solRing, grizzlyBears } from "../../lea";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const tearAsunder = getDefinition("629aa907-9533-4681-9bf2-9e56450a4cc2");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Tear Asunder (Kicker {1}{B}, CR 702.33 kicker / 701.13 exile)", () => {
     it("exiles the targeted artifact on resolution", () => {

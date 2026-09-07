@@ -25,7 +25,10 @@ import {
 import { finalizeTargetSelection } from "../../../../game";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { satyaAetherfluxGenius } from "../multicolor";
+
+const satyaAetherfluxGenius = getDefinition(
+    "3b964bbe-54cc-425c-9cc6-c877f82af7ba"
+);
 
 // A nontoken {2}{G} (mana value 3) creature Satya's controller ALSO
 // controls — the copy target. A non-trivial mana value distinct from the

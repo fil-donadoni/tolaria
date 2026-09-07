@@ -10,10 +10,12 @@
 // read would prove only that the definition equals itself.
 
 import { describe, it, expect } from "vitest";
-import { pentadPrism } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { enumerateMoves } from "../../../../gre/moves";
 import type { GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const pentadPrism = getDefinition("672b9b16-daef-44e6-9a3a-cfd9f3c78bc7");
 
 function boardWithCharges(charge: number): GameState {
     const prism = makeInstance(pentadPrism.id, {

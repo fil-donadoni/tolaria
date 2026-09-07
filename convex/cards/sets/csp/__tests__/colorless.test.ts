@@ -1,8 +1,6 @@
 // Coldsnap (CSP) — colorless card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { mishrasBauble } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -10,8 +8,11 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition, getCardByName } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const mishrasBauble = getDefinition("8a720448-017f-4f4a-9501-678245eaed17");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 function resolveActivated(
     state: GameState,
@@ -31,7 +32,7 @@ function resolveActivated(
 
 describe("Mishra's Bauble (free sac + next-upkeep cantrip, CR 603.7d)", () => {
     it("is a {0} artifact carrying the next-upkeep delayed trigger", () => {
-        expect(getCardByName("Mishra's Bauble")).toBe(mishrasBauble);
+        expect(getCardByName("Mishra's Bauble").id).toBe(mishrasBauble.id);
         expect(mishrasBauble.manaCost).toEqual({});
         expect(mishrasBauble.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
         const ability = mishrasBauble.activatedAbilities![0];

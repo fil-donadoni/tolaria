@@ -2,7 +2,6 @@
 // (ADR 0043 colour split). Each card's describe block cites the CR section
 // it exercises.
 import { describe, it, expect } from "vitest";
-import { portableHole } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -16,6 +15,9 @@ import {
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+import { getDefinition } from "../../../index";
+
+const portableHole = getDefinition("80fca8c0-ae3e-439e-b202-228b9f360e9a");
 
 // Black Lotus — {0} artifact, mv 0 ≤ 2, a legal Portable Hole target.
 const CHEAP_ARTIFACT_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe";

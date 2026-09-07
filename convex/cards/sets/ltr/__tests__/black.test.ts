@@ -9,9 +9,7 @@
 // `resolveTopOfStack`, never a hand-built view.
 
 import { describe, it, expect } from "vitest";
-import { orcishBowmasters } from "../black";
 import { amassOps, makeArmyTokenSpec } from "../../../abilities/amass";
-import { getCardByName } from "../../../index";
 import {
     makeInstance,
     makePlayer,
@@ -35,8 +33,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getDefinition } from "../../../index";
 
-const SQUIRE_ID = getCardByName("Squire").id;
+const orcishBowmasters = getDefinition("7c024bae-5631-4e20-ac69-df392ac9e109");
+
+const SQUIRE_ID = getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9").id;
 
 function libraryCards(n: number, ownerId: string, prefix: string) {
     return Array.from({ length: n }, (_, i) =>

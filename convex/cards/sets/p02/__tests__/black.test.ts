@@ -3,8 +3,6 @@
 // `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { ravenousRats } from "../black";
-import { grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -15,6 +13,10 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+import { getDefinition } from "../../../index";
+
+const ravenousRats = getDefinition("8899244b-737a-43a9-9241-15a650b47bed");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Puts Ravenous Rats' ETB trigger on the stack (mirroring
  *  `oublietteTriggerOnStack`, `arn/__tests__/black.test.ts`), runs the REAL

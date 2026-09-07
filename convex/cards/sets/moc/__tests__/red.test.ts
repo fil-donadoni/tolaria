@@ -7,8 +7,6 @@
 // definition + both triggers wired together — not the underlying machinery.
 
 import { describe, it, expect } from "vitest";
-import { deathGreetersChampion } from "../red";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type {
@@ -17,6 +15,11 @@ import type {
     StackItem,
 } from "../../../../gre/state";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const deathGreetersChampion = getDefinition(
+    "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94"
+);
 
 function pushBackupEtb(
     state: GameState,
@@ -68,7 +71,9 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
     });
 
     it("other-target: puts a +1/+1 counter AND grants double strike until end of turn", () => {
-        const grizzlyBears = getCardByName("Grizzly Bears");
+        const grizzlyBears = getDefinition(
+            "ce2d603a-3231-4a8c-bf39-1617586ea870"
+        );
         const source = makeInstance(deathGreetersChampion.id, {
             id: "champ2",
             controllerId: "p1",

@@ -9,13 +9,16 @@
 // distinct type-filter + sacrifice-self + hand destination.
 
 import { describe, it, expect } from "vitest";
-import { mistyRainforest, expeditionMap } from "../colorless";
-import { forest } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const mistyRainforest = getDefinition("24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787");
+const expeditionMap = getDefinition("c55bee97-593f-441f-b96c-a998d5212a55");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Misty Rainforest (CR 701.23 / 400.7 / 701.24)", () => {
     it("fetches a Forest or Island card onto the battlefield, then shuffles", () => {

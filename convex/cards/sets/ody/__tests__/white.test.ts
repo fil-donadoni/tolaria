@@ -1,8 +1,6 @@
 // ODY (Odyssey) — white behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { karmicJustice } from "../white";
-import { onulet } from "../../atq/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     destroyWithReplacements,
@@ -18,6 +16,10 @@ import {
 import { finalizeTargetSelection } from "../../../../game";
 import { PERMANENT_TYPES } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const karmicJustice = getDefinition("c2ffb8e7-7ae3-4846-b3da-ca6b4598eb7c");
+const onulet = getDefinition("d77fe8e2-8438-473e-ace5-01baddd2c4ed");
 
 // Karmic Justice (CR 603.10 leave-the-battlefield trigger, issue #1054):
 // "Whenever a spell or ability an opponent controls destroys a noncreature

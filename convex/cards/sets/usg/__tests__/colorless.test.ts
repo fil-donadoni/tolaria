@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { gaeasCradle, tolarianAcademy } from "../colorless";
 import {
     getDynamicManaProduced,
     getFixedManaAmount,
@@ -8,6 +7,10 @@ import {
 import { type CardInstanceState } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const gaeasCradle = getDefinition("25b0b816-0583-44aa-9dc5-f3ff48993a51");
+const tolarianAcademy = getDefinition("ad7ac9a5-340f-4509-826c-7b9416d47887");
 
 const LLANOWAR_ELVES_ID = "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb";
 const SOL_RING_ID = "c4300d24-1cae-4dd5-be7e-38cc677cf5bd";

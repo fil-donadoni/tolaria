@@ -12,7 +12,6 @@
 // official once-per-occurrence ruling.
 
 import { describe, it, expect } from "vitest";
-import { laeliaTheBladeReforged } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     buildSpellContext,
@@ -23,6 +22,11 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const laeliaTheBladeReforged = getDefinition(
+    "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378"
+);
 
 const CHEAP_CARD_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Black Lotus stub
 

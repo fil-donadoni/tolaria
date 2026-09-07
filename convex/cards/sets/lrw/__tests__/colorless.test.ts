@@ -15,8 +15,6 @@
 // land branch stayed narrow by CR 305.2a / 305.3 / 305.2b.
 
 import { describe, it, expect } from "vitest";
-import { shelldockIsle } from "../colorless";
-import { steamVents } from "../../gpt/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
@@ -31,14 +29,13 @@ import {
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { applyPlayLand } from "../../../../gre/playLand";
-import {
-    FACE_DOWN_CARD_ID,
-    getDefinition,
-    getCardByName,
-} from "../../../index";
+import { FACE_DOWN_CARD_ID, getDefinition } from "../../../index";
 
-const BEAR_ID = getCardByName("Grizzly Bears").id;
-const ISLAND_ID = getCardByName("Island").id;
+const shelldockIsle = getDefinition("4216656e-90e8-45fc-a0f6-0d0d79d0a021");
+const steamVents = getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
+
+const BEAR_ID = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
+const ISLAND_ID = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id;
 const HIDEAWAY_TRIGGER_ID = "hideaway";
 const PLAY_ABILITY_ID = "shelldock-isle-play-hidden";
 

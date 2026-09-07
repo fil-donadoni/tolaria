@@ -2,8 +2,6 @@
 // `convex/cards/sets/blb/blue.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { azureBeastbinder } from "../blue";
-import { balduvianBears } from "../../ice/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -15,6 +13,10 @@ import {
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const azureBeastbinder = getDefinition("211af1bf-910b-41a5-b928-f378188d1871");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 const BEAR_ID = balduvianBears.id;
 

@@ -7,8 +7,6 @@
 // `convex/cards/sets/lea/__tests__/white.test.ts`'s Wrath of God block.
 
 import { describe, it, expect } from "vitest";
-import { damnation } from "..";
-import { savannahLions, serraAngel } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +14,11 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const damnation = getDefinition("26c68473-70ca-40ba-b5c6-71ec30f88a2c");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 describe("Damnation (destroy all creatures, can't be regenerated, CR 701.19c)", () => {
     it("moves every creature to its owner's graveyard", () => {

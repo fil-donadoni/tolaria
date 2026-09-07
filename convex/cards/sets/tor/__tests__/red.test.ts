@@ -21,9 +21,11 @@ import {
 } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
-import { grimLavamancer } from "../red";
-import { grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const grimLavamancer = getDefinition("5dd72697-24be-42c7-a6d9-a837bdbd4662");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const ABILITY_ID = "grim-lavamancer-bolt";
 

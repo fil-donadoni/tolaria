@@ -1,8 +1,6 @@
 // M20 — colorless card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { manifoldKey } from "../colorless";
-import { balduvianBears } from "../../ice";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type {
@@ -10,6 +8,10 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const manifoldKey = getDefinition("715e637a-dfd8-45a0-b1ea-53e4abd29307");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */

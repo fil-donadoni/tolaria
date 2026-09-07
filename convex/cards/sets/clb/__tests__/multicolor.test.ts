@@ -22,9 +22,13 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { minscAndBooTimelessHeroes } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
 import { tryGetDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const minscAndBooTimelessHeroes = getDefinition(
+    "928036c9-11b8-493e-b9f2-8fbd3487cd19"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const MINSC = minscAndBooTimelessHeroes.id;
 

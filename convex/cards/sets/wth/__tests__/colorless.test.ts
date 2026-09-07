@@ -1,9 +1,7 @@
 // Weatherlight (WTH) — colorless card behavior tests (ADR 0043 colour split).
 // Each describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { mindStone } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -11,8 +9,11 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition, getCardByName } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const mindStone = getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 /** Push an activated ability onto the stack (cost assumed paid) and resolve. */
 function resolveActivated(
@@ -42,7 +43,7 @@ function libraryOf(n: number, owner = "p1"): CardInstanceState[] {
 
 describe("Mind Stone (mana rock + sacrifice cantrip, CR 605 / 121.1)", () => {
     it("registers and has a colourless {C} mana ability (useStack:false)", () => {
-        expect(getCardByName("Mind Stone")).toBe(mindStone);
+        expect(getCardByName("Mind Stone").id).toBe(mindStone.id);
         expect(mindStone.manaCost).toEqual({ X: 2 });
         const mana = mindStone.activatedAbilities!.find(
             (a) => a.id === "mind-stone-mana"

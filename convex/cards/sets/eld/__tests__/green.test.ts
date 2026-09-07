@@ -8,10 +8,6 @@
 // and its condition (`first-spell-this-game`) is exercised end-to-end through
 // the real cost-collapse + cast-legality + commit path.
 import { describe, it, expect } from "vitest";
-import { onceUponATime, questingBeast } from "../green";
-import { grizzlyBears } from "../../lea/green";
-import { wallOfVapor } from "../../leg/blue";
-import { forest } from "../../lea/colorless";
 import {
     dealDamageFromPermanentToPlayer,
     resolveTopOfStack,
@@ -27,7 +23,6 @@ import {
     getAlternativeCost,
     affordableAlternativeCosts,
 } from "../../../../gre/alternativeCost";
-import { teferiHeroOfDominaria } from "../../dom/multicolor";
 import {
     getLegalActions,
     getLegalTargets,
@@ -38,6 +33,16 @@ import { tryAutoCommitPendingCast } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const onceUponATime = getDefinition("4034e5ba-9974-43e3-bde7-8d9b4586c3a4");
+const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const wallOfVapor = getDefinition("6a6c0a27-d410-4ded-a842-70e1656ea21e");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const teferiHeroOfDominaria = getDefinition(
+    "5d10b752-d9cb-419d-a5c4-d4ee1acb655e"
+);
 
 function handCard(cardId: string, id: string, controllerId = "p1") {
     return makeInstance(cardId, {

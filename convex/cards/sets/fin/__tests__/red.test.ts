@@ -2,9 +2,11 @@
 // Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { suplex } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const suplex = getDefinition("f61693a2-7042-44e0-85ba-9bf12ab94e7e");
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 // A NON-creature artifact (Black Lotus — no toughness, so it can't die to an

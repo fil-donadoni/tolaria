@@ -4,11 +4,16 @@
 // so its behavior test lives in the white module's parallel test file.
 
 import { describe, it, expect } from "vitest";
-import { circleOfProtectionBlack } from "..";
-import { lightningBolt, terror } from "../../lea";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const circleOfProtectionBlack = getDefinition(
+    "fa47b4cd-8da4-4544-b011-ba92b7009203"
+);
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const terror = getDefinition("21004958-2c7e-4a55-bc80-411c4d780106");
 
 // ---------------------------------------------------------------------------
 // Circle of Protection: Black — Beta-original (CR 615.1, 615.6)

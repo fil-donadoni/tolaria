@@ -14,7 +14,9 @@ import {
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { sulfuricVortex } from "../red";
+import { getDefinition } from "../../../index";
+
+const sulfuricVortex = getDefinition("79955e27-eef7-43bd-9895-e9209ed1537f");
 
 /** Push a triggered ability onto the stack with its firing event, then resolve
  *  (CR 603 — the trigger carries the source's characteristics). */

@@ -10,26 +10,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    planarOverlay,
-    alliedStrategies,
-    escapeRoutes,
-    gainsay,
-    huntingDrake,
-    planeswalkersMischief,
-    rushingRiver,
-    seaSnidd,
-    sisaysIngenuity,
-    sleepingPotion,
-    stormscapeBattlemage,
-    stormscapeFamiliar,
-    sunkenHope,
-    confound,
-    waterspoutElemental,
-} from "../blue";
-import { thornscapeBattlemage } from "../green";
-import { urzasRage } from "../../inv/red";
-import { stoneRain } from "../../lea/red";
-import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
     NO_TARGETING_SOURCE,
@@ -39,18 +19,6 @@ import {
     SPELL_ONLY_FILTER_KEYS,
 } from "../../../../gre/targetFilters";
 import type { CardDefinition } from "../../../types";
-import {
-    plains,
-    island,
-    tundra,
-    mountain,
-    swamp,
-    grizzlyBears,
-    savannahLions,
-    scatheZombies,
-    lightningBolt,
-} from "../../lea";
-import { opt } from "../../inv/blue";
 import { applyOneTargetSelection } from "../../../../game";
 import {
     makeInstance,
@@ -72,6 +40,46 @@ import { fireDelayedTriggers } from "../../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { KickerPayments } from "../../../../gre/kicker";
+import { getDefinition } from "../../../index";
+
+const planarOverlay = getDefinition("1315fef0-234e-44f5-a7a3-bf3db78943c3");
+const alliedStrategies = getDefinition("51d4f211-10e8-486d-b982-287ab0c060c9");
+const escapeRoutes = getDefinition("dbc9062e-ddd9-41ac-a88a-33f5a7b22103");
+const gainsay = getDefinition("a70a2092-5048-49c0-9351-a3f882c2f56e");
+const huntingDrake = getDefinition("5b0293a9-48fe-4018-bd25-3e02c227a3dd");
+const planeswalkersMischief = getDefinition(
+    "79aa232c-3f16-4c68-99dc-09a7aeef477b"
+);
+const rushingRiver = getDefinition("52ddf7bf-de9c-4657-8d5b-79869d36fa63");
+const seaSnidd = getDefinition("ca11015e-200b-488c-8bf5-662dcc03cd2d");
+const sisaysIngenuity = getDefinition("bbe20cc1-621a-4813-9bbb-ace006e173ff");
+const sleepingPotion = getDefinition("6f79f4b2-71cd-4f78-a161-d75b162c745e");
+const stormscapeBattlemage = getDefinition(
+    "7d46a39d-c6f4-4281-b31f-f0a0c9fba887"
+);
+const stormscapeFamiliar = getDefinition(
+    "4c831c42-77a0-4f4f-9628-ad630541cf66"
+);
+const sunkenHope = getDefinition("5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c");
+const confound = getDefinition("4f3b7d39-ce98-48e2-b2bf-0d55b4d3102b");
+const waterspoutElemental = getDefinition(
+    "425156e6-8eee-4bff-8f2f-86edd9a4f73b"
+);
+const thornscapeBattlemage = getDefinition(
+    "13f24f89-3996-4740-a6c9-d26b8869554b"
+);
+const urzasRage = getDefinition("61a25a35-3ae4-471e-adcd-d8baf2f77b68");
+const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const opt = getDefinition("958262ec-8e52-40cf-a9fd-a60e42643e15");
 
 /** Pushes a triggered ability directly onto the stack (bypassing the real
  *  cast/announcement pipeline) and resolves it — the established shape

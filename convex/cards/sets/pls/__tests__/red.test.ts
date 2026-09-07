@@ -18,29 +18,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    calderaKavu,
-    insolence,
-    kavuRecluse,
-    keldonMantle,
-    magmaBurst,
-    mireKavu,
-    moggJailer,
-    moggSentry,
-    planeswalkersFury,
-    singe,
-    tahngarthTalruumHero,
-    thunderscapeBattlemage,
-    thunderscapeFamiliar,
-} from "../red";
-import {
-    darkRitual,
-    giantGrowth,
-    grizzlyBears,
-    savannahLions,
-    swamp,
-} from "../../lea";
-import { ephemerate } from "../../mh1/white";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -68,6 +45,33 @@ import { registerTokenDefinition } from "../../..";
 import { additionalCostPaidCondition } from "../../../abilities/triggers/shared";
 import { getEffectiveColors } from "../../../effectiveColors";
 import type { PermanentView } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const calderaKavu = getDefinition("fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b");
+const insolence = getDefinition("d8009a37-f966-4a71-9a2a-469127758dc6");
+const kavuRecluse = getDefinition("6f04ac02-3eff-4a66-8320-ee7b4357522f");
+const keldonMantle = getDefinition("35bb73df-f488-468c-a9ad-72f52c8da3dc");
+const magmaBurst = getDefinition("d9752bc3-0bdf-4657-8750-73c8cbc8e83f");
+const mireKavu = getDefinition("ccdd0086-eb27-48b3-91cb-a113aa1de102");
+const moggJailer = getDefinition("52513235-0e6c-40ea-8ead-a050e6da676e");
+const moggSentry = getDefinition("8536ec54-cebd-4d44-8e52-42344a3e6daa");
+const planeswalkersFury = getDefinition("6fa09e3a-bc7e-4292-aa5d-ce97c1b1f79f");
+const singe = getDefinition("32323277-db9a-48a7-b9a4-8e6914386e26");
+const tahngarthTalruumHero = getDefinition(
+    "c1778f37-af01-4f8c-ab9d-a4c60abf7e78"
+);
+const thunderscapeBattlemage = getDefinition(
+    "d707243e-7f11-44bc-b8b8-af635ab1dc87"
+);
+const thunderscapeFamiliar = getDefinition(
+    "26c9c0aa-9412-4320-aaee-e05369b8bc7b"
+);
+const darkRitual = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f");
+const giantGrowth = getDefinition("367dbefe-3366-408e-9fcf-7dc00f8cc201");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const ephemerate = getDefinition("2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa");
 
 /** Pushes an activated ability directly onto the stack with its cost assumed
  *  already paid, then resolves it — the `resolveActivated` shim used

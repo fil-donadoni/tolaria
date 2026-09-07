@@ -9,8 +9,6 @@
 // serialization.
 
 import { describe, it, expect } from "vitest";
-import { currencyConverter } from "../colorless";
-import { forest, grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger, answerChoice } from "./helpers";
 import {
@@ -21,6 +19,11 @@ import {
 } from "../../../../gre/state";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const currencyConverter = getDefinition("187b6719-e5ed-4615-a00b-3313ceca055b");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const CC_ID = currencyConverter.id;
 

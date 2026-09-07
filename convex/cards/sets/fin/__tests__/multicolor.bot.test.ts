@@ -9,9 +9,13 @@
 // bomb read as a vanilla 7/7 flier to move selection.
 
 import { describe, it, expect } from "vitest";
-import { sinSpirasPunishment } from "../multicolor";
 import { dslAbilityScriptValue } from "../../../../gre/ai/cardScriptValue";
 import type { CardDefinition } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const sinSpirasPunishment = getDefinition(
+    "659be746-bd31-4a70-8cec-7798da78b0b5"
+);
 
 describe("Sin, Spira's Punishment — bot visibility (PRD #1423, issue #1519)", () => {
     it("its enters-or-attacks trigger valuates as board-state-changing, not neutral", () => {

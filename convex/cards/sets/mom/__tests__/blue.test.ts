@@ -3,8 +3,6 @@
 // `convex/cards/__tests__/setup.ts` — do not duplicate them here.
 
 import { describe, it, expect } from "vitest";
-import { faerieMastermind } from "../blue";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -16,6 +14,9 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const faerieMastermind = getDefinition("52d3005f-a1c7-4ef5-911f-ccc0752f4181");
 
 // ---------------------------------------------------------------------------
 // Faerie Mastermind — {1}{U} Creature — Faerie Rogue, 2/1. "Flash. Flying.
@@ -39,12 +40,15 @@ describe("Faerie Mastermind (CR 121.1 Nth-draw trigger, issue #781)", () => {
 
     function libraryCards(n: number, ownerId: string, prefix: string) {
         return Array.from({ length: n }, (_, i) =>
-            makeInstance(getCardByName("Squire").id, {
-                id: `${prefix}-${i}`,
-                controllerId: ownerId,
-                ownerId,
-                zone: "library",
-            })
+            makeInstance(
+                getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9").id,
+                {
+                    id: `${prefix}-${i}`,
+                    controllerId: ownerId,
+                    ownerId,
+                    zone: "library",
+                }
+            )
         );
     }
 

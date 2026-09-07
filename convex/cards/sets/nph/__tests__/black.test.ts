@@ -4,8 +4,6 @@
 // (CR 107.4f). The generic cost-system pieces are covered in
 // convex/gre/__tests__/phyrexian.test.ts.
 import { describe, it, expect } from "vitest";
-import { dismember } from "../black";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -14,6 +12,10 @@ import {
 } from "../../../../gre/layers";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const dismember = getDefinition("064dfdeb-485f-473e-9fa0-8fdb7638cdc6");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function setup(opts: {
     life: number;

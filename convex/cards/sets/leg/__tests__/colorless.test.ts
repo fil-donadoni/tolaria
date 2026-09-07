@@ -14,29 +14,6 @@ import {
     resolveTrigger,
     withTabernacle,
 } from "./helpers";
-import {
-    adventurersGuildhouse,
-    alchorsTomb,
-    blackManaBattery,
-    blueManaBattery,
-    cathedralOfSerra,
-    greenManaBattery,
-    hundingGjornersen,
-    ladyOrca,
-    manaMatrix,
-    marhaultElsdragon,
-    mirrorUniverse,
-    mountainStronghold,
-    pendelhaven,
-    planarGate,
-    redManaBattery,
-    relicBarrier,
-    seafarersQuay,
-    tolaria,
-    tundraWolves,
-    unholyCitadel,
-    whiteManaBattery,
-} from "..";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { isLegalBandComposition } from "../../../../gre/banding";
@@ -66,7 +43,36 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
-import { castle, crusade, grizzlyBears, lightningBolt } from "../../lea";
+
+const adventurersGuildhouse = getDefinition(
+    "32865e68-5842-4f17-b2ea-4ffa743b511f"
+);
+const alchorsTomb = getDefinition("f4395b19-2118-4a09-8932-f9ce9bc54d6d");
+const blackManaBattery = getDefinition("d0c66e64-e357-457d-8302-b3a1fc0c56ce");
+const blueManaBattery = getDefinition("35393661-2c53-46f0-bb33-2390d552b060");
+const cathedralOfSerra = getDefinition("e65356e6-0ead-49fd-b069-be1ea9b1c105");
+const greenManaBattery = getDefinition("4671fa01-4a9e-4cd9-8154-b0d45e11b702");
+const hundingGjornersen = getDefinition("07d8e501-6857-4a52-a3b9-2bf0bee5b08c");
+const ladyOrca = getDefinition("b2779553-74eb-42ba-97d0-96269f48c269");
+const manaMatrix = getDefinition("a3eedc11-0b47-430c-8391-577a2d05c2ae");
+const marhaultElsdragon = getDefinition("67330004-6720-46d9-9de0-c79230110583");
+const mirrorUniverse = getDefinition("a8f05d5e-bb7d-4554-b880-f0c6b4688357");
+const mountainStronghold = getDefinition(
+    "314fd1d7-4bd8-4d95-b7c2-1aa6660ab88a"
+);
+const pendelhaven = getDefinition("79427109-c1f3-476d-a029-0049217237b5");
+const planarGate = getDefinition("dd27f0fe-c032-4f61-9f3d-98a6d2e2c426");
+const redManaBattery = getDefinition("363cc5d6-70f8-4a3c-92bd-8f49774bdce2");
+const relicBarrier = getDefinition("c062cbae-ce5e-43be-9932-c81a0a3622e8");
+const seafarersQuay = getDefinition("66641d88-b3f0-4bcd-8d2d-29aa2de69e30");
+const tolaria = getDefinition("d43c01b7-443d-4061-a934-6863d230c9b8");
+const tundraWolves = getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
+const unholyCitadel = getDefinition("9de534ff-fb48-4692-bd0f-dd237ca28502");
+const whiteManaBattery = getDefinition("35fbbe41-d21b-4028-905f-054c44d30eb2");
+const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
+const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () => {
     it("draws two, scopes the pick to cards drawn this turn, mixed selection topdecks one and pays for the kept one", () => {

@@ -9,9 +9,6 @@
 // card's OWNER rather than its controller — so it earns a card-level test.
 
 import { describe, it, expect } from "vitest";
-import { emrakulTheAeonsTorn } from "../colorless";
-import { grizzlyBears } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
 import {
     makeInstance,
     makePlayer,
@@ -30,7 +27,18 @@ import {
 } from "../../../../gre/state";
 import { pushSpell } from "../../../__tests__/setup";
 import { annihilatorTriggerId } from "../../../abilities/annihilator";
+// SEAM EXCEPTION (issue #3048): this file's annihilator test asserts the
+// difference between the RAW module export and what the seam serves, so it is
+// the one place a set-module import IS the point. Allowlisted in
+// `scripts/__tests__/card-test-seam-boundary.test.ts`.
+import { emrakulTheAeonsTorn as rawEmrakulModuleExport } from "../colorless";
 import { getDefinition } from "../../..";
+
+const emrakulTheAeonsTorn = getDefinition(
+    "67600383-bbb8-411c-b8e6-2296650bc747"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Drains the stack, resolving every pending item (including a `trigger-order`
  *  PendingChoice, CR 603.3b / ADR 0058). */
@@ -56,7 +64,7 @@ describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)",
         // the raw module export must NOT show it — reading through
         // `getDefinition` must.
         const rawTriggerIds = (
-            emrakulTheAeonsTorn.triggeredAbilities ?? []
+            rawEmrakulModuleExport.triggeredAbilities ?? []
         ).map((a) => a.id);
         expect(rawTriggerIds).not.toContain(annihilatorTriggerId(6));
 

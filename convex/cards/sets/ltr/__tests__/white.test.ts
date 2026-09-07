@@ -1,8 +1,6 @@
 // LTR — white card behavior tests (ADR 0043 colour split). Each card's
 // describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { eaglesOfTheNorth, reprieve } from "../white";
-import { grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -12,6 +10,11 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
+import { getDefinition } from "../../../index";
+
+const eaglesOfTheNorth = getDefinition("c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41");
+const reprieve = getDefinition("1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const ETB_EVENT: StackItem["triggerEvent"] = {
     type: "PERMANENT_ENTERED",

@@ -1,9 +1,6 @@
 // MH1 — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { giverOfRunes } from "../white";
-import { balduvianBears } from "../../ice";
-import { juggernaut, lightningBolt } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -15,6 +12,12 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const giverOfRunes = getDefinition("4e117771-5a8b-4812-b487-32ba34b7f724");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const juggernaut = getDefinition("dcd6a291-5282-4f49-8203-d9b416083c48");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */

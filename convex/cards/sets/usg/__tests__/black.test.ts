@@ -4,8 +4,6 @@
 // `.claude/rules/gre-development.md` § DSL-first authoring this card earns a
 // hand-written test.
 import { describe, it, expect } from "vitest";
-import { exhume, yawgmothsWill } from "..";
-import { grizzlyBears, lightningBolt, mountain } from "../../lea";
 import {
     getPlayer,
     removeFromZone,
@@ -25,6 +23,13 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const exhume = getDefinition("a88b23ce-ce19-47da-b9f2-055a4d6bdc79");
+const yawgmothsWill = getDefinition("6d3e3c3a-d351-4d91-8884-312d4b6f540d");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 describe("Exhume (CR 400.7 reanimation, CR 101.4 APNAP order — Innocent Blood pattern)", () => {
     it("each player puts a creature card from their OWN graveyard onto the battlefield, active player first", () => {

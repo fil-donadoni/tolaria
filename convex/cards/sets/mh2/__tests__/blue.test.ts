@@ -5,7 +5,6 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
 import {
     applyCostModifiers,
@@ -13,12 +12,15 @@ import {
     normalizeManaCost,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { solRing } from "../../lea";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { TargetSelection } from "../../../types";
-import { subtlety, thoughtMonitor } from "../blue";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition, getCardByName } from "../../../index";
+
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const subtlety = getDefinition("701256d5-1389-48b7-9581-d6037209bd06");
+const thoughtMonitor = getDefinition("c5b53f25-25e7-47db-b356-65e93e3b0059");
 
 // Subtlety — {2}{U}{U} 3/3, flash/flying, blue evoke. First TARGETED trigger
 // over a SPELL on the stack (CR 603.3d / 113, #1193/#1205): "choose up to one
@@ -68,7 +70,7 @@ function answerOptionPick(state: GameState, optionId: string): void {
 
 describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #1205)", () => {
     it("targets only a creature/planeswalker spell (not an instant) and puts it on top of the owner's library", () => {
-        const treefolk = getCardByName("Ironroot Treefolk"); // creature
+        const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4"); // creature
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -108,7 +110,7 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
     });
 
     it("the put-back spell stays revealed to the opponent through the wire projection", () => {
-        const treefolk = getCardByName("Ironroot Treefolk");
+        const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -134,7 +136,7 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
     });
 
     it("puts the spell on the bottom of the owner's library when chosen", () => {
-        const treefolk = getCardByName("Ironroot Treefolk");
+        const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4");
         const filler = makeInstance(treefolk.id, {
             id: "lib0",
             controllerId: "p2",
@@ -164,7 +166,7 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
     });
 
     it("may choose no target (up to one) — the spell resolves normally", () => {
-        const treefolk = getCardByName("Ironroot Treefolk");
+        const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });

@@ -3,65 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    balduvianBears,
-    hallowedGround,
-    kjeldoranWarrior,
-    bindingGrasp,
-    brainstorm,
-    counterspellIce,
-    deflection,
-    iceberg,
-    powerSinkIce,
-    seaSpirit,
-    silverErne,
-    sleightOfMindIce,
-    snowDevil,
-    wintersChill,
-    snowCoveredIsland,
-    thunderWall,
-    wordOfUndoing,
-    wrathOfMaritLage,
-    zuranSpellcaster,
-    arnjlotsAscent,
-    illusionaryForces,
-    illusionaryWall,
-    illusionsOfGrandeur,
-    mesmericTrance,
-    polarKraken,
-    fyndhornPollen,
-    maddeningWind,
-    soldeviSimulacrum,
-    breathOfDreams,
-    balduvianShaman,
-    dreamsOfTheDead,
-    snowfall,
-    krovikanSorcerer,
-    shyft,
-    zuranEnchanter,
-    clairvoyance,
-    enervate,
-    infuse,
-    portent,
-    rayOfErasure,
-    updraft,
-    illusionaryPresence,
-    illusionaryTerrain,
-    musician,
-    mysticMight,
-    mysticRemora,
-    realityTwist,
-    rayOfCommand,
-    magusOfTheUnseen,
-    mistfolk,
-    phantasmalMount,
-    zursWeirding,
-    soldeviMachinist,
-    sibilantSpirit,
-    soulBarrier,
-    icyPrison,
-} from "../../ice";
-import { lightningBolt } from "../../lea";
+import { counterspellIce, powerSinkIce, sleightOfMindIce } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
 import {
@@ -137,14 +79,77 @@ import {
     applyLandManaReplacement,
     getBasicLandMana,
 } from "../../../../gre/constants";
-import { mountain, island, forest } from "../../lea";
-import { jayemdaeTome } from "../../lea/colorless";
 import {
     activateAbilityOnState,
     applyOneTargetSelection,
 } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const hallowedGround = getDefinition("4b35c0f4-5633-4ea9-9bda-daaf787aebdd");
+const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
+const bindingGrasp = getDefinition("6b086186-5fbf-4ba7-af0d-ee3ad61d27bb");
+const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
+const deflection = getDefinition("1005a00a-6a0e-44cb-abea-37e2e53125e2");
+const iceberg = getDefinition("a2f70e49-17fa-4033-bd45-63374f7f5ec5");
+const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
+const silverErne = getDefinition("685076cc-098c-4f98-918c-0ad825eda10f");
+const snowDevil = getDefinition("2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f");
+const wintersChill = getDefinition("a779aca7-ff2c-48d8-9484-6ad04b2c6bcb");
+const snowCoveredIsland = getDefinition("ad8b77cf-b53e-4da3-9c27-3851b7b25a98");
+const thunderWall = getDefinition("4fc5d510-c4f7-4a09-bf86-83c3fa3f8928");
+const wordOfUndoing = getDefinition("22b04476-5a5d-4843-a948-82db209c4218");
+const wrathOfMaritLage = getDefinition("1d512f5c-0327-4d49-8a26-672574a49102");
+const zuranSpellcaster = getDefinition("152a72b1-a7b7-4e5c-8558-fab97465f549");
+const arnjlotsAscent = getDefinition("2307fb16-8b77-45b5-8a02-51a13214791d");
+const illusionaryForces = getDefinition("ab02268e-01cf-4729-95ca-5773afd40b56");
+const illusionaryWall = getDefinition("6430e8e2-fee3-4744-820e-d6e16cb992bd");
+const illusionsOfGrandeur = getDefinition(
+    "17eeeef2-2ced-42b8-a5e0-1095c9e13b02"
+);
+const mesmericTrance = getDefinition("ae3df593-e9d5-479d-9a9a-1c7262dd9c6c");
+const polarKraken = getDefinition("aee01e9c-0445-4228-a73a-3e5744844ed3");
+const fyndhornPollen = getDefinition("3efbe59d-bebc-40b1-85ac-2e4c1ff3731e");
+const maddeningWind = getDefinition("5277656c-70f5-4660-bd58-7d9261d53fb5");
+const soldeviSimulacrum = getDefinition("9fabc7b6-e766-4e3c-816e-04cfeceaff09");
+const breathOfDreams = getDefinition("e40c9657-fab4-489d-8eb0-960ba2605add");
+const balduvianShaman = getDefinition("74859723-8ddf-4ee6-a0a7-87192c84e8ad");
+const dreamsOfTheDead = getDefinition("93372854-57e7-4db7-a1a6-376c9f49a514");
+const snowfall = getDefinition("788ed793-3993-4a63-b9f9-9ac3947c3108");
+const krovikanSorcerer = getDefinition("9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed");
+const shyft = getDefinition("99a60c33-b641-42c4-870d-95d07bc975dc");
+const zuranEnchanter = getDefinition("721edcef-f40a-4d43-9d80-26161dc425cb");
+const clairvoyance = getDefinition("46740353-e2ba-4d80-a97d-1368bc67bf30");
+const enervate = getDefinition("c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6");
+const infuse = getDefinition("223287b6-224c-4e00-946c-e7ac5539bd45");
+const portent = getDefinition("e040be83-3fb5-4da5-ba7a-4923b8854b74");
+const rayOfErasure = getDefinition("5a09fc0b-7b9c-4283-8336-f2607f5ffaf5");
+const updraft = getDefinition("d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7");
+const illusionaryPresence = getDefinition(
+    "aa31efed-4a11-4f59-a623-bac45d20091d"
+);
+const illusionaryTerrain = getDefinition(
+    "691f4a1b-4706-41aa-82da-ae920739f036"
+);
+const musician = getDefinition("9f8d2247-a10e-413a-b497-2add3918f991");
+const mysticMight = getDefinition("e35d7f08-0687-41bd-8c53-31a49adabb11");
+const mysticRemora = getDefinition("58e93dff-b774-4765-b7bd-d3957e42ff4a");
+const realityTwist = getDefinition("1b7e955c-3de2-430c-93b9-0b39ccea5420");
+const rayOfCommand = getDefinition("638abe5f-2a8a-42ca-bcdf-a52a3df66946");
+const magusOfTheUnseen = getDefinition("86da04e9-b94d-42af-add3-02baf772bd33");
+const mistfolk = getDefinition("4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1");
+const phantasmalMount = getDefinition("75afdbe6-a3f9-49cf-b4ef-f370e518e960");
+const zursWeirding = getDefinition("e1f8531f-19ca-48a2-baf2-c5dc6f18d79c");
+const soldeviMachinist = getDefinition("1f0999df-2f94-499e-b9af-fe377d515400");
+const sibilantSpirit = getDefinition("47364ad2-5ce9-4b19-a9d2-f6a33188b882");
+const soulBarrier = getDefinition("9ad7fac7-db4d-45b2-aba6-16f4fd1a586f");
+const icyPrison = getDefinition("39a7e496-8d2e-49db-b298-475d9017537a");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -625,11 +630,14 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         const lands: CardInstanceState[] = [];
         for (let i = 0; i < (opts.lands ?? 0); i++) {
             lands.push(
-                makeInstance(getCardByName("Forest").id, {
-                    id: `land${i}`,
-                    controllerId: "p1",
-                    ownerId: "p1",
-                })
+                makeInstance(
+                    getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+                    {
+                        id: `land${i}`,
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }
+                )
             );
         }
         const state = makeState({
@@ -1338,12 +1346,15 @@ describe("Restricted-CU mana — Adarkar Unicorn / Snowfall (CR 106.6, ADR 0022/
             controllerId: "p1",
             zone: "battlefield",
         });
-        const island = makeInstance(getCardByName("Island").id, {
-            id: "island",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "battlefield",
-        });
+        const island = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "island",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            }
+        );
         state.players[0].battlefield.push(snow);
         state.players[1].battlefield.push(island);
         // Simulate "Island tapped for mana" — resolve Snowfall's trigger.
@@ -1378,8 +1389,8 @@ describe("Restricted-CU mana — Adarkar Unicorn / Snowfall (CR 106.6, ADR 0022/
 // ---------------------------------------------------------------------------
 
 describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () => {
-    const GREEN_CARD = getCardByName("Grizzly Bears").id; // nonblack
-    const BLACK_CARD = getCardByName("Dark Ritual").id; // black
+    const GREEN_CARD = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id; // nonblack
+    const BLACK_CARD = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f").id; // black
 
     function setup() {
         const sorc = makeInstance(krovikanSorcerer.id, {
@@ -1481,7 +1492,7 @@ describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () =>
 });
 
 describe("Mesmeric Trance (looter, CR 601.2h / 121.1, issue #1287)", () => {
-    const BEAR_ID = getCardByName("Grizzly Bears").id;
+    const BEAR_ID = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
 
     function setup() {
         const trance = makeInstance(mesmericTrance.id, {
@@ -1604,12 +1615,15 @@ describe("Zuran Enchanter ({2}{B},{T}: target player discards, CR 605 / 701.8)",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const handCard = makeInstance(getCardByName("Dark Ritual").id, {
-            id: "h0",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
+        const handCard = makeInstance(
+            getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f").id,
+            {
+                id: "h0",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [enchanter] }),
@@ -1957,10 +1971,10 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
     it("does NOT touch a nonbasic land of the first type (dual land untouched)", () => {
         // Tropical Island is a nonbasic Forest/Island dual — it carries the
         // first chosen type (Forest) but isn't Basic, so the swap skips it.
-        const { land } = withTerrain(getCardByName("Tropical Island").id, [
-            "Forest",
-            "Island",
-        ]);
+        const { land } = withTerrain(
+            getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56").id,
+            ["Forest", "Island"]
+        );
         expect(land.subtypes).toEqual(["Forest", "Island"]);
     });
 
@@ -2976,8 +2990,7 @@ describe("Winter's Chill (capped-X + per-target three-way may-pay, CR 107.3/118/
             "DECLARE_ATTACKERS",
         ]);
         expect(wintersChill.castXUpperBound).toBe("snow-lands");
-        expect(getDefinition(wintersChill.id)).toBe(wintersChill);
-        expect(getCardByName("Winter's Chill")).toBe(wintersChill);
+        expect(getCardByName("Winter's Chill").id).toBe(wintersChill.id);
     });
 });
 

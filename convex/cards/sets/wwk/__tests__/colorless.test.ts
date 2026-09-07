@@ -9,7 +9,6 @@
 // ADR 0041).
 
 import { describe, it, expect } from "vitest";
-import { creepingTarPit, celestialColonnade } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { advancePhase } from "../../../../gre/phases";
@@ -24,6 +23,15 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const creepingTarPit = getDefinition("0f427f0b-034c-4821-8758-e395c0042d8a");
+const celestialColonnade = getDefinition(
+    "f6929259-2903-4f6f-9b06-42048fd55c6a"
+);
+const everflowingChalice = getDefinition(
+    "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd"
+);
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolve it. Local copy
@@ -214,7 +222,6 @@ describe("Celestial Colonnade (manland — CR 611.1 animate, CR 614.1c enters ta
 // and its {T} mana ability scales {C} with the live charge count via the
 // board-conditional `manaAmount` hook. Board-visible → a wire-format assertion
 // (projectPublicState) confirms the counters survive the projection.
-import { everflowingChalice } from "..";
 import { pushSpell } from "../../../__tests__/setup";
 import { getDynamicManaProduced } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";

@@ -4,7 +4,6 @@
 // pushSpell) stay in convex/cards/__tests__/setup.ts.
 
 import { expect } from "vitest";
-import { grizzlyBears, serraAngel } from "..";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -13,6 +12,10 @@ import {
 } from "../../../../gre/state";
 import { advancePhase } from "../../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 export function activatePump(
     state: GameState,

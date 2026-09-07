@@ -3,8 +3,6 @@
 // and scenario fixtures reused across the colour modules' describe blocks.
 // Fixture builders (makeInstance/makePlayer/makeState/pushSpell) stay in
 // convex/cards/__tests__/setup.ts.
-import { balduvianBears } from "../../ice";
-import { plains, island, swamp, mountain, forest } from "../../lea";
 import { expect } from "vitest";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -18,6 +16,14 @@ import { makeInstance, pushSpell } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Push an activated ability onto the stack with its cost assumed already paid,
  *  then resolve it (mirrors post-activateAbility state). */

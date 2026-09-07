@@ -6,7 +6,6 @@
 // it (CR 707.12) and retarget the copy. The flashback exile is covered
 // class-wide by convex/gre/__tests__/flashback.test.ts.
 import { describe, it, expect } from "vitest";
-import { sevinnesReclamation } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -14,8 +13,13 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { grizzlyBears } from "../../lea";
-import { serraAngel } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const sevinnesReclamation = getDefinition(
+    "7e68f4df-88ce-4e09-a03c-7edf40bff167"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 400.7 / 702.34)", () => {
     it("mvFilter restricts legal graveyard targets to permanent cards of MV ≤ 3", () => {

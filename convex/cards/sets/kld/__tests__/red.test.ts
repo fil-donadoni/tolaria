@@ -10,8 +10,6 @@
 // `buildEmblemTriggerItem`).
 
 import { describe, it, expect } from "vitest";
-import { chandraTorchOfDefiance } from "../red";
-import { elvishArchers, ironrootTreefolk } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
@@ -26,6 +24,13 @@ import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "../../../emblems";
 import type { GameEvent, TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const chandraTorchOfDefiance = getDefinition(
+    "ff8086cd-b868-4f4e-823e-2635ad7ebc07"
+);
+const elvishArchers = getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
+const ironrootTreefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4");
 
 const PLUS1_IMPULSE = "chandra-torch-of-defiance-plus1-impulse";
 const MINUS3 = "chandra-torch-of-defiance-minus3";

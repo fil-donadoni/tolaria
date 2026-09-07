@@ -2,7 +2,6 @@
 // non-trivial card gets a describe block referencing the CR it validates.
 
 import { describe, it, expect } from "vitest";
-import { argothianEnchantress, fertileGround } from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -11,8 +10,14 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { forest } from "../../lea/colorless";
 import type { CardType } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const argothianEnchantress = getDefinition(
+    "9ababc1a-515e-4e20-8819-19d84d9b0af5"
+);
+const fertileGround = getDefinition("091dda35-59e5-456d-8804-61513a610aed");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Answer the head pending choice with `picks` (an option id for
  *  requestOptionChoice) — drives the staged-resume resolution forward one

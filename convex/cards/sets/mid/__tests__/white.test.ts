@@ -3,8 +3,6 @@
 // convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { adelineResplendentCathar } from "../white";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -19,6 +17,11 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
+
+const adelineResplendentCathar = getDefinition(
+    "18092f68-b96e-4084-9eba-b240d2195d81"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Declares `attackerIds` as attackers through the REAL production entry
  *  point (`emitAttackersDeclaredEvents`, CR 508.1) rather than hand-building

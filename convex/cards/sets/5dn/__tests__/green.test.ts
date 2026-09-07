@@ -5,13 +5,15 @@
 // `.claude/rules/gre-development.md` § DSL-first authoring this card earns a
 // hand-written test.
 import { describe, it, expect } from "vitest";
-import { eternalWitness } from "..";
-import { swamp } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const eternalWitness = getDefinition("c7e10ca7-1e5d-4224-82cf-798a4d436d72");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 describe("Eternal Witness (CR 603.6a optional ETB regrowth, CR 117.3a 'you may … up to one')", () => {
     it("returns a chosen card of ANY type from the graveyard to hand (no filter)", () => {

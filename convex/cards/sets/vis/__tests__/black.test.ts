@@ -18,8 +18,6 @@
 // (`castTimingBaseLegal`) and one wire-format assertion through the real
 // `projectPublicState`.
 import { describe, it, expect } from "vitest";
-import { necromancy } from "../black";
-import { grizzlyBears, animateDead } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -42,6 +40,11 @@ import {
     flashSurchargeRequired,
 } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const necromancy = getDefinition("311a6257-dd77-4bb6-81cb-c8e7862350f3");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");
 
 const NECRO = "necro-1";
 const DEAD_BEAR = "bear-dead";

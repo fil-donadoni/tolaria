@@ -5,15 +5,16 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { snuffOut } from "../black";
+import { getDefinition } from "../../../index";
+
+const snuffOut = getDefinition("18a3cca1-e50e-49b6-9e1a-f86640e3b177");
 
 // Snuff Out — {3}{B} Instant. "If you control a Swamp, you may pay 4 life rather
 // than pay this spell's mana cost. Destroy target nonblack creature. It can't be
 // regenerated." (CR 118.9 pitch cost; CR 701.8 destroy; CR 701.19c no-regen.)
 describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.8)", () => {
-    const bears = getCardByName("Grizzly Bears"); // green 2/2 — a nonblack creature
+    const bears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870"); // green 2/2 — a nonblack creature
 
     it("destroys the target creature", () => {
         const victim = makeInstance(bears.id, {

@@ -5,7 +5,6 @@
 // ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { darkHeartOfTheWood, scarwoodGoblins } from "..";
 import { resolveActivated } from "./helpers";
 import {
     makeInstance,
@@ -16,6 +15,11 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+
+const darkHeartOfTheWood = getDefinition(
+    "e3d3df64-1e90-4aef-86ae-0062aa23ff30"
+);
+const scarwoodGoblins = getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0");
 
 describe("Scarwood Goblins (vanilla creature, CR 302)", () => {
     it("resolves onto the battlefield and survives projection (CR 608.3)", () => {

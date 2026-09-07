@@ -4,58 +4,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    balduvianBears,
-    fyndhornBrownie,
-    fyndhornElves,
-    blizzard,
-    chubToad,
-    earthlore,
-    elderDruid,
-    essenceFilter,
-    fanaticalFever,
-    folkOfThePines,
-    freyalisesCharm,
-    gorillaPack,
-    forbiddenLore,
-    hotSprings,
-    thermokarst,
-    thoughtleech,
-    venomousBreath,
-    wiitigo,
     giantGrowthIce,
     hurricaneIce,
-    johtullWurm,
-    lhurgoyf,
     lureIce,
-    naturesLore,
     regenerationIce,
-    scaledWurm,
-    shamblingStrider,
-    stampede,
-    stuntedGrowth,
-    tinderWall,
-    trailblazer,
-    wallOfPineNeedles,
     wildGrowthIce,
-    woollySpider,
-    aurochs,
-    vexingArcanix,
-    hymnOfRebirth,
-    foxfire,
-    pyknite,
-    touchOfVitae,
-    whiteout,
-    woollyMammoths,
-    freyalisesWinds,
-    forgottenLore,
-    freyaliseSupplicant,
-    ritualOfSubdual,
-    brownOuphe,
-    aegisOfTheMeek,
-    snowCoveredForest,
 } from "../../ice";
 import { applyLandManaReplacement } from "../../../../gre/constants";
-import { mountain } from "../../lea";
 import { untapStep } from "../../../../gre/phases";
 import {
     getDefinition,
@@ -126,6 +81,54 @@ import {
     makeLand,
     snowLand,
 } from "./helpers";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const fyndhornBrownie = getDefinition("06204e82-9dfd-4334-a23a-f8240fc37772");
+const fyndhornElves = getDefinition("3ba95ffa-990a-4013-98b7-5d8c0b34e9c4");
+const blizzard = getDefinition("c369e4f9-0f2b-446c-9e2d-d3eefab0586d");
+const chubToad = getDefinition("b6ebcc1d-0c5c-4bc2-ade7-41944f69162e");
+const earthlore = getDefinition("319d252e-7c43-47d6-8873-f69b0e063256");
+const elderDruid = getDefinition("210f6fab-62f0-42ab-bd01-00d647bd25e7");
+const essenceFilter = getDefinition("9b610103-dafd-4248-9d79-ce57f84b9e03");
+const fanaticalFever = getDefinition("2abba7f1-5d07-4137-88a2-5967396a3e42");
+const folkOfThePines = getDefinition("0c13311d-db83-483f-ba2b-4f54ceb8b026");
+const freyalisesCharm = getDefinition("3e147ac1-d221-49c7-966e-5e665ddeab6b");
+const gorillaPack = getDefinition("046f6b76-5f17-4728-aa34-72b7eff1d4c9");
+const forbiddenLore = getDefinition("5fc225cf-4fe2-4a5b-828e-ffcb99e404e8");
+const hotSprings = getDefinition("1d4fe072-81a7-424e-8d21-aaca010d5b1d");
+const thermokarst = getDefinition("00ae906b-2c4d-48e9-9f2d-217777e22292");
+const thoughtleech = getDefinition("d8fe7f9d-644f-48d0-93fa-d9a536f1f755");
+const venomousBreath = getDefinition("8eeb9e02-1d26-4959-a878-2ef8db2358bc");
+const wiitigo = getDefinition("9ee86bf2-6c54-4c6e-8394-eb39f98d5a85");
+const johtullWurm = getDefinition("64a22e88-f7b1-48c8-a199-e57edcd50654");
+const lhurgoyf = getDefinition("fee6d385-d44b-4f1a-beb1-13aeebde063e");
+const naturesLore = getDefinition("668d2969-b6b7-4507-bdd4-20bbaa68035a");
+const scaledWurm = getDefinition("499cd7fa-c86c-4a5f-b36d-8160e8a6af1f");
+const shamblingStrider = getDefinition("8886ba2d-b25a-4b74-9299-911c509ae864");
+const stampede = getDefinition("bc8265a1-4621-4d25-8f7f-f0179951a694");
+const stuntedGrowth = getDefinition("4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3");
+const tinderWall = getDefinition("2a7c6489-21e9-4b86-a54a-b1e2f1fce318");
+const trailblazer = getDefinition("9194c69d-c849-4c4a-976c-d1382bd5cf32");
+const wallOfPineNeedles = getDefinition("5d879923-55fc-46ab-9306-5e1f10441c89");
+const woollySpider = getDefinition("e10520b2-b5a7-4328-84c8-20443b6f588a");
+const aurochs = getDefinition("7e973a84-7f7d-4524-9f2f-ec9a014d52ee");
+const vexingArcanix = getDefinition("0c9ea118-6a19-4e1b-aa5a-9b2729efc096");
+const hymnOfRebirth = getDefinition("61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9");
+const foxfire = getDefinition("88db9685-6a2f-4548-b6c4-669918d653b4");
+const pyknite = getDefinition("6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6");
+const touchOfVitae = getDefinition("48d2cd18-a24d-40e0-a654-777d9e623ae2");
+const whiteout = getDefinition("a8645e4f-eaa8-4420-a6a3-eb53c311fab1");
+const woollyMammoths = getDefinition("eaca1216-99c8-4ad5-a51a-3c4ff3b82097");
+const freyalisesWinds = getDefinition("b11cd2e0-9419-4267-807e-5b73915c748a");
+const forgottenLore = getDefinition("fb01dd39-a957-4c1a-86cf-f31a699a154a");
+const freyaliseSupplicant = getDefinition(
+    "5b1e718a-882a-4bdc-9d62-4dda88da0ba0"
+);
+const ritualOfSubdual = getDefinition("5c5c01e7-8116-45fc-afc3-d52a31a635cb");
+const brownOuphe = getDefinition("e26ce35b-ba65-451d-a5ed-e1db6f1d0c6f");
+const aegisOfTheMeek = getDefinition("5d272051-f442-4f6e-8c64-df28b398d2e8");
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 // ---------------------------------------------------------------------------
 // Vanilla creature (CR 302 — Creature card as pure data: types/subtypes + P/T
@@ -1680,8 +1683,7 @@ describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.2a)"
     it("is a {2}{G} Instant that registers by id and name", () => {
         expect(touchOfVitae.manaCost).toEqual({ X: 2, G: 1 });
         expect(touchOfVitae.types).toEqual(["Instant"]);
-        expect(getDefinition(touchOfVitae.id)).toBe(touchOfVitae);
-        expect(getCardByName("Touch of Vitae")).toBe(touchOfVitae);
+        expect(getCardByName("Touch of Vitae").id).toBe(touchOfVitae.id);
     });
 });
 
@@ -1950,8 +1952,7 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
 
 describe("Freyalise's Winds (counter-keyed untap replacement, CR 614.6)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(freyalisesWinds.id)).toBe(freyalisesWinds);
-        expect(getCardByName("Freyalise's Winds")).toBe(freyalisesWinds);
+        expect(getCardByName("Freyalise's Winds").id).toBe(freyalisesWinds.id);
     });
 
     it("puts a wind counter on any permanent that becomes tapped (CR 122.1)", () => {
@@ -2584,11 +2585,14 @@ describe("Blizzard — cast only if you control a snow land (CR 601.3a)", () => 
 
 describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
     function setup(withAura: boolean) {
-        const land = makeInstance(getCardByName("Plains").id, {
-            id: "land",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "land",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const battlefield: CardInstanceState[] = [land];
         if (withAura) {
             battlefield.push(
@@ -2669,11 +2673,14 @@ describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
 
 describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", () => {
     function setup(withAura: boolean) {
-        const land = makeInstance(getCardByName("Plains").id, {
-            id: "land",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "land",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const battlefield: CardInstanceState[] = [land];
         if (withAura) {
             battlefield.push(

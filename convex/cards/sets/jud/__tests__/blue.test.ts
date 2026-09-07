@@ -19,9 +19,6 @@
 //     its candidate blue cards to the viewer (the dialog reads them)
 //   - a serialization round-trip of the new `pendingCast.exileFromGraveyardChoice`
 import { describe, it, expect } from "vitest";
-import { flashOfInsight } from "../blue";
-import { snapcasterMage } from "../../isd/blue";
-import { grizzlyBears, island } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -36,6 +33,12 @@ import {
 } from "../../../../game";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const flashOfInsight = getDefinition("ffaab905-0b97-42c2-a1a3-1e72275caa82");
+const snapcasterMage = getDefinition("9e5b279e-4670-4a1e-87d0-3cab7e4f9e58");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 const FOI = flashOfInsight.id;
 const BLUE = snapcasterMage.id; // {1}{U} — a blue card (CR 105.2)

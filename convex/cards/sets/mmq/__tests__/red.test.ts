@@ -5,11 +5,13 @@
 // suspension/resume tests"), so per `.claude/rules/gre-development.md` §
 // DSL-first authoring this card earns a hand-written test.
 import { describe, it, expect } from "vitest";
-import { squeeGoblinNabob } from "..";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const squeeGoblinNabob = getDefinition("4ba8325a-1203-4125-9111-94d9e2b1f14b");
 
 describe("Squee, Goblin Nabob (CR 603.6e graveyard-zone upkeep trigger, CR 117.3a optional cost-free return)", () => {
     function gyState(): GameState {

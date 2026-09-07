@@ -2,9 +2,6 @@
 // `convex/cards/sets/vis/blue.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { visionCharm } from "../blue";
-import { island, forest, blackLotus } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +13,13 @@ import type { GameState, StackItem } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const visionCharm = getDefinition("78b384d3-3adf-493a-8b89-bfe68fd1c3e2");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Answer the head pending choice with `picks` (an option id for
  *  requestOptionChoice, or permanent ids for requestChoice). Drives the

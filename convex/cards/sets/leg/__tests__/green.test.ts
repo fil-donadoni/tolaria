@@ -11,34 +11,6 @@ import {
     resolveActivated,
     resolveTrigger,
 } from "./helpers";
-import {
-    amrouKithkin,
-    arboria,
-    barbaryApes,
-    cocoon,
-    concordantCrossroads,
-    crawGiant,
-    durkwoodBoars,
-    elvenRiders,
-    emeraldDragonfly,
-    giantTurtle,
-    gravitySphere,
-    hundingGjornersen,
-    killerBees,
-    masterOfTheHunt,
-    mossMonster,
-    pixieQueen,
-    pradeshGypsies,
-    rabidWombat,
-    shelkinBrownie,
-    spiritLink,
-    stormSeeker,
-    sylvanParadise,
-    typhoon,
-    wallOfLight,
-    whirlingDervish,
-    wolverinePack,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     isLegalBandComposition,
@@ -74,8 +46,39 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
-import { forest, grizzlyBears, island } from "../../lea";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+
+const amrouKithkin = getDefinition("cbce1c55-123c-4a05-bde4-18a1601fcc5a");
+const arboria = getDefinition("095078b0-0f26-442f-9d3b-45e30cdb33c4");
+const barbaryApes = getDefinition("df25ffdd-995d-46ae-856b-f6368f9438ed");
+const cocoon = getDefinition("a82c87b1-de37-4423-a1a4-533a1d8108b2");
+const concordantCrossroads = getDefinition(
+    "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db"
+);
+const crawGiant = getDefinition("707dadf0-735f-445d-9240-e49660913314");
+const durkwoodBoars = getDefinition("8d41f08b-68fb-45f2-bdc9-488baedc7d6f");
+const elvenRiders = getDefinition("ad1d349b-b5ab-4b2b-9b39-f8d8f6374aa5");
+const emeraldDragonfly = getDefinition("a3e81250-52c3-49f6-be43-17c34339e177");
+const giantTurtle = getDefinition("87e5fc19-3b10-476f-9a73-e8bf4b5fbec0");
+const gravitySphere = getDefinition("a2749332-e99a-4a0c-b3a3-5578b552fa11");
+const hundingGjornersen = getDefinition("07d8e501-6857-4a52-a3b9-2bf0bee5b08c");
+const killerBees = getDefinition("2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27");
+const masterOfTheHunt = getDefinition("4e6bf56e-2d74-4e4d-a667-885853979377");
+const mossMonster = getDefinition("9903c043-9a7a-4994-b532-136d4c46edfd");
+const pixieQueen = getDefinition("b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b");
+const pradeshGypsies = getDefinition("0370330d-83d9-44d2-a1ed-c4827edc60fd");
+const rabidWombat = getDefinition("9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032");
+const shelkinBrownie = getDefinition("fddcc557-871d-425b-b4ee-bc0c9bc717aa");
+const spiritLink = getDefinition("5e2d35f8-3cf6-4843-9030-0e9a885d836c");
+const stormSeeker = getDefinition("3b66d0cc-84d7-41ad-b0e7-74ebf604543f");
+const sylvanParadise = getDefinition("f323c3bb-cece-4035-b1a7-c4817cf7a08c");
+const typhoon = getDefinition("254e0403-67d8-4e73-8d89-c901ebeba49f");
+const wallOfLight = getDefinition("f5758e82-f901-42b7-b705-0e68ca7ba59e");
+const whirlingDervish = getDefinition("eba294e7-7097-4bc3-b396-72e85dd4f441");
+const wolverinePack = getDefinition("ba5aee52-095e-4c69-93eb-5adac11ed1fc");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // ───────────────────────────────────────────────────────────────────────────
 // Green free tranche (#375)
@@ -83,7 +86,6 @@ import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
     it("registers the green vanilla creatures with correct P/T", () => {
-        expect(getDefinition(barbaryApes.id)).toBe(barbaryApes);
         expect(barbaryApes.power).toBe(2);
         expect(barbaryApes.toughness).toBe(2);
         expect(durkwoodBoars.power).toBe(4);

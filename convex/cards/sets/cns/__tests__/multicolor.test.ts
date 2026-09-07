@@ -17,9 +17,8 @@
 // cover.
 
 import { describe, it, expect } from "vitest";
-import { dackFayden } from "../multicolor";
 import { DACK_FAYDEN_EMBLEM_ID } from "../../../emblems";
-import { registerTokenDefinition, getCardByName } from "../../../index";
+import { registerTokenDefinition } from "../../../index";
 import type { EffectOp, TargetSelection } from "../../../types";
 import type { GameState } from "../../../../gre/state";
 import {
@@ -39,14 +38,17 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const dackFayden = getDefinition("3fcb7810-1054-4001-855c-6e17939b3d3f");
 
 const PLUS1 = "dack-fayden-plus1";
 const MINUS2 = "dack-fayden-minus2";
 const MINUS6 = "dack-fayden-minus6";
 
-const BEARS = getCardByName("Balduvian Bears").id;
-const ORNITHOPTER = getCardByName("Ornithopter").id;
-const TIM = getCardByName("Prodigal Sorcerer").id;
+const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id;
+const ORNITHOPTER = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id;
+const TIM = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a").id;
 
 /** A spell that targets ONE permanent, registered once for these tests. */
 const ONE_TARGET_SPELL = "cns-test-one-permanent-target";

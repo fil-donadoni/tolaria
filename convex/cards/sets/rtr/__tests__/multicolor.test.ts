@@ -11,12 +11,13 @@
 // here — it ran clean through the sweep.
 
 import { describe, it, expect } from "vitest";
-import { deathriteShaman } from "../multicolor";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const deathriteShaman = getDefinition("70496f16-c4c0-4c03-beef-454eb4824cd1");
 
 const DEATHRITE = deathriteShaman.id;
 
@@ -75,12 +76,15 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
     describe("{T}: exile target land card from a graveyard, add one mana of any color (CR 605.1a / 701.13)", () => {
         it("exiles the land and adds the chosen color to the caster's mana pool", () => {
             const { state, deathrite } = setupDeathrite();
-            const land = makeInstance(getCardByName("Forest").id, {
-                id: "gy-land",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "graveyard",
-            });
+            const land = makeInstance(
+                getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+                {
+                    id: "gy-land",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "graveyard",
+                }
+            );
             state.players[1].graveyard.push(land);
 
             activate(state, deathrite, "deathrite-shaman-land-mana", [
@@ -104,12 +108,15 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
     describe("{B},{T}: exile target instant or sorcery card from a graveyard, each opponent loses 2 life (CR 605.1a / 701.13)", () => {
         it("exiles the card and drains each opponent for 2", () => {
             const { state, deathrite } = setupDeathrite();
-            const bolt = makeInstance(getCardByName("Lightning Bolt").id, {
-                id: "gy-instant",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "graveyard",
-            });
+            const bolt = makeInstance(
+                getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a").id,
+                {
+                    id: "gy-instant",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "graveyard",
+                }
+            );
             state.players[1].graveyard.push(bolt);
 
             activate(state, deathrite, "deathrite-shaman-graveyard-hate", [
@@ -128,12 +135,15 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
     describe("{G},{T}: exile target creature card from a graveyard, you gain 2 life (CR 605.1a / 701.13)", () => {
         it("exiles the card and gains the controller 2 life", () => {
             const { state, deathrite } = setupDeathrite();
-            const bear = makeInstance(getCardByName("Grizzly Bears").id, {
-                id: "gy-creature",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "graveyard",
-            });
+            const bear = makeInstance(
+                getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+                {
+                    id: "gy-creature",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "graveyard",
+                }
+            );
             state.players[1].graveyard.push(bear);
 
             activate(state, deathrite, "deathrite-shaman-lifegain", [
@@ -152,12 +162,15 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
     describe("illegal target at resolution (CR 608.2b) — the ability is countered and does nothing", () => {
         it("no exile, no mana, no life change when the graveyard target has left the graveyard before resolution", () => {
             const { state, deathrite } = setupDeathrite();
-            const bear = makeInstance(getCardByName("Grizzly Bears").id, {
-                id: "gy-creature",
-                controllerId: "p2",
-                ownerId: "p2",
-                zone: "graveyard",
-            });
+            const bear = makeInstance(
+                getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+                {
+                    id: "gy-creature",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "graveyard",
+                }
+            );
             state.players[1].graveyard.push(bear);
             state.stack.push({
                 ...deathrite,

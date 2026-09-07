@@ -8,8 +8,6 @@
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
-import { scythecatCub } from "../green";
-import { swamp, grizzlyBears } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -20,6 +18,11 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const scythecatCub = getDefinition("b3dd3c7d-4685-4579-b483-14ddaaaddf5b");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Synthesizes the PERMANENT_ENTERED event a land drop emits (CR 603.6a). */
 function landEntered(instanceId: string, controllerId: string) {

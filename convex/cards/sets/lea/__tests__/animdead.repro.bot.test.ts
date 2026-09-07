@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { animateDead, grizzlyBears, lightningBolt } from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { enumerateMoves } from "../../../../gre/moves";
@@ -11,6 +10,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 describe("REPRO: animate dead LTB trigger stuck on stack", () => {
     it("bot/legal-action surfaces still work with the trigger on the stack", () => {

@@ -1,7 +1,6 @@
 // ODY (Odyssey) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { upheaval } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -13,6 +12,9 @@ import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const upheaval = getDefinition("9e201229-34a6-48c8-a07c-d8aefcf5f8a7");
 
 const BEAR_ID = "test-odyblue-bear";
 registerTokenDefinition({

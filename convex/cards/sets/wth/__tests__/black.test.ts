@@ -1,7 +1,6 @@
 // Weatherlight (WTH) — black card behavior tests (ADR 0043 colour split).
 // Each describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { doomsday } from "../black";
 import {
     makeInstance,
     makePlayer,
@@ -15,9 +14,11 @@ import {
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const doomsday = getDefinition("5b3c6d87-9383-450b-bba5-33435b6b0d08");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 /** Submit the head pending choice (the per-set shim every colour-split test
  *  file carries — see `sets/atq/__tests__/helpers.ts`). */

@@ -8,7 +8,9 @@
 // board in both files would let the two suites drift apart silently.
 
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { courserOfKruphix } from "../green";
+import { getDefinition } from "../../../index";
+
+const courserOfKruphix = getDefinition("da5a807f-58e8-4d92-a61c-47bb9b28977f");
 
 /** A board where p1 optionally controls a Courser and has `libraryIds` on top
  *  of their library, top-first. */

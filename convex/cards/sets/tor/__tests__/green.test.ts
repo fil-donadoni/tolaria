@@ -16,7 +16,9 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { baskingRootwalla } from "../green";
+import { getDefinition } from "../../../index";
+
+const baskingRootwalla = getDefinition("1a67768a-6cd9-4163-b941-752f29c87a8d");
 
 /** Push an activated ability onto the stack (cost assumed paid), then resolve. */
 function resolveActivated(

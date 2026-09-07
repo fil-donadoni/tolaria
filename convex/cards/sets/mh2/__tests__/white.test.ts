@@ -7,8 +7,10 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { solitude } from "../white";
-import { serraAngel } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const solitude = getDefinition("47a6234f-309f-4e03-9263-66da48b57153");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 // Solitude — {3}{W}{W} Creature Elemental Incarnation, 3/2 (Vintage Cube,
 // issue #900). "Flash. Lifelink. When this creature enters, exile up to one

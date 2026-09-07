@@ -13,8 +13,7 @@
 // (subtype filter / wasSacrificed).
 
 import { describe, it, expect } from "vitest";
-import { tirelessTracker } from "../green";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     resolveTopOfStack,
     removePermanentTo,
@@ -24,7 +23,9 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
-const SWAMP_ID = getCardByName("Swamp").id;
+const tirelessTracker = getDefinition("ee8e9928-d9b2-4570-adb8-44b34115decd");
+
+const SWAMP_ID = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
 
 /** A hand-crafted Clue-shaped token id — `getDefinition` synthesizes it on
  *  demand via `maybeSynthesizeToken` (same client-rehydration path exercised

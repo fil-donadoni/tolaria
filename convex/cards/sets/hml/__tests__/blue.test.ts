@@ -9,7 +9,6 @@
 // (`knownTo`) — the SAME mechanism `moveSpellFromStack` (Subtlety) already
 // uses, not a parallel marker. Issue #1696.
 import { describe, it, expect } from "vitest";
-import { memoryLapse } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -24,8 +23,11 @@ import {
 } from "../../../../gre/state";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
-import { grizzlyBears } from "../../lea";
-import { mountain } from "../../lea/colorless";
+import { getDefinition } from "../../../index";
+
+const memoryLapse = getDefinition("3d2cc591-3a81-468a-91a4-3c3aac83a21a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 /** p2 casts Grizzly Bears; p1 answers with Memory Lapse. p2's library is
  *  pre-stocked with two Mountains so "the rest of the library stays hidden"

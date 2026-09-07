@@ -28,10 +28,12 @@ import {
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { displacerKitten } from "../blue";
-import { lightningBolt } from "../../lea/red";
-import { balduvianBears } from "../../ice/green";
-import { forest } from "../../lea/colorless";
+import { getDefinition } from "../../../index";
+
+const displacerKitten = getDefinition("c7a401b8-29fb-46ef-a663-427f66724d5c");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 const ABILITY_ID = "displacer-kitten-blink";
 

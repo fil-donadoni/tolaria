@@ -11,12 +11,6 @@
 // `projectPublicState`, so the picker's option list matches client-side).
 
 import { describe, it, expect } from "vitest";
-import { sinSpirasPunishment, viviOrnitier } from "../multicolor";
-import { farrelitePriest } from "../../fem/white";
-import { forest } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
-import { hillGiant, lightningBolt } from "../../lea/red";
-import { demonicTutor } from "../../lea/black";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
@@ -32,6 +26,18 @@ import type {
     StackItem,
 } from "../../../../gre/state";
 import type { GameEvent } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const sinSpirasPunishment = getDefinition(
+    "659be746-bd31-4a70-8cec-7798da78b0b5"
+);
+const viviOrnitier = getDefinition("ecc1027a-8c07-44a0-bdde-fa2844cff694");
+const farrelitePriest = getDefinition("e11bf79b-a951-4d0c-acdf-d8ba5290a648");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const demonicTutor = getDefinition("711d4d54-5520-4de8-9b93-79902ed8e562");
 
 const VIVI_ID = viviOrnitier.id;
 const ABILITY_ID = "vivi-ornitier-mana";

@@ -1,8 +1,6 @@
 // JUD — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { sylvanSafekeeper } from "../green";
-import { forest } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type {
@@ -10,6 +8,10 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const sylvanSafekeeper = getDefinition("f1b8413f-c9fc-4cea-b416-a1fcf651b009");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (the sacrifice happens at activation, before this call in the real

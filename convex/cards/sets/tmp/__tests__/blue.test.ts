@@ -4,10 +4,12 @@
 // shims live in convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { timeWarp } from "../blue";
 import { makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const timeWarp = getDefinition("3447aeaf-3b26-442a-99d4-0a7ee76c8e76");
 
 // Time Warp — DSL card reusing the `extraTurn` Op (issue #686). The Op's own
 // construct-level coverage (announced target / controller / wire survival)

@@ -10,9 +10,6 @@
 // first real-card consumer.
 
 import { describe, it, expect } from "vitest";
-import { lavaDart } from "../red";
-import { mountain } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -27,6 +24,11 @@ import {
     buildCastSacrificeSelection,
 } from "../../../../game";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
+import { getDefinition } from "../../../index";
+
+const lavaDart = getDefinition("865bb1d3-5b7d-40e9-87cc-96be9524a105");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", () => {
     it("main cast: deals 1 damage to any target (player)", () => {

@@ -6,25 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    amnesia,
-    danceOfMany,
-    deepWater,
-    drowned,
-    electricEel,
-    erosion,
-    fellwarStone,
-    flood,
-    ghostShip,
-    giantShark,
-    manaVortex,
-    merfolkAssassin,
-    mindBomb,
-    psychicAllergy,
-    riptide,
-    sunkenCity,
-    waterWurm,
-} from "..";
-import {
     FOREST,
     UPKEEP,
     answerChoice,
@@ -62,19 +43,42 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { getDefinition, getCardByName } from "../../../index";
 
+const amnesia = getDefinition("e07df65c-ebcc-4873-b928-d99040d1f2f6");
+const danceOfMany = getDefinition("13453abe-3f05-4956-8493-382d7d2af699");
+const deepWater = getDefinition("9dd6a230-6bc0-499c-b7fd-4aaa2569f98f");
+const drowned = getDefinition("951b6c10-cbba-44b6-aae2-2c386b7ebacb");
+const electricEel = getDefinition("b8834c18-0e4e-4785-9d15-b33345e3789b");
+const erosion = getDefinition("5f4b6507-89ee-482e-aafd-8e05ada8f1ce");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
+const flood = getDefinition("fabc3267-b59b-4f36-8873-5b4b072711ca");
+const ghostShip = getDefinition("db591b28-37e5-4e7c-ae4d-d761262b12d0");
+const giantShark = getDefinition("53ec4a19-0f2f-4713-a869-58832484648d");
+const manaVortex = getDefinition("f857a00a-82e0-4227-86ee-1f9c7ca232ae");
+const merfolkAssassin = getDefinition("36313dc7-6bf2-4d73-b696-969d984a7466");
+const mindBomb = getDefinition("0ee810a5-f0f9-4b73-8194-3d1344784050");
+const psychicAllergy = getDefinition("fec3275e-4491-43a8-9f23-d7b48177c103");
+const riptide = getDefinition("b0f11ae4-e30e-441d-bb64-439930d9997c");
+const sunkenCity = getDefinition("f1e0f9ec-2b06-4bda-8b80-a716d82d1f13");
+const waterWurm = getDefinition("e3da4a88-5225-467f-9240-f30bc1eee520");
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BLUE free tranche (#412)
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Amnesia — reveal hand, discard all nonland cards (CR 701.9)", () => {
     it("discards nonland cards and keeps lands", () => {
-        const islandId = getCardByName("Island").id;
-        const bolt = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "spell",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
+        const islandId = getDefinition(
+            "90a57c0e-fa61-45ef-955d-d296403967d5"
+        ).id;
+        const bolt = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "spell",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
         const land = makeInstance(islandId, {
             id: "land",
             controllerId: "p2",
@@ -99,11 +103,14 @@ describe("Amnesia — reveal hand, discard all nonland cards (CR 701.9)", () => 
 
 describe("Erosion — upkeep destroy enchanted land unless pay {1} or 1 life (CR 603.6a / 117.3a)", () => {
     function setup() {
-        const land = makeInstance(getCardByName("Island").id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "land",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const aura = makeInstance(erosion.id, {
             id: "erosion",
             controllerId: "p1",
@@ -154,16 +161,22 @@ describe("Erosion — upkeep destroy enchanted land unless pay {1} or 1 life (CR
 
 describe("Flood — {U}{U}: tap target creature without flying (CR 701.26a / 702.9)", () => {
     it("only non-flyers are legal targets (excludeAbility)", () => {
-        const ground = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "ground",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const flyer = makeInstance(getCardByName("Serra Angel").id, {
-            id: "flyer",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const ground = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "ground",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const flyer = makeInstance(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id,
+            {
+                id: "flyer",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -182,11 +195,14 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.26a / 702
 
     it("taps the targeted non-flyer", () => {
         const fl = makeInstance(flood.id, { id: "flood", controllerId: "p1" });
-        const ground = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "ground",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const ground = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "ground",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [fl] }),
@@ -240,12 +256,15 @@ describe("Giant Shark — attack restriction, combat pump, sacrifice-on-no-Islan
             id: "shark",
             controllerId: "p1",
         });
-        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "blocker",
-            controllerId: "p2",
-            ownerId: "p2",
-            damageMarked: 1, // already dealt damage this turn
-        });
+        const blocker = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "blocker",
+                controllerId: "p2",
+                ownerId: "p2",
+                damageMarked: 1, // already dealt damage this turn
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [shark] }),
@@ -277,11 +296,14 @@ describe("Giant Shark — attack restriction, combat pump, sacrifice-on-no-Islan
             id: "shark",
             controllerId: "p1",
         });
-        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "blocker",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const blocker = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "blocker",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [shark] }),
@@ -349,11 +371,14 @@ describe("Mana Vortex — cast-counter, each-upkeep land sac, no-lands self-sac"
             id: "vortex",
             controllerId: "p1",
         });
-        const land = makeInstance(getCardByName("Island").id, {
-            id: "p2-land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "p2-land",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [vortex] }),
@@ -389,16 +414,22 @@ describe("Mana Vortex — cast-counter, each-upkeep land sac, no-lands self-sac"
 
 describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 / 701.7)", () => {
     it("only islandwalkers are legal targets", () => {
-        const walker = makeInstance(getCardByName("Segovian Leviathan").id, {
-            id: "walker",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const plain = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "plain",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const walker = makeInstance(
+            getDefinition("e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b").id,
+            {
+                id: "walker",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const plain = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "plain",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -420,11 +451,14 @@ describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 /
             id: "ma",
             controllerId: "p1",
         });
-        const walker = makeInstance(getCardByName("Segovian Leviathan").id, {
-            id: "walker",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const walker = makeInstance(
+            getDefinition("e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b").id,
+            {
+                id: "walker",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [ma] }),
@@ -453,18 +487,24 @@ describe("Mind Bomb — each player may discard up to 3, damage = 3 − discarde
     });
 
     it("discarding reduces the damage (3 − discarded)", () => {
-        const c1 = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "c1",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-        });
-        const c2 = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "c2",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-        });
+        const c1 = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "c1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            }
+        );
+        const c2 = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "c2",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            }
+        );
         const state = makeState({
             players: [makePlayer("p1", { hand: [c1, c2] }), makePlayer("p2")],
         });
@@ -484,16 +524,22 @@ describe("Psychic Allergy — choose color, damage per nontoken permanent, upkee
             ownerId: "p1",
             chosenModeId: "U", // chose blue
         });
-        const blueA = makeInstance(getCardByName("Air Elemental").id, {
-            id: "blueA",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const blueB = makeInstance(getCardByName("Air Elemental").id, {
-            id: "blueB",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const blueA = makeInstance(
+            getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea").id,
+            {
+                id: "blueA",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const blueB = makeInstance(
+            getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea").id,
+            {
+                id: "blueB",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [allergy] }),
@@ -537,21 +583,30 @@ describe("Psychic Allergy — choose color, damage per nontoken permanent, upkee
 
 describe("Riptide — tap all blue creatures (CR 701.26a / 202.2)", () => {
     it("taps blue creatures of either controller, spares nonblue", () => {
-        const blue1 = makeInstance(getCardByName("Air Elemental").id, {
-            id: "blue1",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const blue2 = makeInstance(getCardByName("Air Elemental").id, {
-            id: "blue2",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const white = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "white",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const blue1 = makeInstance(
+            getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea").id,
+            {
+                id: "blue1",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const blue2 = makeInstance(
+            getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea").id,
+            {
+                id: "blue2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const white = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "white",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [blue1] }),
@@ -578,11 +633,14 @@ describe("Sunken City — blue anthem + upkeep maintenance (CR 611 / 603.6a)", (
             controllerId: "p1",
             ownerId: "p1",
         });
-        const blue = makeInstance(getCardByName("Air Elemental").id, {
-            id: "blue",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const blue = makeInstance(
+            getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea").id,
+            {
+                id: "blue",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [city, blue] }),
@@ -640,11 +698,14 @@ describe("Water Wurm — +0/+1 while an opponent controls an Island (CR 613.4 la
         });
         const p2bf = opponentHasIsland
             ? [
-                  makeInstance(getCardByName("Island").id, {
-                      id: "isl",
-                      controllerId: "p2",
-                      ownerId: "p2",
-                  }),
+                  makeInstance(
+                      getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+                      {
+                          id: "isl",
+                          controllerId: "p2",
+                          ownerId: "p2",
+                      }
+                  ),
               ]
             : [];
         const state = makeState({
@@ -828,8 +889,7 @@ function fireEtbAndCopy(
 
 describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
     it("is registered by id and name", () => {
-        expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
-        expect(getCardByName("Dance of Many")).toBe(danceOfMany);
+        expect(getCardByName("Dance of Many").id).toBe(danceOfMany.id);
     });
 
     it("excludes a TOKEN creature from the legal copy targets (CR 111.5, issue #1195 — previously an incorrectly-legal target)", () => {
@@ -838,17 +898,23 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
             controllerId: "p1",
             ownerId: "p1",
         });
-        const tokenCreature = makeInstance(getCardByName("Serra Angel").id, {
-            id: "a-token",
-            controllerId: "p1",
-            ownerId: "p1",
-            isToken: true,
-        });
-        const nontoken = makeInstance(getCardByName("Serra Angel").id, {
-            id: "a-nontoken",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const tokenCreature = makeInstance(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id,
+            {
+                id: "a-token",
+                controllerId: "p1",
+                ownerId: "p1",
+                isToken: true,
+            }
+        );
+        const nontoken = makeInstance(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id,
+            {
+                id: "a-nontoken",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -873,7 +939,9 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
 
 describe("Dance of Many — ETB token copy (CR 707.2)", () => {
     it("creates a token that is a copy of the target creature's copiable values", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         // CR 707.2 — copiable values: types, P/T, abilities from the printed def.
         expect(token.isToken).toBe(true);
@@ -890,14 +958,18 @@ describe("Dance of Many — ETB token copy (CR 707.2)", () => {
     });
 
     it("copies a vanilla creature's P/T (Grizzly Bears 2/2)", () => {
-        const { state, dance } = danceSetup(getCardByName("Grizzly Bears").id);
+        const { state, dance } = danceSetup(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         expect(getEffectivePower(state, token)).toBe(2);
         expect(getEffectiveToughness(state, token)).toBe(2);
     });
 
     it("auto-locks the sole legal creature — no choice raised (CR 603.3d)", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const trig = pushDanceEtb(state, dance);
         // Only one creature on the battlefield: a mandatory single target with
         // exactly one candidate auto-selects; no PendingTarget is raised.
@@ -907,13 +979,18 @@ describe("Dance of Many — ETB token copy (CR 707.2)", () => {
     });
 
     it("raises a target choice when 2+ creatures are legal (CR 603.3d)", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         // A second creature makes the copy target a real choice.
-        const second = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "bears",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const second = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "bears",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         state.players[1].battlefield.push(second);
         const trig = pushDanceEtb(state, dance);
         // Two legal candidates → a real choice is owed.
@@ -939,7 +1016,9 @@ describe("Dance of Many — ETB token copy (CR 707.2)", () => {
 
 describe("Dance of Many — leave-linkage (CR 603.10)", () => {
     it("exiles the token when the enchantment leaves the battlefield", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         // Dance leaves play (e.g. destroyed).
         removePermanentTo(state, dance.id, "graveyard");
@@ -954,7 +1033,9 @@ describe("Dance of Many — leave-linkage (CR 603.10)", () => {
     });
 
     it("sacrifices the enchantment when the token leaves the battlefield", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         // The token leaves play (e.g. dies in combat).
         removePermanentTo(state, token.id, "graveyard");
@@ -970,14 +1051,19 @@ describe("Dance of Many — leave-linkage (CR 603.10)", () => {
     });
 
     it("the token-leaves trigger fires ONLY for this enchantment's own token", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         fireEtbAndCopy(state, dance, "orig");
         // An unrelated creature leaving must NOT fire the sacrifice-self trigger.
-        const other = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "other",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const other = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "other",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         state.players[0].battlefield.push(other);
         removePermanentTo(state, other.id, "graveyard");
         const triggers = collectTriggers(state, [
@@ -1008,7 +1094,9 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
         }) as StackItem["triggerEvent"];
 
     it("declining the {U}{U} payment sacrifices the enchantment (CR 701.21)", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         resolveTrigger(state, dance, "dance-of-many-upkeep", UPKEEP("p1"));
         answerChoice(state, ["decline"]);
         expect(state.players[0].battlefield.some((c) => c.id === "dance")).toBe(
@@ -1020,7 +1108,9 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
     });
 
     it("paying {U}{U} keeps the enchantment on the battlefield (CR 118)", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         state.players[0].manaPool = { U: 2 };
         resolveTrigger(state, dance, "dance-of-many-upkeep", UPKEEP("p1"));
         answerChoice(state, ["yes"]);
@@ -1030,7 +1120,9 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
     });
 
     it("fires only at the controller's OWN upkeep (scope: your)", () => {
-        const { state } = danceSetup(getCardByName("Serra Angel").id);
+        const { state } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         expect(
             collectTriggers(state, [UPKEEP("p1") as never]).some(
                 (t) => t.triggeredAbilityId === "dance-of-many-upkeep"
@@ -1044,7 +1136,9 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
     });
 
     it("backend integration: declining via applyMayPaySubmit sacrifices it (GRE → mutation → state)", () => {
-        const { state } = danceSetup(getCardByName("Serra Angel").id);
+        const { state } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         state.stack.push(...collectTriggers(state, [UPKEEP("p1") as never]));
         // Resolve the upkeep tax trigger (the ETB/LTBs do not fire on a plain
         // upkeep event); it suspends at the may-pay choice.
@@ -1070,7 +1164,9 @@ describe("Dance of Many — upkeep pay-{U}{U}-or-sacrifice (reuses LEG C7, CR 60
 
 describe("Dance of Many — wire format (mandatory): copied P/T survives projection", () => {
     it("the copy-token's P/T survive projectPublicState (CR 707.2)", () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         // GRE (fat state) assertion.
         expect(getEffectivePower(state, token)).toBe(4);
@@ -1090,7 +1186,9 @@ describe("Dance of Many — wire format (mandatory): copied P/T survives project
 
 describe("Dance of Many — serialization round-trip (linkedTokenId, CR 603.10)", () => {
     it("persists the linkedTokenId leave-linkage anchor across compact/expand", async () => {
-        const { state, dance } = danceSetup(getCardByName("Serra Angel").id);
+        const { state, dance } = danceSetup(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id
+        );
         const token = fireEtbAndCopy(state, dance, "orig");
         const { compactState, expandState } =
             await import("../../../../gre/serialize");

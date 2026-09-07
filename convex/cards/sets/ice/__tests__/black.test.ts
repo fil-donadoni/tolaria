@@ -3,69 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    balduvianBears,
-    abyssalSpecter,
-    cloakOfConfusion,
-    gazeOfPain,
-    burntOffering,
-    spoilsOfWar,
-    kjeldoranWarrior,
-    seaSpirit,
-    brineShaman,
-    darkBanishing,
-    darkRitualIce,
-    demonicConsultation,
-    fearIce,
-    foulFamiliar,
-    hoarShade,
-    howlFromBeyondIce,
-    hyalopterousLemure,
-    kjeldoranDead,
-    knightOfStromgald,
-    leshracsRite,
-    mindWarp,
-    minionOfTeveshSzat,
-    moleWorms,
-    moorFiend,
-    pestilenceRats,
-    songsOfTheDamned,
-    spoilsOfEvil,
-    callToArms,
-    stenchOfEvil,
-    limDLsCohort,
-    limDLsHex,
-    mindWhip,
-    minionOfLeshrac,
-    infernalDenizen,
-    soulKiss,
-    norritt,
-    danceOfTheDead,
-    krovikanElementalist,
-    leshracsSigil,
-    flowOfMaggots,
-    gravebind,
-    krovikanFetish,
-    mindRavel,
-    touchOfDeath,
-    snowCoveredSwamp,
-    snowCoveredForest,
-    gangrenousZombies,
-    icequake,
-    legionsOfLimDL,
-    infernalDarkness,
-    necropotence,
-    oathOfLimDul,
-    seizures,
-    hecatomb,
-    soulBurn,
-    ashenGhoul,
-    dreadWight,
-    krovikanVampire,
-    stromgaldCabal,
-} from "../../ice";
-import { plains, island, swamp, benalishHero } from "../../lea";
-import { grizzlyBears } from "../../lea/green";
+import { darkRitualIce, fearIce, howlFromBeyondIce } from "../../ice";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
     getDefinition,
@@ -143,6 +81,76 @@ import {
     collectAndStack,
     submitPick,
 } from "./helpers";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const abyssalSpecter = getDefinition("fc26f19c-bcf7-4bd8-af42-4757dbe47fb1");
+const cloakOfConfusion = getDefinition("dc45d103-0fca-4431-a5c0-869f0f9be93e");
+const gazeOfPain = getDefinition("48401643-ec4b-444a-8f9a-1a5ea471ff4a");
+const burntOffering = getDefinition("1dae52a2-3af7-4b97-9d2e-2448b7c413fb");
+const spoilsOfWar = getDefinition("b38af8bd-d927-46d0-a1b1-fb437ea9ea66");
+const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
+const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
+const brineShaman = getDefinition("f445962c-44a1-4f3f-88d4-17048f8ca9dc");
+const darkBanishing = getDefinition("f7dc2716-ed62-4797-ad2b-227eca5408d0");
+const demonicConsultation = getDefinition(
+    "8d727b9b-6114-414d-9172-16b6e1db41cc"
+);
+const foulFamiliar = getDefinition("8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1");
+const hoarShade = getDefinition("72242dff-15ca-4da0-b3ae-9984d037b31f");
+const hyalopterousLemure = getDefinition(
+    "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3"
+);
+const kjeldoranDead = getDefinition("d3f7b614-6075-4b7c-acc7-ab63185b570b");
+const knightOfStromgald = getDefinition("2b87069b-ebaf-4705-b5da-446932af9b73");
+const leshracsRite = getDefinition("4e0a6b4e-95b4-40f6-bb19-568dbd908a2b");
+const mindWarp = getDefinition("de150cd6-0bbc-47f7-a781-cd1aa10eabc6");
+const minionOfTeveshSzat = getDefinition(
+    "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1"
+);
+const moleWorms = getDefinition("4914f6fc-e3e7-426b-8688-12157c7df9e7");
+const moorFiend = getDefinition("57089dd4-e30d-498d-9341-43c104c6f3f9");
+const pestilenceRats = getDefinition("bff7f6a6-0e90-4eb4-b76e-d98454975fb6");
+const songsOfTheDamned = getDefinition("6cff3547-8c72-439a-91fe-ebe729dab748");
+const spoilsOfEvil = getDefinition("fd368eb6-72f0-42d4-afa5-3daa7de949ff");
+const callToArms = getDefinition("a92f0d4a-23d8-47d4-b910-d142e0eefd3d");
+const stenchOfEvil = getDefinition("4c7065a2-f819-4cbe-b453-a55e904f0461");
+const limDLsCohort = getDefinition("3d0006f6-2f96-453d-9145-eaefa588efbc");
+const limDLsHex = getDefinition("af976f42-3d56-4e32-8294-970a276a4bf3");
+const mindWhip = getDefinition("3f3ff5fb-4126-4a18-b540-2beaae382e59");
+const minionOfLeshrac = getDefinition("61278908-a1b4-4b4c-84f5-498ca41fc6b6");
+const infernalDenizen = getDefinition("b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe");
+const soulKiss = getDefinition("42fbf6a5-86fe-41a3-891e-f72f11ad0aee");
+const norritt = getDefinition("35abefe6-c39b-4fe5-b2e3-d213f0c4f447");
+const danceOfTheDead = getDefinition("e7c53ba4-9956-4cd6-85ca-2d6b61a5127c");
+const krovikanElementalist = getDefinition(
+    "bbedca18-a074-4441-b0a9-7b14fdb07412"
+);
+const leshracsSigil = getDefinition("ad5ba7ee-d6df-4b62-a8a1-c81e6fca392a");
+const flowOfMaggots = getDefinition("6880a4d3-5cbc-4a01-9190-3565617efcc9");
+const gravebind = getDefinition("4782fd4f-2474-4d0d-8301-e0b52af93746");
+const krovikanFetish = getDefinition("844e73e6-b201-4b2e-b46a-b719484fba0e");
+const mindRavel = getDefinition("61cf3ac5-985d-4b48-b230-d5ae4ab1ace8");
+const touchOfDeath = getDefinition("a49c658f-e657-490b-af1f-e67e48d0046e");
+const snowCoveredSwamp = getDefinition("65a3c27f-6b15-49b6-ac89-36cfb79b3b54");
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
+const gangrenousZombies = getDefinition("08be4d83-99be-4360-90f1-104dee1c3c2f");
+const icequake = getDefinition("14b4dd4d-c617-4603-8a87-761ec6fc6883");
+const legionsOfLimDL = getDefinition("75b67eb2-b60e-46b4-9d48-11c284957bec");
+const infernalDarkness = getDefinition("f3475eb3-909d-450b-9597-b241b259b425");
+const necropotence = getDefinition("54d7a0c1-efb4-4a8d-ad92-a96d43835052");
+const oathOfLimDul = getDefinition("f16df768-06de-43a0-b548-44fb0887490b");
+const seizures = getDefinition("da369c86-7e17-43d8-b626-b6842e3d2d50");
+const hecatomb = getDefinition("8f59620f-ff9e-44d8-9c4e-be9de1a919e8");
+const soulBurn = getDefinition("eb8e00d2-2381-4d45-bed8-c9bf738a9419");
+const ashenGhoul = getDefinition("6bb83301-5662-4628-b536-6a3ee0296f2e");
+const dreadWight = getDefinition("65d332e2-4b2d-4131-84f7-862cb138c477");
+const krovikanVampire = getDefinition("717c5dda-8e38-4c76-b241-685198402284");
+const stromgaldCabal = getDefinition("6ac6fa0c-753e-4fbc-8a70-0f956503cf4e");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Black free tranche (#632)
@@ -1072,7 +1080,7 @@ describe("Norritt (untap blue / force-attack, CR 701.26b / 508.1d)", () => {
         // gre/state.ts), same as at selection, so a green stand-in fixture
         // would make the ability correctly fizzle instead of untapping.
         const blue = makeInstance(
-            getCardByName("Merfolk of the Pearl Trident").id,
+            getDefinition("2b871039-6a66-4ac3-95e7-24759c1f2f92").id,
             {
                 id: "blue",
                 controllerId: "p1",
@@ -1267,7 +1275,7 @@ describe("Norritt (untap blue / force-attack, CR 701.26b / 508.1d)", () => {
 
 describe("Dance of the Dead (graveyard-reanimation aura, CR 303.4i / 611)", () => {
     it("reanimates the enchanted card and applies +1/+1 (it enters tapped)", () => {
-        const deadId = getCardByName("Grizzly Bears").id;
+        const deadId = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
         const dead = makeInstance(deadId, {
             id: "dead",
             controllerId: "p2",
@@ -1893,8 +1901,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
         makeInstance(balduvianBears.id, { id, controllerId: "p1", zone });
 
     it("registers by id and name (#667)", () => {
-        expect(getDefinition(necropotence.id)).toBe(necropotence);
-        expect(getCardByName("Necropotence")).toBe(necropotence);
+        expect(getCardByName("Necropotence").id).toBe(necropotence.id);
     });
 
     // --- Skip-draw replacement (CR 504/614) --------------------------------
@@ -2141,8 +2148,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
 
 describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(oathOfLimDul.id)).toBe(oathOfLimDul);
-        expect(getCardByName("Oath of Lim-Dûl")).toBe(oathOfLimDul);
+        expect(getCardByName("Oath of Lim-Dûl").id).toBe(oathOfLimDul.id);
     });
 
     // --- The seam: LIFE_LOST emitted on every life-loss path ----------------
@@ -2269,8 +2275,7 @@ describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
 
 describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(seizures.id)).toBe(seizures);
-        expect(getCardByName("Seizures")).toBe(seizures);
+        expect(getCardByName("Seizures").id).toBe(seizures.id);
     });
 
     function setup() {

@@ -5,39 +5,23 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    brassclawOrcs,
     brassclawOrcsFemB,
     brassclawOrcsFemC,
     brassclawOrcsFemD,
-    dwarvenArmorer,
-    dwarvenCatapult,
-    dwarvenLieutenant,
-    dwarvenSoldier,
     dwarvenSoldierFemB,
     dwarvenSoldierFemC,
-    goblinChirurgeon,
     goblinChirurgeonFemB,
     goblinChirurgeonFemC,
-    goblinFlotilla,
-    goblinGrenade,
     goblinGrenadeFemB,
     goblinGrenadeFemC,
-    goblinKites,
-    goblinWarDrums,
     goblinWarDrumsFemB,
     goblinWarDrumsFemC,
     goblinWarDrumsFemD,
-    goblinWarrens,
-    orcishCaptain,
-    orcishSpy,
     orcishSpyFemB,
     orcishSpyFemC,
-    orcishVeteran,
     orcishVeteranFemB,
     orcishVeteranFemC,
     orcishVeteranFemD,
-    orgg,
-    raidingParty,
 } from "..";
 import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import {
@@ -52,7 +36,6 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { grizzlyBears } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -60,6 +43,24 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveActivated, answerPendingChoices } from "./helpers";
+
+const brassclawOrcs = getDefinition("fc0cb8f6-6ba7-402c-9829-251f7443e871");
+const dwarvenArmorer = getDefinition("1d50bf06-97ab-4874-a484-9289f41dc98e");
+const dwarvenCatapult = getDefinition("8c1c6932-638a-4df7-bf9b-8d921f7484d9");
+const dwarvenLieutenant = getDefinition("ea9a38b1-4676-425a-b40d-4fb478966024");
+const dwarvenSoldier = getDefinition("6fe77608-0b33-43f5-83fb-ae993ca1bf7c");
+const goblinChirurgeon = getDefinition("2b710c21-e9f5-4660-80f6-2104ec65f63f");
+const goblinFlotilla = getDefinition("87024efe-4a74-49fe-a43a-480bed0a650a");
+const goblinGrenade = getDefinition("8837eaba-9602-4f63-9897-85583fcdcf51");
+const goblinKites = getDefinition("a0a27ac3-2273-469a-92ba-3f4a3d55de6f");
+const goblinWarDrums = getDefinition("2a2c4e4b-e9a7-4180-927b-589514c21876");
+const goblinWarrens = getDefinition("bbec4aa5-3319-43dc-8347-5633edbd7018");
+const orcishCaptain = getDefinition("e43cf61d-b4d6-4461-a228-47fd8b026d33");
+const orcishSpy = getDefinition("cd3890d1-563d-4519-ab8c-913031d71918");
+const orcishVeteran = getDefinition("1dbca765-8756-4e28-9faf-25714c9b8838");
+const orgg = getDefinition("5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18");
+const raidingParty = getDefinition("907a3396-706b-4ca2-9973-bca758986032");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // C4 — Red: Goblins, Orcs & Dwarves (issue #570). One describe per card with
@@ -588,16 +589,22 @@ describe("Raiding Party — symmetric Plains destruction (CR 701.8)", () => {
             ownerId: "p1",
         });
         // Opponent controls two Plains and no white creatures to protect them.
-        const plains1 = makeInstance(getCardByName("Plains").id, {
-            id: "pl1",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const plains2 = makeInstance(getCardByName("Plains").id, {
-            id: "pl2",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const plains1 = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "pl1",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const plains2 = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "pl2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [party] }),

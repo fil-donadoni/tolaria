@@ -2,8 +2,6 @@
 // `convex/cards/sets/eve/white.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { flickerwisp } from "../white";
-import { balduvianBears } from "../../ice/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -11,6 +9,10 @@ import { finalizeTargetSelection } from "../../../../game";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const flickerwisp = getDefinition("5bb3cb5c-8d66-4f5e-a9a9-917e6045f024");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 function etbEvent(instanceId: string): StackItem["triggerEvent"] {
     return {

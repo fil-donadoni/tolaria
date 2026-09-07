@@ -31,26 +31,31 @@ import { resolveActivated, resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
 import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
-import {
-    alloyGolem,
-    chromaticSphere,
-    juntuStakes,
-    lotusGuardian,
-    phyrexianAltar,
-    phyrexianLens,
-    planarPortal,
-    sparringGolem,
-    tek,
-    tsabosWeb,
-    urzasFilter,
-} from "../colorless";
-import { mishrasFactory } from "../../atq/colorless";
-import { creepingTarPit } from "../../wwk/colorless";
-import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
-import { spectralShield } from "../../ice/multicolor";
-import { sheoldredTheApocalypse } from "../../dmu/black";
 import { hasNonManaActivatedAbility } from "../../../abilities/static/untapRestriction";
+
+const alloyGolem = getDefinition("1fb6d6a1-9d71-405b-9c93-1a7f06c67abd");
+const chromaticSphere = getDefinition("920cd17f-9274-443e-906f-c9904f0658d5");
+const juntuStakes = getDefinition("3ab7cf53-f62d-47e1-af70-ab12be0d22e2");
+const lotusGuardian = getDefinition("ddfc6396-5377-4ab3-9c10-8abcdeae2aa1");
+const phyrexianAltar = getDefinition("25158cd5-749b-408c-9ab1-0f83e38730f7");
+const phyrexianLens = getDefinition("6ec9a91d-7af0-44a8-839f-fb9960be0ddd");
+const planarPortal = getDefinition("24315eaa-ef55-4fd6-9145-e75b3de6f492");
+const sparringGolem = getDefinition("d829d9de-83fa-4feb-8efc-0075315163c6");
+const tek = getDefinition("c1f38104-a699-4bb9-930a-699f7bbc338a");
+const tsabosWeb = getDefinition("0dee69f8-cceb-41b9-a0ee-6b2ac9f4bad9");
+const urzasFilter = getDefinition("680c75b1-e766-40be-84d7-2332047bb3de");
+const mishrasFactory = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428");
+const creepingTarPit = getDefinition("0f427f0b-034c-4821-8758-e395c0042d8a");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const spectralShield = getDefinition("7fe0a783-d086-4dc8-ae4a-59f3c2daaca0");
+const sheoldredTheApocalypse = getDefinition(
+    "d67be074-cdd4-41d9-ac89-0a0456c4e4b2"
+);
 
 describe("Tsabo's Web (INV) — definition wiring", () => {
     it("is a {2} artifact with the ETB draw trigger and the untap-lock static", () => {

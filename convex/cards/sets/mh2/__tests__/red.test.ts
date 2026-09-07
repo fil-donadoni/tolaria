@@ -5,7 +5,6 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import type {
     CardInstanceState,
     GameState,
@@ -22,12 +21,17 @@ import {
 import { mustAttack } from "../../../../gre/combat";
 import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import {
-    mineCollapse,
-    blazingRootwalla,
-    ragavanNimblePilferer,
-    dragonsRageChanneler,
-} from "../red";
+import { getDefinition } from "../../../index";
+
+const mineCollapse = getDefinition("56e2e8b5-660d-4469-a4fe-2367dfadb709");
+const blazingRootwalla = getDefinition("4404fc9c-ef02-479c-9638-0cc163f0b48f");
+const ragavanNimblePilferer = getDefinition(
+    "a9738cda-adb1-47fb-9f4c-ecd930228c4d"
+);
+const dragonsRageChanneler = getDefinition(
+    "4ced112a-e775-4f97-97b3-74877e9dce12"
+);
+const fury = getDefinition("bd281158-8180-40b9-a5b7-03cfc712d81a");
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -36,7 +40,7 @@ import {
 // existing permanent machinery; the dealDamage effect (reused Op) is covered by
 // the catalogue smoke sweep. Here we pin the definition + resolve one damage.
 describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
-    const treefolk = getCardByName("Ironroot Treefolk"); // 3/5 — survives 5? no, dies
+    const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4"); // 3/5 — survives 5? no, dies
 
     it("deals 5 damage to the target creature (lethal to a 3/5)", () => {
         const victim = makeInstance(treefolk.id, {
@@ -94,7 +98,6 @@ describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 60
 });
 
 // ── Fury — targeted trigger + divide-as-you-choose (CR 603.3d / 601.2d, #1193/#1206) ──
-import { fury } from "../red";
 import { finalizeTargetSelection } from "../../../../game";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import type { TargetSelection } from "../../../types";
@@ -127,7 +130,7 @@ function furyEtbOnStack(state: GameState, controllerId: string): StackItem {
 
 describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.3d / 601.2d, #1193)", () => {
     it("raises a divide target choice at announcement, then deals the chosen split", () => {
-        const treefolk = getCardByName("Ironroot Treefolk"); // 3/5
+        const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4"); // 3/5
         const a = makeInstance(treefolk.id, {
             id: "a",
             controllerId: "p2",
@@ -276,7 +279,7 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const mountain = getCardByName("Mountain");
+        const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
         const oppTopLand = makeInstance(mountain.id, {
             id: "opp-top-land",
             ownerId: "p2",
@@ -364,10 +367,10 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
 // delirium-gated, and that the +2/+2 (a visible continuous effect) survives
 // the wire projection.
 describe("Dragon's Rage Channeler (delirium +2/+2, flying, must-attack — CR 508.1d)", () => {
-    const MOUNTAIN = getCardByName("Mountain").id; // Land
-    const BEARS = getCardByName("Balduvian Bears").id; // Creature
-    const BOLT = getCardByName("Lightning Bolt").id; // Instant
-    const WRATH = getCardByName("Wrath of God").id; // Sorcery
+    const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id; // Land
+    const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id; // Creature
+    const BOLT = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a").id; // Instant
+    const WRATH = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd").id; // Sorcery
 
     function grave(cardId: string, id: string): CardInstanceState {
         return makeInstance(cardId, {

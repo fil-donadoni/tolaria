@@ -3,7 +3,9 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
-import { avacynsPilgrim } from "../green";
+import { getDefinition } from "../../../index";
+
+const avacynsPilgrim = getDefinition("7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f");
 
 // Avacyn's Pilgrim — {G} 1/1 Human Monk, "{T}: Add {W}." A colour-fixing mana
 // dork: the one thing that matters about it is that the engine's tap-option

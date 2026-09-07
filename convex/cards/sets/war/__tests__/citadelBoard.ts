@@ -10,7 +10,9 @@
 
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { PlayerState } from "../../../../gre/state";
-import { bolassCitadel } from "../black";
+import { getDefinition } from "../../../index";
+
+const bolassCitadel = getDefinition("d2124603-d20e-40eb-97f0-a66323397ac2");
 
 /** A board where p1 optionally controls a Bolas's Citadel and has
  *  `libraryIds` on top of their library, top-first. */

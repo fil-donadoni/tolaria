@@ -1,8 +1,6 @@
 // Time Spiral (TSP) — colorless card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { chromaticStar } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -12,8 +10,11 @@ import {
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { tapSourceIntoPayment } from "../../../../game";
+import { getDefinition, getCardByName } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const chromaticStar = getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 function resolveTrigger(
     state: GameState,
@@ -34,7 +35,7 @@ function resolveTrigger(
 
 describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () => {
     it("registers with a five-colour mana ability (useStack:false)", () => {
-        expect(getCardByName("Chromatic Star")).toBe(chromaticStar);
+        expect(getCardByName("Chromatic Star").id).toBe(chromaticStar.id);
         expect(chromaticStar.manaCost).toEqual({ X: 1 });
         const mana = chromaticStar.activatedAbilities!.find(
             (a) => a.id === "chromatic-star-mana"

@@ -6,20 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ornithopter,
-    dragonEngine,
-    clayStatue,
-    crumble,
-    detonate,
-    shatterstorm,
-    artifactBlast,
-    amuletOfKroog,
-    goblinArtisans,
-    atog,
-    orcishMechanics,
-    dwarvenWeaponsmith,
-} from "..";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -34,6 +20,22 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveActivated, vanilla } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
+const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
+const crumble = getDefinition("d2101f86-8d3c-4ba8-ac42-bd3df0644280");
+const detonate = getDefinition("ffd7eb90-ae95-49df-898a-9510187bce1c");
+const shatterstorm = getDefinition("0987461a-45c0-4956-8627-cd27a7e038d0");
+const artifactBlast = getDefinition("1506d99d-7b2e-4101-84a5-c950dadb263a");
+const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
+const goblinArtisans = getDefinition("6669d96e-9a7b-4427-a477-f4e76831f593");
+const atog = getDefinition("2249fc40-4412-48fd-800a-7ea3678aee3f");
+const orcishMechanics = getDefinition("5e34fc6b-5f00-4a22-9ee2-afc1caf99961");
+const dwarvenWeaponsmith = getDefinition(
+    "0848d94a-2704-460f-986b-b192dd6d26b7"
+);
 
 describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.8)", () => {
     it("destroys an artifact with mv X and deals X damage to its controller", () => {

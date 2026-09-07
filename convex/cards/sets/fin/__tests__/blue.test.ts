@@ -11,8 +11,6 @@
 // conditions (noncreature spell cast / third card drawn each turn).
 
 import { describe, it, expect } from "vitest";
-import { astrologiansPlanisphere } from "../blue";
-import { grizzlyBears } from "../../lea/green";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -23,6 +21,12 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
+import { getDefinition } from "../../../index";
+
+const astrologiansPlanisphere = getDefinition(
+    "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function setupPlanisphere(): { state: GameState; card: CardInstanceState } {
     const planisphere = makeInstance(astrologiansPlanisphere.id, {

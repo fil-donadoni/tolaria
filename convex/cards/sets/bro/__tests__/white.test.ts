@@ -1,7 +1,6 @@
 // BRO (The Brothers' War) — white behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { loranOfTheThirdPath } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -11,7 +10,12 @@ import {
 } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { ornithopter } from "../../atq";
+import { getDefinition } from "../../../index";
+
+const loranOfTheThirdPath = getDefinition(
+    "59faa45d-868b-4bc7-934c-0e077642e129"
+);
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 
 function resolveActivated(
     state: GameState,

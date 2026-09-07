@@ -7,24 +7,10 @@
 // authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
-import {
-    blurredMongoose,
-    canopySurge,
-    elfhameSanctuary,
-    kavuChameleon,
-    kavuLair,
-    kavuTitan,
-    restock,
-    rootingKavu,
-    tangle,
-    verduranEmissary,
-    wanderingStream,
-} from "../green";
 // Quirion Elves — INV reprint (`quirionElvesInv`, a `CardPrint` in
 // `../green`); first printed in Mirage, so the mechanics live in
 // `mir/green.ts` (ADR 0041 home-set rule). This test stays with the INV
 // tranche that authored it (issue #1097 gap 4).
-import { quirionElves } from "../../mir/green";
 import {
     makeInstance,
     makePlayer,
@@ -60,13 +46,32 @@ import {
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { plains, island, swamp } from "../../lea/colorless";
 import { getEffectivePower } from "../../../../gre/layers";
 import { resolveTrigger } from "./helpers";
+
+const blurredMongoose = getDefinition("4b073e3f-6a6f-495a-ab16-39d906b660f1");
+const canopySurge = getDefinition("2e19d68e-7554-4627-a316-beb1f75fa494");
+const elfhameSanctuary = getDefinition("6ab9a90c-5fd8-4f8c-b692-f98a2974810c");
+const kavuChameleon = getDefinition("f726437b-a41a-4ee9-b0ee-e09327508615");
+const kavuLair = getDefinition("f4581b53-23a0-4ca6-a77c-97d79e7a6570");
+const kavuTitan = getDefinition("2c5fb86d-1d9a-4da2-bb5b-4266faa20197");
+const restock = getDefinition("11a013ff-7c99-445a-b9e0-0fc45036f068");
+const rootingKavu = getDefinition("12c25a4c-d93a-402b-999f-0b9919123cc5");
+const tangle = getDefinition("6b37e39c-8aa4-4938-a492-7dac5de98dfb");
+const verduranEmissary = getDefinition("55f3361b-e2e7-4297-85c2-94323f90cc90");
+const wanderingStream = getDefinition("6da5cb6c-253b-44f0-98f9-d75f42c6e14b");
+const quirionElves = getDefinition("be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const saprolingInfestation = getDefinition(
+    "8642e530-914c-4149-944a-c4966ee27299"
+);
+const burstLightning = getDefinition("2dc16614-5cf8-444d-a5ae-cac25018af68");
+const everflowingChalice = getDefinition(
+    "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd"
+);
 // Saproling Infestation (issue #1097) — the SPELL_KICKED consumer.
-import { saprolingInfestation } from "../green";
-import { burstLightning } from "../../zen/red";
-import { everflowingChalice } from "../../wwk/colorless";
 
 const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 

@@ -8,8 +8,6 @@
 // abilities get one here.
 
 import { describe, it, expect } from "vitest";
-import { portalToPhyrexia } from "../colorless";
-import { savannahLions } from "../../lea/white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -20,6 +18,10 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+import { getDefinition } from "../../../index";
+
+const portalToPhyrexia = getDefinition("5f608efc-0dbc-4cc3-aadd-ed473bfc29ab");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 
 /** Puts Portal's ETB trigger on the stack (untargeted — the sacrifice pick
  *  is a resolution-time `choice`, not an announced target). */

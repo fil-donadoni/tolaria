@@ -4,97 +4,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    balduvianBears,
-    armorOfFaith,
-    brainstorm,
-    essenceFlare,
-    iceCauldron,
-    elkinBottle,
-    jeweledAmulet,
-    adarkarSentinel,
-    aegisOfTheMeek,
-    celestialSword,
-    despoticScepter,
-    fyndhornBow,
     icyManipulatorIce,
-    jestersCap,
-    pitTrap,
-    shieldOfTheAges,
-    staffOfTheAges,
-    skullCatapult,
-    snowFortress,
-    vibratingSphere,
-    wallOfShields,
-    warChariot,
-    whaleboneGlider,
-    zuranOrb,
-    iceFloe,
     plainsIce,
     islandIce,
     swampIce,
     mountainIce,
     forestIce,
-    hematiteTalisman,
-    lapisLazuliTalisman,
-    malachiteTalisman,
-    nacreTalisman,
-    onyxTalisman,
-    batonOfMorale,
-    crownOfTheAges,
-    goblinLyre,
-    infiniteHourglass,
-    jestersMask,
-    pentagramOfTheAges,
-    runedArch,
-    soldeviGolem,
-    timeBomb,
-    walkingWall,
-    blessedWine,
-    forceVoid,
-    urzasBauble,
-    snowCoveredPlains,
-    snowCoveredIsland,
-    snowCoveredSwamp,
-    snowCoveredMountain,
-    snowCoveredForest,
-    coldSnap,
-    balduvianConjurer,
-    driftOfTheDead,
-    witheringWisps,
-    avalanche,
-    glacialCrevasses,
-    karplusanGiant,
-    melting,
-    snowblind,
-    arcumsSleigh,
-    arcumsWeathervane,
-    arcumsWhistle,
-    adarkarWastes,
-    brushland,
-    karplusanForest,
-    sulfurousSprings,
-    undergroundRiver,
-    landCap,
-    lavaTubes,
-    riverDelta,
-    timberlineRidge,
-    veldt,
-    infernalDarkness,
-    nakedSingularity,
-    pox,
-    glacialChasm,
-    hallsOfMist,
-    barbedSextant,
-    sunstone,
 } from "../../ice";
-import {
-    plains,
-    island,
-    swamp,
-    mountain,
-    forest,
-    grizzlyBears,
-} from "../../lea";
 import {
     applyLandManaReplacement,
     getManaTapOptionsDetailed,
@@ -199,6 +115,95 @@ import {
     answerMayPay,
 } from "./helpers";
 
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");
+const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
+const essenceFlare = getDefinition("13ebb5dd-d7f1-4b06-8585-7004045be542");
+const iceCauldron = getDefinition("1a3e095a-7056-4df3-bf7d-9c217d591446");
+const elkinBottle = getDefinition("49301c19-55a0-4146-9474-0b86cd320e31");
+const jeweledAmulet = getDefinition("34f7bad2-d28f-42d2-9246-fe3545ef49a7");
+const adarkarSentinel = getDefinition("ff62754b-f4f0-4731-8dd7-327a820f60a8");
+const aegisOfTheMeek = getDefinition("5d272051-f442-4f6e-8c64-df28b398d2e8");
+const celestialSword = getDefinition("2bc0e8d3-633b-4281-863f-c51c69eed0b6");
+const despoticScepter = getDefinition("53e381a4-810e-4b75-aed3-c16cf0eb06fa");
+const fyndhornBow = getDefinition("65dd0a41-cc51-4728-b597-fdb2510accd8");
+const jestersCap = getDefinition("47ac44d0-8090-4e7b-ac47-c567294f185e");
+const pitTrap = getDefinition("c588fe7f-945d-4459-904c-67442f88b4e1");
+const shieldOfTheAges = getDefinition("7411ab40-47f6-44d1-8e33-9ff5301dcd9b");
+const staffOfTheAges = getDefinition("5c709836-55b6-4de9-b190-b5f66dc53c87");
+const skullCatapult = getDefinition("eb92a3e6-dc30-4a08-baba-e125290cadc5");
+const snowFortress = getDefinition("1c480e07-fb26-4760-865f-47985f7447bb");
+const vibratingSphere = getDefinition("48f93ded-ecf6-4a70-8ca3-a9c0c3201c21");
+const wallOfShields = getDefinition("6376c7c4-aaca-4625-83d4-a49f01aec535");
+const warChariot = getDefinition("d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e");
+const whaleboneGlider = getDefinition("4b75adf0-9501-4776-a213-456c2b821070");
+const zuranOrb = getDefinition("3a9d1082-a862-45d4-9e5e-392e879fead6");
+const iceFloe = getDefinition("85ce04fb-e687-41e0-ae9a-16a51df5d943");
+const hematiteTalisman = getDefinition("83585337-56a9-44d2-9ed1-8a959bcfb010");
+const lapisLazuliTalisman = getDefinition(
+    "ce00bb19-983e-427d-be54-ae6daf0ccdde"
+);
+const malachiteTalisman = getDefinition("63fb8a24-ce53-4a69-be2a-55c6dbba5ee7");
+const nacreTalisman = getDefinition("06912236-8225-4eb0-8086-c6a163c69892");
+const onyxTalisman = getDefinition("a89b2368-1180-4821-bcb8-8161c18e5538");
+const batonOfMorale = getDefinition("8bc29872-b1a2-4851-9eca-f3e67ae6e14c");
+const crownOfTheAges = getDefinition("fce2991f-48e1-4cfe-af0a-18b6d9400493");
+const goblinLyre = getDefinition("951114fb-5ae5-4eb0-8e03-6e39b0b634b5");
+const infiniteHourglass = getDefinition("f9a42152-32c0-47ff-aaac-8deaf01873ca");
+const jestersMask = getDefinition("daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7");
+const pentagramOfTheAges = getDefinition(
+    "b8d889a5-f6c7-410d-97f9-acf08b9091c8"
+);
+const runedArch = getDefinition("ca02861b-9639-480d-8e54-e024f0c70158");
+const soldeviGolem = getDefinition("64d35e88-81d3-4a54-aa79-190615abc616");
+const timeBomb = getDefinition("092ec691-4729-46d3-a4e2-0cfc5df42a31");
+const walkingWall = getDefinition("cba1238c-1969-452d-8112-124cbbd49417");
+const blessedWine = getDefinition("6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66");
+const forceVoid = getDefinition("226555ba-22af-45f1-a3f4-d265f8685dd5");
+const urzasBauble = getDefinition("58c9e9a7-e170-4361-b7d5-22fc0771c489");
+const snowCoveredPlains = getDefinition("cb3ac778-fb45-4fd3-a9af-8a0791f833e8");
+const snowCoveredIsland = getDefinition("ad8b77cf-b53e-4da3-9c27-3851b7b25a98");
+const snowCoveredSwamp = getDefinition("65a3c27f-6b15-49b6-ac89-36cfb79b3b54");
+const snowCoveredMountain = getDefinition(
+    "ccd3afb3-5574-4f2d-adbe-969a428f1c63"
+);
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
+const coldSnap = getDefinition("81b87a58-b20c-4f38-afa3-59d398195740");
+const balduvianConjurer = getDefinition("5b616963-fac0-451c-8df4-2cacc9466b17");
+const driftOfTheDead = getDefinition("d8b65656-9f8c-4179-81aa-4b15d8280baa");
+const witheringWisps = getDefinition("ad1e6ae5-c972-42c0-ae78-f203873aeeb1");
+const avalanche = getDefinition("d3a925e5-0d0a-42ec-b1c6-9793b8e11625");
+const glacialCrevasses = getDefinition("2726b192-f239-470b-8ad6-69887405e7f9");
+const karplusanGiant = getDefinition("c524ac2a-294c-4b19-b00b-999e370a3b95");
+const melting = getDefinition("8d90065e-2c7e-44e5-9f59-015d468214bf");
+const snowblind = getDefinition("5f62c376-487a-42bc-bd85-ab8b0480f7dc");
+const arcumsSleigh = getDefinition("e9780ce2-756c-48e5-9936-45f6a224f61d");
+const arcumsWeathervane = getDefinition("9e142435-6930-4596-bc3b-60abde1229df");
+const arcumsWhistle = getDefinition("73c07c87-0e44-4a5a-92b7-728350cd02de");
+const adarkarWastes = getDefinition("09dd9023-f7ee-4e99-8821-7059deb83730");
+const brushland = getDefinition("170e5ccd-54bf-4c6d-86b4-0359ca8f36e8");
+const karplusanForest = getDefinition("ba6f1263-d598-49fb-b5f8-09f11822ebd0");
+const sulfurousSprings = getDefinition("2fdeab50-b45f-412b-85a3-c6cf009ce567");
+const undergroundRiver = getDefinition("92369d7e-5e5a-46f9-bb31-c57d62410283");
+const landCap = getDefinition("c4806c02-7a4d-42e3-affd-0338084bd3ab");
+const lavaTubes = getDefinition("5e7c2cf6-f36f-451b-bba5-19a82c659c4c");
+const riverDelta = getDefinition("ea335fc0-0591-4acd-9ae8-7858222770da");
+const timberlineRidge = getDefinition("87cc2fc9-0a24-4ac1-afcc-9317b90c7178");
+const veldt = getDefinition("987534fb-74a9-46a3-805f-fe2fe2df4a90");
+const infernalDarkness = getDefinition("f3475eb3-909d-450b-9597-b241b259b425");
+const nakedSingularity = getDefinition("cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c");
+const pox = getDefinition("a914138c-a593-414c-bbcb-83d3c1bc4f6f");
+const glacialChasm = getDefinition("3d23f800-7a6f-40e3-b242-9f5955e47a75");
+const hallsOfMist = getDefinition("b926a189-90b6-47bb-b5d6-b033e57007b4");
+const barbedSextant = getDefinition("edb82654-de12-4dce-8c6b-f28d68f0fbe1");
+const sunstone = getDefinition("3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+
 // ---------------------------------------------------------------------------
 // Registry parity — the set file is wired into the registry and the tracer is
 // reachable by id, by name, in the deck-builder index, and the set code is
@@ -206,12 +211,8 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("ICE registry parity", () => {
-    it("registers Balduvian Bears by id", () => {
-        expect(getDefinition(balduvianBears.id)).toBe(balduvianBears);
-    });
-
     it("registers it by name (debug-panel / pool lookup path)", () => {
-        expect(getCardByName("Balduvian Bears")).toBe(balduvianBears);
+        expect(getCardByName("Balduvian Bears").id).toBe(balduvianBears.id);
     });
 
     it("includes it in getAllCards (deck-builder index)", () => {
@@ -491,18 +492,24 @@ describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.23 search)",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const c1 = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "lib1",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "library",
-        });
-        const c2 = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "lib2",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "library",
-        });
+        const c1 = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "lib1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }
+        );
+        const c2 = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "lib2",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [cap] }),
@@ -856,16 +863,22 @@ describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () =
 
 describe("may-pay cost union — life / mana+life legs (CR 119.4, ADR 0042)", () => {
     function bf() {
-        const land = makeInstance(getCardByName("Forest").id, {
-            id: "l0",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const land2 = makeInstance(getCardByName("Forest").id, {
-            id: "l1",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+            {
+                id: "l0",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const land2 = makeInstance(
+            getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+            {
+                id: "l1",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         return makeState({
             players: [
                 makePlayer("p1", {
@@ -1180,11 +1193,14 @@ describe("Crown of the Ages ({4},{T}: move an Aura, CR 303.4 / 701.3d)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(getCardByName("Forest").id, {
-            id: "land-host",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+            {
+                id: "land-host",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const creature = vanilla("host", 2, 2, {
             id: "creature-host",
             controllerId: "p1",

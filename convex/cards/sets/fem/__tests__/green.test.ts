@@ -4,25 +4,6 @@
 // only (definition shape, zone after resolution, projected wire-format).
 
 import { describe, it, expect } from "vitest";
-import {
-    elvenFortress,
-    elvishFarmer,
-    elvishHunter,
-    elvishScout,
-    feralThallid,
-    fungalBloom,
-    nightSoil,
-    sporeCloud,
-    sporeFlower,
-    thallid,
-    thallidDevourer,
-    theloniteDruid,
-    theloniteMonk,
-    thelonsChant,
-    thelonsCurse,
-    thornThallid,
-    vodalianSoldiers,
-} from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, StackItem } from "../../../../gre/state";
 import {
@@ -42,6 +23,25 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const elvenFortress = getDefinition("9387105d-46d0-4db0-8980-dd0fded15eef");
+const elvishFarmer = getDefinition("40a9710e-b2f8-4746-8640-d450f58a6e49");
+const elvishHunter = getDefinition("e00455ac-c7ce-4916-98ed-cca9354e3f22");
+const elvishScout = getDefinition("689cd2ed-be81-4769-a8ec-287946301396");
+const feralThallid = getDefinition("e585241e-c647-456d-b3b1-3d48dd78c372");
+const fungalBloom = getDefinition("cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c");
+const nightSoil = getDefinition("4cda6d18-d4b1-4b8a-a72e-f90115adf4c3");
+const sporeCloud = getDefinition("1691a9f4-4ea7-440f-9bdc-4214ab3c90f0");
+const sporeFlower = getDefinition("f9681dc0-d0fc-4d5b-a23c-63ec1cc8343d");
+const thallid = getDefinition("4caaf31b-86a9-485b-8da7-d5b526ed1233");
+const thallidDevourer = getDefinition("aa533845-4c4b-4072-aa39-8e56ce7ec325");
+const theloniteDruid = getDefinition("cd8772dd-513d-4dd0-a5db-5214dc8da4e0");
+const theloniteMonk = getDefinition("5400ff25-c70e-4095-a228-190601b86043");
+const thelonsChant = getDefinition("9d970195-0a09-4cb4-a2c0-c16fcab5c859");
+const thelonsCurse = getDefinition("9b868846-cc3c-4756-a5dd-2335bb380567");
+const thornThallid = getDefinition("16e61c00-3e94-4f6f-8515-65b430829e91");
+const vodalianSoldiers = getDefinition("7eb50256-9113-4b03-bcef-9aea24be8493");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // C1 — Green: Thallids, Fungi & Elves (issue #569). One describe per card with

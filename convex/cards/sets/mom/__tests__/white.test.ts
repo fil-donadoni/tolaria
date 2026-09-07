@@ -5,7 +5,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -13,7 +13,8 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { sunfall } from "../white";
+
+const sunfall = getDefinition("32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d");
 
 // Sunfall — {3}{W}{W} Sorcery. "Exile all creatures. Incubate X, where X is
 // the number of creatures exiled this way." (CR 701.13 exile; CR 701.53 incubate

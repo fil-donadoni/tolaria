@@ -16,24 +16,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    warpedDevotion,
-    darkSuspicions,
-    noxiousVapors,
-    lordOfTheUndead,
-    sinisterStrength,
-    nightscapeFamiliar,
-    nightscapeBattlemage,
-    phyrexianBloodstock,
-} from "../black";
-import {
-    unsummon,
-    savannahLions,
-    grizzlyBears,
-    island,
-    earthquake,
-    darkRitual,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -72,6 +54,28 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
 import type { PhaseBeginEvent } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const warpedDevotion = getDefinition("3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6");
+const darkSuspicions = getDefinition("d518e2fd-7767-43d7-92e3-62a4a465154c");
+const noxiousVapors = getDefinition("e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d");
+const lordOfTheUndead = getDefinition("0a7f50f4-37a0-476e-8655-edba228aafd6");
+const sinisterStrength = getDefinition("afe487b8-c1ae-483d-bcd5-62c62b66a22e");
+const nightscapeFamiliar = getDefinition(
+    "24fa6853-09b0-4c9f-a138-9dd005780255"
+);
+const nightscapeBattlemage = getDefinition(
+    "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f"
+);
+const phyrexianBloodstock = getDefinition(
+    "785e1a67-af94-48e8-bb37-4999d1fb4c66"
+);
+const unsummon = getDefinition("8512f2c1-6361-4b79-843f-80b6bceeeb99");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const earthquake = getDefinition("e68ac362-6cdc-48a6-bdd3-4f8ea32add64");
+const darkRitual = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f");
 
 /** Resolves an activated ability directly against a real source permanent,
  *  mirroring the per-set shim already used by `inv/__tests__/black.test.ts`

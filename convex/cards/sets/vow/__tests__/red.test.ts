@@ -1,12 +1,13 @@
 // VOW — red card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { voldarenEpicure } from "../red";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { getDefinition } from "../../../index";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+
+const voldarenEpicure = getDefinition("ae154e64-f626-45fb-bd52-840c1c27b2d3");
 
 function epicureEntered(instanceId: string, controllerId: string) {
     return {

@@ -24,39 +24,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    blindSeer,
-    collectiveRestraint,
-    distortingWake,
-    dreamThrush,
-    empressGalina,
-    exclude,
-    factOrFiction,
-    faerieSquadron,
-    manipulateFate,
-    metathranAerostat,
-    metathranTransport,
-    opt,
-    prohibit,
-    rainbowCrow,
-    repulse,
-    sapphireLeech,
-    skyWeaver,
-    swayOfIllusion,
-    tidalVisionary,
-    travelersCloak,
-    vodalianMerchant,
-    vodalianSerpent,
-    washOut,
-    wellLaidPlans,
-    worldlyCounsel,
-    zanamDjinn,
-} from "../blue";
-import { shimmeringWings } from "../../tmp/blue";
-import { disrupt } from "../../wth/blue";
-import { island, plains, swamp } from "../../lea/colorless";
-import { lightningBolt } from "../../lea/red";
-import { grizzlyBears } from "../../lea/green";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -92,6 +59,45 @@ import {
     tapSourceIntoPayment,
 } from "../../../../game";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const blindSeer = getDefinition("5c54ec26-c7f1-4258-9cc9-1709987f293c");
+const collectiveRestraint = getDefinition(
+    "d71daa57-ac02-4dd9-8c90-d38bdd45fb51"
+);
+const distortingWake = getDefinition("cf48eec9-96be-4f53-9d9a-c6f02d44c995");
+const dreamThrush = getDefinition("258217df-ae88-4d93-895a-3fd242baacd1");
+const empressGalina = getDefinition("6851dbc7-f072-41e7-a899-897445d99425");
+const exclude = getDefinition("aeb359c8-209c-455f-84b2-970e5678a9fa");
+const factOrFiction = getDefinition("7fd4d018-dcf3-4439-8445-02d66e44f7d3");
+const faerieSquadron = getDefinition("4c707c81-dbbd-43be-a79a-7bc92a584839");
+const manipulateFate = getDefinition("5bb52acb-dedb-4ed6-a6da-8c036f2b2958");
+const metathranAerostat = getDefinition("59f34850-fb6f-4ac5-8309-4d53d770e28c");
+const metathranTransport = getDefinition(
+    "4fa9048d-1599-44a5-b4b2-45382c5b238d"
+);
+const opt = getDefinition("958262ec-8e52-40cf-a9fd-a60e42643e15");
+const prohibit = getDefinition("0daa5458-2a97-40d0-b18d-2381a7a68ee1");
+const rainbowCrow = getDefinition("7e622ad2-473f-489e-b4cf-bbdcc44d0cde");
+const repulse = getDefinition("9a04e9be-48be-440e-9825-cfffd4c2b1a4");
+const sapphireLeech = getDefinition("e6763ffd-9d89-4f26-871a-be24fbdef38d");
+const skyWeaver = getDefinition("04974146-42a8-4f10-b443-67bfeaa54d5d");
+const swayOfIllusion = getDefinition("ff65e386-9aec-4deb-a4ec-d9a97bd87645");
+const tidalVisionary = getDefinition("a72a3051-7f46-4b6b-b4fb-0f170d9687ab");
+const travelersCloak = getDefinition("977f0f82-0542-40c9-9a48-73077941dbd1");
+const vodalianMerchant = getDefinition("c1c0effa-a4b8-4166-a66a-90cf01c6ea0d");
+const vodalianSerpent = getDefinition("92adcf6c-ab14-414c-a5cb-56feae048c84");
+const washOut = getDefinition("7719d043-5827-4479-825b-23d9e979ead7");
+const wellLaidPlans = getDefinition("1c55eb8f-925a-42c1-9e48-d7f99cab3b01");
+const worldlyCounsel = getDefinition("8fc66fbf-f411-4607-aece-7c35d9a07c80");
+const zanamDjinn = getDefinition("57a3c1d5-0ca8-443b-ae7a-66e0363e377b");
+const shimmeringWings = getDefinition("a6a8dc46-04c7-479a-90c1-b55e6c67e0e3");
+const disrupt = getDefinition("c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

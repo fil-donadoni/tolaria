@@ -1,7 +1,6 @@
 // TMT — black card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { superShredder } from "../black";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
@@ -10,6 +9,9 @@ import {
 } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const superShredder = getDefinition("37a497b8-e908-4ddc-996e-a8470df72afb");
 
 // Super Shredder — {1}{B} Legendary Creature — Mutant Ninja Human, 1/1
 // (CR 702.111 menace; CR 603.2 PERMANENT_LEFT trigger; CR 122 self counter).

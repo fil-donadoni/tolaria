@@ -17,29 +17,6 @@ import {
     resolveTrigger,
     upkeepEvent487,
 } from "./helpers";
-import {
-    acidRain,
-    blight,
-    carrionAnts,
-    cosmicHorror,
-    cyclopeanMummy,
-    darkness,
-    fallenAngel,
-    ghostsOfTheDamned,
-    greed,
-    headlessHorseman,
-    hellSwarm,
-    hellfire,
-    hellsCaretaker,
-    horrorOfHorrors,
-    moldDemon,
-    netherVoid,
-    spiritShackle,
-    syphonSoul,
-    theAbyss,
-    walkingDead,
-    wallOfTombstones,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -57,7 +34,32 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { grizzlyBears, lightningBolt, swamp } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
+const blight = getDefinition("9ca19b39-4201-463c-bd40-fbffa31c9eda");
+const carrionAnts = getDefinition("cbc0b009-3951-4aa3-985a-97139882da7e");
+const cosmicHorror = getDefinition("18bc6ac2-19e0-4765-852b-e303a5bb4040");
+const cyclopeanMummy = getDefinition("479ccc50-2d72-4adc-901e-fbd4eef2cf92");
+const darkness = getDefinition("53b04dab-45b7-418b-a0f0-bcf35145fc53");
+const fallenAngel = getDefinition("0f4174e4-0be8-49b5-8c52-22001790f6eb");
+const ghostsOfTheDamned = getDefinition("20275678-3488-43d8-a93b-993e2267ab07");
+const greed = getDefinition("111a16a2-e875-4756-80db-290f9e8606db");
+const headlessHorseman = getDefinition("d1aa37c8-98fa-4984-b09b-cf65ad84e97b");
+const hellSwarm = getDefinition("64164d1b-75f4-456e-a717-90ce554dc16c");
+const hellfire = getDefinition("362f1fe9-20af-434c-9957-7a1a564d89e6");
+const hellsCaretaker = getDefinition("336b3b8f-d104-4f06-ad4f-c92b8a9038ca");
+const horrorOfHorrors = getDefinition("b9f68dc2-c048-41ec-b237-c36fdd99c27d");
+const moldDemon = getDefinition("649a33aa-7eac-4161-ae1a-fcbc758abccf");
+const netherVoid = getDefinition("2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf");
+const spiritShackle = getDefinition("a30bb266-5bd1-4998-ae94-56f0f3354167");
+const syphonSoul = getDefinition("f3020304-7a39-411e-b055-3ade72b4bff8");
+const theAbyss = getDefinition("86a27d68-3e58-4ade-976d-36381beed451");
+const walkingDead = getDefinition("d7533a72-77d1-40cd-b3a1-7597d566c428");
+const wallOfTombstones = getDefinition("55da1e86-fe18-486a-b510-f941e6f6e378");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
     it("pumps itself by +1/+1 until end of turn (repeatable)", () => {

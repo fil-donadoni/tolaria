@@ -15,9 +15,6 @@
 // per-turn trigger cap and the loop-safety argument.
 
 import { describe, it, expect } from "vitest";
-import { enduringInnocence } from "..";
-import { grizzlyBears } from "../../lea/green";
-import { serraAngel } from "../../lea/white";
 import {
     makeInstance,
     makePlayer,
@@ -41,6 +38,11 @@ import type {
     PermanentEnteredEvent,
     TriggeredAbility,
 } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const enduringInnocence = getDefinition("08f79439-b8f8-418f-9772-26d81844749e");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 /** Board with Enduring Innocence on `controllerId`'s battlefield, owned by
  *  `ownerId` (they differ only in the Control-Magic case). */

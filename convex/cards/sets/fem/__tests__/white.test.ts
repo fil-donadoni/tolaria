@@ -4,22 +4,6 @@
 // only (definition shape, zone after resolution, projected wire-format).
 
 import { describe, it, expect } from "vitest";
-import {
-    combatMedic,
-    farrelitePriest,
-    farrelsMantle,
-    farrelsZealot,
-    handOfJustice,
-    heroism,
-    icatianInfantry,
-    icatianJavelineers,
-    icatianMoneychanger,
-    icatianPhalanx,
-    icatianPriest,
-    icatianSkirmishers,
-    icatianTown,
-    orderOfLeitbur,
-} from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import type {
@@ -41,8 +25,6 @@ import {
     tryAutoCommitPendingActivation,
 } from "../../../../game";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { grizzlyBears, lightningBolt, monssGoblinRaiders } from "../../lea";
-import { questingBeast } from "../../eld/green";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -51,6 +33,34 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger, UPKEEP } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const combatMedic = getDefinition("9cfd96cb-03d6-4845-8595-50bf17b35726");
+const farrelitePriest = getDefinition("e11bf79b-a951-4d0c-acdf-d8ba5290a648");
+const farrelsMantle = getDefinition("af092da3-8713-4a59-86d3-827b942d6456");
+const farrelsZealot = getDefinition("0401bd23-9f81-40b7-a6c2-e3f9847d175c");
+const handOfJustice = getDefinition("7a899b2d-825c-4929-a769-f4df70bf6a17");
+const heroism = getDefinition("08ee87a0-a7eb-4472-9045-85d11e8a1501");
+const icatianInfantry = getDefinition("f95d42d8-ba75-43bf-81b8-b02374f03e83");
+const icatianJavelineers = getDefinition(
+    "f04b8356-2384-4743-80dd-f15ca7ec65f7"
+);
+const icatianMoneychanger = getDefinition(
+    "b3d502d4-4a96-47b3-ae26-8b2c9f36623d"
+);
+const icatianPhalanx = getDefinition("7bc02d30-3eef-4a48-8b11-b4f37219ab3a");
+const icatianPriest = getDefinition("d7690cdd-6610-4310-9e93-60dc4db2ae8d");
+const icatianSkirmishers = getDefinition(
+    "15f6d115-c02d-45a3-aa6d-402964df47dd"
+);
+const icatianTown = getDefinition("cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a");
+const orderOfLeitbur = getDefinition("ebd6e51e-f042-4673-a898-291607105829");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const monssGoblinRaiders = getDefinition(
+    "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
+);
+const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
 
 // ===========================================================================
 // CAPABILITY D — tapOtherFilter activation cost (Hand of Justice, CR 602.1 /

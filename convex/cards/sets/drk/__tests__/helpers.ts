@@ -9,7 +9,7 @@ import {
     type StackItem,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 
 /** Push a triggered ability onto the stack with the firing event, then resolve. */
 export function resolveTrigger(
@@ -68,8 +68,10 @@ export function answerChoice(state: GameState, picks: string[]): void {
     resolveTopOfStack(state);
 }
 
-export const FOREST = getCardByName("Forest").id;
-export const ISLAND = getCardByName("Island").id;
-export const PLAINS = getCardByName("Plains").id;
-export const MOUNTAIN = getCardByName("Mountain").id;
-export const SWAMP = getCardByName("Swamp").id;
+export const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
+export const ISLAND = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id;
+export const PLAINS = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id;
+export const MOUNTAIN = getDefinition(
+    "eace2c85-976c-425e-9800-5a6ccbd91b56"
+).id;
+export const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;

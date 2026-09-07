@@ -3,8 +3,6 @@
 // block citing the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { counterspell } from "../../lea";
-import { theOneRing } from "../colorless";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +20,10 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const counterspell = getDefinition("0df55e3f-14de-46ef-b6b1-616618724d9e");
+const theOneRing = getDefinition("d5806e68-1054-458e-866d-1f2470f682b2");
 
 describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => {
     it("restrictionAllowsSpell gates legendary-spell mana on the SUPERTYPE, not card type", () => {

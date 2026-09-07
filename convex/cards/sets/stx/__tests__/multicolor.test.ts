@@ -1,7 +1,6 @@
 // Strixhaven (STX) — multicolor behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { expressiveIteration } from "../multicolor";
 import {
     makeInstance,
     makePlayer,
@@ -11,6 +10,11 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const expressiveIteration = getDefinition(
+    "31b770cc-09e7-4c0b-b2a4-462ab4f7200d"
+);
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

@@ -1,7 +1,6 @@
 // STX (Strixhaven) — white card behavior tests (ADR 0043 colour split). Each
 // card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { eliteSpellbinder } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -15,6 +14,9 @@ import { getLegalActions } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const eliteSpellbinder = getDefinition("9d3a7998-ccac-45ad-a4e9-3a2cb057f63b");
 
 // A vanilla {1}{G} 2/2 — the nonland card in the opponent's hand. Cheap enough
 // that the {2} tax is the ONLY thing that can make it unaffordable at 3 mana.

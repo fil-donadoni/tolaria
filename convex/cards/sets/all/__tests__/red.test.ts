@@ -5,17 +5,18 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { pyrokinesis } from "../red";
+import { getDefinition } from "../../../index";
+
+const pyrokinesis = getDefinition("db2a5e85-6cbc-43c1-9362-4056ad017ef0");
 
 // Pyrokinesis — {4}{R}{R} Instant. "You may exile a red card from your hand
 // rather than pay this spell's mana cost. Pyrokinesis deals 4 damage divided as
 // you choose among any number of target creatures." (CR 118.9 pitch cost;
 // CR 601.2d / 120.4 divide as you choose.)
 describe("Pyrokinesis (divided damage — CR 120.4)", () => {
-    const treefolk = getCardByName("Ironroot Treefolk"); // 3/5 — survives 2 damage
+    const treefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4"); // 3/5 — survives 2 damage
 
     it("splits 4 damage across two target creatures as chosen", () => {
         const a = makeInstance(treefolk.id, {

@@ -6,24 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ornithopter,
-    yotianSoldier,
-    clayStatue,
-    grapeshotCatapult,
-    colossusOfSardia,
-    crumble,
-    citanulDruid,
-    ivoryTower,
-    gaeasAvenger,
-    amuletOfKroog,
-    powerleech,
-    argothianPixies,
-    argothianTreefolk,
-    titaniasSong,
-    ashnodsBattleGear,
-} from "..";
-import { grizzlyBears, hillGiant, solRing } from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -59,6 +41,26 @@ import {
     vanilla,
     withTitaniasSong,
 } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
+const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
+const grapeshotCatapult = getDefinition("4c7a7348-c82e-453c-975c-e5365e152a3a");
+const colossusOfSardia = getDefinition("067c44e9-1b23-42fd-9acb-daafb62c32a2");
+const crumble = getDefinition("d2101f86-8d3c-4ba8-ac42-bd3df0644280");
+const citanulDruid = getDefinition("f8a130dc-3b1f-4fae-8459-b26bb5647fec");
+const ivoryTower = getDefinition("a5f23039-45ca-4c15-af50-bfd40ea26453");
+const gaeasAvenger = getDefinition("39d763bd-b0a9-46ba-bcd2-9304063446f2");
+const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
+const powerleech = getDefinition("ae1d7b09-3a1f-410f-b330-04ae768b0455");
+const argothianPixies = getDefinition("5712e87a-2381-4f5b-a853-6973841f9bf1");
+const argothianTreefolk = getDefinition("8db8882e-4db6-4e3c-9e9e-8c71d557a071");
+const titaniasSong = getDefinition("583a53af-2e2a-4f3f-8eab-bd874c6ed80a");
+const ashnodsBattleGear = getDefinition("aeeec853-dd3f-4ac3-8b20-c07fada8888f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact removal & bounce (free tranche, #274)

@@ -1,14 +1,17 @@
 // Scars of Mirrodin (SOM) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { copperlineGorge, moxOpal } from "../colorless";
-import { island } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import type { TriggerStateView } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const copperlineGorge = getDefinition("28f1d784-f286-418d-a712-bc07ad10d4a2");
+const moxOpal = getDefinition("6be9b1d5-9ab8-4adb-ba54-2c0117e842fa");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // The SOM "fast land" cycle — "This land enters tapped unless you control
 // two or fewer other lands." (CR 614.1c self-conditional replacement via the

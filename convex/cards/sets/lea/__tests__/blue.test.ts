@@ -5,73 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ancestralRecall,
-    animateArtifact,
-    badMoon,
-    blackKnight,
-    braingeyser,
-    camouflage,
-    circleOfProtectionWhite,
-    clone,
-    controlMagic,
-    copyArtifact,
-    counterspell,
-    creatureBond,
-    drainPower,
-    feedback,
-    flight,
-    forest,
-    grizzlyBears,
-    helmOfChatzuk,
-    invisibility,
-    island,
-    jadeStatue,
-    jayemdaeTome,
-    jump,
-    lifetap,
-    lightningBolt,
-    lordOfAtlantis,
-    magicalHack,
-    manaFlare,
-    manaShort,
-    manaVault,
-    manabarbs,
-    merfolkOfThePearlTrident,
-    monssGoblinRaiders,
-    mountain,
-    phantasmalForces,
-    phantasmalTerrain,
-    pirateShip,
-    plains,
-    plateau,
-    powerLeak,
-    powerSink,
-    prodigalSorcerer,
-    psionicBlast,
-    psychicVenom,
-    redWard,
-    savannahLions,
-    seaSerpent,
-    serraAngel,
-    shanodinDryads,
-    sirensCall,
-    sleightOfMind,
-    spellBlast,
-    stasis,
-    stealArtifact,
-    swamp,
-    timeWalk,
-    timetwister,
-    twiddle,
-    undergroundSea,
-    unsummon,
-    vesuvanDoppelganger,
-    volcanicEruption,
-    wallOfSwords,
-    wallOfWater,
-    wildGrowth,
-} from "..";
-import {
     removePermanentTo,
     resolveTopOfStack,
     emitPermanentTapped,
@@ -123,6 +56,81 @@ import {
     grizzlyBearsId,
     runUntapForJ,
 } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
+const animateArtifact = getDefinition("664b46f5-0424-4f4e-9f26-6bd2cf5e0357");
+const badMoon = getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
+const braingeyser = getDefinition("62b19a12-6914-430e-81ce-dcfca47884df");
+const camouflage = getDefinition("3838c2a3-7fab-4976-9c1b-2891aee24e52");
+const circleOfProtectionWhite = getDefinition(
+    "92df19c9-e127-42d9-8dd2-7fa5a7095428"
+);
+const clone = getDefinition("f00d33dd-4eb2-4446-9813-1923d8e2d2f3");
+const controlMagic = getDefinition("7b52f459-c703-4a0b-9114-ff69eec61287");
+const copyArtifact = getDefinition("fd5ed955-1193-4e6a-a3e2-f54c1f9bf063");
+const counterspell = getDefinition("0df55e3f-14de-46ef-b6b1-616618724d9e");
+const creatureBond = getDefinition("ee4bd7d1-77e5-46e5-a594-c24469e88c4c");
+const drainPower = getDefinition("ea3830c5-cc66-453e-9e53-0636e00ee0ee");
+const feedback = getDefinition("0eb8f591-d763-49bf-8ef9-86265aaa72f7");
+const flight = getDefinition("67c7784b-6b79-4268-a714-895c82809aff");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const helmOfChatzuk = getDefinition("3792c6ef-c4e6-4923-9a51-7d28fbc5c393");
+const invisibility = getDefinition("1858ac51-e6a7-48d7-8759-166070ca13d8");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const jadeStatue = getDefinition("8d82d94b-ceef-4533-a4f2-b6442a61b839");
+const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
+const jump = getDefinition("cb3f4b11-ad1b-48e2-a500-787d351b0174");
+const lifetap = getDefinition("11add837-7ee4-4104-b031-c161bce459ae");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const lordOfAtlantis = getDefinition("210c4a90-fc7a-4c76-aeaa-20a005e45386");
+const magicalHack = getDefinition("2bd4202c-0477-45aa-82fd-83c85d6d4bef");
+const manaFlare = getDefinition("7fb99a26-beeb-4aca-bb02-b2d2ce0595f9");
+const manaShort = getDefinition("73e3e0b3-5284-464f-8c62-0f7801c966f5");
+const manaVault = getDefinition("19499cb7-eccb-4e69-af32-6002d447a160");
+const manabarbs = getDefinition("6121f72f-680f-4bb4-ae4d-37ee4ebed4d8");
+const merfolkOfThePearlTrident = getDefinition(
+    "2b871039-6a66-4ac3-95e7-24759c1f2f92"
+);
+const monssGoblinRaiders = getDefinition(
+    "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
+);
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const phantasmalForces = getDefinition("0631c7c8-9aa5-4333-8e20-20247fc47033");
+const phantasmalTerrain = getDefinition("1c371aa1-1619-41e3-8364-7bc9b8cf5d14");
+const pirateShip = getDefinition("d0a7cb23-d229-43c5-addd-dcf423984b0c");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const plateau = getDefinition("6eafa00b-c628-40f6-86eb-88e1361fc7a0");
+const powerLeak = getDefinition("ccc982b6-35b2-4e33-ace2-86cb79123e4f");
+const powerSink = getDefinition("1b342dd3-09b9-4108-bf12-a65d4cef4eb9");
+const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
+const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
+const psychicVenom = getDefinition("f3f5b68a-6b0e-431e-89f0-ff60f17687a5");
+const redWard = getDefinition("e0c64c01-c2aa-470b-88c6-3d3e4a969649");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const seaSerpent = getDefinition("d0b333b7-db4d-4439-b0de-60414cbf8d7b");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const shanodinDryads = getDefinition("814cf35c-f1ad-4bf4-8c10-a5592c3b1be8");
+const sirensCall = getDefinition("d992b336-3b6e-43e1-8662-d85664349b44");
+const sleightOfMind = getDefinition("d427790c-e322-446e-8d7d-a6b48ad41a42");
+const spellBlast = getDefinition("845734da-ab03-4dbc-bb5f-96481d3b8e88");
+const stasis = getDefinition("b6cef408-5b4b-49f6-9531-be544815b93f");
+const stealArtifact = getDefinition("83316930-d6ad-46ce-9b40-48eea856d95b");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const timeWalk = getDefinition("e0139f60-d48e-46fb-9f5a-1e3d7558c834");
+const timetwister = getDefinition("9a49dc44-616e-4bdd-8220-0bb71eccc512");
+const twiddle = getDefinition("576e811f-26a3-4a7c-bd13-3b1cc3e184eb");
+const undergroundSea = getDefinition("ff76ac86-8a8a-47fe-9388-8950ca3e26c3");
+const unsummon = getDefinition("8512f2c1-6361-4b79-843f-80b6bceeeb99");
+const vesuvanDoppelganger = getDefinition(
+    "768f3a05-bd06-4a23-b9f2-94f6e618fd9f"
+);
+const volcanicEruption = getDefinition("a80582b1-09db-45f8-b362-0e5207a5a8e6");
+const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
+const wallOfWater = getDefinition("41faed1a-ded8-49ee-8e2a-c60d377775d7");
+const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
 
 describe("Psionic Blast ({2}{U} — 4 to any target, 2 to you, CR 120.3)", () => {
     it("deals 4 damage to target player and 2 damage to the caster", () => {

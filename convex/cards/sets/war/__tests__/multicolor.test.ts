@@ -12,10 +12,6 @@
 //   • −3 bounce-up-to-one + draw — reused Ops (moveZone + draw).
 
 import { describe, it, expect } from "vitest";
-import { teferiTimeRaveler } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
-import { braingeyser } from "../../lea/blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
@@ -27,6 +23,12 @@ import {
     hasCastTimingFlashGrant,
 } from "../../../castRestrictions";
 import type { TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const teferiTimeRaveler = getDefinition("5cb76266-ae50-4bbc-8f96-d98f309b02d3");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const braingeyser = getDefinition("62b19a12-6914-430e-81ce-dcfca47884df");
 
 const PLUS1 = "teferi-time-raveler-plus1";
 const MINUS3 = "teferi-time-raveler-minus3";

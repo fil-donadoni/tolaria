@@ -3,15 +3,17 @@
 // convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { thornspireVerge, blazemireVerge } from "..";
 import { makeInstance, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
-const MOUNTAIN = getCardByName("Mountain").id;
-const SWAMP = getCardByName("Swamp").id;
+const thornspireVerge = getDefinition("7e1cdc03-6faa-4138-9a52-caafbe34fb59");
+const blazemireVerge = getDefinition("d151c8e2-d715-470d-868a-f45191db9fa0");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
+const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
 
 function manaChoices(
     state: GameState,

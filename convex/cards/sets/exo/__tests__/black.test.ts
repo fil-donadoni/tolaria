@@ -3,8 +3,6 @@
 // `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { cursedFlesh } from "../black";
-import { grizzlyBears } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -17,6 +15,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const cursedFlesh = getDefinition("7433b9bf-ee6e-41fe-b826-0d20584198b1");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Cursed Flesh — "Enchant creature. Enchanted creature gets -1/-1 and has
 // fear." (CR 613.4c layer 7c pt-buff + CR 702.36 keyword-grant, both via

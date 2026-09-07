@@ -4,21 +4,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    balduvianBears,
-    armorOfFaith,
-    blinkingSpirit,
-    cooperation,
-    elvishHealer,
-    hallowedGround,
-    kelsinkoRanger,
-    kjeldoranKnight,
-    lostOrderOfJarkeld,
-    mercenaries,
-    orderOfTheWhiteShield,
-    rally,
-    shieldBearer,
-    snowHound,
-    warning,
     deathWardIce,
     disenchantIce,
     swordsToPlowsharesIce,
@@ -27,41 +12,8 @@ import {
     circleOfProtectionGreenIce,
     circleOfProtectionRedIce,
     circleOfProtectionWhiteIce,
-    seaSpirit,
-    centaurArcher,
-    knightOfStromgald,
-    blackScarab,
-    blueScarab,
-    greenScarab,
-    redScarab,
-    whiteScarab,
-    caribouRange,
-    fylgja,
-    justice,
-    seraph,
-    blessedWine,
-    heal,
-    lightningBlow,
-    formation,
-    snowCoveredForest,
-    arcticFoxes,
-    hipparion,
-    prismaticWard,
-    sacredBoon,
-    energyStorm,
-    kjeldoranRoyalGuard,
-    arensonsAura,
-    generalJarkeld,
-    drought,
-    kjeldoranEliteGuard,
-    kjeldoranGuard,
-    battleCry,
-    enduringRenewal,
-    adarkarUnicorn,
-    orderOfTheSacredTorch,
 } from "../../ice";
-import { plains } from "../../lea";
-import { getDefinition, getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     tryAutoCommitPendingCast,
     selectTarget,
@@ -84,7 +36,6 @@ import {
     commitDrawPlan,
     sourcePreventionShieldApplies,
 } from "../../../../gre/state";
-import { questingBeast } from "../../eld/green";
 import {
     canAffordSacrifice,
     autoResolveFungible,
@@ -144,6 +95,66 @@ import {
     enterUpkeepAndFire,
     snowLand,
 } from "./helpers";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");
+const blinkingSpirit = getDefinition("14fc0683-9cfa-4439-a533-8773e7747ec4");
+const cooperation = getDefinition("21a815ed-c8b4-4414-8b27-ea612e2977e2");
+const elvishHealer = getDefinition("00bd8485-d63a-4077-a3d1-4d0f2f4d8035");
+const hallowedGround = getDefinition("4b35c0f4-5633-4ea9-9bda-daaf787aebdd");
+const kelsinkoRanger = getDefinition("8402543e-5406-404f-95c4-800a1dce35f1");
+const kjeldoranKnight = getDefinition("d5b9db8f-93b5-44e3-9e2b-728c80dfbb37");
+const lostOrderOfJarkeld = getDefinition(
+    "0f8fe1e5-69d2-401f-97cb-3cc01064bad3"
+);
+const mercenaries = getDefinition("7b28762d-1ab7-460e-b433-27f5fa858959");
+const orderOfTheWhiteShield = getDefinition(
+    "92e55b10-375f-4b4f-b676-3b9b8085fdd2"
+);
+const rally = getDefinition("e1e9f80e-5d75-45b7-9c66-c0f30996f4dc");
+const shieldBearer = getDefinition("318ff2da-d309-469c-8e2f-fa3c7517a15a");
+const snowHound = getDefinition("084437ba-26d4-4af6-ab00-dcb145dd2cd0");
+const warning = getDefinition("cca5b4a7-df11-4635-a147-df12cd13a67c");
+const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
+const centaurArcher = getDefinition("e275c295-72da-4a86-82c6-cfd75b38b19c");
+const knightOfStromgald = getDefinition("2b87069b-ebaf-4705-b5da-446932af9b73");
+const blackScarab = getDefinition("5bfd4ee1-05f9-45ae-a31d-1225b271dbe6");
+const blueScarab = getDefinition("b423bb5a-eaac-4c1d-981a-1c635001fc5a");
+const greenScarab = getDefinition("0fbf9266-c97e-4666-b0fa-1802a69a62cc");
+const redScarab = getDefinition("9a734154-5944-42f4-a02e-c426a45847f3");
+const whiteScarab = getDefinition("c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd");
+const caribouRange = getDefinition("1e5f8041-67fc-4e00-b119-d216e5cc5a3a");
+const fylgja = getDefinition("3c6358a1-37f0-4b40-93d4-4f1652c38404");
+const justice = getDefinition("9a6e0c8d-0fc1-4f52-8357-e550b0ac579a");
+const seraph = getDefinition("ab675291-3189-43f3-b11b-0724eca8b941");
+const blessedWine = getDefinition("6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66");
+const heal = getDefinition("9e6b2704-685e-4c74-875a-25846175e5e4");
+const lightningBlow = getDefinition("d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef");
+const formation = getDefinition("78446ead-61b0-485f-a5a9-b3e72d8075a7");
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
+const arcticFoxes = getDefinition("98f99c3e-dddc-492f-aab6-1d899346a385");
+const hipparion = getDefinition("5969875a-f647-4daf-b76c-d1514d45c312");
+const prismaticWard = getDefinition("6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e");
+const sacredBoon = getDefinition("d721569d-9cf2-4c3c-b11c-4c46c258a0d2");
+const energyStorm = getDefinition("3955e358-4285-44e2-9e24-9804346a6e58");
+const kjeldoranRoyalGuard = getDefinition(
+    "66343008-c38a-48a9-b767-fd2243103690"
+);
+const arensonsAura = getDefinition("f94f3e87-1b39-49a8-ad0d-f18c854e298a");
+const generalJarkeld = getDefinition("6a4f5a28-0bd2-4cc4-b67f-324e89193caa");
+const drought = getDefinition("97736696-3de3-416d-94cf-4fac792f23f0");
+const kjeldoranEliteGuard = getDefinition(
+    "a73bc4b6-f7d0-494c-9e60-48279c11b7b6"
+);
+const kjeldoranGuard = getDefinition("bdf41f17-8f82-4a8c-adec-0f3804faff3b");
+const battleCry = getDefinition("c558a8c4-035c-464e-9ff8-c188c1bb619e");
+const enduringRenewal = getDefinition("be77edac-9a8b-4b7f-a859-27df76b10aa6");
+const adarkarUnicorn = getDefinition("0ba7526f-dba8-4483-b925-946164fc0ae9");
+const orderOfTheSacredTorch = getDefinition(
+    "ccc5cb36-c43d-4c71-8019-9b683e160a0a"
+);
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
 
 // ===========================================================================
 // White free tranche (#630)
@@ -2165,9 +2176,9 @@ describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", (
 });
 
 describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost)", () => {
-    const swampId = getCardByName("Swamp").id;
-    const zombies = getCardByName("Scathe Zombies"); // {2}{B} — one black pip
-    const hypnotic = getCardByName("Hypnotic Specter"); // {1}{B}{B} — two pips
+    const swampId = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
+    const zombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e"); // {2}{B} — one black pip
+    const hypnotic = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9"); // {1}{B}{B} — two pips
 
     const makeSwamp = (id: string): CardInstanceState =>
         makeInstance(swampId, {
@@ -2822,7 +2833,7 @@ describe("Battle Cry (untap-all-white + repeating block-buff delayed trigger, CR
 // ===========================================================================
 
 describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #735)", () => {
-    const bearsId = getCardByName("Balduvian Bears").id;
+    const bearsId = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id;
 
     it("card definition wires the reveal + draw replacement (ADR 0061)", () => {
         expect(enduringRenewal.revealsHand).toBe("controller");

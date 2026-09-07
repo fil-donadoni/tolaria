@@ -9,11 +9,13 @@
 // the client reads to decide whether the modal ability is even affordable.
 
 import { describe, it, expect } from "vitest";
-import { umezawasJitte } from "../colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const umezawasJitte = getDefinition("3b6e5956-f795-451b-bb24-56462d1ced27");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Jitte attached to `bear1`, a creature `bearController` controls. */
 function setup(bearController = "p1"): {

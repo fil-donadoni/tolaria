@@ -8,9 +8,6 @@
 // per `.claude/rules/gre-development.md` § Card testing convention).
 
 import { describe, it, expect } from "vitest";
-import { solitaryConfinement } from "../white";
-import { lightningBolt } from "../../lea/red";
-import { grizzlyBears } from "../../lea/green";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { playerHasShroud } from "../../../../gre/permanentGuard";
 import { advancePhase } from "../../../../gre/phases";
@@ -31,6 +28,13 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const solitaryConfinement = getDefinition(
+    "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386"
+);
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function onBattlefield(
     state: GameState,

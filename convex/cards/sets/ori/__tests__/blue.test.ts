@@ -29,10 +29,11 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { advancePhase } from "../../../../gre/phases";
 import { getDefinition } from "../../../index";
-import { jaceVrynsProdigy } from "../blue";
 import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../../emblems";
-import { lightningBolt } from "../../lea/red";
-import { grizzlyBears } from "../../lea/green";
+
+const jaceVrynsProdigy = getDefinition("02d6d693-f1f3-4317-bcc0-c21fa8490d38");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const JACE = jaceVrynsProdigy.id;
 

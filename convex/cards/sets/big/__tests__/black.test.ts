@@ -9,8 +9,6 @@
 // "Ability source not on battlefield". These tests lock the from-hand targeted
 // activation end to end (both the immediate and the deferred commit paths).
 import { describe, it, expect } from "vitest";
-import { harvesterOfMisery } from "../black";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { type GameState, resolveTopOfStack } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
@@ -19,6 +17,9 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { finalizeTargetSelection } from "../../../../game";
+import { getDefinition } from "../../../index";
+
+const harvesterOfMisery = getDefinition("a3012af9-621d-4fae-b00d-079a89ae35fe");
 
 const DISCARD_ABILITY_ID = "harvester-of-misery-discard";
 
@@ -52,11 +53,14 @@ describe("Harvester of Misery — targeted from-hand discard ability (CR 113.6 /
         });
         // Craw Wurm 6/4 — survives the -2/-2 (→ 4/2), so the pump is observable
         // without an SBA death muddying the assertion.
-        const target = makeInstance(getCardByName("Craw Wurm").id, {
-            id: "wurm",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const target = makeInstance(
+            getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f").id,
+            {
+                id: "wurm",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -101,11 +105,14 @@ describe("Harvester of Misery — targeted from-hand discard ability (CR 113.6 /
             ownerId: "p1",
             zone: "hand",
         });
-        const target = makeInstance(getCardByName("Craw Wurm").id, {
-            id: "wurm",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const target = makeInstance(
+            getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f").id,
+            {
+                id: "wurm",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { hand: [harvester] }), // empty pool → mana uncovered

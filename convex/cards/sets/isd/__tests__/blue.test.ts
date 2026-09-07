@@ -13,20 +13,22 @@
 // and re-checks the outcome through projectPublicState — the granted card must
 // arrive on the wire tagged with the Flashback cast affordance.
 import { describe, it, expect } from "vitest";
-import { snapcasterMage } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { getFlashbackCost } from "../../../../gre/flashback";
 import { projectPublicState } from "../../../../gameProjections";
-import { firebolt } from "../../ody/red";
-import { grizzlyBears } from "../../lea";
 import type {
     GameState,
     StackItem,
     CardInstanceState,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const snapcasterMage = getDefinition("9e5b279e-4670-4a1e-87d0-3cab7e4f9e58");
+const firebolt = getDefinition("d5e45005-dd81-4d80-b043-02f719aca929");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Puts Snapcaster Mage's self-ETB trigger on the stack (CR 603.6a), mirroring
  *  collectTriggers + buildTriggerItem. `targets: undefined` (the target slot is

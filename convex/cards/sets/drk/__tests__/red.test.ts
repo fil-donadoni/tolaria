@@ -5,25 +5,6 @@
 // ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import {
-    ballLightning,
-    bloodMoon,
-    brothersOfFire,
-    cavePeople,
-    eternalFlame,
-    fireDrake,
-    fissure,
-    goblinCaves,
-    goblinDiggingTeam,
-    goblinHero,
-    goblinRockSled,
-    goblinShrine,
-    goblinWizard,
-    goblinsOfTheFlarg,
-    inferno,
-    manaClash,
-    orcGeneral,
-} from "..";
 import { answerChoice, resolveActivated, resolveTrigger } from "./helpers";
 import {
     makeInstance,
@@ -54,10 +35,30 @@ import {
     resolveTopOfStack,
     unapplySourceStaticEffects,
 } from "../../../../gre/state";
-import { getCardByName } from "../../../index";
-import { stripMine, urzasMine } from "../../atq";
-import { startingTown } from "../../fin";
-import { mountain, tropicalIsland } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const ballLightning = getDefinition("c1ba83ab-83f5-421d-bba1-0f925870b5c8");
+const bloodMoon = getDefinition("78373616-e2d6-4ccf-998f-09f02bea45b4");
+const brothersOfFire = getDefinition("ba2cc4a6-fdcc-4082-801a-d2c50e560e8d");
+const cavePeople = getDefinition("72746a5d-faa1-44b7-97b5-0ef9302a3c13");
+const eternalFlame = getDefinition("d646feea-3c20-4737-8d20-ffad42258ced");
+const fireDrake = getDefinition("d3419db6-1c38-4aa4-b953-1dde7d22b927");
+const fissure = getDefinition("aa2d778d-d74b-45ec-a86b-5d52ffad6ba5");
+const goblinCaves = getDefinition("c6a415b0-00a2-4a65-8994-4a395c50ae2d");
+const goblinDiggingTeam = getDefinition("8a538b9d-351e-40bb-be11-9ba08c16352b");
+const goblinHero = getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1");
+const goblinRockSled = getDefinition("91e0b59d-8f9b-4a76-9845-bcb0dc32523d");
+const goblinShrine = getDefinition("cd69a6dc-27f3-42aa-9e63-4417796e4ef5");
+const goblinWizard = getDefinition("9b73dfb4-d930-4a89-b621-129dd9f6328c");
+const goblinsOfTheFlarg = getDefinition("fd333b18-b896-4ab8-9c46-eed4efdd94f2");
+const inferno = getDefinition("a6b61512-5b24-424c-966f-36b595781e14");
+const manaClash = getDefinition("72955141-d990-459f-adbe-7d3d0f5f6c95");
+const orcGeneral = getDefinition("65a10fd5-506e-46bf-87e6-fde134c0dc04");
+const stripMine = getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
+const urzasMine = getDefinition("ddf85792-470b-4b42-99ac-9cb43a575523");
+const startingTown = getDefinition("fc7d1912-7e27-49ef-bd98-375d975a42b0");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const tropicalIsland = getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56");
 
 // ───────────────────────────────────────────────────────────────────────────
 // Blood Moon — {2}{R} Enchantment, "Nonbasic lands are Mountains." (#419)
@@ -132,11 +133,14 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
     });
 
     it("does NOT touch a basic land of another color (Island stays an Island)", () => {
-        const island = makeInstance(getCardByName("Island").id, {
-            id: "isl-1",
-            controllerId: "p2",
-            zone: "battlefield",
-        });
+        const island = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "isl-1",
+                controllerId: "p2",
+                zone: "battlefield",
+            }
+        );
         const state = makeState();
         const moon = makeInstance(bloodMoon.id, {
             id: "moon-1",
@@ -394,7 +398,7 @@ describe("Cave People — attack pump +1/-2 + grant mountainwalk (CR 508 / 702.1
 
 describe("Eternal Flame — X = Mountains; X to target, ceil(X/2) to you (CR 120.3)", () => {
     it("deals X damage to the target and half rounded up to the controller", () => {
-        const mtnId = getCardByName("Mountain").id;
+        const mtnId = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
         const mtns = [0, 1, 2].map((i) =>
             makeInstance(mtnId, { id: `mtn-${i}`, controllerId: "p1" })
         );
@@ -454,7 +458,7 @@ describe("Fissure — destroy target creature or land, no regen (CR 701.8)", () 
 
 describe("Goblin Caves — conditional Goblin anthem +0/+2 (CR 611.2c)", () => {
     it("buffs Goblins +0/+2 only while the enchanted land is a basic Mountain", () => {
-        const mtnId = getCardByName("Mountain").id;
+        const mtnId = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
         const mtn = makeInstance(mtnId, { id: "mtn", controllerId: "p1" });
         const goblin = makeInstance(goblinHero.id, {
             id: "gob",
@@ -506,7 +510,7 @@ describe("Goblin Caves — conditional Goblin anthem +0/+2 (CR 611.2c)", () => {
 
 describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.8)", () => {
     it("destroys a Wall creature", () => {
-        const wallId = getCardByName("Wall of Stone").id;
+        const wallId = getDefinition("140e567c-6e4a-42b0-8084-d6c9695ae802").id;
         const wall = makeInstance(wallId, {
             id: "wall",
             controllerId: "p2",
@@ -567,7 +571,7 @@ describe("Goblin Rock Sled — attack restriction + arm-skip-untap (CR 508.1c / 
 
 describe("Goblin Shrine — conditional Goblin anthem +1/+0 + LTB damage (CR 611 / 603.6)", () => {
     it("buffs Goblins +1/+0 while enchanting a basic Mountain (survives projection)", () => {
-        const mtnId = getCardByName("Mountain").id;
+        const mtnId = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
         const mtn = makeInstance(mtnId, { id: "mtn", controllerId: "p1" });
         const goblin = makeInstance(goblinHero.id, {
             id: "gob",

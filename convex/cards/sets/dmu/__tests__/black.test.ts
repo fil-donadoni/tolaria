@@ -3,7 +3,6 @@
 // `convex/cards/__tests__/setup.ts` — do not duplicate them here.
 
 import { describe, it, expect } from "vitest";
-import { sheoldredTheApocalypse } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -12,6 +11,11 @@ import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const sheoldredTheApocalypse = getDefinition(
+    "d67be074-cdd4-41d9-ac89-0a0456c4e4b2"
+);
 
 // ---------------------------------------------------------------------------
 // Sheoldred, the Apocalypse — {2}{B}{B} Legendary Creature — Phyrexian

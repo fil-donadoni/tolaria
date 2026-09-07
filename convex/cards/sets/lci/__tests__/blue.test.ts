@@ -1,6 +1,5 @@
 // LCI blue — per-colour card behavior tests (ADR 0043 parallel test file).
 import { describe, it, expect } from "vitest";
-import { malcolmAlluringScoundrel, tishanasTidebinder } from "../blue";
 import { registerTokenDefinition } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
@@ -24,6 +23,14 @@ import {
 } from "../../../../game";
 import { compactState, expandState } from "../../../../gre/serialize";
 import type { GameEvent } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const malcolmAlluringScoundrel = getDefinition(
+    "19d6834d-afa3-4747-a62d-0654f4d9729f"
+);
+const tishanasTidebinder = getDefinition(
+    "907b3d1d-8c85-4707-80b5-c4d832df9846"
+);
 
 // A plain vanilla creature card for hand/library fixtures, distinct from
 // Malcolm itself.

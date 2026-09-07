@@ -1,7 +1,6 @@
 // mrd (Mirrodin) — green behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { viridianJoiner } from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -10,6 +9,9 @@ import {
 } from "../../../../gre/constants";
 import { tapSourceIntoPayment } from "../../../../game";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const viridianJoiner = getDefinition("b50679df-bf82-4bb2-9fe3-8ebd7a9decde");
 
 // Viridian Joiner — "{T}: Add an amount of {G} equal to this creature's
 // power." A board-conditional, single-colour mana ability (CR 106.1 /

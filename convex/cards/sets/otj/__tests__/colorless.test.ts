@@ -13,9 +13,7 @@
 // trigger path.
 
 import { describe, it, expect } from "vitest";
-import { lavaspurBoots } from "../colorless";
 import { registerTokenDefinition } from "../../..";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -31,6 +29,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const lavaspurBoots = getDefinition("e50709de-e6ef-4dbc-af1e-290fed279f34");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // A synthetic targeted-removal instant — the opponent's targeted spell side
 // of the ward scenario (mirrors `abilities/__tests__/ward.test.ts`'s own

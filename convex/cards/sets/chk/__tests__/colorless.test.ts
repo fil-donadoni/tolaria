@@ -11,11 +11,15 @@
 // documented signal to add a hand-written test here.
 
 import { describe, it, expect } from "vitest";
-import { senseisDiviningTop } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const senseisDiviningTop = getDefinition(
+    "4a08ca06-58db-4ce6-b490-be4bea8956a1"
+);
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

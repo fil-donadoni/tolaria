@@ -17,7 +17,9 @@
 import { describe, expect, it } from "vitest";
 import { resolveTrigger } from "./helpers";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { covetedJewel } from "..";
+import { getDefinition } from "../../../index";
+
+const covetedJewel = getDefinition("f83ed433-fae3-4fa5-acad-bb8a5b535ce3");
 
 describe("Coveted Jewel (C18) — unblocked-attack steal trigger (CR 509.1h / 603.3b)", () => {
     it("an opponent's unblocked attacker makes that opponent draw 3, gain control of the Jewel, and untap it", () => {

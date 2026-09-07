@@ -17,7 +17,6 @@
 // (no real decision to offer), so the reflexive trigger is already targeted
 // by the time it lands on the stack; a plain `resolveTopOfStack` resolves it.
 import { describe, it, expect } from "vitest";
-import { generousPlunderer } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -25,6 +24,9 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const generousPlunderer = getDefinition("4c6cf93a-d073-48ac-88db-c46bf3e10beb");
 
 const PLUNDERER_ID = generousPlunderer.id;
 const UPKEEP_ABILITY_ID = "generous-plunderer-upkeep-treasure";

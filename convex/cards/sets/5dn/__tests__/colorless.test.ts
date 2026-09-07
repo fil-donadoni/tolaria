@@ -1,9 +1,6 @@
 // 5DN — colorless card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { crucibleOfWorlds, pentadPrism } from "../colorless";
-import { forest } from "../../lea/colorless";
-import { resurrection } from "../../lea/white";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +19,12 @@ import {
     tryAutoCommitPendingCast,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const crucibleOfWorlds = getDefinition("312a6058-de08-487d-95bd-b3c56807fdd6");
+const pentadPrism = getDefinition("672b9b16-daef-44e6-9a3a-cfd9f3c78bc7");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const resurrection = getDefinition("4fff6e6f-4ebd-4ec8-9443-59efb22d376c");
 
 // Crucible of Worlds — {3} Artifact. "You may play lands from your
 // graveyard." Same CR 305.1-analog permission as Icetill Explorer / Ramunap

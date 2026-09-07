@@ -15,16 +15,6 @@
 //     would exile correctly and never return.
 
 import { describe, it, expect } from "vitest";
-import { leylineBinding } from "../white";
-import {
-    forest,
-    island,
-    mountain,
-    plains,
-    swamp,
-    tundra,
-} from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition, getCardByName } from "../../..";
 import {
@@ -40,6 +30,15 @@ import {
 } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+
+const leylineBinding = getDefinition("3c3ac3dd-35db-447f-8674-37b4680a1ef7");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Mirrors game.ts's plain hand-cast cost calc: normalize the printed cost,
  *  then fold in cost modifiers (battlefield scan + self-host) — the exact pair
@@ -74,8 +73,7 @@ function boardWithDomain(n: number): GameState {
 
 describe("Leyline Binding — Domain cost reduction (CR 601.2f / 305.6)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(leylineBinding.id)).toBe(leylineBinding);
-        expect(getCardByName("Leyline Binding")).toBe(leylineBinding);
+        expect(getCardByName("Leyline Binding").id).toBe(leylineBinding.id);
     });
 
     it.each([

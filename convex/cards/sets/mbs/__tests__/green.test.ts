@@ -14,10 +14,6 @@
 // isolation.
 
 import { describe, it, expect } from "vitest";
-import { greenSunsZenith } from "../green";
-import { llanowarElves, giantSpider } from "../../lea/green";
-import { scatheZombies } from "../../lea/black";
-import { forest } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -26,6 +22,13 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const greenSunsZenith = getDefinition("02335747-54e3-4827-ae19-4e362863da9b");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const giantSpider = getDefinition("77636b4c-faea-4bf5-b88c-dd5bb88dc930");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("Green Sun's Zenith (CR 701.23 search / 400.7 / 701.24 shuffle / 608.2m self-redirect, issue #898)", () => {
     it("finds a green creature card with mana value X or less, puts it onto the battlefield, then shuffles both libraries and itself into the owner's library", () => {

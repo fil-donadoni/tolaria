@@ -1,7 +1,6 @@
 // ZNR — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { luminarchAspirant, skyclaveApparition } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     processPendingActionTriggers,
@@ -9,12 +8,20 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getCardByName } from "../../..";
 import type { GameState } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const luminarchAspirant = getDefinition("fe964e7e-e2c5-4263-889d-0a531eb51442");
+const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const skyclaveApparition = getDefinition(
+    "b83cfbaa-7890-4f6f-878b-4edb45677371"
+);
 
 // Luminarch Aspirant — {1}{W} Creature — Human Cleric, 1/1 (CR 603.6a
 // combat-begin trigger; CR 122 counter placement). "At the beginning of
@@ -166,14 +173,14 @@ describe("Luminarch Aspirant (CR 603.6a beginning-of-combat trigger; CR 122 coun
 describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR 608.2h snapshot)", () => {
     /** `opponentCards` are staged on p2's battlefield; `ownCards` on p1's,
      *  alongside the Apparition itself. */
-    function setup(opponentNames: string[], ownNames: string[] = []) {
+    function setup(opponentIds: string[], ownIds: string[] = []) {
         const apparition = makeInstance(skyclaveApparition.id, {
             id: "apparition",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const mk = (name: string, controllerId: string, i: number) =>
-            makeInstance(getCardByName(name)!.id, {
+        const mk = (cardId: string, controllerId: string, i: number) =>
+            makeInstance(cardId, {
                 id: `${controllerId}-${i}`,
                 controllerId,
                 ownerId: controllerId,
@@ -183,11 +190,11 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
                 makePlayer("p1", {
                     battlefield: [
                         apparition,
-                        ...ownNames.map((n, i) => mk(n, "p1", i)),
+                        ...ownIds.map((id, i) => mk(id, "p1", i)),
                     ],
                 }),
                 makePlayer("p2", {
-                    battlefield: opponentNames.map((n, i) => mk(n, "p2", i)),
+                    battlefield: opponentIds.map((id, i) => mk(id, "p2", i)),
                 }),
             ],
         });
@@ -242,7 +249,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
 
     it("exiles the chosen permanent, then MANY TURNS LATER gives its OWNER an X/X Illusion sized by the exiled card's mana value", () => {
         // Hypnotic Specter — {1}{B}{B}, mana value 3 (CR 202.3).
-        const { state } = setup(["Hypnotic Specter"]);
+        const { state } = setup([hypnoticSpecter.id]);
         fireEtb(state, "p2-0");
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["p2-0"]);
@@ -266,7 +273,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
     it("offers no legal target when the opponent has only a mana value 5 permanent and you control the rest, and then creates no token", () => {
         // Serra Angel is {3}{W}{W} — mana value 5, above the 4-or-less cap;
         // the Grizzly Bears is YOURS, so "you don't control" excludes it.
-        const { state } = setup(["Serra Angel"], ["Grizzly Bears"]);
+        const { state } = setup([serraAngel.id], [grizzlyBears.id]);
         const trig = fireEtb(state);
         expect(trig.targets).toEqual([]);
         expect(state.players[1].exile).toHaveLength(0);
@@ -280,7 +287,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
     it("DECLINING the optional target with a legal one available exiles nothing and makes no token (CR 601.2c)", () => {
         // Distinct from the no-legal-target case above: here the Specter IS a
         // legal target and the controller chooses zero anyway ("up to one").
-        const { state } = setup(["Hypnotic Specter"]);
+        const { state } = setup([hypnoticSpecter.id]);
         const trig = fireEtb(state);
         expect(trig.targets).toEqual([]);
         expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["p2-0"]);
@@ -292,7 +299,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
     });
 
     it("fires on a BOUNCE too — the leave-trigger is zone-agnostic (CR 603.10a)", () => {
-        const { state } = setup(["Hypnotic Specter"]);
+        const { state } = setup([hypnoticSpecter.id]);
         fireEtb(state, "p2-0");
         fireLtb(state, "hand");
         expect(state.players[0].hand.map((c) => c.id)).toContain("apparition");
@@ -301,7 +308,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
     });
 
     it("wire format: the Illusion's computed P/T survives projectPublicState", () => {
-        const { state } = setup(["Hypnotic Specter"]);
+        const { state } = setup([hypnoticSpecter.id]);
         fireEtb(state, "p2-0");
         fireLtb(state, "graveyard");
         const projected = projectPublicState(state, 1, "p1");

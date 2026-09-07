@@ -2,12 +2,14 @@
 // `convex/cards/sets/wwk/white.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { stoneforgeMystic } from "../white";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const stoneforgeMystic = getDefinition("19557351-b65f-4b04-b971-66abdc07000a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // No Equipment card is registered in the catalogue yet — a synthetic
 // test-only Equipment definition for the hand/library fixtures (mirrors the

@@ -2,9 +2,6 @@
 // `convex/cards/sets/clu/red.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { headlinerScarlett } from "../red";
-import { balduvianBears } from "../../ice/green";
-import { forest, mountain } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPlayLandFromExile } from "../../../../gre/playLand";
@@ -17,6 +14,12 @@ import { applyRaisedTargetFinalization } from "../../../../gre/pendingTargetOrig
 import { finalizeCleanup } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const headlinerScarlett = getDefinition("be77b98a-dd79-477c-8ab2-7ebf5637a89e");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 function etbEvent(instanceId: string): StackItem["triggerEvent"] {
     return {

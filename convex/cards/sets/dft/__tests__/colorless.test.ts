@@ -3,17 +3,20 @@
 // convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { riverpyreVerge, bleachboneVerge, wastewoodVerge } from "..";
 import { makeInstance, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
-const ISLAND = getCardByName("Island").id;
-const PLAINS = getCardByName("Plains").id;
-const MOUNTAIN = getCardByName("Mountain").id;
-const SWAMP = getCardByName("Swamp").id;
+const riverpyreVerge = getDefinition("57a93a71-d77c-417f-85d0-cd420f573331");
+const bleachboneVerge = getDefinition("52dcdabd-a186-45fe-9fee-6c0f1afeaf16");
+const wastewoodVerge = getDefinition("5ceacc7d-d407-4f82-af58-9bdf8426924e");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
+const ISLAND = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id;
+const PLAINS = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id;
+const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id;
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
 
 function manaChoices(
     state: GameState,

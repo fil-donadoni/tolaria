@@ -2,23 +2,6 @@
 // Each card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
 import {
-    amphibiousKavu,
-    magnigothTreefolk,
-    mirrorwoodTreefolk,
-    multanisHarmony,
-    nemataGroveGuardian,
-    pygmyKavu,
-    quirionDryad,
-    quirionExplorer,
-    thornscapeBattlemage,
-    fallingTimber,
-} from "../green";
-import { crawWurm, grizzlyBears } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
-import { airElemental } from "../../lea/blue";
-import { blackKnight } from "../../lea/black";
-import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -58,6 +41,34 @@ import { applyOneTargetSelection } from "../../../../game";
 import { registerTokenDefinition } from "../../..";
 import { additionalCostPaidCondition } from "../../../abilities/triggers/shared";
 import type { TargetSelection, PermanentView } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const amphibiousKavu = getDefinition("37d94fb2-958c-487e-9f64-52d2771c6ea4");
+const magnigothTreefolk = getDefinition("90c2869b-43cf-4d5e-8a54-9ae200f5bff9");
+const mirrorwoodTreefolk = getDefinition(
+    "ba9a1c94-2b7f-4df7-8517-a122616d9ae4"
+);
+const multanisHarmony = getDefinition("c76352ea-e3d2-4221-8ebe-e953301c35ab");
+const nemataGroveGuardian = getDefinition(
+    "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2"
+);
+const pygmyKavu = getDefinition("b31c69ec-feb5-430a-a3e9-3a6f3fb8ee1c");
+const quirionDryad = getDefinition("f6841ae6-b15f-488e-9cae-2cc5ec668278");
+const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
+const thornscapeBattlemage = getDefinition(
+    "13f24f89-3996-4740-a6c9-d26b8869554b"
+);
+const fallingTimber = getDefinition("6e54c84d-ccc9-4c52-b02c-e0392e8fe447");
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 /** Pushes a triggered ability directly onto the stack (bypassing the real
  *  cast/announcement pipeline) and resolves it — mirrors `pls/blue.test.ts`'s

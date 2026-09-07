@@ -15,36 +15,6 @@ import {
     resolveTrigger,
     upkeepEvent487,
 } from "./helpers";
-import {
-    adunOakenshield,
-    angusMackenzie,
-    arcadesSabboth,
-    bartelRuneaxe,
-    borisDevilboon,
-    chromium,
-    dakkonBlackblade,
-    gwendlynDiCorci,
-    halfdane,
-    jacquesLeVert,
-    jasmineBoreal,
-    keiTakahashi,
-    ladyOrca,
-    livonyaSilone,
-    nicolBolas,
-    palladiaMors,
-    pavelMaliki,
-    pendelhaven,
-    princessLucrezia,
-    ragnar,
-    rasputinDreamweaver,
-    rivenTurnbull,
-    solkanarTheSwampKing,
-    sunastianFalconer,
-    tuknirDeathlock,
-    tundraWolves,
-    vaevictisAsmadi,
-    xiraArien,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import {
@@ -78,24 +48,56 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
-import { forest, grizzlyBears, island, mountain, swamp } from "../../lea";
+
+const adunOakenshield = getDefinition("60252226-a102-4d88-9b80-42d021b5184d");
+const angusMackenzie = getDefinition("57264bd9-94f6-4d4d-baff-2b2900585635");
+const arcadesSabboth = getDefinition("2c1dbc62-ceb5-4540-ae38-901e5deafc75");
+const bartelRuneaxe = getDefinition("f1a42691-98bb-4234-9b56-085e6677f3e4");
+const borisDevilboon = getDefinition("82ae30e8-2dcd-46b8-925b-cc24e11fb95d");
+const chromium = getDefinition("8cd7d7e1-f928-4429-9a59-ba0590a78e98");
+const dakkonBlackblade = getDefinition("fbfd1278-1486-4516-8846-007ce1985ee9");
+const gwendlynDiCorci = getDefinition("473d70b6-a88c-49f4-9415-19919c4468ae");
+const halfdane = getDefinition("2e939761-3542-4044-9038-d1d30c6a38fc");
+const jacquesLeVert = getDefinition("ee5a45b1-169b-468e-9251-424c09cd7f0f");
+const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
+const keiTakahashi = getDefinition("6a4a524a-fdc7-432d-994b-953808528349");
+const ladyOrca = getDefinition("b2779553-74eb-42ba-97d0-96269f48c269");
+const livonyaSilone = getDefinition("b9211949-66a5-4039-ac6d-3e42b008b58e");
+const nicolBolas = getDefinition("729feb73-4581-4f9d-ba47-bece72481b86");
+const palladiaMors = getDefinition("ad64874d-ce33-4e0a-bcca-723f129ef415");
+const pavelMaliki = getDefinition("304f9d39-3ea2-4274-b23e-e4eaabbc1c4b");
+const pendelhaven = getDefinition("79427109-c1f3-476d-a029-0049217237b5");
+const princessLucrezia = getDefinition("a1dcf48c-2700-4024-807e-9244e4c649ac");
+const ragnar = getDefinition("2cf6a3a3-4a06-4eb7-981a-b70cf05b2473");
+const rasputinDreamweaver = getDefinition(
+    "503256f8-3aab-49d0-b78b-6502aa29ce52"
+);
+const rivenTurnbull = getDefinition("d11f90e7-ced1-4d80-8083-99acbf459ad7");
+const solkanarTheSwampKing = getDefinition(
+    "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2"
+);
+const sunastianFalconer = getDefinition("587075f3-a568-4089-83ca-fe1e473c025d");
+const tuknirDeathlock = getDefinition("9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0");
+const tundraWolves = getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
+const vaevictisAsmadi = getDefinition("22ea73ec-1325-4437-a23f-dcda1767c713");
+const xiraArien = getDefinition("cc6c7d89-32e7-4c3f-ac90-7db3a46eed4b");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 // ---------------------------------------------------------------------------
 // Registry parity (ADR 0014) — the `leg` set is registered.
 // ---------------------------------------------------------------------------
 
 describe("LEG registry parity", () => {
-    it("registers the skeleton legendary creatures by id", () => {
-        expect(getDefinition(jasmineBoreal.id)).toBe(jasmineBoreal);
-        expect(getDefinition(ladyOrca.id)).toBe(ladyOrca);
-    });
-
     it("registers them by name (debug-panel / pool lookup path)", () => {
         // The Debug-panel preset scenario and the card pool both resolve cards
         // by name via getCardByName (game.ts seedScenario) — registration alone
         // must make the cards reachable.
-        expect(getCardByName("Jasmine Boreal")).toBe(jasmineBoreal);
-        expect(getCardByName("Lady Orca")).toBe(ladyOrca);
+        expect(getCardByName("Jasmine Boreal").id).toBe(jasmineBoreal.id);
+        expect(getCardByName("Lady Orca").id).toBe(ladyOrca.id);
     });
 
     it("includes them in getAllCards (deck-builder index)", () => {
@@ -189,7 +191,9 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.14)"
     it("is blockable when the defender controls only a nonlegendary land (CR 702.14)", () => {
         // A basic Forest carries no Legendary supertype → no evasion.
         const { attacker, blocker, defenderBattlefield, state } = setup({
-            defenderLandId: getCardByName("Forest").id,
+            defenderLandId: getDefinition(
+                "6f1c8cb0-38eb-408b-94e8-16db83999b3b"
+            ).id,
         });
         const res = validateBlockerEligibility(
             attacker,
@@ -267,11 +271,11 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.14)"
 
 describe("LEG multicolor vanilla / keyword legendary creatures (CR 205.4a, 702)", () => {
     it("registers the multicolor cards by name (pool / debug lookup)", () => {
-        expect(getCardByName("Dakkon Blackblade")).toBe(dakkonBlackblade);
-        expect(getCardByName("Sol'kanar the Swamp King")).toBe(
-            solkanarTheSwampKing
+        expect(getCardByName("Dakkon Blackblade").id).toBe(dakkonBlackblade.id);
+        expect(getCardByName("Sol'kanar the Swamp King").id).toBe(
+            solkanarTheSwampKing.id
         );
-        expect(getCardByName("Boris Devilboon")).toBe(borisDevilboon);
+        expect(getCardByName("Boris Devilboon").id).toBe(borisDevilboon.id);
     });
 });
 

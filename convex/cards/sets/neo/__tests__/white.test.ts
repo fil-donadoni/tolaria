@@ -3,7 +3,6 @@
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
-import { lionSash } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -17,7 +16,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { grizzlyBears } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const lionSash = getDefinition("3e1766e9-2fa7-4446-a255-7beea1467ece");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function resolveActivated(
     state: GameState,

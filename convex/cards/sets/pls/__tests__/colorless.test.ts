@@ -12,32 +12,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    crosissCatacombs,
-    draco,
-    stratadon,
-    darigaazsCaldera,
-    dromarsCavern,
-    meteorCrater,
-    rithsGrove,
-    skyshipWeatherlight,
-    starCompass,
-    trevasRuins,
-} from "../colorless";
-import {
-    forest,
-    island,
-    mountain,
-    plains,
-    swamp,
-    tundra,
-} from "../../lea/colorless";
-import { yavimayaCradleOfGrowth } from "../../mh2/colorless";
-import { blackLotus } from "../../lea/colorless";
-import { crawWurm } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
-import { quirionExplorer } from "../green";
-import { fellwarStone } from "../../drk/colorless";
-import {
     getDefinitionProducibleColors,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
@@ -72,6 +46,34 @@ import {
 import { compactState, expandState } from "../../../../gre/serialize";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const crosissCatacombs = getDefinition("7caad74f-c0d0-4eca-94be-b89a2c9a3980");
+const draco = getDefinition("212e3edb-62f1-4680-884f-70323547f8ad");
+const stratadon = getDefinition("324bc757-9942-4862-b691-5af42e07f682");
+const darigaazsCaldera = getDefinition("752f6f0c-af30-4937-b4a7-48f493e007a0");
+const dromarsCavern = getDefinition("85f10cee-6a63-438e-a9df-6b902dd025b8");
+const meteorCrater = getDefinition("043a2299-1cfc-4732-a10a-58c773b9992c");
+const rithsGrove = getDefinition("740fa25d-9c1f-44eb-9eb4-0dd514cb315a");
+const skyshipWeatherlight = getDefinition(
+    "63f5498b-bb12-48ec-811b-b52e45ffddaf"
+);
+const starCompass = getDefinition("b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d");
+const trevasRuins = getDefinition("8bae2458-b54f-426a-ad40-13529a73c423");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
+const yavimayaCradleOfGrowth = getDefinition(
+    "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c"
+);
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
 function lairInstance(def: CardDefinition, id: string): CardInstanceState {
     return makeInstance(def.id, { id, controllerId: "p1", ownerId: "p1" });
