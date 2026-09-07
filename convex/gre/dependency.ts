@@ -486,20 +486,36 @@ export function orderByDependency(
     context: DependencyContext
 ): ContinuousEffect[] {
     if (entries.length < 2) return [...entries];
-    const ordered: ContinuousEffect[] = [];
-    let index = 0;
-    while (index < entries.length) {
-        const start = index;
-        const key = groupKeyOf(entries[start]);
-        while (index < entries.length && groupKeyOf(entries[index]) === key) {
-            index++;
-        }
-        const group = entries.slice(start, index);
-        ordered.push(
-            ...(group.length < 2 ? group : orderGroup(group, context))
-        );
+    // Grouped by KEY, not by adjacency: layer 7 hands over entries sorted with
+    // `compareContinuousEffects`, which carries no sublayer key, so a 7c/7b/7c
+    // run is interleaved and two same-sublayer effects would never meet if this
+    // walked contiguous runs. Positions are collected per key and the entries
+    // are written back into exactly the positions their own group occupied, so a
+    // caller that sorted by layer first (layers 2-5 walk 2 -> 3 -> 4 -> 5 in one
+    // pass) keeps that arrangement whatever the grouping does inside it.
+    const groups = new Map<string, number[]>();
+    for (let index = 0; index < entries.length; index++) {
+        const key = groupKeyOf(entries[index]);
+        const slots = groups.get(key);
+        if (slots) slots.push(index);
+        else groups.set(key, [index]);
     }
-    return ordered;
+    if (groups.size === entries.length) return [...entries];
+    const ordered = [...entries];
+    const deleted: boolean[] = new Array(entries.length).fill(false);
+    for (const slots of groups.values()) {
+        if (slots.length < 2) continue;
+        const group = slots.map((index) => entries[index]);
+        const reordered = orderGroup(group, context);
+        // An entry whose source's rules text was destroyed does not exist
+        // (`applyExistence`), so a group can come back SHORT. Its slots are
+        // filled in order and the leftovers are dropped.
+        for (let i = 0; i < slots.length; i++) {
+            deleted[slots[i]] = i >= reordered.length;
+            if (i < reordered.length) ordered[slots[i]] = reordered[i];
+        }
+    }
+    return ordered.filter((_, index) => !deleted[index]);
 }
 
 /** CR 613.8a clause (a) — "the same layer (and, if applicable, sublayer)". */
@@ -629,10 +645,21 @@ function orderGroup(
  *  behind Blood Moon's. The dependency decides that Blood Moon goes first; this
  *  is what "first" then means.
  *
- *  Scoped to the layer, like every other clause of CR 613.8a. A source's
- *  effects in OTHER layers are not suppressed here: that is CR 305.7 applied to
- *  a source's whole rules text, a rule about ability removal rather than about
- *  ordering, and this engine's gap in it predates the dependency system.
+ *  Scoped to the layer, like every other clause of CR 613.8a. A source's effects
+ *  in OTHER layers are not suppressed here: that is CR 305.7 applied to a
+ *  source's whole rules text, a rule about ability removal rather than about
+ *  ordering, and this engine's gap in it predates the dependency system
+ *  (issue #3170 carries the layer-7 half).
+ *
+ *  Scoped, too, to the destroyers this walk can SEE, and layer 6 does not show
+ *  it all of them: `layer6EffectsFor` filters entries to the ones applying to
+ *  the derived target before ordering, so a stripper that applies to a grant's
+ *  SOURCE but not to that target is invisible here (Titania's Song stripping
+ *  Lightning Greaves). Humility + Lord of Atlantis works because Humility
+ *  applies to every creature, the Merfolk included. Layer 4 has no such hole —
+ *  `layers2to5EffectsFor` pushes every source's entry regardless of target.
+ *  Tracked by issue #3178, with the ADR 0115 decision 5 symptom that shares its
+ *  cause.
  */
 function applyExistence(
     order: readonly number[],

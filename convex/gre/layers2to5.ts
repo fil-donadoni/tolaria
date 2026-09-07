@@ -70,6 +70,7 @@ import { tryGetEmblemDefinition } from "../cards/emblems";
 import { applyLandTypeReplacement, sameOrder } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
 import type { DependencyTemplate } from "./dependency";
+import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
 import { orderByDependency } from "./dependency";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
@@ -472,11 +473,17 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
                           }
                         : {}),
                 },
-                // CR 604.3 — none of the layer-2-5 static effect kinds is a
-                // characteristic-defining ability: a CDA defines a
-                // characteristic of the object it is ON, and every kind here
-                // changes another object's.
-                characteristicDefining: false,
+                // CR 604.3 — read from the ONE naming authority
+                // (`CDA_STATIC_EFFECT_KINDS`, `gre/dependency.ts`) rather than
+                // hardcoded, so CR 613.8a clause (c) cannot fail open the day a
+                // layer-4 kind becomes characteristic-defining. No layer-2-5
+                // kind is one today — a CDA defines a characteristic of the
+                // object it is ON, and every kind here changes another
+                // object's — but CR 702.73 Changeling is exactly such an
+                // ability and is `planned` in the Mechanics Registry.
+                characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(
+                    effect.kind
+                ),
             });
         }
     };

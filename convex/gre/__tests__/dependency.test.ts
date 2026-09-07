@@ -29,7 +29,13 @@ import {
 } from "../dependency";
 import { compareContinuousEffects } from "../continuousEffects";
 import type { ContinuousEffect } from "../continuousEffects";
-import type { PermanentView, StaticEffect } from "../../cards/types";
+import type {
+    CardDefinition,
+    PermanentView,
+    StaticEffect,
+} from "../../cards/types";
+import { AURA_AFFECTS_HOST } from "../../cards/types";
+import { withTemporaryDefinition } from "../../cards/registry";
 import {
     makeInstance,
     makePlayer,
@@ -46,7 +52,7 @@ import { lifeAndLimb } from "../../cards/sets/plc/green";
 import { humility } from "../../cards/sets/tmp/white";
 import { opalescence } from "../../cards/sets/uds/white";
 import { grizzlyBears } from "../../cards/sets/lea/green";
-import { lordOfAtlantis } from "../../cards/sets/lea/blue";
+import { flight, lordOfAtlantis } from "../../cards/sets/lea/blue";
 import { tropicalIsland } from "../../cards/sets/lea/colorless";
 
 const view = (state: GameState): LayerStateView =>
@@ -78,40 +84,105 @@ describe("CR 613.9 — the CR's own NON-dependency examples", () => {
     // nothing changes what they affect or what they're doing to it. Applying
     // them in timestamp order means the one that was generated last 'wins.'"
     it("a flying GRANT and a flying REMOVAL in layer 6 stay in timestamp order — the later one wins, in both orders", () => {
-        for (const grantFirst of [true, false]) {
-            const bears = makeInstance(grizzlyBears.id, {
-                id: "bears",
-                controllerId: "p1",
-                ownerId: "p1",
-            });
-            const state = makeState({
-                players: [
-                    makePlayer("p1", { battlefield: [bears] }),
-                    makePlayer("p2"),
-                ],
-            });
-            const grant: ContinuousEffect = {
-                id: "ce-grant",
-                layer: 6,
-                timestamp: grantFirst ? 1 : 2,
-                expiry: { kind: "indefinite", controllerId: "p1" },
-                affected: { kind: "instances", instanceIds: ["bears"] },
-                payload: { kind: "keyword-grant", keyword: "flying" },
-                characteristicDefining: false,
-            };
-            const remove: ContinuousEffect = {
-                ...grant,
-                id: "ce-remove",
-                timestamp: grantFirst ? 2 : 1,
-                payload: { kind: "keyword-remove", keyword: "flying" },
-            };
-            state.continuousEffects = [grant, remove];
-            const derived = deriveLayer6(view(state), asView(bears));
-            // The later effect wins: grant last -> flying; removal last -> none.
-            expect(derived.staticAbilities.includes("flying")).toBe(
-                !grantFirst
-            );
-        }
+        // Built from REAL aura templates and run through the REAL layer-6
+        // derivation, and the relation itself is asserted below rather than
+        // inferred from the outcome: neither aura's predicate reads an ability
+        // (both are `AURA_AFFECTS_HOST`, which reads the host's id), so neither
+        // declares a read and neither depends on the other — "nothing changes
+        // what they affect or what they're doing to it". Declaring a read here
+        // to force the graph would be declaring a lie.
+        const REMOVER_ID = "test-613-9-flying-remover";
+        const remover: CardDefinition = {
+            ...flight,
+            id: REMOVER_ID,
+            name: "Test Flight Remover",
+            oracleText: "Enchant creature\nEnchanted creature loses flying.",
+            staticEffects: [
+                {
+                    kind: "keyword-remove",
+                    applies: AURA_AFFECTS_HOST,
+                    keyword: "flying",
+                },
+            ],
+        };
+        withTemporaryDefinition(remover, () => {
+            for (const grantFirst of [true, false]) {
+                const bears = makeInstance(grizzlyBears.id, {
+                    id: "bears",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const grant = makeInstance(flight.id, {
+                    id: "grant",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "bears",
+                });
+                const strip = makeInstance(REMOVER_ID, {
+                    id: "strip",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "bears",
+                });
+                const state = boardWith(
+                    [bears, grant, strip],
+                    grantFirst ? [grant, strip] : [strip, grant]
+                );
+                const derived = deriveLayer6(view(state), asView(bears));
+                // The later effect wins, exactly as CR 613.9's example says.
+                expect(derived.staticAbilities.includes("flying")).toBe(
+                    !grantFirst
+                );
+
+                // …and the RELATION says so, in both directions, rather than the
+                // fast path merely happening to preserve the order.
+                const entryFor = (
+                    source: typeof grant,
+                    def: CardDefinition
+                ): ContinuousEffect => ({
+                    id: `ce-src-${source.id}-0`,
+                    layer: 6,
+                    timestamp: 0,
+                    expiry: { kind: "source", sourceId: source.id },
+                    affected: { kind: "predicate" },
+                    payload: {
+                        kind: "template",
+                        sourceCardId: def.id,
+                        effectIndex: 0,
+                    },
+                    characteristicDefining: false,
+                });
+                const grantEntry = entryFor(grant, flight);
+                const stripEntry = entryFor(strip, remover);
+                const templates = new Map<string, DependencyTemplate>([
+                    [
+                        grantEntry.id,
+                        {
+                            source: asView(grant),
+                            effect: flight.staticEffects![0],
+                        },
+                    ],
+                    [
+                        stripEntry.id,
+                        {
+                            source: asView(strip),
+                            effect: remover.staticEffects![0],
+                        },
+                    ],
+                ]);
+                const context = {
+                    template: (entry: ContinuousEffect) =>
+                        templates.get(entry.id),
+                    ctx: STATIC_EFFECT_CTX,
+                };
+                expect(
+                    continuousEffectDependsOn(grantEntry, stripEntry, context)
+                ).toBe(false);
+                expect(
+                    continuousEffectDependsOn(stripEntry, grantEntry, context)
+                ).toBe(false);
+            }
+        });
     });
 
     // "One effect reads, 'White creatures get +1/+1,' and another reads,

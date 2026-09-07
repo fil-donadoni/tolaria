@@ -42,6 +42,7 @@ import { tryGetEmblemDefinition } from "../cards/emblems";
 import { sameOrder } from "./constants";
 import { compareContinuousEffects, renderKeyword } from "./continuousEffects";
 import type { DependencyTemplate } from "./dependency";
+import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
 import { orderByDependency } from "./dependency";
 import type { ContinuousEffect } from "./continuousEffects";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
@@ -420,10 +421,12 @@ function layer6EffectsFor(
                 effectIndex: index,
                 modeId: (source as { chosenModeId?: string }).chosenModeId,
             },
-            // CR 604.3 — no layer-6 static effect in the catalogue is
-            // characteristic-defining (a CDA defines P/T, colour, mana cost
-            // or subtype; CR 604.3 lists no ability-granting form).
-            characteristicDefining: false,
+            // CR 604.3 — read from the ONE naming authority
+            // (`CDA_STATIC_EFFECT_KINDS`, `gre/dependency.ts`) rather than
+            // hardcoded, so CR 613.8a clause (c) cannot fail open. No layer-6
+            // kind is characteristic-defining today: a CDA defines P/T, colour,
+            // mana cost or subtype, and CR 604.3 lists no ability-granting form.
+            characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(effect.kind),
         });
     }
 
