@@ -74,6 +74,7 @@
         "test:blade": "BLADE_TIER=must vitest run --config vitest.blade.config.ts",
         "test:blade:stretch": "BLADE_TIER=stretch vitest run --config vitest.blade.config.ts",
         "test:bot": "bun scripts/gate.ts heavy 'vitest run --project bot-node --project bot-dom'",
+        "test:perf": "vitest run --project perf",
         "test:watch": "vitest",
         "usage:window": "bun scripts/usage-window.ts",
         "verify:ui-receipt": "bun scripts/ui-gate/verify-receipt.ts",

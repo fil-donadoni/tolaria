@@ -560,20 +560,23 @@ describe("solveSmartAutoTap — determinism & cap (ADR 0034)", () => {
         expect(plan).toEqual([{ cardId: "a-src" }]);
     });
 
-    it("enforces the 512-plan cap without hanging on a wide board", () => {
+    // The WALL-CLOCK half of this case ("… quickly") moved to
+    // `autoTap.perf.test.ts` (issue #3123): an elapsed-time assertion measures
+    // the machine, and in the general suite the machine is running seven other
+    // vitest workers. What stays here is the correctness half — the cap is
+    // still 512 and a wide board still yields a valid 2-tap plan — which is
+    // machine-independent and belongs in the gate.
+    it("enforces the 512-plan cap on a wide board", () => {
         // 12 dual sources, cost {2}: a combinatorial explosion of 2-tap plans.
         // The cap bounds enumeration; the call must still return a valid 2-tap
-        // plan quickly.
+        // plan.
         const sources: AutoTapSource[] = [];
         for (let i = 0; i < 12; i++) {
             sources.push(choice(`d${i}`, ["U", "G"]));
         }
-        const start = Date.now();
         const plan = solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources, []);
-        const elapsed = Date.now() - start;
         expect(plan).not.toBeNull();
         expect(plan).toHaveLength(2);
-        expect(elapsed).toBeLessThan(1000);
         expect(AUTO_TAP_PLAN_CAP).toBe(512);
     });
 });

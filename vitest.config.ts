@@ -10,11 +10,40 @@ const alias = {
     "@convex": path.resolve(__dirname, "convex"),
 };
 
-const exclude = [
+const baseExclude = [
     "**/node_modules/**",
     "**/dist/**",
     ".sandcastle/worktrees/**",
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AXIS 3 — WALL-CLOCK PERFORMANCE TESTS (`*.perf.test.ts`, issue #3123).
+//
+// A test that asserts on elapsed wall-clock time is not a correctness test: it
+// measures the machine it runs on. In the general suites it measures a machine
+// running seven other vitest workers plus `tsc`, so it reds on correct code —
+// the same class of false red the bot/app split (AXIS 2) exists to prevent,
+// one axis over.
+//
+// So they get their OWN project, selected by the `*.perf.test.ts` filename
+// suffix and excluded from every other project. `bun run test:perf` runs them
+// on demand, solo, when someone actually wants the number. NO gate runs them:
+// `bun run test` is still test:app → test:bot → test:blade, and `check:lane`
+// never names this project.
+//
+// The convention is enforced by `scripts/__tests__/perf-test-boundary.test.ts`,
+// which fails when a non-perf test file asserts on a clock delta — and also
+// pins the exclusion below, so a config edit cannot silently fold perf tests
+// back into the gate.
+//
+// `vitest.blade.config.ts` selects `*.spec.ts` only, so it never picks these up.
+// ─────────────────────────────────────────────────────────────────────────────
+const PERF_GLOB = ["**/*.perf.test.ts"];
+
+/** Shared exclude for the four GENERAL projects. Perf tests are excluded here
+ *  rather than per-project so a new project inherits the exclusion for free;
+ *  the `perf` project uses `baseExclude` instead. */
+const exclude = [...baseExclude, ...PERF_GLOB];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TWO AXES: runtime environment (node / dom) × subsystem (app / bot).
@@ -180,6 +209,14 @@ export default defineConfig({
                     ],
                     exclude: [...exclude, ...BOT_GLOB_NODE],
                     isolate: false,
+                    // A HANG GUARD, not a measurement (issue #3123). Health
+                    // runs measured load average 21 on 8 cores, and at that
+                    // contention vitest's 5s default reds CORRECT code — it
+                    // did so in >=10 of 23 RED health runs. 30s is far beyond
+                    // anything a unit test legitimately takes here and still
+                    // tight enough to catch a genuine hang. A test that wants
+                    // to ASSERT on elapsed time belongs in the `perf` project.
+                    testTimeout: 30_000,
                 },
             },
             {
@@ -190,6 +227,8 @@ export default defineConfig({
                     setupFiles: ["./vitest.setup.ts"],
                     include: ["src/**/*.test.{ts,tsx}"],
                     exclude: [...exclude, ...BOT_GLOB_DOM, ...SRC_NODE_TESTS],
+                    // Same hang guard as the `node` project above (#3123).
+                    testTimeout: 30_000,
                 },
             },
             {
@@ -221,6 +260,20 @@ export default defineConfig({
                     include: BOT_GLOB_DOM,
                     exclude: botExclude,
                     testTimeout: 60_000,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "perf",
+                    environment: "node",
+                    // Same frozen-catalogue setup as the `node` project.
+                    setupFiles: ["./vitest.setup.node.ts"],
+                    include: PERF_GLOB,
+                    // NOT `exclude` — that list is what banishes perf tests
+                    // from the general projects; applying it here would leave
+                    // this project selecting nothing at all.
+                    exclude: baseExclude,
                 },
             },
         ],
