@@ -12,8 +12,8 @@ bun run findings --all    # including triaged and declined
 
 A subagent working an issue routinely trips over something adjacent: a producer
 nobody enumerated, a guard that fails open, a second card carrying the same bug.
-Until this drawer, that observation lived in the receipt's prose and died with
-the orchestrator's context — so the same gap got rediscovered months later by a
+Until this drawer, that observation lived in the PR's prose and died with
+the session's context — so the same gap got rediscovered months later by a
 different pass, from scratch.
 
 ## Why a subagent must not just open the issue

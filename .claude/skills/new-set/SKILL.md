@@ -244,9 +244,8 @@ an ADR under `docs/adr/` for a hard-to-reverse mechanic.
 Invoke **`to-prd`**. It synthesizes the grill context (does NOT re-interview)
 into one **umbrella GitHub issue** labeled `prd` — and **not**
 `ready-for-agent`: a PRD is a spec, not a work item, and
-`/process-gh-issues` refuses to select `prd`-labelled issues, so the queue
-label would make the umbrella get skipped on every pass forever while
-falsifying the loop's stop condition. If `to-prd` applied it, remove it. The
+the queue planner refuses `prd`-labelled issues, so the label would only
+make `/next-issue` skip the umbrella forever. If `to-prd` applied it, remove it. The
 executable work is the Phase 3 issues, which carry the queue label and hang
 off this umbrella as sub-issues. Ensure the PRD's **Implementation Decisions**
 name:
@@ -295,7 +294,7 @@ Conventions to hold it to:
   it, never back-wired later. `to-tickets` mandates this; hold it to it and
   verify rather than assume: `gh issue view <umbrella> --json subIssuesSummary`
   must report `total` equal to the number of issues just cut. The reason is
-  scheduling, not tidiness — `/process-gh-issues` sorts by
+  scheduling, not tidiness — the queue planner sorts by
   `parent.number ?? number` (oldest **lineage** first) off its cheap Stage-1
   list call, so a cluster issue with no edge sorts on its own number and the
   set's later slices land at the BACK of the queue while its earlier ones
@@ -416,8 +415,8 @@ Per `.claude/rules/gre-development.md`:
   and the PRD/tickets are synthesis over that conversation. Run `/new-set`
   itself on Opus.
 - **Downstream, a separate axis**: `to-tickets` stamps a `model:*` label on
-  each cut issue, and `/process-gh-issues` routes that ticket's
-  implement-subagent to that tier (**no label ⇒ Sonnet**, which is the right
+  each cut issue, and `/next-issue` routes that ticket's review (and any
+  implement subagent) to that tier (**no label ⇒ Sonnet**, which is the right
   default for a DSL card reusing shipped Ops). `model:opus` is for a ticket
   introducing a new Op/primitive/cross-layer shape later tickets will copy —
   shorthand for `docs/agents/triage-labels.md` § Model-routing labels, the

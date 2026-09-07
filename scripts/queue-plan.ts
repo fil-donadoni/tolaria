@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-// `bun run queue:plan` — print the next `/process-gh-issues` fan-out batch as JSON.
+// `bun run queue:plan` — print the next batch of the queue as JSON (`/next-issue`
+// consumes it with `--cap 1`).
 //
 // This wrapper holds NO decisions. It fetches, calls `planBatch`, and prints.
 // Everything the loop used to derive from prose lives in `lib/queue-plan.ts`,

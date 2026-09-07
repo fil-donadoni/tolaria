@@ -15,6 +15,8 @@ import {
     rebaseStep,
     remoteBranchDeleteStep,
     primaryBranchFastForwardStep,
+    issueOfBranch,
+    releaseClaimStep,
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
@@ -385,6 +387,36 @@ describe("land.ts — the locked command", () => {
     it("--no-merge never touches local main — nothing landed to catch up with", () => {
         const cmd = buildLockedCommand({ ...base, merge: false });
         expect(cmd).not.toContain("merge --ff-only");
+    });
+
+    it("releases the in-progress claim on the issue the branch names, past the merge, non-gating (issue #3130)", () => {
+        // The claim is added at pick time; before this step nothing removed
+        // it on the success path (claim-sweep runs at SessionEnd and leaves a
+        // claim whose PR is open; loop:doctor sweeps OPEN issues only), so an
+        // issue closed by its PR kept `in-progress` forever — 56 of them.
+        const cmd = buildLockedCommand(base);
+        const step = releaseClaimStep("fix/issue-2517");
+        expect(step).not.toBeNull();
+        expect(cmd).toContain(step!);
+        expect(step).toContain("gh issue edit 2517 --remove-label in-progress");
+        expect(cmd.indexOf(step!)).toBeGreaterThan(cmd.indexOf("pr-merge.ts"));
+        // Non-gating: wrapped so a failed label edit cannot fail the landing.
+        expect(step!.endsWith("; true)")).toBe(true);
+        // And never without a merge — the claim is still live then.
+        expect(buildLockedCommand({ ...base, merge: false })).not.toContain(
+            "--remove-label in-progress"
+        );
+    });
+
+    it("names no issue for a branch outside the issue-N convention, and adds no step", () => {
+        expect(issueOfBranch("feat/issue-3130")).toBe(3130);
+        expect(issueOfBranch("fix/issue-7")).toBe(7);
+        expect(issueOfBranch("docs/adr-0116")).toBeNull();
+        expect(issueOfBranch("issue-12-and-more")).toBeNull();
+        expect(releaseClaimStep("docs/adr-0116")).toBeNull();
+        expect(
+            buildLockedCommand({ ...base, branch: "docs/adr-0116" })
+        ).not.toContain("--remove-label in-progress");
     });
 
     it("--keep leaves the REMOTE branch alone too, not just the worktree (#2536)", () => {

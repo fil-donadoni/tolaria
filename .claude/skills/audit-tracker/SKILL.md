@@ -84,7 +84,8 @@ verdict + anchors, not file dumps. Keep the _verdicts_ on the session tier:
 deciding that a half-shipped capability doesn't cover the case is the
 reasoning this skill is bought with.
 
-Run against a clean checkout of `origin/main`, and say which commit you audited
+Run against a clean checkout of `origin/<base>` (the base branch in
+`tolaria.config.json`), and say which commit you audited
 — a verdict without a commit is unreproducible.
 
 ## Phase 3 — Re-derive the premise of every survivor
@@ -175,7 +176,7 @@ primitive/Op/cross-layer shape later tickets will copy — the criterion is
 authority; this line is a shorthand, not a second rule.
 
 **Wire the native parent edge — `gh issue edit <slice> --parent <tracker>`.**
-Mandatory, on every slice, at creation time. `/process-gh-issues` sorts its
+Mandatory, on every slice, at creation time. The queue planner sorts its
 queue by `parent.number ?? number` (oldest **lineage** first) and reads
 `parent` from its cheap Stage-1 list call. Without the edge a slice cut today
 from a tracker opened months ago sorts by _today's_ date — i.e. behind the
@@ -186,7 +187,7 @@ humans; it is **not** the sort key, and parsing it would force a body fetch for
 the whole queue.
 
 The same edge closes the loop at the other end: `subIssuesSummary` is what lets
-`/process-gh-issues` close an umbrella once its last child lands. That matters
+a session close an umbrella once its last child lands. That matters
 here even when Phase 7 retires the tracker — a tracker kept open as a live PRD
 (the "not retired" case) is exactly the thing that otherwise rots.
 
@@ -264,7 +265,7 @@ convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
 | Duplicate issue under a different name                               | Phase 4 searches by mechanism, not by card/keyword name                                                                     |
 | Dangling `tracked-by:` at a closed issue                             | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one |
 | A live marker missed because prettier wrapped it across two lines    | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                  |
-| Slices sort to the back of the queue and the audited lineage starves | Phase 6 — `gh issue edit <slice> --parent <tracker>` on every slice; `/process-gh-issues` sorts by `parent.number`          |
+| Slices sort to the back of the queue and the audited lineage starves | Phase 6 — `gh issue edit <slice> --parent <tracker>` on every slice; the queue planner sorts by `parent.number`             |
 | The same gap left parked under three other trackers                  | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                       |
 | A stub comment that keeps re-blocking readers                        | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header        |
 
