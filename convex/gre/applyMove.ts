@@ -1122,9 +1122,18 @@ export function applyMoveForSearch(
             // authority.
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /
-            // land-entry / random-reveal-ack pick's value is not material here
-            // (these are brain-resolved and never reach the search anyway —
-            // `enumerateMoves` returns [] while a choice is pending).
+            // land-entry / random-reveal-ack pick's value is not material here.
+            //
+            // The parenthetical this used to carry — "these are brain-resolved
+            // and never reach the search anyway" — has been false since the
+            // first candidate generator shipped, and each registered kind makes
+            // it more so (issue #2996 adds `order-top`, so a `resolution-choice`
+            // Move now really is enumerated while a choice is pending). It is
+            // harmless HERE only because this is the greedy 1-ply sandbox
+            // (`greedySelectMove`), which no production path runs: the ISMCTS
+            // applier is `applyMoveInSearch` (search.ts), and THAT one applies
+            // every choice answer through the real resolver. Do not copy the
+            // claim; check `CHOICE_CANDIDATE_GENERATORS` instead.
             return next;
 
         case "madness-decline":

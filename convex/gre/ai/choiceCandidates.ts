@@ -54,7 +54,7 @@ import {
 } from "../state";
 import { getEffectivePower } from "../layers";
 import { tryGetDefinition } from "../../cards";
-import type { PendingChoiceKind } from "../types";
+import type { LibraryDestination, PendingChoiceKind } from "../types";
 // VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
 // #2983). The cycle is deliberate and safe: both bindings are hoisted function
 // DECLARATIONS referenced only at call time — neither module body touches the
@@ -887,6 +887,290 @@ const madnessCastCandidates: ChoiceCandidateGenerator = (state, choice) =>
 const reboundCastCandidates: ChoiceCandidateGenerator = (state, choice) =>
     castWindowCandidates(state, choice, { kind: "rebound-decline" });
 
+// ---------------------------------------------------------------------------
+// Ordered top-of-library placement — Scry (CR 701.22), Surveil (CR 701.25),
+// Ponder-style reordering, and Explore's keep-or-bin tail (CR 701.44a).
+// Issue #2996.
+// ---------------------------------------------------------------------------
+
+/** How many policy answers `orderTopCandidates` ever emits — property 1 of this
+ *  file's contract, made a number.
+ *
+ *  The honest answer space is "which SUBSET of the looked-at cards stays on
+ *  top, in which ORDER": `sum_k C(n,k)·k!` — 5 answers at n=2, 16 at n=3, 65 at
+ *  n=4. Enumerating it and letting `CHOICE_TOP_K` truncate would make the
+ *  ADMISSION alphabetical rather than considered, which is exactly the failure
+ *  `libraryTargetWorth`'s doc calls out for `search-library`. So the generator
+ *  emits four POLICY answers instead, independent of `n`: keep everything, bin
+ *  the single worst, keep only the best, bin everything. Deduplicated by key,
+ *  they collapse to exactly two at `n = 1` — which IS Explore's keep-or-bin —
+ *  and never exceed four however wide the look window.
+ *
+ *  ORDER within the kept list is never a branch: the kept cards always go back
+ *  best-first (the pre-#2996 default, and the draw order that follows from
+ *  wanting the best card next). A reorder-only choice therefore has nothing to
+ *  decide, and this generator declines it outright (see
+ *  {@link orderTopIsSearchable}). */
+export const ORDER_TOP_MAX_CANDIDATES = 4;
+
+/** Whether an `order-top` choice is a real decision at all.
+ *
+ *  `destination: "none"` (Ponder / Index — "put them back in any order") is the
+ *  reorder-only shape: every looked-at card stays on top and only the ORDER
+ *  changes, which this generator does not branch on. It is also the one shape
+ *  where a non-empty second list is not merely pointless but WRONG —
+ *  `SpellContext.orderTop` moves nothing for `"none"`, then reorders the kept
+ *  cards assuming they are the library's top run, and throws when they are not.
+ *  Declining it here keeps the minimal-legal default (`brain.ts`) answering it,
+ *  exactly as before.
+ *
+ *  Fewer than two looked-at cards is not a decline: at `n = 1` the keep-or-bin
+ *  IS the decision (Explore, CR 701.44a). An EMPTY window is (a choice the
+ *  engine never raises — `orderTop` returns early on an empty library). */
+function orderTopIsSearchable(choice: PendingChoice): boolean {
+    if (choice.kind !== "order-top") return false;
+    if (choice.destination === undefined || choice.destination === "none") {
+        return false;
+    }
+    return (choice.candidateIds?.length ?? 0) > 0;
+}
+
+/** What ONE looked-at card is worth in each of the two zones it can land in.
+ *
+ *  `kept` is its worth as the next draw — `libraryTargetWorth` with no
+ *  destination, the same pricing every other library-facing generator uses (a
+ *  land is priced against the searcher's own mana development, everything else
+ *  through `OP_VALUERS`).
+ *
+ *  `binned` is its worth AFTER the choice sends it away, and the whole point is
+ *  that this is a different number per destination, not a constant zero:
+ *
+ *    * `library-bottom` (scry, CR 701.22) — the card is gone for the rest of
+ *      the game in any realistic line, so it is worth nothing. This is what
+ *      makes binning a dead card free.
+ *    * `graveyard` (surveil, CR 701.25; Explore's nonland tail, CR 701.44a) —
+ *      a graveyard is a DEAD ZONE by default but not always, and
+ *      `libraryTargetWorth`'s own graveyard leg (issue #3041) already answers
+ *      "what is this card worth in a graveyard" against real reach: recursion
+ *      the owner holds, or the card being usable from there on its own. Reused
+ *      verbatim rather than re-derived, so a reanimation target surveilled into
+ *      the yard prices HIGH and binning it reads as a gain — with zero card
+ *      names and no archetype classifier (ADR 0102).
+ *
+ *  The DIFFERENCE (`kept - binned`) is what a bin gives up, and it is the
+ *  number the hint carries. */
+function orderTopCardWorth(
+    state: GameState,
+    searcherId: string,
+    card: CardInstanceState,
+    destination: LibraryDestination,
+    recursionAccess?: { playerId: string; hasAccess: boolean }
+): { kept: number; binned: number } {
+    const kept = libraryTargetWorth(state, searcherId, card);
+    if (destination !== "graveyard") return { kept, binned: 0 };
+    return {
+        kept,
+        binned: libraryTargetWorth(state, searcherId, card, undefined, {
+            destination: "graveyard",
+            ...(recursionAccess ? { recursionAccess } : {}),
+        }),
+    };
+}
+
+/** `order-top` (CR 701.22 Scry / 701.25 Surveil / 701.44a Explore): the four
+ *  policy partitions of the looked-at window described on
+ *  {@link ORDER_TOP_MAX_CANDIDATES}.
+ *
+ *  POLARITY. `PendingChoice.zoneOwnerId` names a library that is NOT the
+ *  chooser's (CR 701.29 fateseal — Jace, the Mind Sculptor's +2 looks at the
+ *  TARGET player's library and the CONTROLLER decides). The ranking is the same
+ *  question with the sign flipped: for your own library the best card belongs
+ *  on top, for theirs it belongs at the bottom. Handled as a single comparator
+ *  flip rather than a second code path — the worth functions are the same ones
+ *  either way, and the pricing is asked of the LIBRARY OWNER (whose draw it
+ *  is, whose graveyard the card would land in per CR 400.7), never of the
+ *  chooser.
+ *
+ *  KEY STABILITY (property 2). Keys name the POLICY, not the cards: the same
+ *  four keys appear in every determinization, so the node's statistics
+ *  accumulate across iterations even though the ids inside each move are
+ *  re-read from the current world. That is the property an id- or
+ *  identity-derived key would lose here, and it costs nothing — the policies
+ *  are exhaustive over what the generator will ever answer. */
+const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    if (!orderTopIsSearchable(choice)) return [];
+    const destination = choice.destination as LibraryDestination;
+    const ownerId = choice.zoneOwnerId ?? choice.playerId;
+    const owner = getPlayer(state, ownerId);
+    const forOpponent = ownerId !== choice.playerId;
+
+    const allow = new Set(choice.candidateIds ?? []);
+    // The window must still be the library's TOP RUN, not merely present
+    // somewhere in it. That is the invariant `SpellContext.orderTop`'s resume
+    // actually requires: after the second-zone cards leave it does
+    // `library.splice(0, m)` and throws `Card … not in kept top of library` if
+    // the kept cards are not the top `m`. The submit path cannot catch it —
+    // it validates MEMBERSHIP and the partition, never POSITION — and the only
+    // other thing upholding it inside the search is `determinize`'s peek pin,
+    // two modules away and keyed on the queue HEAD. Checking it here makes the
+    // generator self-sufficient: a world whose top run has been disturbed
+    // yields no candidates, and the choice falls back to the minimal-legal
+    // default instead of an uncaught throw out of `applyMoveInSearch`
+    // (PR review finding 3).
+    const looked = owner.library.slice(0, allow.size);
+    if (looked.length === 0 || looked.length !== allow.size) return [];
+    if (!looked.every((c) => allow.has(c.id))) return [];
+
+    // Hoisted once per node, not once per card — the player-level half of the
+    // graveyard reach gate (see `graveyardFindWorth`'s note; it measured 3.6x
+    // on a graveyard-bound pool).
+    const recursionAccess =
+        destination === "graveyard"
+            ? graveyardRecursionAccessFor(state, owner.id)
+            : undefined;
+
+    const priced = looked.map((card) => ({
+        card,
+        ...orderTopCardWorth(
+            state,
+            owner.id,
+            card,
+            destination,
+            recursionAccess
+        ),
+    }));
+    // What keeping this card on top is worth TO THE CHOOSER.
+    //
+    // `kept - binned` is what leaving it on top gives up relative to sending it
+    // away, priced from the LIBRARY OWNER's point of view — it is their draw
+    // and, per CR 400.7, their graveyard. For an ordinary scry the chooser IS
+    // the owner and the two coincide. For CR 701.29 fateseal they are
+    // opposites: a bomb on the opponent's top is worth NEGATIVE to the player
+    // deciding where it goes.
+    //
+    // The flip therefore belongs HERE, in the one value function, not in the
+    // ranking comparator alone. It used to live only in the comparator, so the
+    // ordering was right while the HINT the prior reads was still owner's-eye:
+    // burying the opponent's Craw Wurm scored as `materialGivenUp`, and
+    // `orderTopPrior` ranked Jace, the Mind Sculptor's whole +2 BELOW leaving
+    // the bomb on top (PR review finding 1).
+    const chooserValue = (p: (typeof priced)[number]): number =>
+        forOpponent ? p.binned - p.kept : p.kept - p.binned;
+
+    // Highest chooser-value on top: the best card for your own library, the
+    // worst for theirs. Ties break on the stable card identity so the ordering
+    // — and therefore every emitted move — is deterministic across worlds.
+    const ranked = [...priced].sort((a, b) => {
+        const delta = chooserValue(b) - chooserValue(a);
+        if (delta !== 0) return delta;
+        const ka = stableCardIdentity(a.card);
+        const kb = stableCardIdentity(b.card);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+
+    const submit = (
+        keep: (typeof ranked)[number][],
+        bin: (typeof ranked)[number][]
+    ): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: keep.map((p) => p.card.id),
+        secondZoneIds: bin.map((p) => p.card.id),
+    });
+
+    // The four policies, in the order they are written into the answer set.
+    // `split(k)` keeps the first k of `ranked` and bins the rest.
+    const split = (k: number): { keep: number } | null =>
+        k < 0 || k > ranked.length ? null : { keep: k };
+    const policies = [
+        split(ranked.length), // keep everything (the pre-#2996 default)
+        split(ranked.length - 1), // bin the single worst
+        split(1), // keep only the best
+        split(0), // bin everything
+    ];
+
+    // What a binned card is REPLACED BY — the axis the whole decision turns on.
+    //
+    // An ordered-top answer never destroys material: it decides WHICH CARD YOU
+    // SEE NEXT. So a bin costs its card's worth only relative to whatever takes
+    // its place in the draw order, and that is the REST OF THE LIBRARY's mean
+    // worth, priced with the same function as the window itself. Measured
+    // against an absolute zero instead, every bin reads as a pure loss and the
+    // prior can order the policies but never prefer one; measured against the
+    // window's OWN mean it collapses to zero exactly when the window is
+    // homogeneous — which is the commonest shape there is ("I scryed two and
+    // they are both blanks"), and the one where binning is most obviously
+    // right.
+    //
+    // Determinism across iterations: for the observer's OWN library
+    // `determinize` re-orders but never re-deals, so this mean is invariant
+    // across worlds and the node's statistics accumulate cleanly. For a
+    // fateseal (CR 701.29) it is genuinely uncertain and varies per world, as
+    // it should — the candidate KEYS name the policy rather than the number,
+    // so the node still accumulates.
+    //
+    // The whole remainder is read, never a prefix: a prefix would depend on
+    // `determinize`'s shuffle and make the prior differ between two worlds that
+    // hold the same cards. This is the same O(library) pass
+    // `searchLibraryCandidates` already pays at a tutor node, and it is paid
+    // once per choice-node visit (`choiceCandidates` memoizes).
+    const remainder = owner.library.slice(looked.length);
+    const remainderMean =
+        remainder.length === 0
+            ? // Nothing left to draw instead (CR 704.5b territory): binning
+              // gains nothing and gives up whatever it gives up.
+              0
+            : remainder.reduce(
+                  (sum, card) =>
+                      sum + libraryTargetWorth(state, owner.id, card),
+                  0
+              ) / remainder.length;
+    // Same currency as `chooserValue`, so the fateseal flip applies here too:
+    // for a foreign library a good replacement is bad news for the chooser.
+    const replacement = forOpponent ? -remainderMean : remainderMean;
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<string>();
+    for (const policy of policies) {
+        if (!policy) continue;
+        // `split(n)` and `split(n-1)` coincide at n = 1, as do `split(1)` and
+        // `split(0)` — dedupe by the policy key so a one-card window opens
+        // exactly the two branches it has (keep / bin).
+        const key = `order-top:keep${policy.keep}of${ranked.length}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const keep = ranked.slice(0, policy.keep);
+        const bin = ranked.slice(policy.keep);
+        // Per binned card: how much WORSE than the replacement it was
+        // (`gained` — binning it is an upgrade) or how much BETTER
+        // (`givenUp` — binning it throws value away), both in `chooserValue`'s
+        // currency, so a fateseal reads correctly without a second branch.
+        //
+        // The replacement is subtracted PER BINNED CARD, not once: binning two
+        // blanks off a scry 2 promotes two draws, not one.
+        let givenUp = 0;
+        let gained = 0;
+        for (const p of bin) {
+            const delta = chooserValue(p) - replacement;
+            if (delta > 0) givenUp += delta;
+            else gained += -delta;
+        }
+        out.push({
+            key,
+            move: submit(keep, bin),
+            hint: { materialGivenUp: givenUp, materialGained: gained },
+        });
+    }
+    // The cap is applied to the OUTPUT rather than trusted of the loop: the
+    // policy list above is four entries and dedupe only shrinks it, so this
+    // never binds today — but that is a property of this function's body, not
+    // of its contract, and the contract is what callers and `CHOICE_TOP_K`
+    // budget against (PR review nit).
+    return out.slice(0, ORDER_TOP_MAX_CANDIDATES);
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -914,6 +1198,13 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // state-free restatement that could disagree with it.
     "madness-cast": madnessCastCandidates,
     "rebound-cast": reboundCastCandidates,
+    // CR 701.22 / 701.25 / 701.44a (issue #2996) — the whole ordered-top
+    // family. Before this it was the one choice kind whose ANSWER SHAPE the
+    // `Move` union could not express (an `order-top` submission carries two
+    // ordered lists), so the bot answered every scry, every surveil and every
+    // Explore with the minimal-legal "keep everything on top" and never sent a
+    // card to the bottom or the graveyard.
+    "order-top": orderTopCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
@@ -935,6 +1226,11 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     Record<PendingChoiceKind, (choice: PendingChoice) => boolean>
 > = {
     "choose-hand-card": handPickIsSearchable,
+    // Issue #2996 — a reorder-only `order-top` (`destination: "none"`, Ponder /
+    // Index) has no keep-or-bin to decide and this generator emits nothing for
+    // it, so the client-side `searchable` gate must say so too rather than pay
+    // a Worker round-trip that enumerates nothing.
+    "order-top": orderTopIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).

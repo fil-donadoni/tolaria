@@ -81,10 +81,22 @@ export function describeMove(move: Move, state: GameState): string {
             return `bottom ${move.cardInstanceIds.length} card${
                 move.cardInstanceIds.length === 1 ? "" : "s"
             }`;
-        case "resolution-choice":
-            return `resolve choice (${move.cardInstanceIds.length} card${
-                move.cardInstanceIds.length === 1 ? "" : "s"
+        case "resolution-choice": {
+            const kept = move.cardInstanceIds.length;
+            // CR 701.22 / 701.25 / 701.44a (issue #2996) — an `order-top`
+            // answer is a PARTITION, and the whole decision is which half a
+            // card lands in. A label that counted only the kept half rendered
+            // "keep the dead card" and "bin the dead card" identically in the
+            // DecisionTrace, which is the one place a preference change like
+            // this is read back.
+            const binned = move.secondZoneIds?.length ?? 0;
+            const keptLabel = `resolve choice (${kept} card${
+                kept === 1 ? "" : "s"
             })`;
+            return binned > 0
+                ? `${keptLabel}, ${binned} to 2nd zone`
+                : keptLabel;
+        }
         case "may-pay":
             return move.accept ? "pay optional cost" : "decline optional cost";
         case "land-entry":

@@ -206,6 +206,13 @@ export function heuristicChoicePrior(
     if (choice.kind === "madness-cast" || choice.kind === "rebound-cast") {
         return castWindowPrior(choice, candidate);
     }
+    // CR 701.22 / 701.25 / 701.44a (issue #2996) — an ordered-top answer is a
+    // PARTITION, not a yes/no: `acceptOf` returns `undefined` for it, so every
+    // keep/bin policy would otherwise sit at the flat `NEUTRAL_PRIOR` and the
+    // whole decision would be rollout noise at the opening.
+    if (choice.kind === "order-top") {
+        return orderTopPrior(candidate);
+    }
 
     const accept = acceptOf(candidate.move);
     if (accept === undefined) return NEUTRAL_PRIOR;
@@ -266,6 +273,32 @@ function castWindowPrior(
         return isDecline ? 0.25 : 0.8;
     }
     return isDecline ? 0.4 : 0.65;
+}
+
+/** CR 701.22 / 701.25 / 701.44a (issue #2996) — prior for one keep/bin policy
+ *  at an ordered-top choice.
+ *
+ *  Keeping everything is the baseline: it is what the pre-#2996 default did and
+ *  it is never illegal. Every bin is scored by what the generator says that bin
+ *  actually costs — `materialGivenUp` is the worth the binned cards had as the
+ *  next draw MINUS whatever they are still worth where they land, and
+ *  `materialGained` is the same difference when it comes out the other way
+ *  (a reanimation target surveilled into a graveyard the owner can reach).
+ *
+ *  So binning near-worthless cards opens FIRST, binning a bomb opens LAST, and
+ *  binning something the graveyard wants opens above the baseline. It is bias
+ *  only — the band keeps every policy reachable, and which one is actually
+ *  chosen is settled by reward, on a top the search can now see because
+ *  `determinize` pins the peeked run (issue #1524 + the open-peek pin here). */
+function orderTopPrior(candidate: PriorCandidate): number {
+    const givenUp = candidate.hint?.materialGivenUp ?? 0;
+    const gained = candidate.hint?.materialGained ?? 0;
+    // Keep-everything: no cards move, so both hints are 0 and this is exactly
+    // the neutral baseline.
+    if (givenUp === 0 && gained === 0) return NEUTRAL_PRIOR;
+    return clampPrior(
+        NEUTRAL_PRIOR + (gained - givenUp) / MATERIAL_PRIOR_SCALE
+    );
 }
 
 // ---------------------------------------------------------------------------

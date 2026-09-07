@@ -80,7 +80,7 @@ import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
 } from "./libraryReveal";
-import { knownLibraryIndices } from "./libraryKnownRuns";
+import { knownLibraryIndices, openPeekTopCount } from "./libraryKnownRuns";
 import { shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
@@ -124,6 +124,14 @@ export function determinize(
     // NOT pinning the observer's own would have it re-sample a card it is
     // looking at right now.
     const topLookedAt = computeLibraryTopLookedAtPlayers(next);
+    // Issue #2996 — the OPEN top-N look choice (scry / surveil / Explore's
+    // keep-or-bin, Impulse). Its looked-at cards are face-up in the observer's
+    // own picker but carry no `knownTo` until the choice is applied, so
+    // re-dealing them would have the search decide "keep this card on top"
+    // about a card that is not there — and the resume path then throws,
+    // because the kept cards are no longer the library's top run. The queue
+    // head is the only answerable choice, so it is read once here.
+    const headChoice = next.pendingChoices?.[0];
 
     for (const player of next.players) {
         const pinTop =
@@ -137,7 +145,12 @@ export function determinize(
         // reason about a card the bot can plainly see is something else — the
         // scry-to-top the bot instantly forgot, before this.
         const pinned = new Set(
-            knownLibraryIndices(player.library, observerId, pinTop)
+            knownLibraryIndices(
+                player.library,
+                observerId,
+                pinTop,
+                openPeekTopCount(headChoice, player.id, observerId)
+            )
         );
         if (player.id === observerId) {
             // Own hand is known; only the UNKNOWN library order is hidden.

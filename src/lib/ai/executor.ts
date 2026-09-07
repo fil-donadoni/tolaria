@@ -194,6 +194,10 @@ export type MoveMutations = {
             step: number;
             choiceId: string;
             cardInstanceIds: string[];
+            /** CR 701.22 / 701.25 / 701.44a (issue #2996) — the un-kept half of
+             *  an `order-top` answer. Optional here exactly as it is on the
+             *  `submitResolutionChoice` mutation itself (`convex/game.ts`). */
+            secondZoneIds?: string[];
         }
     ) => Promise<unknown>;
     submitMayPay: (
@@ -304,6 +308,14 @@ export async function executeMove(
                 step: move.step,
                 choiceId: move.choiceId,
                 cardInstanceIds: move.cardInstanceIds,
+                // CR 701.22 / 701.25 / 701.44a (issue #2996) — the un-kept half
+                // of an `order-top` answer (scry bottom / surveil bin). The
+                // mutation has always accepted it (`convex/game.ts`); only the
+                // Move could not carry it, so the bot could never bottom or
+                // bin a card. `mulligan-bottom` never sets it.
+                ...(move.kind === "resolution-choice" && move.secondZoneIds
+                    ? { secondZoneIds: move.secondZoneIds }
+                    : {}),
             });
             return;
 

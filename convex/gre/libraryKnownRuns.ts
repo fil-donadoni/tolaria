@@ -27,7 +27,7 @@
 // top). Two parallel derivations of "what does this viewer know" is precisely
 // the drift this file exists to make impossible.
 
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, PendingChoice } from "./state";
 
 /** ADR 0026 — the indices of `library` that `viewerId` legitimately knows: the
  *  contiguous run from the top, then the contiguous run from the bottom.
@@ -43,14 +43,28 @@ import type { CardInstanceState } from "./state";
  *  #2398 asymmetric), a second SOURCE of the same knowledge rather than a
  *  second mechanism: it makes index 0 — and only index 0 — known independently
  *  of `knownTo`. It is derived from the battlefield on every call
- *  (`libraryReveal.ts`), never stored, so it cannot go stale. */
+ *  (`libraryReveal.ts`), never stored, so it cannot go stale.
+ *
+ *  `peekedTop` is the THIRD such source (issue #2996): while a top-N look
+ *  choice is OPEN, the chooser is staring at those cards in the picker — the
+ *  wire projection hands them over face-up as `libraryPeek`
+ *  (`exposeLibraryPeek`, `gameProjections.ts`) — but nothing has stamped
+ *  `knownTo` yet, because the scry / surveil grant only happens when the
+ *  choice is APPLIED. Without it `determinize` re-deals the very cards the
+ *  open choice's `candidateIds` name, and the resume path then throws
+ *  ("Card … not in kept top of library") because the kept cards are no longer
+ *  the library's top run. It makes indices `[0, peekedTop)` known
+ *  independently of `knownTo`, so the run scan continues past them into any
+ *  genuinely-known card beneath — see {@link openPeekTopCount}. */
 export function knownLibraryIndices(
     library: readonly CardInstanceState[],
     viewerId: string,
-    topRevealed: boolean = false
+    topRevealed: boolean = false,
+    peekedTop: number = 0
 ): number[] {
     const knows = (card: CardInstanceState, index: number): boolean =>
         (topRevealed && index === 0) ||
+        index < peekedTop ||
         (card.knownTo?.includes(viewerId) ?? false);
 
     const indices: number[] = [];
@@ -66,4 +80,42 @@ export function knownLibraryIndices(
         indices.push(index);
     }
     return indices;
+}
+
+/** Issue #2996 — how many TOP cards of `libraryOwnerId`'s library `viewerId`
+ *  is looking at right now through an OPEN top-N look choice, for
+ *  {@link knownLibraryIndices}' `peekedTop`. 0 when there is no such choice.
+ *
+ *  `choice` is the pending-choice QUEUE HEAD, which is the only choice anyone
+ *  can be answering (`applyPendingChoiceSubmit` and `enumerateMoves` both read
+ *  the head and nothing else), and the peek is exposed to the CHOOSER
+ *  (`head.playerId`) over the ZONE OWNER's library (`zoneOwnerId ?? playerId`)
+ *  — the fateseal split (CR 701.29, Jace's +2: the controller looks into the
+ *  target player's library).
+ *
+ *  Only the kinds whose `candidateIds` ARE the top N qualify. `reorder-library`
+ *  and `divide-piles` also expose a peek, but their candidates may sit anywhere
+ *  in the library (`gameProjections.ts` says so where it builds
+ *  `peekCandidateIds`), so they are not a top RUN and this function's index
+ *  model cannot express them; neither is a searchable choice node, so nothing
+ *  reads their peek through the search today. Pinning them needs an index-set
+ *  derivation rather than a run length — deliberately not invented here for a
+ *  caller that does not exist. */
+export function openPeekTopCount(
+    choice: PendingChoice | undefined,
+    libraryOwnerId: string,
+    viewerId: string
+): number {
+    if (!choice || choice.zone !== "library") return 0;
+    if (choice.playerId !== viewerId) return 0;
+    if ((choice.zoneOwnerId ?? choice.playerId) !== libraryOwnerId) return 0;
+    switch (choice.kind) {
+        case "order-top":
+        case "look-top":
+        case "look-distribute":
+        case "draw-look-keep":
+            return choice.candidateIds?.length ?? 0;
+        default:
+            return 0;
+    }
 }

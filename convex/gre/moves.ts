@@ -201,6 +201,22 @@ export type Move =
           step: number;
           choiceId: string;
           cardInstanceIds: string[];
+          /** CR 701.22 / 701.25 / 701.44a (issue #2996) — the SECOND ordered
+           *  list an `order-top` submission carries: the looked-at cards NOT
+           *  kept on top, sent to `PendingChoice.destination` (the bottom of
+           *  the library for scry, the graveyard for surveil / Explore's
+           *  keep-or-bin tail). `cardInstanceIds` and this list must PARTITION
+           *  the choice's `candidateIds` exactly — `applyPendingChoiceSubmit`
+           *  enforces it.
+           *
+           *  Widening this Move rather than adding a Move kind is deliberate:
+           *  the submission mutation, the executor entry point and the resume
+           *  path are all the ones `resolution-choice` already drives; only
+           *  the payload was too narrow to express "bin this one". Optional,
+           *  so every pre-existing producer (a `search-library` find, an
+           *  `option-pick` mode, the brain's minimal-legal default) is
+           *  unchanged and reads as "keep everything". */
+          secondZoneIds?: string[];
       }
     | {
           /** Yes/no answer to a `may-pay` pending choice (CR 117.3a / 118.4),

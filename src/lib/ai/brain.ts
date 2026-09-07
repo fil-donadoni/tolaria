@@ -993,16 +993,20 @@ export function chooseResolution(choice: OwedChoice): string[] {
 
         // Scry / surveil / ponder ordered-top, and Explore's keep-or-bin tail
         // (CR 701.22/701.25/701.44a, drag picker):
-        // minimal-legal default (ADR 0016) — keep EVERY looked-at card on top,
-        // best projected value first, so the bot draws its best card next and
-        // sends nothing to the bottom/graveyard (empty `secondZoneIds`). Smart
-        // "bottom the dead cards" scrying is deferred — which costs Explore
-        // (issue #2376) more than it costs scry: a dead card revealed off a
-        // nonland explore is always left as the next draw instead of binned.
-        // Promoting this to a real in-tree decision is a `Move`-union
-        // widening (an order-top submission needs BOTH the kept ids and
-        // `secondZoneIds`), not a valuer change — see
-        // docs/findings/2376-order-top-not-an-in-tree-decision.md.
+        // minimal-legal FALLBACK (ADR 0016) — keep EVERY looked-at card on top,
+        // best projected value first, and send nothing to the bottom/graveyard
+        // (empty `secondZoneIds`).
+        //
+        // Since issue #2996 this is no longer the whole policy: `order-top`
+        // carries a candidate generator (`gre/ai/choiceCandidates.ts`), so a
+        // scry / surveil / Explore keep-or-bin is a real in-tree ISMCTS
+        // decision and the Worker answers it — `chooseOwedChoiceAction` never
+        // reaches here for one (`OwedChoice.searchable` routes it to
+        // `search-choice`). What still lands here is the reorder-only shape
+        // (`destination: "none"` — Ponder / Index), which has no keep-or-bin to
+        // decide and for which the generator deliberately emits nothing, plus
+        // the driver's emergency fallback when no search result is available.
+        // Keeping everything on top is always legal, so neither can stall.
         case "order-top":
             return bestFirst(candidates).map((c) => c.id);
 

@@ -210,7 +210,14 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // and the enumerator surfaced NOTHING while either was the head choice.
         expect(hasChoiceCandidateGenerator("madness-cast")).toBe(true);
         expect(hasChoiceCandidateGenerator("rebound-cast")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(10);
+        // CR 701.22 / 701.25 / 701.44a (issue #2996) — the ordered-top family.
+        // Its answer is a PARTITION of the looked-at window, which is why it
+        // came last: the `Move` union had to carry a second ordered list
+        // (`secondZoneIds`) before the choice could be answered in-tree at all,
+        // and until then the bot never sent a card to the bottom or the
+        // graveyard.
+        expect(hasChoiceCandidateGenerator("order-top")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(11);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
