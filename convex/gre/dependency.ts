@@ -490,7 +490,7 @@ function orderGroup(
     }
 
     const remaining = new Set<number>(nodes.map((_, i) => i));
-    const result: ContinuousEffect[] = [];
+    const result: number[] = [];
     while (remaining.size > 0) {
         // Among the effects whose dependencies have all been applied, the
         // earliest by the layer's own comparator (CR 613.8b, second sentence).
@@ -512,14 +512,57 @@ function orderGroup(
             rest.sort((x, y) =>
                 context.compare(nodes[x].entry, nodes[y].entry)
             );
-            result.push(...rest.map((n) => nodes[n].entry));
+            result.push(...rest);
             break;
         }
         remaining.delete(pick);
-        result.push(nodes[pick].entry);
+        result.push(pick);
         for (const blocked of blocks[pick]) pending[blocked]--;
     }
-    return result;
+    return applyExistence(result, nodes, context.ctx);
+}
+
+/** CR 613.8a's EXISTENCE limb, carried through to its consequence: an effect
+ *  whose source's rules text has already been destroyed by an earlier-applied
+ *  effect in this layer does not exist, so it is not applied at all.
+ *
+ *  CR 305.7 — "It loses all abilities generated from its rules text" — is why
+ *  Blood Moon beats Urborg, Tomb of Yawgmoth at either timestamp rather than
+ *  merely being applied before it. Ordering alone would leave the land a
+ *  Mountain AND a Swamp, because Urborg's own effect would still be waiting
+ *  behind Blood Moon's. The dependency decides that Blood Moon goes first; this
+ *  is what "first" then means.
+ *
+ *  Scoped to the layer, like every other clause of CR 613.8a. A source's
+ *  effects in OTHER layers are not suppressed here: that is CR 305.7 applied to
+ *  a source's whole rules text, a rule about ability removal rather than about
+ *  ordering, and this engine's gap in it predates the dependency system.
+ */
+function applyExistence(
+    order: readonly number[],
+    nodes: readonly DependencyNode[],
+    ctx: StaticEffectContext
+): ContinuousEffect[] {
+    const destroyed = new Set<string>();
+    const applied: ContinuousEffect[] = [];
+    for (const index of order) {
+        const node = nodes[index];
+        if (node.rulesTextSource && destroyed.has(node.rulesTextSource.id)) {
+            continue;
+        }
+        applied.push(node.entry);
+        // Marked AFTER this entry is applied, so an effect that destroys the
+        // rules text of its OWN source still applies once: the CR never lets an
+        // effect un-apply itself.
+        for (const other of nodes) {
+            const victim = other.rulesTextSource;
+            if (!victim || destroyed.has(victim.id)) continue;
+            if (destroysRulesTextOf(node.entry, node.template, victim, ctx)) {
+                destroyed.add(victim.id);
+            }
+        }
+    }
+    return applied;
 }
 
 /** Whether this entry could END another effect's existence through CR 305.7 —
