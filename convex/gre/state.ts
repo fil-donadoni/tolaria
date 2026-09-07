@@ -17012,10 +17012,19 @@ export function buildSpellContext(
             // `card.animation` was already set above) so a second
             // earthbend-style application still (re)grants the keyword.
             if (spec.grantedAbilities) {
-                // The record's OWN resolved duration, so a re-application onto
-                // an already-animated permanent inherits the live animation's
-                // boundary rather than re-resolving the spec.
-                const grantDuration = card.animation?.duration;
+                // THIS ability's own stated duration (CR 611.2a), resolved
+                // here rather than read off the live `card.animation` record:
+                // the grant block runs even when the permanent was ALREADY
+                // animated, and that record belongs to the EARLIER effect.
+                // Reading it would make an "until end of turn" grant inherit a
+                // standing indefinite animation's non-boundary (Earthbend then
+                // Treetop Village → trample forever) and an indefinite grant
+                // inherit a live until-end-of-turn one (Treetop Village then
+                // Earthbend → haste destroyed at cleanup). Each ability's
+                // effect lasts as long as THAT ability states.
+                const grantDuration = spec.duration
+                    ? resolveDuration(spec.duration, item.castById, state)
+                    : undefined;
                 for (const ability of spec.grantedAbilities) {
                     // CR 113.1 (issue #1706) — same own-record idempotence
                     // gate as `grantStaticAbilityPermanent`: an `includes`
