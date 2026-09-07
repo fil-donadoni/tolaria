@@ -1,7 +1,7 @@
 ---
 title: enumeration fixed the combo-activation blade entry's legal-move gap, but the search still passes on it 3/5 seeds
 discoveredBy: 2469
-status: draft
+status: declined
 confidence: medium
 ---
 
@@ -24,6 +24,17 @@ AssertionError: seed 727774: chose [pass] — expected one of
 of [activate-ability card=Deceiver Exarch]; seed 3: chose [pass] — expected
 one of [activate-ability card=Deceiver Exarch]
 ```
+
+**Declined (issue #3138, 2026-09-07).** The fix this finding proposes —
+`comboAnnotations.ts` combo-payoff scoring — was measured and rejected: a
+per-card state boost is identical before and after the activation it is meant
+to encourage and saturates the material signal, so more search converges AWAY
+(2/5 → 1/5 → 0/5 at 400/1200/4000 iterations). ADR 0102 records that, issue
+#3138 deleted the layer, and the entry's `beyondBudget.cause` moved
+`valuation` → `horizon`: the payoff sits ~40 identical plies away and no
+budget clears it (measured 0/5 at 400/1200/4000/12000 post-removal). What will
+fix it is the CR 732 loop-shortcut Move, PRD #2687 — not this finding. The
+paragraph below is kept for the record.
 
 **Why it may not deserve its own issue yet.** The registry entry's own note
 already documents this precisely (label, seeds, cause) and stays `stretch`,

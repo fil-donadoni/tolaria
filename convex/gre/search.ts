@@ -517,8 +517,14 @@ export function reward(
  *  `weights.terminalBand` for the surviving material margin, the open middle
  *  is linear in the material signal. `v` must already have been produced by
  *  `evaluate(.., weights)` with the SAME vector — the `±weights.winScore`
- *  offset below undoes exactly the offset `evaluate` applied. */
-function rewardFromValue(v: number, weights: EvalWeights): number {
+ *  offset below undoes exactly the offset `evaluate` applied.
+ *
+ *  Exported for ONE assertion (issue #3138): `reward(state) ===
+ *  rewardFromValue(evaluate(state))`, i.e. the reward carries no addend the
+ *  band map cannot account for. That is exactly the invariant the deleted
+ *  `comboAnnotations.ts` layer violated — it added a state-dependent bonus on
+ *  top of the band — and ADR 0102 rules out ever adding another. */
+export function rewardFromValue(v: number, weights: EvalWeights): number {
     const terminal = terminalMagnitude(weights);
     if (v >= terminal) {
         const material =

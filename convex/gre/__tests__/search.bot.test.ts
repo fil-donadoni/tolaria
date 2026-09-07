@@ -16,6 +16,7 @@ import {
     isReactiveInstantCast,
     isWastefulAttack,
     reactivePrior,
+    rewardFromValue,
     keyedMovesFor,
     computeActionPriors,
     rootDecisionSettled,
@@ -622,6 +623,94 @@ describe("search — reward band stays monotonic in eval (ADR 0018, issue #194)"
         expect(reward(ahead, "p1")).toBeGreaterThan(reward(evenish, "p1"));
         expect(reward(lost, "p1")).toBeLessThan(reward(evenish, "p1"));
         expect(reward(won, "p1")).toBeGreaterThan(reward(lost, "p1"));
+    });
+});
+
+describe("search — the reward carries no addend outside the band map (ADR 0102, issue #3138)", () => {
+    // `reward` used to be `rewardFromValue(evaluate(...)) + comboScore(...) *
+    // weights.comboReward`, capped at +0.15. That addend was a function of the
+    // STATE — the same before and after the activation it was meant to
+    // encourage — and at its top stage it saturated the material signal, so
+    // more search converged AWAY from the combo (2/5 → 1/5 → 0/5 at
+    // 400/1200/4000 iterations, ADR 0102). Issue #3138 deleted it and ADR 0102
+    // rules out ever adding another per-card term.
+    //
+    // The invariant that outlives the deletion: the reward is EXACTLY the band
+    // map of the leaf evaluation, with nothing added on the side. Any future
+    // `base + <something>(state)` in `reward` reddens this, whatever the
+    // something is — it needs no combo vocabulary of its own.
+    const twinAssembled = () => {
+        const exarch = makeInstance(getCardByName("Deceiver Exarch")!.id, {
+            controllerId: "p1",
+            id: "exarch-1",
+        });
+        const twin = makeInstance(getCardByName("Splinter Twin")!.id, {
+            controllerId: "p1",
+            id: "twin-1",
+            attachedTo: exarch.id,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [exarch, twin] }),
+                makePlayer("p2"),
+            ],
+        });
+    };
+    const lifeState = (myLife: number, oppLife: number) =>
+        makeState({
+            players: [
+                makePlayer("p1", { life: myLife }),
+                makePlayer("p2", { life: oppLife }),
+            ],
+        });
+
+    // The assembled combo FIRST — it is the board the deleted layer paid out
+    // on, so it is the one that discriminates. The rest pin the open, won and
+    // lost bands so a regression cannot hide in a band the combo board misses.
+    const boards: Array<[string, GameState]> = [
+        ["Twin attached to Exarch (the assembled combo)", twinAssembled()],
+        ["even", lifeState(20, 20)],
+        ["ahead", lifeState(20, 5)],
+        ["behind", lifeState(5, 20)],
+        ["won", lifeState(20, 0)],
+        ["lost", lifeState(0, 20)],
+    ];
+
+    for (const [name, state] of boards) {
+        it(`reward is the band map of evaluate — ${name}`, () => {
+            expect(reward(state, "p1")).toBe(
+                rewardFromValue(
+                    evaluate(state, "p1", DEFAULT_EVAL_WEIGHTS),
+                    DEFAULT_EVAL_WEIGHTS
+                )
+            );
+        });
+    }
+
+    it("the assembled combo is not worth a reward bonus over the same board without the Aura", () => {
+        // The sharp half: detaching the Aura changes `evaluate` (one fewer
+        // enchantment on the battlefield is still one permanent either way,
+        // but the layer's boost was gated on the ATTACHMENT), and the reward
+        // must move by exactly what the band map says — never by the 0.15 the
+        // deleted layer used to hand out on top.
+        const attached = twinAssembled();
+        const detached = twinAssembled();
+        const twin = detached.players[0].battlefield.find(
+            (c) => c.id === "twin-1"
+        )!;
+        delete twin.attachedTo;
+
+        const dReward = reward(attached, "p1") - reward(detached, "p1");
+        const dBand =
+            rewardFromValue(
+                evaluate(attached, "p1", DEFAULT_EVAL_WEIGHTS),
+                DEFAULT_EVAL_WEIGHTS
+            ) -
+            rewardFromValue(
+                evaluate(detached, "p1", DEFAULT_EVAL_WEIGHTS),
+                DEFAULT_EVAL_WEIGHTS
+            );
+        expect(dReward).toBe(dBand);
     });
 });
 

@@ -117,16 +117,22 @@ describe(`blade suite — registry integrity`, () => {
                     `${s.label}: passesAt must exceed the declared budget`
                 ).toBeGreaterThan(s.budget.iterations);
             } else {
-                // Omitting `passesAt` is only honest for `cause: "valuation"`
-                // (issue #1518) — a mis-valued subtree that converges AWAY
-                // from the right move as budget rises, so there is no passing
-                // budget to record. The other three causes name a genuine
-                // compute shortfall that more search eventually clears, so
-                // they must carry the budget that clears it.
+                // Omitting `passesAt` is honest for exactly two causes.
+                // `valuation` (issue #1518): a mis-valued subtree converges
+                // AWAY from the right move as budget rises, so there is no
+                // passing budget to record. `horizon` (ADR 0102, issue
+                // #3138): when the payoff sits behind a LOOP, ~40 plies of
+                // identical activations separate the position from lethal and
+                // no budget a browser Worker gets walks it — the Twin/Exarch
+                // entries measure 0/5 at 400/1200/4000/12000 iterations. What
+                // clears them is the CR 732 shortcut Move (PRD #2687), not
+                // more iterations. `branching` and `hidden-information` name a
+                // genuine compute shortfall that more search eventually
+                // clears, so they must carry the budget that clears it.
                 expect(
-                    s.beyondBudget.cause,
-                    `${s.label}: omitting passesAt is only valid for cause "valuation"`
-                ).toBe("valuation");
+                    ["valuation", "horizon"],
+                    `${s.label}: omitting passesAt is only valid for cause "valuation" or "horizon"`
+                ).toContain(s.beyondBudget.cause);
             }
             // The `note` is deliberately left unasserted. No mechanical check
             // distinguishes "names the missing knowledge" from 20+ characters
