@@ -150,7 +150,6 @@ import {
 import { tryGetDefinition } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
-import { comboScore } from "./ai/comboAnnotations";
 import { COMPANION_SUMMON_COST } from "./companion";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
@@ -482,11 +481,6 @@ export function decidingPlayer(state: GameState): string | null {
     return state.priorityPlayerId;
 }
 
-// `weights.comboReward` (issue #2683, was the module const `COMBO_REWARD`):
-// reward-per-combo-point — the fraction of the [0,1] reward band a single
-// Forge-scale combo point buys. Tuned so an assembled 2-card combo (5000 pts)
-// adds ~0.15 to the reward — enough to break ties without saturating.
-
 /** Map an `evaluate` score (bot perspective) to a reward in [0, 1].
  *
  *  Three monotone bands keep the win/loss OUTCOME dominant while never erasing
@@ -500,18 +494,21 @@ export function decidingPlayer(state: GameState): string | null {
  *
  *  `weights` (issue #2683) defaults to `DEFAULT_EVAL_WEIGHTS` for callers
  *  outside the search (tests, other modules); `scoreLeaf` below always passes
- *  the search's own resolved vector explicitly. */
+ *  the search's own resolved vector explicitly.
+ *
+ *  There is NO per-combo term here (ADR 0102, issue #3138): the deleted
+ *  `comboAnnotations.ts` boost was a function of the STATE, identical before
+ *  and after the activation it was meant to encourage, and at its top stage it
+ *  saturated the material signal — so more search converged AWAY from the
+ *  combo (2/5 → 1/5 → 0/5 at 400/1200/4000 iterations). The replacement is the
+ *  CR 732 loop shortcut offered as a Move (PRD #2687), whose payoff the
+ *  evaluation sees one ply later with no card knowledge at all. */
 export function reward(
     state: GameState,
     botId: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
-    const base = rewardFromValue(evaluate(state, botId, weights), weights);
-    const combo = Math.min(
-        0.15,
-        comboScore(state, botId) * weights.comboReward
-    );
-    return Math.min(1, base + combo);
+    return rewardFromValue(evaluate(state, botId, weights), weights);
 }
 
 /** The reward-band shaping applied to an `evaluate` value, factored out of
