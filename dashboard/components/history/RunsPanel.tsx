@@ -57,10 +57,13 @@ export function RunsPanel({
     const [rows, setRows] = useState<RunRow[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    // No reset of `rows`/`error` on the way in: a drill-down panel is mounted
+    // by the row it belongs to and unmounted with it, so a second row's runs
+    // always start from a fresh instance rather than from the previous row's
+    // state. Clearing here would only be a synchronous setState in an effect —
+    // a cascading render for a value that is already `null`.
     useEffect(() => {
         let live = true;
-        setRows(null);
-        setError(null);
         load()
             .then((payload) => {
                 if (live) setRows(payload.rows);

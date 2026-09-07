@@ -114,7 +114,10 @@ export function IssuesCard({
     const [sort, setSort] = useState<SortState>({ key: "cost", dir: -1 });
     const [expanded, setExpanded] = useState<string | null>(null);
 
-    const rows = payload?.rows ?? [];
+    // Memoised so the identity is stable across renders — a fresh `[]`
+    // every render would re-run the filter below on every keystroke
+    // anywhere on the page.
+    const rows = useMemo(() => payload?.rows ?? [], [payload]);
     const visible = useMemo(() => filterIssues(rows, filter), [rows, filter]);
 
     const loadRuns = useCallback(
