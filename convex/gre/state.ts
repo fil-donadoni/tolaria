@@ -22343,13 +22343,22 @@ function resolveCostReductionGeneric(
  *  per ABILITY, not per card, because the Oracle scopes it to "this ability"
  *  and the motivating cards carry a second, unreduced ability.
  *  `ability` is therefore REQUIRED of every `kind: "ability"` caller that has
- *  one to hand; omitting it yields the battlefield-scan modifiers alone. */
+ *  one to hand; omitting it yields the battlefield-scan modifiers alone.
+ *
+ *  `activatorId` is who "you" is in that reduction's own text. CR 602.2b makes
+ *  rules 601.2b–i (601.2f included) apply to activating an ability exactly as
+ *  they apply to casting a spell, and the player performing them is the one
+ *  ACTIVATING — which is not the source's controller for an
+ *  `activatableByAnyPlayer` / `activatableByOpponentsOnly` /
+ *  `activatableByEnchantedController` ability. Defaults to the source's
+ *  controller, which is the same player in every ordinary case. */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView &
         Pick<Partial<CardInstanceState>, "castFromExileCostIncrease">,
     kind: "spell" | "ability",
-    ability?: ActivatedAbility
+    ability?: ActivatedAbility,
+    activatorId?: string
 ): CostModifiers {
     const increase: Record<string, number> = {};
     // CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase stamped on the
@@ -22443,7 +22452,10 @@ export function getCostModifiers(
     // per-ability declaration carries a bare `CostReductionAmount`; a static
     // that declares a floor still contributes it through the scan above.
     if (kind === "ability" && ability?.cost.selfReduction) {
-        const announcer = state.players.find((p) => p.id === card.controllerId);
+        // CR 602.2b — "for each … you control" counts the ACTIVATOR's board.
+        const announcer = state.players.find(
+            (p) => p.id === (activatorId ?? card.controllerId)
+        );
         if (announcer) {
             reductionGeneric += resolveCostReductionGeneric(
                 ability.cost.selfReduction,

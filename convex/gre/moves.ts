@@ -2816,7 +2816,7 @@ function enumerateAbilityMoves(
         // reduction the server honours was invisible to the search.
         applyCostModifiers(
             manaCost,
-            getCostModifiers(state, perm, "ability", ability)
+            getCostModifiers(state, perm, "ability", ability, player.id)
         );
         const tapPlan = planManaPayment(state, player, manaCost);
         if (tapPlan === null) continue;

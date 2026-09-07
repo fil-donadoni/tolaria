@@ -80,6 +80,20 @@ preloadDefinitions([
                 useStack: true,
                 effects: [{ op: "gainLife", player: "controller", amount: 1 }],
             },
+            {
+                // CR 602.2b — the ACTIVATOR, not the source's controller, is
+                // who "you control" means in the reduction's own text.
+                id: "anyone-gain",
+                oracleText:
+                    "{1}{G}: Any player may activate this ability. You gain 3 life. This ability costs {1} less to activate for each legendary creature you control.",
+                cost: {
+                    mana: { X: 1, G: 1 },
+                    selfReduction: LEGENDARY_CREATURE_COUNT,
+                },
+                activatableByAnyPlayer: true,
+                useStack: true,
+                effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
         ],
     } as CardDefinition,
     {
@@ -209,14 +223,15 @@ function setup(opts: {
 function chargedCost(
     state: GameState,
     source: CardInstanceState,
-    abilityId: string
+    abilityId: string,
+    activatorId?: string
 ): Record<string, number> {
     const def = source.card as { id: string };
     const ability = preloadedAbility(def.id, abilityId);
     const cost = normalizeManaCost(ability.cost.mana ?? {});
     applyCostModifiers(
         cost,
-        getCostModifiers(state, source, "ability", ability)
+        getCostModifiers(state, source, "ability", ability, activatorId)
     );
     return cost;
 }
@@ -302,6 +317,28 @@ describe("cost.selfReduction on an activated ability (CR 601.2f, ADR 0096)", () 
             X: 1,
             G: 1,
         });
+    });
+
+    it("counts the ACTIVATOR's board, not the source controller's (CR 602.2b)", () => {
+        // p1 controls the permanent; p2 activates it. Every legendary creature
+        // is p2's, so the discount is p2's — reading `card.controllerId` here
+        // would price it off p1's empty board.
+        const { state, source } = setup({
+            mine: [],
+            theirs: [LEGEND_ID, LEGEND_ID],
+        });
+        expect(chargedCost(state, source, "anyone-gain", "p2")).toEqual({
+            G: 1,
+        });
+        // The mirror: the SOURCE controller's legends are nothing to p2.
+        const mirrored = setup({ mine: [LEGEND_ID, LEGEND_ID], theirs: [] });
+        expect(
+            chargedCost(mirrored.state, mirrored.source, "anyone-gain", "p2")
+        ).toEqual({ X: 1, G: 1 });
+        // …and p1 activating their own permanent still gets it.
+        expect(
+            chargedCost(mirrored.state, mirrored.source, "anyone-gain", "p1")
+        ).toEqual({ G: 1 });
     });
 
     it("applies to a HAND-activated ability, whose source is not a permanent (CR 113.6j)", () => {
@@ -393,10 +430,11 @@ describe("cost.selfReduction — the mana-ability path is unchanged (ADR 0096)",
         // leaves that path unreduced on purpose, so the leg is classified as
         // never-auto-payable rather than silently funded at the printed price.
         expect(isAutoPayableManaAbilityCost(ability.cost)).toBe(false);
-        // The sibling stack ability, same card family, stays auto-payable —
-        // the exclusion is the reduction leg, not mana abilities at large.
-        expect(
-            isAutoPayableManaAbilityCost({ mana: { X: 1 }, tap: true })
-        ).toBe(true);
+        // The SAME cost minus the reduction leg stays auto-payable — the
+        // exclusion is that leg, not pure-generic mana abilities at large.
+        // Deliberately no `tap: true`: `cost.tap` is admitted BEFORE the
+        // never-list is consulted, so a tapping variant would pass here for a
+        // reason that has nothing to do with the leg under test.
+        expect(isAutoPayableManaAbilityCost({ mana: { X: 1 } })).toBe(true);
     });
 });

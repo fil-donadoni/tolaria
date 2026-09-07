@@ -6591,7 +6591,7 @@ export function finalizeTargetSelection(
                 // ADR 0096 — the announced ABILITY is handed to the collector
                 // so its own `cost.selfReduction` (CR 601.2f, the self-host
                 // arm's ability twin) is folded alongside the battlefield scan.
-                getCostModifiers(state, card, "ability", ability)
+                getCostModifiers(state, card, "ability", ability, player.id)
             );
         }
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
@@ -14385,7 +14385,7 @@ export function activateAbilityOnState(
         // reduced total for the same activation.
         applyCostModifiers(
             manaCost,
-            getCostModifiers(state, card, "ability", ability)
+            getCostModifiers(state, card, "ability", ability, player.id)
         );
     }
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
@@ -15621,6 +15621,19 @@ export const activatePlayerAbility = mutation({
         if (ability.cost.sacrifice) {
             throw new Error(
                 "Granted ability cannot require sacrifice (no source permanent)"
+            );
+        }
+        // CR 601.2f via CR 602.2b (ADR 0096) — this path pays `cost.mana` RAW:
+        // with no source permanent there is no object for the battlefield
+        // `cost-modifier` scan's `appliesToAbility` predicates to read, so it
+        // has never called `getCostModifiers` at all. Rather than open a SECOND
+        // reduction apply site here — the drift ADR 0063 named — reject the leg
+        // outright, in the same shape as the two rejects above. Nothing in the
+        // catalogue grants a player-scoped template with a self reduction; when
+        // one needs to, it gets the real collector, not a private copy.
+        if (ability.cost.selfReduction) {
+            throw new Error(
+                "Granted ability cannot declare a self cost reduction (no source permanent)"
             );
         }
 

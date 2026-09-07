@@ -262,7 +262,7 @@ An **Activated Ability** that produces **Mana** and has no target. Resolves imme
 _Avoid_: Tap for mana
 
 **Hand-Activated Ability**:
-An **Activated Ability** that functions only while its card is in its owner's **Hand**, because a leg of its cost moves that card out of the hand (CR 113.6c — an ability whose cost moves the card out of a zone functions only in that zone). The card is not a **Permanent** and never was: it is announced from the hand, its cost discards it, and the ability resolves from the **Stack** with its source already in the graveyard. **Cycling** and **Channel (ability word)** are the two families; the engine treats them as one seam (an `activateFromHand` flag), so an affordance or a **Move** built for either serves both.
+An **Activated Ability** that functions only while its card is in its owner's **Hand**, because a leg of its cost moves that card out of the hand (CR 113.6m — an ability whose cost moves the object out of a particular zone functions only in that zone; CR 113.6j says the same from the other side, since a cost that discards the card cannot be paid on the battlefield). The card is not a **Permanent** and never was: it is announced from the hand, its cost discards it, and the ability resolves from the **Stack** with its source already in the graveyard. **Cycling** and **Channel (ability word)** are the two families; the engine treats them as one seam (an `activateFromHand` flag), so an affordance or a **Move** built for either serves both.
 _Avoid_: Cycling (that is one instance of the family), hand ability, cast from hand (that names casting a spell)
 
 **Channel (ability word)**:
