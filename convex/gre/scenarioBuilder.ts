@@ -343,7 +343,7 @@ export function buildStateFromScenario(
                     // display-only (it picks the rendered face) and changes no
                     // rules read, so a mismatch with the staged card's own
                     // printed text costs nothing.
-                    turnFaceDown(instance as CardInstanceState, "morph");
+                    turnFaceDown(state, instance as CardInstanceState, "morph");
                 }
                 // Canonicalize the loyalty counter key and seed a
                 // planeswalker's printed starting loyalty (CR 306.5b) — this
@@ -415,7 +415,7 @@ export function buildStateFromScenario(
                     const source = {
                         card: { id: sourceDef.id },
                     } as unknown as CardInstanceState;
-                    applyCopy(instance as CardInstanceState, source);
+                    applyCopy(state, instance as CardInstanceState, source);
                 }
                 // CR 303.4 / 701.3 — queue this Aura/Equipment for
                 // attachment; the host is resolved by name after every card

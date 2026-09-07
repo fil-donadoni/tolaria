@@ -325,7 +325,7 @@ function buildApplyCtx(
             return removed;
         },
         turnSelfFaceUp: () => {
-            turnFaceUp(source);
+            turnFaceUp(state, source);
             return {
                 power: source.power ?? 0,
                 toughness: source.toughness ?? 0,

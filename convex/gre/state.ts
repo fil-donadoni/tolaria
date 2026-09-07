@@ -7155,7 +7155,7 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // this chokepoint covers every stack departure that is NOT a resolution
     // onto the battlefield (which is CR 708.4's face-down permanent and must
     // stay face down).
-    turnFaceUp(item);
+    turnFaceUp(state, item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,
@@ -9750,7 +9750,7 @@ export function removePermanentTo(
     // battlefield. Restore the printed identity now (after LKI snapshots, so
     // death triggers still read the copied P/T) so the card re-casts and
     // exists in other zones as its true printed self.
-    revertCopy(creature);
+    revertCopy(state, creature);
     // CR 708.9 (issue #2705) — "If a face-down permanent … moves from the
     // battlefield to any other zone, its owner must reveal it to all players
     // as they move it." The morph/Illusionary Mask sibling of the copy revert
@@ -9764,7 +9764,7 @@ export function removePermanentTo(
     // AFTER the LKI snapshots above, exactly like `revertCopy`: a death
     // trigger reads the moment-of-death 2/2, which is what the permanent was
     // when it died (CR 603.10).
-    turnFaceUp(creature);
+    turnFaceUp(state, creature);
     // CR 712.8a — while a double-faced card is outside the game or in a zone
     // other than the battlefield or the stack, it has only the characteristics
     // of its FRONT face. The transform sibling of the CR 707.2 copy revert
@@ -9783,7 +9783,7 @@ export function removePermanentTo(
     // (`exileAndReturnTransformed`, issue #2380). That Op's two legs bracket
     // this revert: it fires here on the way out, the stamp runs afterwards on
     // the exiled card, and the stamp is what the returning permanent shows.
-    revertTransform(creature);
+    revertTransform(state, creature);
     if (toZone === "hand" || toZone === "library") {
         resetBattlefieldTransientState(creature, state);
     } else {
@@ -12773,7 +12773,7 @@ function applyAsEntersAnswer(
             // CR 707.6 — the copy is applied to the object BEFORE it enters, so
             // nothing ever observes the printed 0/0 (CR 707.5 forbids the
             // "enters, then becomes a copy" shape outright).
-            if (source) applyCopy(card, source, choice.opts ?? {});
+            if (source) applyCopy(state, card, source, choice.opts ?? {});
             return {};
         }
         case "mode":
@@ -13761,7 +13761,7 @@ export function buildSpellContext(
             const recipient =
                 findOnBattlefield(state, item.triggerSourceId ?? item.id)
                     ?.card ?? item;
-            applyCopy(recipient, source, opts);
+            applyCopy(state, recipient, source, opts);
         },
 
         setSelfBody(spec): void {
@@ -15191,7 +15191,7 @@ export function buildSpellContext(
                 throw new Error("Cannot transform a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            transformPermanent(found.card);
+            transformPermanent(state, found.card);
         },
         // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the
         // battlefield transformed under its owner's control": the ORI
@@ -15258,7 +15258,7 @@ export function buildSpellContext(
             const idx = exileZone.findIndex((c) => c.id === cardId);
             if (idx === -1) return; // never reached exile — nothing to return
             const [returning] = exileZone.splice(idx, 1);
-            stampBackFaceForEntry(returning);
+            stampBackFaceForEntry(state, returning);
             putReanimatedOnBattlefield(state, returning, returnUnder);
         },
         // CR 613.1b (layer 2): gain control of a permanent. The control change
@@ -15707,7 +15707,7 @@ export function buildSpellContext(
             // unrevealed, so it can never be drawn, cast or matched as itself
             // again. A face-up spell and an ability (which has no card at all)
             // are both no-ops here.
-            turnFaceUp(item);
+            turnFaceUp(state, item);
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
             // triggered (CR 113.7a) and delayed-triggered abilities all just
@@ -15782,7 +15782,7 @@ export function buildSpellContext(
             // same reason: hand and library are both hidden zones, so a
             // face-down morph spell moved there would lose its identity
             // outright.
-            turnFaceUp(item);
+            turnFaceUp(state, item);
             // An ability on the stack is not a card (CR 113.7a) — it just
             // ceases to exist, like a countered ability.
             if (
@@ -19455,7 +19455,7 @@ export function buildSpellContext(
             // cast face down. `turnFaceDown` is run on a throwaway shallow
             // copy so the real card is untouched when the gate refuses.
             const faceDownProbe: CardInstanceState = { ...inHand };
-            turnFaceDown(faceDownProbe, "cast-face-down");
+            turnFaceDown(state, faceDownProbe, "cast-face-down");
             if (
                 castProhibitionReason(item.castById, faceDownProbe, state) !==
                 undefined
@@ -19463,7 +19463,7 @@ export function buildSpellContext(
                 return; // forbidden — not cast (CR 601.3a / 117.3 "if able")
             }
             const card = removeFromZone(state, player, cardInstanceId, "hand");
-            turnFaceDown(card, "cast-face-down");
+            turnFaceDown(state, card, "cast-face-down");
             const stackItem: StackItem = {
                 ...card,
                 zone: "stack",
@@ -20289,7 +20289,12 @@ export function createTokenPermanents(
         // entry announcement — therefore observes the COPY and never the 0/0
         // "Copy" placeholder.
         if (opts?.copyOf) {
-            applyCopy(token, opts.copyOf.source, opts.copyOf.copyOpts ?? {});
+            applyCopy(
+                state,
+                token,
+                opts.copyOf.source,
+                opts.copyOf.copyOpts ?? {}
+            );
             // `applyCopy` anchors `copiedFrom` to the recipient's PRE-copy
             // printed id so a copy can revert to its true self later (CR
             // 707.2). A token born as a copy never had a true self — its
@@ -21263,7 +21268,7 @@ export function payRemoveCounterCost(
     // card — which is why the instance-scoped recompose exists; that recompose
     // preserves every board-derived record it cannot re-walk to, so an anthem
     // keyword or a live ability-loss survives the call untouched.
-    recomposeLayer6ForInstance(card);
+    recomposeLayer6ForInstance(state, card);
 }
 
 /** True iff `player` can pay a "discard the last card you drew this turn"

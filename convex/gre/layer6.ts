@@ -936,9 +936,20 @@ export function deriveLayer6(
  *  not a narrowing: the replay it replaces read the same instance-borne records
  *  and no board either. PRD #2064 S5/S6, which put the registry on the state
  *  itself, remove the need for the synthetic view. */
-export function recomposeLayer6ForInstance(card: CardInstanceState): void {
+export function recomposeLayer6ForInstance(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
+    // PRD #2064 S6b — the synthetic one-card board carries the REGISTRY, which
+    // is where the permanent's own duration-scoped, indefinite and counter-borne
+    // grants live since this slice. Without it the swap sites would compose
+    // over an empty registry and drop every one of them (CR 400.7 — an identity
+    // swap makes no new object, so none of those effects has ended). The
+    // battlefield stays synthetic: the SOURCE-provenance half is still what the
+    // next `syncLayer6` re-derives, and a one-card walk must not try.
     const view = {
         players: [{ id: card.controllerId, battlefield: [card] }],
+        continuousEffects: state.continuousEffects,
     } as unknown as LayerStateView;
     const result = deriveLayer6(view, card as unknown as PermanentView, {
         trustInstanceLedger: true,

@@ -47,6 +47,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
+import type { LayerStateView } from "./layers";
 
 /** Reshapes a `CardBackFace` into the `TokenSpec` shape `tokenDefinitionId`
  *  expects (same field vocabulary minus `entersWith`/`backFace` — a back
@@ -178,7 +179,10 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
  *  just left the battlefield (`resetBattlefieldTransientState` cleared them),
  *  so the replay is a no-op here; it is called anyway rather than hand-rolling
  *  a second, subtly-different field assignment. */
-export function stampBackFaceForEntry(card: CardInstanceState): boolean {
+export function stampBackFaceForEntry(
+    state: LayerStateView,
+    card: CardInstanceState
+): boolean {
     if (card.transformed) return false; // already showing its back face
     const frontId = (card.card as { id?: string }).id;
     if (!frontId) return false;
@@ -187,7 +191,7 @@ export function stampBackFaceForEntry(card: CardInstanceState): boolean {
     const backId = registerBackFaceDefinition(backFace);
     card.transformedFrom = frontId;
     card.card = { id: backId };
-    rebuildCopiableValuesAndReplayOverlays(card, {
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
         types: [...backFace.types],
         subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
         power: backFace.power,
@@ -228,14 +232,17 @@ export function stampBackFaceForEntry(card: CardInstanceState): boolean {
  *  (the overwhelmingly common case) or when `transformedFrom` is
  *  missing/unregistered — shouldn't happen in practice, since it is only ever
  *  set to a definition id the transform machinery had just resolved. */
-export function revertTransform(card: CardInstanceState): boolean {
+export function revertTransform(
+    state: LayerStateView,
+    card: CardInstanceState
+): boolean {
     if (!card.transformed) return false;
     const frontId = card.transformedFrom;
     if (!frontId) return false;
     const frontDef = tryGetDefinition(frontId);
     if (!frontDef) return false;
     card.card = { id: frontId };
-    rebuildCopiableValuesAndReplayOverlays(card, {
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
         types: [...frontDef.types],
         subtypes: frontDef.subtypes ? [...frontDef.subtypes] : [],
         power: frontDef.power,
@@ -256,7 +263,10 @@ export function revertTransform(card: CardInstanceState): boolean {
  *  or when `transformedFrom` is missing/unregistered (back → front,
  *  shouldn't happen in practice — `transformedFrom` is only ever set by this
  *  same function to a definition id it just resolved). */
-export function transformPermanent(card: CardInstanceState): void {
+export function transformPermanent(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
     if (!card.transformed) {
         const frontId = (card.card as { id?: string }).id;
         if (!frontId) return;
@@ -269,7 +279,7 @@ export function transformPermanent(card: CardInstanceState): void {
         // CR 701.27b / 712 — transforming is the SAME permanent (CR 400.7
         // needs a zone change), so only its copiable values change; the
         // permanent's own layers 2–7 are replayed on top (issue #1705).
-        rebuildCopiableValuesAndReplayOverlays(card, {
+        rebuildCopiableValuesAndReplayOverlays(state, card, {
             types: [...backFace.types],
             subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
             power: backFace.power,
@@ -282,6 +292,6 @@ export function transformPermanent(card: CardInstanceState): void {
     } else {
         // Back → front is exactly the CR 712.8a restore, so it IS that
         // function — one front-face rebuild, not two that can drift apart.
-        revertTransform(card);
+        revertTransform(state, card);
     }
 }

@@ -52,6 +52,7 @@ import type { CardType } from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState } from "./state";
+import type { LayerStateView } from "./layers";
 
 /** The copiable values (CR 613.1a layer 1) an identity swap installs: the
  *  printed characteristics of the presented face, plus whatever the swap
@@ -74,17 +75,27 @@ export interface CopiableValues {
  *  what the new BASE is.
  *
  *  Everything derived from that base is dropped rather than rewritten. The
- *  ledger rows that survive a swap (a duration-scoped grant, an indefinite
- *  one, a `loses all abilities` hold) are NOT touched — CR 400.7 makes no new
- *  object here, so those effects are still applying and the next `syncLayer6`
- *  composes them over the new base. */
-function reseatLayer6Base(card: CardInstanceState, base: CopiableValues): void {
+ *  effects that survive a swap (a duration-scoped grant, an indefinite one, a
+ *  keyword counter's, a `loses all abilities` hold) are NOT touched — CR 400.7
+ *  makes no new object here, so those effects are still applying and the next
+ *  `syncLayer6` composes them over the new base.
+ *
+ *  Takes the `LayerStateView` since PRD #2064 S6b: those effects are REGISTRY
+ *  entries now, so the recompose below has to be handed the registry or it
+ *  composes over an empty one and silently drops every one of them. The view is
+ *  the minimum the derivation reads, not a `GameState`, so a caller that builds
+ *  its board by hand can still satisfy it. */
+function reseatLayer6Base(
+    state: LayerStateView,
+    card: CardInstanceState,
+    base: CopiableValues
+): void {
     card.staticAbilities = [...base.staticAbilities];
     card.baseStaticAbilities = [...base.staticAbilities];
     // Derived output of the OLD face: recomputed, never carried across.
     delete card.removedKeywords;
     delete card.abilitiesSuppressedBy;
-    recomposeLayer6ForInstance(card);
+    recomposeLayer6ForInstance(state, card);
 }
 
 /** Layer 4 + 7b animation (CR 208.2 / 611.1 / 613.4b) — re-apply the
@@ -142,6 +153,7 @@ function replayAnimation(
  *  throwaway SHALLOW copy of a real card (the face-down cast legality probe,
  *  `state.ts`), which must not see the original's arrays change under it. */
 export function rebuildCopiableValuesAndReplayOverlays(
+    state: LayerStateView,
     card: CardInstanceState,
     base: CopiableValues
 ): void {
@@ -157,7 +169,7 @@ export function rebuildCopiableValuesAndReplayOverlays(
     card.toughness = base.toughness;
     card.staticAbilities = [...base.staticAbilities];
 
-    reseatLayer6Base(card, base);
+    reseatLayer6Base(state, card, base);
     // CR 613.1a vs 613.1d (PRD #2064 S4) — the layer-2-to-5 BASES are re-seated
     // on the new face and everything above them is re-derived. The hand-written
     // type and subtype replays this used to perform are gone for the same
