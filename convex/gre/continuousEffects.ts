@@ -24,8 +24,12 @@
 // #3003), layer 6 (S3, #3004), layers 2-5 (S4, #3005). S5 (#3094) put the
 // registry ON THE WIRE and made `projectPublicState` derive its snapshot from
 // it (`gre/wireCharacteristics.ts`), so the client-side engine run reads the
-// same entries the server does. What remains is deleting the materialised
-// fields and the old helpers (S6) and the perf pass (S7).
+// same entries the server does. S7 (#3096) took the perf pass ADR 0082
+// required to be measured rather than assumed: the source half of each layer's
+// walk is resolved once per board pass, not once per target, and a registry-
+// derived precheck keeps a source that declares nothing out of the walk
+// entirely. What remains is deleting the materialised fields and the old
+// helpers (S6, #3120).
 
 import type {
     CardSupertype,
