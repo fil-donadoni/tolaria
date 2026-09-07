@@ -216,7 +216,7 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
         }
     });
 
-    // CR 701.17 scry vs CR 701.29 fateseal (issue #3006). Found by censusing
+    // CR 701.22 scry vs CR 701.29 fateseal (issue #3006). Found by censusing
     // `OP_BENEFICENCE`: `scryReorder` had no row, so Jace, the Mind Sculptor's
     // `+2` — whose `targetRequirement: { type: "player" }` offers BOTH seats
     // (CR 115.1) — read `neutral` and the pick fell to rollout noise. The
@@ -224,7 +224,7 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
     // parametrized case rather than a flat row: the field exists precisely to
     // name "the player who MAKES the decision, when it is NOT the library's
     // owner".
-    it("reads a library reorder's sign off `chooser`: a scry is a gift, a fateseal is an attack (CR 701.17 / 701.29)", () => {
+    it("reads a library reorder's sign off `chooser`: a scry is a gift, a fateseal is an attack (CR 701.22 / 701.29)", () => {
         const scry: EffectOp = {
             op: "scryReorder",
             player: { target: 0 },
@@ -244,7 +244,7 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
                 chooser: "opponent",
             })
         ).toBe("harmful");
-        // A surveil (CR 701.42, `destination: "graveyard"`) the owner decides
+        // A surveil (CR 701.25, `destination: "graveyard"`) the owner decides
         // for themselves is still their own call, so still a gift.
         expect(opBeneficence({ ...scry, destination: "graveyard" })).toBe(
             "beneficial"

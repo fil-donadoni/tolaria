@@ -1820,7 +1820,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // creature. The composed effect's sign comes from the Ops it is paired
     // with — same treatment as `transform` below.
     setCardTypes: "neutral",
-    // CR 701.28 — a flip can go either way: the werewolf faces are a buff in
+    // CR 701.27 — a transform can go either way: the werewolf faces are a buff in
     // one direction and a downgrade in the other, and the Op names neither.
     // (The exile-and-return flip-walker template `exileAndReturnTransformed`
     // above IS signed, because that one only ever upgrades.)
@@ -1912,7 +1912,7 @@ export function opBeneficence(
         case "tapUntap":
             return op.action === "untap" ? "beneficial" : "harmful";
         case "scryReorder":
-            // CR 701.17 vs CR 701.29 (issue #3006) — the SIGN is the `chooser`
+            // CR 701.22 vs CR 701.29 (issue #3006) — the SIGN is the `chooser`
             // field's, which is why this is a parametrized case and not a flat
             // row. With `chooser` unset the library's own owner decides what
             // stays on top: that is a scry, a gift to `player`. With `chooser`
