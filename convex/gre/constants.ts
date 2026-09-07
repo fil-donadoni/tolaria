@@ -19,6 +19,10 @@ import type { MatchablePermanent } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
+import {
+    NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
+    type NeverAutoPayableCostLeg,
+} from "./costLegClaims";
 import { getDefinition, tryGetDefinition } from "../cards";
 // CR 611.2a / 613.1f (issue #1880) — the POST-LAYER activated-ability set
 // (native + granted, minus a "loses all abilities" suppression). Every mana
@@ -1226,48 +1230,27 @@ function minimalManaGateView(
 }
 
 /** CR 602.1 — every OTHER activation-cost leg besides `tap`, `tapOtherFilter`
- *  and `mana` (issue #2420: `ActivatedAbility["cost"]`'s full field list).
- *  `isAutoPayableManaAbilityCost` fails CLOSED on any of these being present
- *  — none of them may be spent on the payer's behalf by an automatic
- *  planner. Kept as an explicit list (not "everything but the three allowed
- *  keys") so a NEW cost leg added to the type is excluded by default until
- *  someone deliberately reviews it here. */
-const NEVER_AUTO_PAYABLE_COST_LEGS = [
-    "sacrifice",
-    "sacrificeFilter",
-    "sacrificeFilterCount",
-    // CR 702.49a — a ninjutsu return leg gives up an attacking creature; the
-    // same "spend a resource the player should choose to spend" exclusion the
-    // sacrifice legs above carry.
-    "returnUnblockedAttacker",
-    "life",
-    "loyalty",
-    "removeCounter",
-    "discardLastDrawn",
-    "discardThis",
-    "cyclingCost",
-    "exileThis",
-    "discardAtRandom",
-    "discardFilter",
-    "exileFromGraveyard",
-    "xFromTargetSpellMv",
-    "manaEqualToEnchantedCreatureCost",
-    "manaEqualToCounterCount",
-    // CR 601.2f (ADR 0096, issue #2288) — a self cost REDUCTION, not a
-    // payment leg, and the same class as the two cost-shaping fields above:
-    // the automatic mana-ability planner funds `cost.mana` RAW, so an ability
-    // declaring a reduction would be funded at its printed price. ADR 0096
-    // keeps the mana-ability payment path (`applyManaAbilityManaCost` /
-    // `autoTapForManaAbilityCost`) deliberately unreduced, so the leg is
-    // excluded rather than funded at the wrong number.
-    // NOT a blanket guarantee: `cost.tap` is admitted BEFORE this list is
-    // consulted (deliberately — that branch keeps its exact pre-existing
-    // behaviour), so a `{T}, {1}: Add {G}` ability declaring a reduction is
-    // still admitted and still funded at its printed price. The exclusion
-    // covers the non-tap shapes only; the tap shape is the mana-ability path
-    // ADR 0096 leaves alone.
-    "selfReduction",
-] as const satisfies readonly (keyof ActivatedAbility["cost"])[];
+ *  and `mana`. `isAutoPayableManaAbilityCost` fails CLOSED on any of these
+ *  being present — none of them may be spent on the payer's behalf by an
+ *  automatic planner.
+ *
+ *  DERIVED from `COST_LEG_CLAIMS` (`gre/costLegClaims.ts`), not listed (issue
+ *  #3007). It used to be a hand-maintained array, and its own comment claimed
+ *  "a NEW cost leg added to the type is excluded by default until someone
+ *  deliberately reviews it here". That was overstated about the ARRAY —
+ *  `as const satisfies readonly (keyof …)[]` checks each member IS a key and
+ *  stays green when one is added — but not about the FILE: the witness below
+ *  already red on an unclassified leg. What the table adds is that the leg must
+ *  now be adjudicated in prose by a human, not merely appear on a list; the
+ *  witness below is unchanged in strength and consumes the derived
+ *  `NeverAutoPayableCostLeg` type so it stays that way.
+ *
+ *  Note what `cost.tap` does NOT get from this: it is admitted BEFORE this list
+ *  is consulted (deliberately — that branch keeps its exact pre-existing
+ *  behaviour), so a `{T}, {1}: Add {G}` ability declaring a `selfReduction` is
+ *  still admitted and still funded at its printed price (CR 601.2f, ADR 0096).
+ *  The exclusion covers the non-tap shapes only. */
+const NEVER_AUTO_PAYABLE_COST_LEGS = DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS;
 
 /** CR 602.1 (issue #2420) — the fixed generic amount a `cost.mana` leg
  *  declares when it is EXACTLY "N generic, nothing else" (Farrelite Priest /
@@ -1351,7 +1334,13 @@ type _UnclassifiedManaAbilityCostLeg = Exclude<
     | "tap"
     | "mana"
     | "tapOtherFilter"
-    | (typeof NEVER_AUTO_PAYABLE_COST_LEGS)[number]
+    // NOT `(typeof NEVER_AUTO_PAYABLE_COST_LEGS)[number]` (issue #3007, caught
+    // in review): the derived runtime array is typed `readonly
+    // NeverAutoPayableCostLeg[]`, so `[number]` would be the projection anyway —
+    // but a later widening of that annotation to `readonly (keyof …)[]` would
+    // make this `Exclude` unconditionally `never` and leave the witness below
+    // vacuously true. Consuming the TYPE directly cannot fail that way.
+    | NeverAutoPayableCostLeg
 >;
 const _manaAbilityCostLegsExhaustive: _UnclassifiedManaAbilityCostLeg extends never
     ? true
