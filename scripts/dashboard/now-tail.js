@@ -1,5 +1,4 @@
 import { esc, fmtAgoMs, issueLink } from "./format.js";
-import { trapFocus } from "./dialog.js";
 
 /**
  * The session tail drawer (issue #3135) — one conversation, followed live,
@@ -119,13 +118,15 @@ function ensureDrawer() {
         if (!atBottom && state.follow) setFollow(false, { keepScroll: true });
         else if (atBottom && !state.follow) setFollow(true);
     });
+    // Escape closes; Tab is NOT trapped — the drawer is non-modal
+    // (`aria-modal="false"`) and the page beside it stays reachable, so a
+    // keyboard user can leave it the same way a pointer user can (review of
+    // PR #3136: a trap here was a modal wearing a non-modal role).
     el.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
             e.preventDefault();
             closeTail();
-            return;
         }
-        trapFocus(el, e, document);
     });
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible" && state.session)

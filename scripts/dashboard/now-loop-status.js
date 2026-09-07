@@ -162,11 +162,18 @@ async function fetchJson(url) {
     return body;
 }
 
+/** Monotonic per call — a response from an older call than the newest
+ *  one in flight is dropped, so a slow `gh`-backed poll can never paint
+ *  over a fresher one (review of PR #3136). */
+let refreshSeq = 0;
+
 export async function refreshLoopStatus() {
+    const seq = ++refreshSeq;
     let data;
     try {
         data = await fetchJson("/api/loop-status");
     } catch (e) {
+        if (seq !== refreshSeq) return;
         document.getElementById("loop-status-sub").textContent =
             `error: ${e.message}`;
         return;
@@ -182,6 +189,7 @@ export async function refreshLoopStatus() {
             activity.reason?.message ?? String(activity.reason);
     if (live.status === "fulfilled") data.live = live.value;
     else data.liveError = live.reason?.message ?? String(live.reason);
+    if (seq !== refreshSeq) return;
     renderLoopStatus(data);
 }
 

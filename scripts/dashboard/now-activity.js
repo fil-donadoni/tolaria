@@ -38,9 +38,9 @@ export function mergesByHour(merges) {
     for (const m of merges ?? []) {
         const ts = Date.parse(m.mergedAt);
         if (!Number.isFinite(ts)) continue;
-        const d = new Date(ts);
-        d.setMinutes(0, 0, 0);
-        const hour = d.getTime();
+        // Fixed 3,600,000 ms steps, the server's own `hourStartOf` — never
+        // the local wall-clock hour, which is unevenly spaced on a DST day.
+        const hour = Math.floor(ts / HOUR_MS) * HOUR_MS;
         out.set(hour, (out.get(hour) ?? 0) + 1);
     }
     return out;
@@ -61,11 +61,10 @@ export function activityRows(data, nowMs) {
         (data.activity?.buckets ?? []).map((b) => [b.hourStart, b])
     );
     const merges = mergesByHour(data.recentMerges);
-    const last = new Date(nowMs);
-    last.setMinutes(0, 0, 0);
+    const last = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
     const rows = [];
     for (let i = ACTIVITY_WINDOW_HOURS - 1; i >= 0; i--) {
-        const hourStart = last.getTime() - i * HOUR_MS;
+        const hourStart = last - i * HOUR_MS;
         const b = byHour.get(hourStart) ?? {};
         rows.push({
             hourStart,

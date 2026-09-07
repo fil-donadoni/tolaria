@@ -375,3 +375,90 @@ describe("live-activity — tail entries", () => {
         expect(next.offset).toBeGreaterThan(first.offset);
     });
 });
+
+describe("live-activity — review of PR #3136", () => {
+    it("every timestamp in the window buckets onto a key the 24-row frame emits — fixed steps, not the local wall-clock hour", () => {
+        const idx = new LiveIndex({ projectsRoot: root, projectSlug: "none" });
+        // A DST fall-back day in Europe/Rome (2026-10-25, 03:00 → 02:00):
+        // the frame and the keys must still agree at every minute of it.
+        const now = Date.parse("2026-10-25T12:00:00.000Z");
+        const keys = new Set(idx.activity(now).map((b) => b.hourStart));
+        for (let ms = now - 23 * HOUR; ms <= now; ms += 7 * 60_000) {
+            expect(keys.has(hourStartOf(ms)), new Date(ms).toISOString()).toBe(
+                true
+            );
+        }
+        expect(keys.size).toBe(ACTIVITY_WINDOW_HOURS);
+    });
+
+    it("a truncated transcript is backed out and re-read from byte 0 — no double count, no stale dedupe", () => {
+        const dir = join(root, "trunc-case");
+        const sid = "66666666-6666-4666-8666-666666666666";
+        writeTranscript(dir, sid, [
+            assistantLine("t1", NOW - 60_000, 100),
+            assistantLine("t2", NOW - 50_000, 100),
+        ]);
+        const idx = new LiveIndex({
+            projectsRoot: root,
+            projectSlug: "trunc-case",
+        });
+        idx.refresh(NOW);
+        expect(idx.session(sid)!.outTok).toBe(200);
+        // Rewritten shorter, reusing response id t1 with a different figure.
+        writeTranscript(dir, sid, [assistantLine("t1", NOW - 40_000, 30)]);
+        idx.refresh(NOW + 1000);
+        expect(idx.session(sid)!.outTok).toBe(30);
+        const hour = idx
+            .activity(NOW)
+            .find((b) => b.hourStart === hourStartOf(NOW - 40_000))!;
+        expect(hour.outTok).toBe(30);
+        expect(hour.messages).toBe(1);
+    });
+
+    it("cursors of files that aged out of the window are dropped — the index does not grow for the life of the process", () => {
+        const dir = join(root, "cursor-case");
+        const sid = "77777777-7777-4777-8777-777777777777";
+        writeTranscript(dir, sid, [assistantLine("c1", NOW, 1)]);
+        const idx = new LiveIndex({
+            projectsRoot: root,
+            projectSlug: "cursor-case",
+        });
+        idx.refresh(Date.now());
+        expect(idx.trackedFiles).toBe(1);
+        idx.refresh(Date.now() + 2 * ACTIVITY_WINDOW_HOURS * HOUR);
+        expect(idx.trackedFiles).toBe(0);
+        expect(idx.session(sid)).toBeNull();
+    });
+
+    it("readTail keeps the first line when the initial window starts exactly on a line boundary", async () => {
+        const { TAIL_INITIAL_BYTES } = await import("../lib/live-activity");
+        const dir = join(root, "boundary-case");
+        const sid = "88888888-8888-4888-8888-888888888888";
+        mkdirSync(dir, { recursive: true });
+        const path = join(dir, `${sid}.jsonl`);
+        // Pad so that `size - TAIL_INITIAL_BYTES` lands right after a "\n".
+        const first = userLine(NOW, "first");
+        const tail =
+            [userLine(NOW + 1, "kept"), userLine(NOW + 2, "last")].join("\n") +
+            "\n";
+        const padLen = TAIL_INITIAL_BYTES - Buffer.byteLength(tail);
+        const wrap = (content: string) =>
+            JSON.stringify({
+                type: "user",
+                timestamp: iso(NOW),
+                message: { role: "user", content },
+            });
+        const overhead = Buffer.byteLength(wrap("")) + 1; // + "\n"
+        const padded = wrap("x".repeat(padLen - overhead)) + "\n";
+        expect(Buffer.byteLength(padded)).toBe(padLen);
+        writeFileSync(path, first + "\n" + padded + tail);
+        const page = readTail(path, sid, null);
+        // The window starts ON the pad line's first byte: that line is
+        // whole and must be kept; only `first` (before the window) is gone.
+        expect(page.entries.map((e) => e.text.slice(0, 4))).toEqual([
+            "xxxx",
+            "kept",
+            "last",
+        ]);
+    });
+});
