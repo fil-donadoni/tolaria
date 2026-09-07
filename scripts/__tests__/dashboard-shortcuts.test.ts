@@ -20,6 +20,7 @@ import {
 } from "../dashboard/history-state.js";
 // @ts-expect-error — same.
 import { viewFromParams } from "../dashboard/tabs.js";
+import { subscribeToView } from "../../dashboard/lib/view";
 
 /**
  * `shortcuts.js` itself is imported DYNAMICALLY, inside `beforeAll` below,
@@ -358,22 +359,32 @@ afterEach(() => {
 });
 
 describe("shortcuts.js — 1/2 switch views (#2635)", () => {
-    it("'1' switches to Now and '2' switches to History, updating ?view=", () => {
+    it("'1' switches to Now and '2' switches to History, updating ?view= and notifying the store", () => {
         const win = mountPage();
         installShortcuts();
+        // WHAT MOVED (PRD #3148 S1): `switchView` no longer sets `hidden` on
+        // the panels — React does, off this same store (`ViewTabs`, proven in
+        // `dashboard/lib/__tests__/view.test.ts` and in the browser). So the
+        // contract this keystroke actually depends on is the URL plus the
+        // notification, and that is what is asserted here. Asserting `hidden`
+        // would now be asserting React's job in a page with no React in it.
+        const seen: string[] = [];
+        const off = subscribeToView(() =>
+            seen.push(viewFromParams(new URLSearchParams(win.location.search)))
+        );
 
         fireKey(win, "2");
         expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
             "history"
         );
-        expect(win.document.getElementById("view-history")!.hidden).toBe(false);
-        expect(win.document.getElementById("view-now")!.hidden).toBe(true);
 
         fireKey(win, "1");
         expect(viewFromParams(new URLSearchParams(win.location.search))).toBe(
             "now"
         );
-        expect(win.document.getElementById("view-now")!.hidden).toBe(false);
+
+        off();
+        expect(seen).toEqual(["history", "now"]);
     });
 
     it("does NOT switch views while a text input has focus — the AC's own example ('1' typed into search)", () => {

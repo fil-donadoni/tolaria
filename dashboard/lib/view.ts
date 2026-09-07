@@ -47,9 +47,16 @@ export function subscribeToView(onStoreChange: () => void): () => void {
     listeners.add(onStoreChange);
     // The back/forward buttons and a pasted URL both change the query without
     // going through `switchView`.
-    addEventListener("popstate", onStoreChange);
+    //
+    // Optional, because this store is imported by `scripts/dashboard/tabs.js`
+    // and therefore by the keyboard-layer test, which runs in the `node`
+    // vitest project against an injected `document`/`location`/`history` and
+    // has no event target at all. A missing `popstate` there is correct — a
+    // host with no history navigation has no back button to hear from — and
+    // fail-soft is the difference between "no popstate" and "no store".
+    globalThis.addEventListener?.("popstate", onStoreChange);
     return () => {
         listeners.delete(onStoreChange);
-        removeEventListener("popstate", onStoreChange);
+        globalThis.removeEventListener?.("popstate", onStoreChange);
     };
 }
