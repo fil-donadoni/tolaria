@@ -86,6 +86,7 @@ import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
 import { counterAddedTrigger } from "../../../cards/abilities/triggers/counterAddedTrigger";
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
 import { flight } from "../../../cards/sets/lea/blue";
+import { continuousEffectsInLayer } from "../../continuousEffects";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -1366,6 +1367,12 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         expect(count(a.staticAbilities, (k) => k === "trample")).toBe(1);
         expect(count(a.staticAbilities, (k) => k === "flying")).toBe(0);
         expect(count(b.staticAbilities, (k) => k === "flying")).toBe(1);
+        // These are SOURCE-provenance grants (each enchantment creature's own
+        // `keyword-grant` static effect), so they are layer 6's DERIVED OUTPUT
+        // on `grantedStaticAbilities`, keyed by `auraId` — not registry
+        // entries. PRD #2064 S6b moved the three INPUT provenances out of that
+        // array and left exactly this one behind, which is why the assertion
+        // reads the same field it always did.
         expect(
             count(
                 a.grantedStaticAbilities ?? [],
@@ -15034,7 +15041,13 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             expect(after.counters?.["+1/+1"]).toBe(1);
             // CR 702.165a — "If that's ANOTHER creature" — false on self, so
             // no grant: `trample` was already printed, but not RE-granted.
-            expect(after.grantedStaticAbilities ?? []).toHaveLength(0);
+            expect(
+                continuousEffectsInLayer(state, 6).filter(
+                    (e) =>
+                        e.affected.kind === "instances" &&
+                        e.affected.instanceIds.includes(after.id)
+                )
+            ).toHaveLength(0);
         });
 
         it("true on an OTHER target: puts the counter AND grants the source's listed ability until end of turn", () => {
@@ -15065,7 +15078,13 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
             // CR 702.165a — the target gains the source's printed ability
             // (trample) until end of turn — it did not have it printed.
             expect(granted.staticAbilities).toContain("trample");
-            expect(granted.grantedStaticAbilities).toHaveLength(1);
+            expect(
+                continuousEffectsInLayer(state, 6).filter(
+                    (e) =>
+                        e.affected.kind === "instances" &&
+                        e.affected.instanceIds.includes(granted.id)
+                )
+            ).toHaveLength(1);
             // Wire format — a granted keyword + a counter are both
             // board-visible; neither may be stripped on the way to the client.
             const projected = projectPublicState(state, 1, "p1");

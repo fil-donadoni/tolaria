@@ -92,6 +92,7 @@ import {
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { BecameTargetEvent, PhaseBeginEvent } from "../../../types";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 const ABILITY = keldonTwilight.triggeredAbilities!.find(
     (a) => a.id === "keldon-twilight-end-step-sac"
@@ -2070,10 +2071,24 @@ describe("Questing Phelddagrif ({1}{G}{W}{U}, three self-pump / opponent-benefit
         const live = state.players[0].battlefield.find(
             (c) => c.id === "phelddagrif-1"
         )!;
-        expect(live.grantedStaticAbilities ?? []).toEqual(
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
+            )
+        ).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ ability: "protection from black" }),
-                expect.objectContaining({ ability: "protection from red" }),
+                expect.objectContaining({
+                    payload: expect.objectContaining({
+                        keyword: "protection from black",
+                    }),
+                }),
+                expect.objectContaining({
+                    payload: expect.objectContaining({
+                        keyword: "protection from red",
+                    }),
+                }),
             ])
         );
     });
@@ -2096,9 +2111,17 @@ describe("Questing Phelddagrif ({1}{G}{W}{U}, three self-pump / opponent-benefit
         const live = state.players[0].battlefield.find(
             (c) => c.id === "phelddagrif-1"
         )!;
-        expect(live.grantedStaticAbilities ?? []).toEqual(
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
+            )
+        ).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ ability: "flying" }),
+                expect.objectContaining({
+                    payload: expect.objectContaining({ keyword: "flying" }),
+                }),
             ])
         );
     });

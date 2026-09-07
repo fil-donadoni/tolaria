@@ -16,6 +16,7 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 function pushBackupEtb(
     state: GameState,
@@ -57,7 +58,13 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
             (c) => c.id === "champ1"
         )!;
         expect(after.counters?.["+1/+1"]).toBe(1);
-        expect(after.grantedStaticAbilities ?? []).toHaveLength(0);
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(after.id)
+            )
+        ).toHaveLength(0);
     });
 
     it("other-target: puts a +1/+1 counter AND grants double strike until end of turn", () => {
@@ -84,9 +91,16 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
         )!;
         expect(granted.counters?.["+1/+1"]).toBe(1);
         expect(granted.staticAbilities).toContain("double strike");
-        expect(granted.grantedStaticAbilities?.[0]?.ability).toBe(
-            "double strike"
-        );
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(granted.id)
+            )[0].payload
+        ).toEqual({
+            kind: "keyword-grant",
+            keyword: "double strike",
+        });
     });
 
     it("dash: entering dashed grants haste and schedules a next-end-step return", () => {
@@ -121,7 +135,17 @@ describe("Death-Greeter's Champion (Dash + Backup 1 + double strike, CR 702.109/
             (c) => c.id === "champ3"
         )!;
         expect(
-            after.grantedStaticAbilities?.some((g) => g.ability === "haste")
+            continuousEffectsInLayer(state, 6)
+                .filter(
+                    (e) =>
+                        e.affected.kind === "instances" &&
+                        e.affected.instanceIds.includes(after.id)
+                )
+                .some(
+                    (e) =>
+                        e.payload.kind === "keyword-grant" &&
+                        e.payload.keyword === "haste"
+                )
         ).toBe(true);
         expect(state.delayedTriggers ?? []).toHaveLength(1);
     });

@@ -24,6 +24,7 @@ import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { finalizeCleanup } from "../../../../gre/phases";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 const grizzlyBears = getCardByName("Grizzly Bears");
 
@@ -148,7 +149,16 @@ describe("Inti, Seneschal of the Sun (CR 603.12 reflexive trigger + impulse draw
             (c) => c.id === "inti"
         )!;
         expect(after.counters?.["+1/+1"]).toBe(1);
-        expect(after.grantedStaticAbilities?.[0]?.ability).toBe("trample");
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(after.id)
+            )[0].payload
+        ).toEqual({
+            kind: "keyword-grant",
+            keyword: "trample",
+        });
 
         // The SAME discard also drove Inti's second ability: its own top
         // library card is exiled with a this-turn cast grant.
