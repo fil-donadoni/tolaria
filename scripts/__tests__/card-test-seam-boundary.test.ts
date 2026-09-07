@@ -136,12 +136,19 @@ describe("per-card tests resolve their subject through the registry seam", () =>
     });
 
     it("resolves no subject through the swap-blind name/catalogue readers", () => {
-        const NAME_LOOKUP = /\b(?:try)?[gG]etCardByName\("[^"]*"\)/g;
+        const NAME_LOOKUP = /(?:tryGetCardByName|getCardByName)\("[^"]*"\)/g;
         const CATALOGUE_PICK = /\bgetAllCards\(\)\s*\.\s*find\(/g;
         const violations: string[] = [];
         for (const file of FILES) {
             const src = fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
             for (const m of src.matchAll(NAME_LOOKUP)) {
+                // `expect(getCardByName("Foo")).toBe(foo)` is the name seam
+                // UNDER TEST, not a subject lookup: it asserts the card is
+                // registered under its printed name, the path `seedScenario`
+                // takes. Anywhere else — assigned, `.id`-ed, handed to a
+                // fixture — the name map is how the subject was obtained, and
+                // that is the vacuous-pass shape this rule exists to stop.
+                if (src.slice(0, m.index).endsWith("expect(")) continue;
                 violations.push(
                     `${file} — ${m[0]} resolves nameRegistry, which ` +
                         `preloadDefinitions never writes; use getDefinition(id)`

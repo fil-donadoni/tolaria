@@ -8,7 +8,7 @@
 // the generic exile-pin component.
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../..";
+import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -110,9 +110,7 @@ function chooseExileTarget(state: GameState, targetId: string): void {
 describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(banishingLight.id)).toBe(banishingLight);
-        expect(getDefinition("fbaa4800-30cc-4a80-a6cc-9a24ada9eb40")).toBe(
-            banishingLight
-        );
+        expect(getCardByName("Banishing Light")).toBe(banishingLight);
     });
 
     it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.13/704.5n)", () => {

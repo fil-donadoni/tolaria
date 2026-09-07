@@ -8,7 +8,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const thassasOracle = getDefinition("726e8b29-13e9-4138-b6a9-d2a0d8188d1c");
 
@@ -67,9 +67,7 @@ function submitKeep(state: GameState, keep: string[]): void {
 
 describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
     it("declares the card and its ETB trigger", () => {
-        expect(getDefinition("726e8b29-13e9-4138-b6a9-d2a0d8188d1c")).toBe(
-            thassasOracle
-        );
+        expect(getCardByName("Thassa's Oracle")).toBe(thassasOracle);
         expect(thassasOracle.manaCost).toEqual({ U: 2 });
         expect(thassasOracle.power).toBe(1);
         expect(thassasOracle.toughness).toBe(3);

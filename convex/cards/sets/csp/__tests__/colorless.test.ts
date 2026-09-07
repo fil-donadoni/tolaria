@@ -8,7 +8,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const mishrasBauble = getDefinition("8a720448-017f-4f4a-9501-678245eaed17");
 
@@ -32,9 +32,7 @@ function resolveActivated(
 
 describe("Mishra's Bauble (free sac + next-upkeep cantrip, CR 603.7d)", () => {
     it("is a {0} artifact carrying the next-upkeep delayed trigger", () => {
-        expect(getDefinition("8a720448-017f-4f4a-9501-678245eaed17")).toBe(
-            mishrasBauble
-        );
+        expect(getCardByName("Mishra's Bauble")).toBe(mishrasBauble);
         expect(mishrasBauble.manaCost).toEqual({});
         expect(mishrasBauble.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
         const ability = mishrasBauble.activatedAbilities![0];

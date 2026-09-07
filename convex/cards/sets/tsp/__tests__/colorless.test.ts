@@ -10,7 +10,7 @@ import {
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { tapSourceIntoPayment } from "../../../../game";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const chromaticStar = getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e");
 
@@ -35,9 +35,7 @@ function resolveTrigger(
 
 describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () => {
     it("registers with a five-colour mana ability (useStack:false)", () => {
-        expect(getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e")).toBe(
-            chromaticStar
-        );
+        expect(getCardByName("Chromatic Star")).toBe(chromaticStar);
         expect(chromaticStar.manaCost).toEqual({ X: 1 });
         const mana = chromaticStar.activatedAbilities!.find(
             (a) => a.id === "chromatic-star-mana"

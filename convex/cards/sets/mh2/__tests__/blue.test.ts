@@ -16,7 +16,7 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { TargetSelection } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const subtlety = getDefinition("701256d5-1389-48b7-9581-d6037209bd06");
@@ -200,9 +200,7 @@ describe("Thought Monitor — Affinity for artifacts + flying + ETB draw (CR 702
         expect(thoughtMonitor.subtypes).toEqual(["Construct"]);
         expect(thoughtMonitor.power).toBe(2);
         expect(thoughtMonitor.toughness).toBe(2);
-        expect(getDefinition("c5b53f25-25e7-47db-b356-65e93e3b0059")?.id).toBe(
-            thoughtMonitor.id
-        );
+        expect(getCardByName("Thought Monitor")?.id).toBe(thoughtMonitor.id);
     });
 
     it("costs {1} less per artifact, coloured pip untouched, floored at {U}", () => {

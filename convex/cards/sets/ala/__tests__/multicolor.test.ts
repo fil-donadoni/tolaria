@@ -15,7 +15,7 @@
 // script — these tests are the coverage.
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../..";
+import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -125,9 +125,7 @@ function scullerLeaves(state: GameState): void {
 describe("Tidehollow Sculler (ALA — linked hand exile + return on leave, CR 603.2 / 607 / 400.7)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(tidehollowSculler.id)).toBe(tidehollowSculler);
-        expect(getDefinition("1abecc77-07f2-43e4-8585-0a8199cdcf01")).toBe(
-            tidehollowSculler
-        );
+        expect(getCardByName("Tidehollow Sculler")).toBe(tidehollowSculler);
     });
 
     it("ETB exiles the chosen nonland card into the OPPONENT's exile, stamped with the Sculler's instance (CR 607)", () => {

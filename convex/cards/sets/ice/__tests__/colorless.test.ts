@@ -216,9 +216,7 @@ describe("ICE registry parity", () => {
     });
 
     it("registers it by name (debug-panel / pool lookup path)", () => {
-        expect(getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095")).toBe(
-            balduvianBears
-        );
+        expect(getCardByName("Balduvian Bears")).toBe(balduvianBears);
     });
 
     it("includes it in getAllCards (deck-builder index)", () => {
@@ -940,9 +938,7 @@ describe("may-pay cost union — life / mana+life legs (CR 119.4, ADR 0042)", ()
 
 describe("ICE Lands tranche registry parity (#637)", () => {
     it("registers Ice Floe by name and in the deck-builder index", () => {
-        expect(getDefinition("85ce04fb-e687-41e0-ae9a-16a51df5d943").name).toBe(
-            "Ice Floe"
-        );
+        expect(getCardByName("Ice Floe").name).toBe("Ice Floe");
         expect(getAllCards().some((c) => c.name === "Ice Floe")).toBe(true);
     });
 });

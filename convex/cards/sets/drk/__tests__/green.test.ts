@@ -1247,9 +1247,7 @@ describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120
 
     it("registry parity: reachable by id and by name (debug-panel / pool path)", () => {
         expect(getDefinition(marshViper.id)).toBe(marshViper);
-        expect(getDefinition("109cce7a-96f7-4e67-878a-bd5c93ea8643")).toBe(
-            marshViper
-        );
+        expect(getCardByName("Marsh Viper")).toBe(marshViper);
         expect(getAllCards()).toContain(marshViper);
     });
 });

@@ -1684,9 +1684,7 @@ describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.2a)"
         expect(touchOfVitae.manaCost).toEqual({ X: 2, G: 1 });
         expect(touchOfVitae.types).toEqual(["Instant"]);
         expect(getDefinition(touchOfVitae.id)).toBe(touchOfVitae);
-        expect(getDefinition("48d2cd18-a24d-40e0-a654-777d9e623ae2")).toBe(
-            touchOfVitae
-        );
+        expect(getCardByName("Touch of Vitae")).toBe(touchOfVitae);
     });
 });
 
@@ -1956,9 +1954,7 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
 describe("Freyalise's Winds (counter-keyed untap replacement, CR 614.6)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(freyalisesWinds.id)).toBe(freyalisesWinds);
-        expect(getDefinition("b11cd2e0-9419-4267-807e-5b73915c748a")).toBe(
-            freyalisesWinds
-        );
+        expect(getCardByName("Freyalise's Winds")).toBe(freyalisesWinds);
     });
 
     it("puts a wind counter on any permanent that becomes tapped (CR 122.1)", () => {

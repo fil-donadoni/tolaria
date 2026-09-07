@@ -26,7 +26,7 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import type { CardDefinition } from "../../../types";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const thoughtcast = getDefinition("efb965a7-877a-4302-b507-25b0a9e32d9b");
 const frogmite = getDefinition("ff504dcb-2eb8-4b3c-a8b9-29697739b649");
@@ -82,9 +82,7 @@ function boardWith(
 
 describe("Thoughtcast — Affinity for artifacts (CR 702.41a)", () => {
     it("is reachable through the card registry by name", () => {
-        expect(getDefinition("efb965a7-877a-4302-b507-25b0a9e32d9b")?.id).toBe(
-            thoughtcast.id
-        );
+        expect(getCardByName("Thoughtcast")?.id).toBe(thoughtcast.id);
     });
 
     it("costs the full {4}{U} with no artifacts controlled", () => {

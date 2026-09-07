@@ -4,7 +4,12 @@
 // only (definition shape, zone after resolution, projected wire-format).
 
 import { describe, it, expect } from "vitest";
-import { getDefinition, getAllCards, getAllSetCodes } from "../../../index";
+import {
+    getDefinition,
+    getAllCards,
+    getAllSetCodes,
+    getCardByName,
+} from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -62,9 +67,7 @@ describe("FEM registry parity", () => {
     });
 
     it("registers it by name (debug-panel / pool lookup path)", () => {
-        expect(getDefinition("7eb50256-9113-4b03-bcef-9aea24be8493")).toBe(
-            vodalianSoldiers
-        );
+        expect(getCardByName("Vodalian Soldiers")).toBe(vodalianSoldiers);
     });
 
     it("includes it in getAllCards (deck-builder index)", () => {

@@ -41,7 +41,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const amnesia = getDefinition("e07df65c-ebcc-4873-b928-d99040d1f2f6");
 const danceOfMany = getDefinition("13453abe-3f05-4956-8493-382d7d2af699");
@@ -890,9 +890,7 @@ function fireEtbAndCopy(
 describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
     it("is registered by id and name", () => {
         expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
-        expect(getDefinition("13453abe-3f05-4956-8493-382d7d2af699")).toBe(
-            danceOfMany
-        );
+        expect(getCardByName("Dance of Many")).toBe(danceOfMany);
     });
 
     it("excludes a TOKEN creature from the legal copy targets (CR 111.5, issue #1195 — previously an incorrectly-legal target)", () => {

@@ -9,7 +9,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const mindStone = getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");
 
@@ -43,9 +43,7 @@ function libraryOf(n: number, owner = "p1"): CardInstanceState[] {
 
 describe("Mind Stone (mana rock + sacrifice cantrip, CR 605 / 121.1)", () => {
     it("registers and has a colourless {C} mana ability (useStack:false)", () => {
-        expect(getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71")).toBe(
-            mindStone
-        );
+        expect(getCardByName("Mind Stone")).toBe(mindStone);
         expect(mindStone.manaCost).toEqual({ X: 2 });
         const mana = mindStone.activatedAbilities!.find(
             (a) => a.id === "mind-stone-mana"

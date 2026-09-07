@@ -8,7 +8,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const relicOfSauron = getDefinition("175b3d28-5c74-4972-9b5c-5e39762c78f4");
 
@@ -42,9 +42,7 @@ function answerChoice(state: GameState, picks: string[]): void {
 
 describe("Relic of Sauron (Grixis rock + draw-two-discard-one, CR 605 / 608.2)", () => {
     it("has a {U}{B}{R} two-mana ability with six combinations", () => {
-        expect(getDefinition("175b3d28-5c74-4972-9b5c-5e39762c78f4")).toBe(
-            relicOfSauron
-        );
+        expect(getCardByName("Relic of Sauron")).toBe(relicOfSauron);
         expect(relicOfSauron.manaCost).toEqual({ X: 4 });
         const mana = relicOfSauron.activatedAbilities!.find(
             (a) => a.id === "relic-of-sauron-mana"

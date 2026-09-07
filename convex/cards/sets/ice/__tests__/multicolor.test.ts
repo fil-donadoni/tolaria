@@ -14,7 +14,7 @@ import {
 } from "../../../../gre/sacrificeChoice";
 import type { PermanentFilter } from "../../../filters";
 import { isLand, getBasicLandMana } from "../../../../gre/constants";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     runDamageReplacement,
@@ -1029,9 +1029,7 @@ describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target op
 describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(ghostlyFlame.id)).toBe(ghostlyFlame);
-        expect(getDefinition("6314344b-6493-4142-9c76-da9b90b8d3e1")).toBe(
-            ghostlyFlame
-        );
+        expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
     });
 
     it("a black source is coloured B without Ghostly Flame, colourless with it", () => {

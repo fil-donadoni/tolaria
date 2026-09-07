@@ -12,7 +12,7 @@
 // Fixtures from `convex/cards/__tests__/setup.ts`.
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../..";
+import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -109,9 +109,7 @@ function batLeaves(state: GameState): void {
 describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returned on leave; CR 400.2 / 607 / 400.7)", () => {
     it("registers by id and name, and carries flying", () => {
         expect(getDefinition(deepCavernBat.id)).toBe(deepCavernBat);
-        expect(getDefinition("69c68c95-b788-43b1-9f22-1b22c5a00b25")).toBe(
-            deepCavernBat
-        );
+        expect(getCardByName("Deep-Cavern Bat")).toBe(deepCavernBat);
         expect(deepCavernBat.staticAbilities).toContain("flying");
     });
 

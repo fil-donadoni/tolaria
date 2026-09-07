@@ -1902,9 +1902,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
 
     it("registers by id and name (#667)", () => {
         expect(getDefinition(necropotence.id)).toBe(necropotence);
-        expect(getDefinition("54d7a0c1-efb4-4a8d-ad92-a96d43835052")).toBe(
-            necropotence
-        );
+        expect(getCardByName("Necropotence")).toBe(necropotence);
     });
 
     // --- Skip-draw replacement (CR 504/614) --------------------------------
@@ -2152,9 +2150,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
 describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(oathOfLimDul.id)).toBe(oathOfLimDul);
-        expect(getDefinition("f16df768-06de-43a0-b548-44fb0887490b")).toBe(
-            oathOfLimDul
-        );
+        expect(getCardByName("Oath of Lim-Dûl")).toBe(oathOfLimDul);
     });
 
     // --- The seam: LIFE_LOST emitted on every life-loss path ----------------
@@ -2282,9 +2278,7 @@ describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
 describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(seizures.id)).toBe(seizures);
-        expect(getDefinition("da369c86-7e17-43d8-b626-b6842e3d2d50")).toBe(
-            seizures
-        );
+        expect(getCardByName("Seizures")).toBe(seizures);
     });
 
     function setup() {

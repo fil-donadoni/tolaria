@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../..";
+import { getDefinition, getCardByName } from "../../..";
 import {
     applyCostModifiers,
     getCostModifiers,
@@ -74,9 +74,7 @@ function boardWithDomain(n: number): GameState {
 describe("Leyline Binding — Domain cost reduction (CR 601.2f / 305.6)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(leylineBinding.id)).toBe(leylineBinding);
-        expect(getDefinition("3c3ac3dd-35db-447f-8674-37b4680a1ef7")).toBe(
-            leylineBinding
-        );
+        expect(getCardByName("Leyline Binding")).toBe(leylineBinding);
     });
 
     it.each([

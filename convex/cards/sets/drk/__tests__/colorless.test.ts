@@ -88,15 +88,9 @@ describe("DRK registry parity", () => {
         // The Debug-panel preset scenario and the card pool both resolve cards
         // by name via getCardByName (game.ts seedScenario) — registration alone
         // must make the cards reachable.
-        expect(getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9")).toBe(
-            squire
-        );
-        expect(getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1")).toBe(
-            goblinHero
-        );
-        expect(getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0")).toBe(
-            scarwoodGoblins
-        );
+        expect(getCardByName("Squire")).toBe(squire);
+        expect(getCardByName("Goblin Hero")).toBe(goblinHero);
+        expect(getCardByName("Scarwood Goblins")).toBe(scarwoodGoblins);
     });
 
     it("includes them in getAllCards (deck-builder index)", () => {

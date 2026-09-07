@@ -10,7 +10,7 @@ import {
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 const soulGuideLantern = getDefinition("7c850b94-75c9-4457-8b5e-1193352d6fcb");
 
@@ -61,9 +61,7 @@ function gyCard(id: string, owner: string): CardInstanceState {
 
 describe("Soul-Guide Lantern (graveyard hate + sac-draw, CR 406 / 605)", () => {
     it("declares an ETB exile trigger and two sacrifice abilities", () => {
-        expect(getDefinition("7c850b94-75c9-4457-8b5e-1193352d6fcb")).toBe(
-            soulGuideLantern
-        );
+        expect(getCardByName("Soul-Guide Lantern")).toBe(soulGuideLantern);
         expect(soulGuideLantern.manaCost).toEqual({ X: 1 });
         expect(soulGuideLantern.triggeredAbilities).toHaveLength(1);
         const draw = soulGuideLantern.activatedAbilities!.find(
