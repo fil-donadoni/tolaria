@@ -164,6 +164,39 @@ describe("Conspiracy (CR 614.12a as-enters creature type + CR 205.1b layer-4 sub
         expect(elves.subtypes).toEqual(["Goblin"]);
     });
 
+    // Conspiracy is a noncreature Enchantment its own controller controls, so
+    // it sits inside the "creatures you control" scan on every board it is on:
+    // without the `isCreature` gate it would rename ITSELF to the chosen type
+    // and every other assertion here would still pass.
+    it("does NOT rename itself — the enchantment is not a creature you control", () => {
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const omen = makeInstance(conspiracy.id, {
+            id: "consp-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        omen.chosenSubtypes = ["Goblin"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [omen, mine] }),
+                makePlayer("p2"),
+            ],
+        });
+        beginApplyingStaticEffects(state, omen);
+        expect(omen.subtypes).toEqual([]);
+        expect(mine.subtypes).toEqual(["Goblin"]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimOmen = projected.players[0].battlefield.find(
+            (c) => c.id === "consp-1"
+        )!;
+        expect(slimOmen.subtypes).toEqual([]);
+    });
+
     it("leaves every creature alone until the type is chosen", () => {
         const mine = makeInstance(grizzlyBears.id, {
             id: "mine",

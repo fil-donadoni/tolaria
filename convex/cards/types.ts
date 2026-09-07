@@ -8301,8 +8301,13 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
  *  by another effect is still a land for CR 305.7's purposes, and a permanent
  *  that merely GAINED the Land type from a layer-4 effect is not a land the
  *  printed text is talking about (the same discriminator role
- *  `IS_NONCREATURE_ARTIFACT` plays for Titania's Song). */
-export const IS_NONBASIC_LAND: StaticSubtypeAdd["applies"] = (
+ *  `IS_NONCREATURE_ARTIFACT` plays for Titania's Song).
+ *
+ *  Typed off `StaticAbilityLoss`, the one consumer whose `applies` is
+ *  REQUIRED — `StaticSubtypeSet.applies` is optional (it has a computed-output
+ *  sibling), so borrowing that field type would make the constant nullable for
+ *  no reason. The two signatures are identical. */
+export const IS_NONBASIC_LAND: StaticAbilityLoss["applies"] = (
     target,
     _source,
     ctx

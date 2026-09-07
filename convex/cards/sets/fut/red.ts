@@ -7,10 +7,12 @@ import { IS_NONBASIC_LAND } from "../../types";
 // enchantment's static ability on a creature body, so this is Blood Moon's
 // text verbatim (`sets/drk/red.ts`) and therefore Blood Moon's composition —
 // the shared `IS_NONBASIC_LAND` predicate (`cards/types.ts`) scanned twice:
-//   • `ability-loss` (CR 613.1f layer 6) strips the land's printed abilities,
 //   • `subtype-set` (CR 305.7 layer 4) replaces its land types with Mountain,
-// in that order, so the only ability a nonbasic land is left holding is the
-// intrinsic "{T}: Add {R}" its new basic land type grants (CR 305.6). Basic
+//   • `ability-loss` (CR 613.1f layer 6) strips the land's printed abilities,
+// in the CR 613.1 layer order — 4 before 6 — so the only ability a nonbasic
+// land is left holding is the intrinsic "{T}: Add {R}" its new basic land type
+// grants (CR 305.6). The order they are DECLARED in below does not matter:
+// each layer is an independently computed read, not a chained mutation. Basic
 // lands are untouched. The creature body is plain data — no keyword, no
 // ability of its own beyond the static above.
 //
@@ -32,8 +34,8 @@ export const magusOfTheMoon: CardDefinition = {
     power: 2,
     toughness: 2,
     staticEffects: [
-        // CR 613.1f — strip the printed abilities BEFORE the subtype change, so
-        // the land keeps only what its new Mountain subtype grants it.
+        // CR 613.1f — the layer-6 ability strip, so the land keeps only what
+        // its new Mountain subtype grants it.
         {
             kind: "ability-loss",
             applies: IS_NONBASIC_LAND,
