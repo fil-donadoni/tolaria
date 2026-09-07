@@ -544,8 +544,9 @@ export type CardInstanceState = {
      *  spliced back out either when the parametric `duration` expires,
      *  for grants sourced from an attached aura, when the aura leaves the
      *  battlefield, or — for a keyword-counter grant — when the counter is
-     *  fully removed. Exactly one of `duration` / `auraId` / `counterType`
-     *  is set per entry. */
+     *  fully removed. Since PRD #2064 S6b only the `auraId` provenance is left
+     *  here — the other two are registry entries — which makes this array pure
+     *  layer-6 DERIVED OUTPUT. */
     grantedStaticAbilities?: {
         ability: string;
         /** Instance id of the aura that produced this grant (CR 303.4e).
@@ -7891,22 +7892,20 @@ function nextContinuousEffectOrdinal(
  *  Registry, minting both things an entry may not choose for itself: its
  *  deterministic `ce-N` id and its CR 613.7 layer timestamp.
  *
- *  THE single write path into `state.continuousEffects`. Its three callers are
- *  the whole of S6a: the `SpellContext.addContinuousEffect` channel a card
- *  reaches, plus the two layer-7 primitives this slice converted from writing
- *  an instance field (`addTemporaryPTBuff`, `setBasePT`). One write path is
- *  what makes "an entry's stamp is minted by `allocStaticTimestamp`" a property
- *  of the code rather than a convention.
+ *  THE single write path into `state.continuousEffects`. S6a brought the
+ *  `SpellContext.addContinuousEffect` channel a card reaches plus the two
+ *  layer-7 primitives (`addTemporaryPTBuff`, `setBasePT`); S6b brought all five
+ *  of layer 6's (`grantStaticAbility`, `grantStaticAbilityPermanent`,
+ *  `removeStaticAbilities`, `applyKeywordCounterGrant`, `animateAsCreature`).
+ *  One write path is what makes "an entry's stamp is minted by
+ *  `allocStaticTimestamp`" a property of the code rather than a convention.
  *
- *  It is NOT yet true that every layer effect comes through here. Layer 6's
- *  producers (`grantStaticAbility`, `grantStaticAbilityPermanent`,
- *  `removeStaticAbilities`, the keyword-counter grant, `animateAsCreature`)
- *  still write instance ledgers and stamp them from `allocStaticTimestamp`
- *  directly, and layers 2-5 and layer 7 still DERIVE source- and
- *  counter-provenance entries per read against the ordinal floors
- *  (`DERIVED_TIMESTAMP_BASE` and friends). Both go when S6b routes those
- *  producers through here; until then the floors are still load-bearing, and a
- *  slice reading this comment as a completed precondition would be wrong.
+ *  It is still NOT true that every layer effect comes through here: layers 2-5
+ *  and layer 7 DERIVE source- and counter-provenance entries per read against
+ *  the ordinal floors (`DERIVED_TIMESTAMP_BASE` and friends). Those go when
+ *  S6b-part-2 (issue #3120) deletes the derived-output half; until then the
+ *  floors are still load-bearing, and a slice reading this comment as a
+ *  completed precondition would be wrong.
  *
  *  The stamp is minted BEFORE the list is extended, so `allocStaticTimestamp`'s
  *  scan of the live registry cannot see the entry it is stamping. */
