@@ -41,10 +41,13 @@
  *     client carries in the artifact's file NAME. Two independently written
  *     records of one generation, so taking one side of a merge is visible.
  *
- * `--check` regenerates in memory and compares against what is committed,
- * without writing, and then compares the two COMMITTED renderings against each
- * other — byte-for-byte on the definitions they share, naming the first card
- * that differs. That is the freshness + identity guard
+ * `--check` writes nothing. It compares the two COMMITTED renderings against
+ * each other first — byte-for-byte on the definitions they share, naming the
+ * first card that differs — and only then compares each of the three against a
+ * fresh regeneration. Identity first because a stale rendering fails both and
+ * the first message is the one the reader gets: "Venerable Knight is TWO
+ * definitions" is a diagnosis, "the pool is not what the tree generates" is
+ * not. That is the identity + freshness guard
  * `scripts/__tests__/catalogue-artifact.test.ts` runs in the gate: it is what
  * makes ADR 0114 §2's claim true, that a hand-written card added without
  * regenerating is CAUGHT rather than filtered away in silence, and ADR 0113
@@ -333,6 +336,28 @@ function main() {
             );
             process.exit(1);
         }
+        // IDENTITY FIRST, freshness second — the order is the diagnosis.
+        //
+        // Both orders go red on the same trees, and freshness is the wider
+        // net (it also catches a tree where the two renderings agree with
+        // each other and neither matches the source). But a stale rendering
+        // fails BOTH, and whichever runs first is the message the reader
+        // gets. Freshness can only ever say "this file is not what the tree
+        // generates"; identity says WHICH CARD is now two definitions, which
+        // is the fact ADR 0113 §2 is about — the server resolving a spell one
+        // way and the Brain planning against another. Running freshness first
+        // made the per-card diagnosis unreachable for the single-sided
+        // mutation that is the whole failure mode (review of issue #3055).
+        const drift = committedIdentityDrift(repoRoot);
+        if (drift !== null) {
+            console.error(
+                `${RED}✗ the server-bundled definitions and the client artifact DIVERGE (ADR 0113 §2)${RESET}\n` +
+                    `    ${describeIdentityDrift(drift)}\n` +
+                    "  The server would resolve this card one way and the client's Brain plan\n" +
+                    "  against another. Run: bun run catalogue:pack"
+            );
+            process.exit(1);
+        }
         for (const [path, expected] of [
             [committed, build.bytes],
             [POOL_PATH, build.poolBytes],
@@ -342,21 +367,6 @@ function main() {
             console.error(
                 `${RED}✗ ${path} is not what the tree generates${RESET}\n` +
                     `  Run: bun run catalogue:pack`
-            );
-            process.exit(1);
-        }
-        // Freshness above proves each committed file equals a regeneration,
-        // which already implies identity. This asks the question ADR 0113 §2
-        // actually poses — "do the bytes agree NOW" — of the COMMITTED files
-        // rather than of the build, so it holds even if a future generator
-        // change made one rendering a second derivation again.
-        const drift = committedIdentityDrift(repoRoot);
-        if (drift !== null) {
-            console.error(
-                `${RED}✗ the server-bundled definitions and the client artifact DIVERGE (ADR 0113 §2)${RESET}\n` +
-                    `    ${describeIdentityDrift(drift)}\n` +
-                    "  The server would resolve this card one way and the client's Brain plan\n" +
-                    "  against another. Run: bun run catalogue:pack"
             );
             process.exit(1);
         }
