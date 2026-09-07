@@ -3053,9 +3053,27 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // CR 613.1f (PRD #2064 S3) — recompose layer 6 now that the expired rows
+    // CR 611.2a (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry's
+    // own countdown. Every duration-scoped continuous effect the engine holds
+    // is ONE entry here now (a Giant Growth pump, a "base power 0 until end of
+    // turn" set, an until-end-of-turn keyword grant or removal), so one tick
+    // replaces the per-field purges that used to stand in this function — one
+    // per instance ledger, each with its own copy of the same expiry rule.
+    //
+    // Entries are SPLICED, not blanked: `id` is the documented removal handle
+    // and `nextContinuousEffectOrdinal` (`gre/state.ts`) mints from the highest
+    // suffix in use precisely so a removal here cannot let a later entry
+    // re-issue a live id.
+    tickContinuousEffectDurations(state, view);
+
+    // CR 613.1f (PRD #2064 S3) — recompose layer 6 now that the expired entries
     // are gone, so the boundary's effect is visible before the next read rather
-    // than at the next SBA pass.
+    // than at the next SBA pass. It MUST follow the registry tick above:
+    // PRD #2064 S6b moved layer 6's grants and removals into the registry, so a
+    // recompose that ran first would compose an entry whose boundary had just
+    // come and leave an until-end-of-turn grant standing for a whole extra
+    // turn. While the countdown lived on the instance the per-field purges sat
+    // here, ahead of this call, and the ordering was satisfied by accident.
     syncLayer6(state);
 
     // One-shot prevention effects (e.g. Circle of Protection). An effect
@@ -3159,19 +3177,6 @@ function tickAllDurations(state: GameState): void {
             }
         }
     }
-
-    // CR 611.2a (ADR 0082, PRD #2064 S6) — the Continuous Effects Registry's
-    // own countdown. Every duration-scoped continuous effect the engine holds
-    // is ONE entry here now (a Giant Growth pump, a "base power 0 until end of
-    // turn" set, an until-end-of-turn keyword grant or removal), so one tick
-    // replaces the per-field purges that used to stand in this function — one
-    // per instance ledger, each with its own copy of the same expiry rule.
-    //
-    // Entries are SPLICED, not blanked: `id` is the documented removal handle
-    // and `nextContinuousEffectOrdinal` (`gre/state.ts`) mints from the highest
-    // suffix in use precisely so a removal here cannot let a later entry
-    // re-issue a live id.
-    tickContinuousEffectDurations(state, view);
 
     // Timed subtype changes (CR 305.7 / 611.2 — Orcish Farmer "becomes a Swamp
     // until its controller's next untap step"). On expiry, restore the captured

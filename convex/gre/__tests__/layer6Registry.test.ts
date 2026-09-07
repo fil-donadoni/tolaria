@@ -128,9 +128,9 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
 
             // The spell that granted it has LEFT — the provenance a board walk
             // cannot reproduce, and the reason the registry exists at all.
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({ duration: { phase: "end-of-turn" } }),
-            ]);
+            // PRD #2064 S6b: that provenance IS the entry now, not a row the
+            // derivation had to synthesise an entry around at every read.
+            expect(expiriesOn(state, bear)).toEqual(["duration"]);
             refreshCounterGatedStatics(state);
             expect(count(bear, "flying")).toBe(1);
         });
@@ -388,9 +388,13 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
 
             expect(victim.staticAbilities).not.toContain("does-not-untap");
             expect(getEffectiveActivatedAbilities(victim)).toEqual([]);
-            // No revoke primitive was called — the entries are still on the
-            // registry, they simply no longer apply.
-            expect(expiriesOn(state, victim)).toEqual(["counter", "counter"]);
+            // No revoke primitive was called for the untap lock or the granted
+            // activation — both are still on the registry and simply no longer
+            // apply. The keyword counter's own grant IS taken back
+            // (`unapplyKeywordCounterGrant`, PRD #2064 S6b), because CR 613.7c
+            // orders it at the moment the counter went on and a re-added
+            // counter must sort at ITS moment — so one `counter` entry, not two.
+            expect(expiriesOn(state, victim)).toEqual(["counter"]);
 
             victim.isTapped = true;
             state.activePlayerId = "p2";
