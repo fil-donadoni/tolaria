@@ -21,6 +21,7 @@ import {
 } from "../layers";
 import type { LayerStateView } from "../layers";
 import {
+    continuousEffectDependsOn,
     orderByDependency,
     STATIC_EFFECT_READS,
     CDA_STATIC_EFFECT_KINDS,
@@ -525,6 +526,16 @@ describe("CR 613.8a — the oracle", () => {
                 ["conspiracy#0", "lal#0"],
                 ["lal#0", "conspiracy#0"],
                 ["lal#1", "conspiracy#0"],
+                // OVER-DECLARED. Life and Limb's `type-add` reads subtypes and
+                // its own `subtype-add` writes them, so the table draws an edge;
+                // no board can realise it, because the `subtype-add` only ever
+                // fires on a permanent the predicate ALREADY matches and can
+                // never create a new match. Harmless: both effects come from one
+                // source at one timestamp and their payloads commute, and on
+                // this board the edge lands inside the Conspiracy loop anyway.
+                // Narrowing it would need a read set that can say "not the
+                // subtypes I write", which `reads` deliberately cannot.
+                ["lal#0", "lal#1"],
             ],
         },
     ];
@@ -586,19 +597,45 @@ describe("CR 613.8a — the oracle", () => {
                 }
             }
 
+            const byId = new Map(
+                probes.map((probe) => [probe.entry.id, probe.template])
+            );
+            const production: string[] = [];
             const oracle: string[] = [];
             for (const a of probes) {
                 for (const b of probes) {
                     if (a === b) continue;
-                    if (oracleDependsOn(a, b, board, probes)) {
-                        oracle.push(`${a.entry.id}->${b.entry.id}`);
+                    const edge = `${a.entry.id}->${b.entry.id}`;
+                    if (oracleDependsOn(a, b, board, probes)) oracle.push(edge);
+                    if (
+                        continuousEffectDependsOn(a.entry, b.entry, {
+                            template: (entry) => byId.get(entry.id),
+                            ctx: STATIC_EFFECT_CTX,
+                        })
+                    ) {
+                        production.push(edge);
                     }
                 }
             }
+            // The oracle is held against the SHIPPING relation, not against an
+            // answer key: its whole job is to disagree with the declared table
+            // when a declaration is wrong (ADR 0115 decision 4). The two
+            // directions of disagreement are not symmetric:
+            //
+            //  - a FALSE NEGATIVE (the oracle sees an edge the table does not)
+            //    is a missed dependency and a wrong board. Always fatal.
+            //  - a FALSE POSITIVE is an over-approximation of a declared read
+            //    set. It is harmless on a linear path and fatal only when it
+            //    closes a loop that swallows a real dependency, so each one is
+            //    LISTED below and argued rather than tolerated in bulk. The
+            //    acceptance cases above assert the resulting board, which is
+            //    what proves an over-declaration changed nothing.
+            const missed = oracle.filter((e) => !production.includes(e));
+            expect(missed).toEqual([]);
             const expected = testCase.expected.map(
                 ([from, to]) => `${from}->${to}`
             );
-            expect([...oracle].sort()).toEqual([...expected].sort());
+            expect([...production].sort()).toEqual([...expected].sort());
         });
     }
 });

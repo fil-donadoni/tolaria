@@ -363,6 +363,37 @@ type DependencyNode = {
     cda: boolean;
 };
 
+/** CR 613.8a for ONE pair of entries, clause (a) included — the relation this
+ *  module runs on, exposed so the ORACLE can be held against it rather than
+ *  against a hand-written answer key (ADR 0115 decision 4). A test asserting
+ *  what it already believes proves nothing; the oracle's job is to disagree
+ *  with this function when the declared table is wrong. */
+export function continuousEffectDependsOn(
+    a: ContinuousEffect,
+    b: ContinuousEffect,
+    context: Pick<DependencyContext, "template" | "ctx">
+): boolean {
+    if (groupKeyOf(a) !== groupKeyOf(b)) return false;
+    return dependsOn(nodeOf(a, context), nodeOf(b, context), context.ctx);
+}
+
+/** One graph node, built from an entry and the caller's template resolver. */
+function nodeOf(
+    entry: ContinuousEffect,
+    context: Pick<DependencyContext, "template">
+): DependencyNode {
+    const template = context.template(entry);
+    return {
+        entry,
+        template,
+        reads: readsOf(entry, template),
+        writes: writesOf(entry, template),
+        rulesTextSource:
+            entry.payload.kind === "template" ? template?.source : undefined,
+        cda: entry.characteristicDefining,
+    };
+}
+
 /** CR 613.8a — does `a` depend on `b`? Clause (a) is the caller's (both nodes
  *  come from one layer/sublayer group); clauses (b) and (c) are here. */
 function dependsOn(
@@ -443,13 +474,13 @@ function orderGroup(
     context: DependencyContext
 ): ContinuousEffect[] {
     const templates = group.map((entry) => context.template(entry));
-    // A group in which nothing declares a read set and nothing can destroy
-    // rules text (CR 305.7) has, by construction, only SYMMETRIC edges: every
-    // kind in a layer defaults to reading that layer's own write families, so
-    // every pair is mutually dependent and CR 613.8b hands the whole group back
-    // to the timestamp order the caller already produced. Proving that here
-    // rather than computing it keeps the cost off layer 7, whose derivation
-    // every state-based-action sweep asks of every creature.
+    // A group in which nothing declares a read set and nothing can end another
+    // effect's existence has NO edges at all: the applies-limb needs a declared
+    // read (every kind's default row is empty) and the existence limb needs a
+    // subtype replacement or a total ability removal. Proving that with two
+    // field reads per entry, rather than building the graph and discovering it,
+    // keeps the cost off layer 7 — the derivation every state-based-action
+    // sweep asks of every creature.
     let asymmetric = false;
     for (let i = 0; i < group.length && !asymmetric; i++) {
         asymmetric =
@@ -458,20 +489,9 @@ function orderGroup(
     }
     if (!asymmetric) return [...group];
 
-    const nodes: DependencyNode[] = group.map((entry, i) => {
-        const template = templates[i];
-        return {
-            entry,
-            template,
-            reads: readsOf(entry, template),
-            writes: writesOf(entry, template),
-            rulesTextSource:
-                entry.payload.kind === "template"
-                    ? template?.source
-                    : undefined,
-            cda: entry.characteristicDefining,
-        };
-    });
+    const nodes: DependencyNode[] = group.map((entry) =>
+        nodeOf(entry, context)
+    );
 
     // `edges[a]` = the nodes `a` depends on, i.e. the ones it waits for.
     const edges: number[][] = nodes.map(() => []);
