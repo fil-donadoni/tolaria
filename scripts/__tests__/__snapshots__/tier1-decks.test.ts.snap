@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`M1 progress > records the per-deck summary so the diff shows progress 1`] = `
+"goblin                16/28 ready  (12 ours, 4 ready, 1 quarantine, 11 unparsed)
+psychatog             18/25 ready  (17 ours, 1 ready, 1 quarantine, 6 unparsed)
+parallax-replenish    18/21 ready  (17 ours, 1 ready, 0 quarantine, 3 unparsed)
+landstill             22/28 ready  (20 ours, 2 ready, 0 quarantine, 6 unparsed)
+oath-ponza            20/24 ready  (16 ours, 4 ready, 0 quarantine, 4 unparsed)
+aluren                12/21 ready  (11 ours, 1 ready, 1 quarantine, 8 unparsed)"
+`;

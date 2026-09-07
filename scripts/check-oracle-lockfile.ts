@@ -68,6 +68,7 @@
  * keeps the gate surface from growing per artifact.
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildLockfile, poolOracleIds } from "./oracle-compile";
@@ -89,6 +90,17 @@ import {
     type HeaderHashes,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import { ORIGIN_BASE } from "./lib/branches";
+import {
+    emptyRegressionLedger,
+    parseRegressionLedger,
+    readyRegressions,
+    regressionMessage,
+    staleAcknowledgements,
+    unacknowledgedRegressions,
+    REGRESSION_LEDGER_PATH,
+    type RegressionLedger,
+} from "./lib/oracle-state-regressions";
 import {
     emptyRetirementLedger,
     parseRetirementLedger,
@@ -101,6 +113,7 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 const RETIREMENTS_PATH = join(ROOT, RETIREMENT_LEDGER_PATH);
+const REGRESSIONS_PATH = join(ROOT, REGRESSION_LEDGER_PATH);
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -123,10 +136,21 @@ const RESET = "\x1b[0m";
  * `catalogue:ensure` can run its generator itself, and this one must not — the
  * gate is offline by contract (CLAUDE.md), so a check may TELL you to hit the
  * network and may never do it for you.
+ *
+ * `needsCorpus: false` suppresses that preamble for a failure whose remedy is
+ * editing a committed LEDGER rather than regenerating an artefact. Telling a
+ * reader to spend a 24 MB download before hand-writing one line of JSON sends
+ * them down a bootstrap they do not need, and a fix line that is wrong once is
+ * a fix line nobody reads again (issue #2696).
  */
-function fail(label: string, message: string, fixCommand: string): never {
+function fail(
+    label: string,
+    message: string,
+    fixCommand: string,
+    needsCorpus = true
+): never {
     process.stderr.write(`${RED}✗ ${label} — ${message}${RESET}\n`);
-    if (corpusIsCached()) {
+    if (!needsCorpus || corpusIsCached()) {
         process.stderr.write(`${DIM}  fix: ${fixCommand}${RESET}\n`);
     } else {
         process.stderr.write(
@@ -434,9 +458,207 @@ function checkRetirements(): void {
     );
 }
 
+function readRegressionLedger(): RegressionLedger {
+    if (!existsSync(REGRESSIONS_PATH)) return emptyRegressionLedger();
+    try {
+        return parseRegressionLedger(readFileSync(REGRESSIONS_PATH, "utf8"));
+    } catch (err) {
+        fail(
+            "oracle state regressions",
+            (err as Error).message,
+            `edit ${REGRESSION_LEDGER_PATH}`,
+            false
+        );
+    }
+}
+
+/** One git invocation's outcome, so a failure is a value rather than a throw. */
+export type GitResult =
+    | { readonly ok: true; readonly out: string }
+    | {
+          readonly ok: false;
+          readonly error: string;
+          /**
+           * The git BINARY could not be spawned at all (ENOENT), as opposed to
+           * git running and answering "no".
+           *
+           * The difference decides skip vs red on the very first probe: a
+           * tarball export with no `.git` is a legitimate skip, while git
+           * missing from `PATH` is broken tooling on a tree that IS a
+           * repository — and collapsing the two is how the guard came to
+           * print green with no git at all (review of issue #2696, finding 1).
+           */
+          readonly missing?: boolean;
+      };
+
+/** Runs `git <args>` in the repo root. Injected so the decision below is testable. */
+export type GitRunner = (args: readonly string[]) => GitResult;
+
+/**
+ * What the base branch can tell us, as three OUTCOMES rather than a nullable.
+ *
+ * The distinction is the whole point. "There is no other commit to compare
+ * against" is a legitimate skip — a tarball export, a clone that never fetched.
+ * "The comparison broke" is a RED: git missing from `PATH`, a `git show` that
+ * failed for a reason we did not anticipate, a baseline lockfile that does not
+ * parse (exactly the schema-rewrite moment when a real regression is most
+ * likely). Collapsing the two into `null` made every one of those print the
+ * green skip line and exit 0 — the guard silently not guarding, which is the
+ * failure mode this guard exists to prevent (review of issue #2696, finding 1).
+ */
+export type BaselineOutcome =
+    | { readonly kind: "lockfile"; readonly lock: Lockfile }
+    | { readonly kind: "unavailable"; readonly why: string }
+    | { readonly kind: "broken"; readonly detail: string };
+
+const BASELINE_LOCKFILE_REL = "data/oracle-compiled.json";
+
+/**
+ * The lockfile as the BASE BRANCH has it — the only honest baseline for "did
+ * this change shrink the pool".
+ *
+ * Read through git rather than kept as a committed second copy of the same
+ * rows: a checked-in baseline would have to be regenerated alongside the
+ * lockfile, and a baseline you refresh in the same commit as the thing it
+ * guards guards nothing.
+ *
+ * PURE given its runner, so every branch has a fixture. The wrapper that
+ * actually shells out is `runGit` below; this function only decides.
+ */
+export function baselineOutcome(git: GitRunner): BaselineOutcome {
+    const repo = git(["rev-parse", "--is-inside-work-tree"]);
+    if (!repo.ok && repo.missing === true)
+        return {
+            kind: "broken",
+            detail: `git is not on PATH (${repo.error}) — this tree is a git repository, so the baseline is readable and something is wrong with the environment, not with the repo`,
+        };
+    if (!repo.ok)
+        return {
+            kind: "unavailable",
+            why: `not a git work tree here (${repo.error})`,
+        };
+    const ref = git([
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        `${ORIGIN_BASE}^{commit}`,
+    ]);
+    if (!ref.ok)
+        return {
+            kind: "unavailable",
+            why: `${ORIGIN_BASE} is not a ref in this clone — fetch the base branch to enable it`,
+        };
+    const mergeBase = git(["merge-base", "HEAD", ORIGIN_BASE]);
+    if (!mergeBase.ok)
+        return {
+            kind: "broken",
+            detail: `git merge-base HEAD ${ORIGIN_BASE} failed: ${mergeBase.error}`,
+        };
+    const at = `${mergeBase.out.trim()}:${BASELINE_LOCKFILE_REL}`;
+    // `cat-file -e` separates "the merge-base predates the lockfile" (a
+    // legitimate skip) from "git show blew up" (a red). Without it both arrive
+    // as the same non-zero exit from `show`.
+    if (!git(["cat-file", "-e", at]).ok)
+        return {
+            kind: "unavailable",
+            why: `${BASELINE_LOCKFILE_REL} does not exist at the merge-base with ${ORIGIN_BASE}`,
+        };
+    const show = git(["show", at]);
+    if (!show.ok)
+        return {
+            kind: "broken",
+            detail: `git show ${at} failed: ${show.error}`,
+        };
+    try {
+        return { kind: "lockfile", lock: parseLockfile(show.out) };
+    } catch (err) {
+        return {
+            kind: "broken",
+            detail: `the lockfile at ${at} does not parse: ${(err as Error).message}`,
+        };
+    }
+}
+
+/**
+ * The real runner. `maxBuffer` is generous on purpose: the lockfile is ~10 MB
+ * of text today and grows with the corpus, and a buffer overrun would surface
+ * as `broken` — a red on a healthy tree — rather than as a wrong answer.
+ */
+const runGit: GitRunner = (args) => {
+    try {
+        return {
+            ok: true,
+            out: execFileSync("git", [...args], {
+                cwd: ROOT,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+                maxBuffer: 512 * 1024 * 1024,
+            }),
+        };
+    } catch (err) {
+        const e = err as { stderr?: string; message?: string; code?: string };
+        return {
+            ok: false,
+            error: (e.stderr || e.message || "unknown error").trim(),
+            ...(e.code === "ENOENT" ? { missing: true } : {}),
+        };
+    }
+};
+
+/**
+ * Offline, and the one tier that asks a question about CHANGE rather than
+ * about staleness: the committed lockfile may match the tree perfectly and
+ * still have dropped 40 cards out of the pool since the base branch.
+ */
+function checkStateRegressions(): void {
+    const baseline = baselineOutcome(runGit);
+    if (baseline.kind === "broken") {
+        fail(
+            "oracle state regressions",
+            `the base-branch comparison could not be made — ${baseline.detail}\n` +
+                `    This is NOT a skip: a guard that cannot read its baseline is a guard\n` +
+                `    that is not there, and the pool could be shrinking behind it.`,
+            `fix the git state above, then re-run \`bun run check:oracle\``,
+            false
+        );
+    }
+    if (baseline.kind === "unavailable") {
+        process.stdout.write(
+            `${GREEN}✓ oracle state regressions${RESET} ${DIM}(skipped — ` +
+                `${baseline.why})${RESET}\n`
+        );
+        return;
+    }
+    const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
+    const ledger = readRegressionLedger();
+    const regressions = readyRegressions(baseline.lock.cards, lock.cards);
+    const unacknowledged = unacknowledgedRegressions(regressions, ledger);
+    if (unacknowledged.length > 0) {
+        fail(
+            "oracle state regressions",
+            regressionMessage(unacknowledged),
+            `edit ${REGRESSION_LEDGER_PATH}, or restore the rule that made those cards ready`,
+            false
+        );
+    }
+    const stale = staleAcknowledgements(regressions, ledger);
+    process.stdout.write(
+        `${GREEN}✓ oracle state regressions${RESET} ${DIM}(${regressions.length} ` +
+            `ready-state loss(es) vs ${ORIGIN_BASE}, all acknowledged)${RESET}\n`
+    );
+    if (stale.length > 0) {
+        process.stdout.write(
+            `${DIM}  ${stale.length} stale acknowledgement(s) in ${REGRESSION_LEDGER_PATH} ` +
+                `matching no current regression — safe to delete: ` +
+                `${stale.map((a) => a.name).join(", ")}${RESET}\n`
+        );
+    }
+}
+
 function main(): void {
     checkLockfile();
     checkRetirements();
+    checkStateRegressions();
     checkLegality();
 }
 
