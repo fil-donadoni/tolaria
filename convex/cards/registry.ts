@@ -77,11 +77,16 @@ const zoneConditionalIds = new Set<string>();
  *  Derived by `setRegistryEntry`; see `declaresLayer2to5StaticEffect`. */
 const layer2to5StaticIds = new Set<string>();
 
+/** Ids whose definition declares a layer-6 static effect (PRD #2064 S7).
+ *  Derived by `setRegistryEntry`; see `declaresLayer6StaticEffect`. */
+const layer6StaticIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
     if (def.offBattlefieldCharacteristics) zoneConditionalIds.add(key);
     if (declaresLayer2to5Kind(def)) layer2to5StaticIds.add(key);
+    if (declaresLayer6Kind(def)) layer6StaticIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -105,6 +110,26 @@ const declaresLayer2to5Kind = (def: CardDefinition): boolean =>
     (def.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind)) ||
     (def.modes ?? []).some((m) =>
         (m.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind))
+    );
+
+/** CR 613.1f — the `StaticEffect` kinds the layer-6 derivation owns.
+ *  Duplicated from `gre/layer6.ts`'s own table for the reason
+ *  `LAYER_2_5_STATIC_KINDS` above is: this module is the registry, and
+ *  `gre/**` imports IT. `layer6Registry.test.ts` asserts the two agree. */
+const LAYER_6_STATIC_KINDS = new Set<string>([
+    "keyword-grant",
+    "keyword-remove",
+    "ability-loss",
+    "activated-grant",
+    "triggered-grant",
+]);
+
+/** Whether a definition declares any layer-6 static effect, in its own
+ *  `staticEffects[]` or in a mode's (CR 700.2c). */
+const declaresLayer6Kind = (def: CardDefinition): boolean =>
+    (def.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind)) ||
+    (def.modes ?? []).some((m) =>
+        (m.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind))
     );
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
@@ -134,6 +159,23 @@ export const declaresOffBattlefieldCharacteristics = (
  *  A stale FALSE is impossible: every write goes through `setRegistryEntry`. */
 export const declaresLayer2to5StaticEffect = (cardId: string): boolean =>
     layer2to5StaticIds.has(cardId);
+
+/** CR 613.1f (PRD #2064 S7) — does `cardId`'s definition declare any layer-6
+ *  static effect? The exact twin of `declaresLayer2to5StaticEffect` above, one
+ *  layer over, and it exists for the same measured reason: `gre/layer6.ts`'s
+ *  board scan resolves a definition per battlefield source at every sync, every
+ *  sync runs at every apply site, and the ISMCTS search pays that on every node
+ *  it expands. Almost no permanent declares a layer-6 static effect, and a
+ *  `Set.has` on the id says so without a registry lookup or an
+ *  `expandDefinition`.
+ *
+ *  Same DERIVED-membership discipline and the same trade as its twin: a stale
+ *  TRUE (a `withTemporaryDefinition` restore) costs one wasted lookup and never
+ *  a wrong answer, because the scan still reads the live definition before
+ *  deriving anything; a stale FALSE is impossible, because every write goes
+ *  through `setRegistryEntry`. */
+export const declaresLayer6StaticEffect = (cardId: string): boolean =>
+    layer6StaticIds.has(cardId);
 
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */

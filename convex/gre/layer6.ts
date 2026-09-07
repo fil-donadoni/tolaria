@@ -37,7 +37,9 @@
 // PRD #2064's "no revoke-a-permanent-grant primitive is introduced".
 
 import { tryGetDefinition } from "../cards";
+import { declaresLayer6StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
+import { sameOrder } from "./constants";
 import { compareContinuousEffects, renderKeyword } from "./continuousEffects";
 import type { ContinuousEffect } from "./continuousEffects";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
@@ -323,42 +325,51 @@ function sourceStaticEffects(
     return [...cardEffects, ...modeEffects];
 }
 
-/** Every layer-6 registry entry applying to `target`, in CR 613.7 timestamp
- *  order, paired with the live source each source-provenance entry was derived
- *  from.
- *
- *  Four provenances, one entry type, distinguished only by EXPIRY (PRD #2064
- *  S1's `ContinuousEffectExpiry`):
- *
- *  - `source` — a battlefield permanent's or command-zone emblem's static
- *    ability. DERIVED per read by walking the board, so a leave-the-battlefield,
- *    a control change, a phase-out and an `applies` / `condition` that stops
- *    holding need no purge site and cannot drift. Timestamped with the source's
- *    own `staticSeq` (CR 613.7a), which is a REAL minted stamp — unlike layer 7,
- *    which had to invent a derived ordinal because a P/T source carries none.
- *  - `duration` / `indefinite` — residue of a resolved spell or ability
- *    (`SpellContext.grantStaticAbility`, `grantStaticAbilityPermanent`,
- *    `removeStaticAbilities`, `loseAllAbilities`). The spell has LEFT; there is
- *    nothing to walk, which is exactly why the registry exists. Still borne by
- *    the instance until PRD #2064 S6 moves the countdown in here.
- *  - `counter` — CR 122.1b keyword counters, gated on the counter still being
- *    there. Neither duration-bounded nor tied to a live source.
- *  - stored `state.continuousEffects` — the channel that is simultaneously
- *    source-INDEPENDENT and condition-GATED, which no pre-registry channel could
- *    be at once (Dread Wight, `cards/sets/ice/black.ts`).
- */
-function layer6EffectsFor(
-    state: LayerStateView,
-    target: PermanentView,
-    trustLedger: boolean
-): {
-    entries: ContinuousEffect[];
-    templates: ReadonlyMap<string, DerivedTemplate>;
-} {
-    const entries: ContinuousEffect[] = [];
-    const templates = new Map<string, DerivedTemplate>();
+/** One (source, static effect) pair that has cleared the whole SOURCE-side half
+ *  of layer 6's walk: the effect is one of layer 6's kinds, its source carries a
+ *  CR 613.7a timestamp, and the CR 611.2c source-level gate holds against the
+ *  board. All that is left to decide per TARGET is the `applies` predicate. */
+type Layer6SourceCandidate = {
+    source: PermanentView;
+    effect: StaticEffect;
+    /** Index into the source's own effect list. Half the entry's identity
+     *  (`ce6-src-<sourceId>-<index>`) and the `effectIndex` the template
+     *  payload is resolved back through (`resolveLayer6Action`). */
+    index: number;
+    /** CR 613.7a — the source's `staticSeq`, or the derived ordinal that
+     *  stands in for one where the engine mints none (an emblem). */
+    seq: number;
+};
 
-    const pushSourceEffects = (
+/** The source half of one board's layer-6 derivation. */
+export type Layer6SourcePlan = readonly Layer6SourceCandidate[];
+
+/** Walks the battlefield and the command zone ONCE, resolving every object's
+ *  layer-6 static effects against a FIXED board (PRD #2064 S7).
+ *
+ *  The twin of `collectSourceEntries` in `gre/layers2to5.ts`, and it exists for
+ *  the same measured reason. This walk used to run inside `layer6EffectsFor`,
+ *  i.e. once per TARGET: an n-permanent board paid n² definition resolutions
+ *  and n² source-gate evaluations per sync, every sync runs at every apply
+ *  site, and the ISMCTS search pays that on every node it expands. Measured on
+ *  the blade suite, `syncLayer6` was 13.7% of total search wall clock.
+ *
+ *  Hoisting the CR 611.2c source gate out of the per-target loop is not an
+ *  approximation, it is the invariant `syncLayer6`'s two passes exist to
+ *  enforce: `condition(source, state, ctx)` reads the SOURCE and the BOARD and
+ *  never the target, and CR 613 composes a layer over a FIXED input, so its
+ *  answer is the same for every target of one pass by construction. Evaluating
+ *  it once is the only way to state that; evaluating it n times was merely a
+ *  way to get the same answer n times, and would stop being the same answer the
+ *  moment a mid-walk write made the board move under it — the exact bug the two
+ *  passes prevent.
+ *
+ *  What is deliberately NOT hoisted is `applies(target, source, ctx)`: it reads
+ *  the target, so it is genuinely per-pair and stays in `layer6EffectsFor`. */
+export function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
+    const candidates: Layer6SourceCandidate[] = [];
+
+    const push = (
         source: PermanentView,
         effects: readonly StaticEffect[],
         /** CR 114.3 — an emblem has abilities like any other object but is not
@@ -392,16 +403,6 @@ function layer6EffectsFor(
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
             if (!LAYER_6_STATIC_EFFECT_KINDS[effect.kind]) continue;
-            const applies = (
-                effect as {
-                    applies: (
-                        t: PermanentView,
-                        s: PermanentView,
-                        c: typeof STATIC_EFFECT_CTX
-                    ) => boolean;
-                }
-            ).applies;
-            if (!applies(target, source, STATIC_EFFECT_CTX)) continue;
             // CR 611.2c source-level gate ("as long as ..."), evaluated once
             // per source against the whole board (Kavu Runner). Only
             // `keyword-grant` carries one today; reading it off the wider type
@@ -418,43 +419,107 @@ function layer6EffectsFor(
             if (condition && !condition(source, state, STATIC_EFFECT_CTX)) {
                 continue;
             }
-            const id = `ce6-src-${source.id}-${index}`;
-            templates.set(id, { source, effect });
-            entries.push({
-                id,
-                layer: 6,
-                timestamp: seq,
-                expiry: { kind: "source", sourceId: source.id },
-                affected: { kind: "predicate" },
-                payload: {
-                    kind: "template",
-                    sourceCardId: (source.card as { id?: string }).id ?? "",
-                    effectIndex: index,
-                    modeId: (source as { chosenModeId?: string }).chosenModeId,
-                },
-                // CR 604.3 — no layer-6 static effect in the catalogue is
-                // characteristic-defining (a CDA defines P/T, colour, mana cost
-                // or subtype; CR 604.3 lists no ability-granting form).
-                characteristicDefining: false,
-            });
+            candidates.push({ source, effect, index, seq });
         }
     };
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            pushSourceEffects(source, sourceStaticEffects(source));
+            // PRD #2064 S7 — the registry-derived precheck, the exact twin of
+            // the one `gre/layers2to5.ts` runs one layer over. Almost no
+            // permanent declares a layer-6 static effect, and a `Set.has` on
+            // the id says so without a map lookup plus an `expandDefinition`.
+            // Fail-slow by construction: a stale TRUE costs one wasted
+            // resolution (`sourceStaticEffects` still reads the live
+            // definition and returns nothing), a stale FALSE is impossible
+            // because every registry write goes through `setRegistryEntry`.
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId || !declaresLayer6StaticEffect(cardId)) continue;
+            push(source, sourceStaticEffects(source));
         }
     }
     // CR 114 (issue #1221) — command-zone emblems contribute source-less,
-    // owner-scoped statics through the same predicate walk.
+    // owner-scoped statics through the same predicate walk. No precheck: the
+    // emblem registry is a different map, and there are single-digit emblems.
     let emblemOrdinal = EMBLEM_TIMESTAMP_BASE;
     for (const emblem of state.emblems ?? []) {
         const synthetic = emblemAsStaticSource(emblem);
-        pushSourceEffects(
-            synthetic,
-            sourceStaticEffects(synthetic),
-            emblemOrdinal++
-        );
+        push(synthetic, sourceStaticEffects(synthetic), emblemOrdinal++);
+    }
+
+    return candidates;
+}
+
+/** Every layer-6 registry entry applying to `target`, in CR 613.7 timestamp
+ *  order, paired with the live source each source-provenance entry was derived
+ *  from.
+ *
+ *  Four provenances, one entry type, distinguished only by EXPIRY (PRD #2064
+ *  S1's `ContinuousEffectExpiry`):
+ *
+ *  - `source` — a battlefield permanent's or command-zone emblem's static
+ *    ability. DERIVED per read by walking the board, so a leave-the-battlefield,
+ *    a control change, a phase-out and an `applies` / `condition` that stops
+ *    holding need no purge site and cannot drift. Timestamped with the source's
+ *    own `staticSeq` (CR 613.7a), which is a REAL minted stamp — unlike layer 7,
+ *    which had to invent a derived ordinal because a P/T source carries none.
+ *  - `duration` / `indefinite` — residue of a resolved spell or ability
+ *    (`SpellContext.grantStaticAbility`, `grantStaticAbilityPermanent`,
+ *    `removeStaticAbilities`, `loseAllAbilities`). The spell has LEFT; there is
+ *    nothing to walk, which is exactly why the registry exists. Still borne by
+ *    the instance until PRD #2064 S6 moves the countdown in here.
+ *  - `counter` — CR 122.1b keyword counters, gated on the counter still being
+ *    there. Neither duration-bounded nor tied to a live source.
+ *  - stored `state.continuousEffects` — the channel that is simultaneously
+ *    source-INDEPENDENT and condition-GATED, which no pre-registry channel could
+ *    be at once (Dread Wight, `cards/sets/ice/black.ts`).
+ */
+function layer6EffectsFor(
+    state: LayerStateView,
+    target: PermanentView,
+    trustLedger: boolean,
+    /** The SOURCE half of the walk, resolved once for the whole board pass —
+     *  see `collectLayer6Sources`. A caller deriving ONE permanent passes the
+     *  plan for its board; a board pass builds it once and hands it to every
+     *  target. */
+    sources: Layer6SourcePlan
+): {
+    entries: ContinuousEffect[];
+    templates: ReadonlyMap<string, DerivedTemplate>;
+} {
+    const entries: ContinuousEffect[] = [];
+    const templates = new Map<string, DerivedTemplate>();
+
+    for (const { source, effect, index, seq } of sources) {
+        const applies = (
+            effect as {
+                applies: (
+                    t: PermanentView,
+                    s: PermanentView,
+                    c: typeof STATIC_EFFECT_CTX
+                ) => boolean;
+            }
+        ).applies;
+        if (!applies(target, source, STATIC_EFFECT_CTX)) continue;
+        const id = `ce6-src-${source.id}-${index}`;
+        templates.set(id, { source, effect });
+        entries.push({
+            id,
+            layer: 6,
+            timestamp: seq,
+            expiry: { kind: "source", sourceId: source.id },
+            affected: { kind: "predicate" },
+            payload: {
+                kind: "template",
+                sourceCardId: (source.card as { id?: string }).id ?? "",
+                effectIndex: index,
+                modeId: (source as { chosenModeId?: string }).chosenModeId,
+            },
+            // CR 604.3 — no layer-6 static effect in the catalogue is
+            // characteristic-defining (a CDA defines P/T, colour, mana cost
+            // or subtype; CR 604.3 lists no ability-granting form).
+            characteristicDefining: false,
+        });
     }
 
     const instance = target as unknown as CardInstanceState;
@@ -836,12 +901,17 @@ export function deriveLayer6(
          *  next full `syncLayer6` re-checks every hold against the real
          *  board. */
         trustInstanceLedger?: boolean;
+        /** The board's source plan, when the caller already built one for this
+         *  pass (`deriveLayer6Board`). Omitted, this derivation builds its own
+         *  — one target, one board walk, exactly as before PRD #2064 S7. */
+        sources?: Layer6SourcePlan;
     }
 ): Layer6Derivation {
     const { entries, templates } = layer6EffectsFor(
         state,
         target,
-        opts?.trustInstanceLedger === true
+        opts?.trustInstanceLedger === true,
+        opts?.sources ?? collectLayer6Sources(state)
     );
     const instance = target as unknown as CardInstanceState;
     const staticAbilities = [...layer6Base(instance)];
@@ -1097,7 +1167,16 @@ export function syncLayer6(
  *  wire path hands this function CLONES. */
 export function deriveLayer6Board(
     state: GameState,
-    opts?: { stoppedSourceIds?: ReadonlySet<string> }
+    opts?: {
+        stoppedSourceIds?: ReadonlySet<string>;
+        /** Derive EVERY permanent, including the ones the fast path below can
+         *  prove are already at their base. The sync skips those because the
+         *  fields it would write already hold the answer; a consumer that reads
+         *  the RESULT rather than the fields has nothing to read for a skipped
+         *  permanent, so the wire path asks for all of them (the same contract
+         *  `deriveLayers2to5Board` has carried since PRD #2064 S5). */
+        deriveAll?: boolean;
+    }
 ): { card: CardInstanceState; result: Layer6Derivation }[] {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
@@ -1109,23 +1188,98 @@ export function deriveLayer6Board(
               })),
           }
         : state) as unknown as LayerStateView;
-    const derived: { card: CardInstanceState; result: Layer6Derivation }[] = [];
+
+    // PASS 0 — base capture and the legacy migration for EVERY permanent,
+    // before any derivation reads the board. A card the engine has never
+    // derived for is either brand new or came out of a state PERSISTED BEFORE
+    // this slice; both are handled here, and only here, because both need the
+    // BOARD to be read correctly (see `migrateLegacyAbilityLossHolds`).
+    //
+    // Split off from the derivation loop by PRD #2064 S7. It was interleaved
+    // with it, which meant permanent k was derived against a board where
+    // k+1..n had not been captured yet — the very "fixed input per layer"
+    // (CR 613) the two-pass shape of `syncLayer6` exists to guarantee. Nothing
+    // observable changes today (both writes land on the card's own fields, and
+    // only its own derivation reads them), but the SOURCE PLAN below is built
+    // once for the whole pass, so "the board does not move mid-walk" stops
+    // being a property nothing depends on.
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            // A card the engine has never derived for is either brand new or
-            // came out of a state PERSISTED BEFORE this slice. Both are
-            // handled here, and only here, because both need the BOARD to be
-            // read correctly (see `migrateLegacyAbilityLossHolds`).
             const legacy = card.baseStaticAbilities === undefined;
             ensureLayer6Base(state, card);
             if (legacy) migrateLegacyAbilityLossHolds(state, card);
+        }
+    }
+
+    // PASS 1 — ONE board scan of the source half (CR 613.1 — one recompute, one
+    // board), rather than one per permanent.
+    const sources = collectLayer6Sources(view);
+    const noSourceEffects = sources.length === 0 && !hasStoredLayer6Entry(view);
+
+    const derived: { card: CardInstanceState; result: Layer6Derivation }[] = [];
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            // FAST PATH — nothing anywhere can change this permanent's layer 6,
+            // and nothing did last time either, so its derived answer IS its
+            // base and the fields already hold it: `deriveLayer6` over an empty
+            // entry list returns exactly `layer6Base`. Skipping is therefore not
+            // an approximation of the answer, it is the answer.
+            //
+            // Load-bearing for the ISMCTS search, which syncs at every apply
+            // site on every node it expands. Most boards declare no layer-6
+            // static effect at all, and without this each of those pays a full
+            // per-permanent derivation plus the field patch it writes back.
+            if (
+                opts?.deriveAll !== true &&
+                noSourceEffects &&
+                !carriesLayer6State(card)
+            ) {
+                continue;
+            }
             derived.push({
                 card,
-                result: deriveLayer6(view, card as unknown as PermanentView),
+                result: deriveLayer6(view, card as unknown as PermanentView, {
+                    sources,
+                }),
             });
         }
     }
     return derived;
+}
+
+/** True when any STORED registry entry belongs to layer 6. Cheap and
+ *  board-wide, so the fast path can ask it once per pass. */
+function hasStoredLayer6Entry(state: LayerStateView): boolean {
+    const stored = state.continuousEffects;
+    if (!stored?.length) return false;
+    for (const entry of stored) if (entry.layer === 6) return true;
+    return false;
+}
+
+/** True when the permanent carries ANY layer-6 state: an instance-borne ledger
+ *  row this derivation would read, or an output row a PREVIOUS one wrote and
+ *  this one might have to clear.
+ *
+ *  The last clause asks whether the OUTPUT still differs from the BASE, which
+ *  is not the same question. An effect that has just ENDED leaves no row behind
+ *  — a source leaving the battlefield is how a keyword grant ends — but the
+ *  keyword it granted is still sitting in `staticAbilities`. "Nothing applies"
+ *  is only a licence to skip when the multiset already SAYS nothing applies.
+ *
+ *  Deliberately conservative on the five ledger/output arrays: presence, not
+ *  emptiness. An EMPTY array is a value `layer6DerivedFields` would rewrite to
+ *  `undefined`, so skipping on one would leave the instance in a shape the sync
+ *  never produces — one wasted derivation is the cheaper mistake. */
+function carriesLayer6State(card: CardInstanceState): boolean {
+    return (
+        card.abilityLossHolds !== undefined ||
+        card.removedKeywords !== undefined ||
+        card.abilitiesSuppressedBy !== undefined ||
+        card.grantedStaticAbilities !== undefined ||
+        card.grantedActivatedAbilities !== undefined ||
+        card.grantedTriggeredAbilities !== undefined ||
+        !sameOrder(layer6Base(card), card.staticAbilities)
+    );
 }
 
 /** The layer-6 derived output as a plain FIELD PATCH — the single mapping from

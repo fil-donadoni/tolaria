@@ -204,7 +204,12 @@ export function deriveWireCharacteristics(
         Object.assign(card, patch);
     }
 
-    for (const { card, result } of deriveLayer6Board(board)) {
+    // `deriveAll`, for the reason the layer-2-5 pass above passes it: layer 6's
+    // sync grew the same fast path in PRD #2064 S7, and a consumer that reads
+    // the RESULT has nothing to read for a permanent the sync would skip.
+    for (const { card, result } of deriveLayer6Board(board, {
+        deriveAll: true,
+    })) {
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
