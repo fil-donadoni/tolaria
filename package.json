@@ -64,6 +64,7 @@
         "review:receipt": "bun scripts/write-review-receipt.ts",
         "seed:backlog": "bun scripts/seed-scenario-backlog.ts",
         "seed:scenario": "bun scripts/seed-scenario.ts",
+        "seed:preset": "bun scripts/seed-preset-deck.ts",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
         "telemetry:context": "bun scripts/telemetry-context.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",

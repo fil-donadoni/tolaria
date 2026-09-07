@@ -7,6 +7,7 @@ import {
     sortLobbyPresets,
     buildPresetPatch,
     buildNewPresetRow,
+    presetSeedDecision,
     resolveFeaturedCardId,
     type LobbyPreset,
 } from "../decks";
@@ -471,5 +472,77 @@ describe("preset edit round-trip — getPreset → editor → list (ADR 0033)", 
         expect(listed[0].presetId).toBe("mono-red-burn");
         expect(listed[0].name).toBe("Mono Red Aggro");
         expect(listed[0].cards).toHaveLength(2);
+    });
+});
+
+describe("presetSeedDecision — upsert by slug (issue #3168)", () => {
+    const row = {
+        slug: "oath-ponza",
+        name: "Oath Ponza",
+        format: "premodern" as const,
+        description: "Premodern Tier 1 — list supplied 2026-08-23.",
+        colors: ["R", "G"],
+        cards: [{ cardId: "id-1", cardName: "Terravore" }],
+        sideboard: [{ cardId: "id-2", cardName: "Pyroblast" }],
+    };
+
+    it("inserts the whole row when the slug is absent", () => {
+        const decision = presetSeedDecision(null, row);
+        expect(decision.action).toBe("insert");
+        if (decision.action !== "insert") throw new Error("unreachable");
+        expect(decision.row).toEqual(row);
+    });
+
+    it("patches an existing slug WITHOUT touching the slug itself", () => {
+        const decision = presetSeedDecision(
+            { _id: "row-id" as Doc<"presetDecks">["_id"] },
+            row
+        );
+        expect(decision.action).toBe("patch");
+        if (decision.action !== "patch") throw new Error("unreachable");
+        expect(decision.id).toBe("row-id");
+        // ADR 0033 — the slug is the preset's immutable identity, so it is the
+        // lookup key and never part of the patch.
+        expect(decision.patch).not.toHaveProperty("slug");
+        expect(decision.patch).toEqual({
+            name: row.name,
+            format: row.format,
+            description: row.description,
+            colors: row.colors,
+            cards: row.cards,
+            sideboard: row.sideboard,
+        });
+    });
+
+    it("carries the NEW card list into the patch, where presetsToSeed skips entirely", () => {
+        // The two seed paths have deliberately opposite contracts on an
+        // already-present slug, and this pins both halves of the contrast on
+        // the SAME slug with a real, non-empty input on each side.
+        //
+        // What this can and cannot show: `presetSeedDecision` is handed only
+        // the existing row's `_id`, never its contents, so it is structurally
+        // incapable of "merging" — the assertion is that the patch is the
+        // canonical list's cards, which is what makes a re-seed after a card
+        // slice landed actually change the row instead of no-opping.
+        const decision = presetSeedDecision(
+            { _id: "row-id" as Doc<"presetDecks">["_id"] },
+            row
+        );
+        if (decision.action !== "patch") throw new Error("unreachable");
+        expect(decision.patch.cards).toEqual(row.cards);
+
+        // `presetsToSeed`, given the SAME preset and that slug already
+        // present, yields nothing — it protects an Admin's curation on a bulk
+        // seed. A non-empty preset list, so the skip is genuinely exercised.
+        const preset: DeckPreset = {
+            presetId: "oath-ponza",
+            name: "Oath Ponza",
+            format: "premodern",
+            description: "",
+            colors: ["R", "G"],
+            cards: [],
+        };
+        expect(presetsToSeed([preset], new Set(["oath-ponza"]))).toEqual([]);
+        expect(presetsToSeed([preset], new Set())).toHaveLength(1);
     });
 });

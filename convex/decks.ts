@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
 import { loadBanlistOverrides } from "./banlists";
 import {
@@ -430,5 +430,122 @@ export const wipePresets = internalMutation({
             await ctx.db.delete(row._id);
         }
         return { deleted: rows.length };
+    },
+});
+
+/**
+ * Pure upsert decision for `seedPresetDirect` — the preset twin of
+ * `selectScenarioUpsert` (`convex/debugScenarios.ts`). Given the row already
+ * stored under a slug (or `null`) and the row the canonical list builds,
+ * returns what the mutation must do.
+ *
+ * **It overwrites, and that is the point.** `presetsToSeed` above is the
+ * OPPOSITE contract: it exists to seed a fresh table without ever clobbering
+ * an Admin's curation, so it skips a slug that is already present. This one is
+ * invoked by hand, naming one slug, to make the row MATCH the canonical list
+ * in `data/premodern-tier1-decks.json` — a re-seed after a card slice lands
+ * that has no effect is a re-seed that silently did nothing. The two live side
+ * by side deliberately; neither is the other's generalization.
+ *
+ * `slug` is never patched (ADR 0033 — it is the preset's immutable identity
+ * and every external reference keys off it), which is exactly why it is the
+ * lookup key rather than part of the patch.
+ */
+export function presetSeedDecision(
+    existing: { _id: Id<"presetDecks"> } | null,
+    row: PresetInsert
+):
+    | { action: "insert"; row: PresetInsert }
+    | {
+          action: "patch";
+          id: Id<"presetDecks">;
+          patch: Omit<PresetInsert, "slug">;
+      } {
+    if (!existing) return { action: "insert", row };
+    // Listed field by field rather than spread-minus-slug: `tsc` then reds on
+    // a new column nobody threaded through here, where a rest-spread would
+    // have carried it silently — and the slug's absence is a compile-time
+    // fact, not a runtime one.
+    return {
+        action: "patch",
+        id: existing._id,
+        patch: {
+            name: row.name,
+            format: row.format,
+            description: row.description,
+            colors: row.colors,
+            cards: row.cards,
+            sideboard: row.sideboard,
+            featuredCardId: row.featuredCardId,
+        },
+    };
+}
+
+/**
+ * Seed ONE Preset Deck from a canonical list, upserted by slug (issue #3168).
+ *
+ * An `internalMutation`, mirroring `debugScenarios:seedScenarioDirect`: the
+ * caller is a maintainer's CLI holding deployment credentials, not a signed-in
+ * Admin, so there is no `assertIsAdmin` to satisfy and no session to hold. The
+ * public, admin-gated `createPreset` stays the only path a human uses.
+ *
+ * The row is built by `buildNewPresetRow` — the SAME builder `createPreset`
+ * calls — so a seeded preset and an Admin-authored one are the same shape by
+ * construction rather than by review. `expectedSlug` is then checked against
+ * the slug that builder DERIVES from the name: the canonical data owns the
+ * slug (external references key off it), and a name whose slugification drifts
+ * from it must fail loudly here rather than quietly create a second preset.
+ *
+ * Fails closed before the write, like `seedScenarioDirect`'s loadability
+ * guard: a deck the Format rejects is refused with its reasons. A preset that
+ * is illegal is worse than an absent one — it reaches the lobby and dies at
+ * the game-start gate instead (ADR 0036), where the player, not the
+ * maintainer, discovers it.
+ *
+ * The written row is DEPLOYMENT-LOCAL (#770/#1455): the `presetDecks` table is
+ * not repo state, so this can never be part of the gate. The canonical list
+ * stays the source of truth and this is the reproducible bridge to a
+ * deployment.
+ */
+export const seedPresetDirect = internalMutation({
+    args: { expectedSlug: v.string(), input: presetCreateValidator },
+    returns: v.object({
+        action: v.union(v.literal("insert"), v.literal("patch")),
+        slug: v.string(),
+    }),
+    handler: async (ctx, args) => {
+        const row = buildNewPresetRow(args.input);
+        if (row.slug !== args.expectedSlug) {
+            throw new Error(
+                `slug mismatch: canonical list says "${args.expectedSlug}", ` +
+                    `the name "${row.name}" derives "${row.slug}"`
+            );
+        }
+
+        const banlist = await loadBanlistOverrides(ctx, row.format);
+        const legality = validateDeck(
+            { cards: row.cards, sideboard: row.sideboard },
+            row.format,
+            undefined,
+            banlist
+        );
+        if (!legality.isLegal) {
+            throw new Error(
+                `deck is not legal in ${row.format}: ` +
+                    legality.reasons.map((r) => r.message).join("; ")
+            );
+        }
+
+        const existing = await ctx.db
+            .query("presetDecks")
+            .withIndex("by_slug", (q) => q.eq("slug", row.slug))
+            .unique();
+        const decision = presetSeedDecision(existing, row);
+        if (decision.action === "patch") {
+            await ctx.db.patch(decision.id, decision.patch);
+            return { action: "patch" as const, slug: row.slug };
+        }
+        await ctx.db.insert("presetDecks", decision.row);
+        return { action: "insert" as const, slug: row.slug };
     },
 });
