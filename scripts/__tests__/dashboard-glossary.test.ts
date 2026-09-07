@@ -1,104 +1,50 @@
-import { describe, it, expect, afterAll, beforeEach } from "vitest";
-import { Window } from "happy-dom";
+import { describe, it, expect, afterAll } from "vitest";
 import { CLAIM_STAGES, LOOP_VERDICT_STATES } from "../lib/loop-status";
 import { CLAIM_VERDICT_STATES } from "../loop-doctor";
 import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
-// @ts-expect-error — browser ES modules with no type declarations; the
-// dashboard is deliberately plain JS with no build step (#2625). `glossary.js`
-// is pure data + one lookup, so the `node` vitest project imports and CALLS it
-// rather than grepping its source.
-import { GLOSSARY, lookupTerm } from "../dashboard/glossary.js";
-// @ts-expect-error — same, and importable under `node` only because #2629
-// moved every DOM touch out of `tooltip.js`'s module scope: `#tip` resolves
-// lazily and the document listeners install on first use.
-import {
-    installTooltipEngine,
-    enhanceTerms,
-    resetTooltipEngine,
-    tooltipHtml,
-    showTip,
-    hideTip,
-} from "../dashboard/tooltip.js";
-// @ts-expect-error — same, pure `data → markup` module (#2631 module header).
-import { timelineHtml } from "../dashboard/now-timeline.js";
+import { GLOSSARY, lookupTerm } from "../../dashboard/glossary";
 
 /**
- * The dashboard glossary and its tooltip engine (#2629).
+ * The dashboard glossary's DRIFT GUARD (#2629), pointed upstream.
+ *
+ * ## Why it stayed in the `node` project (PRD #3148 S4)
+ *
+ * S4 moved the dashboard's tests to the `dom` project beside the components
+ * they render. This file did not move, and the reason is its other half: it
+ * iterates the SERVER's vocabularies — `DIMENSIONS`/`METRICS` in
+ * `telemetry-serve.ts`, `CLAIM_STAGES`, `CLAIM_VERDICT_STATES`,
+ * `LOOP_VERDICT_STATES` — which live in Node-typed modules that
+ * `tsconfig.dashboard.json` (a browser program, no `@types/node`) cannot
+ * check. There is no component here to render; the subject is a table and a
+ * schema. What DID go with the components is the tooltip ENGINE half, which
+ * had eleven cases against `scripts/dashboard/tooltip.js`: those are now
+ * `dashboard/components/__tests__/Term.test.tsx` and `DynamicTerm.test.tsx`,
+ * asserting the same behaviour against the render site that replaced the
+ * `data-term` scanner.
+ *
+ * What changed here is only the import: the glossary is
+ * `dashboard/glossary.ts`, typed, so the `@ts-expect-error` this file carried
+ * on every import is gone.
  *
  * ## The guard points UPSTREAM, on purpose
  *
- * The completeness suite below iterates the SERVER's vocabularies —
- * `DIMENSIONS`/`METRICS` in `telemetry-serve.ts`, `CLAIM_STAGES`,
- * `CLAIM_VERDICT_STATES`, `LOOP_VERDICT_STATES` — and asserts each token
- * resolves to a glossary entry. The tempting shape, walking the glossary's own
- * keys and checking each value is a string, passes forever and guards nothing:
- * it goes green on a glossary that is a year behind the schema, which is
- * exactly how the current unexplained labels got onto the page. Pointed the
- * other way, a dimension added server-side with no human label reds this file.
+ * The completeness suite asserts each SERVER token resolves to a glossary
+ * entry. The tempting shape, walking the glossary's own keys and checking each
+ * value is a string, passes forever and guards nothing: it goes green on a
+ * glossary that is a year behind the schema, which is exactly how the current
+ * unexplained labels got onto the page. Pointed the other way, a dimension
+ * added server-side with no human label reds this file.
  *
  * Every list is also asserted NON-EMPTY first. A drift guard that iterates an
  * empty collection passes vacuously, and an upstream refactor that renames a
  * vocabulary would otherwise silently disarm the check rather than break it.
- *
- * ## The engine is driven, not grepped
- *
- * The DOM half runs against a real happy-dom document — dispatching real
- * pointer, focus and keyboard events — because the acceptance criteria are
- * behavioural ("keyboard-reachable", "dismissible with Esc"). Asserting that
- * the string "Escape" appears in `tooltip.js` would be satisfied by a comment.
  */
 
 // See pin-empty-project-dir.ts — top-level, not a `beforeAll`, because
 // module top-level code runs once, at this file's first import.
 const restoreProjectDir = pinEmptyProjectDir("dashboard-glossary-test");
 
-/**
- * The `node` vitest project runs with `isolate: false`, so anything installed
- * on `globalThis` here outlives this file inside its worker. Every global this
- * suite sets is recorded and removed again.
- */
-const INSTALLED_GLOBALS = [
-    "document",
-    "MutationObserver",
-    "innerWidth",
-    "innerHeight",
-] as const;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const g = globalThis as any;
-
-afterAll(() => {
-    resetTooltipEngine();
-    for (const key of INSTALLED_GLOBALS) delete g[key];
-    restoreProjectDir();
-});
-
-/** A fresh page per test: the engine latches its listeners and its `#tip`
- *  reference module-globally, so a swapped document needs a matching reset. */
-function mountPage(bodyHtml: string) {
-    const win = new Window({ url: "http://localhost/" });
-    win.document.body.innerHTML = `<div id="tip"></div>${bodyHtml}`;
-    g.document = win.document;
-    g.MutationObserver = win.MutationObserver;
-    g.innerWidth = 1440;
-    g.innerHeight = 900;
-    resetTooltipEngine();
-    return win;
-}
-
-const tipOf = (win: Window) => win.document.getElementById("tip")!;
-
-function fire(win: Window, target: Element, type: string, init = {}) {
-    const Ctor =
-        type === "keydown"
-            ? win.KeyboardEvent
-            : type.startsWith("focus")
-              ? win.FocusEvent
-              : win.MouseEvent;
-    target.dispatchEvent(
-        new Ctor(type, { bubbles: true, cancelable: true, ...init })
-    );
-}
+afterAll(restoreProjectDir);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Completeness — the drift guard, pointed at the server's vocabularies
@@ -237,432 +183,12 @@ describe("dashboard glossary — qualified term resolution (#2629)", () => {
         const runs = lookupTerm("agent_runs.messages");
         expect(llm).toBeDefined();
         expect(runs).toBeDefined();
-        expect(runs.tip).not.toBe(llm.tip);
+        expect(runs!.tip).not.toBe(llm!.tip);
     });
 
     it("returns nothing for a term that was never declared", () => {
         expect(lookupTerm("not_a_real_dimension")).toBeUndefined();
         expect(lookupTerm("spans.not_a_real_dimension")).toBeUndefined();
         expect(lookupTerm("")).toBeUndefined();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// The engine
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("dashboard tooltip engine — declared terms (#2629)", () => {
-    beforeEach(() => resetTooltipEngine());
-
-    it("labels and explains an element that only DECLARES a term", () => {
-        const win = mountPage(
-            `<table><thead><tr><th id="c" data-term="cmd_bucket"></th></tr></thead></table>`
-        );
-        installTooltipEngine();
-        const th = win.document.getElementById("c")!;
-
-        // Declared, not wired: no handler was attached at the call site.
-        expect(th.textContent).toBe("command family");
-        expect(th.getAttribute("tabindex")).toBe("0");
-        expect(th.getAttribute("aria-describedby")).toBe("tip");
-        expect(th.classList.contains("term")).toBe(true);
-
-        fire(win, th, "mouseover");
-        const tip = tipOf(win);
-        expect(tip.style.opacity).toBe("1");
-        expect(tip.innerHTML).toContain("command family");
-        expect(tip.innerHTML).toContain("gate, test, git");
-        expect(tip.getAttribute("aria-hidden")).toBe("false");
-
-        fire(win, th, "mouseout");
-        expect(tipOf(win).style.opacity).toBe("0");
-    });
-
-    it("is reachable by keyboard and dismissible with Escape", () => {
-        const win = mountPage(`<span id="c" data-term="pct"></span>`);
-        installTooltipEngine();
-        const el = win.document.getElementById("c")!;
-
-        fire(win, el, "focusin");
-        expect(tipOf(win).style.opacity).toBe("1");
-        expect(tipOf(win).innerHTML).toContain("budget used");
-
-        fire(win, win.document.body, "keydown", { key: "Escape" });
-        expect(tipOf(win).style.opacity).toBe("0");
-        expect(tipOf(win).getAttribute("aria-hidden")).toBe("true");
-
-        // …and blur closes it too, so tabbing through never leaves one open.
-        fire(win, el, "focusin");
-        expect(tipOf(win).style.opacity).toBe("1");
-        fire(win, el, "focusout");
-        expect(tipOf(win).style.opacity).toBe("0");
-    });
-
-    it("keeps an element's own text and only adds the explanation", () => {
-        const win = mountPage(
-            `<table><thead><tr><th id="c" data-term="cmd_bucket">cmd</th></tr></thead></table>`
-        );
-        installTooltipEngine();
-        const th = win.document.getElementById("c")!;
-        expect(th.textContent).toBe("cmd");
-        fire(win, th, "mouseover");
-        expect(tipOf(win).innerHTML).toContain("command family");
-    });
-
-    it("never paints an aria-label over an empty element's own visual content (#2631/#2842)", () => {
-        // The exact shape of the Now timeline's merge tick (`.ls-tl-merge`,
-        // `now-timeline.js`): a 5px-wide colour mark with NO visible label
-        // by design, its accessible name carried entirely by its own
-        // `aria-label`. A #2842 review measured the OLD behaviour in a real
-        // browser: every one of a live day's 40 ticks rendered the literal
-        // word "merged" — the glossary label filled into `textContent`
-        // because the element was empty — a 45px text run painted over a
-        // 5px box.
-        const win = mountPage(
-            `<button id="tick" data-term="pr.merged" aria-label="PR #123 merged: fix things"></button>`
-        );
-        installTooltipEngine();
-        const tick = win.document.getElementById("tick")!;
-
-        // The whole point: textContent stays EMPTY — no fill, no overlap —
-        // while the tooltip/description machinery still works exactly as
-        // for any other declared term.
-        expect(tick.textContent).toBe("");
-        expect(tick.getAttribute("aria-label")).toBe(
-            "PR #123 merged: fix things"
-        );
-        expect(tick.getAttribute("tabindex")).toBe("0");
-        expect(tick.getAttribute("aria-describedby")).toBe("tip");
-
-        fire(win, tick, "mouseover");
-        expect(tipOf(win).innerHTML).toContain("merged");
-    });
-
-    it("the real Now timeline, run through the real engine, resolves every declared term and rewrites no control's own visual content (#2842 review, finding 1's suggested guard)", () => {
-        // Not a hand-built fixture — the ACTUAL `timelineHtml` output (pass
-        // block, claim pin, merge tick), pushed through the real
-        // `installTooltipEngine`, the same combination that shipped the
-        // "merged" text-overwrite bug. `unknown` must be empty (every
-        // data-term this view declares resolves to a real glossary entry)
-        // and no `aria-label`-carrying control's `textContent` may come out
-        // non-empty (the merge tick's whole design: a bare colour mark with
-        // no visible label of its own).
-        const html = timelineHtml(
-            {
-                timelinePasses: [
-                    {
-                        pass: 1,
-                        claudeExit: 137,
-                        pct: "n/a",
-                        queueBefore: 5,
-                        queueAfter: 3,
-                        reason: "claims-held",
-                        epoch: Math.floor(Date.now() / 1000) - 3600,
-                    },
-                ],
-                claims: [
-                    {
-                        issue: 2582,
-                        title: "an orphaned claim",
-                        ageHours: 2,
-                        verdict: { state: "orphan", reason: "" },
-                    },
-                ],
-                recentMerges: [
-                    {
-                        number: 2842,
-                        title: "a merged PR",
-                        mergedAt: new Date(
-                            Date.now() - 2 * 3600_000
-                        ).toISOString(),
-                    },
-                ],
-            },
-            Date.now()
-        );
-        const win = mountPage(`<div id="host">${html}</div>`);
-        const { unknown } = installTooltipEngine();
-        expect(unknown).toEqual([]);
-
-        // Pass blocks and claim pins carry a DELIBERATE visible glyph
-        // (`● ▲ ■` / `× ? ·`, inside an `aria-hidden` child span) — only the
-        // merge tick is a bare colour mark with no visible content of its
-        // own, and it is the one this test exists to guard.
-        const ticks = Array.from(win.document.querySelectorAll(".ls-tl-merge"));
-        expect(ticks.length).toBeGreaterThan(0); // sanity: this ran
-        for (const el of ticks) {
-            expect(el.hasAttribute("aria-label")).toBe(true);
-            expect(el.textContent).toBe("");
-        }
-    });
-
-    it("picks up a term rendered AFTER install — the innerHTML re-render case", async () => {
-        const win = mountPage(`<div id="host"></div>`);
-        installTooltipEngine();
-        const host = win.document.getElementById("host")!;
-
-        // Exactly what every table on this dashboard does on refresh.
-        host.innerHTML = `<table><thead><tr><th id="late" data-term="model_req"></th></tr></thead></table>`;
-        await new Promise((r) => setTimeout(r, 0));
-
-        const late = win.document.getElementById("late")!;
-        expect(late.textContent).toBe("model requested");
-        expect(late.getAttribute("tabindex")).toBe("0");
-        fire(win, late, "mouseover");
-        expect(tipOf(win).innerHTML).toContain("inherited");
-    });
-
-    it("reports a term it cannot resolve instead of rendering it plain and silent", () => {
-        const win = mountPage(
-            `<span id="c" data-term="totally_made_up"></span>`
-        );
-        const { enhanced, unknown } = installTooltipEngine();
-        expect(unknown).toEqual(["totally_made_up"]);
-        expect(enhanced).toHaveLength(0);
-        const el = win.document.getElementById("c")!;
-        expect(el.hasAttribute("tabindex")).toBe(false);
-    });
-
-    it("enhances the same element only once", () => {
-        const win = mountPage(`<span id="c" data-term="pri"></span>`);
-        installTooltipEngine();
-        const first = win.document.getElementById("c")!.textContent;
-        expect(enhanceTerms(win.document).enhanced).toHaveLength(0);
-        expect(win.document.getElementById("c")!.textContent).toBe(first);
-    });
-
-    it("escapes glossary text rather than injecting it as markup", () => {
-        const html = tooltipHtml({
-            label: "a<b>",
-            tip: "counts <script>alert(1)</script> things",
-        });
-        expect(html).not.toContain("<script>");
-        expect(html).toContain("&lt;script&gt;");
-    });
-});
-
-describe("dashboard tooltip engine — the imperative chart path still works (#2625)", () => {
-    beforeEach(() => resetTooltipEngine());
-
-    it("showTip/hideTip keep their #2625 signatures for the chart surfaces", () => {
-        // `history-timeline.js` and `history-ranking.js` call exactly this
-        // pair with per-datum HTML. #2629 evolved the module around them; if
-        // this breaks, both charts lose their tooltips.
-        const win = mountPage(`<div id="anchor"></div>`);
-        showTip({ clientX: 100, clientY: 200 }, "<b>x</b> 12 calls");
-        const tip = tipOf(win);
-        expect(tip.style.opacity).toBe("1");
-        expect(tip.innerHTML).toBe("<b>x</b> 12 calls");
-        expect(tip.style.left).toBe("114px");
-        expect(tip.style.top).toBe("214px");
-        hideTip();
-        expect(tipOf(win).style.opacity).toBe("0");
-    });
-});
-
-describe("dashboard tooltip engine — the whole Now body and per-datum tips (issue #3135)", () => {
-    it("the REAL Now body, run through the real engine, declares no term the glossary cannot resolve", async () => {
-        const { nowBodyHtml } = await import("../dashboard/now.js");
-        const nowMs = Date.now();
-        const html = nowBodyHtml(
-            {
-                verdict: {
-                    state: "STALLED",
-                    sentence: "s",
-                    remedy: "`bun run loop:afk` arms it",
-                    findings: [
-                        { code: "claims-held", detail: "d" },
-                        { code: "orphaned-claims", detail: "d" },
-                        { code: "failed-reads", detail: "d" },
-                    ],
-                },
-                driver: {
-                    armed: false,
-                    pid: null,
-                    pidAlive: false,
-                    stopFilePresent: false,
-                    recentPasses: [
-                        {
-                            epoch: Math.floor(nowMs / 1000) - 60,
-                            pass: 1,
-                            claudeExit: 0,
-                            pct: "1",
-                            queueBefore: 1,
-                            queueAfter: 1,
-                            reason: "claims-held",
-                        },
-                        {
-                            epoch: Math.floor(nowMs / 1000) - 30,
-                            pass: 2,
-                            claudeExit: 0,
-                            pct: "1",
-                            queueBefore: 1,
-                            queueAfter: 1,
-                            reason: "-",
-                        },
-                        {
-                            epoch: Math.floor(nowMs / 1000) - 10,
-                            pass: 3,
-                            claudeExit: 0,
-                            pct: "1",
-                            queueBefore: 1,
-                            queueAfter: 1,
-                            reason: "no-progress",
-                        },
-                    ],
-                },
-                claims: [
-                    {
-                        issue: 3096,
-                        title: "t",
-                        stage: "PR open",
-                        verdict: { state: "live", reason: "" },
-                        priority: "P1",
-                        ageHours: 1,
-                        dependents: 1,
-                    },
-                    {
-                        issue: 3097,
-                        title: "t",
-                        stage: "claimed",
-                        verdict: { state: "orphan", reason: "" },
-                        priority: null,
-                        ageHours: 30,
-                        dependents: 0,
-                    },
-                ],
-                claimsError: null,
-                queueDepth: { P0: 1, P1: 1, P2: 1, unprioritized: 1, total: 4 },
-                queueDepthError: null,
-                receiptsSummary: {
-                    total: 3,
-                    counts: [
-                        { role: "implement", outcome: "pr-open", count: 1 },
-                        { role: "review", outcome: "approve", count: 1 },
-                        { role: "missing", outcome: "missing", count: 1 },
-                    ],
-                    interesting: [
-                        {
-                            issue: 3096,
-                            role: "implement",
-                            outcome: "failed",
-                            pr: 1,
-                        },
-                    ],
-                },
-                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
-                batchStartedAt: Math.floor(nowMs / 1000),
-                priorityWarning: null,
-                receiptErrors: [],
-                timelinePasses: [],
-                recentMerges: [
-                    {
-                        number: 1,
-                        title: "m",
-                        mergedAt: new Date(nowMs - 3600_000).toISOString(),
-                    },
-                ],
-                activity: {
-                    windowHours: 24,
-                    asOf: nowMs,
-                    buckets: [
-                        {
-                            hourStart: nowMs - (nowMs % 3600_000),
-                            outTok: 10,
-                            inTok: 1,
-                            cacheRead: 1,
-                            cacheWrite: 0,
-                            cost: 0.1,
-                            messages: 1,
-                        },
-                    ],
-                },
-                live: {
-                    asOf: nowMs,
-                    liveMinutes: 30,
-                    activeMinutes: 3,
-                    sessions: [
-                        {
-                            session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
-                            title: "s",
-                            lastPrompt: null,
-                            cwd: null,
-                            gitBranch: "b",
-                            lastWriteMs: nowMs,
-                            lastMessageMs: nowMs,
-                            outTok: 1,
-                            inTok: 1,
-                            cacheRead: 1,
-                            cost: 0,
-                            messages: 1,
-                            subagents: 0,
-                            topIssues: [{ issue: 3096, mentions: 2 }],
-                            liveness: "active",
-                        },
-                        {
-                            session: "11111111-1111-4111-8111-111111111111",
-                            title: null,
-                            lastPrompt: "p",
-                            cwd: null,
-                            gitBranch: null,
-                            lastWriteMs: nowMs - 600_000,
-                            lastMessageMs: null,
-                            outTok: 0,
-                            inTok: 0,
-                            cacheRead: 0,
-                            cost: 0,
-                            messages: 0,
-                            subagents: 1,
-                            topIssues: [],
-                            liveness: "live",
-                        },
-                    ],
-                    byIssue: {
-                        3096: [
-                            {
-                                session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
-                                liveness: "active",
-                                lastWriteMs: nowMs,
-                                title: "s",
-                            },
-                        ],
-                    },
-                },
-            },
-            nowMs
-        );
-        const win = mountPage(`<div id="host">${html}</div>`);
-        const { unknown } = installTooltipEngine();
-        expect(unknown).toEqual([]);
-        // Sanity: this is the rich page, not an empty one.
-        expect(
-            win.document.querySelectorAll(".ls-info").length
-        ).toBeGreaterThanOrEqual(8);
-        expect(
-            win.document.querySelectorAll(".ls-watch").length
-        ).toBeGreaterThanOrEqual(2);
-        expect(win.document.querySelectorAll(".ls-act-hit").length).toBe(24);
-        // The `ⓘ` keeps its glyph — the engine must not paint the label over
-        // it (it carries its own aria-label, the merge-tick rule).
-        for (const el of win.document.querySelectorAll(".ls-info")) {
-            expect(el.textContent).toBe("ⓘ");
-        }
-    });
-
-    it("a `data-tip` element shows its own text on hover and on focus — the per-datum path beside the glossary", () => {
-        const win = mountPage(
-            `<svg><rect id="bar" tabindex="0" data-tip="14:00–15:00&#10;output tokens: 12.3k"></rect></svg>`
-        );
-        installTooltipEngine();
-        const bar = win.document.getElementById("bar")!;
-        fire(win, bar, "mouseover");
-        expect(tipOf(win).innerHTML).toBe(
-            "14:00–15:00<br>output tokens: 12.3k"
-        );
-        expect(tipOf(win).getAttribute("aria-hidden")).toBe("false");
-        fire(win, bar, "mouseout");
-        expect(tipOf(win).getAttribute("aria-hidden")).toBe("true");
-        fire(win, bar, "focusin");
-        expect(tipOf(win).getAttribute("aria-hidden")).toBe("false");
     });
 });

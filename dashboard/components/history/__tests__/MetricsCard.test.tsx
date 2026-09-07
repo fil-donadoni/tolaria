@@ -59,12 +59,14 @@ const hover = async (el: HTMLElement) => {
     );
 };
 
+/** A sortable header's tooltip trigger IS its sort button — one control, one
+ *  tab stop (see `SortableHeader`). */
 const headerTrigger = (text: string): HTMLElement =>
     [
         ...screen
             .getByRole("table", { name: "Every metric for the current slice" })
-            .querySelectorAll<HTMLElement>("thead span"),
-    ].find((s) => s.textContent === text)!;
+            .querySelectorAll<HTMLElement>("thead button"),
+    ].find((b) => b.textContent?.startsWith(text))!;
 
 beforeEach(() => {
     resetHistoryState();
