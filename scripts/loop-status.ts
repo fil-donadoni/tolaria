@@ -110,7 +110,6 @@ function ghChecked(args: string[]): string {
 const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
 const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
 const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
-const PROJECT_ITEM_LIMIT = 2000;
 
 /** What `fetchPriorityGracefully` returns — also the shape of the long-lived
  *  cache `telemetry-serve.ts` keeps for it (PR #2545 review, finding 2). */
@@ -128,11 +127,13 @@ export interface GracefulPriority {
  *
  * EXPORTED so `telemetry-serve.ts` can call it directly for its own
  * board-priority cache (finding 2, below) rather than going through
- * `gatherLoopStatus` every poll — the board read (`gh project item-list
- * --limit 2000` + a `project view` cross-check) is what dominates the
- * route's latency (measured 41s cold, 27.6s on a "cached" hit whose 10s TTL
- * had already expired mid-gather) and is also the least volatile part of the
- * payload, so it gets its OWN, much longer TTL, decoupled from the rest.
+ * `gatherLoopStatus` every poll — the board read is the least volatile part
+ * of the payload (the `Priority` field is a human edit made a few times a
+ * day), so it gets its OWN, longer TTL, decoupled from the rest. It used to
+ * dominate the route's latency AND its cost too (41s cold, ~768 GraphQL
+ * points); since it became one paginated query for the Priority field alone
+ * it is neither, and the separate cache survives on the volatility argument
+ * that motivated it in the first place.
  */
 export function fetchPriorityGracefully(noPriority: boolean): GracefulPriority {
     if (noPriority) {
@@ -147,7 +148,6 @@ export function fetchPriorityGracefully(noPriority: boolean): GracefulPriority {
         owner: PROJECT_OWNER,
         projectNumber: PROJECT_NUMBER,
         repo: PROJECT_REPO,
-        itemLimit: PROJECT_ITEM_LIMIT,
         onError: (message) => {
             warning ??= message.split("\n")[0]!;
         },

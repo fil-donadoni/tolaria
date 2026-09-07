@@ -26,12 +26,48 @@
 // `onError` — the caller's failure policy (fail-loud `die`, or a degrading
 // collector) never sees it and cannot abort on it.
 
-// The READ is here; the CACHE is not (issue #2520). Sizing the window and
-// proving it wasn't truncated are properties of the read itself, so they live
-// here and every caller gets them. Whether a failed read may degrade to a
-// stale snapshot is a failure POLICY — same class as `onError` — so it lives
-// in the caller: `queue:plan` wraps this function in its own file-backed
-// cache, `loop:status` caches the value it gets in its own server route.
+// The READ is here; the CACHE is not (issue #2520). Proving the read was not
+// truncated is a property of the read itself, so it lives here and every
+// caller gets it. Whether a failed read may degrade to a stale snapshot is a
+// failure POLICY — same class as `onError` — so it lives in the caller:
+// `queue:plan` wraps this function in its own file-backed cache,
+// `loop:status` caches the value it gets in its own server route.
+//
+// ── Why this is a raw GraphQL query and not `gh project item-list` ──────────
+//
+// `gh project item-list` asks for EVERY field value of every item, and
+// GitHub prices a GraphQL call by the nodes it touches. Measured against
+// this board (705 items) on 2026-09-07:
+//
+//     gh project view + item-list (what this used to do)   →  766 points
+//     the query below, paginated to completion             →    8 points
+//
+// Both runs, back to back against the same board, returned the SAME 351
+// issue→priority entries — identical keys, identical values.
+//
+// The pool is 5000 points per HOUR, shared by every session and script on
+// the machine. At 768 a read it affords 6.5 board reads an hour in total,
+// which is how the account reached `graphql 0/5000 remaining` with the REST
+// pool untouched at 5000/5000 and `loop:status` reporting every `gh`-backed
+// section UNAVAILABLE at once. At 7 it affords ~700.
+//
+// Two things follow from asking directly rather than through `gh project`:
+//
+//  - **No owner-type lookup.** `gh project` first resolves whether the owner
+//    is a user or an organization, and when THAT call is rate-limited it
+//    reports `unknown owner type` — a message that reads as a configuration
+//    error and sent one investigation looking at `gh auth status`. The
+//    inline fragment on `ProjectV2Owner` covers both kinds in one query, so
+//    there is nothing to look up and nothing to mis-report.
+//  - **No window to size.** `item-list --limit N` returns the N NEWEST items
+//    when the board holds more, so the limit had to be sized from a separate
+//    `project view` totalCount read, with headroom, plus a guard for the
+//    board growing in the gap between the two (issue #2520). Cursor
+//    pagination has no such failure mode: pages are walked to completion and
+//    `hasNextPage` says so exactly. `computeItemLimit`, `ITEM_LIMIT_HEADROOM`
+//    and `isPossiblyTruncated` are gone with the bug they guarded — what
+//    survives is the guard below, which fires if pagination stopped with
+//    pages still outstanding.
 
 import { gh } from "./gh";
 import type { BoardPriority } from "./queue-plan";
@@ -52,14 +88,6 @@ export interface BoardPriorityOptions {
     projectNumber: string;
     /** `owner/repo` — issue numbers are unique per repo, not per board. */
     repo: string;
-    /** FALLBACK limit, used only when the board's own `totalCount` cannot be
-     *  read (issue #2520). The read is normally sized by `computeItemLimit`
-     *  from that count, because `--limit 2000` on a 411-item board pages far
-     *  past the end and every page is a GraphQL round trip. Keep it deep
-     *  enough to see the WHOLE board anyway — `gh project item-list` defaults
-     *  to 30 and returns newest-first (the same silent-truncation trap
-     *  `queue-plan.ts` documents for `gh issue list`). */
-    itemLimit: number;
     /** Skip the read entirely (`queue:plan`'s `--no-priority` escape hatch). */
     skip?: boolean;
     /**
@@ -81,69 +109,95 @@ export interface BoardPriorityOptions {
     ghClient?: (args: string[]) => string;
 }
 
-interface ProjectItem {
-    content?: { type?: string; number?: number; repository?: string };
-    priority?: string;
+/** One `items.nodes[]` entry of the query below. `content` is a union — a
+ *  draft item has no `number`, a pull-request item is a different
+ *  `__typename` — and `fieldValueByName` is `null` when the item has no
+ *  Priority set (and `{}` when the field exists but is not a single-select,
+ *  which the inline fragment simply does not match). */
+interface ProjectItemNode {
+    content?: {
+        __typename?: string;
+        number?: number;
+        repository?: { nameWithOwner?: string };
+    } | null;
+    fieldValueByName?: { name?: string } | null;
 }
 
-/**
- * Headroom added on top of the board's own `totalCount` when sizing
- * `item-list --limit` (issue #2520). `gh project item-list --limit N` returns
- * the N NEWEST items, not the first N — so a limit sized to EXACTLY
- * `totalCount` silently drops the OLDEST items (which can carry a P0) the
- * moment the board grows in the gap between the `project view` (totalCount)
- * call and the `item-list` call. Headroom absorbs ordinary growth in that
- * gap; `isPossiblyTruncated` still catches growth that outpaces it.
- */
-export const ITEM_LIMIT_HEADROOM = 50;
+interface BoardPage {
+    data?: {
+        repositoryOwner?: {
+            projectV2?: {
+                items?: {
+                    totalCount?: number;
+                    pageInfo?: { hasNextPage?: boolean };
+                    nodes?: ProjectItemNode[];
+                };
+            } | null;
+        } | null;
+    };
+}
+
+/** The board field this module exists to read. */
+const PRIORITY_FIELD = "Priority";
 
 /**
- * Size the `item-list --limit` to the board's own `totalCount` (plus
- * `ITEM_LIMIT_HEADROOM`) instead of a static guess — `--limit 2000` on a
- * 411-item board pages far past the end, and every page is a GraphQL round
- * trip, on a budget several sessions share (issue #2520). Falls back only
- * when `totalCount` itself could not be read (unknown/non-numeric shape).
+ * `repositoryOwner` rather than `user`/`organization` so one query covers
+ * both kinds of owner — `ProjectV2Owner` is the interface they share, and
+ * picking the wrong one of the two is precisely what `gh project`'s
+ * owner-type lookup exists to avoid (and what it mis-reports as `unknown
+ * owner type` when rate-limited).
  *
- * The headroom exists because `totalCount` is read a moment BEFORE
- * `item-list` runs: sizing the limit to exactly `totalCount` means a board
- * that grows in that gap gets its OLDEST items silently dropped by `gh`
- * (which returns the newest `limit` items, not the first `limit`). See
- * `isPossiblyTruncated` for the guard that still fires when growth outpaces
- * the headroom.
+ * `$endCursor` is named exactly that because `gh api graphql --paginate`
+ * requires it: gh feeds `pageInfo.endCursor` back into a variable of that
+ * name and stops when `hasNextPage` goes false. Renaming it silently reads
+ * ONE page — the first 100 items — and every older item's priority
+ * disappears, which is why the pagination test drives two pages.
  */
-export function computeItemLimit(
-    totalCount: number | undefined,
-    fallback: number
-): number {
-    if (
-        typeof totalCount !== "number" ||
-        !Number.isFinite(totalCount) ||
-        totalCount <= 0
-    ) {
-        return fallback;
+const BOARD_PRIORITY_QUERY = `
+query($owner: String!, $number: Int!, $endCursor: String) {
+  repositoryOwner(login: $owner) {
+    ... on ProjectV2Owner {
+      projectV2(number: $number) {
+        items(first: 100, after: $endCursor) {
+          totalCount
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              __typename
+              ... on Issue { number repository { nameWithOwner } }
+            }
+            fieldValueByName(name: "${PRIORITY_FIELD}") {
+              ... on ProjectV2ItemFieldSingleSelectValue { name }
+            }
+          }
+        }
+      }
     }
-    return totalCount + ITEM_LIMIT_HEADROOM;
-}
+  }
+}`;
 
 /**
- * Whether an `item-list --limit N` read may have been truncated.
+ * Whether pagination stopped with pages still outstanding.
  *
- * `gh project item-list --limit N` returns the N NEWEST items when the board
- * has more than N — never the first N. That means the only safe signal is
- * whether the response FILLED the requested window: `itemsLength >= limit`
- * means the read cannot prove the oldest items weren't cut, while a response
- * strictly under the limit proves it saw everything the board had. Gate on
- * the window, never on comparing back to the `totalCount` read a moment
- * earlier — `totalCount` itself can be stale by the time `item-list` runs, so
- * a `< totalCount` check fires in the harmless direction (board shrank) and
- * is structurally unable to fire in the harmful one (board grew): the exact
- * inversion issue #2520 found and fixed.
+ * The bug this replaces (issue #2520) was a property of `item-list --limit
+ * N`: it returns the N NEWEST items when the board holds more, so a window
+ * sized a moment earlier from `project view`'s `totalCount` could silently
+ * drop the OLDEST items — one of which can carry a P0 — and the only usable
+ * signal was the coarse "did the response FILL the window".
+ *
+ * Cursor pagination has no window and no ordering trap: `gh api graphql
+ * --paginate` walks pages until `hasNextPage` is false, so the read either
+ * completed or it did not, and the LAST page says which. Anything still
+ * outstanding there means gh stopped early (its own page cap, a partial
+ * error), and a partial board is exactly the thing that must not be treated
+ * as the whole one.
  */
-export function isPossiblyTruncated(
-    itemsLength: number,
-    limit: number
-): boolean {
-    return itemsLength >= limit;
+export function isTruncated(pages: BoardPage[]): boolean {
+    const last = pages[pages.length - 1];
+    return (
+        last?.data?.repositoryOwner?.projectV2?.items?.pageInfo?.hasNextPage ===
+        true
+    );
 }
 
 export function fetchBoardPriority(
@@ -160,44 +214,24 @@ export function fetchBoardPriority(
         return {};
     }
 
-    // A static limit is a guess; the board's own `totalCount` is the answer —
-    // and it is read FIRST, because it is what sizes the item-list window
-    // (issue #2520). `opts.itemLimit` survives only as the fallback for a
-    // count that cannot be read.
-    let total: { items?: { totalCount?: number } };
-    try {
-        total = JSON.parse(
-            run([
-                "project",
-                "view",
-                opts.projectNumber,
-                "--owner",
-                opts.owner,
-                "--format",
-                "json",
-            ])
-        ) as { items?: { totalCount?: number } };
-    } catch (err) {
-        opts.onError(
-            `cannot confirm the project item count: ${(err as Error).message}`
-        );
-        return {};
-    }
-    const expected = total.items?.totalCount;
-    const limit = computeItemLimit(expected, opts.itemLimit);
-
     let raw: string;
     try {
         raw = run([
-            "project",
-            "item-list",
-            opts.projectNumber,
-            "--owner",
-            opts.owner,
-            "--format",
-            "json",
-            "--limit",
-            String(limit),
+            "api",
+            "graphql",
+            // gh drives the cursor itself and emits ONE response per page;
+            // `--slurp` collects them into a single JSON array so the shape
+            // is the same whether the board fits in one page or eight.
+            "--paginate",
+            "--slurp",
+            "-F",
+            `owner=${opts.owner}`,
+            // `-F` (not `-f`): the query declares `$number: Int!`, and a
+            // string there is a type error, not a coercion.
+            "-F",
+            `number=${opts.projectNumber}`,
+            "-f",
+            `query=${BOARD_PRIORITY_QUERY}`,
         ]);
     } catch (err) {
         opts.onError(
@@ -209,48 +243,68 @@ export function fetchBoardPriority(
         return {};
     }
 
-    const items = (JSON.parse(raw) as { items?: ProjectItem[] }).items;
-    if (!Array.isArray(items)) {
+    const pages = JSON.parse(raw) as BoardPage[];
+    if (!Array.isArray(pages) || pages.length === 0) {
         opts.onError(
-            "project item-list returned no `items` array — the CLI shape changed"
+            "the board query returned no pages — `gh api graphql --paginate --slurp` shape changed"
         );
         return {};
     }
 
-    // `gh` returns the NEWEST `limit` items when the board has more than
-    // `limit` — never the first `limit` — so hitting the ceiling exactly is
-    // the only signal that the read may have silently dropped the OLDEST
-    // items (issue #2520: a `< expected` check here fires only in the
-    // harmless direction and can never catch the harmful one).
-    if (isPossiblyTruncated(items.length, limit)) {
+    // An owner or a project that does not resolve comes back as `null` DATA
+    // with a zero exit, not as an error — so the `catch` above never sees it.
+    // Returning `{}` silently here would render as "nobody prioritised
+    // anything", which is the queue reading a wrong order as a real one.
+    const items = pages.map(
+        (page) => page.data?.repositoryOwner?.projectV2?.items
+    );
+    if (items.some((it) => !Array.isArray(it?.nodes))) {
         opts.onError(
-            `project item-list returned ${items.length} items — at or above the sized limit (${limit}),\n` +
-                `  so the read cannot prove nothing was truncated. The board likely grew past the\n` +
-                `  ${typeof expected === "number" ? `${expected}-item` : "expected"} count taken a moment earlier — re-run the read.`
+            `project ${opts.owner}/${opts.projectNumber} returned no items — the owner, the project\n` +
+                `  number or the \`Priority\` field does not resolve. Check them, or re-run with\n` +
+                `  --no-priority to plan on the default order deliberately.`
         );
         return {};
     }
+
+    // Cursor pagination either completed or it did not, and the last page
+    // says which — see `isTruncated`. A partial board must never be treated
+    // as the whole one: the items pagination has not reached are the OLDEST,
+    // and one of them can carry a P0.
+    if (isTruncated(pages)) {
+        const seen = items.reduce((n, it) => n + (it?.nodes?.length ?? 0), 0);
+        opts.onError(
+            `the board read stopped after ${seen} of ${items[0]?.totalCount ?? "?"} items with more\n` +
+                `  pages outstanding, so it cannot prove nothing was missed — re-run the read.`
+        );
+        return {};
+    }
+
+    const nodes = items.flatMap((it) => it!.nodes!);
 
     const priority: Record<number, BoardPriority> = {};
-    for (const item of items) {
-        if (item.priority === undefined) continue;
-        if (item.content?.type !== "Issue") continue;
+    for (const node of nodes) {
+        // `null` when the item has no Priority set — not an error, and not
+        // routed through `onError`: most of the board is unprioritized.
+        const value = node.fieldValueByName?.name;
+        if (value === undefined) continue;
+        if (node.content?.__typename !== "Issue") continue;
         // Issue numbers are unique per REPO, not per board. A board that ever
         // gains a second repo would otherwise map #42 of one onto #42 of the
         // other — wrong, and silent.
-        if (item.content.repository !== opts.repo) continue;
-        const number = item.content.number;
+        if (node.content.repository?.nameWithOwner !== opts.repo) continue;
+        const number = node.content.number;
         if (typeof number !== "number") continue;
-        if (!VALID_PRIORITIES.includes(item.priority as BoardPriority)) {
+        if (!VALID_PRIORITIES.includes(value as BoardPriority)) {
             opts.onError(
-                `issue #${number} has Priority "${item.priority}", which is not one of ` +
+                `issue #${number} has Priority "${value}", which is not one of ` +
                     `${VALID_PRIORITIES.join(", ")}. Treating an unknown value as "unprioritized"\n` +
                     `  would DEMOTE an issue someone deliberately flagged, so it is skipped rather\n` +
                     `  than silently reclassified — fix it on the board, or extend VALID_PRIORITIES.`
             );
             continue;
         }
-        priority[number] = item.priority as BoardPriority;
+        priority[number] = value as BoardPriority;
     }
     return priority;
 }

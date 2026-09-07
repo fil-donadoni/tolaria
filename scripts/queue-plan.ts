@@ -151,12 +151,6 @@ const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
 const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
 const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
 
-/** Used ONLY when the board's own `totalCount` cannot be read (CLI shape
- *  drift) — the read is normally sized to `computeItemLimit`'s first
- *  argument, never to a static guess. Kept deep enough for the whole board
- *  with room to grow, matching the historical default. */
-const PROJECT_ITEM_LIMIT_FALLBACK = 2000;
-
 function die(message: string): never {
     console.error(`✗ ${message}`);
     process.exit(2);
@@ -397,11 +391,6 @@ export function liveFetchBoardPriority(
         owner: PROJECT_OWNER,
         projectNumber: PROJECT_NUMBER,
         repo: PROJECT_REPO,
-        // The FALLBACK only: the reader sizes the window to the board's own
-        // `totalCount` (`computeItemLimit`) and proves it wasn't truncated
-        // (`isPossiblyTruncated`) — both properties of the read itself, so
-        // both live with it.
-        itemLimit: PROJECT_ITEM_LIMIT_FALLBACK,
         // `--no-priority` never reaches here: `boardPriorityForArgv` returns
         // before the cache or the network is touched, so `skip` would be dead
         // weight — and routing the escape hatch through a throwing `onError`
