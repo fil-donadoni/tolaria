@@ -185,6 +185,29 @@ graphs, so a deployed card's index row arrives live while its definition
 does not — the open client still holds the old bundle. Paying a Convex read
 per cold load for half-delivered reactivity is worse than not having it.
 
+> **Amended by issue #3054 (2026-09-07): it becomes no asset at all.** "Part
+> of the same static asset" was written before § 3 shipped. Once the client
+> holds every definition — hand-written from the module graph, compiled from
+> the fetched artifact, both resident before any consumer renders — the index
+> is a pure `map` over data that is already there, and shipping it a second
+> time is strictly worse than deriving it. Measured on the merged population:
+> 4,337 rows in **57 ms** (6 ms to enumerate + expand, 51 ms to build),
+> against **343 KB gzip** to transport the same rows as a second
+> content-addressed asset — _more_ bytes than the 248 KB Convex query it
+> would have replaced, plus a committed file and a freshness gate to keep in
+> sync. So `convex/cards/searchIndex.ts` derives it from the runtime registry
+> and `src/lib/searchIndex.ts` memoises it once per document. The paragraph
+> above is unchanged in its conclusion and its reasoning; only the mechanism
+> moved.
+>
+> The second win is the one the issue was really about. The old query read
+> `getAllCards()`, the HAND-WRITTEN population (ADR 0108 § 3's deliberate
+> exclusion), and the deck builder derived a card's availability from
+> membership in it — so **every compiled card rendered as _Unavailable_**
+> however well the engine could play it. The registry makes no such
+> distinction, so availability now means "the engine has this card" by
+> construction rather than by upkeep.
+
 Unlike `data/full-catalogue.json.gz` (gitignored, because it derives from an
 external Scryfall bulk), this asset derives from the repo, so it is
 **committed** — reproducible, diffable, reviewable, and unable to go missing

@@ -104,7 +104,7 @@ export default function DeckBuilderRoute({
     // Lazy-fetch the full ~27K card catalogue (cached, no-op on repeat calls).
     // Mounting here means entering any deck builder route triggers the fetch,
     // so unfiltered searches are pre-warmed when the user opens the search box.
-    // On failure the deck builder degrades gracefully: only the `cardIndex.list`
+    // On failure the deck builder degrades gracefully: only the search index
     // (available cards) is shown, with no catalogue cross-reference.
     const fullCatalogue = useFullCatalogue();
 

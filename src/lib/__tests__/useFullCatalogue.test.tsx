@@ -2,11 +2,12 @@ import { StrictMode } from "react";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// `useFullCatalogue` derives availability from `api.cardIndex.list`. The query
-// itself is irrelevant here — what matters is that it resolves, so `rows` is
-// gated only on the fetch.
-vi.mock("convex/react", () => ({
-    useQuery: () => [{ nameFold: "lightning bolt" }],
+// `useFullCatalogue` derives availability from the search index, which is
+// built from the hydrated card registry (issue #3054). The index's CONTENT is
+// irrelevant here — what matters is that `rows` is gated only on the fetch —
+// so it is stubbed rather than derived from a real catalogue hydration.
+vi.mock("../searchIndex", () => ({
+    useSearchIndex: () => [{ nameFold: "lightning bolt" }],
 }));
 
 const WIRE = {

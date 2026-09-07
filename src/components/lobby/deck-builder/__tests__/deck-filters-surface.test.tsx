@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
     search: {} as Record<string, unknown>,
     listeners: new Set<() => void>(),
     resolveQuery: (() => undefined) as (ref: unknown) => unknown,
+    index: [] as unknown[],
     surface: "roomy-fine" as SurfaceClass,
 }));
 
@@ -56,11 +57,15 @@ vi.mock("convex/react", () => ({
     useQuery: (ref: unknown) => h.resolveQuery(ref),
 }));
 
+// The search index is DERIVED from the hydrated card registry (issue #3054),
+// not fetched — so it is stubbed as a module, not as a query result.
+vi.mock("~/lib/searchIndex", () => ({
+    useSearchIndex: () => h.index,
+}));
 vi.mock("~/hooks/useSurfaceClass", () => ({
     useSurfaceClass: () => h.surface,
 }));
 
-import { getFunctionName } from "convex/server";
 import DeckBuilder from "../deck-builder";
 import type { CardIndexEntry } from "../useCardSearch";
 import type { LobbyDeck } from "~/lib/deckTypes";
@@ -160,18 +165,8 @@ beforeEach(() => {
     h.search = {};
     h.listeners.clear();
     h.surface = "roomy-fine";
-    // Convex's generated `api` is a PROXY — `api.cardIndex.list` is a fresh
-    // object on every access, so identity comparison silently never matches and
-    // every query reads as loading. Compare the resolved function NAME instead.
-    h.resolveQuery = (ref: unknown) => {
-        try {
-            return getFunctionName(ref as never) === "cardIndex:list"
-                ? INDEX
-                : undefined;
-        } catch {
-            return undefined;
-        }
-    };
+    h.index = INDEX;
+    h.resolveQuery = () => undefined;
     vi.clearAllMocks();
 });
 

@@ -92,7 +92,7 @@ vi.mock("convex/react", () => ({
     }),
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: {}, cardIndex: {}, manualLog: {} },
+    api: { game: {}, manualLog: {} },
 }));
 import {
     mockInstanceManaCost,
