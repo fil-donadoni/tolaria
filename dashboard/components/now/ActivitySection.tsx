@@ -1,5 +1,6 @@
 import { NowSection } from "./NowSection";
 import { ActivityChart } from "./ActivityChart";
+import { ActivityLegend } from "./ActivityLegend";
 import { Stats } from "../Stats";
 import { Stat } from "../Stat";
 import { Unavailable } from "../Unavailable";
@@ -100,9 +101,12 @@ export function ActivitySection({
                 ) : null}
 
                 {anything ? (
-                    <div className="overflow-x-auto">
-                        <ActivityChart rows={rows} />
-                    </div>
+                    <>
+                        <div className="overflow-x-auto">
+                            <ActivityChart rows={rows} />
+                        </div>
+                        <ActivityLegend />
+                    </>
                 ) : (
                     <EmptyNote>
                         {`No tokens generated and nothing merged in the last ${ACTIVITY_WINDOW_HOURS} hours.`}

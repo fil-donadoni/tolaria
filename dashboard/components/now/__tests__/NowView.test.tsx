@@ -150,8 +150,12 @@ describe("NowView — the golden payload renders the operator's own numbers", ()
             within(batch).getByText("missing session marker")
         ).not.toBeNull();
         expect(within(batch).getByText("needing attention")).not.toBeNull();
+        // The FULL accessible name, not a substring: a regex that matched the
+        // uuid alone passed whether or not the button said what it copies.
         expect(
-            within(batch).getByRole("button", { name: /Copy 9f8e7d6c/ })
+            within(batch).getByRole("button", {
+                name: "Copy batch id 9f8e7d6c-5b4a-3210-9f8e-7d6c5b4a3210",
+            })
         ).not.toBeNull();
     });
 
@@ -427,5 +431,43 @@ describe("NowView — the timeline's layers (measured in the browser, guarded he
         const lastTail = children.lastIndexOf(tails[tails.length - 1]);
         const firstPin = children.indexOf(pins[0]);
         expect(lastTail).toBeLessThan(firstPin);
+    });
+});
+
+describe("NowView — the facts a row carries that the glossary cannot", () => {
+    it("puts the classifier's own per-row REASON on the claim's mark — the glossary says what `orphaned` means, only the row says why this one is", async () => {
+        await mountWith(goldenPayload());
+        const claims = document.getElementById("ls-section-claims")!;
+        const orphan = within(claims).getByText("orphaned").closest("span")!;
+        const marked = orphan.closest("[title]")!;
+        expect(marked.getAttribute("title")).toBe("no branch after 6h");
+        expect(marked.getAttribute("aria-label")).toBe(
+            "orphaned: no branch after 6h"
+        );
+    });
+
+    it("says WHAT the batch copy button copies — 'Copy 9f8e…' announces a uuid and nothing else", async () => {
+        await mountWith(goldenPayload());
+        expect(
+            screen.getByRole("button", {
+                name: "Copy batch id 9f8e7d6c-5b4a-3210-9f8e-7d6c5b4a3210",
+            })
+        ).not.toBeNull();
+    });
+
+    it("makes EVERY claims-table header explainable — a column whose name is the engine's own token and nothing else is the state this glossary exists to end", async () => {
+        await mountWith(goldenPayload());
+        const claims = document.getElementById("ls-section-claims")!;
+        const headers = [...claims.querySelectorAll("th")];
+        expect(headers.length).toBe(7);
+        const bare = headers.filter((th) => !th.querySelector(".cursor-help"));
+        expect(bare.map((th) => th.textContent)).toEqual([]);
+    });
+
+    it("keys the activity chart's two series — nothing on a two-axis chart says which colour is which", async () => {
+        await mountWith(goldenPayload());
+        const activity = document.getElementById("ls-section-activity")!;
+        expect(within(activity).getByText("output tokens")).not.toBeNull();
+        expect(within(activity).getByText("PRs merged")).not.toBeNull();
     });
 });

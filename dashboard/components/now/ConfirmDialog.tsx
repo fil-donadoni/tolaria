@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { Modal } from "../Modal";
 import { CONTROL_CLASS, CONTROL_PRIMARY_CLASS } from "../../lib/controls";
 import { ACTION_LABEL, effectFor, postAction } from "../../lib/actions";
-import { dismissAction, usePendingAction } from "../../lib/confirm";
+import {
+    dismissAction,
+    getPendingAction,
+    usePendingAction,
+} from "../../lib/confirm";
 
 /**
  * The confirmation before any action is sent (#2636, ported in PRD #3148 S2).
@@ -47,12 +51,20 @@ export function ConfirmDialog({ onSuccess }: { onSuccess: () => void }) {
 
     const confirm = async () => {
         if (!pending || inFlight.current) return;
+        // Captured by IDENTITY, not just truthiness (#2636 review round 1,
+        // finding 4). Cancelling nulls the pending action, but cancelling and
+        // then opening a DIFFERENT one reassigns it to a new object — a
+        // `!getPendingAction()` check alone misses that second case entirely,
+        // and the stale response would then dismiss, and fire `onSuccess` for,
+        // a confirmation the operator has not answered yet.
+        const own = pending;
         inFlight.current = true;
         setBusy(true);
         setError(null);
         const extra =
-            pending.action === "claim.release" ? { issue: pending.issue } : {};
-        const result = await postAction(pending.action, extra);
+            own.action === "claim.release" ? { issue: own.issue } : {};
+        const result = await postAction(own.action, extra);
+        if (getPendingAction() !== own) return;
         inFlight.current = false;
         if (result.ok) {
             close();

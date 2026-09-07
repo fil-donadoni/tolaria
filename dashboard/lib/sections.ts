@@ -15,6 +15,14 @@ import { useSyncExternalStore } from "react";
  * A jump with no visible landing point is exactly what the mark exists to
  * prevent, which is why it is not dropped under `prefers-reduced-motion` —
  * only the SMOOTH scroll is.
+ *
+ * ONE mark at a time, deliberately. The vanilla version kept a `WeakMap` of
+ * per-node timers, so clicking Driver and then Queue left BOTH sections marked
+ * until each one's own timer expired. That is a faithful description of "two
+ * animations are running", not of what the mark means: it answers "where did
+ * my jump land", and there is exactly one answer at any moment. A second mark
+ * on a section the operator has already scrolled away from is noise pointing
+ * at the wrong place.
  */
 
 /** How long a jumped-to section stays marked. */

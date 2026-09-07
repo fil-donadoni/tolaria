@@ -27,23 +27,20 @@ const ACTION_TOKEN_HEADER = "x-loop-action-token";
 
 export type ActionId = RemedyAction | "claim.release";
 
-/** What each action is CALLED on a button. */
+/**
+ * What each action is CALLED on a button.
+ *
+ * `verdict.remedyAction` is a `RemedyAction`, so a verdict can only ever name
+ * one of the two DRIVER operations — `claim.release` acts on one claim, not on
+ * the driver, and is offered per-row instead. A `remedyAction` outside this
+ * map renders NO button rather than a guess, the same "unknown must never look
+ * like an offered action" posture the verdict tone's `bad` fallback takes for
+ * an unrecognised state.
+ */
 export const ACTION_LABEL: Record<ActionId, string> = {
     "driver.stop": "Stop driver",
     "driver.resume": "Resume driver",
     "claim.release": "Release claim",
-};
-
-/**
- * The two VERDICT-level actions. `claim.release` is deliberately absent: it
- * acts on one claim, not on the driver, and is offered per-row instead. A
- * `remedyAction` this map does not name renders NO button rather than a guess
- * — the same "unknown must never look like an offered action" posture the
- * verdict tone's `bad` fallback takes for an unrecognised state.
- */
-export const VERDICT_ACTION_LABEL: Record<RemedyAction, string> = {
-    "driver.stop": "Stop driver",
-    "driver.resume": "Resume driver",
 };
 
 const ACTION_EFFECT: Record<RemedyAction, string> = {

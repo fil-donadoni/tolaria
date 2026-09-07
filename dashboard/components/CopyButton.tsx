@@ -20,10 +20,16 @@ export function CopyButton({
     text,
     label = "copy",
     title,
+    what,
 }: {
     text: string;
     label?: string;
     title?: string;
+    /** What the literal IS, when the literal alone does not say. "Copy
+     *  9f8e7d6c-5b4a-…" announces a uuid and nothing else; "Copy batch id
+     *  9f8e7d6c-5b4a-…" says which one. Omitted for a remedy's own literal,
+     *  where the literal is already the whole answer. */
+    what?: string;
 }) {
     const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,7 +57,7 @@ export function CopyButton({
             type="button"
             className={CONTROL_CLASS}
             title={title ?? "Copy"}
-            aria-label={`Copy ${text}`}
+            aria-label={what ? `Copy ${what} ${text}` : `Copy ${text}`}
             onClick={() => void copy()}
         >
             {state === "idle"

@@ -33,11 +33,11 @@ function setToken(value: string | null) {
     document.head.appendChild(meta);
 }
 
-const raise = () =>
+const raise = (issue = 3152) =>
     act(() => {
         requestAction({
             action: "claim.release",
-            issue: 3152,
+            issue,
             opener: null,
         });
     });
@@ -220,5 +220,45 @@ describe("ConfirmDialog — nothing is sent before the effect is stated", () => 
         await act(async () => {
             release?.();
         });
+    });
+});
+
+describe("ConfirmDialog — a stale response belongs to the dialog that asked for it", () => {
+    it("does not dismiss, or fire onSuccess for, a DIFFERENT confirmation raised while the first request was still out", async () => {
+        let release: ((body: unknown) => void) | null = null;
+        const fetchMock = vi.fn(
+            () =>
+                new Promise<Response>((resolve) => {
+                    release = (body) =>
+                        resolve({
+                            ok: true,
+                            json: () => Promise.resolve(body),
+                        } as Response);
+                })
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        const onSuccess = vi.fn();
+        render(<ConfirmDialog onSuccess={onSuccess} />);
+
+        // Confirm the release of #3152, then cancel out of it while the POST
+        // is still in flight, then raise a DIFFERENT one.
+        raise(3152);
+        fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        raise(9999);
+        const second =
+            "Remove the in-progress label from #9999. The next pass may claim it again.";
+        expect(await screen.findByText(second)).not.toBeNull();
+
+        // …and only now does the FIRST request come back, successfully.
+        await act(async () => {
+            release?.({ ok: true });
+        });
+
+        // Truthiness alone would have missed this: a pending action exists, it
+        // is simply not the one that was sent. The second dialog must still be
+        // open and unanswered.
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(screen.getByText(second)).not.toBeNull();
     });
 });

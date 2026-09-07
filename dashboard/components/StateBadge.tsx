@@ -25,6 +25,8 @@ export function StateBadge({
     term,
     confidence,
     className,
+    title,
+    label,
     children,
 }: {
     tone: Tone;
@@ -32,12 +34,24 @@ export function StateBadge({
     /** `inferred` wears a dashed edge — a deduction, not a measurement. */
     confidence?: Confidence;
     className?: string;
+    /**
+     * The DYNAMIC half of what the word means, when there is one — a claim's
+     * `verdict.reason` ("no branch after 6h"), which the glossary cannot
+     * carry because it is per row. `term` explains what `orphaned` means in
+     * general; this says why THIS row is one.
+     */
+    title?: string;
+    /** The accessible name, when the visible word alone is not it. */
+    label?: string;
     children: ReactNode;
 }) {
     return (
         <Badge
             variant="outline"
             className={cn(toneBadgeClass(tone, confidence), className)}
+            title={title}
+            aria-label={label}
+            role={label ? "img" : undefined}
         >
             {term ? <Term id={term}>{children}</Term> : children}
         </Badge>

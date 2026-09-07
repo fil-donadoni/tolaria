@@ -103,12 +103,15 @@ export function ClaimsTable({
                                 <TableHead>
                                     <Term id="claim.session" />
                                 </TableHead>
-                                <TableHead>title</TableHead>
+                                <TableHead>
+                                    <Term id="issue">title</Term>
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {claims.map((c) => {
                                 const state = c.verdict?.state ?? "live";
+                                const reason = c.verdict?.reason ?? "";
                                 const amber =
                                     typeof c.ageHours === "number" &&
                                     c.ageHours >= MIN_AGE_HOURS;
@@ -116,9 +119,26 @@ export function ClaimsTable({
                                     <TableRow key={c.issue}>
                                         <TableCell>
                                             <span className="flex flex-wrap items-center gap-1.5">
+                                                {/*
+                                                    The classifier's own
+                                                    REASON rides on the mark
+                                                    ("no branch after 6h"),
+                                                    the way the vanilla table
+                                                    carried it: the glossary
+                                                    says what `orphaned`
+                                                    means, this says why THIS
+                                                    row is one, and only the
+                                                    row knows that.
+                                                */}
                                                 <StateBadge
                                                     tone={VERDICT_TONE[state]}
                                                     term={VERDICT_TERM[state]}
+                                                    title={reason}
+                                                    label={
+                                                        reason
+                                                            ? `${VERDICT_WORD[state]}: ${reason}`
+                                                            : undefined
+                                                    }
                                                 >
                                                     {VERDICT_WORD[state]}
                                                 </StateBadge>

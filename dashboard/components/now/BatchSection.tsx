@@ -62,6 +62,7 @@ export function BatchSection({ data }: { data: NowPayload }) {
                     <CopyButton
                         text={data.batch}
                         label="copy id"
+                        what="batch id"
                         title={data.batch}
                     />
                 </span>

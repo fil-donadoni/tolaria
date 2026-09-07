@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { fmtAgoMs } from "./format";
 import type { SessionView, TailEntry, TailPage } from "./nowPayload";
 
 /**
@@ -99,7 +100,13 @@ export function useTail(session: string | null): TailState {
                     return {
                         entries,
                         summary: page.summary,
-                        status: `following · ${page.entries.length} new`,
+                        // "last write" is the ONE fact the entry list
+                        // cannot carry: a transcript that stopped moving
+                        // renders identically to one that never had much in
+                        // it, and this line is what tells the two apart.
+                        status:
+                            `following · last write ${fmtAgoMs(page.lastWriteMs)}` +
+                            ` · ${page.entries.length} new`,
                         failed: false,
                         truncated: first ? page.truncated : prev.truncated,
                     };

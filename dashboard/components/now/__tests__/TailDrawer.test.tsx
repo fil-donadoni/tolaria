@@ -219,6 +219,10 @@ describe("TailDrawer — following one transcript", () => {
                 within(dialog).getByText("the transcript says something")
             ).not.toBeNull();
         });
+        // "last write" is the one fact the entry list cannot carry: a
+        // transcript that STOPPED moving renders identically to one that never
+        // had much in it.
+        expect(within(dialog).getByText(/last write just now/)).not.toBeNull();
         const calls = (
             globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
         ).mock.calls.map((c) => String(c[0]));
