@@ -123,8 +123,9 @@ function stateWithOrderTop(opts: {
 }
 
 /** ROUND-TRIP fixture: a real spell on the stack, resolved once so its own
- *  `scryReorder` Op raises the choice — Preordain ("Scry 2, then draw a card",
- *  CR 701.22) or Consider ("Surveil 1. Draw a card.", CR 701.25). Because the
+ *  `scryReorder` Op raises the choice. Two spells, one per destination:
+ *  Preordain, "Scry 2, then draw a card" — Scry is CR 701.22; and Consider,
+ *  "Surveil 1. Draw a card." — Surveil is CR 701.25. Because the
  *  choice belongs to a script that will be re-entered, submitting an answer
  *  really moves cards, which is the only way to prove `secondZoneIds` survives
  *  the trip from the `Move` to the library. */
