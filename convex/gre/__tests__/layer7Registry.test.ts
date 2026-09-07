@@ -10,11 +10,19 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    LAYER_7_STATIC_EFFECT_KINDS,
     getEffectivePower,
     getEffectiveToughness,
     getPermanentEffectivePower,
     getPermanentEffectiveToughness,
 } from "../layers";
+import { declaresLayer7StaticEffect } from "../../cards/registry";
+import {
+    getDefinition,
+    tokenDefinitionId,
+    withTemporaryDefinition,
+} from "../../cards";
+import type { CardDefinition, StaticEffect } from "../../cards/types";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
@@ -577,5 +585,92 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
         resetBattlefieldTransientState(bear, state);
 
         expect(state.continuousEffects).toHaveLength(1);
+    });
+});
+
+describe("the registry precheck names exactly the kinds the derivation owns", () => {
+    it("`declaresLayer7StaticEffect` and `LAYER_7_STATIC_EFFECT_KINDS` agree", () => {
+        // PRD #2064 S7 — `layer7EffectsFor` skips a battlefield source whose
+        // id this precheck does not know, and `cards/registry.ts` cannot import
+        // the kind table (`gre/**` imports IT), so the list is duplicated. A
+        // precheck naming FEWER kinds than the derivation would drop a source
+        // silently: its P/T effect would simply never apply, with no test of
+        // its own to red. Pinned by CONSTRUCTION, the same way
+        // `layers2to5Registry.test.ts` and `layer6Registry.test.ts` pin theirs.
+        for (const kind of Object.keys(LAYER_7_STATIC_EFFECT_KINDS)) {
+            const id = `s7-layer7-precheck-${kind}`;
+            const probe: CardDefinition = {
+                ...getDefinition(crusade.id),
+                id,
+                name: `Precheck ${kind}`,
+                staticEffects: [
+                    { kind, applies: () => true } as unknown as StaticEffect,
+                ],
+            };
+            withTemporaryDefinition(probe, () => {
+                expect(declaresLayer7StaticEffect(id)).toBe(true);
+            });
+        }
+    });
+
+    it("a token id the registry has never seen still contributes its CDA (CR 604.3)", () => {
+        // A TOKEN has no printed card: its identity IS the content-derived id,
+        // and `tryGetDefinition` decodes it back into a definition on a registry
+        // MISS — which is also what indexes it. A precheck standing ahead of
+        // that call must resolve the id itself, or it answers from the absence
+        // of a definition and the walk skips the source forever.
+        //
+        // Urza's Saga's Construct is the card this kills: printed 0/0, its whole
+        // P/T a `pt-cda` (CR 604.3), so on a client whose registry was filled by
+        // `preloadDefinitions` alone it would render 0/0 and die to the
+        // CR 704.5f SBA. `cards/tokenStaticEffects.ts`'s header records the last
+        // time this class of bug killed it. The name is unique so no other test
+        // in this worker can have registered the id first — the point is a COLD
+        // registry.
+        const id = tokenDefinitionId({
+            name: "S7 Cold Construct",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+            power: 0,
+            toughness: 0,
+            staticEffectKeys: ["pt-cda-artifacts-you-control"],
+        });
+        const token = creature("cold-construct", 0, 0, {
+            card: { id },
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+        });
+        const state = stateWith([token], []);
+
+        // One artifact on the board — itself.
+        expect(getEffectivePower(state, token)).toBe(1);
+        expect(getEffectiveToughness(state, token)).toBe(1);
+    });
+
+    it("indexes a COMPILED anthem, which has no `staticEffects[]` at index time", () => {
+        // `setRegistryEntry` derives the membership from the RAW entry, and the
+        // Oracle compiler's descriptors (issue #2700) become real
+        // `staticEffects` only at the `expandDefinition` seam. Reading just
+        // `staticEffects[]` made every compiled anthem invisible to the walk —
+        // caught by `oracle/__tests__/staticSlot.test.ts`, pinned here beside
+        // the precheck it is a property of.
+        const id = "s7-layer7-precheck-compiled";
+        const probe: CardDefinition = {
+            ...getDefinition(crusade.id),
+            id,
+            name: "Compiled Anthem",
+            staticEffects: undefined,
+            compiledStaticEffects: [
+                {
+                    kind: "pt-buff",
+                    filter: { types: ["Creature"] },
+                    power: 1,
+                    toughness: 1,
+                },
+            ],
+        };
+        withTemporaryDefinition(probe, () => {
+            expect(declaresLayer7StaticEffect(id)).toBe(true);
+        });
     });
 });

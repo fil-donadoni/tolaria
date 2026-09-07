@@ -1975,3 +1975,18 @@ export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
             !(a.manaProduced || a.manaChoices || a.manaColorSource)
     );
 }
+
+/** True when two string lists hold the same members in the same order.
+ *
+ *  The layer system's "did the derivation change anything?" test, shared by the
+ *  layers-2-to-5 and layer-6 sync fast paths (PRD #2064 S4/S7). Kept here
+ *  rather than private to either module because two hot paths comparing a
+ *  derived multiset against its base by hand are two paths that can disagree —
+ *  and layer 6's list is a MULTISET (CR 113.1: two grants of flying are two
+ *  occurrences), so order and repetition both count and a `Set` comparison
+ *  would be wrong. */
+export function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+}

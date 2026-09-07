@@ -10,6 +10,7 @@
 // scopes/filters to maintain.
 
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { declaresLayer7StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
@@ -352,8 +353,8 @@ function layer7EffectsFor(
     ): void => {
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
+            if (!isLayer7StaticEffect(effect)) continue;
             const cda = effect.kind === "pt-cda";
-            if (!cda && effect.kind !== "pt-buff") continue;
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
             // CR 611.2c source-level gate ("as long as ..."): evaluated once
             // per source against the whole board (Jihad). Only `pt-buff`
@@ -389,6 +390,17 @@ function layer7EffectsFor(
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
+            // PRD #2064 S7 — the registry-derived precheck, the twin of the
+            // ones layers 2-5 and 6 run. It matters most HERE: layer 7 has no
+            // board pass to hoist a source plan into, so this walk runs on
+            // every P/T read — `getEffectivePower` / `getEffectiveToughness`,
+            // which the SBA loop and combat ask of every creature — and almost
+            // no permanent declares a `pt-buff` or `pt-cda` at all. Fail-slow:
+            // a stale TRUE costs one wasted `tryGetDefinition`, a stale FALSE
+            // is impossible (every registry write goes through
+            // `setRegistryEntry`).
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
             pushSourceEffects(source, getStaticEffects(source));
         }
     }
@@ -591,26 +603,61 @@ function resolveLayer7Payload(
     // A stored `effectIndex` can point at any `StaticEffect` kind — including
     // a CR 611.3 rules-modifying one this registry deliberately excludes — so
     // the kind is checked before the effect is treated as layer 7 at all.
+    // A DERIVED entry has already been through both gates in `layer7EffectsFor`,
+    // against THIS read's fixed board — CR 613 composes a layer over a fixed
+    // input, so re-running them is a pure repeat, not a second
+    // provenance-dependent rule. A STORED entry has not, and still pays for
+    // both (PRD #2064 S7).
     if (effect?.kind === "pt-buff") {
-        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
-            return undefined;
-        // CR 611.2c — the source-level gate. The derivation above already
-        // applied it, so this only fires for a STORED entry; running it in
-        // both places keeps the gate from being provenance-dependent.
-        if (
-            effect.condition &&
-            !effect.condition(source, state, STATIC_EFFECT_CTX)
-        ) {
-            return undefined;
+        if (!derived) {
+            if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+                return undefined;
+            // CR 611.2c — the source-level gate.
+            if (
+                effect.condition &&
+                !effect.condition(source, state, STATIC_EFFECT_CTX)
+            ) {
+                return undefined;
+            }
         }
         return { power: effect.power, toughness: effect.toughness };
     }
     if (effect?.kind === "pt-cda") {
-        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+        if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
             return undefined;
+        }
         return effect.compute(source, state, STATIC_EFFECT_CTX, target);
     }
     return undefined;
+}
+
+/** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
+ *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`.
+ *
+ *  The single naming authority, and it is the WALK's own gate (through
+ *  {@link isLayer7StaticEffect}) rather than a table beside it: a list the
+ *  derivation does not read is a list that can disagree with the derivation.
+ *  `declaresLayer7StaticEffect` (`cards/registry.ts`) is pinned against this
+ *  one in `layer7Registry.test.ts`, so a kind added here and not there cannot
+ *  ship silently skipped by the precheck — and a kind added to the walk without
+ *  passing through here is not expressible. */
+export const LAYER_7_STATIC_EFFECT_KINDS = {
+    "pt-buff": true,
+    "pt-cda": true,
+} as const;
+
+/** Narrows a `StaticEffect` to the two layer 7 owns, reading
+ *  {@link LAYER_7_STATIC_EFFECT_KINDS} for the membership and deriving the
+ *  narrowed type from the SAME table's keys — so adding a row widens the
+ *  narrowed union with it, and every read below the gate that the new kind
+ *  cannot answer reds in `tsc` instead of being silently mis-handled. */
+function isLayer7StaticEffect(
+    effect: StaticEffect
+): effect is Extract<
+    StaticEffect,
+    { kind: keyof typeof LAYER_7_STATIC_EFFECT_KINDS }
+> {
+    return effect.kind in LAYER_7_STATIC_EFFECT_KINDS;
 }
 
 /** The battlefield permanent with `id`, if any. */

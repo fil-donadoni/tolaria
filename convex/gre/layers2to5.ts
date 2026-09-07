@@ -66,7 +66,7 @@
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
-import { applyLandTypeReplacement } from "./constants";
+import { applyLandTypeReplacement, sameOrder } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
@@ -269,6 +269,29 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
  *  `"indefinite"` sentinel rows — the ones no board walk can reproduce — are
  *  promoted. */
 function migrateLegacyLayer3To5Ledgers(card: CardInstanceState): void {
+    // PRD #2064 S7 — the whole migration is a no-op on a card carrying none of
+    // the six pre-S4 OUTPUT fields it reads: every block below is gated on one
+    // of them being present, so this early-out is the same answer, reached
+    // without the `?? []` allocations and `filter`/`some` walks that answer it.
+    //
+    // Load-bearing, not defensive. The `legacy` gate above is
+    // `layers2to5Derived !== true`, and that flag is written by
+    // `writeDerivedCharacteristics` — which the sync's FAST PATH never reaches.
+    // So every permanent the fast path skips arrives here on EVERY sync,
+    // forever, and the ISMCTS search syncs at every apply site on every node it
+    // expands. Measured on the blade suite before this early-out: 1.23s, 1.7%
+    // of total search wall clock, spent re-answering "no" for boards with no
+    // pre-S4 row anywhere on them.
+    if (
+        card.textChanges === undefined &&
+        card.grantedTypes === undefined &&
+        card.suppressedTypes === undefined &&
+        card.grantedSupertypes === undefined &&
+        card.removedSupertypes === undefined &&
+        card.grantedSubtypesAdd === undefined
+    ) {
+        return;
+    }
     // CR 612 layer 3 — `textChanges` was the ledger AND the output.
     if (card.textChangeHolds === undefined && card.textChanges?.length) {
         card.textChangeHolds = card.textChanges.map((change, index) => ({
@@ -522,14 +545,6 @@ type SourceEntries = {
     entries: readonly ContinuousEffect[];
     templates: ReadonlyMap<string, DerivedTemplate>;
 };
-
-/** Element-wise array equality, order included — the comparison "does the
- *  derived output still equal the base?" is asked with. */
-function sameOrder(a: readonly string[], b: readonly string[]): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-    return true;
-}
 
 /** True when any STORED registry entry belongs to layers 2-5. Cheap and
  *  board-wide, so the fast paths can ask it once. */
