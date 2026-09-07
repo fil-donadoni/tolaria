@@ -546,8 +546,6 @@ type SourceEntries = {
     templates: ReadonlyMap<string, DerivedTemplate>;
 };
 
-/** Element-wise array equality, order included — the comparison "does the
- *  derived output still equal the base?" is asked with. */
 /** True when any STORED registry entry belongs to layers 2-5. Cheap and
  *  board-wide, so the fast paths can ask it once. */
 function hasStoredLayer2to5Entry(state: LayerStateView): boolean {

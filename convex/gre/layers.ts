@@ -265,16 +265,6 @@ export function isSourceTappedLive(
  *  `Record` over the sublayer union rather than a bare literal, so `tsc` reds
  *  when the union gains a member instead of the pipeline silently skipping
  *  it. */
-/** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
- *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`. The naming
- *  authority `cards/registry.ts`'s `declaresLayer7StaticEffect` precheck is
- *  pinned against (`layers.test.ts`), so a new layer-7 kind cannot be added to
- *  the derivation and silently skipped by the precheck. */
-export const LAYER_7_STATIC_EFFECT_KINDS: Record<string, true> = {
-    "pt-buff": true,
-    "pt-cda": true,
-};
-
 const LAYER_7_SUBLAYER_ORDER: Record<ContinuousEffectSublayer, number> = {
     "7a": 0,
     "7b": 1,
@@ -363,9 +353,7 @@ function layer7EffectsFor(
     ): void => {
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
-            // The two kinds `LAYER_7_STATIC_EFFECT_KINDS` names, spelled out
-            // rather than looked up: a `Record` probe does not narrow the
-            // discriminated union, and every read below needs the narrowing.
+            // The two kinds `LAYER_7_STATIC_EFFECT_KINDS` names.
             const cda = effect.kind === "pt-cda";
             if (!cda && effect.kind !== "pt-buff") continue;
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
@@ -643,6 +631,20 @@ function resolveLayer7Payload(
     }
     return undefined;
 }
+
+/** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
+ *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`.
+ *
+ *  The NAMING AUTHORITY the registry-derived precheck is pinned against
+ *  (`declaresLayer7StaticEffect` in `cards/registry.ts`, asserted in
+ *  `layer7Registry.test.ts`), so a kind added to the derivation and not to the
+ *  precheck cannot ship silently skipped. The walk itself spells the two kinds
+ *  out rather than probing this table: a `Record` lookup does not narrow the
+ *  discriminated union, and every read below the check needs the narrowing. */
+export const LAYER_7_STATIC_EFFECT_KINDS: Record<string, true> = {
+    "pt-buff": true,
+    "pt-cda": true,
+};
 
 /** The battlefield permanent with `id`, if any. */
 function findPermanent(
