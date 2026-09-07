@@ -5,7 +5,7 @@
  * one `try { ... } catch { return null }`, so "there is no other commit to
  * compare against" and "the comparison itself failed" arrived as the same
  * value, and both printed a green skip line: with `git` absent from `PATH` the
- * check exited 0 while guarding nothing (review of PR #3150, finding 1).
+ * check exited 0 while guarding nothing (review of issue #2696, finding 1).
  *
  * So the runner is injected and every branch has a fixture. A guard whose only
  * evidence is "it did not fire on the tree we happen to have" is a guard
@@ -153,7 +153,7 @@ describe("baselineOutcome — the comparison BROKE (red, never a skip)", () => {
 
 describe("baselineOutcome — git itself missing", () => {
     it("is `broken`, not a skip, when the git BINARY cannot be spawned", () => {
-        // The reviewer's repro (PR #3150, finding 1): `git` removed from
+        // The reviewer's repro (issue #2696, finding 1): `git` removed from
         // `PATH`. The tree IS a git repository, so the baseline is readable and
         // the fault is the environment — reporting it as "nothing to compare"
         // is the guard quietly switching itself off.

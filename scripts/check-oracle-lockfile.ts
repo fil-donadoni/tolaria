@@ -486,7 +486,7 @@ export type GitResult =
            * tarball export with no `.git` is a legitimate skip, while git
            * missing from `PATH` is broken tooling on a tree that IS a
            * repository — and collapsing the two is how the guard came to
-           * print green with no git at all (review of PR #3150, finding 1).
+           * print green with no git at all (review of issue #2696, finding 1).
            */
           readonly missing?: boolean;
       };
@@ -504,7 +504,7 @@ export type GitRunner = (args: readonly string[]) => GitResult;
  * parse (exactly the schema-rewrite moment when a real regression is most
  * likely). Collapsing the two into `null` made every one of those print the
  * green skip line and exit 0 — the guard silently not guarding, which is the
- * failure mode this guard exists to prevent (review of PR #3150, finding 1).
+ * failure mode this guard exists to prevent (review of issue #2696, finding 1).
  */
 export type BaselineOutcome =
     | { readonly kind: "lockfile"; readonly lock: Lockfile }

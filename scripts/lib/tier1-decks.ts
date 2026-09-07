@@ -45,7 +45,7 @@ export type DeckCardState = "ours" | CompileState;
  * The ONE definition — `deckReport` derives its `playable` figure by summing
  * these counts rather than re-listing the two states, so a change to what
  * counts as playable cannot update the constant and leave the arithmetic
- * behind (review of PR #3150, finding 3).
+ * behind (review of issue #2696, finding 3).
  */
 export const PLAYABLE_STATES: readonly DeckCardState[] = ["ours", "ready"];
 
