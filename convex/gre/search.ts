@@ -818,6 +818,15 @@ export function applyMoveInSearch(
                 step: move.step,
                 choiceId: move.choiceId,
                 cardInstanceIds: move.cardInstanceIds,
+                // CR 701.22 / 701.25 / 701.44a (issue #2996) — an `order-top`
+                // answer partitions the looked-at cards, and the un-kept half
+                // travels here. Dropping it would submit a kept list that does
+                // not cover `candidateIds`, which the resolver rejects
+                // ("order-top must place every looked-at card once") — so the
+                // search would apply nothing and spin on the same node.
+                ...(move.secondZoneIds
+                    ? { secondZoneIds: move.secondZoneIds }
+                    : {}),
             });
             drainAutoPasses(state);
             checkStateBasedActions(state);

@@ -168,6 +168,9 @@ export function matchesMove(
     const cardsIds = matcher.cards?.map((name) =>
         instanceIdsForName(state, name)
     );
+    const secondIds = matcher.second?.map((name) =>
+        instanceIdsForName(state, name)
+    );
     const targetIds =
         matcher.target !== undefined
             ? targetCandidateIds(state, matcher.target)
@@ -203,6 +206,18 @@ export function matchesMove(
         if (!move.cardInstanceIds.includes(matcher.option)) return false;
     }
 
+    // issue #2996 — the BINNED half of an ordered-top answer (scry bottom /
+    // surveil / Explore). Names, resolved the same way `cards` is; `[]` asserts
+    // that nothing was sent away.
+    if (secondIds) {
+        if (move.kind !== "resolution-choice") return false;
+        const second = move.secondZoneIds ?? [];
+        if (secondIds.length === 0 && second.length !== 0) return false;
+        for (const ids of secondIds) {
+            if (!second.some((id) => ids.has(id))) return false;
+        }
+    }
+
     return true;
 }
 
@@ -212,6 +227,7 @@ export function describeMatcher(matcher: MoveMatcher): string {
     const parts: string[] = [matcher.kind];
     if (matcher.card) parts.push(`card=${matcher.card}`);
     if (matcher.cards) parts.push(`cards=[${matcher.cards.join(", ")}]`);
+    if (matcher.second) parts.push(`second=[${matcher.second.join(", ")}]`);
     if (matcher.target) parts.push(`target=${matcher.target}`);
     if (matcher.accept !== undefined) parts.push(`accept=${matcher.accept}`);
     if (matcher.option) parts.push(`option=${matcher.option}`);
@@ -243,5 +259,12 @@ export function describeChosenMove(
     if (targets.length) parts.push(`targets=[${targets.join(", ")}]`);
     const accept = moveAccept(move);
     if (accept !== undefined) parts.push(`accept=${accept}`);
+    // issue #2996 — without this an ordered-top failure printed only the kept
+    // half, so "kept both" and "kept both, binned neither" (the two answers the
+    // pair discriminates) rendered identically in the diff.
+    if (move.kind === "resolution-choice") {
+        const second = (move.secondZoneIds ?? []).map(nameOf);
+        if (second.length) parts.push(`second=[${second.join(", ")}]`);
+    }
     return parts.join(" ");
 }

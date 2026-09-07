@@ -72,7 +72,11 @@ import type {
     SeatDeckKnowledge,
 } from "@convex/gre";
 import { knowledgeFor, PLACEHOLDER_CARD_ID } from "@convex/gre";
-import type { PublicGameState, PublicPlayer } from "@convex/gameProjections";
+import type {
+    KnownLibraryCard,
+    PublicGameState,
+    PublicPlayer,
+} from "@convex/gameProjections";
 import { tryGetDefinition } from "@convex/cards";
 
 // The per-seat deck-knowledge type now lives in the ENGINE
@@ -291,9 +295,28 @@ function overlayKnownLibraryCards(
     player: PublicPlayer,
     viewerId?: string
 ): CardInstanceState[] {
-    const known = Array.isArray(player.library)
+    const wireKnown = Array.isArray(player.library)
         ? undefined
         : player.library.known;
+    // Issue #2996 — the SECOND wire channel carrying identities this viewer is
+    // entitled to at known positions: `libraryPeek`, the looked-at TOP N of an
+    // open scry / surveil / Explore / Impulse choice, in top order
+    // (`exposeLibraryPeek`, `gameProjections.ts`). It is a separate field from
+    // `library.known[]` because the engine-side grant only happens when the
+    // choice is APPLIED, so nothing has stamped `knownTo` yet — but the chooser
+    // is looking at the cards right now, and the search is about to decide
+    // which of them to keep. Left out, the Worker rebuilt those slots from
+    // placeholders / the deck remainder, so the candidate generator priced
+    // cards that are not there and submitted ids the server rejects.
+    // Overlaid at indices [0, n) exactly as `known[]` is at its own indices,
+    // and the `knownTo` stamp is what carries the entitlement onwards into
+    // `determinize` (whose `openPeekTopCount` derives the same run from the
+    // engine-native side).
+    const peek: KnownLibraryCard[] | undefined = player.libraryPeek?.map(
+        (card, index): KnownLibraryCard => ({ index, card })
+    );
+    const known =
+        peek && peek.length > 0 ? [...(wireKnown ?? []), ...peek] : wireKnown;
     if (!known || known.length === 0) return library;
     const out = [...library];
     // Slots already resolved to a known card — never raided for a donor, or an

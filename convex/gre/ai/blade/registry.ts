@@ -5019,6 +5019,188 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "The leaf half of the same episode — `declaredBlockDelta` must score the double block strictly below the single one — is a deterministic assertion on the term and lives in `evaluate.bot.test.ts`.",
     },
+
+    // -----------------------------------------------------------------------
+    // ORDERED TOP (issue #2996) — Scry (CR 701.22) / Surveil (CR 701.25) /
+    // Explore's keep-or-bin tail (CR 701.44a).
+    //
+    // THE DISCRIMINATING PAIR. Both positions are the SAME board, the same
+    // spell and the same budget; the only thing that differs is which cards sit
+    // on top of the library and which fill the rest of it. In one, keeping is
+    // right; in the other, binning is. A change that made the bot always keep
+    // (the pre-#2996 behaviour) or always bin passes neither.
+    //
+    // WHY PREORDAIN. "Scry 2, then draw a card" puts the payoff INSIDE the same
+    // resolution: the card left on top is the card drawn, and a drawn card
+    // moves `evaluate`'s `hand` term immediately. A scry whose payoff is next
+    // turn's draw is beyond the rollout horizon at any production budget, and
+    // the entry would then measure the horizon rather than the decision
+    // (`project_combat_eval_washed_at_horizon`, same class).
+    //
+    // WHY IT COULD NOT WORK BEFORE THE PEEK PIN. Scry does NOT mark the
+    // looked-at cards known until the choice is APPLIED, so `determinize` used
+    // to re-deal the very cards `candidateIds` names, every iteration — the
+    // search would decide "keep this card" about a card that is not there, and
+    // `SpellContext.orderTop`'s resume would then throw. `openPeekTopCount`
+    // (`gre/libraryKnownRuns.ts`) pins the open peek's top run, which is what
+    // makes these two positions differ at all.
+    {
+        label: "scry: bottoms two dead cards to draw off a deck of bombs",
+        spec: {
+            cards: [
+                { name: "Preordain", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                // The rest of the deck: every card a real threat, so a card
+                // drawn blind off the top is worth far more than either of the
+                // two on top. `libraryCount: 0` clears the builder's filler
+                // basics first (it seeds BEFORE placement), so the library is
+                // exactly what this spec says and nothing else — and 18 cards
+                // keeps it clear of `deckingHorizon` (12), whose term would
+                // otherwise swamp the decision with a CR 704.5b panic.
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 18 },
+                // The looked-at window, top-first. Two 0/2 artifact creatures
+                // for {0}: legal draws, worth almost nothing.
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "library",
+                    position: 2,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                // `libraryCount: 0` clears BOTH libraries, so the opponent
+                // needs its own or the position is a decked-out win before the
+                // decision is even reached (CR 704.5b) and every branch scores
+                // in the win band, where a one-card difference is invisible.
+                { name: "Forest", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 0,
+        },
+        setup: [
+            { kind: "cast", card: "Preordain", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "resolution-choice",
+                    second: ["Ornithopter", "Ornithopter"],
+                },
+            ],
+        },
+        note: "Issue #2996, the BIN half of the discriminating pair. Both looked-at cards are Ornithopters (0/2 for {0}); every other card in the deck is a Craw Wurm. Preordain draws immediately after the scry, so bottoming both and drawing blind is worth strictly more than keeping either — and it is the answer the bot could not even express before this issue, because the `Move` union carried no second list and `brain.ts`'s minimal-legal default returned `bestFirst(candidates)` with an empty `secondZoneIds`. Proof-of-failure: dropping `secondZoneIds` from the `resolution-choice` Move (or unregistering `order-top` from `CHOICE_CANDIDATE_GENERATORS`) reds this at every seed.",
+    },
+    {
+        label: "scry: keeps two bombs on top of a deck of blanks",
+        spec: {
+            cards: [
+                { name: "Preordain", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                // The mirror deck: blanks below, bombs on top.
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "library",
+                    count: 18,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                    position: 2,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                // `libraryCount: 0` clears BOTH libraries, so the opponent
+                // needs its own or the position is a decked-out win before the
+                // decision is even reached (CR 704.5b) and every branch scores
+                // in the win band, where a one-card difference is invisible.
+                { name: "Forest", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 0,
+        },
+        setup: [
+            { kind: "cast", card: "Preordain", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", second: [] }],
+        },
+        note: "Issue #2996, the KEEP half of the discriminating pair — the same board, spell and budget as the entry above with the library's two halves swapped. `second: []` asserts that NOTHING was sent to the bottom, so a bot that learned to bin unconditionally fails here while a bot that never bins fails the entry above. Neither position is solvable by a policy that ignores what the cards are.",
+    },
+    {
+        label: "explore: bins the revealed blank instead of leaving it as the next draw",
+        spec: {
+            cards: [
+                // CR 111.10 — the Map token (LCI): "{1}, {T}, Sacrifice this
+                // token: Target creature you control explores." The vehicle for
+                // Explore's own keep-or-bin (CR 701.44a), which is `orderTop`
+                // at n = 1 with `destination: "graveyard"` — the one member of
+                // this family where the un-kept card goes somewhere that can
+                // still be worth something.
+                { name: "Map", owner: "me", zone: "battlefield", token: true },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 18 },
+                // The revealed card: a nonland, so CR 701.44a's second branch
+                // runs (a +1/+1 counter, then the keep-or-bin), and a blank,
+                // so leaving it on top means next turn's draw is wasted.
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 0,
+        },
+        setup: [
+            // Sorcery-speed activation, targeting the one creature. `activate`
+            // with a `target` goes through `enumerateMoves` +
+            // `applyMoveInSearch`, the real legality gate.
+            { kind: "activate", card: "Map", target: "Grizzly Bears" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", second: ["Ornithopter"] }],
+        },
+        note: "Issue #2996 — Explore's keep-or-bin tail (CR 701.44a), the sharper consumer of this family: for a scry the fixed default was merely suboptimal, but the keep-or-bin IS the decision the nonland branch exists to offer, and the bot always chose \"top\", so a blank revealed off an explore was always next turn's draw. The window is a single card, so the generator emits exactly two branches (keep / bin) — the n = 1 collapse of the four policies. Shipped Explore consumers today: the Map token and Sentinel of the Nameless City (issue #2376).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

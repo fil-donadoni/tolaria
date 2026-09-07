@@ -32,7 +32,8 @@
  * `emitPermanentEntered`, never by an object literal.
  */
 
-import { getCardByName } from "../../../cards";
+import { getCardByName, tokenDefinitionId } from "../../../cards";
+import { findTokenSpec } from "../../../cards/tokenCatalogue";
 import {
     activateAbilityOnState,
     getEffectiveActivatedAbilities,
@@ -69,23 +70,42 @@ export class BladeSetupError extends Error {
     }
 }
 
+/** The DEFINITION id a blade entry's `card:` name denotes.
+ *
+ *  A card name resolves through `getCardByName`, which throws on an unknown
+ *  name so a typo is an authoring error rather than a silently-empty match.
+ *  A TOKEN has no card name at all (CR 111.1 — it is not a card): its
+ *  characteristics live in the token catalogue and its definition id is
+ *  synthesized from the spec, exactly as `scenarioBuilder` does when the spec
+ *  places one with `token: true`. The catalogue is consulted FIRST only for a
+ *  name it actually holds, so no card is ever shadowed by a token key.
+ *
+ *  Without this a spec could PLACE a token (`token: true` has been supported
+ *  since the vocabulary shipped) but no `setup` step could ever act on it,
+ *  which put every token-activated ability — the Map token's Explore
+ *  (CR 701.44a) among them — outside the blade suite entirely. */
+function definitionIdForName(name: string): string {
+    const spec = findTokenSpec(name);
+    if (spec) return tokenDefinitionId(spec);
+    return getCardByName(name).id;
+}
+
 /** Every battlefield permanent named `name`, optionally restricted to one
  *  seat. Name-based, exactly like `MoveMatcher` — a blade entry never writes
- *  an instance id. `getCardByName` throws on an unknown name, so a typo is an
- *  authoring error, never a silently-empty match. */
+ *  an instance id. See {@link definitionIdForName} for the resolution. */
 function battlefieldMatches(
     state: GameState,
     name: string,
     controller: BladeSeat | undefined
 ): CardInstanceState[] {
-    const def = getCardByName(name);
+    const defId = definitionIdForName(name);
     const wantedId =
         controller === undefined ? undefined : seatPlayerId(state, controller);
     const out: CardInstanceState[] = [];
     for (const player of state.players) {
         if (wantedId !== undefined && player.id !== wantedId) continue;
         for (const card of player.battlefield) {
-            if ((card.card as { id?: string } | undefined)?.id === def.id) {
+            if ((card.card as { id?: string } | undefined)?.id === defId) {
                 out.push(card);
             }
         }

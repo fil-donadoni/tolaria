@@ -66,6 +66,20 @@ export type MoveMatcher = {
      *  this move kind is genuinely overloaded — a zone-pick's ids ARE real
      *  card instance ids, an option-pick's are not. */
     option?: string;
+    /** CR 701.22 / 701.25 / 701.44a (issue #2996) — card NAMES that must ALL
+     *  appear among a `resolution-choice` move's `secondZoneIds`: the looked-at
+     *  cards an ordered-top answer sends AWAY (the bottom of the library for
+     *  scry, the graveyard for surveil and Explore's keep-or-bin tail).
+     *
+     *  Its own field rather than a reuse of `cards`, because on this move kind
+     *  the two lists are the whole decision: `cards` checks what was KEPT, this
+     *  checks what was BINNED, and an entry that only pinned the kept half
+     *  would pass on the exact answer it was written to forbid. Still partial —
+     *  extra binned cards are allowed; use `expect.forbidden` to rule one out.
+     *
+     *  `second: []` is meaningful and asserts the opposite: nothing was sent
+     *  away (the keep-everything answer). */
+    second?: string[];
 };
 
 /**
