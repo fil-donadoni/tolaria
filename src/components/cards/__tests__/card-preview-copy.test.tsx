@@ -15,6 +15,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance } from "~/types/game";
 import CardImage from "../card-image";
 import { resetPreviewSingleton } from "../card-preview-singleton";
+import { NO_BOARD_LAYER_VIEW } from "../../../../convex/gre/layers";
 
 const CLONE = getCardByName("Clone");
 const SERRA = getCardByName("Serra Angel");
@@ -69,7 +70,7 @@ describe("Copy card preview (CR 707.2 / 707.10)", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        applyCopy(copy, makeInstance(SERRA.id));
+        applyCopy(NO_BOARD_LAYER_VIEW, copy, makeInstance(SERRA.id));
         expect(copy.copiedFrom).toBe(CLONE.id); // sanity: printed id preserved
 
         const state = makeState({

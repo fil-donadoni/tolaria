@@ -47,6 +47,7 @@ import { compactState, expandState } from "../serialize";
 import { applyCopy } from "../copy";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 import type { TargetSelection } from "../../cards/types";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const ANGEL = getCardByName("Exalted Angel").id;
 const PLAINS = getCardByName("Plains").id;
@@ -80,7 +81,7 @@ function faceDownBoard(lands = 4): {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, permanent, "morph");
     const state = makeState({
         players: [
             makePlayer("p1", { battlefield: [permanent, ...plains(lands)] }),
@@ -105,7 +106,7 @@ describe("morph — face-down characteristics (CR 702.37a/c)", () => {
 
     it("turning face up restores the real 4/5 flier (CR 702.37e)", () => {
         const { state, permanent } = faceDownBoard();
-        turnFaceUp(permanent);
+        turnFaceUp(state, permanent);
         expect(permanent.faceDown).toBeUndefined();
         expect(permanent.faceDownOf).toBeUndefined();
         expect((permanent.card as { id: string }).id).toBe(ANGEL);
@@ -225,7 +226,7 @@ describe("morph — the turn-face-up special action (CR 702.37e / 116.2b)", () =
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(bears, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, bears, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bears, ...plains(6)] }),
@@ -363,7 +364,7 @@ describe("morph — copy interaction (CR 707.2)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(clone);
-        applyCopy(clone, permanent);
+        applyCopy(state, clone, permanent);
         const copied = state.players[0].battlefield.find(
             (c) => c.id === "clone"
         )!;
@@ -386,7 +387,7 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(item, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, item, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -469,7 +470,7 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(morphed, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, morphed, "morph");
         const vc = makeInstance(VILE_CONSUMPTION, {
             id: "vc",
             controllerId: "p1",
@@ -583,7 +584,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, angel, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -651,7 +652,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, angel, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -716,7 +717,7 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(angel, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, angel, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
@@ -758,7 +759,7 @@ describe("morph — serialization (issue #2705)", () => {
             }),
             castById: "p1",
         };
-        turnFaceDown(item, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, item, "morph");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });

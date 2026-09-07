@@ -47,6 +47,21 @@ export type LayerStateView = StaticEffectStateView & {
     readonly continuousEffects?: readonly ContinuousEffect[];
 };
 
+/** The layer view for a card that is on NO battlefield — a fixture built in a
+ *  test, a stack item being assembled before it resolves (`gre/castMode.ts`'s
+ *  morph stamp), a card in hand or in a graveyard.
+ *
+ *  Empty because it is exactly right, not as a fallback: a continuous effect
+ *  names the objects it affects (CR 611.2c), and nothing in the registry can
+ *  name a card that has never been on the battlefield, so composing layer 6
+ *  over an empty registry composes precisely what applies — nothing. Passing
+ *  this for a card that IS on a battlefield would silently drop that
+ *  permanent's own grants; pass the real state there.
+ *
+ *  Exists so the intent is one greppable name rather than an inline
+ *  `{ players: [] }` repeated at every such site (PRD #2064 S6b). */
+export const NO_BOARD_LAYER_VIEW: LayerStateView = { players: [] };
+
 /** CR 114 — a source-less synthetic `PermanentView` standing in for a
  *  command-zone emblem, so its owner-scoped continuous static effects flow
  *  through the same `applies(target, source, ctx)` predicates as a battlefield

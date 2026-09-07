@@ -623,7 +623,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         applySourceStaticEffects(state, aura);
         expect(count(bear, "flying")).toBe(1);
 
-        recomposeLayer6ForInstance(bear);
+        recomposeLayer6ForInstance(state, bear);
         expect(count(bear, "flying")).toBe(1);
         expect(bear.grantedStaticAbilities).toEqual([
             expect.objectContaining({ ability: "flying", auraId: "aura" }),
@@ -643,7 +643,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             expect.objectContaining({ sourceId: "song" }),
         ]);
 
-        recomposeLayer6ForInstance(gear);
+        recomposeLayer6ForInstance(state, gear);
         expect(gear.staticAbilities).toEqual([]);
         expect(gear.abilitiesSuppressedBy).toEqual([
             expect.objectContaining({ sourceId: "song" }),

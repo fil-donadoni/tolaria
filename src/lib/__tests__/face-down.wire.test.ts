@@ -20,6 +20,7 @@ import {
     resolveFaceDownFace,
     GENERIC_CARD_BACK_SRC,
 } from "~/lib/face-down";
+import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 
 const SERRA = getCardByName("Serra Angel");
 
@@ -49,7 +50,7 @@ describe("face-down permanent on the wire (CR 708.2 / 708.5)", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(morph, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, morph, "morph");
         const projected = projectPublicState(
             stateWith({ battlefield: [morph] }),
             1,

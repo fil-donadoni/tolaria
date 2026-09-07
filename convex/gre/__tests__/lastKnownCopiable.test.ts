@@ -40,6 +40,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { grizzlyBears, savannahLions } from "../../cards/sets/lea";
 import { crusade, serraAngel } from "../../cards/sets/lea/white";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 /** A board with `battlefield` under p1 and a resolving spell to hang a
  *  `SpellContext` off. Returns the context plus the live state. */
@@ -99,7 +100,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        applyCopy(clone, original);
+        applyCopy(NO_BOARD_LAYER_VIEW, clone, original);
         const { state, ctx } = boardWith([original, clone]);
 
         removePermanentTo(state, "clone", "graveyard");
@@ -190,7 +191,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(morph, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, morph, "morph");
         const { state, ctx } = boardWith([morph]);
 
         removePermanentTo(state, "morph", "graveyard");
@@ -226,7 +227,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
         // clause, stamped by `applyCopy` as `copyExcept`. 7/7 rather than
         // Serra Angel's printed 4/4 so the assertion can only pass by reading
         // the exception.
-        applyCopy(eternalized, original, {
+        applyCopy(NO_BOARD_LAYER_VIEW, eternalized, original, {
             basePower: 7,
             baseToughness: 7,
         });
@@ -573,7 +574,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             controllerId: "p1",
             ownerId: "p1",
         });
-        applyCopy(clone, printedSource);
+        applyCopy(NO_BOARD_LAYER_VIEW, clone, printedSource);
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [printedSource, clone] }),
@@ -621,7 +622,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             controllerId: "p1",
             ownerId: "p1",
         });
-        applyCopy(clone, printedSource);
+        applyCopy(NO_BOARD_LAYER_VIEW, clone, printedSource);
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [printedSource, clone] }),
@@ -657,7 +658,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             controllerId: "p1",
             ownerId: "p1",
         });
-        applyCopy(clone, printedSource);
+        applyCopy(NO_BOARD_LAYER_VIEW, clone, printedSource);
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [printedSource, clone] }),

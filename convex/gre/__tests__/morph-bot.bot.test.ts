@@ -31,6 +31,7 @@ import { turnFaceDown } from "../faceDown";
 import { getEffectivePower } from "../layers";
 import type { CardInstanceState, GameState } from "../state";
 import type { Move } from "../moves";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const ANGEL = getCardByName("Exalted Angel").id;
 const PLAINS = getCardByName("Plains").id;
@@ -75,7 +76,7 @@ function faceDownBoard(lands: number): GameState {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, permanent, "morph");
     return makeState({
         players: [
             makePlayer("p1", { battlefield: [permanent, ...plains(lands)] }),

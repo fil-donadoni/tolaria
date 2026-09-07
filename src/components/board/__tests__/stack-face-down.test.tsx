@@ -31,6 +31,7 @@ vi.mock("../../cards/color-overlay-card-image", () => ({
 }));
 
 import GameStack from "../game-stack";
+import { NO_BOARD_LAYER_VIEW } from "../../../../convex/gre/layers";
 
 const ANGEL = getCardByName("Serra Angel");
 
@@ -42,7 +43,7 @@ function projectFaceDownSpell(viewerId: "p1" | "p2"): StackItem {
         ownerId: "p1",
         zone: "stack",
     });
-    turnFaceDown(spell as never, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, spell as never, "morph");
     const base = makeState();
     const state = makeState({
         players: [{ ...base.players[0], id: "p1" }, base.players[1]],

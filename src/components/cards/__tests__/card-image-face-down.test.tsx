@@ -38,6 +38,7 @@ vi.mock("../card-back", () => ({
 }));
 
 import CardImage from "../card-image";
+import { NO_BOARD_LAYER_VIEW } from "../../../../convex/gre/layers";
 
 const SERRA = getCardByName("Serra Angel");
 
@@ -71,7 +72,7 @@ describe("CardImage face-down face (CR 708.2 / issue #2904)", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(morph, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, morph, "morph");
         // The controller's own projection carries the identification id (CR
         // 708.5). Before #2904 that id is what painted the board face.
         const controllerView = {

@@ -23,6 +23,7 @@ import {
     pushSpell,
 } from "@convex/cards/__tests__/setup";
 import type { Player, StackItem } from "~/types/game";
+import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 
 /** p1's face-down Mahamoti Djinn on the battlefield, targeted by p2's
  *  Lightning Bolt still on the stack. */
@@ -33,7 +34,7 @@ function stateWithBoltOnFaceDownDjinn() {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(djinn, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, djinn, "morph");
     const state = makeState({
         players: [makePlayer("p1", { battlefield: [djinn] }), makePlayer("p2")],
     });

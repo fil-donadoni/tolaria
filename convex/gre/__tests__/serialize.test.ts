@@ -972,7 +972,7 @@ describe("game_state serialize round-trip", () => {
             ownerId: "p1",
             zone: "battlefield",
         });
-        turnFaceDown(morph, "morph");
+        turnFaceDown(state, morph, "morph");
         state.players[0].battlefield.push(morph);
         const exiled = makeInstance(lightningBolt.id, {
             controllerId: "p1",
