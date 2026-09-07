@@ -54,7 +54,7 @@ import type { CardInstanceState, GameState } from "./state";
  *
  *  A `Record` over the kinds rather than an array literal, so a reader can ask
  *  "is this kind mine?" in O(1) and a new layer-6 kind is one row. */
-const LAYER_6_STATIC_EFFECT_KINDS: Record<string, true> = {
+export const LAYER_6_STATIC_EFFECT_KINDS: Record<string, true> = {
     "keyword-grant": true,
     "keyword-remove": true,
     "ability-loss": true,
@@ -811,29 +811,37 @@ function resolveLayer6Action(
     }
     if (!effect || !LAYER_6_STATIC_EFFECT_KINDS[effect.kind]) return undefined;
     // A STORED template entry has not been through the board walk's predicate
-    // gate, so it runs it here; a DERIVED one has, and re-running it is a pure
-    // repeat rather than a second, provenance-dependent rule.
-    const applies = (
-        effect as {
-            applies: (
-                t: PermanentView,
-                s: PermanentView,
-                c: typeof STATIC_EFFECT_CTX
-            ) => boolean;
+    // gate, so it runs it here. A DERIVED one has, and re-running it is a pure
+    // repeat rather than a second, provenance-dependent rule: `layer6EffectsFor`
+    // emits an entry only when `applies(target, source)` held, and
+    // `collectLayer6Sources` offers a candidate only when the CR 611.2c gate
+    // held — both against THIS pass's fixed board, which CR 613 forbids moving
+    // mid-walk. PRD #2064 S7 stopped paying for the repeat: two closure calls
+    // per applying entry per target, on the derivation the ISMCTS search runs
+    // at every apply site of every node it expands.
+    if (!derived) {
+        const applies = (
+            effect as {
+                applies: (
+                    t: PermanentView,
+                    s: PermanentView,
+                    c: typeof STATIC_EFFECT_CTX
+                ) => boolean;
+            }
+        ).applies;
+        if (!applies(target, source, STATIC_EFFECT_CTX)) return undefined;
+        const condition = (
+            effect as {
+                condition?: (
+                    s: PermanentView,
+                    st: LayerStateView,
+                    c: typeof STATIC_EFFECT_CTX
+                ) => boolean;
+            }
+        ).condition;
+        if (condition && !condition(source, state, STATIC_EFFECT_CTX)) {
+            return undefined;
         }
-    ).applies;
-    if (!applies(target, source, STATIC_EFFECT_CTX)) return undefined;
-    const condition = (
-        effect as {
-            condition?: (
-                s: PermanentView,
-                st: LayerStateView,
-                c: typeof STATIC_EFFECT_CTX
-            ) => boolean;
-        }
-    ).condition;
-    if (condition && !condition(source, state, STATIC_EFFECT_CTX)) {
-        return undefined;
     }
     switch (effect.kind) {
         case "keyword-grant": {

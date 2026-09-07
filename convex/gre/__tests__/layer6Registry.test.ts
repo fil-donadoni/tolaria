@@ -23,7 +23,15 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { deriveLayer6, recomposeLayer6ForInstance } from "../layer6";
+import {
+    LAYER_6_STATIC_EFFECT_KINDS,
+    deriveLayer6,
+    deriveLayer6Board,
+    recomposeLayer6ForInstance,
+    syncLayer6,
+} from "../layer6";
+import { declaresLayer6StaticEffect } from "../../cards/registry";
+import { getDefinition } from "../../cards";
 import {
     continuousEffectsInLayer,
     outrankedBy,
@@ -38,6 +46,7 @@ import { withTemporaryEmblemDefinition } from "../../cards/emblems";
 import type {
     CardDefinition,
     PermanentView,
+    StaticEffect,
     StaticEffectContext,
 } from "../../cards/types";
 import {
@@ -923,5 +932,120 @@ describe("deriveLayer6 is the single layer-6 authority", () => {
         );
         expect(derived.staticAbilities).toEqual(["flying"]);
         expect(derived.abilitiesSuppressedBy).toEqual([]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRD #2064 S7 — the perf pass. What is guarded here is not a speed, it is the
+// SHAPE the speed came from: the source half of the walk is resolved once per
+// board pass and not once per target, the registry precheck names exactly the
+// kinds the derivation owns, and the sync's fast path skips only permanents
+// whose fields already hold the answer.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("PRD #2064 S7 — the source half is walked once per board pass", () => {
+    it("`declaresLayer6StaticEffect` and `LAYER_6_STATIC_EFFECT_KINDS` agree", () => {
+        // `cards/registry.ts` duplicates the kind list — it cannot import from
+        // `gre/**`, which imports IT — and a precheck naming FEWER kinds than
+        // the derivation would skip a source silently: its effect would simply
+        // never apply, with no test of its own to red. Pinned by CONSTRUCTION,
+        // the same way `layers2to5Registry.test.ts` pins its own twin.
+        for (const kind of Object.keys(LAYER_6_STATIC_EFFECT_KINDS)) {
+            const id = `s7-precheck-${kind}`;
+            const probe: CardDefinition = {
+                ...getDefinition(grizzlyBears.id),
+                id,
+                name: `Precheck ${kind}`,
+                staticEffects: [
+                    { kind, applies: () => true } as unknown as StaticEffect,
+                ],
+            };
+            withTemporaryDefinition(probe, () => {
+                expect(declaresLayer6StaticEffect(id)).toBe(true);
+            });
+        }
+    });
+
+    it("evaluates the CR 611.2c source gate ONCE per source, `applies` once per pair", () => {
+        // CR 613 composes a layer over a FIXED input, and `condition` reads the
+        // SOURCE and the BOARD and never the target — so its answer is the same
+        // for every target of one pass by construction. Before S7 the whole
+        // source walk sat inside the per-target loop: an n-permanent board
+        // evaluated it n times to get the same answer n times, and paid a
+        // definition resolution for every (source, target) pair.
+        let conditionCalls = 0;
+        let appliesCalls = 0;
+        const lordId = "s7-counting-lord";
+        const lord: CardDefinition = {
+            ...getDefinition(grizzlyBears.id),
+            id: lordId,
+            name: "Counting Lord",
+            staticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "flying",
+                    applies: () => {
+                        appliesCalls++;
+                        return true;
+                    },
+                    condition: () => {
+                        conditionCalls++;
+                        return true;
+                    },
+                } as unknown as StaticEffect,
+            ],
+        };
+
+        withTemporaryDefinition(lord, () => {
+            const source = makeInstance(lordId, { id: "lord" });
+            const a = makeInstance(grizzlyBears.id, { id: "a" });
+            const b = makeInstance(grizzlyBears.id, { id: "b" });
+            const state = boardOf(source, a, b);
+            applySourceStaticEffects(state, source);
+
+            conditionCalls = 0;
+            appliesCalls = 0;
+            syncLayer6(state);
+
+            // ONE source on the board, so ONE gate evaluation for the pass.
+            expect(conditionCalls).toBe(1);
+            // Three battlefield permanents, so three per-pair predicate reads:
+            // `applies` is the half that genuinely depends on the target and it
+            // stays where it was.
+            expect(appliesCalls).toBe(3);
+            expect(count(a, "flying")).toBe(1);
+            expect(count(b, "flying")).toBe(1);
+        });
+    });
+
+    it("the fast path never skips a permanent whose multiset still differs from its base", () => {
+        // "Nothing applies" is only a licence to skip when the FIELDS already
+        // say nothing applies. An effect that has ended leaves no row behind —
+        // a source leaving the battlefield is how a keyword grant ends — but
+        // the keyword it granted is still sitting in `staticAbilities`, and a
+        // skip would strand it there forever.
+        const elemental = makeInstance(airElemental.id, { id: "ae" });
+        const state = boardOf(elemental);
+        elemental.staticAbilities = ["flying", "trample"];
+        elemental.baseStaticAbilities = ["flying"];
+
+        syncLayer6(state);
+
+        expect(elemental.staticAbilities).toEqual(["flying"]);
+    });
+
+    it("`deriveAll` returns a result for every permanent the sync would skip", () => {
+        // The wire projection reads the RESULT rather than the field the sync
+        // leaves behind (PRD #2064 S5), so a skipped permanent would ship with
+        // no layer-6 answer at all.
+        const bear = makeInstance(grizzlyBears.id, { id: "plain" });
+        const state = boardOf(bear);
+        syncLayer6(state);
+
+        expect(deriveLayer6Board(state).map(({ card }) => card.id)).toEqual([]);
+        expect(
+            deriveLayer6Board(state, { deriveAll: true }).map(
+                ({ card }) => card.id
+            )
+        ).toEqual(["plain"]);
     });
 });

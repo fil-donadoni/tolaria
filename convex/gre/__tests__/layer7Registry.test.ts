@@ -10,11 +10,15 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    LAYER_7_STATIC_EFFECT_KINDS,
     getEffectivePower,
     getEffectiveToughness,
     getPermanentEffectivePower,
     getPermanentEffectiveToughness,
 } from "../layers";
+import { declaresLayer7StaticEffect } from "../../cards/registry";
+import { getDefinition, withTemporaryDefinition } from "../../cards";
+import type { CardDefinition, StaticEffect } from "../../cards/types";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
 import { makePlayer, makeState } from "../../cards/__tests__/setup";
@@ -577,5 +581,31 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
         resetBattlefieldTransientState(bear, state);
 
         expect(state.continuousEffects).toHaveLength(1);
+    });
+});
+
+describe("the registry precheck names exactly the kinds the derivation owns", () => {
+    it("`declaresLayer7StaticEffect` and `LAYER_7_STATIC_EFFECT_KINDS` agree", () => {
+        // PRD #2064 S7 — `layer7EffectsFor` skips a battlefield source whose
+        // id this precheck does not know, and `cards/registry.ts` cannot import
+        // the kind table (`gre/**` imports IT), so the list is duplicated. A
+        // precheck naming FEWER kinds than the derivation would drop a source
+        // silently: its P/T effect would simply never apply, with no test of
+        // its own to red. Pinned by CONSTRUCTION, the same way
+        // `layers2to5Registry.test.ts` and `layer6Registry.test.ts` pin theirs.
+        for (const kind of Object.keys(LAYER_7_STATIC_EFFECT_KINDS)) {
+            const id = `s7-layer7-precheck-${kind}`;
+            const probe: CardDefinition = {
+                ...getDefinition(crusade.id),
+                id,
+                name: `Precheck ${kind}`,
+                staticEffects: [
+                    { kind, applies: () => true } as unknown as StaticEffect,
+                ],
+            };
+            withTemporaryDefinition(probe, () => {
+                expect(declaresLayer7StaticEffect(id)).toBe(true);
+            });
+        }
     });
 });

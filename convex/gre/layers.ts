@@ -10,6 +10,7 @@
 // scopes/filters to maintain.
 
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { declaresLayer7StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
@@ -264,6 +265,16 @@ export function isSourceTappedLive(
  *  `Record` over the sublayer union rather than a bare literal, so `tsc` reds
  *  when the union gains a member instead of the pipeline silently skipping
  *  it. */
+/** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
+ *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`. The naming
+ *  authority `cards/registry.ts`'s `declaresLayer7StaticEffect` precheck is
+ *  pinned against (`layers.test.ts`), so a new layer-7 kind cannot be added to
+ *  the derivation and silently skipped by the precheck. */
+export const LAYER_7_STATIC_EFFECT_KINDS: Record<string, true> = {
+    "pt-buff": true,
+    "pt-cda": true,
+};
+
 const LAYER_7_SUBLAYER_ORDER: Record<ContinuousEffectSublayer, number> = {
     "7a": 0,
     "7b": 1,
@@ -352,6 +363,9 @@ function layer7EffectsFor(
     ): void => {
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
+            // The two kinds `LAYER_7_STATIC_EFFECT_KINDS` names, spelled out
+            // rather than looked up: a `Record` probe does not narrow the
+            // discriminated union, and every read below needs the narrowing.
             const cda = effect.kind === "pt-cda";
             if (!cda && effect.kind !== "pt-buff") continue;
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
@@ -389,6 +403,17 @@ function layer7EffectsFor(
 
     for (const player of state.players) {
         for (const source of player.battlefield) {
+            // PRD #2064 S7 — the registry-derived precheck, the twin of the
+            // ones layers 2-5 and 6 run. It matters most HERE: layer 7 has no
+            // board pass to hoist a source plan into, so this walk runs on
+            // every P/T read — `getEffectivePower` / `getEffectiveToughness`,
+            // which the SBA loop and combat ask of every creature — and almost
+            // no permanent declares a `pt-buff` or `pt-cda` at all. Fail-slow:
+            // a stale TRUE costs one wasted `tryGetDefinition`, a stale FALSE
+            // is impossible (every registry write goes through
+            // `setRegistryEntry`).
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
             pushSourceEffects(source, getStaticEffects(source));
         }
     }
@@ -591,23 +616,29 @@ function resolveLayer7Payload(
     // A stored `effectIndex` can point at any `StaticEffect` kind — including
     // a CR 611.3 rules-modifying one this registry deliberately excludes — so
     // the kind is checked before the effect is treated as layer 7 at all.
+    // A DERIVED entry has already been through both gates in `layer7EffectsFor`,
+    // against THIS read's fixed board — CR 613 composes a layer over a fixed
+    // input, so re-running them is a pure repeat, not a second
+    // provenance-dependent rule. A STORED entry has not, and still pays for
+    // both (PRD #2064 S7).
     if (effect?.kind === "pt-buff") {
-        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
-            return undefined;
-        // CR 611.2c — the source-level gate. The derivation above already
-        // applied it, so this only fires for a STORED entry; running it in
-        // both places keeps the gate from being provenance-dependent.
-        if (
-            effect.condition &&
-            !effect.condition(source, state, STATIC_EFFECT_CTX)
-        ) {
-            return undefined;
+        if (!derived) {
+            if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+                return undefined;
+            // CR 611.2c — the source-level gate.
+            if (
+                effect.condition &&
+                !effect.condition(source, state, STATIC_EFFECT_CTX)
+            ) {
+                return undefined;
+            }
         }
         return { power: effect.power, toughness: effect.toughness };
     }
     if (effect?.kind === "pt-cda") {
-        if (!effect.applies(target, source, STATIC_EFFECT_CTX))
+        if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
             return undefined;
+        }
         return effect.compute(source, state, STATIC_EFFECT_CTX, target);
     }
     return undefined;

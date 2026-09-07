@@ -81,12 +81,17 @@ const layer2to5StaticIds = new Set<string>();
  *  Derived by `setRegistryEntry`; see `declaresLayer6StaticEffect`. */
 const layer6StaticIds = new Set<string>();
 
+/** Ids whose definition declares a layer-7 static effect (PRD #2064 S7).
+ *  Derived by `setRegistryEntry`; see `declaresLayer7StaticEffect`. */
+const layer7StaticIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
     if (def.offBattlefieldCharacteristics) zoneConditionalIds.add(key);
     if (declaresLayer2to5Kind(def)) layer2to5StaticIds.add(key);
     if (declaresLayer6Kind(def)) layer6StaticIds.add(key);
+    if (declaresLayer7Kind(def)) layer7StaticIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -130,6 +135,19 @@ const declaresLayer6Kind = (def: CardDefinition): boolean =>
     (def.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind)) ||
     (def.modes ?? []).some((m) =>
         (m.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind))
+    );
+
+/** CR 613.4 — the `StaticEffect` kinds the layer-7 derivation owns.
+ *  Duplicated from `gre/layers.ts`'s own table for the reason
+ *  `LAYER_2_5_STATIC_KINDS` above is; `layers.test.ts` asserts the two agree. */
+const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda"]);
+
+/** Whether a definition declares any layer-7 static effect, in its own
+ *  `staticEffects[]` or in a mode's (CR 700.2c). */
+const declaresLayer7Kind = (def: CardDefinition): boolean =>
+    (def.staticEffects ?? []).some((e) => LAYER_7_STATIC_KINDS.has(e.kind)) ||
+    (def.modes ?? []).some((m) =>
+        (m.staticEffects ?? []).some((e) => LAYER_7_STATIC_KINDS.has(e.kind))
     );
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
@@ -176,6 +194,16 @@ export const declaresLayer2to5StaticEffect = (cardId: string): boolean =>
  *  through `setRegistryEntry`. */
 export const declaresLayer6StaticEffect = (cardId: string): boolean =>
     layer6StaticIds.has(cardId);
+
+/** CR 613.4 (PRD #2064 S7) — does `cardId`'s definition declare any layer-7
+ *  static effect? The third of these prechecks, and the one with the widest
+ *  reach: layer 7 has no board pass to hoist into, so `layer7EffectsFor` walks
+ *  every battlefield source on EVERY P/T read (`getEffectivePower`,
+ *  `getEffectiveToughness`), which the SBA loop and combat ask of every
+ *  creature. Same derived-membership discipline and same fail-slow trade as its
+ *  two twins above. */
+export const declaresLayer7StaticEffect = (cardId: string): boolean =>
+    layer7StaticIds.has(cardId);
 
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */
