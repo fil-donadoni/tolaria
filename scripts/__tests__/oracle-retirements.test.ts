@@ -34,6 +34,7 @@ import {
     retirementSection,
 } from "../lib/retirement-ack";
 import { refusalReason, type LandFacts } from "../land";
+import { BASE_BRANCH } from "../lib/branches";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -419,6 +420,7 @@ describe("land's refusal matrix carries the retirement refusal", () => {
         dirty: false,
         prState: "OPEN",
         prHeadRefName: "feat/issue-3049",
+        prBaseRefName: BASE_BRANCH,
         skinReceiptInvalid: false,
         scenarioRefusal: null,
         retirementRefusal: null,

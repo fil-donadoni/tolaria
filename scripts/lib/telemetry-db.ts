@@ -378,9 +378,10 @@ const FULL_GATE =
 // the machine mutex before merging; both were bucketed as plain `bun` until
 // issue #3079, which put the two single largest commands by wall time
 // (334 min and 270 min over the 2026-08-28 baseline) outside the gate bucket
-// entirely. `health:main` is the post-merge full gate ADR 0110 detached.
+// entirely. `health` is the full gate ADR 0110 detached per landing and
+// ADR 0116 moved to `release`.
 const CHECK_GATE =
-    /\bbun run (check:(pr|guards|ts|index|stubs|lane|ui|docs)|land|health:main|docs:ship)\b/;
+    /\bbun run (check:(pr|guards|ts|index|stubs|lane|ui|docs)|land|release|health|health:main|docs:ship)\b/;
 const PARTIAL_TEST =
     /\b(vitest run|bun run (test:(app|bot)|build)|tsc -b|eslint|prettier)\b/;
 

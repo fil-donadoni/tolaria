@@ -34,10 +34,11 @@
         "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "gate:who": "bun scripts/gate.ts who",
-        "health:main": "bun scripts/health-main.ts",
+        "health": "bun scripts/health-main.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "ladder": "bun scripts/ladder.ts",
         "land": "bun scripts/land.ts",
+        "release": "bun scripts/release.ts",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "loop:afk": "sh scripts/loop-handoff.sh",
@@ -80,7 +81,8 @@
         "verify:ui-receipt": "bun scripts/ui-gate/verify-receipt.ts",
         "worktree:init": "bun scripts/bootstrap-worktree.ts",
         "wt:docs": "bun scripts/docs-lane.ts new",
-        "wt:gc": "bun scripts/worktree-gc.ts"
+        "wt:gc": "bun scripts/worktree-gc.ts",
+        "wt:new": "bun scripts/wt-new.ts"
     },
     "lint-staged": {
         "*.{ts,tsx,js,jsx,json,css,md}": "prettier --write"

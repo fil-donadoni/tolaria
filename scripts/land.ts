@@ -81,8 +81,9 @@
  *   bun run land <PR#> --keep       …merge, but skip worktree teardown
  */
 import { spawnSync } from "node:child_process";
+import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
@@ -123,7 +124,7 @@ export function isTestOnlySrcDiff(paths: string[]): boolean {
 }
 
 /**
- * `classifyLane(changedPaths("origin/main", cwd, true))` plus
+ * `classifyLane(changedPaths(ORIGIN_BASE, cwd, true))` plus
  * `computeSkinReceiptInvalid`, tolerating a failure in the diff computation
  * (issue #2760 review, finding 6). `changedPaths` shells out to
  * `git diff … origin/main...HEAD` (`check-lane.ts`'s `git()` throws on
@@ -141,7 +142,7 @@ export function isTestOnlySrcDiff(paths: string[]): boolean {
  */
 export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
     try {
-        const paths = changedPaths("origin/main", cwd, true);
+        const paths = changedPaths(ORIGIN_BASE, cwd, true);
         const lane = classifyLane(paths).lane;
         if (lane === "skin" && isTestOnlySrcDiff(paths)) return false;
         return computeSkinReceiptInvalid(lane, prBody);
@@ -174,7 +175,7 @@ export function safeScenarioRefusal(
     const verdict = classifyScenarioSection(prBody);
     let owes = false;
     try {
-        owes = owesScenario(changedPaths("origin/main", cwd, true));
+        owes = owesScenario(changedPaths(ORIGIN_BASE, cwd, true));
     } catch (err) {
         console.warn(
             `land: could not classify the landing diff to check the preset scenario (${(err as Error).message}) — only a malformed block can refuse`
@@ -209,7 +210,7 @@ export function safeRetirementRefusal(
             [
                 "diff",
                 "-U0",
-                "origin/main...HEAD",
+                `${ORIGIN_BASE}...HEAD`,
                 "--",
                 "data/oracle-compiled.json",
             ],
@@ -226,7 +227,6 @@ export function safeRetirementRefusal(
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
-const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 
@@ -235,7 +235,6 @@ const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 // would throw when this module is imported under vitest for its pure
 // functions).
 const GATE = resolve(__dirname, "gate.ts");
-const GREEN_SHA_REL = join(".claude", "telemetry", "green-sha");
 
 // ─────────────────────────────────────────────────────────────────────────
 // git plumbing — thin and untested, per repo convention (docs-lane.ts,
@@ -278,6 +277,8 @@ export interface LandFacts {
     prState: string | null;
     /** The PR's `headRefName` from `gh pr view`, or null if not found. */
     prHeadRefName: string | null;
+    /** `gh pr view --json baseRefName`; null when the PR was not found. */
+    prBaseRefName: string | null;
     /**
      * true only when the landing diff classifies `skin` (`check-lane.ts`'s
      * `classifyLane`) AND its pasted `check:ui` receipt fails
@@ -310,8 +311,8 @@ export interface LandFacts {
  * pays for a `gh pr view` round trip it could never have used anyway.
  */
 export function refusalReason(facts: LandFacts): string | null {
-    if (facts.branch === "main") {
-        return "on `main` — land runs from the PR's own branch, never from main";
+    if (facts.branch === BASE_BRANCH || facts.branch === RELEASE_BRANCH) {
+        return `on \`${facts.branch}\` — land runs from the PR's own branch, never from \`${BASE_BRANCH}\` or \`${RELEASE_BRANCH}\``;
     }
     if (facts.dirty) {
         return "working tree is dirty — commit or stash before landing";
@@ -324,6 +325,13 @@ export function refusalReason(facts: LandFacts): string | null {
     }
     if (facts.prHeadRefName !== facts.branch) {
         return `PR head branch (${facts.prHeadRefName}) does not match the current branch (${facts.branch})`;
+    }
+    if (facts.prBaseRefName !== BASE_BRANCH) {
+        // The API merge lands on whatever base the PR declares. A PR opened
+        // against the release branch (a stale habit, or a `gh pr create`
+        // run before the default branch moved) would ship to production
+        // unreleased — refuse before the lock, and name the one-line fix.
+        return `PR targets \`${facts.prBaseRefName}\` — land merges only into the base branch \`${BASE_BRANCH}\` (tolaria.config.json); retarget with \`gh pr edit <PR#> --base ${BASE_BRANCH}\``;
     }
     if (facts.skinReceiptInvalid) {
         return (
@@ -354,8 +362,8 @@ export function refusalReason(facts: LandFacts): string | null {
  */
 export function rebaseStep(): string {
     return (
-        "git fetch origin main && " +
-        "(git rebase origin/main || " +
+        `git fetch origin ${BASE_BRANCH} && ` +
+        `(git rebase ${ORIGIN_BASE} || ` +
         "{ git --no-pager diff --name-only --diff-filter=U; git rebase --abort; " +
         // Clear the regenerate marker ONLY on the abort path. `--abort`
         // restores the pre-rebase tree, so anything the merge driver marked
@@ -428,9 +436,9 @@ function shQuote(s: string): string {
  */
 const VERIFY_MERGED_TIP =
     "{ " +
-    '[ "$(git log --oneline "$OLD_TIP..origin/main" | wc -l | tr -d " ")" = "1" ] || ' +
-    '{ echo "land: origin/main advanced by more than our squash between fetch and merge — refusing to record green-sha" >&2; ' +
-    'git log --oneline "$OLD_TIP..origin/main" >&2; exit 1; }; ' +
+    `[ "$(git log --oneline "$OLD_TIP..${ORIGIN_BASE}" | wc -l | tr -d " ")" = "1" ] || ` +
+    `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +
+    `git log --oneline "$OLD_TIP..${ORIGIN_BASE}" >&2; exit 1; }; ` +
     "}";
 
 /**
@@ -495,13 +503,16 @@ export function remoteBranchDeleteStep(branch: string): string {
  * stderr instead, because a stale local `main` the user does not know about is
  * worse than one they were told to pull.
  */
-export function primaryMainFastForwardStep(primaryCheckout: string): string {
+export function primaryBranchFastForwardStep(
+    primaryCheckout: string,
+    branch: string = BASE_BRANCH
+): string {
     const p = shQuote(primaryCheckout);
     return (
-        `(if [ "$(git -C ${p} symbolic-ref --quiet --short HEAD)" = "main" ]; then ` +
-        `git -C ${p} merge --ff-only -q origin/main || ` +
-        `echo "land: could not fast-forward local main in ${primaryCheckout} to the merged tip — pull it by hand" >&2; ` +
-        `else echo "land: ${primaryCheckout} is not on main — local main left as it was" >&2; fi; true)`
+        `(if [ "$(git -C ${p} symbolic-ref --quiet --short HEAD)" = "${branch}" ]; then ` +
+        `git -C ${p} merge --ff-only -q origin/${branch} || ` +
+        `echo "land: could not fast-forward local ${branch} in ${primaryCheckout} to the merged tip — pull it by hand" >&2; ` +
+        `else echo "land: ${primaryCheckout} is not on ${branch} — local ${branch} left as it was" >&2; fi; true)`
     );
 }
 
@@ -524,7 +535,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // REF CLEANUP header comment for why, and why ref cleanup is pushed
         // to the end, past the green-sha write, each step wrapped so it
         // cannot gate `land`'s exit status.
-        steps.push("OLD_TIP=$(git rev-parse origin/main)");
+        steps.push(`OLD_TIP=$(git rev-parse ${ORIGIN_BASE})`);
         // NOT a bare `gh pr merge`: the force-push above invalidates GitHub's
         // cached view of the PR, and the merge is refused while that
         // recomputes — twice on 2026-08-18, on trees that had not changed
@@ -535,30 +546,13 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         steps.push(`bun ${shQuote(PR_MERGE)} ${opts.pr}`);
         // `gh pr merge` lands via the API — it does not update this worktree's
         // local `origin/main`, so re-fetch before reading the new tip.
-        steps.push("git fetch origin main -q");
+        steps.push(`git fetch origin ${BASE_BRANCH} -q`);
         steps.push(VERIFY_MERGED_TIP);
-        const greenSha = join(opts.primaryCheckout, GREEN_SHA_REL);
-        steps.push(`mkdir -p ${shQuote(dirname(greenSha))}`);
-        steps.push(`git rev-parse origin/main > ${shQuote(greenSha)}`);
-        // Post-merge health gate (ADR 0110): detach the FULL gate on the
-        // merged tip. Non-gating (`|| true`) — a merged PR's landing never
-        // fails on it; the verdict lands in `.claude/telemetry/health/`
-        // (`bun run health:status`). `env -u` scrubs the lock hold this
-        // locked shell exports, so the health gate QUEUES on the machine
-        // mutex like any other heavy gate instead of free-riding a hold that
-        // is released the moment this shell exits.
-        const healthDir = join(
-            opts.primaryCheckout,
-            ".claude/telemetry/health"
-        );
-        steps.push(`mkdir -p ${shQuote(healthDir)}`);
-        // `|| true` stays INSIDE the outer parens: a bare `… && (X &) || true`
-        // step would launder every earlier failure in the `&&` chain (the
-        // VERIFY_MERGED_TIP precedence bug, review round 3 — the guarding
-        // test caught this exact shape being reintroduced here).
-        steps.push(
-            `((cd ${shQuote(opts.primaryCheckout)} && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun ${shQuote(HEALTH_MAIN)} >> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
-        );
+        // No post-merge health detach (ADR 0116): a landing on the base
+        // branch pays the LANE gate only. The FULL gate runs once, at
+        // `bun run release`, on the base tip that is about to become the
+        // release branch — that is where `.claude/telemetry/health/` and the
+        // `green-sha` record are written now.
         // Register the PR's preset scenario in the local Convex deployment
         // (ADR 0044) — the step ADR 0110 dropped when it retired the
         // orchestrator CLAUDE.md § step 7 still names. Post-merge, in the
@@ -574,7 +568,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
-        steps.push(primaryMainFastForwardStep(opts.primaryCheckout));
+        steps.push(primaryBranchFastForwardStep(opts.primaryCheckout));
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.
@@ -645,6 +639,7 @@ function main(): void {
 
     let prState: string | null = null;
     let prHeadRefName: string | null = null;
+    let prBaseRefName: string | null = null;
     let prBody = "";
     try {
         const raw = gh([
@@ -652,15 +647,17 @@ function main(): void {
             "view",
             String(pr),
             "--json",
-            "state,headRefName,body",
+            "state,headRefName,baseRefName,body",
         ]);
         const info = JSON.parse(raw) as {
             state: string;
             headRefName: string;
+            baseRefName: string;
             body: string;
         };
         prState = info.state;
         prHeadRefName = info.headRefName;
+        prBaseRefName = info.baseRefName;
         prBody = info.body;
     } catch {
         // leave both null — refusalReason reports "PR not found"
@@ -686,6 +683,7 @@ function main(): void {
         dirty,
         prState,
         prHeadRefName,
+        prBaseRefName,
         skinReceiptInvalid,
         scenarioRefusal: scenarioProblem,
         retirementRefusal: retirementProblem,
@@ -694,13 +692,13 @@ function main(): void {
 
     const primary = primaryCheckout(cwd);
 
-    // Post-merge health verdict (ADR 0110): a RED marker means the full gate
-    // found `main` broken after an earlier merge. Landing is still allowed —
-    // the fix-forward that repairs `main` arrives through a `land` — but
-    // nobody should stack new work on a red tip without knowing.
+    // Release health verdict (ADR 0116): a RED marker means the full gate
+    // found the base tip broken at the last `bun run release`. Landing is
+    // still allowed — the fix-forward that repairs it arrives through a
+    // `land` — but nobody should stack new work on a red tip without knowing.
     if (existsSync(join(primary, ".claude/telemetry/health/RED"))) {
         console.warn(
-            "land: WARNING — the post-merge health gate is RED on main (`bun run health:status`). Fixing main comes before landing unrelated work."
+            `land: WARNING — the release health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`). Fixing it comes before landing unrelated work.`
         );
     }
 

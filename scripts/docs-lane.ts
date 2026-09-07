@@ -27,7 +27,7 @@
  * what makes "a PR per discussion" affordable rather than a tax people route
  * around.
  *
- *   bun run wt:docs adr-0101      # worktree + branch off origin/main
+ *   bun run wt:docs adr-0101      # worktree + branch off origin/<base> (tolaria.config.json)
  *   bun run check:docs            # the doc gate (also run by ship)
  *   bun run docs:ship             # gate, commit, push, PR, merge, tear down
  *   bun run docs:ship --no-merge  # …but leave the PR open for review
@@ -36,6 +36,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { remoteBranchDeleteStep } from "./land";
+import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // What the lane accepts, and what gates it.
@@ -228,8 +229,8 @@ export function buildShipMergeCommand(opts: {
 }): string {
     const b = shQuote(opts.branch);
     return [
-        "git fetch origin main -q",
-        "git rebase origin/main",
+        `git fetch origin ${BASE_BRANCH} -q`,
+        `git rebase ${ORIGIN_BASE}`,
         "bun run check:docs",
         `git push --force-with-lease origin ${b}`,
         `bun ${shQuote(PR_MERGE)} ${opts.pr}`,
@@ -272,8 +273,8 @@ function cmdNew(rawSlug: string | undefined): void {
 
     // Branch off the REMOTE tip, never the local one: a stale local `main` is
     // exactly the condition this lane exists to stop reproducing.
-    git(["fetch", "origin", "main", "-q"], primary);
-    git(["worktree", "add", worktree, "-b", branch, "origin/main"], primary);
+    git(["fetch", "origin", BASE_BRANCH, "-q"], primary);
+    git(["worktree", "add", worktree, "-b", branch, ORIGIN_BASE], primary);
     // Prettier and the guard tests need node_modules; the bootstrap is
     // idempotent and mostly cache hits.
     run("bun", ["run", "worktree:init"], worktree);
@@ -321,9 +322,11 @@ function cmdShip(argv: string[]): void {
         );
     }
 
-    git(["fetch", "origin", "main", "-q"], cwd);
+    git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
     const changed = [
-        ...git(["diff", "--name-only", "origin/main...HEAD"], cwd).split("\n"),
+        ...git(["diff", "--name-only", `${ORIGIN_BASE}...HEAD`], cwd).split(
+            "\n"
+        ),
         ...parsePorcelainPaths(git(["status", "--porcelain"], cwd, false)),
     ].filter((p) => p !== "");
 
@@ -355,7 +358,7 @@ function cmdShip(argv: string[]): void {
     // Rebase before pushing: the two files a documentation change collides on
     // (docs/adr/README.md, CONTEXT.md) are append-at-the-end, so this is
     // normally a no-op and a one-line conflict at worst.
-    git(["rebase", "origin/main"], cwd);
+    git(["rebase", ORIGIN_BASE], cwd);
     if (
         !run("git", ["push", "-u", "--force-with-lease", "origin", branch], cwd)
     ) {

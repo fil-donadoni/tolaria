@@ -1,0 +1,7 @@
+{
+    "$comment": "Repository-level workflow configuration. `branches.base` is the integration branch every issue PR targets and `bun run land` merges into; `branches.release` is the production branch `bun run release` fast-forwards after the full health gate passes on the base tip (ADR 0116). Read by scripts/lib/branches.ts and, via jq, by .claude/hooks/deny-guard.sh — no script or hook names a branch by literal.",
+    "branches": {
+        "base": "staging",
+        "release": "main"
+    }
+}

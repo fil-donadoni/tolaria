@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Post-merge health gate for `main` (ADR 0110).
+ * The full health gate for a branch tip (ADR 0110, re-homed by ADR 0116).
  *
- * `land` runs the LANE gate synchronously and detaches this script after a
- * successful merge. It runs the FULL offline gate (`check:all` + all three
+ * `land` runs the LANE gate only; `bun run release` runs this script on the
+ * base branch tip before fast-forwarding the release branch, and
+ * `bun run health` runs it by hand. It runs the FULL offline gate (`check:all` + all three
  * test suites) against the merged tip, in a throwaway worktree, and leaves a
  * durable verdict in `.claude/telemetry/health/`:
  *
@@ -22,12 +23,16 @@
  * TOLARIA_GATE_HELD scrubbed so it queues on the machine mutex like any
  * other heavy gate instead of inheriting `land`'s already-released hold.
  *
- * `--status` prints the last verdict plus a stale-worktree report (worktrees
- * whose branch is merged into origin/main — the corpses policy of ADR 0110).
+ * `--branch=<name>` picks the tip to gate (default: the base branch from
+ * tolaria.config.json). `--status` prints the last verdict plus a
+ * stale-worktree report (worktrees whose branch is merged into the base —
+ * the corpses policy of ADR 0110).
  *
- * Zero imports beyond node builtins — same constraint as bootstrap-worktree.
+ * Zero imports beyond node builtins and `lib/branches.ts` (itself builtins
+ * only) — same constraint as bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
+import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
     existsSync,
     mkdirSync,
@@ -88,14 +93,14 @@ function staleWorktrees(cwd: string): string[] {
         if (line.startsWith("worktree ")) path = line.slice(9);
         if (line.startsWith("branch refs/heads/")) {
             const branch = line.slice(18);
-            if (branch === "main") continue;
+            if (branch === BASE_BRANCH || branch === RELEASE_BRANCH) continue;
             // A freshly-created branch still AT the main tip is trivially an
             // ancestor — that is "not yet worked", not a corpse.
             let atTip = false;
             try {
                 atTip =
                     git(["rev-parse", branch], cwd) ===
-                    git(["rev-parse", "origin/main"], cwd);
+                    git(["rev-parse", ORIGIN_BASE], cwd);
             } catch {
                 // unreadable ref — fall through to the ancestor check
             }
@@ -103,7 +108,7 @@ function staleWorktrees(cwd: string): string[] {
             const merged =
                 spawnSync(
                     "git",
-                    ["merge-base", "--is-ancestor", branch, "origin/main"],
+                    ["merge-base", "--is-ancestor", branch, ORIGIN_BASE],
                     { cwd }
                 ).status === 0;
             if (merged) stale.push(`${path} [${branch}]`);
@@ -141,7 +146,7 @@ function main(): void {
 
     if (primary !== null) {
         console.error(
-            "health-main: run from the primary checkout (land detaches it there)"
+            "health-main: run from the primary checkout (release runs it there)"
         );
         process.exit(2);
     }
@@ -149,8 +154,12 @@ function main(): void {
     const dir = join(root, HEALTH_DIR);
     mkdirSync(dir, { recursive: true });
 
-    git(["fetch", "origin", "main", "-q"], root);
-    const tip = git(["rev-parse", "origin/main"], root);
+    const branchArg = process.argv.find((a) => a.startsWith("--branch="));
+    const branch = branchArg
+        ? branchArg.slice("--branch=".length)
+        : BASE_BRANCH;
+    git(["fetch", "origin", branch, "-q"], root);
+    const tip = git(["rev-parse", `origin/${branch}`], root);
 
     const last = readLast(dir);
     if (last?.sha === tip) {
@@ -213,7 +222,7 @@ function main(): void {
         });
         writeFileSync(
             join(dir, "RED"),
-            `main @ ${tip} red at ${failedStep} — log: ${logPath}\n`
+            `${branch} @ ${tip} red at ${failedStep} — log: ${logPath}\n`
         );
         console.error(
             `health-main: RED @ ${tip.slice(0, 8)} (${failedStep}) — ${logPath}`

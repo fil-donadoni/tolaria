@@ -108,8 +108,9 @@ slip), add `model:opus` to the issue so the NEXT routing is right.
 - Claim: `gh issue edit N --add-label in-progress`. Already claimed by a live
   branch/PR → pick the next issue instead.
 - Ephemeral worktree (bootstrap is ~2s warm — never reuse a standing one):
-  `git worktree add ../tolaria-issue-N -b feat/issue-N && cd … && bun run
-worktree:init` (`fix/issue-N` for bugs).
+  `cd "$(bun run --silent wt:new N)"` (`--fix` for bugs). It branches from
+  `origin/<base>` — the base branch named in `tolaria.config.json`, never
+  the primary checkout's HEAD (ADR 0116).
 
 ## 3. Implement — in THIS context
 
@@ -170,18 +171,20 @@ wrong-mental-model defect, see §1's escalation note.
   the merge. (Between ADR 0110 retiring the orchestrator and this being wired,
   every emitted spec was silently dropped: 33 were recovered by
   `bun run seed:backlog`.)
-- `bun run land <PR#>` — it rebases, runs the lane gate under the machine
-  mutex, merges, fast-forwards the primary checkout's local `main` onto the
-  merged tip, tears down the worktree and both branch refs, and detaches
-  `health:main` (the full gate on the merged tip — ADR 0110). If `land`
-  warns that a health RED marker exists, read `bun run health:status` first:
-  fixing main comes before landing new work.
+- `bun run land <PR#>` — it rebases onto the base branch, runs the lane
+  gate under the machine mutex, merges into the base branch, tears down the
+  worktree and both branch refs. No health gate per landing (ADR 0116): the
+  full gate runs once at `bun run release`, on the base tip, before the
+  release branch moves. If `land` warns that a health RED marker exists,
+  read `bun run health:status` first: fixing the base tip comes before
+  landing new work. `land` refuses a PR whose base is not the base branch —
+  `gh pr edit <PR#> --base <base>` is the fix.
 - **Never do that catch-up by hand.** The merge lands through the API, so
-  only `origin/main` moves; `land` owns pulling the local branch up and
-  deleting the local branch, because a rule that CAN be a script is not
-  prose. If `land` printed `could not fast-forward local main` (a dirty
-  primary checkout, or one not on `main`), that line is the whole handover —
-  say so in §6 rather than fixing the user's checkout for them.
+  only `origin/<base>` moves; `land` owns pulling a checked-out local base
+  branch up and deleting the local branch, because a rule that CAN be a
+  script is not prose. A `could not fast-forward local <base>` line from
+  `land` is the whole handover — say so in §6 rather than fixing the user's
+  checkout for them.
 - Issue not auto-closed by the merge → close it with a one-line comment.
   On abort: remove `in-progress`, remove the worktree.
 
