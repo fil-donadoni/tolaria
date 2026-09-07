@@ -688,11 +688,16 @@ describe("search — the reward carries no addend outside the band map (ADR 0102
     }
 
     it("the assembled combo is not worth a reward bonus over the same board without the Aura", () => {
-        // The sharp half: detaching the Aura changes `evaluate` (one fewer
-        // enchantment on the battlefield is still one permanent either way,
-        // but the layer's boost was gated on the ATTACHMENT), and the reward
-        // must move by exactly what the band map says — never by the 0.15 the
-        // deleted layer used to hand out on top.
+        // The sharp half: the layer's boost was gated on the ATTACHMENT, so
+        // the reward must move between these two boards by exactly what the
+        // band map says — never by the 0.15 the deleted layer handed out on
+        // top. This catches the mutations the six boards above miss: one that
+        // pays out on the DETACHED shape only.
+        //
+        // The detached board is a synthetic control, not a reachable position
+        // — an Aura attached to nothing dies to the SBA (CR 704.5m). That is
+        // fine for a purity assertion on a pure function, which never asks
+        // whether its input is legal.
         const attached = twinAssembled();
         const detached = twinAssembled();
         const twin = detached.players[0].battlefield.find(

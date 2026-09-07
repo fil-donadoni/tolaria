@@ -45,9 +45,16 @@ see the end of the loop at all.
 ## Decision
 
 1. **`comboAnnotations.ts` is deleted.** No per-card or per-combo boost layer
-   exists in the evaluation or the reward. The three Twin/Exarch blade entries
-   stay `stretch` with cause `horizon` until the shortcut lands, then become
-   `must`.
+   exists in the evaluation or the reward. The Twin/Exarch blade entries that
+   are still `stretch` stay `stretch` with cause `horizon` until the shortcut
+   lands, then become `must`.
+
+    _Corrected when this was carried out (issue #3138): the text said "the
+    three Twin/Exarch blade entries". Only **two** are `stretch` — issue #2469
+    had already promoted `combo: activates Splinter Twin on granted Grizzly
+Bears` to `must`, and it stays green through the deletion (blade `must`
+    tier 106/106 before and after)._
+
 2. **Loops are an engine capability, per CR 732**: the GRE recognises a
    sequence of one player's own actions (opponent passing throughout) that
    returns the game to the same shape with strictly more of a monotone resource
