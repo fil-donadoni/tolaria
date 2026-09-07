@@ -25,6 +25,7 @@ import { misdirectedTargetCount, targetSlotBeneficence } from "../beneficence";
 import { opBeneficence } from "../opValuers";
 import {
     PLAYER_COUNTER_KINDS,
+    type EffectChoiceKind,
     type EffectOp,
     type EffectPlayerRef,
     type PlayerCounterKind,
@@ -279,6 +280,46 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
                 sweep: { action: "discard" },
             })
         ).toBe("harmful");
+    });
+
+    // Both found by REVIEWING the census, not by writing it — each had been
+    // adjudicated `"neutral"` on a reason that a shipped card falsifies.
+    it("signs a forced hand-to-library put-back as an attack (CR 401.4, Stunted Growth)", () => {
+        expect(
+            opBeneficence({
+                op: "putBack",
+                player: { target: 0 },
+                count: 3,
+            })
+        ).toBe("harmful");
+    });
+
+    it("reads a `choice`'s sign off its KIND: a coerced pick is an attack, a free one is a binding (CR 601.2b)", () => {
+        const pick = (kind: EffectChoiceKind): EffectOp => ({
+            op: "choice",
+            kind,
+            player: { target: 0 },
+            zone: kind === "discard-hand" ? "hand" : "battlefield",
+            count: 1,
+            bind: "$picked",
+        });
+        // Coerced: Liliana of the Veil's `−2`, the Mind Rot family. The
+        // announced slot lives on THIS Op — the `sacrifice`/`discard` that
+        // consumes the binding names no slot at all — so a neutral here left
+        // the whole edict shape unranked.
+        expect(opBeneficence(pick("sacrifice-permanents"))).toBe("harmful");
+        expect(opBeneficence(pick("discard-hand"))).toBe("harmful");
+        // Free: the chooser picks what they want, so the Op is a binder and
+        // the stake belongs to whatever reads the binding.
+        for (const kind of [
+            "choose-permanents",
+            "search-library",
+            "choose-hand-card",
+            "choose-graveyard-card",
+            "choose-exile-card",
+        ] as const) {
+            expect(opBeneficence(pick(kind)), kind).toBe("neutral");
+        }
     });
 });
 

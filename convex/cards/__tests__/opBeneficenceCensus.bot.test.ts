@@ -29,8 +29,11 @@
 // the comment, because a row with no reason is the allowlist under another
 // name.
 //
-// Census at the time of writing (HEAD 4bd2e86dc): 94 implemented Ops, 61
-// static rows, 5 parametrized, 5 structural, 23 explicit neutral rows.
+// Census at the time of writing (branched from 4bd2e86dc): 94 implemented Ops
+// = 83 static rows (59 real signs + 24 explicit `"neutral"` ones) + 6
+// parametrized + 5 structural. Twenty-six of those rows are this issue's: 3
+// signs and 23 neutrals. The counts are prose, not an assertion — the
+// partition test below is what actually holds them together.
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -48,6 +51,41 @@ const OP_VALUERS_SOURCE = fileURLToPath(
 
 /** The static-row names, as the source file spells them. */
 const signedOps = Object.keys(OP_BENEFICENCE);
+
+/** The `OP_BENEFICENCE` literal's own lines, plus one entry per `"neutral"`
+ *  row with the index of the line it sits on. Source-scanning because the
+ *  thing being enforced — a written REASON — exists only in the source; the
+ *  caller reconciles the result against the runtime table so a row the pattern
+ *  misses reds instead of going unchecked. */
+function beneficenceTableRows(): {
+    rows: { op: string; line: number }[];
+    lines: string[];
+} {
+    const src = readFileSync(OP_VALUERS_SOURCE, "utf8");
+    const start = src.indexOf("export const OP_BENEFICENCE: { [K in EffectOp");
+    expect(start, "OP_BENEFICENCE table not found").toBeGreaterThan(-1);
+    const table = src.slice(start, src.indexOf("\n};", start));
+    const lines = table.split("\n");
+    const rows: { op: string; line: number }[] = [];
+    lines.forEach((line, i) => {
+        const match = /^\s*(\w+):\s*"neutral",\s*$/.exec(line);
+        if (match) rows.push({ op: match[1], line: i });
+    });
+    return { rows, lines };
+}
+
+/** Every `case "<op>":` label in `opBeneficence`'s switch — the reader's own
+ *  list of parametrized Ops, read from the source because there is no runtime
+ *  handle on a switch. Bounded at the function's closing brace so it cannot
+ *  quietly start scanning whatever is appended to the file next. */
+function opBeneficenceSwitchCases(): string[] {
+    const src = readFileSync(OP_VALUERS_SOURCE, "utf8");
+    const start = src.indexOf("export function opBeneficence(");
+    expect(start, "opBeneficence not found").toBeGreaterThan(-1);
+    const end = src.indexOf("\n}", start);
+    const body = src.slice(start, end === -1 ? undefined : end);
+    return [...body.matchAll(/^\s*case "(\w+)":/gm)].map((m) => m[1]);
+}
 
 describe("OP_BENEFICENCE census (issue #3006)", () => {
     const implementedOps = EFFECT_OP_REGISTRY.filter(
@@ -110,58 +148,76 @@ describe("OP_BENEFICENCE census (issue #3006)", () => {
         for (const op of covered) expect(implementedOps).toContain(op);
     });
 
-    it("every parametrized Op is actually handled by `opBeneficence`'s switch (the set cannot claim a sign the reader does not give)", () => {
-        const src = readFileSync(OP_VALUERS_SOURCE, "utf8");
-        const body = src.slice(src.indexOf("export function opBeneficence("));
-        for (const op of PARAMETRIZED_BENEFICENCE_OPS) {
-            expect(
-                body.includes(`case "${op}":`) ||
-                    body.includes(`case "${op}": {`),
-                `${op} is in PARAMETRIZED_BENEFICENCE_OPS but has no \`case "${op}"\` in ` +
-                    "opBeneficence — it silently reads `neutral` while the census counts it as signed"
-            ).toBe(true);
-        }
+    it("`PARAMETRIZED_BENEFICENCE_OPS` and `opBeneficence`'s switch name exactly the same Ops, in both directions", () => {
+        const cases = opBeneficenceSwitchCases();
+        // Set → switch: a name the reader does not handle would fall to
+        // `OP_BENEFICENCE[op] ?? "neutral"` while the census counted it signed.
+        expect(
+            [...PARAMETRIZED_BENEFICENCE_OPS].filter(
+                (op) => !cases.includes(op)
+            ),
+            "in PARAMETRIZED_BENEFICENCE_OPS with no `case` in opBeneficence"
+        ).toEqual([]);
+        // Switch → set, and switch → table: a `case` for an Op that ALSO has a
+        // static row makes that row dead text claiming a sign nobody reads.
+        expect(
+            cases.filter((op) => !PARAMETRIZED_BENEFICENCE_OPS.has(op)),
+            "handled by opBeneficence's switch but missing from PARAMETRIZED_BENEFICENCE_OPS"
+        ).toEqual([]);
+        expect(
+            cases.filter((op) => op in OP_BENEFICENCE),
+            "handled by opBeneficence's switch AND carrying a static OP_BENEFICENCE row — the switch wins, so the row is dead text"
+        ).toEqual([]);
     });
 
     // The row-with-no-reason check. This is the one that keeps the census
     // honest: without it, closing a coverage red is a one-word edit
     // (`op: "neutral",`) that reads as a decision and records nothing — which
     // is the pre-seeded allowlist the ticket explicitly ruled out.
-    it('every `"neutral"` row carries a comment saying why the Op moves no stake', () => {
-        const src = readFileSync(OP_VALUERS_SOURCE, "utf8");
-        const start = src.indexOf(
-            "export const OP_BENEFICENCE: { [K in EffectOp"
-        );
-        expect(start, "OP_BENEFICENCE table not found").toBeGreaterThan(-1);
-        const table = src.slice(start, src.indexOf("\n};", start));
-        const lines = table.split("\n");
+    //
+    // It demands a comment DIRECTLY above each row. An earlier draft allowed
+    // one comment to cover a contiguous run of rows, and review showed that
+    // handed every new row its neighbour's reason for free — appending
+    // `brandNewOp: "neutral",` under an explained row passed. Grouping is gone;
+    // rows that shared a reason each carry their own.
+    it('every `"neutral"` row carries a comment of its own saying why the Op moves no stake', () => {
+        const { rows, lines } = beneficenceTableRows();
 
-        const unexplained: string[] = [];
-        lines.forEach((line, i) => {
-            const match = /^\s{4}(\w+):\s*"neutral",/.exec(line);
-            if (!match) return;
-            // Walk back over any contiguous run of sibling `"neutral"` rows —
-            // one comment may legitimately cover a group (`delayedTrigger` /
-            // `reflexiveTrigger` share a reason) — then require a comment.
-            let j = i - 1;
-            while (j >= 0 && /^\s{4}\w+:\s*"neutral",/.test(lines[j])) j--;
-            const above = j >= 0 ? lines[j].trimStart() : "";
-            // A SECTION DIVIDER (`// ── Binds a value … ──`) is not a reason —
-            // it says what the group is about, not why THIS Op moves no stake.
-            // Proving this test could fail is what surfaced the difference:
-            // deleting a row's real comment left the divider above it and the
-            // check stayed green.
-            if (!above.startsWith("//") || above.startsWith("// ─")) {
-                unexplained.push(match[1]);
-            }
-        });
+        // Reconcile the SCAN against the runtime table first. Without this the
+        // regex is a fail-open: a row the pattern misses (a reflow changing the
+        // indent, a value written on the next line) is silently unchecked
+        // rather than flagged.
+        const neutralAtRuntime = Object.entries(OP_BENEFICENCE)
+            .filter(([, sign]) => sign === "neutral")
+            .map(([op]) => op)
+            .sort();
+        expect(
+            rows.map((r) => r.op).sort(),
+            "the source scan and the runtime table disagree about which rows are " +
+                '`"neutral"` — the scan is what enforces the reasons, so a row it ' +
+                "cannot see is a row nobody has to explain. Fix the regex, not this assertion."
+        ).toEqual(neutralAtRuntime);
+
+        const unexplained = rows
+            .filter(({ line }) => {
+                const above = line > 0 ? lines[line - 1].trimStart() : "";
+                // A SECTION DIVIDER (`// ── Binds a value … ──`) is not a
+                // reason — it says what the group is about, not why THIS Op
+                // moves no stake. Proving this test could fail is what surfaced
+                // the difference: deleting a row's real comment left the
+                // divider above it and the check stayed green.
+                return !above.startsWith("//") || above.startsWith("// ─");
+            })
+            .map((r) => r.op);
 
         expect(
             unexplained,
-            'these OP_BENEFICENCE rows are `"neutral"` with no comment above ' +
-                "them. A neutral sign is a DECISION: write the one line saying " +
-                "why this Op moves no stake its recipient could be redirected " +
-                'over. "Deferred" and a tracking issue are not reasons (issue #3006).'
+            'these OP_BENEFICENCE rows are `"neutral"` with no comment directly ' +
+                "above them. A neutral sign is a DECISION: write the one line " +
+                "saying why this Op moves no stake its recipient could be " +
+                'redirected over. "Deferred" and a tracking issue are not reasons ' +
+                "(issue #3006) — the guard cannot read prose, so that part is on " +
+                "the author and the reviewer."
         ).toEqual([]);
     });
 });

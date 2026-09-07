@@ -1657,12 +1657,27 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // how the bot ends up handing an effect to the opponent.
     moveSpellFromStack: "harmful",
     discard: "harmful",
+    // CR 401.4 (issue #3006) — taking N cards out of `player`'s hand and
+    // burying them under their next draws is an attack on `player`, and the
+    // review of this census found the shipped card that proves it: Stunted
+    // Growth is `targetRequirement: { type: "player" }` over a script that is
+    // NOTHING but this Op. Its executor suspends on a `requestChoice`, so
+    // `resolvedMarginDelta` probes zero for both target variants (the cards
+    // have not moved yet) — the sign is the only term that can tell the two
+    // apart, and without it the bot pointed a strictly harmful sorcery at
+    // itself on rollout noise. Inert for Brainstorm's own second clause and
+    // Jace's `0`, where `player` is `"controller"` and there is no announced
+    // slot to stamp.
+    putBack: "harmful",
     // CR 701.9 / 400.7 (issue #3006) — every shape of this Op that DOES
     // anything takes cards away from `player`: the `sweep` clause discards
     // every hand card they did not pick (Noxious Vapors), and
     // `onPicked: "returnToHand"` bounces the battlefield permanents they did
     // (Planar Overlay). Being picked only means SURVIVING the sweep, so there
-    // is no branch in which the Op hands `player` anything.
+    // is no branch in which the Op hands `player` anything. The one shape the
+    // TYPE still admits that does nothing at all — `onPicked: "keep"` with
+    // `sweep` omitted — ships on no card and costs nothing mis-signed: a wrong
+    // sign on a no-op can only decline a variant that changes nothing.
     chooseCategorized: "harmful",
     discardAtRandom: "harmful",
     mill: "harmful",
@@ -1705,6 +1720,8 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // not. Whatever material follows belongs to the Ops that read the recalled
     // binding.
     captureBinding: "neutral",
+    // CR 608.2h — the read half of the same last-known-information pair: it
+    // replays a row written on the source and names no recipient either.
     recallCapturedBinding: "neutral",
     // CR 400.2 (issue #2383) — a private look moves no material and names no
     // beneficiary: the LOOKER gains information, while the Op's recipient (the
@@ -1726,21 +1743,25 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
 
     // ── Binds a value; the stake belongs to the sibling Op that reads it ──
     // CR 601.2b — the Op writes a binding and no material. `mayPay` binds a
-    // boolean whose consequence is a sibling `if` reading it; `choice` binds a
-    // selection whose consequence is the sibling `sacrifice`/`discard` reading
-    // `{ ref }`; `nameCard`'s `bind` is REQUIRED for exactly this reason (a
-    // name nothing reads back is meaningless). None of the three is walked by
-    // `collectScriptSigns` for material, and none should be.
+    // boolean whose consequence is a sibling `if` reading it; `nameCard`'s
+    // `bind` is REQUIRED for exactly this reason (a name nothing reads back is
+    // meaningless). Neither is walked by `collectScriptSigns` for material, and
+    // neither should be. Their sibling `choice` is NOT here: it binds too, but
+    // some of its kinds bind a COERCED pick, which is a sign — see
+    // `opBeneficence` below.
     mayPay: "neutral",
-    choice: "neutral",
+    // CR 701.20a — binds the chosen NAME; the material is whatever later Op
+    // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",
     // CR 601.2b — divides `objects` into two piles under `chosenBind` /
-    // `otherBind`; the stake is entirely in `chosenEffect` / `otherEffect`,
-    // ordinary Op lists whose members carry their own signs. The pile members
-    // are DERIVED from the divider's split, never announced, so there is
-    // nothing here for a redirect to act on (the module's SCOPE paragraph,
-    // `ai/beneficence.ts` — the same reason a `forEach` body's recipients are
-    // out of this axis's scope).
+    // `otherBind`. The pile members are DERIVED from the divider's split and
+    // are never announced, so there is nothing here for a redirect to act on —
+    // the module's SCOPE paragraph (`ai/beneficence.ts`), the same reason a
+    // `forEach` body's recipients are out of this axis's scope. (Note what this
+    // reason does NOT claim: `chosenEffect` / `otherEffect` are not in
+    // `collectScriptSigns`' recursion switch, so their members' signs are not
+    // computed anywhere. That costs nothing while the recipients are derived,
+    // and would have to change before a pile body could ever name a slot.)
     divideIntoPiles: "neutral",
 
     // ── Information only: no card changes zone, no life changes ──────────
@@ -1766,22 +1787,19 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // and carries no announced slot, so there is no cross-player direction to
     // rank.
     exileSelf: "neutral",
-    // CR 401.4 — moves `player`'s own hand cards onto `player`'s own library
-    // top (Brainstorm's second clause). Nothing crosses to another player; it
-    // is the cost the same player pays for the draws earlier in the same
-    // script.
-    putBack: "neutral",
     // CR 401.4 (issue #1046 family) — `player` pays `costPerKept` to keep
     // cards THEY drew this turn. Both the cost and the kept cards belong to
     // the same player, so the Op has no second side to be pointed at.
     rangedTopdeck: "neutral",
-    // CR 701.21 — the two shapes are `permanents` (a `choice` Op's picks,
-    // which the RECIPIENT made — CR 601.2b, so there is nothing to redirect)
-    // and `target` (`$source`, or a permanent snapshot-bound earlier in the
-    // same script — Kjeldoran Elite Guard's own cost). Neither is a stake
-    // taken from a player who did not agree to it. A "target player sacrifices
-    // a creature" edict signs on its `choice` Op's player slot, not here, and
-    // its material moves immediately, so `resolvedMarginDelta` ranks it.
+    // CR 701.21 — the two shapes are `permanents` (a `choice` Op's picks) and
+    // `target` (`$source`, or a permanent snapshot-bound earlier in the same
+    // script — Kjeldoran Elite Guard's own cost). NEITHER names an announced
+    // slot: the picks arrive through a `{ ref }` and the target through a
+    // snapshot, so there is no slot here for a sign to land on even if one were
+    // written. The edict shape ("target player sacrifices a creature") is
+    // ranked, but one Op earlier — the `choice` that names the announced player
+    // and coerces their pick. Signing it here as well would double-count the
+    // same coercion onto the same slot.
     sacrifice: "neutral",
 
     // ── Schedulers: the material is in a body announced at another time ────
@@ -1792,6 +1810,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // the scheduler would attribute the body's sign to whatever fills the outer
     // slot of the same index — the wrong permanent, confidently.
     delayedTrigger: "neutral",
+    // CR 603.3d — same reasoning, and sharper: this one announces its OWN slot
+    // 0 as the reflexive ability goes on the stack, so the outer slot 0 it
+    // would be signed against is a different object entirely.
     reflexiveTrigger: "neutral",
 
     // ── Genuinely two-directional: the sign is not a property of the name ──
@@ -1801,6 +1822,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // Moon). `setSubtype` REPLACES, which makes the direction depend on what
     // was there to begin with.
     addSubtype: "neutral",
+    // CR 613.1d layer 4 — REPLACES rather than adds, so the direction depends
+    // on what was there to begin with (Blood Moon strips a dual's abilities;
+    // the same Op turns your own land into an Island for an Islandwalker).
     setSubtype: "neutral",
     // CR 613.1e layer 5 — a colour change only ever serves ANOTHER effect
     // (protection, a colour-matters filter), and the sign belongs to that
@@ -1835,9 +1859,12 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
 
     // ── The three the census was told to adjudicate (issue #3006) ─────────
     // CR 701.3a — the stake `attach` moves is what `$source` GRANTS its new
-    // host, which is per-card and is read by the ATTACHMENT-PAYOFF derivation
-    // (`auraAttachmentSign`, `ai/beneficence.ts`), not by an Op-name row: a
-    // flat sign here would read Pacifism and Wild Growth identically. Its
+    // host, which is per-card: a flat sign here would read Pacifism and Wild
+    // Growth identically. For an AURA CAST that payoff is read by the
+    // attachment-payoff derivation (`auraAttachmentSign`, `ai/beneficence.ts`);
+    // for this Op it is read by nothing, because `abilityTargetSlotBeneficence`
+    // has no aura fallback and the one shipped announced-slot use is an
+    // EQUIPMENT's activated ability. Its
     // mirror `unattach` is signed because removing an attachment has one
     // direction whatever it was. CR 301.5c / 702.151a also constrain every
     // shipped announced-slot use to a creature its controller controls, so
@@ -1849,11 +1876,12 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // battlefield permanent is an attack on its controller; a targeted
     // graveyard-to-hand or graveyard-to-battlefield recovery is a gift to its
     // owner), and a `to`/`from`-parametrized one would still be wrong on the
-    // legitimate save-my-own-creature bounce in response to removal. It is
-    // also the one family where the sibling term already does the work: the
-    // cards move IMMEDIATELY, so `resolvedMarginDelta` (`search.ts`) sees the
-    // whole difference between the variants — which is precisely what the
-    // beneficence axis exists to complement, not to duplicate.
+    // legitimate save-my-own-creature bounce in response to removal. Note the
+    // argument is about DIRECTION, not about the margin term covering it:
+    // `destroy` and `exile` also move their material immediately and are signed
+    // anyway, and a script whose earlier Op suspends leaves the margin probe at
+    // zero regardless. What rules this Op out is that no single sign, and no
+    // split on `to`/`from`, is right in every direction it ships in.
     moveZone: "neutral",
 };
 
@@ -1869,6 +1897,7 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "addPlayerCounter",
     "tapUntap",
     "scryReorder",
+    "choice",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
@@ -1911,6 +1940,31 @@ export function opBeneficence(
                 : "harmful";
         case "tapUntap":
             return op.action === "untap" ? "beneficial" : "harmful";
+        case "choice":
+            // CR 601.2b (issue #3006, found in review) — most `choice` kinds
+            // bind a FREE pick and carry no sign: the chooser picks what they
+            // want, which is why this Op reads as a binder. Two kinds bind a
+            // COERCED one. `sacrifice-permanents` and `discard-hand` make the
+            // zone's owner give something up — that is the whole of Liliana of
+            // the Veil's `−2` ("target player sacrifices a creature", whose
+            // script is this Op plus a `sacrifice` reading its `{ ref }`) and
+            // of the Mind Rot family. The stake belongs to the Op that names
+            // the announced slot, and in the edict shape that is THIS one: the
+            // `sacrifice`/`discard` that follows reads a `{ ref }` and names no
+            // slot at all, so leaving both signless left the edict unranked and
+            // the bot pointed Liliana at itself on rollout noise.
+            //
+            // CAVEAT for a future card: `announcedSlotsIn` stamps the sign on
+            // EVERY `{ target: n }` the Op mentions, and `choice` can name two
+            // players (`player` the chooser, `zoneOwner` the victim). Every
+            // shipped card has at most one of them announced — Duress and
+            // Thoughtseize choose with `player: "controller"` — so the stamp
+            // lands on the victim today. A card announcing BOTH would need the
+            // sign narrowed to the zone-owner slot first.
+            return op.kind === "sacrifice-permanents" ||
+                op.kind === "discard-hand"
+                ? "harmful"
+                : "neutral";
         case "scryReorder":
             // CR 701.22 vs CR 701.29 (issue #3006) — the SIGN is the `chooser`
             // field's, which is why this is a parametrized case and not a flat
@@ -1925,6 +1979,18 @@ export function opBeneficence(
             // `resolvedMarginDelta` is blind and the pick fell to rollout
             // noise — the Wild Growth shape, on the ability half of the
             // announcement surface.
+            //
+            // Two things this deliberately does NOT do. It does not compare the
+            // chooser to the slot's occupant — `opBeneficence` signs an Op for
+            // whoever receives it and never reads the board (the same rule the
+            // `addPlayerCounter` case is tested against), so pointing Jace's
+            // `+2` at YOURSELF, which degenerates to a plain CR 701.22 scry,
+            // reads `harmful` and is ranked below fatesealing the opponent.
+            // That closes off a legitimate — if rarely correct — line, and it
+            // is the price of a board-free sign. And, as with `choice` above,
+            // `announcedSlotsIn` stamps every `{ target: n }` in the Op: a
+            // future card announcing its `chooser` would get the sign on the
+            // CHOOSER's slot, backwards. No shipped card does.
             return op.chooser ? "harmful" : "beneficial";
         default:
             return OP_BENEFICENCE[op.op] ?? "neutral";

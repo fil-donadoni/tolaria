@@ -70,9 +70,11 @@ accepted and there is no fourth: a static `OP_BENEFICENCE` row, a `case` in
 `opBeneficence` plus the name in `PARAMETRIZED_BENEFICENCE_OPS` when the sign is
 a function of the Op's own fields (`pump`, `counters`, `addPlayerCounter`,
 `tapUntap`, `scryReorder`), or a `"neutral"` row whose comment says why the Op
-moves no stake — bind-only Ops (`choice`, `mayPay`, `nameCard`) and
-self-directed ones (`exileSelf`, `putBack`) are the honest neutrals. There is no
-allowlist and "deferred" is not a reason.
+moves no stake — bind-only Ops (`mayPay`, `nameCard`) and self-directed ones
+(`exileSelf`, `rangedTopdeck`) are the honest neutrals. There is no allowlist to
+park one in. Note what the guard can and cannot do: it enforces that a reason is
+PRESENT, never that it is a reason — `// deferred, see #N` would satisfy it, and
+is precisely what a row must not say.
 
 `/new-op` walks both sites (7 and 7b), and a green `bun run test:app` proves
 nothing about either — run `bun run check:guards`.

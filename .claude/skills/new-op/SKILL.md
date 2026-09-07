@@ -40,8 +40,10 @@ nothing checks it at all.
 a sign, is one of `PARAMETRIZED_BENEFICENCE_OPS`, or has an explicit `"neutral"`
 row **with a one-line comment saying why the Op moves no stake**. There is no
 allowlist — unlike a missing valuer (a magnitude you can defer), a missing sign
-is indistinguishable at runtime from a considered `"neutral"`, so "deferred" is
-not an answer the guard accepts.
+is indistinguishable at runtime from a considered `"neutral"`, so there is
+nowhere to park one. The guard checks a reason is PRESENT; only you and the
+reviewer can check it is a reason. "Deferred, see #N" would pass it and is
+exactly what the row must not say.
 
 ## Workflow
 
