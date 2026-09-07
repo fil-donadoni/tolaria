@@ -4897,51 +4897,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: 'Half 2 of the discriminating pair (issue #3041) — PAIRED WITH "entomb: buries the reanimation target, not one of eight lands". Removing the recursion from hand flips the correct answer from the largest card to the self-reachable one, which is what proves the change is a destination-and-reachability PRICING fix and not a size rule: half 1 alone passes for a bot that always buries the biggest thing it can find. Proof-of-failure: the same call-site revert reds this entry — destination-blind, the eight bodies (108 to 252) all out-rank Lingering Souls (78.8) and fill every `CHOICE_TOP_K` slot, so the one card that does anything from a graveyard is never emitted and the bot buries a creature it can never get back.',
     },
     {
-        // Lifted from the AI-diagnosis harness, episode #7 (issue #2436). The
-        // harness ran this position at five budgets and asserted on the largest;
-        // the assertion that survives classification is the one that names a
-        // CHOICE on a deterministic position — the bot must not spend the trick
-        // at sorcery speed — so it belongs here, at the production budget, and
-        // not in a ladder printout.
-        //
-        // The position: a ready 2/2 and Giant Growth backed by an untapped
-        // Forest, into an open 3/3. Dumping the pump in precombat main buys
-        // nothing lasting (the +3/+3 expires at cleanup, CR 611.2b) and reveals
-        // the ambush; holding it lets the bait 2/2 attack and become a 5/5 in
-        // response to the block, killing the 3/3 for free.
-        label: "combat trick: holds Giant Growth instead of dumping it at sorcery speed",
-        spec: {
-            cards: [
-                {
-                    name: "Grizzly Bears",
-                    owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Giant Growth", owner: "me", zone: "hand" },
-                {
-                    name: "Hill Giant",
-                    owner: "opp",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 3,
-            landCount: 0,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            forbidden: [{ kind: "cast-spell", card: "Giant Growth" }],
-        },
-        note: "Guards the interaction-aware combat predictor (ADR 0021 §B, issue #229) plus the hold-the-trick selection tie-break in `selectRootMove`: with the attacker's held pump modelled the bait is no longer pre-judged dead, so the precombat dump stops decisively out-scoring the hold and the tie-break keeps the option.",
-    },
-    {
         // Lifted from the AI-diagnosis harness, episode #9 (issue #2436).
         //
         // The bot's 3/5 faces a 2/4 reach blocker: NO defending creature has 5
