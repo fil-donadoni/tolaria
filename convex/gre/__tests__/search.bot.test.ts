@@ -14,6 +14,7 @@ import {
     selectRolloutMove,
     isDiscouragedRolloutMove,
     isReactiveInstantCast,
+    isWastefulAttack,
     reactivePrior,
     keyedMovesFor,
     computeActionPriors,
@@ -64,6 +65,8 @@ const BOP = getCardByName("Birds of Paradise").id; // 0/1 mana dork
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G} instant +3/+3
 const FOREST = getCardByName("Forest").id;
 const CONTAINMENT_PRIEST = getCardByName("Containment Priest").id; // {1}{W} 2/2 flash, no ETB/target choices
+const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5 ground
+const SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
 
 function creature(
     cardId: string,
@@ -2650,5 +2653,78 @@ describe("selectRootMove — the empty block declaration is always a contender (
         expect(chosen.assignments).toEqual([
             { blockerId: "blk", attackerId: "atk1" },
         ]);
+    });
+});
+
+describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
+    /** An attack decision for p1, with the given boards. */
+    function attackWith(
+        mine: ReturnType<typeof creature>[],
+        theirs: ReturnType<typeof creature>[]
+    ): GameState {
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: mine }),
+                makePlayer("p2", { battlefield: theirs }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+    const swing = (...attackerIds: string[]): Move => ({
+        kind: "declare-attackers",
+        attackerIds,
+    });
+
+    // The predicate had NO test of its own before issue #2436 — it was only
+    // ever reached through a full search — which is what made the blade entry
+    // it backs ("wasteful attack: does not swing a 3/5 into a blocker that
+    // absorbs it for free") the sole evidence that it works at all.
+    it("FIRES on a swing that kills nothing and deals no damage", () => {
+        // 3/5 into a 2/4 reach blocker: no defender has 5 power, so nothing
+        // kills the attacker (CR 704.5g), and the Spider survives the 3 damage
+        // and absorbs all of it — no face damage, no dead blocker.
+        const state = attackWith(
+            [creature(IRONROOT, "p1", "ir")],
+            [creature(SPIDER, "p2", "spider")]
+        );
+        expect(isWastefulAttack(state, swing("ir"))).toBe(true);
+    });
+
+    it("does NOT fire when the swing gets damage through", () => {
+        const state = attackWith([creature(GIANT, "p1", "g")], []);
+        expect(isWastefulAttack(state, swing("g"))).toBe(false);
+    });
+
+    it("does NOT fire when the swing kills a blocker", () => {
+        // 3/3 into a lone 2/2: blocked, the 2/2 dies; unblocked, 3 to the face.
+        const state = attackWith(
+            [creature(GIANT, "p1", "g")],
+            [creature(BEARS, "p2", "wall")]
+        );
+        expect(isWastefulAttack(state, swing("g"))).toBe(false);
+    });
+
+    it("does NOT fire on the empty attack declaration — there is nothing to waste", () => {
+        const state = attackWith(
+            [creature(IRONROOT, "p1", "ir")],
+            [creature(SPIDER, "p2", "spider")]
+        );
+        expect(isWastefulAttack(state, swing())).toBe(false);
+    });
+
+    it("does NOT fire on a move that is not an attack declaration", () => {
+        const state = attackWith(
+            [creature(IRONROOT, "p1", "ir")],
+            [creature(SPIDER, "p2", "spider")]
+        );
+        expect(isWastefulAttack(state, { kind: "pass" })).toBe(false);
     });
 });

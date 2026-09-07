@@ -4967,7 +4967,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // The defender holds Scryb Sprites (1/1 flying) and Birds of Paradise
         // (0/1 flying) against a lone Hypnotic Specter (2/2 flying). Their
         // COMBINED power is 1, below the Specter's 2 toughness, so no block kills
-        // it (CR 510.1c) while its 2 power kills either 1-toughness blocker.
+        // it (CR 510.1d — the blockers assign 1 damage in total to a 2-toughness
+        // attacker) while its 2 power is lethal to either 1-toughness blocker
+        // (CR 704.5g).
         // Double-blocking therefore loses TWO creatures to kill nothing — it is
         // strictly dominated by the single block, which is dominated in turn by
         // taking 2. Only the double block is forbidden here: choosing between

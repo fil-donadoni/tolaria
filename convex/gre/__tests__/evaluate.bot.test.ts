@@ -1446,8 +1446,9 @@ describe("predictCombatOutcome — an absorbing blocker (issue #2436, ex-episode
 describe("declaredBlockDelta — a double block that kills nothing (issue #2436, ex-episode #10)", () => {
     /** A lone Hypnotic Specter (2/2 flying) attacks into Scryb Sprites (1/1
      *  flying) and Birds of Paradise (0/1 flying). Their COMBINED power is 1,
-     *  below the Specter's 2 toughness, so no block kills it (CR 510.1c), while
-     *  its 2 power kills either 1-toughness blocker. The double block loses TWO
+     *  below the Specter's 2 toughness, so no block kills it (CR 510.1d — the
+     *  blockers assign 1 damage in total to a 2-toughness attacker), while its
+     *  2 power is lethal to either 1-toughness blocker (CR 704.5g). The double block loses TWO
      *  creatures to kill nothing; the single block loses one. */
     function blocked(assignments: Record<string, string[]>): GameState {
         const specter = makeInstance(SPECTER, {

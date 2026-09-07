@@ -2762,7 +2762,7 @@ export function buildTrace(
  *  free damage, the bot cannot represent). The check reuses `predictCombatOutcome`
  *  — the same sensible-defender prediction the leaf eval uses — on the post-attack
  *  state. `declare-attackers` is the active player's move (CR 508.1). */
-function isWastefulAttack(state: GameState, move: Move): boolean {
+export function isWastefulAttack(state: GameState, move: Move): boolean {
     if (move.kind !== "declare-attackers" || move.attackerIds.length === 0) {
         return false;
     }
