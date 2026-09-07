@@ -2,8 +2,6 @@
 // `convex/cards/sets/one/black.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { sheoldredsEdict } from "../black";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -13,6 +11,10 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const sheoldredsEdict = getDefinition("a9225cc3-90f0-448f-a8d9-7c6c2796d077");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Answers the head pending choice with `picks` (permanent ids for the
  *  sacrifice pick). Drives the staged-resume resolution forward. */

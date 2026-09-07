@@ -5,20 +5,25 @@
 // interpreter.test.ts; here we assert the look size and take count are wired.
 
 import { describe, it, expect } from "vitest";
-import { consultTheStarCharts } from "../blue";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { plains, grizzlyBears } from "../../lea";
 import {
     resolveTopOfStack,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const consultTheStarCharts = getDefinition(
+    "a16a6555-2e3a-4587-aacd-0307d696b26c"
+);
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const lands = (n: number) =>
     Array.from({ length: n }, (_, i) =>

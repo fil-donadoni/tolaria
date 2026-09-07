@@ -15,34 +15,6 @@ import {
     resolveTrigger,
     startRecall,
 } from "./helpers";
-import {
-    acidRain,
-    antiMagicAura,
-    azureDrake,
-    backfire,
-    barbaryApes,
-    boomerang,
-    energyTap,
-    flashCounter,
-    flashFlood,
-    forceSpike,
-    inTheEyeOfChaos,
-    jasmineBoreal,
-    keepersOfTheFaith,
-    manaDrain,
-    partWater,
-    psionicEntity,
-    recall,
-    removeSoul,
-    reset,
-    seaKingsBlessing,
-    spectralCloak,
-    teleport,
-    venarianGold,
-    wallOfVapor,
-    wallOfWonder,
-    winterBlast,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import { isCombatDamagePreventedFromSource } from "../../../../gre/combatDamagePrevention";
 import {
@@ -75,13 +47,39 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import {
-    forest,
-    grizzlyBears,
-    island,
-    lightningBolt,
-    mountain,
-} from "../../lea";
+import { getDefinition } from "../../../index";
+
+const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
+const antiMagicAura = getDefinition("ff78eef1-efaa-4a12-bf5d-fec83c14aff8");
+const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
+const backfire = getDefinition("04bc57aa-d4d9-4bd9-ba09-984370c7e23b");
+const barbaryApes = getDefinition("df25ffdd-995d-46ae-856b-f6368f9438ed");
+const boomerang = getDefinition("b8286edd-644b-4135-8dca-af97f3920de3");
+const energyTap = getDefinition("37e69940-bdc8-48ff-a296-540343910adf");
+const flashCounter = getDefinition("3c3cd450-f1cd-416b-9271-37d95815c089");
+const flashFlood = getDefinition("5ae88c06-f28c-4fbc-a28c-5eb203a04722");
+const forceSpike = getDefinition("70e64028-ae96-4950-aa6c-9d347409fad3");
+const inTheEyeOfChaos = getDefinition("733933dd-c871-4f75-8b08-d7c010dddbe6");
+const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
+const keepersOfTheFaith = getDefinition("b63a69ae-99ce-4d26-88b7-784793c43cd4");
+const manaDrain = getDefinition("e691adef-3027-4e6a-889f-9f4e2df36a7c");
+const partWater = getDefinition("4b659475-c8b7-493d-af63-04f34d8cc3b1");
+const psionicEntity = getDefinition("ec082062-5394-4340-bc29-0efd2af4b822");
+const recall = getDefinition("33296718-0625-4422-a65c-b21cf99c52ec");
+const removeSoul = getDefinition("63de147c-2e62-41b9-8ada-93406387f08b");
+const reset = getDefinition("1c829d83-d5b8-4be7-80f7-55b42f52b309");
+const seaKingsBlessing = getDefinition("11d1f02d-533e-4b77-a72a-ff5f91ae0626");
+const spectralCloak = getDefinition("7524fd0d-a675-41d6-bc99-bd3ba336893b");
+const teleport = getDefinition("18f86e13-f942-423e-b175-930d768cb811");
+const venarianGold = getDefinition("11fb92c0-bb1e-463a-a6b6-887a5d0cb873");
+const wallOfVapor = getDefinition("6a6c0a27-d410-4ded-a842-70e1656ea21e");
+const wallOfWonder = getDefinition("bcd9af40-b46c-44b4-878e-8eb026c96b51");
+const winterBlast = getDefinition("fb846366-2105-4999-8af1-a11687f42e17");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 describe("Psionic Entity ({T}: 2 to any target, 3 to itself, CR 120.1)", () => {
     it("deals 2 to the target and 3 to itself", () => {

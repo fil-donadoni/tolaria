@@ -1,6 +1,5 @@
 // CN2 (Conspiracy: Take the Crown, 2016) — white card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { palaceJailer } from "../white";
 import {
     makeInstance,
     makePlayer,
@@ -8,13 +7,15 @@ import {
     pushSpell,
     resolveTriggerOrder,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { resolveTopOfStack, becomeMonarch } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const palaceJailer = getDefinition("78cef262-c753-4658-b3ec-fec8db47f944");
 
 describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR 720, issue #1199)", () => {
     it("becomes the monarch and exiles the sole legal opposing creature on ETB", () => {
-        const bear = getCardByName("Grizzly Bears");
+        const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         const victim = makeInstance(bear.id, {
             id: "victim",
             controllerId: "p2",
@@ -46,7 +47,7 @@ describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR
     });
 
     it("the exiled creature does NOT return when Palace Jailer itself leaves the battlefield (official ruling)", () => {
-        const bear = getCardByName("Grizzly Bears");
+        const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         const victim = makeInstance(bear.id, {
             id: "victim",
             controllerId: "p2",
@@ -71,7 +72,7 @@ describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR
     });
 
     it("releases the exiled creature the moment an opponent becomes the monarch", () => {
-        const bear = getCardByName("Grizzly Bears");
+        const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         const victim = makeInstance(bear.id, {
             id: "victim",
             controllerId: "p2",
@@ -97,7 +98,7 @@ describe("Palace Jailer — become the monarch + exile-until-monarch-changes (CR
     });
 
     it("the Monarch designation survives the wire projection (issue #1199)", () => {
-        const bear = getCardByName("Grizzly Bears");
+        const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         const victim = makeInstance(bear.id, {
             id: "victim",
             controllerId: "p2",

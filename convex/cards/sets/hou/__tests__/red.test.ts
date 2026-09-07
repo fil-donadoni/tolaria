@@ -2,10 +2,11 @@
 // split). Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { abrade } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+
+const abrade = getDefinition("84319dfb-eaf7-4b98-8c4f-30f5e779591b");
 
 // A registered creature and a NON-creature artifact (Black Lotus — no
 // toughness, so it can't die to an unrelated SBA and mask a broken destroy).

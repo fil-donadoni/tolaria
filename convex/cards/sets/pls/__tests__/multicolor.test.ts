@@ -14,40 +14,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    cloudCover,
-    crosissCharm,
-    darigaazsCharm,
-    dralnusCrusade,
-    dromarsCharm,
-    ertaiTheCorrupted,
-    hullBreach,
-    keldonTwilight,
-    maliciousAdvice,
-    marshCrocodile,
-    meddlingMage,
-    naturalEmergence,
-    phyrexianTyranny,
-    questingPhelddagrif,
-    sawtoothLoon,
-    trevasCharm,
-    urzasGuilt,
-    radiantKavu,
-    rithsCharm,
-} from "../multicolor";
-import {
-    grizzlyBears,
-    savannahLions,
-    controlMagic,
-    ancestralRecall,
-    blackLotus,
-    forest,
-    lightningBolt,
-    monssGoblinRaiders,
-    mountain,
-    airElemental,
-    blackKnight,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -93,6 +59,42 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import type { BecameTargetEvent, PhaseBeginEvent } from "../../../types";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const cloudCover = getDefinition("943b3886-5556-474f-8dc1-18219e25abc3");
+const crosissCharm = getDefinition("b59a9e75-9988-4040-a718-b1655fc20d11");
+const darigaazsCharm = getDefinition("cf4c9d6a-86eb-45be-9405-473eb263b94c");
+const dralnusCrusade = getDefinition("6a35d227-4489-4a0b-8f81-eb8e5949e1fc");
+const dromarsCharm = getDefinition("c7a1894c-af4e-4530-960f-2225916be8cb");
+const ertaiTheCorrupted = getDefinition("66b950d9-8fef-4deb-b51b-26edb90abc56");
+const hullBreach = getDefinition("6907fa19-29ed-4319-8835-68f424c92831");
+const keldonTwilight = getDefinition("e071665e-bb72-42e0-a42d-0d0ff02abd2b");
+const maliciousAdvice = getDefinition("7b1547c2-ae9f-4871-a675-4026bf20e7e1");
+const marshCrocodile = getDefinition("813279d1-d7bd-4d49-bd9d-fc9a6595dd39");
+const meddlingMage = getDefinition("176f84c6-aa5e-449c-bd2b-cc91a898f0c7");
+const naturalEmergence = getDefinition("c3eb4857-7c66-42e4-913c-97a0306366d5");
+const phyrexianTyranny = getDefinition("e8440ca8-73ca-462b-a735-f6fb3d0de603");
+const questingPhelddagrif = getDefinition(
+    "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3"
+);
+const sawtoothLoon = getDefinition("31b0a87f-e946-4ef1-b30d-fe32c19a0f52");
+const trevasCharm = getDefinition("72acb67d-01cb-4fde-8b0b-199e8d1e396a");
+const urzasGuilt = getDefinition("d429233e-1cf9-4f87-b191-894a73e7a876");
+const radiantKavu = getDefinition("153077a8-38c0-44aa-9b84-cdd9ade50ad6");
+const rithsCharm = getDefinition("dd30f389-bac8-4b82-a8a7-6948d43a9f60");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const controlMagic = getDefinition("7b52f459-c703-4a0b-9114-ff69eec61287");
+const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const monssGoblinRaiders = getDefinition(
+    "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
+);
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
 
 const ABILITY = keldonTwilight.triggeredAbilities!.find(
     (a) => a.id === "keldon-twilight-end-step-sac"

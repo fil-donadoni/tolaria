@@ -14,8 +14,6 @@
 // exactly as if printed on the copy.
 
 import { describe, it, expect } from "vitest";
-import { phantasmalImage } from "../blue";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -37,6 +35,10 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { PermanentView } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const phantasmalImage = getDefinition("98e7bf8f-dba7-4005-8cee-634c9153931d");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // A synthetic targeted-removal instant so the "becomes the target of a
 // spell" leg of the self-sac trigger can be exercised without depending on

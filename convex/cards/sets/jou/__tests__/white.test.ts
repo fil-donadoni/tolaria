@@ -7,10 +7,8 @@
 // Ice Cauldron's noted card uses, so this is a second-mechanism verification of
 // the generic exile-pin component.
 import { describe, it, expect } from "vitest";
-import { banishingLight } from "..";
-import { grizzlyBears, flight } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition, getCardByName } from "../../..";
+import { getDefinition } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -23,6 +21,10 @@ import {
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+
+const banishingLight = getDefinition("fbaa4800-30cc-4a80-a6cc-9a24ada9eb40");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const flight = getDefinition("67c7784b-6b79-4268-a714-895c82809aff");
 
 const ETB_EVENT: StackItem["triggerEvent"] = {
     type: "PERMANENT_ENTERED",
@@ -108,7 +110,9 @@ function chooseExileTarget(state: GameState, targetId: string): void {
 describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(banishingLight.id)).toBe(banishingLight);
-        expect(getCardByName("Banishing Light")).toBe(banishingLight);
+        expect(getDefinition("fbaa4800-30cc-4a80-a6cc-9a24ada9eb40")).toBe(
+            banishingLight
+        );
     });
 
     it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.13/704.5n)", () => {

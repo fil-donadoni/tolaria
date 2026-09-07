@@ -8,7 +8,6 @@
 // behavior test (CR 701.25 Surveil, CR 121.1 draw).
 
 import { describe, it, expect } from "vitest";
-import { consider } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -17,6 +16,9 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const consider = getDefinition("a211d505-4d40-4914-a9da-220770d6ddbc");
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

@@ -1,13 +1,18 @@
 // ZNR — multicolor card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { omnathLocusOfCreation } from "../multicolor";
-import { swamp, grizzlyBears } from "../../lea";
 import { registerTokenDefinition } from "../../..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const omnathLocusOfCreation = getDefinition(
+    "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617"
+);
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // A synthetic Planeswalker so the third-resolution "each planeswalker you
 // don't control" sweep has something to hit.

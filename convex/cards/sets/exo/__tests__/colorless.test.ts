@@ -8,16 +8,17 @@
 // #675, ADR 0041).
 
 import { describe, it, expect } from "vitest";
-import { cityOfTraitors } from "..";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const cityOfTraitors = getDefinition("a7a8b6b8-b95f-4014-b17a-a6d44d965995");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 describe("City of Traitors (CR 603.2 triggered ability, CR 701.21 sacrifice)", () => {
     it("sacrifices itself when the controller plays another land", () => {

@@ -5,8 +5,6 @@
 // reanimation and the CR 601.2c mvFilter target legality.
 
 import { describe, it, expect } from "vitest";
-import { unearth } from "../black";
-import { grizzlyBears, crawWurm } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
@@ -16,6 +14,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const unearth = getDefinition("b6cb2549-e485-44d6-9d65-7605c568909e");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
 
 describe("Unearth (CR 400.7 reanimation, CR 601.2c mvFilter, CR 702.29 Cycling)", () => {
     it("returns a target creature card with MV<=3 from your graveyard to the battlefield", () => {

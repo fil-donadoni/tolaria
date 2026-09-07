@@ -1,9 +1,6 @@
 // RTR — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { worldspineWurm } from "../green";
-import { grizzlyBears } from "../../lea/green";
-import { malevolentRumble } from "../../mh3/green";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +19,11 @@ import {
     getPlayer,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const worldspineWurm = getDefinition("543d55cb-3a6b-4620-af25-10ae74ed32c4");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const malevolentRumble = getDefinition("a178cfe8-f9fa-4255-88d0-54a0bed079f5");
 
 /** Drains the stack, resolving every pending item (including any
  *  `trigger-order` PendingChoice that lands a simultaneous batch — CR

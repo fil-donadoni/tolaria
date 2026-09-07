@@ -5,11 +5,6 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { accumulatedKnowledge, daze, dominate, parallaxTide } from "..";
-import { grizzlyBears, serraAngel } from "../../lea";
-import { lightningBolt } from "../../lea/red";
-import { ornithopter } from "../../atq/colorless";
-import { island } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
     getLegalActions,
@@ -25,6 +20,19 @@ import {
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const accumulatedKnowledge = getDefinition(
+    "ab061406-38f4-40e7-a9ea-e3cbcaabc127"
+);
+const daze = getDefinition("d03bff25-0d5e-4dcf-8d75-6df846afea3b");
+const dominate = getDefinition("63b2dcb1-8c3e-434c-865a-196d4d799706");
+const parallaxTide = getDefinition("7fe593eb-df3c-43e5-97a6-418f91e87cb3");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // Accumulated Knowledge exercises the `count` construct's NEW dynamic-count
 // path (name filter + acrossAllPlayers scope, issue #985), which the canned-

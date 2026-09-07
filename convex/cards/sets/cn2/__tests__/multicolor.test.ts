@@ -5,8 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { EffectOp, GameEvent } from "../../../types";
-import { leovoldEmissaryOfTrest } from "../multicolor";
-import { registerTokenDefinition, getCardByName } from "../../../index";
+import { registerTokenDefinition } from "../../../index";
 import {
     buildDrawEvent,
     emitBecameTargetEvents,
@@ -21,8 +20,13 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
 
-const bearsId = getCardByName("Balduvian Bears").id;
+const leovoldEmissaryOfTrest = getDefinition(
+    "49bb0ad3-1082-41f1-82a4-52a4006cc9b6"
+);
+
+const bearsId = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id;
 
 function leovoldInstance(controllerId: string, id = "leo") {
     return makeInstance(leovoldEmissaryOfTrest.id, {

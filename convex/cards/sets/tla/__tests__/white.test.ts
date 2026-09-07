@@ -2,9 +2,6 @@
 // in `convex/cards/sets/tla/white.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { aangsIceberg } from "../white";
-import { balduvianBears } from "../../ice/green";
-import { snowCoveredForest } from "../../ice/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
@@ -17,6 +14,11 @@ import { finalizeTargetSelection } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const aangsIceberg = getDefinition("720fbd87-b1c1-4b3b-97a1-46b943b115e3");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
 
 function etbEvent(instanceId: string): StackItem["triggerEvent"] {
     return {

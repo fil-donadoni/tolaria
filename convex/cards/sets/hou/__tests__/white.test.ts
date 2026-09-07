@@ -2,8 +2,6 @@
 
 import { describe, it, expect } from "vitest";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { crestedSunmare } from "../white";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     applySourceStaticEffects,
@@ -12,6 +10,10 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const crestedSunmare = getDefinition("732fa4c9-11da-4bdb-96af-aa37c74be25f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const SUNMARE_ID = crestedSunmare.id;
 

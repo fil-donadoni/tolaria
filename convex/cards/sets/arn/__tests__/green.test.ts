@@ -4,23 +4,6 @@
 // only (effective P/T, damage, zone, combat outcome).
 
 import { describe, it, expect } from "vitest";
-import {
-    birdMaiden,
-    cyclone,
-    desertTwister,
-    dropOfHoney,
-    erhnamDjinn,
-    flyingMen,
-    ghazbanOgre,
-    ifhBiffEfreet,
-    metamorphosis,
-    nafsAsp,
-    sandstorm,
-    serendibEfreet,
-    singingTree,
-    wyluliWolf,
-} from "..";
-import { forest, grizzlyBears } from "../../lea";
 import { getInstanceManaCost, tryGetDefinition } from "../../../";
 import {
     makeInstance,
@@ -57,6 +40,24 @@ import {
     upkeepEvent,
 } from "./helpers";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const birdMaiden = getDefinition("5c1ba0b9-db01-447f-90cc-a2fc2c24146e");
+const cyclone = getDefinition("f11684d6-5b74-47a7-a2d0-256c9e437aa6");
+const desertTwister = getDefinition("0d77c149-cca2-45c7-bc83-5ba1872ad5e0");
+const dropOfHoney = getDefinition("26e090d4-e7fe-403c-9aca-05c1b45ed238");
+const erhnamDjinn = getDefinition("42bc0c3f-0a52-4bdc-83da-6484bf3102f3");
+const flyingMen = getDefinition("25ab9a2b-e248-4ae2-aac3-b49fdb3e260a");
+const ghazbanOgre = getDefinition("f9d613d5-36a2-4633-b5af-64511bb29cc2");
+const ifhBiffEfreet = getDefinition("c0b10fb7-8667-42bf-aeb6-35767a82917b");
+const metamorphosis = getDefinition("fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5");
+const nafsAsp = getDefinition("965f722c-2b18-4c22-8c30-12552def5940");
+const sandstorm = getDefinition("73cba9cd-73d9-442e-bd99-9cba9f398b64");
+const serendibEfreet = getDefinition("cf56e862-3169-4f63-acd0-731080fa32f2");
+const singingTree = getDefinition("3003bf1e-8085-45d8-882b-c449109e7631");
+const wyluliWolf = getDefinition("15ccebe1-ef08-4805-a65f-a1c57abed9f2");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Sandstorm (1 damage to each attacking creature)", () => {
     it("kills a 1-toughness attacker, spares a non-attacker", () => {

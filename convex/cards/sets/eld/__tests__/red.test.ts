@@ -2,13 +2,14 @@
 // `convex/cards/sets/eld/red.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { robberOfTheRich } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalActions } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const robberOfTheRich = getDefinition("0ecbe097-ba51-42e5-957c-382eb66c08f0");
 
 const CHEAP_CARD_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Black Lotus stub
 
@@ -166,7 +167,7 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile
             ownerId: "p1",
             isAttacking: true,
         });
-        const mountain = getCardByName("Mountain");
+        const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
         const topLand = makeInstance(mountain.id, {
             id: "top-land",
             controllerId: "p2",

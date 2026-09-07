@@ -5,7 +5,6 @@
 // basic land SUBTYPE — a dual land must never be findable.
 
 import { describe, it, expect } from "vitest";
-import { pathToExile } from "../white";
 import {
     makeInstance,
     makePlayer,
@@ -14,8 +13,12 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { forest, tundra } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const pathToExile = getDefinition("29b7a8b1-b98e-483a-87a4-73bd831c03d4");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Answers the head `pendingChoices` entry (CR 608.2). */
 function submitChoice(state: GameState, cardInstanceIds: string[]): void {

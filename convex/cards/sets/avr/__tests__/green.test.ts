@@ -1,8 +1,6 @@
 // AVR — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { craterhoofBehemoth } from "../green";
-import { grizzlyBears } from "../../lea/green";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { finalizeCleanup } from "../../../../gre/phases";
@@ -12,6 +10,12 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const craterhoofBehemoth = getDefinition(
+    "a249be17-73ed-4108-89c0-f7e87939beb8"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function craterhoofEntered(instanceId: string, controllerId: string) {
     return {

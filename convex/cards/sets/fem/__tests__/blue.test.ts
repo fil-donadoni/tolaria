@@ -5,34 +5,15 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    deepSpawn,
-    highTide,
-    homarid,
     homaridFemB,
     homaridFemC,
     homaridFemD,
-    homaridShaman,
-    homaridSpawningBed,
-    homaridWarrior,
-    merseine,
     merseineFemB,
-    riverMerfolk,
-    seasinger,
-    tidalFlats,
-    tidalInfluence,
-    vodalianKnights,
-    vodalianMage,
-    vodalianSoldiers,
     vodalianSoldiersFemB,
     vodalianSoldiersFemC,
     vodalianSoldiersFemD,
-    vodalianWarMachine,
 } from "..";
-import {
-    getDefinition,
-    getCardByName,
-    getPrintingsForCard,
-} from "../../../index";
+import { getDefinition, getPrintingsForCard } from "../../../index";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -48,7 +29,6 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { advancePhase, untapStep } from "../../../../gre/phases";
-import { grizzlyBears } from "../../lea";
 import { getLegalActions } from "../../../../gre/rules";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import {
@@ -59,6 +39,27 @@ import {
 } from "../../../__tests__/setup";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
+
+const deepSpawn = getDefinition("69c9e4a5-735f-471c-ab1a-6e6d50ba5724");
+const highTide = getDefinition("4686bbb9-517f-4cce-aa7a-5db41e22c02b");
+const homarid = getDefinition("d6ffeab4-83b1-4414-ae72-e59a2354ea15");
+const homaridShaman = getDefinition("c17c6416-86d6-46ea-aea1-41b98a66b250");
+const homaridSpawningBed = getDefinition(
+    "2cbb62fc-3cd9-41a6-804a-4ff9a766897f"
+);
+const homaridWarrior = getDefinition("627ca588-917f-4768-a69d-3d93c1210390");
+const merseine = getDefinition("b1e96895-ef1d-44fa-b263-bce833fc3109");
+const riverMerfolk = getDefinition("27d7fa54-4b89-4a9a-b088-4b89c525c1ea");
+const seasinger = getDefinition("c5266aa1-e2ea-46b9-91ab-b94a7bb7e9f9");
+const tidalFlats = getDefinition("2e820f3f-434e-4d09-91b9-0ebd6966b393");
+const tidalInfluence = getDefinition("b2192c7b-ef6f-4ff6-9017-b1a125340517");
+const vodalianKnights = getDefinition("68d97e1b-2526-4740-b354-f158734d1f72");
+const vodalianMage = getDefinition("c107e82b-134a-4f2b-98c2-6537fae6a50d");
+const vodalianSoldiers = getDefinition("7eb50256-9113-4b03-bcef-9aea24be8493");
+const vodalianWarMachine = getDefinition(
+    "cd962ff0-4aa6-453e-931e-bd36fc034273"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const ALL_FEM_PRINTS = [
     vodalianSoldiersFemB,
@@ -482,12 +483,15 @@ describe("High Tide — extra {U} per Island tapped this turn (CR 614)", () => {
     // The rider was therefore gone by the postcombat main phase, one phase
     // after the High Tide that armed it, with no extra combat involved.
     it("still adds the extra {U} in the POSTCOMBAT main phase (CR 514.2, issue #1864)", () => {
-        const island = makeInstance(getCardByName("Island").id, {
-            id: "isl",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "battlefield",
-        });
+        const island = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "isl",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            }
+        );
         const state = makeState({
             phase: "PRECOMBAT_MAIN",
             players: [
@@ -605,12 +609,16 @@ describe("Seasinger — conditional gainControl (CR 611.2c) + may-not-untap (CR 
             ownerId: "p1",
             zone: "battlefield",
         });
-        const island = makeInstance(getCardByName("Island")?.id ?? "island", {
-            id: "isl",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "battlefield",
-        });
+        const island = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5")?.id ??
+                "island",
+            {
+                id: "isl",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            }
+        );
         const victim = makeInstance(grizzlyBears.id, {
             id: "victim",
             controllerId: "p2",

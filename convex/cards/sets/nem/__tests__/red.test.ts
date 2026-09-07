@@ -8,7 +8,6 @@
 // for an activated ability, plus a wire-format re-assertion for the
 // board-visible outcome.
 import { describe, it, expect } from "vitest";
-import { sealOfFire, arcMage } from "..";
 import {
     getPlayer,
     removePermanentTo,
@@ -24,6 +23,10 @@ import {
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const sealOfFire = getDefinition("37eaf1f6-4bdc-4669-9a15-50b65e016ccf");
+const arcMage = getDefinition("62982dab-4c27-45b3-9740-38fec3df7226");
 
 /** Mirror of the game.ts commit path for a no-mana, no-tap self-sacrifice
  *  activated ability (`cost.sacrifice: true`): pay the cost by moving the

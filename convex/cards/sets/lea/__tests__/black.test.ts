@@ -4,72 +4,8 @@
 // ./helpers; fixture builders stay in convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import {
-    animateDead,
-    badMoon,
-    bayou,
-    blackKnight,
-    bogWraith,
-    burrowing,
-    circleOfProtectionWhite,
-    cursedLand,
-    darkRitual,
-    deathgrip,
-    demonicHordes,
-    demonicTutor,
-    drainLife,
-    drudgeSkeletons,
-    evilPresence,
-    fear,
-    fireball,
-    forest,
-    frozenShade,
-    gloom,
-    grizzlyBears,
-    howlFromBeyond,
-    hypnoticSpecter,
-    juggernaut,
-    lich,
-    lightningBolt,
-    llanowarElves,
-    lordOfThePit,
-    merfolkOfThePearlTrident,
-    mindTwist,
-    mountain,
-    netherShadow,
-    nettlingImp,
-    nightmare,
-    paralyze,
-    pestilence,
-    plagueRats,
-    plains,
-    raiseDead,
-    redElementalBlast,
-    royalAssassin,
-    sacrifice,
-    savannahLions,
-    scatheZombies,
-    scavengingGhoul,
-    sengirVampire,
-    simulacrum,
-    sinkhole,
-    solRing,
-    streamOfLife,
-    swamp,
-    swordsToPlowshares,
-    terror,
-    unholyStrength,
-    uthdenTroll,
-    wallOfBone,
-    warpArtifact,
-    weakness,
-    willOTheWisp,
-    wordOfCommand,
-    zombieMaster,
-} from "..";
 // Cross-set: Blizzard is the shipped card carrying a card-level `castCondition`
 // (CR 601.3a, issue #2102) and Snow-Covered Forest satisfies it.
-import { blizzard, snowCoveredForest } from "../../ice";
 import {
     regenerateOrDestroy,
     removePermanentTo,
@@ -109,6 +45,77 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { activatePump, pushDelayedTrigger, runUntapForJ } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");
+const badMoon = getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
+const bayou = getDefinition("412ceddd-2b9a-4551-a6bf-ae2830a2010a");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
+const bogWraith = getDefinition("6701874e-986e-4b81-9268-90b6171e6187");
+const burrowing = getDefinition("a14c05e4-8df3-450b-8a98-5028e73b14c1");
+const circleOfProtectionWhite = getDefinition(
+    "92df19c9-e127-42d9-8dd2-7fa5a7095428"
+);
+const cursedLand = getDefinition("cf5f3c61-1e54-4eea-bf82-311cfa988e6a");
+const darkRitual = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f");
+const deathgrip = getDefinition("2371c126-f19a-472a-ba5f-3b1366274ea0");
+const demonicHordes = getDefinition("6c9bb8b1-fb79-4b99-ba09-c6e6c860de50");
+const demonicTutor = getDefinition("711d4d54-5520-4de8-9b93-79902ed8e562");
+const drainLife = getDefinition("5d077a49-73d4-4958-b42a-31b814e110e8");
+const drudgeSkeletons = getDefinition("23614289-0d73-4747-a849-5cb67cc97d6a");
+const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
+const fear = getDefinition("0cd927be-e63f-4371-a1d8-7a0489cb187e");
+const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const frozenShade = getDefinition("d0bd76c8-4cff-4c15-9686-7a299b589814");
+const gloom = getDefinition("a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const howlFromBeyond = getDefinition("67ec17e1-174b-4d07-a27f-91a333c4b2fb");
+const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
+const juggernaut = getDefinition("dcd6a291-5282-4f49-8203-d9b416083c48");
+const lich = getDefinition("4250caec-0e37-41be-9ec4-8938deb5f0d0");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const lordOfThePit = getDefinition("2926777a-4f6e-4965-ba83-22cf7df02602");
+const merfolkOfThePearlTrident = getDefinition(
+    "2b871039-6a66-4ac3-95e7-24759c1f2f92"
+);
+const mindTwist = getDefinition("eee9e106-a248-49d2-b8c8-6bbcd56ce739");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const netherShadow = getDefinition("f13ad58a-6f9b-420a-bac1-40929f5e616a");
+const nettlingImp = getDefinition("8105973c-a94d-444c-ba20-ab0fa978bee8");
+const nightmare = getDefinition("b8cdd6a7-f772-4ccb-914f-63f52ed54d6b");
+const paralyze = getDefinition("be33a155-de26-43d1-88f1-c926f1b7cb7c");
+const pestilence = getDefinition("d42a6350-b16b-4e10-a273-e6cbb55dcb7a");
+const plagueRats = getDefinition("b3724e40-0622-4aee-9334-6c9fff88bcd5");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const raiseDead = getDefinition("ce07bede-2219-427c-a61a-56518751de42");
+const redElementalBlast = getDefinition("776ad9be-3309-4f1d-9f27-6219d9477662");
+const royalAssassin = getDefinition("59590768-fa96-4869-8763-9d5ab6ac22ad");
+const sacrifice = getDefinition("12164aee-6a27-4246-8d15-2d6dd20d92e9");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const scavengingGhoul = getDefinition("426984e0-88e1-4a2d-9a1c-798b95864df3");
+const sengirVampire = getDefinition("510840f4-7c0e-4b47-8ebf-23c20cac4bd9");
+const simulacrum = getDefinition("35c3a78d-cc79-4187-929a-8aa1d1469990");
+const sinkhole = getDefinition("04b31611-9053-4eaf-b392-21bb644fef5f");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const streamOfLife = getDefinition("aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const swordsToPlowshares = getDefinition(
+    "386ea9eb-abc1-4862-aa2d-8fb808d79490"
+);
+const terror = getDefinition("21004958-2c7e-4a55-bc80-411c4d780106");
+const unholyStrength = getDefinition("90563f90-0127-4164-b43b-f0321dc63a1d");
+const uthdenTroll = getDefinition("2ff21a6f-83a7-4bf3-a078-294e303232cc");
+const wallOfBone = getDefinition("ae20d442-a544-4a03-9ebf-5ecb137c67dd");
+const warpArtifact = getDefinition("9e5e07a2-fbdf-4c4c-996a-fce40bab5de5");
+const weakness = getDefinition("36ca06a1-9b9a-49a2-9c47-9b72228621bc");
+const willOTheWisp = getDefinition("a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6");
+const wordOfCommand = getDefinition("96c21429-98d3-416b-be00-6aa9c4c5a006");
+const zombieMaster = getDefinition("3d4255a0-d445-4c00-b936-bbf07851e1c8");
+const blizzard = getDefinition("c369e4f9-0f2b-446c-9e2d-d3eefab0586d");
+const snowCoveredForest = getDefinition("4c0ad95c-d62c-4138-ada0-fa39a63a449e");
 
 describe("Bad Moon (static pt-buff: +1/+1 to black creatures)", () => {
     // Savannah Lions is white — Bad Moon must NOT apply. To exercise the

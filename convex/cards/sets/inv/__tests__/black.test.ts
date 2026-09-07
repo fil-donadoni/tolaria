@@ -26,43 +26,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    addle,
-    andraditeLeech,
-    annihilate,
-    bogInitiate,
-    cremate,
-    cryptAngel,
-    desperateResearch,
-    doOrDie,
-    dredge,
-    duskwalker,
-    exoticCurse,
-    gohamDjinn,
-    hypnoticCloud,
-    maraudingKnight,
-    mourning,
-    phyrexianBattleflies,
-    phyrexianDelver,
-    phyrexianInfiltrator,
-    phyrexianReaper,
-    phyrexianSlayer,
-    plagueSpitter,
-    scavengedWeaponry,
-    spreadingPlague,
-    taintedWell,
-    tsabosAssassin,
-    urborgShambler,
-    urborgSkeleton,
-} from "../black";
-import { getCardByName } from "../../../index";
-import {
-    plains,
-    island,
-    savannahLions,
-    grizzlyBears,
-    hillGiant,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -86,6 +49,44 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const addle = getDefinition("e8afb9d0-affa-4599-bf29-729cfe64703b");
+const andraditeLeech = getDefinition("6da0d4f3-9216-406c-8f3e-b9bb0a11dc75");
+const annihilate = getDefinition("4a3bf039-ecf6-477e-997c-e32c55323c01");
+const bogInitiate = getDefinition("8962dc3b-24ca-4c3c-ba1d-933c29cf7b73");
+const cremate = getDefinition("1095cdfe-8060-4a73-bacf-9f983152b486");
+const cryptAngel = getDefinition("522ddc6f-ec13-4a70-8f4c-b3c846b102fd");
+const desperateResearch = getDefinition("6a42ac7e-4a27-488c-a2e7-338b18103b02");
+const doOrDie = getDefinition("05f63cd9-e82b-4cf8-b8ce-f0aa0157692b");
+const dredge = getDefinition("68bfa3d5-0f0b-4684-9567-f1478da01df7");
+const duskwalker = getDefinition("39a4a026-f44e-40e1-9942-a3d8448aca70");
+const exoticCurse = getDefinition("8ee35d99-9a8a-421b-bf43-74446909d87d");
+const gohamDjinn = getDefinition("d67796c7-4d93-4c50-8839-bb69e075bc42");
+const hypnoticCloud = getDefinition("a7502ea2-7555-449e-baee-6ecef5573a3b");
+const maraudingKnight = getDefinition("cea2a7de-c67e-4541-be8c-e5ef7b64d94a");
+const mourning = getDefinition("4649d881-709f-4ed0-91de-744d232a82f5");
+const phyrexianBattleflies = getDefinition(
+    "da27c489-c541-4b0d-a844-71aa65e55ceb"
+);
+const phyrexianDelver = getDefinition("e66d87a5-7b67-4ec5-b5e2-518d67123118");
+const phyrexianInfiltrator = getDefinition(
+    "224b8254-553d-4d88-8163-1f15e1244bd2"
+);
+const phyrexianReaper = getDefinition("ccdd498b-1081-43fe-8193-518337a5a3ea");
+const phyrexianSlayer = getDefinition("5fa8c604-343f-4c94-ac25-439ab1845c19");
+const plagueSpitter = getDefinition("8845e6bd-40ee-45ca-a099-53f19ff20a8a");
+const scavengedWeaponry = getDefinition("4e8072a9-2699-4c6c-9556-67d91bd67a4b");
+const spreadingPlague = getDefinition("ac86055d-ce08-4b05-a92c-45e007ca0ba4");
+const taintedWell = getDefinition("2eec00a1-7e12-42d2-8f46-de8ab7323c2c");
+const tsabosAssassin = getDefinition("0047302d-4e3d-4327-9bb2-ecd5b00b00e3");
+const urborgShambler = getDefinition("eaedd5c8-03c6-4bbb-bf83-632551830bd4");
+const urborgSkeleton = getDefinition("6e522a62-fbca-4362-9006-d4356c525704");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 
 /** Resolves a triggered ability directly (bypasses `matches` — same shim
  *  every other set's local `__tests__/helpers.ts` defines; inlined here
@@ -194,11 +195,14 @@ describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)",
 
 describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.19c / 121.1)", () => {
     it("destroys the target and draws a card", () => {
-        const target = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "target",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const target = makeInstance(
+            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+            {
+                id: "target",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -226,11 +230,14 @@ describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → dest
             controllerId: "p1",
             ownerId: "p1",
         });
-        const greenBlocker = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "green-blk",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const greenBlocker = makeInstance(
+            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+            {
+                id: "green-blk",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [reaper] }),
@@ -288,11 +295,14 @@ describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → dest
             controllerId: "p1",
             ownerId: "p1",
         });
-        const whiteBlocker = makeInstance(getCardByName("Benalish Hero").id, {
-            id: "white-blk",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const whiteBlocker = makeInstance(
+            getDefinition("11600105-56c6-4073-a4a6-8469030b39c9").id,
+            {
+                id: "white-blk",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [reaper] }),
@@ -334,11 +344,14 @@ describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → dest
             controllerId: "p1",
             ownerId: "p1",
         });
-        const whiteBlocker = makeInstance(getCardByName("Benalish Hero").id, {
-            id: "white-blk",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const whiteBlocker = makeInstance(
+            getDefinition("11600105-56c6-4073-a4a6-8469030b39c9").id,
+            {
+                id: "white-blk",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [slayer] }),
@@ -372,11 +385,14 @@ describe("Spreading Plague (ETB → destroy other same-color creatures, can't re
             controllerId: "p1",
             ownerId: "p1",
         });
-        const greenCreature = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "green-c",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const greenCreature = makeInstance(
+            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+            {
+                id: "green-c",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [plague, blackCreature] }),
@@ -460,20 +476,26 @@ describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a
             ownerId: "p1",
         });
         // Elvish Archers — {1}{G}, mana value 2 (CR 202.3) — the chosen card.
-        const gyCreature = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "gy-creature",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
+        const gyCreature = makeInstance(
+            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+            {
+                id: "gy-creature",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }
+        );
         // Benalish Hero — {W}, mana value 1 — a second legal target, so a REAL
         // choice is owed (a lone legal target would auto-select, CR 603.3d).
-        const decoy = makeInstance(getCardByName("Benalish Hero").id, {
-            id: "gy-decoy",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
+        const decoy = makeInstance(
+            getDefinition("11600105-56c6-4073-a4a6-8469030b39c9").id,
+            {
+                id: "gy-decoy",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -534,16 +556,22 @@ describe("Plague Spitter (dies → 1 damage to each creature and each player; CR
             ownerId: "p1",
             zone: "graveyard", // already dead by the time the trigger resolves
         });
-        const ourBear = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "our-bear",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const oppBear = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "opp-bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const ourBear = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "our-bear",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const oppBear = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "opp-bear",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -589,11 +617,14 @@ describe("Tsabo's Assassin ({T}: destroy target creature sharing the board's mos
             controllerId: "p1",
             ownerId: "p1",
         });
-        const greenTarget = makeInstance(getCardByName("Elvish Archers").id, {
-            id: "green-target",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const greenTarget = makeInstance(
+            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+            {
+                id: "green-target",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         // Black count = 2 (assassin + black-2), green count = 1 — black is
         // the sole most-common color.
         const state = makeState({
@@ -635,11 +666,14 @@ describe("Goham Djinn (-2/-2 while black is most common color or tied; CR 613.4a
             ownerId: "p1",
         });
         const greens = Array.from({ length: greenCount }, (_, i) =>
-            makeInstance(getCardByName("Elvish Archers").id, {
-                id: `green-${i}`,
-                controllerId: "p2",
-                ownerId: "p2",
-            })
+            makeInstance(
+                getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
+                {
+                    id: `green-${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }
+            )
         );
         const state = makeState({
             players: [
@@ -695,17 +729,23 @@ describe("Marauding Knight (+1/+1 per opponents' Plains; CR 613.4a CDA)", () => 
             controllerId: "p1",
             ownerId: "p1",
         });
-        const ownPlains = makeInstance(getCardByName("Plains").id, {
-            id: "own-plains",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const ownPlains = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "own-plains",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const oppPlains = [0, 1, 2].map((i) =>
-            makeInstance(getCardByName("Plains").id, {
-                id: `opp-plains-${i}`,
-                controllerId: "p2",
-                ownerId: "p2",
-            })
+            makeInstance(
+                getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+                {
+                    id: `opp-plains-${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }
+            )
         );
         const state = makeState({
             players: [
@@ -723,11 +763,14 @@ describe("Marauding Knight (+1/+1 per opponents' Plains; CR 613.4a CDA)", () => 
             controllerId: "p1",
             ownerId: "p1",
         });
-        const oppPlains = makeInstance(getCardByName("Plains").id, {
-            id: "opp-plains",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const oppPlains = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "opp-plains",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [knight] }),

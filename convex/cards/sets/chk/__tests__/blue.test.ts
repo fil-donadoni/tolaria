@@ -1,12 +1,16 @@
 // CHK (Champions of Kamigawa) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { hondenOfSeeingWinds } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getAbilityEffectFn } from "../../../effectRegistry";
 import { validateAbilityEffectScript } from "../../../../gre/effects/validate";
+import { getDefinition } from "../../../index";
+
+const hondenOfSeeingWinds = getDefinition(
+    "ad732186-eeb9-4edb-a17a-51f8bac71802"
+);
 
 // Honden of Seeing Winds — "At the beginning of your upkeep, draw a card for
 // each Shrine you control." DSL-only TRIGGERED ability (ADR 0045, issue #803):

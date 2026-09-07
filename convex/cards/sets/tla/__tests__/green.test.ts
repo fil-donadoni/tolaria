@@ -1,9 +1,6 @@
 // TLA — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { badgermoleCub } from "../green";
-import { forest } from "../../lea/colorless";
-import { birdsOfParadise } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -23,6 +20,11 @@ import {
 } from "../../../../gre/layers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const badgermoleCub = getDefinition("340c5799-4964-44dd-8c48-8f3f3aba5211");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const birdsOfParadise = getDefinition("55fe6449-1f23-43dc-adee-d144cd505b5c");
 
 /** Pushes Badgermole Cub's ETB (earthbend) triggered ability onto the stack
  *  with an unresolved target slot, mirroring the established

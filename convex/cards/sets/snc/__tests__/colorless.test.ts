@@ -3,14 +3,18 @@
 // these tests lock the `makeTriome` factory output for each card.
 
 import { describe, it, expect } from "vitest";
-import {
-    jetmirsGarden,
-    xandersLounge,
-    sparasHeadquarters,
-    ziatorasProvingGround,
-    raffinesTower,
-} from "../colorless";
 import type { CardDefinition } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const jetmirsGarden = getDefinition("26d40e03-6de4-4373-9fbf-04c1dd79e995");
+const xandersLounge = getDefinition("54f449ff-4025-465e-9ec5-a5cf42c4c9d3");
+const sparasHeadquarters = getDefinition(
+    "7363f1fb-9af3-4212-921f-d59533faf0e5"
+);
+const ziatorasProvingGround = getDefinition(
+    "75fdce80-e338-4a50-bdc6-786511feaeef"
+);
+const raffinesTower = getDefinition("a2c56479-4bee-4edb-80d7-4af010b7c793");
 
 function expectTriome(
     card: CardDefinition,

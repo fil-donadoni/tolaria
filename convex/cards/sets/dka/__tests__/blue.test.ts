@@ -1,7 +1,6 @@
 // Dark Ascension (DKA) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { thoughtScour } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -10,6 +9,9 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const thoughtScour = getDefinition("88bf1ebb-9d85-4b9b-a614-c7f965c0893d");
 
 const libFor = (owner: string, ids: string[]) =>
     ids.map((id) =>

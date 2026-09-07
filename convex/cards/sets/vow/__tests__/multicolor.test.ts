@@ -1,8 +1,6 @@
 // VOW — multicolor card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { bloodtitheHarvester } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { getDefinition, registerTokenDefinition } from "../../../index";
@@ -13,6 +11,11 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import type { StackItem } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+
+const bloodtitheHarvester = getDefinition(
+    "f0192cf7-3391-4720-b9c8-72dec5dde01e"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Registers a minimal synthetic "Artifact — Blood" definition (id-only —
  *  these tests only need the SUBTYPE `count` filter Bloodtithe Harvester's

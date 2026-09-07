@@ -5,8 +5,6 @@
 // remove-or-sacrifice endgame.
 
 import { describe, it, expect } from "vitest";
-import { blastoderm, deepForestHermit } from "..";
-import { forest } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -24,6 +22,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const blastoderm = getDefinition("9db5d6c2-b11f-442a-b172-c0c99c9bec07");
+const deepForestHermit = getDefinition("3287775f-7bec-4e8f-bb8d-daf5ce92e4a8");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** A PHASE_BEGIN upkeep trigger event for `activePlayerId`. */
 const UPKEEP = (activePlayerId: string): StackItem["triggerEvent"] =>

@@ -21,9 +21,6 @@
 // `projectPublicState` for every SURFACE claim.
 
 import { describe, it, expect } from "vitest";
-import { fableOfTheMirrorBreaker } from "../red";
-import { elvishArchers } from "../../lea/green";
-import { jasmineBoreal } from "../../leg/multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
@@ -45,6 +42,12 @@ import {
 import { getDefinition } from "../../../index";
 import { projectPublicState } from "../../../../gameProjections";
 import { LORE_COUNTER } from "../../../abilities/sagas";
+
+const fableOfTheMirrorBreaker = getDefinition(
+    "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc"
+);
+const elvishArchers = getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
+const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
 
 const SHAMAN_TRIGGER_ID = "goblin-shaman-attacks-treasure";
 const KIKI_ABILITY_ID = "reflection-of-kiki-jiki-copy";

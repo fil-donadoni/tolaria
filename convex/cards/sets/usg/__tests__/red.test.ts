@@ -8,9 +8,6 @@
 // board-visible outcome (survives / sacrificed).
 
 import { describe, it, expect } from "vitest";
-import { goblinPatrol, goblinCadets, arcLightning, sneakAttack } from "..";
-import { grizzlyBears } from "../../lea/green";
-import { containmentPriest } from "../../c14/white";
 import {
     makeInstance,
     makePlayer,
@@ -30,6 +27,14 @@ import {
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { fireDelayedTriggers } from "../../../../gre/phases";
+import { getDefinition } from "../../../index";
+
+const goblinPatrol = getDefinition("d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3");
+const goblinCadets = getDefinition("60081115-16bc-4924-b76d-7cfc0ad2287c");
+const arcLightning = getDefinition("0c81ade7-0074-4447-ba2c-b16fa0f09ccb");
+const sneakAttack = getDefinition("d07dc95d-82a8-4a58-8ea2-d4513bd7316d");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const containmentPriest = getDefinition("c2c794b9-09da-49be-b258-b0e21f1663e3");
 
 const ECHO_ABILITY = "goblin-patrol-echo";
 

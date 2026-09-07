@@ -5,82 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ankhOfMishra,
-    badlands,
-    basaltMonolith,
-    bayou,
-    benalishHero,
-    blackVise,
-    castle,
-    celestialPrism,
-    clockworkBeast,
-    conservator,
-    copperTablet,
-    crystalRod,
-    cyclopeanTomb,
-    dingusEgg,
-    disruptingScepter,
-    evilPresence,
-    forcefield,
-    forest,
-    gauntletOfMight,
-    glassesOfUrza,
-    grizzlyBears,
-    helmOfChatzuk,
-    hillGiant,
-    howlingMine,
-    icyManipulator,
-    illusionaryMask,
-    ironStar,
-    ivoryCup,
-    jadeMonolith,
-    jadeStatue,
-    jayemdaeTome,
-    juggernaut,
-    kormusBell,
-    libraryOfLeng,
-    lightningBolt,
-    livingWall,
-    llanowarElves,
-    manaVault,
-    meekstone,
-    mindTwist,
-    monssGoblinRaiders,
-    mountain,
-    moxEmerald,
-    moxJet,
-    moxPearl,
-    moxRuby,
-    moxSapphire,
-    phantasmalTerrain,
-    plains,
-    plateau,
-    prodigalSorcerer,
-    rodOfRuin,
-    savannah,
-    savannahLions,
-    scrubland,
-    sengirVampire,
-    serraAngel,
-    smoke,
-    solRing,
-    soulNet,
-    sunglassesOfUrza,
-    swamp,
-    taiga,
-    theHive,
-    throneOfBone,
-    timeVault,
-    tropicalIsland,
-    tundra,
-    undergroundSea,
-    unholyStrength,
-    wallOfSwords,
-    weakness,
-    winterOrb,
-    woodenSphere,
-} from "..";
-import {
     commitLandsForCost,
     regenerateOrDestroy,
     removePermanentTo,
@@ -154,6 +78,84 @@ import {
 } from "../../../__tests__/setup";
 import { grizzlyBearsId, runUntapForJ } from "./helpers";
 import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
+import { getDefinition } from "../../../index";
+
+const ankhOfMishra = getDefinition("f594b7aa-d44e-47c4-989b-565f881e25f1");
+const badlands = getDefinition("717f6d10-9144-4ade-9ac6-a481cc66b875");
+const basaltMonolith = getDefinition("66a74c89-6f86-4ec8-af17-391cd5026054");
+const bayou = getDefinition("412ceddd-2b9a-4551-a6bf-ae2830a2010a");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const blackVise = getDefinition("76ac72f8-5b1e-4d67-a796-ef69cde27424");
+const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
+const celestialPrism = getDefinition("a47417cb-1ea7-4f65-ba06-e27a99373114");
+const clockworkBeast = getDefinition("27f916a2-0ace-44b5-99dc-72979af34db9");
+const conservator = getDefinition("c7824e2a-4eff-4f72-9216-0db30a4f4252");
+const copperTablet = getDefinition("30935e4a-013e-4c46-ad05-304df8e5dfa4");
+const crystalRod = getDefinition("76693233-7961-4b7e-80f2-ed90e494c4aa");
+const cyclopeanTomb = getDefinition("894c5cf2-8ae2-427a-bcbc-67df0bdfee9d");
+const dingusEgg = getDefinition("65eb6cda-e512-40a8-9c1f-335b713409ff");
+const disruptingScepter = getDefinition("ca571ee8-07a2-43b8-9acf-89cbfd3cf7c9");
+const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
+const forcefield = getDefinition("3f2004c1-8efe-407f-bf48-27b807422eea");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const gauntletOfMight = getDefinition("da248001-ed75-4b68-9532-37d3cd5afc4c");
+const glassesOfUrza = getDefinition("cafc2350-5d64-4379-9198-79a114654d45");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const helmOfChatzuk = getDefinition("3792c6ef-c4e6-4923-9a51-7d28fbc5c393");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
+const howlingMine = getDefinition("51f8f6e1-a451-4262-90d3-5107caf54175");
+const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
+const illusionaryMask = getDefinition("62ef2f37-b8ad-47ad-89ca-d6abcb7ff21b");
+const ironStar = getDefinition("5786de12-cade-43c2-a6b0-0c5b294b9d0e");
+const ivoryCup = getDefinition("9964d8d8-dc97-4e5f-9f52-173f7e2c37fd");
+const jadeMonolith = getDefinition("4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a");
+const jadeStatue = getDefinition("8d82d94b-ceef-4533-a4f2-b6442a61b839");
+const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
+const juggernaut = getDefinition("dcd6a291-5282-4f49-8203-d9b416083c48");
+const kormusBell = getDefinition("3f4ef7a1-148d-44ac-89ed-0ef379cca0c6");
+const libraryOfLeng = getDefinition("2340edcb-8cd5-4ccd-99e2-b9a29f72c495");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const livingWall = getDefinition("4a98ada6-923a-44a5-bdef-ea6a160b481e");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const manaVault = getDefinition("19499cb7-eccb-4e69-af32-6002d447a160");
+const meekstone = getDefinition("13a68a17-22ee-47c9-870a-83e911862b94");
+const mindTwist = getDefinition("eee9e106-a248-49d2-b8c8-6bbcd56ce739");
+const monssGoblinRaiders = getDefinition(
+    "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
+);
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const moxEmerald = getDefinition("b0e1427c-05cd-465b-be59-97ed6e39f7ba");
+const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");
+const moxPearl = getDefinition("8ebe4be7-e12a-4596-a899-fbd5b152e879");
+const moxRuby = getDefinition("8945585f-4773-493d-a0fe-d707db910b38");
+const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
+const phantasmalTerrain = getDefinition("1c371aa1-1619-41e3-8364-7bc9b8cf5d14");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const plateau = getDefinition("6eafa00b-c628-40f6-86eb-88e1361fc7a0");
+const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
+const rodOfRuin = getDefinition("af957200-c538-4f52-b105-6db7a7abb4dc");
+const savannah = getDefinition("94f7e24c-2546-41b6-81ad-5e920b07e64e");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const scrubland = getDefinition("bebe39d4-21fb-46a4-a1ec-b97102e46c15");
+const sengirVampire = getDefinition("510840f4-7c0e-4b47-8ebf-23c20cac4bd9");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const smoke = getDefinition("7c67788e-d713-47c3-ab9f-b8a6212ae24f");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const soulNet = getDefinition("2b814198-814b-4619-a158-327af675f8f2");
+const sunglassesOfUrza = getDefinition("c0d433a4-76c0-4f27-836d-4c0c13a511fb");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const taiga = getDefinition("60df6592-0b3b-4b87-aeb2-8fa94b4fb7be");
+const theHive = getDefinition("544a7138-eae8-4ff9-9e17-680bfa717183");
+const throneOfBone = getDefinition("a2931ae0-7836-4000-b9ec-f2029ebf5d96");
+const timeVault = getDefinition("902441dc-c976-4c92-b897-6376eaa0fe38");
+const tropicalIsland = getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
+const undergroundSea = getDefinition("ff76ac86-8a8a-47fe-9388-8950ca3e26c3");
+const unholyStrength = getDefinition("90563f90-0127-4164-b43b-f0321dc63a1d");
+const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
+const weakness = getDefinition("36ca06a1-9b9a-49a2-9c47-9b72228621bc");
+const winterOrb = getDefinition("9359f60c-9a27-4e53-b35b-964a121a6fba");
+const woodenSphere = getDefinition("bcae01a2-171b-47cd-87be-f1e4e5314326");
 
 describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
     // Drives the incoming player's UNTAP step by advancing from END_STEP:

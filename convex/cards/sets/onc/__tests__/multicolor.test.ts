@@ -20,7 +20,9 @@ import {
     selectActivationCostOnState,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { otharriSunsGlory } from "../multicolor";
+import { getDefinition } from "../../../index";
+
+const otharriSunsGlory = getDefinition("80c72839-0fa6-4b5f-83b7-6553ebf09bef");
 
 /** Puts Otharri's attack trigger on the stack the way `ATTACKERS_DECLARED`
  *  would (the Satya harness shape, `m3c/__tests__/multicolor.test.ts`). */

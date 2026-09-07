@@ -1,7 +1,6 @@
 // Aetherdrift (DFT) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { stockUp } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -11,6 +10,9 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const stockUp = getDefinition("0a786855-6eb4-42c0-a528-4842db46809d");
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

@@ -15,67 +15,6 @@
 import { describe, it, expect } from "vitest";
 import type { CardType, TargetSelection } from "../../../types";
 import {
-    orderedMigration,
-    coalitionVictory,
-    angelicShield,
-    wingsOfHope,
-    teferisMoat,
-    sleepersRobe,
-    stalkingAssassin,
-    urborgDrake,
-    vileConsumption,
-    recoil,
-    agonizingDemise,
-    blazingSpecter,
-    bloodstoneCameo,
-    firescreamer,
-    hoodedKavu,
-    plagueSpores,
-    recklessAssault,
-    shivanOasis,
-    smolderingTar,
-    trenchWurm,
-    trollHornCameo,
-    urborgVolcano,
-    viciousKavu,
-    artifactMutation,
-    firesOfYavimaya,
-    frenziedTilling,
-    huntingKavu,
-    meteorStorm,
-    ragingKavu,
-    voraciousCobra,
-    yavimayaKavu,
-    firebrandRanger,
-    savageOffensive,
-    viashinoGrappler,
-    armadilloCloak,
-    auraShards,
-    captainSisay,
-    chargingTroll,
-    hornedCheetah,
-    noblePanther,
-    sabertoothNishoba,
-    dromar,
-    rith,
-    treva,
-    stormscapeApprentice,
-    stormscapeMaster,
-    nightscapeMaster,
-    thunderscapeApprentice,
-    thunderscapeMaster,
-    sterlingGrove,
-    revivingVapors,
-    barrinsSpite,
-    seersVision,
-    aetherRift,
-    shivanEmissary,
-    duelingGrounds,
-    undermine,
-} from "../multicolor";
-import { lobotomy } from "../../tmp/multicolor";
-import { simoon } from "../../vis/multicolor";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -94,22 +33,6 @@ import {
     tapSourceIntoPayment,
 } from "../../../../game";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
-import {
-    plains,
-    island,
-    swamp,
-    mountain,
-    forest,
-    icyManipulator,
-} from "../../lea/colorless";
-import {
-    grizzlyBears,
-    scatheZombies,
-    airElemental,
-    dwarvenWarriors,
-    benalishHero,
-} from "../../lea";
-import { empressGalina } from "../blue";
 import { registerTokenDefinition } from "../../..";
 import {
     getEffectivePower,
@@ -125,11 +48,90 @@ import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
 } from "../../../../gre/combat";
-import { cavernsOfDespair } from "../../leg/red";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const orderedMigration = getDefinition("04d83a07-6054-45f1-bdf9-07f2006238d2");
+const coalitionVictory = getDefinition("dd8ad3aa-3225-45ae-8343-5991f5b52269");
+const angelicShield = getDefinition("5aaa3e4e-4e08-4df2-9e0c-66e15a10fec4");
+const wingsOfHope = getDefinition("be0d2402-f1ef-4a71-ac01-c7099c4ce54c");
+const teferisMoat = getDefinition("9ed5845c-ef6d-4a7b-b725-b09d3e9bbc17");
+const sleepersRobe = getDefinition("3411f0fd-8b85-4d0d-a202-701a24ffac9f");
+const stalkingAssassin = getDefinition("ff8cc71f-3070-497f-908f-35aa13a8a857");
+const urborgDrake = getDefinition("97d1327e-bf87-423f-8a04-8124e45b9ae0");
+const vileConsumption = getDefinition("7f7e5716-77f3-45d2-a40a-f5bf500f6ad7");
+const recoil = getDefinition("b6a77be3-e3b0-40f5-a470-414bac49da60");
+const agonizingDemise = getDefinition("539ac5e1-4bad-4f70-abac-e70c406bebec");
+const blazingSpecter = getDefinition("3bd397be-0e61-4f41-b0cf-f0c9d2440da7");
+const bloodstoneCameo = getDefinition("f9db32fa-64b2-4ef6-88f2-28e758d420bb");
+const firescreamer = getDefinition("155a2213-bf6e-4a54-924b-e450b7d06f26");
+const hoodedKavu = getDefinition("5464b80a-22fe-42c7-a839-31667712fb2d");
+const plagueSpores = getDefinition("0d106d56-a688-49cc-8d5d-0279a5a7c0a7");
+const recklessAssault = getDefinition("ff0f568e-4d3a-40a5-b72a-63040ec5402d");
+const shivanOasis = getDefinition("9841f7e8-162c-44a3-96f3-af944fce15d1");
+const smolderingTar = getDefinition("fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c");
+const trenchWurm = getDefinition("1b076f85-d1bf-491a-af9d-f35b8e1bd163");
+const trollHornCameo = getDefinition("42b1ca6c-6ca0-4b02-885a-58cee3fa2aa8");
+const urborgVolcano = getDefinition("c76f346c-ae34-4f5f-8e3b-6c77b0c4d530");
+const viciousKavu = getDefinition("31e9e629-7c25-4d45-aa35-9ba5f95b43cb");
+const artifactMutation = getDefinition("d5eef49c-a80f-4622-ba77-999f9151c841");
+const firesOfYavimaya = getDefinition("967f1658-8777-46fc-a648-07fb19e46745");
+const frenziedTilling = getDefinition("15875876-3341-40fb-866f-5587c3638538");
+const huntingKavu = getDefinition("8943304a-89c9-48b0-97b4-3e1aa690ca4d");
+const meteorStorm = getDefinition("36489b24-f8a8-46b6-b879-0a5ce400a6dc");
+const ragingKavu = getDefinition("27573679-e9e5-4bfc-b5d5-85d4648b01b6");
+const voraciousCobra = getDefinition("9d8c5669-11a9-4d95-8431-7065037f1fb6");
+const yavimayaKavu = getDefinition("1872f104-7cf1-41e3-b1b4-ca75c678e08b");
+const firebrandRanger = getDefinition("ee05211e-cf08-4dea-9740-ed06f8682153");
+const savageOffensive = getDefinition("356744f3-e444-4f4e-bf00-80bb6b2ef76f");
+const viashinoGrappler = getDefinition("4a94aeb4-349c-4394-848d-c1c9133856e2");
+const armadilloCloak = getDefinition("9d816f98-6cb6-432c-b0a4-a0eed21658ac");
+const auraShards = getDefinition("df4039ef-af72-4267-ade9-fdb7c921279e");
+const captainSisay = getDefinition("d24d441c-f37f-44fe-8a93-f5c89df807e4");
+const chargingTroll = getDefinition("58956099-6b97-4c7b-ab23-9f9b4d50ef95");
+const hornedCheetah = getDefinition("a28ad983-ce91-40b6-a1ce-fe36ec7fbce8");
+const noblePanther = getDefinition("3f327818-8222-4295-8cef-118757b34d17");
+const sabertoothNishoba = getDefinition("8338c296-cf3f-41d7-b380-3fb4237cb41c");
+const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");
+const rith = getDefinition("c30be387-280d-49bd-a3d1-c1636ee931ce");
+const treva = getDefinition("4ee67039-6cee-4a2d-b973-570f5060f550");
+const stormscapeApprentice = getDefinition(
+    "1eb42f39-9187-44e4-aa34-14ab31977199"
+);
+const stormscapeMaster = getDefinition("9b704165-4587-48f1-8830-c5a07ec666cc");
+const nightscapeMaster = getDefinition("d86174b8-dd9e-4ece-bc23-4f9ac50bccd3");
+const thunderscapeApprentice = getDefinition(
+    "75a0b075-5414-48d3-a2b1-47dc20213e96"
+);
+const thunderscapeMaster = getDefinition(
+    "22abdc2f-bdc8-46c4-8ce2-f06befedbc32"
+);
+const sterlingGrove = getDefinition("40b26aa3-8169-4978-9554-bd2fc8e18e3b");
+const revivingVapors = getDefinition("47a23c32-e122-400b-b252-e636ea2e684b");
+const barrinsSpite = getDefinition("6d8ec4dc-c74a-4d49-856e-95703675fe9b");
+const seersVision = getDefinition("0c94618a-808c-4b3c-8f34-45e64d0414d3");
+const aetherRift = getDefinition("692c186a-997c-4f7e-a339-bf84884e1019");
+const shivanEmissary = getDefinition("945c596e-492e-4cf5-857c-4ddbbdd78485");
+const duelingGrounds = getDefinition("52760183-bee0-4ce0-96c0-074b88f78980");
+const undermine = getDefinition("2334bc71-5f85-47ff-b393-601a1e746a4e");
+const lobotomy = getDefinition("ee7ba92d-d327-4b1c-be40-708c5abb27df");
+const simoon = getDefinition("642d9239-82e0-4696-ad99-10796042d1f8");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const dwarvenWarriors = getDefinition("2d4d87a3-5f8b-4152-9a8b-538ab49d62e8");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const empressGalina = getDefinition("6851dbc7-f072-41e7-a899-897445d99425");
+const cavernsOfDespair = getDefinition("209f7479-b3a0-4c27-9602-78babb8d2e99");
 
 /** Drives a CR 603.3d trigger target choice through the real machinery (issue
  *  #1193): raise the `kind:"trigger"` PendingTarget on the top-of-stack

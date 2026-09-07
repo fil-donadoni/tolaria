@@ -1,7 +1,6 @@
 // Magic 2011 (M11) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { preordain } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -11,6 +10,9 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const preordain = getDefinition("e3868c3d-4fcd-444b-866f-0f8e50ce7b67");
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

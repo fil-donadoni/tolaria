@@ -19,11 +19,6 @@
 // with the interpreter, per the per-Op regime.
 
 import { describe, it, expect } from "vitest";
-import { broadsideBombardiers } from "../red";
-import { grizzlyBears } from "../../lea/green";
-import { hillGiant } from "../../lea/red";
-import { blackLotus } from "../../lea/colorless";
-import { deathriteShaman } from "../../rtr/multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { assertActivationTimingLegal } from "../../../../game";
 import { applyActivationCostsForSearch } from "../../../../gre/applyMove";
@@ -34,6 +29,15 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const broadsideBombardiers = getDefinition(
+    "ec9df172-9fdb-4b0c-a23a-865b83c8fa40"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const deathriteShaman = getDefinition("70496f16-c4c0-4c03-beef-454eb4824cd1");
 
 const BOAST_ID = "broadside-bombardiers-boast-damage";
 const boast = broadsideBombardiers.activatedAbilities!.find(

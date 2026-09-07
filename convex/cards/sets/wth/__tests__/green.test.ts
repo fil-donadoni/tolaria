@@ -1,7 +1,6 @@
 // Weatherlight (WTH) — green card behavior tests (ADR 0043 colour split).
 // Each describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { gaeasBlessing } from "../green";
 import {
     makeInstance,
     makePlayer,
@@ -15,10 +14,13 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { registerTokenDefinition, getCardByName } from "../../../index";
+import { registerTokenDefinition } from "../../../index";
 import type { GameEvent } from "../../../types";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const gaeasBlessing = getDefinition("ee83d511-57e0-40fb-a4db-62f6c2c39888");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 const MILL_ABILITY = "gaeas-blessing-mill-shuffle";
 
 /** A CARD_MILLED event for `instanceId`, owned by `owner` (issue #1055). */

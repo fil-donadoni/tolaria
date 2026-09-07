@@ -25,9 +25,12 @@ import {
 } from "../../../../gre/playLand";
 import { projectPublicState } from "../../../../gameProjections";
 import { courserBoard } from "./courserBoard";
-import { forest, mountain } from "../../lea/colorless";
-import { stompingGround } from "../../gpt/colorless";
-import { grizzlyBears } from "../../lea/green";
+import { getDefinition } from "../../../index";
+
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const stompingGround = getDefinition("a2773d8f-f906-475d-aaff-b7ca3b01f188");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("play-lands-from-top permission (CR 305.1-analog)", () => {
     it("canPlayLandsFromTopOfLibrary is true only for the Courser's controller", () => {

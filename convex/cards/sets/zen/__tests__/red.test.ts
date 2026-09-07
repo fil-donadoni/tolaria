@@ -3,9 +3,11 @@
 // `kickerCount` value member: 2 damage, or 4 when kicked.
 
 import { describe, it, expect } from "vitest";
-import { burstLightning } from "../red";
 import { makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const burstLightning = getDefinition("2dc16614-5cf8-444d-a5ae-cac25018af68");
 
 describe("Burst Lightning (Kicker {4}, CR 702.33 / 120)", () => {
     it("deals 2 damage to any target when not kicked", () => {

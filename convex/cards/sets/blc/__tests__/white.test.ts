@@ -1,7 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { jackedRabbit } from "../white";
-import { grizzlyBears } from "../../lea/green";
-import { ephemerate } from "../../mh1/white";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +19,10 @@ import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
+
+const jackedRabbit = getDefinition("2c695df6-6bf2-4e6b-8500-e3116137ca27");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const ephemerate = getDefinition("2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa");
 
 /** Casts Jacked Rabbit for `x` and resolves it onto p1's battlefield.
  *  Mirrors the shared `entersWithCounters` pattern: the chosen X lives on the

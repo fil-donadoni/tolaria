@@ -5,39 +5,23 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    armorThrull,
     armorThrullFemB,
     armorThrullFemC,
     armorThrullFemD,
-    basalThrull,
     basalThrullFemB,
     basalThrullFemC,
     basalThrullFemD,
-    breedingPit,
-    derelor,
-    ebonPraetor,
-    hymnToTourach,
     hymnToTourachFemB,
     hymnToTourachFemC,
     hymnToTourachFemD,
-    initiatesOfTheEbonHand,
     initiatesOfTheEbonHandFemB,
     initiatesOfTheEbonHandFemC,
-    mindstabThrull,
     mindstabThrullFemB,
     mindstabThrullFemC,
-    necrite,
     necriteFemB,
     necriteFemC,
-    orderOfTheEbonHand,
     orderOfTheEbonHandFemB,
     orderOfTheEbonHandFemC,
-    soulExchange,
-    thrullChampion,
-    thrullRetainer,
-    thrullWizard,
-    tourachsChant,
-    tourachsGate,
 } from "..";
 import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
@@ -58,7 +42,6 @@ import {
     tryAutoCommitPendingCast,
     tapSourceIntoPayment,
 } from "../../../../game";
-import { grizzlyBears } from "../../lea";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -74,6 +57,28 @@ import {
     resolveActivated,
     answerPendingChoices,
 } from "./helpers";
+
+const armorThrull = getDefinition("a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a");
+const basalThrull = getDefinition("0c1d5d13-0160-48cb-8fac-dd86102569b4");
+const breedingPit = getDefinition("a0d7e85f-eba5-4fc5-9fc0-109109d368aa");
+const derelor = getDefinition("9eb2b79f-f09a-49dc-8e0f-7d711ba78981");
+const ebonPraetor = getDefinition("40451f7a-692a-422d-99d3-d93a4d9315e0");
+const hymnToTourach = getDefinition("eb9273ea-9a41-42e3-8c9c-0d50b127a818");
+const initiatesOfTheEbonHand = getDefinition(
+    "5be87527-3b8f-4529-afdb-a61ad4e787e1"
+);
+const mindstabThrull = getDefinition("499a791f-ac4f-4a96-b59b-37043686a79a");
+const necrite = getDefinition("311d752a-ce8a-44cb-8aeb-1ed66705eb09");
+const orderOfTheEbonHand = getDefinition(
+    "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0"
+);
+const soulExchange = getDefinition("9f73597d-f453-4d37-b2ef-c54ef683a884");
+const thrullChampion = getDefinition("4d3cafdd-a03b-4b08-b9c1-c776f8450d3a");
+const thrullRetainer = getDefinition("d800512b-1492-41d2-931d-57c625044454");
+const thrullWizard = getDefinition("c4e732fb-cbef-4fd8-b704-e4d513a6cf2d");
+const tourachsChant = getDefinition("06883fd2-eccd-47c6-8c34-10d95e923685");
+const tourachsGate = getDefinition("d77f6401-a9fb-449c-b511-6fb837055bb4");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Multi-art black prints (C5) — each resolves to its shared definition.
 const C5_MULTI_ART_PRINTS: { print: CardPrint; defId: string }[] = [
@@ -1244,11 +1249,14 @@ describe("Tourach's Chant — Forest-entered punisher (CR 603.2)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const forest = makeInstance(getCardByName("Forest").id, {
-            id: "forest",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const forest = makeInstance(
+            getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+            {
+                id: "forest",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [chant] }),
@@ -1316,11 +1324,14 @@ describe("Tourach's Gate — time counters + attacker pump (CR 303.4, 122)", () 
     });
 
     it("tap-the-host pump gives attacking creatures +2/-1 and taps the land", () => {
-        const land = makeInstance(getCardByName("Swamp").id, {
-            id: "land",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id,
+            {
+                id: "land",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const gate = makeInstance(tourachsGate.id, {
             id: "gate",
             controllerId: "p1",

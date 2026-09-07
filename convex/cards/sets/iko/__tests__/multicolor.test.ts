@@ -16,14 +16,19 @@ import {
     resolveTopOfStack,
     processPendingActionTriggers,
 } from "../../../../gre/state";
-import { lutri, lurrus } from "../multicolor";
-import { lightningBolt, savannahLions, stoneRain } from "../../lea";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 import {
     canCastPermanentFromGraveyardByPermission,
     getLegalActions,
 } from "../../../../gre/rules";
+import { getDefinition } from "../../../index";
+
+const lutri = getDefinition("fb1189c9-7842-466e-8238-1e02677d8494");
+const lurrus = getDefinition("5ad36fb2-c44e-4085-ba0d-54277841ad3a");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
 
 describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)", () => {
     it("when CAST, copies a target instant/sorcery spell it controls (CR 707.10)", () => {

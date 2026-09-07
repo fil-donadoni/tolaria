@@ -10,8 +10,6 @@
 // PERMANENT_ENTERED event on every entry path, not only a cast.
 
 import { describe, it, expect } from "vitest";
-import { enduringCourage, fearOfMissingOut } from "..";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -28,7 +26,6 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { getCardByName } from "../../../index";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -37,6 +34,11 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { GameEvent } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const enduringCourage = getDefinition("f46ac55f-d68e-4d5d-af0a-3879f97f705e");
+const fearOfMissingOut = getDefinition("9d48aaff-46ab-411b-9456-171d4709f951");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function submitDiscard(
     state: ReturnType<typeof makeState>,
@@ -229,10 +231,10 @@ describe("Fear of Missing Out (CR 603.2 ETB — discard then draw, issue #2421)"
     });
 });
 
-const MOUNTAIN = getCardByName("Mountain").id; // Land
-const BEARS = getCardByName("Balduvian Bears").id; // Creature
-const BOLT = getCardByName("Lightning Bolt").id; // Instant
-const WRATH = getCardByName("Wrath of God").id; // Sorcery
+const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id; // Land
+const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id; // Creature
+const BOLT = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a").id; // Instant
+const WRATH = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd").id; // Sorcery
 
 /** Four DISTINCT card types among cards in p1's graveyard — delirium ON
  *  (CR 207.2c ability word; the threshold the card's own text states). */

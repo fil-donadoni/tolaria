@@ -10,10 +10,6 @@
 // ultimate actually reaches it.
 
 import { describe, it, expect } from "vitest";
-import { fallenShinobi, wrennAndSix } from "../multicolor";
-import { island, mountain } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -21,6 +17,14 @@ import { projectPublicState } from "../../../../gameProjections";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../../emblems";
 import { hasRetrace } from "../../../../gre/retrace";
 import type { TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const fallenShinobi = getDefinition("900c9dfd-ece1-4b09-a801-0fa05e1994b9");
+const wrennAndSix = getDefinition("4a706ecf-3277-40e3-871c-4ba4ead16e20");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 const PLUS1 = "wrenn-and-six-plus1";
 const MINUS1 = "wrenn-and-six-minus1";

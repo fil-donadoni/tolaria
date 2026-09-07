@@ -17,11 +17,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { thoughtcast } from "../blue";
-import { frogmite } from "../colorless";
-import { solRing } from "../../lea";
-import { grizzlyBears } from "../../lea/green";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getLegalActions } from "../../../../gre/rules";
 import {
@@ -31,6 +26,12 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import type { CardDefinition } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const thoughtcast = getDefinition("efb965a7-877a-4302-b507-25b0a9e32d9b");
+const frogmite = getDefinition("ff504dcb-2eb8-4b3c-a8b9-29697739b649");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Mirror `game.ts`'s hand-cast cost calc: normalize the printed cost, then
  *  fold in cost modifiers (battlefield scan + self-host). The exact pair of
@@ -81,7 +82,9 @@ function boardWith(
 
 describe("Thoughtcast — Affinity for artifacts (CR 702.41a)", () => {
     it("is reachable through the card registry by name", () => {
-        expect(getCardByName("Thoughtcast")?.id).toBe(thoughtcast.id);
+        expect(getDefinition("efb965a7-877a-4302-b507-25b0a9e32d9b")?.id).toBe(
+            thoughtcast.id
+        );
     });
 
     it("costs the full {4}{U} with no artifacts controlled", () => {

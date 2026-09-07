@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { powderKeg } from "../colorless";
 import {
     resolveTopOfStack,
     removePermanentTo,
@@ -13,6 +12,9 @@ import type { CardDefinition } from "../../../types";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const powderKeg = getDefinition("4d9715c2-9036-4ae2-a5b4-1b190d50c963");
 const DETONATE = "powder-keg-detonate";
 
 type UpkeepEvent = Parameters<typeof collectTriggers>[1][number];

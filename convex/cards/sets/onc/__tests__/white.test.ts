@@ -15,8 +15,6 @@
 // counter through `projectPublicState`.
 
 import { describe, it, expect } from "vitest";
-import { staffOfTheStoryteller, glimmerLens } from "../white";
-import { grizzlyBears } from "../../lea/green";
 import {
     getPlayer,
     getOpponentId,
@@ -38,6 +36,12 @@ import {
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
+
+const staffOfTheStoryteller = getDefinition(
+    "ab1d1461-1625-4163-aacd-a939f4871fad"
+);
+const glimmerLens = getDefinition("c9262000-e6f3-4da1-ad1c-038f65d3bef6");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Mirrors game.ts `activateAbility`'s immediate-commit branch for a stack
  *  ability: pay the non-mana cost (tap / removeCounter), push the ability on

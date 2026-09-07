@@ -1,7 +1,6 @@
 // Mirage (MIR) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { lionsEyeDiamond, phyrexianDreadnought } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -16,6 +15,12 @@ import {
 } from "../../../../gre/state";
 import type { MayPayCost } from "../../../types";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const lionsEyeDiamond = getDefinition("63bacc32-d6ba-420c-9b49-299c08e5fb39");
+const phyrexianDreadnought = getDefinition(
+    "7b8197b9-0cd1-4fa1-9668-d1b5f1759151"
+);
 
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 

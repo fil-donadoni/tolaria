@@ -1,7 +1,6 @@
 // Lorwyn (LRW) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { ponder } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -13,6 +12,9 @@ import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const ponder = getDefinition("ba6b6fc5-5077-4812-b8e9-906783dbaf67");
 
 const lib = (ids: string[]) =>
     ids.map((id) =>

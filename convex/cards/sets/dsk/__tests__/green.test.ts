@@ -13,8 +13,6 @@
 // Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { enduringVitality } from "..";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getActivatedManaAbility } from "../../../../gre/constants";
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
@@ -28,6 +26,10 @@ import { tapSourceIntoPayment } from "../../../../game";
 import { resolveTriggerOrder } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const enduringVitality = getDefinition("9d76a30c-0431-4334-892a-9822dda9671a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** p1 controls Enduring Vitality and a Grizzly Bears; p2 controls a Bears of
  *  their own (the "creatures you control" negative half).

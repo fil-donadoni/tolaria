@@ -3,7 +3,9 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
-import { elvishMystic } from "../green";
+import { getDefinition } from "../../../index";
+
+const elvishMystic = getDefinition("60d0e6a6-629a-45a7-bfcb-25ba7156788b");
 
 // Elvish Mystic — {G} 1/1 Elf Druid, "{T}: Add {G}." The archetypal ramp dork:
 // what has to hold is that a single {T} yields exactly one {G} option through

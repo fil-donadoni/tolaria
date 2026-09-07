@@ -1,8 +1,6 @@
 // c13 — black card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { toxicDeluge } from "../../c13";
-import { grizzlyBears, crawWurm } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +14,11 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const toxicDeluge = getDefinition("564caf57-4ba5-4993-a35e-945699c94eb7");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
 
 // Toxic Deluge — {2}{B} Sorcery. "As an additional cost to cast this spell,
 // pay X life. All creatures get -X/-X until end of turn." (CR 118.4 / 119.4

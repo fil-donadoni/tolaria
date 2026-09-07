@@ -12,8 +12,6 @@
 // creature dies" permanent (Soul Net) does NOT see Blightsteel Colossus die.
 
 import { describe, it, expect } from "vitest";
-import { blightsteelColossus } from "../colorless";
-import { soulNet } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -28,6 +26,12 @@ import {
     flushPendingEvents,
     processPendingActionTriggers,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const blightsteelColossus = getDefinition(
+    "7928bb14-7631-4830-a756-26d1ea832ba2"
+);
+const soulNet = getDefinition("2b814198-814b-4619-a158-327af675f8f2");
 
 describe("Blightsteel Colossus (CR 702.19 trample, 702.90 infect, 702.12b indestructible, CR 614.1a graveyard-bound replacement, issue #2106)", () => {
     it("dies on the battlefield: shuffles itself into its owner's library instead of the graveyard, and never emits CREATURE_DIED", () => {

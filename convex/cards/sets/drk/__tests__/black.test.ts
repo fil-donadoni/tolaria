@@ -6,24 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ashesToAshes,
-    banshee,
-    bogRats,
-    curseArtifact,
-    eaterOfTheDead,
-    graveRobbers,
-    inquisition,
-    marshGas,
-    murkDwellers,
-    namelessRace,
-    ragMan,
-    seasonOfTheWitch,
-    theFallen,
-    uncleIstvan,
-    wordOfBinding,
-    wormsOfTheEarth,
-} from "..";
-import {
     UPKEEP,
     answerChoice,
     resolveActivated,
@@ -60,8 +42,25 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getCardByName } from "../../../index";
-import { mountain } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const ashesToAshes = getDefinition("825496e5-19c7-4f50-8070-0265a58608dc");
+const banshee = getDefinition("66eaa7d6-48b2-4b35-a834-790edd679e0e");
+const bogRats = getDefinition("d64c9153-bc6d-4a64-885f-c039a5487a31");
+const curseArtifact = getDefinition("9fc0d070-8a42-4d5e-8f2b-ceb59147de6f");
+const eaterOfTheDead = getDefinition("d89fe2be-bb7e-4bae-9b1f-9f0d58f20ceb");
+const graveRobbers = getDefinition("a131605a-f646-4745-a1e4-48d155a3d94f");
+const inquisition = getDefinition("5f133f06-6398-4db1-8577-66c16fd3e00d");
+const marshGas = getDefinition("b80ecb15-258b-4fc9-86e4-c2bf01891606");
+const murkDwellers = getDefinition("a213450f-02f4-4c08-8da8-891ebfa8e237");
+const namelessRace = getDefinition("348a467a-4661-4fdb-af1d-9171a1a930d9");
+const ragMan = getDefinition("f4c133b8-8383-433f-be96-c47a937287b7");
+const seasonOfTheWitch = getDefinition("06900a71-34ca-48c6-94ac-fca744356829");
+const theFallen = getDefinition("f4a176e1-b22b-4f36-ba7b-c506cb4e1bed");
+const uncleIstvan = getDefinition("848ad6d5-3a7e-4d6b-9929-36465796871f");
+const wordOfBinding = getDefinition("ee30efdb-f1f1-497f-80a6-ec961db67c1d");
+const wormsOfTheEarth = getDefinition("65a97821-ca5b-46fb-af08-86de81d0daac");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BLACK free tranche (#413)
@@ -69,16 +68,22 @@ import { mountain } from "../../lea";
 
 describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.13 / 119)", () => {
     it("exiles both targets and deals 5 to the caster", () => {
-        const a = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "a",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const b = makeInstance(getCardByName("Hill Giant").id, {
-            id: "b",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const a = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "a",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const b = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "b",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { life: 20 }),
@@ -96,16 +101,22 @@ describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.1
     });
 
     it("artifact creatures are not legal targets (excludeTypes)", () => {
-        const robot = makeInstance(getCardByName("Ornithopter").id, {
-            id: "robot",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const bear = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const robot = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "robot",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const bear = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "bear",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -178,12 +189,15 @@ describe("Bog Rats — can't be blocked by Walls (CR 509.1b / 205.3)", () => {
             controllerId: "p1",
             isAttacking: true,
         });
-        const blocker = makeInstance(getCardByName("Wall of Wood").id, {
-            id: "blocker",
-            controllerId: "p2",
-            ownerId: "p2",
-            subtypes: blockerSubtypes,
-        });
+        const blocker = makeInstance(
+            getDefinition("8df80424-3bd9-4982-ad79-e55d9ba3b43d").id,
+            {
+                id: "blocker",
+                controllerId: "p2",
+                ownerId: "p2",
+                subtypes: blockerSubtypes,
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [rats] }),
@@ -219,11 +233,14 @@ describe("Bog Rats — can't be blocked by Walls (CR 509.1b / 205.3)", () => {
 
 describe("Curse Artifact — upkeep 2 damage unless sacrifice the artifact (CR 603.6a / 117.3a)", () => {
     function setup() {
-        const artifact = makeInstance(getCardByName("Ornithopter").id, {
-            id: "art",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const artifact = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "art",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const aura = makeInstance(curseArtifact.id, {
             id: "curse",
             controllerId: "p1",
@@ -277,12 +294,15 @@ describe("Eater of the Dead — {0}: if tapped, exile a graveyard creature + unt
             controllerId: "p1",
             isTapped: tapped,
         });
-        const corpse = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "corpse",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
+        const corpse = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "corpse",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [eater] }),
@@ -327,12 +347,15 @@ describe("Grave Robbers — {B},{T}: exile a graveyard artifact, gain 2 life (CR
             id: "robber",
             controllerId: "p1",
         });
-        const art = makeInstance(getCardByName("Ornithopter").id, {
-            id: "art",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
+        const art = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "art",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { life: 20, battlefield: [robber] }),
@@ -350,24 +373,33 @@ describe("Grave Robbers — {B},{T}: exile a graveyard artifact, gain 2 life (CR
 
 describe("Inquisition — reveal hand, damage = white cards in hand (CR 202.2 / 119)", () => {
     it("deals damage equal to the number of white cards", () => {
-        const whiteA = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "wA",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
-        const whiteB = makeInstance(getCardByName("Serra Angel").id, {
-            id: "wB",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
-        const black = makeInstance(getCardByName("Bog Imp").id, {
-            id: "bl",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
+        const whiteA = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "wA",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
+        const whiteB = makeInstance(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id,
+            {
+                id: "wB",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
+        const black = makeInstance(
+            getDefinition("e3bb7271-634a-4612-9073-7a5438e8c2b8").id,
+            {
+                id: "bl",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -382,15 +414,21 @@ describe("Inquisition — reveal hand, damage = white cards in hand (CR 202.2 / 
 
 describe("Marsh Gas — all creatures get -2/-0 until end of turn (CR 611.2)", () => {
     it("reduces power of every creature", () => {
-        const a = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "a",
-            controllerId: "p1",
-        });
-        const b = makeInstance(getCardByName("Hill Giant").id, {
-            id: "b",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const a = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "a",
+                controllerId: "p1",
+            }
+        );
+        const b = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "b",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [a] }),
@@ -466,11 +504,14 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
         const oppBattlefield = Array.from(
             { length: opponentWhitePermanents },
             (_, i) =>
-                makeInstance(getCardByName("Savannah Lions").id, {
-                    id: `w${i}`,
-                    controllerId: "p2",
-                    ownerId: "p2",
-                })
+                makeInstance(
+                    getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+                    {
+                        id: `w${i}`,
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }
+                )
         );
         const state = makeState({
             players: [
@@ -499,12 +540,15 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     // half of the counter leaves it green.
     it("counts white cards in opponents' graveyards and never the chooser's own white permanents", () => {
         const white = (id: string, owner: string, zone?: "graveyard") =>
-            makeInstance(getCardByName("Savannah Lions").id, {
-                id,
-                controllerId: owner,
-                ownerId: owner,
-                ...(zone ? { zone } : {}),
-            });
+            makeInstance(
+                getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+                {
+                    id,
+                    controllerId: owner,
+                    ownerId: owner,
+                    ...(zone ? { zone } : {}),
+                }
+            );
         const state = makeState({
             players: [
                 // The CHOOSER's own white permanents and white graveyard cards
@@ -576,17 +620,23 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     // `resolveSteps` shape called `ctx.loseLife`, so a raw subtraction here is
     // a live regression of a shipped card, not a new gap.
     it("the life payment is life LOSS: it emits LIFE_LOST and fires a 'whenever you lose life' trigger (CR 119.4)", () => {
-        const oath = makeInstance(getCardByName("Oath of Lim-Dûl").id, {
-            id: "oath",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const oath = makeInstance(
+            getDefinition("f16df768-06de-43a0-b548-44fb0887490b").id,
+            {
+                id: "oath",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const oppBattlefield = Array.from({ length: 3 }, (_, i) =>
-            makeInstance(getCardByName("Savannah Lions").id, {
-                id: `w${i}`,
-                controllerId: "p2",
-                ownerId: "p2",
-            })
+            makeInstance(
+                getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+                {
+                    id: `w${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }
+            )
         );
         const state = makeState({
             players: [
@@ -633,11 +683,14 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
     // SBA on a non-cast entry before this issue, Nameless Race among them).
     it("reanimation (non-cast entry) raises the SAME payLife choice and sizes the body from what's paid", () => {
         const oppBattlefield = [
-            makeInstance(getCardByName("Savannah Lions").id, {
-                id: "w0",
-                controllerId: "p2",
-                ownerId: "p2",
-            }),
+            makeInstance(
+                getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+                {
+                    id: "w0",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }
+            ),
         ];
         const grave = makeInstance(namelessRace.id, {
             id: "graveyard-race",
@@ -727,18 +780,24 @@ describe("Nameless Race — CDA P/T from life paid as it enters (CR 604.3 / 614.
 
 describe("Rag Man — {B}{B}{B},{T}: opponent discards a creature at random (CR 701.9a)", () => {
     it("discards a creature card, leaving noncreature cards", () => {
-        const creature = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "cre",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
-        const land = makeInstance(getCardByName("Swamp").id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
+        const creature = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "cre",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
+        const land = makeInstance(
+            getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id,
+            {
+                id: "land",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -810,31 +869,46 @@ describe("Season of the Witch — upkeep pay-2-life-or-sac + end-step mass destr
     });
 
     it("end step destroys untapped non-attackers but spares attackers, tapped, defenders, and sick", () => {
-        const idler = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "idler", // untapped, didn't attack → destroyed
-            controllerId: "p1",
-        });
-        const attacker = makeInstance(getCardByName("Hill Giant").id, {
-            id: "attacker",
-            controllerId: "p1",
-            hasAttackedThisTurn: true, // attacked → spared
-        });
-        const tapped = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "tapped",
-            controllerId: "p1",
-            isTapped: true, // tapped → spared (filter)
-        });
-        const wall = makeInstance(getCardByName("Wall of Wood").id, {
-            id: "wall",
-            controllerId: "p2",
-            ownerId: "p2", // defender → couldn't attack → spared
-        });
-        const fresh = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "fresh",
-            controllerId: "p2",
-            ownerId: "p2",
-            isSummoningSick: true, // couldn't attack → spared
-        });
+        const idler = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "idler", // untapped, didn't attack → destroyed
+                controllerId: "p1",
+            }
+        );
+        const attacker = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "attacker",
+                controllerId: "p1",
+                hasAttackedThisTurn: true, // attacked → spared
+            }
+        );
+        const tapped = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "tapped",
+                controllerId: "p1",
+                isTapped: true, // tapped → spared (filter)
+            }
+        );
+        const wall = makeInstance(
+            getDefinition("8df80424-3bd9-4982-ad79-e55d9ba3b43d").id,
+            {
+                id: "wall",
+                controllerId: "p2",
+                ownerId: "p2", // defender → couldn't attack → spared
+            }
+        );
+        const fresh = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "fresh",
+                controllerId: "p2",
+                ownerId: "p2",
+                isSummoningSick: true, // couldn't attack → spared
+            }
+        );
         const witch = makeInstance(seasonOfTheWitch.id, {
             id: "witch",
             controllerId: "p1",
@@ -968,16 +1042,22 @@ describe("Uncle Istvan — prevent all damage from creatures (CR 615)", () => {
 
 describe("Word of Binding — tap X target creatures (CR 601.2c / 701.20a)", () => {
     it("taps every targeted creature", () => {
-        const a = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "a",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const b = makeInstance(getCardByName("Hill Giant").id, {
-            id: "b",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const a = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "a",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const b = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "b",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),

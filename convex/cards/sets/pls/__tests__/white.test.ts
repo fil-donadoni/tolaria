@@ -2,27 +2,6 @@
 // Each card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
 import {
-    lashknifeBarrier,
-    heroicDefiance,
-    hobble,
-    samiteElder,
-    auroraGriffin,
-    discipleOfKangee,
-    dominariasJudgment,
-    honorableScout,
-    marchOfSouls,
-    orimsChant,
-    samitePilgrim,
-    surpriseDeployment,
-    guardDogs,
-    pollenRemedy,
-} from "../white";
-import { crawWurm, grizzlyBears } from "../../lea/green";
-import { lightningBolt, dragonWhelp } from "../../lea/red";
-import { benalishHero } from "../../lea/white";
-import { blackKnight, scatheZombies } from "../../lea/black";
-import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -51,6 +30,38 @@ import {
 } from "../../../../gre/combat";
 import { castProhibitionReason } from "../../../castRestrictions";
 import { legalActions } from "../../../../gre/legalActions";
+import { getDefinition } from "../../../index";
+
+const lashknifeBarrier = getDefinition("2485c10d-de02-4be9-8119-afb2296e3317");
+const heroicDefiance = getDefinition("0dc1aa36-5d3b-4d25-9d54-937cdabf72a4");
+const hobble = getDefinition("54c76a22-f9e3-408b-a5bd-403add57e31a");
+const samiteElder = getDefinition("b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e");
+const auroraGriffin = getDefinition("bfd6c695-1944-4bb0-a701-0daf47cdbcb4");
+const discipleOfKangee = getDefinition("e268fe16-070b-4b78-9793-59755edb2fd5");
+const dominariasJudgment = getDefinition(
+    "9703d090-b415-48e2-8158-dd8fc57ecc50"
+);
+const honorableScout = getDefinition("bd311758-0352-4b7d-a24f-7f3f2b5d7b0f");
+const marchOfSouls = getDefinition("f07dd0f1-b80b-4af0-ae76-907ec55ec7d5");
+const orimsChant = getDefinition("055afa78-b969-498f-a3ad-c792426e5ee6");
+const samitePilgrim = getDefinition("c12529e4-f4b1-45be-8252-28783badbec5");
+const surpriseDeployment = getDefinition(
+    "9a26148b-b981-4af5-995b-52b1426737e3"
+);
+const guardDogs = getDefinition("ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41");
+const pollenRemedy = getDefinition("9797c813-0cda-44ad-ae41-330e9bde9cb9");
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const dragonWhelp = getDefinition("6bbf1eab-bc32-4835-b566-8634b1fe81b0");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Local resolveActivated shim (mirrors `inv/__tests__/helpers.ts`'s helper of
  *  the same name) — pushes an activated ability's stack item and resolves it,

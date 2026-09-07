@@ -1,8 +1,6 @@
 // Mirage (MIR) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { flash } from "../blue";
-import { fungusaur, grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -15,6 +13,11 @@ import {
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const flash = getDefinition("63af3c26-5b1f-46f6-9aa2-036c615bf5ea");
+const fungusaur = getDefinition("5ad89f0d-b09b-40a0-84d6-3ee60dec7e23");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Flash (CR 117.3a / 118.4 / 400.7, issue #1150)", () => {
     it("puts a picked creature onto the battlefield, then keeps it when its reduced mana cost is paid", () => {

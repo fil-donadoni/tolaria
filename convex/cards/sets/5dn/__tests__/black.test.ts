@@ -1,7 +1,6 @@
 // 5DN (Fifth Dawn) — black behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { nightsWhisper } from "../black";
 import {
     makeInstance,
     makePlayer,
@@ -10,6 +9,9 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const nightsWhisper = getDefinition("61f0c6f6-b90d-4eb1-a5db-86e0a3997501");
 
 describe("Night's Whisper (draw two, lose 2 life, CR 121.1 / 119.3)", () => {
     const setup = () => {

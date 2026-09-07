@@ -3,7 +3,6 @@
 // `.claude/rules/gre-development.md`.
 
 import { describe, it, expect } from "vitest";
-import { boseijuWhoEndures, otawaraSoaringCity } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -16,6 +15,12 @@ import {
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const boseijuWhoEndures = getDefinition("2135ac5a-187b-4dc9-8f82-34e8d1603416");
+const otawaraSoaringCity = getDefinition(
+    "486d7edc-d983-41f0-8b78-c99aecd72996"
+);
 
 // Wasteland (TMP) — a nonbasic land with no basic land type, used as the
 // "nonbasic land an opponent controls" target for Boseiju's first clause.

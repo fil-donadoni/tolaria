@@ -12,9 +12,6 @@
 // shared dies-trigger is covered once on Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { enduringCuriosity } from "..";
-import { grizzlyBears } from "../../lea/green";
-import { blackLotus } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     dealDamageFromPermanentToPlayer,
@@ -22,6 +19,11 @@ import {
 } from "../../../../gre/state";
 import type { DamageDealtEvent, PermanentView } from "../../../types";
 import type { GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const enduringCuriosity = getDefinition("8616629e-08f9-41ad-bfec-f86c8096f1cb");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 const DRAW_TRIGGER = enduringCuriosity.triggeredAbilities!.find(
     (t) => t.id === "enduring-curiosity-draw"

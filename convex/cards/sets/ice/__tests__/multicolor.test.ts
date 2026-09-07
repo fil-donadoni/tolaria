@@ -3,38 +3,7 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    balduvianBears,
-    fireCovenant,
-    fieryJustice,
-    skeletonShip,
-    altarOfBone,
-    centaurArcher,
-    essenceVortex,
-    giantTrapDoorSpider,
-    spectralShield,
-    stormSpirit,
-    wingsOfAesthir,
-    moorFiend,
-    islandIce,
-    forestIce,
-    earthlink,
-    kjeldoranFrostbeast,
-    meriekeRiBerit,
-    monsoon,
-    mountainTitan,
-    ghostlyFlame,
-    fumarole,
-    floodedWoodlands,
-    reclamation,
-    chromaticArmor,
-    knightOfStromgald,
-    seaSpirit,
-    glaciers,
-    diabolicVision,
-    elementalAugury,
-} from "../../ice";
-import { mountain, grizzlyBears, scatheZombies } from "../../lea";
+import { islandIce, forestIce } from "../../ice";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
 import {
     sacrificeCandidates,
@@ -45,7 +14,7 @@ import {
 } from "../../../../gre/sacrificeChoice";
 import type { PermanentFilter } from "../../../filters";
 import { isLand, getBasicLandMana } from "../../../../gre/constants";
-import { getDefinition, getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     resolveTopOfStack,
     runDamageReplacement,
@@ -88,6 +57,41 @@ import {
     makeTargetCreature,
     library,
 } from "./helpers";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const fireCovenant = getDefinition("6a0139c2-ad86-4c71-ab6d-4840c37d5d20");
+const fieryJustice = getDefinition("8965ce61-0522-4f77-a82d-89441d1ba867");
+const skeletonShip = getDefinition("271c8a7c-0f71-4f9d-ab0e-ca7c8c4aca50");
+const altarOfBone = getDefinition("75d5b014-8675-4d91-a539-ac5c31d44b35");
+const centaurArcher = getDefinition("e275c295-72da-4a86-82c6-cfd75b38b19c");
+const essenceVortex = getDefinition("fe07e496-5070-4116-a91a-a3bbe19c12af");
+const giantTrapDoorSpider = getDefinition(
+    "8965dfa8-dc90-4cf2-a93b-72bf88b58936"
+);
+const spectralShield = getDefinition("7fe0a783-d086-4dc8-ae4a-59f3c2daaca0");
+const stormSpirit = getDefinition("7a383a5f-4814-4b92-aa80-2a6440a719bc");
+const wingsOfAesthir = getDefinition("eeb0282d-ccec-4556-8b70-b6f665077afe");
+const moorFiend = getDefinition("57089dd4-e30d-498d-9341-43c104c6f3f9");
+const earthlink = getDefinition("a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb");
+const kjeldoranFrostbeast = getDefinition(
+    "2fccb1d0-b324-4780-bb9e-4533240da06d"
+);
+const meriekeRiBerit = getDefinition("3bf47c0a-5c17-47d0-b663-becff62fbdf8");
+const monsoon = getDefinition("254fcc50-79a5-40cd-b028-e78dde3f8480");
+const mountainTitan = getDefinition("bcc1d589-02a2-4896-a283-9d0385534667");
+const ghostlyFlame = getDefinition("6314344b-6493-4142-9c76-da9b90b8d3e1");
+const fumarole = getDefinition("efa53e9a-0d7c-4d17-b2be-56930edfa2c2");
+const floodedWoodlands = getDefinition("de89e9e1-485b-42e5-9728-5d6f948999e1");
+const reclamation = getDefinition("ca335f4f-d345-4eb9-9bc6-74595c501078");
+const chromaticArmor = getDefinition("2657e85b-8f77-41fa-9df2-233443efef43");
+const knightOfStromgald = getDefinition("2b87069b-ebaf-4705-b5da-446932af9b73");
+const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
+const glaciers = getDefinition("b86e159b-ecf1-4b4a-9041-4e97fdf935e5");
+const diabolicVision = getDefinition("1ea01324-1cfb-498c-8299-f690373864bd");
+const elementalAugury = getDefinition("62bbff2a-5109-400a-961b-eacffb9aed67");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
 
 describe("Storm Spirit ({T}: 2 damage to a creature, CR 120.1)", () => {
     it("deals 2 damage to the target creature", () => {
@@ -240,18 +244,24 @@ describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)",
 
 describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 118.8 / 701.19)", () => {
     it("searches a creature card into hand and shuffles the library", () => {
-        const creature = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "tutored",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
-        const noncreature = makeInstance(getCardByName("Brainstorm").id, {
-            id: "noncreature",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
+        const creature = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "tutored",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }
+        );
+        const noncreature = makeInstance(
+            getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1").id,
+            {
+                id: "noncreature",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { library: [creature, noncreature] }),
@@ -273,11 +283,14 @@ describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 118.8 
 
 describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
     it("only flyers are legal targets (requireAbility)", () => {
-        const flyer = makeInstance(getCardByName("Serra Angel").id, {
-            id: "flyer",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const flyer = makeInstance(
+            getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id,
+            {
+                id: "flyer",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const ground = vanilla("ground", 2, 2, {
             controllerId: "p2",
             ownerId: "p2",
@@ -1016,7 +1029,9 @@ describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target op
 describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(ghostlyFlame.id)).toBe(ghostlyFlame);
-        expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
+        expect(getDefinition("6314344b-6493-4142-9c76-da9b90b8d3e1")).toBe(
+            ghostlyFlame
+        );
     });
 
     it("a black source is coloured B without Ghostly Flame, colourless with it", () => {

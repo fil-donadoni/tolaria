@@ -10,7 +10,6 @@
 // covered once on Enduring Innocence (`white.test.ts`).
 
 import { describe, it, expect } from "vitest";
-import { enduringTenacity } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     applySourceStaticEffects,
@@ -20,6 +19,9 @@ import {
 } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import type { GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const enduringTenacity = getDefinition("d5756d4b-3068-412c-8643-880d3459151e");
 
 /** p1 controls Enduring Tenacity; p2 is the sole opponent, so the CR 603.3d
  *  "target opponent" slot has exactly one legal choice and auto-locks. */

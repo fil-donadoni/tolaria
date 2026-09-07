@@ -11,8 +11,9 @@ import type {
     StackItem,
 } from "../../../../gre/state";
 import { getPlayer, resolveTopOfStack } from "../../../../gre/state";
-import { getCardByName } from "../../../index";
-import { anjesRavager } from "../red";
+import { getDefinition } from "../../../index";
+
+const anjesRavager = getDefinition("22924c44-5551-4a48-a574-dfef91a5d4d7");
 
 /** Push a triggered ability onto the stack with its firing event, then resolve. */
 function resolveTrigger(
@@ -41,7 +42,7 @@ describe("Anje's Ravager — Madness {1}{R}, must-attack, attack-wheel (CR 702.3
             ownerId: "p1",
             zone: "battlefield",
         });
-        const bear = getCardByName("Grizzly Bears");
+        const bear = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         const hand = [
             makeInstance(bear.id, { id: "h1", ownerId: "p1", zone: "hand" }),
             makeInstance(bear.id, { id: "h2", ownerId: "p1", zone: "hand" }),

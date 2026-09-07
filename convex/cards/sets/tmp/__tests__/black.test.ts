@@ -7,8 +7,6 @@
 // hand-written test, including the mandatory wire-format re-assertion (the
 // reanimated creature and the life-loss are both client-visible).
 import { describe, it, expect } from "vitest";
-import { corpseDance, reanimate, recklessSpite } from "..";
-import { griselbrand } from "../../avr";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -18,6 +16,12 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const corpseDance = getDefinition("76ae81ea-13e3-4ab8-b956-4c7b139a5e9c");
+const reanimate = getDefinition("ae1ef31c-8ca5-444c-8f39-e1d1827318f5");
+const recklessSpite = getDefinition("9141daea-1f4f-4227-b7d7-20753e3cb4d4");
+const griselbrand = getDefinition("b51666ae-2aef-4cb1-9cd4-44aec81530f8");
 
 describe("Reanimate (CR 400.7 reanimation under caster's control, CR 608.2h last-known mana value)", () => {
     it("returns a creature card from ANY graveyard under the caster's control; the caster loses life equal to its mana value", () => {

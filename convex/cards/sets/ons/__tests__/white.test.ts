@@ -5,12 +5,14 @@
 // own `resolve()` clause, which morph never touches.
 
 import { describe, it, expect } from "vitest";
-import { exaltedAngel } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
 import { turnFaceDown } from "../../../../gre/faceDown";
 import { collectTriggers } from "../../../../gre/triggers";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const exaltedAngel = getDefinition("c2213eac-cea4-4dfd-90c4-c1f466967e2e");
 
 /** Push the named triggered ability of `source` and resolve it. */
 function resolveTrigger(

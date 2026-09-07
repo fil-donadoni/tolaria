@@ -2,12 +2,14 @@
 // `convex/cards/sets/bbd/blue.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { spellseeker } from "../blue";
-import { grizzlyBears } from "../../lea/green";
 import { registerTokenDefinition } from "../../..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const spellseeker = getDefinition("74b4c336-5d4c-4bc5-b82a-35084a6ad808");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const CHEAP_INSTANT_ID = "test-bbd-cheap-instant";
 registerTokenDefinition({

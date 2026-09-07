@@ -6,8 +6,6 @@
 // The sacrifice-lands cost-system primitive is covered by
 // `convex/gre/__tests__/alternative-cost.test.ts`.
 import { describe, it, expect } from "vitest";
-import { fireblast } from "..";
-import { mountain } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
 import {
@@ -17,6 +15,10 @@ import {
 import { isSacrificeSelectionComplete } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const fireblast = getDefinition("b1eb5b2c-1f02-48a6-a287-88eb189d6780");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 function mountains(playerId: string, n: number) {
     return Array.from({ length: n }, (_, i) =>

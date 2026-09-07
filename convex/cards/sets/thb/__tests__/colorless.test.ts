@@ -1,8 +1,6 @@
 // Theros Beyond Death (THB) — colorless behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { soulGuideLantern } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -12,8 +10,11 @@ import {
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const soulGuideLantern = getDefinition("7c850b94-75c9-4457-8b5e-1193352d6fcb");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 function resolveActivated(
     state: GameState,
@@ -60,7 +61,9 @@ function gyCard(id: string, owner: string): CardInstanceState {
 
 describe("Soul-Guide Lantern (graveyard hate + sac-draw, CR 406 / 605)", () => {
     it("declares an ETB exile trigger and two sacrifice abilities", () => {
-        expect(getCardByName("Soul-Guide Lantern")).toBe(soulGuideLantern);
+        expect(getDefinition("7c850b94-75c9-4457-8b5e-1193352d6fcb")).toBe(
+            soulGuideLantern
+        );
         expect(soulGuideLantern.manaCost).toEqual({ X: 1 });
         expect(soulGuideLantern.triggeredAbilities).toHaveLength(1);
         const draw = soulGuideLantern.activatedAbilities!.find(

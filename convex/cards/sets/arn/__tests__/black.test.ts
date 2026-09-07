@@ -5,27 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    cuombajjWitches,
-    elHajjaj,
-    ergRaiders,
-    guardianBeast,
-    hasranOgress,
-    jununEfreet,
-    juzamDjinn,
-    khabalGhoul,
-    oubliette,
-    sorceressQueen,
-} from "..";
-import {
-    animateArtifact,
-    blackLotus,
-    flight,
-    grizzlyBears,
-    plains,
-    shatter,
-    stealArtifact,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -62,7 +41,26 @@ import {
     upkeepEvent,
     endStepEvent,
 } from "./helpers";
-import { ephemerate } from "../../mh1/white";
+import { getDefinition } from "../../../index";
+
+const cuombajjWitches = getDefinition("7995c3f9-a147-43c9-9f82-470924818a4c");
+const elHajjaj = getDefinition("c4b610d3-2005-4347-bcda-c30b5b7972e5");
+const ergRaiders = getDefinition("35c73a97-531d-4dd5-8236-39b89c183c38");
+const guardianBeast = getDefinition("9941f83b-2903-4eab-ac6d-5313e3978fa3");
+const hasranOgress = getDefinition("9f310cf5-0985-4826-9779-19a713089d6d");
+const jununEfreet = getDefinition("5f46783a-b91e-4829-a173-5515b09ca615");
+const juzamDjinn = getDefinition("31bf3f14-b5df-498b-a1bb-965885c82401");
+const khabalGhoul = getDefinition("18607bf6-ce11-41cb-b001-0c9538406ba0");
+const oubliette = getDefinition("30d1450f-2909-410e-9920-731278fa74de");
+const sorceressQueen = getDefinition("94742003-f0f1-4483-b1a0-e7163995db1b");
+const animateArtifact = getDefinition("664b46f5-0424-4f4e-9f26-6bd2cf5e0357");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const flight = getDefinition("67c7784b-6b79-4268-a714-895c82809aff");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const shatter = getDefinition("50dc7fc1-cb6a-4c68-b993-1a25cf16226e");
+const stealArtifact = getDefinition("83316930-d6ad-46ce-9b40-48eea856d95b");
+const ephemerate = getDefinition("2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa");
 
 describe("Juzám Djinn (upkeep: 1 damage to you)", () => {
     it("deals 1 to its controller on upkeep", () => {

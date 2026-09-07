@@ -6,31 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    barlsCage,
-    boneFlute,
-    bookOfRass,
-    cityOfShadows,
-    darkSphere,
-    diabolicMachine,
-    fellwarStone,
-    fountainOfYouth,
-    goblinHero,
-    livingArmor,
-    mazeOfIth,
-    necropolis,
-    reflectingMirror,
-    safeHaven,
-    scarecrow,
-    scarwoodGoblins,
-    skullOfOrm,
-    sorrowsPath,
-    squire,
-    standingStones,
-    stoneCalendar,
-    tormodsCrypt,
-    towerOfCoireall,
-} from "..";
-import {
     FOREST,
     ISLAND,
     MOUNTAIN,
@@ -76,7 +51,31 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
-import { lightningBolt } from "../../lea";
+
+const barlsCage = getDefinition("6768a307-da2e-435e-8efd-72d82b4d4a2b");
+const boneFlute = getDefinition("63a31de0-d764-4ff6-a85f-027e1e58d86c");
+const bookOfRass = getDefinition("5a391ada-e9e3-45db-ae84-17421ac6b44d");
+const cityOfShadows = getDefinition("76e5ee8a-34e5-4a2e-a04e-9fcdc7e53dda");
+const darkSphere = getDefinition("72cfe9b9-677d-4ecb-83ab-67fb6481371d");
+const diabolicMachine = getDefinition("c3b0f228-6b06-4426-a557-1225d547b908");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
+const fountainOfYouth = getDefinition("2b60eb23-cb9a-4203-86fb-60e47dbd870b");
+const goblinHero = getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1");
+const livingArmor = getDefinition("3c31a957-ad1e-40cc-b3c4-2f4caa492b77");
+const mazeOfIth = getDefinition("42dcceee-2a47-4eaa-a6a3-2931b3d50244");
+const necropolis = getDefinition("893e8e9c-983e-4db1-8d93-10637025a559");
+const reflectingMirror = getDefinition("d551ff93-d8da-4c21-bc3c-6451c0dde07e");
+const safeHaven = getDefinition("0d48fb47-1bed-4791-a014-504515f3d36f");
+const scarecrow = getDefinition("93850e74-744c-4261-a84e-01eaced6e49a");
+const scarwoodGoblins = getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0");
+const skullOfOrm = getDefinition("aa1d9bb5-972a-4705-bf22-0fa1e974dd26");
+const sorrowsPath = getDefinition("6f75946b-1690-43cc-993c-d4e451a1a41c");
+const squire = getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9");
+const standingStones = getDefinition("6d4c853e-2231-4af2-bcb0-1781c18ec3be");
+const stoneCalendar = getDefinition("a49ba1a5-33b1-40f2-9780-26139ed829d7");
+const tormodsCrypt = getDefinition("0f9668ba-d26d-4484-b4b8-6fb91fbfb617");
+const towerOfCoireall = getDefinition("64c19977-ac7d-4ce7-925c-33a7503420f5");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 describe("DRK registry parity", () => {
     it("registers the skeleton creatures by id", () => {
@@ -89,9 +88,15 @@ describe("DRK registry parity", () => {
         // The Debug-panel preset scenario and the card pool both resolve cards
         // by name via getCardByName (game.ts seedScenario) — registration alone
         // must make the cards reachable.
-        expect(getCardByName("Squire")).toBe(squire);
-        expect(getCardByName("Goblin Hero")).toBe(goblinHero);
-        expect(getCardByName("Scarwood Goblins")).toBe(scarwoodGoblins);
+        expect(getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9")).toBe(
+            squire
+        );
+        expect(getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1")).toBe(
+            goblinHero
+        );
+        expect(getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0")).toBe(
+            scarwoodGoblins
+        );
     });
 
     it("includes them in getAllCards (deck-builder index)", () => {
@@ -178,12 +183,15 @@ describe("Barl's Cage — {3}: target doesn't untap next untap step (CR 302.6/50
             id: "cage",
             controllerId: "p1",
         });
-        const bear = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-            isTapped: true,
-        });
+        const bear = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "bear",
+                controllerId: "p2",
+                ownerId: "p2",
+                isTapped: true,
+            }
+        );
         const state = makeState({
             activePlayerId: "p2",
             players: [
@@ -227,15 +235,21 @@ describe("Bone Flute — {2},{T}: all creatures get -1/-0 EOT (CR 611.2)", () =>
             id: "flute",
             controllerId: "p1",
         });
-        const mine = makeInstance(getCardByName("Hill Giant").id, {
-            id: "mine",
-            controllerId: "p1",
-        });
-        const theirs = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "theirs",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const mine = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "mine",
+                controllerId: "p1",
+            }
+        );
+        const theirs = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [flute, mine] }),
@@ -258,12 +272,15 @@ describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () =>
             id: "book",
             controllerId: "p1",
         });
-        const top = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "top",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
+        const top = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "top",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [book], library: [top] }),
@@ -323,10 +340,13 @@ describe("Living Armor — sac: X +0/+1 counters, X = target's mana value (CR 12
             controllerId: "p1",
         });
         // Hill Giant: {3}{R} → mana value 4.
-        const giant = makeInstance(getCardByName("Hill Giant").id, {
-            id: "giant",
-            controllerId: "p1",
-        });
+        const giant = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "giant",
+                controllerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [armor, giant] }),
@@ -362,12 +382,15 @@ describe("Necropolis — exile a graveyard creature as a COST: +0/+1 counters = 
             controllerId: "p1",
         });
         // Grizzly Bears: {1}{G} → mana value 2.
-        const corpse = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "corpse",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
+        const corpse = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "corpse",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }
+        );
         return makeState({
             players: [
                 makePlayer("p1", {
@@ -466,12 +489,15 @@ describe("Skull of Orm — {5},{T}: return an enchantment from your graveyard (C
             id: "skull",
             controllerId: "p1",
         });
-        const ench = makeInstance(getCardByName("Curse Artifact").id, {
-            id: "ench",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
+        const ench = makeInstance(
+            getDefinition("9fc0d070-8a42-4d5e-8f2b-ceb59147de6f").id,
+            {
+                id: "ench",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [skull], graveyard: [ench] }),
@@ -514,7 +540,9 @@ describe("Stone Calendar — spells you cast cost {1} less (CR 601.2f)", () => {
             ],
         });
         // Hill Giant {3}{R}: generic drops 3 → 2 for p1, unchanged for p2.
-        const giantId = getCardByName("Hill Giant").id;
+        const giantId = getDefinition(
+            "0ddb98e8-13fe-4786-83f7-b72c56db135a"
+        ).id;
         expect(effectiveCost(state, giantId, "p1")).toEqual({ X: 2, R: 1 });
         expect(effectiveCost(state, giantId, "p2")).toEqual({ X: 3, R: 1 });
     });
@@ -526,18 +554,24 @@ describe("Tormod's Crypt — {T}, Sac: exile a player's graveyard (CR 406/400.7)
             id: "crypt",
             controllerId: "p1",
         });
-        const a = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "a",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
-        const b = makeInstance(getCardByName("Hill Giant").id, {
-            id: "b",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
+        const a = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "a",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            }
+        );
+        const b = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "b",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [crypt] }),
@@ -558,10 +592,13 @@ describe("Tower of Coireall — {T}: target can't be blocked by Walls this turn 
             id: "tower",
             controllerId: "p1",
         });
-        const attacker = makeInstance(getCardByName("Hill Giant").id, {
-            id: "atk",
-            controllerId: "p1",
-        });
+        const attacker = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "atk",
+                controllerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [tower, attacker] }),
@@ -584,13 +621,16 @@ describe("Maze of Ith — {T}: untap an attacker + prevent its combat damage (CR
             id: "maze",
             controllerId: "p1",
         });
-        const attacker = makeInstance(getCardByName("Hill Giant").id, {
-            id: "atk",
-            controllerId: "p2",
-            ownerId: "p2",
-            isTapped: true,
-            isAttacking: true,
-        });
+        const attacker = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "atk",
+                controllerId: "p2",
+                ownerId: "p2",
+                isTapped: true,
+                isAttacking: true,
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [maze] }),
@@ -614,11 +654,14 @@ describe("City of Shadows — storage land (CR 605.1a, exile-to-store + per-coun
             id: "city",
             controllerId: "p1",
         });
-        const fodder = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "fodder",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const fodder = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "fodder",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [city, fodder] }),
@@ -662,11 +705,14 @@ describe("Safe Haven — exile creatures you control; sac to return them (CR 603
             id: "haven",
             controllerId: "p1",
         });
-        const friend = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "friend",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const friend = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "friend",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             activePlayerId: "p1",
             players: [
@@ -762,11 +808,14 @@ describe("Dark Sphere / Scarecrow — player damage prevention shields (CR 615.1
             id: "sphere",
             controllerId: "p1",
         });
-        const threat = makeInstance(getCardByName("Hill Giant").id, {
-            id: "threat",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const threat = makeInstance(
+            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
+            {
+                id: "threat",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [sphere] }),

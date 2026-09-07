@@ -6,12 +6,17 @@
 // per `.claude/rules/gre-development.md` § DSL-first authoring, this card
 // earns a hand-written test.
 import { describe, it, expect } from "vitest";
-import { titaniaProtectorOfArgoth } from "..";
-import { grizzlyBears, swamp } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const titaniaProtectorOfArgoth = getDefinition(
+    "224d904a-5972-4152-878a-9a922e7a55b6"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 describe("Titania, Protector of Argoth (CR 603.6a ETB reanimation + CR 603.6e LTB elemental token)", () => {
     it("ETB: returns a chosen LAND card from the controller's graveyard, filtering out a non-land card", () => {

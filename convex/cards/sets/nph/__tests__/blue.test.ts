@@ -4,8 +4,6 @@
 // in convex/gre/__tests__/phyrexian.test.ts. Deceiver Exarch's MODAL ETB
 // trigger (CR 603.3c — untap yours / tap an opponent's) is covered here too.
 import { describe, it, expect } from "vitest";
-import { deceiverExarch, gitaxianProbe, phyrexianMetamorph } from "../blue";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { driveCopyChoice } from "../../lea/__tests__/helpers";
 import { finalizeTargetSelection } from "../../../../game";
@@ -20,6 +18,14 @@ import { enumerateMoves } from "../../../../gre/moves";
 import { applyMoveForSearch } from "../../../../gre/applyMove";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const deceiverExarch = getDefinition("1f123ad6-fe84-4fed-9c0f-6b41921e9c26");
+const gitaxianProbe = getDefinition("995486ce-58bb-4753-a812-0ca73ef1a235");
+const phyrexianMetamorph = getDefinition(
+    "d2e27911-87cb-49a0-a34f-6afe4bddd592"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Gitaxian Probe (look at target player's hand, draw; {U/P}, CR 107.4f)", () => {
     function commitHead(state: GameState, picks: string[]) {

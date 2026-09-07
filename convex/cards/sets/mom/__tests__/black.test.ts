@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import type {
     CardInstanceState,
     GameState,
@@ -8,8 +7,12 @@ import type {
 } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
-import { consumingAetherborn } from "../black";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const consumingAetherborn = getDefinition(
+    "7311ade8-eb75-40f8-b018-668762aa3b77"
+);
 
 // Consuming Aetherborn — {3}{B} Creature, 2/2. "Backup 1 (When this creature
 // enters, put a +1/+1 counter on target creature. If that's another
@@ -81,7 +84,9 @@ describe("Consuming Aetherborn (CR 702.165 Backup, issue #1315)", () => {
     });
 
     it("other-target: puts a +1/+1 counter AND grants lifelink until end of turn (wire format)", () => {
-        const grizzlyBears = getCardByName("Grizzly Bears"); // vanilla 2/2, no lifelink
+        const grizzlyBears = getDefinition(
+            "ce2d603a-3231-4a8c-bf39-1617586ea870"
+        ); // vanilla 2/2, no lifelink
         const source = makeInstance(consumingAetherborn.id, {
             id: "aetherborn2",
             controllerId: "p1",

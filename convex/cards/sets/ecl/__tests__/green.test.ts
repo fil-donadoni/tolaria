@@ -1,7 +1,6 @@
 // ECL — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { formidableSpeaker } from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -17,6 +16,9 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { MayPayCost } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const formidableSpeaker = getDefinition("265522eb-4f6a-40e7-b374-3833fa63c80b");
 
 // Grizzly Bears (LEA) — a plain vanilla Creature, reused across set tests as a
 // generic "a creature card" body (mir/colorless.test.ts uses the same id).

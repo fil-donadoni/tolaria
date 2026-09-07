@@ -11,8 +11,6 @@
 // opponent's — the target carries no controller restriction, CR 115.1c).
 
 import { describe, it, expect } from "vitest";
-import { fracturedIdentity } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -25,6 +23,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const fracturedIdentity = getDefinition("b2f73f5d-1aad-48c2-9e74-5f7bdd87900f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 describe("Fractured Identity (CR 707.2 / 111.1 / 601.2c, issue #1568)", () => {
     it("exiles the OPPONENT's target permanent and gives the CASTER a copy (each player other than its controller)", () => {

@@ -1,13 +1,16 @@
 // Urza's Legacy (ULG) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { grimMonolith, memoryJar } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";
 import { advancePhase, fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const grimMonolith = getDefinition("9ddc9fe1-17c8-4e1d-aeb8-c4214e881280");
+const memoryJar = getDefinition("a15d33d6-7213-4482-a1be-ac0a73644af6");
 
 /** Drives the incoming player's UNTAP step by advancing from END_STEP:
  *  CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles in

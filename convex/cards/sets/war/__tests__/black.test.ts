@@ -40,13 +40,16 @@ import { projectPublicState } from "../../../../gameProjections";
 import { locateCastSource, castRawManaCost } from "../../../../game";
 import { makeInstance } from "../../../__tests__/setup";
 import { citadelBoard } from "./citadelBoard";
-import { bolassCitadel } from "../black";
-import { forest, mountain } from "../../lea/colorless";
-import { grizzlyBears } from "../../lea/green";
-import { fireball } from "../../lea/red";
-import { gloom } from "../../lea/black";
-import { benalishHero } from "../../lea/white";
-import { naturalOrder } from "../../vis/green";
+import { getDefinition } from "../../../index";
+
+const bolassCitadel = getDefinition("d2124603-d20e-40eb-97f0-a66323397ac2");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
+const gloom = getDefinition("a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const naturalOrder = getDefinition("0845f0b0-9413-4ddd-861d-9607636bebc6");
 
 describe("Bolas's Citadel — cast-from-top permission (CR 601.3)", () => {
     it("canCastSpellsFromTopOfLibrary is held only by the Citadel's controller", () => {

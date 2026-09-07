@@ -6,24 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    elvesOfDeepShadow,
-    gaeasTouch,
-    hiddenPath,
-    lurker,
-    marshViper,
-    niallSilvain,
-    peopleOfTheWoods,
-    savaenElves,
-    scarwoodBandits,
-    scarwoodHag,
-    scavengerFolk,
-    spittingSlug,
-    tracker,
-    venom,
-    whippoorwill,
-    wormwoodTreefolk,
-} from "..";
-import {
     FOREST,
     ISLAND,
     answerChoice,
@@ -53,7 +35,24 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
-import { lightningBolt } from "../../lea";
+
+const elvesOfDeepShadow = getDefinition("f395278e-6d74-4f35-af9d-21bad7b19763");
+const gaeasTouch = getDefinition("0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7");
+const hiddenPath = getDefinition("cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77");
+const lurker = getDefinition("b39eb671-e17e-4c5a-8913-1e3be7faedfb");
+const marshViper = getDefinition("109cce7a-96f7-4e67-878a-bd5c93ea8643");
+const niallSilvain = getDefinition("9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b");
+const peopleOfTheWoods = getDefinition("2fb5926f-9988-4bc0-b2b7-e286db208310");
+const savaenElves = getDefinition("38fb3014-f631-4a75-92cd-7e626b13a4c3");
+const scarwoodBandits = getDefinition("46b762a7-a774-4cb4-8ecf-dd6486a066c3");
+const scarwoodHag = getDefinition("ac2655e4-3a4d-4f73-820a-02fab675d42e");
+const scavengerFolk = getDefinition("8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5");
+const spittingSlug = getDefinition("7011356e-7516-4ca0-ac54-d30af7ce03a2");
+const tracker = getDefinition("35ffc69e-26f2-434f-8c89-2df108dd984a");
+const venom = getDefinition("bb0480f5-6aae-4297-afa6-3f7a5801bf95");
+const whippoorwill = getDefinition("e56146bf-5db0-4bef-83bb-efa5ebec6684");
+const wormwoodTreefolk = getDefinition("2fa20173-e88a-4b14-9c54-14567ca5571c");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrifice for {G}{G})", () => {
     it("puts a basic Forest from hand onto the battlefield when chosen", () => {
@@ -147,13 +146,16 @@ function fightTracker(
         toughness: trackerPT.toughness,
     });
     // Any vanilla creature stands in for the fight target; P/T is overridden.
-    const foe = makeInstance(getCardByName("Goblin Hero").id, {
-        id: "foe",
-        controllerId: "p2",
-        ownerId: "p2",
-        power: targetPT.power,
-        toughness: targetPT.toughness,
-    });
+    const foe = makeInstance(
+        getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1").id,
+        {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: targetPT.power,
+            toughness: targetPT.toughness,
+        }
+    );
     const state = makeState({
         players: [
             makePlayer("p1", { battlefield: [trk] }),
@@ -261,13 +263,16 @@ describe("Tracker — Fight primitive (CR 701.14 mutual damage)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const foe = makeInstance(getCardByName("Goblin Hero").id, {
-            id: "foe",
-            controllerId: "p2",
-            ownerId: "p2",
-            toughness: 5,
-            staticAbilities: ["protection from green"],
-        });
+        const foe = makeInstance(
+            getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1").id,
+            {
+                id: "foe",
+                controllerId: "p2",
+                ownerId: "p2",
+                toughness: 5,
+                staticAbilities: ["protection from green"],
+            }
+        );
         const s2 = makeState({
             players: [
                 makePlayer("p1", { battlefield: [trk] }),
@@ -328,11 +333,14 @@ describe("Tracker — Fight primitive (CR 701.14 mutual damage)", () => {
     });
 
     it("only creatures are legal fight targets (CR 701.14)", () => {
-        const foe = makeInstance(getCardByName("Goblin Hero").id, {
-            id: "foe",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const foe = makeInstance(
+            getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1").id,
+            {
+                id: "foe",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -428,16 +436,22 @@ describe("Hidden Path — green creatures have forestwalk (CR 611 / 702.13c)", (
             controllerId: "p1",
         });
         // A green creature (Grizzly Bears is green) and a non-green one.
-        const greenCreature = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "green",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const whiteCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "white",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const greenCreature = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "green",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const whiteCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "white",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [path, greenCreature] }),
@@ -528,11 +542,14 @@ describe("People of the Woods — toughness = Forests you control (CR 613.4c CDA
             ownerId: "p1",
         });
         const forests = Array.from({ length: forestCount }, (_, i) =>
-            makeInstance(getCardByName("Forest").id, {
-                id: `forest-${i}`,
-                controllerId: "p1",
-                ownerId: "p1",
-            })
+            makeInstance(
+                getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+                {
+                    id: `forest-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }
+            )
         );
         const state = makeState({
             players: [
@@ -572,23 +589,32 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
             controllerId: "p1",
         });
         const host = hostIsLand
-            ? makeInstance(getCardByName("Forest").id, {
-                  id: "host",
-                  controllerId: "p2",
-                  ownerId: "p2",
-              })
-            : makeInstance(getCardByName("Grizzly Bears").id, {
-                  id: "host",
-                  controllerId: "p2",
-                  ownerId: "p2",
-              });
+            ? makeInstance(
+                  getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id,
+                  {
+                      id: "host",
+                      controllerId: "p2",
+                      ownerId: "p2",
+                  }
+              )
+            : makeInstance(
+                  getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+                  {
+                      id: "host",
+                      controllerId: "p2",
+                      ownerId: "p2",
+                  }
+              );
         // Use Fishliver Oil (an Aura) as the enchantment to destroy.
-        const aura = makeInstance(getCardByName("Fishliver Oil").id, {
-            id: "aura",
-            controllerId: "p2",
-            ownerId: "p2",
-            attachedTo: "host",
-        });
+        const aura = makeInstance(
+            getDefinition("deb6ed87-aa07-4b5e-ac40-1e16dc2a817a").id,
+            {
+                id: "aura",
+                controllerId: "p2",
+                ownerId: "p2",
+                attachedTo: "host",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [elves] }),
@@ -670,11 +696,14 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
         const aura = state.players[1].battlefield.find((c) => c.id === "aura")!;
         aura.attachedTo = "host2";
         state.players[1].battlefield.push(
-            makeInstance(getCardByName("Grizzly Bears").id, {
-                id: "host2",
-                controllerId: "p2",
-                ownerId: "p2",
-            })
+            makeInstance(
+                getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+                {
+                    id: "host2",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                }
+            )
         );
         resolveTopOfStack(state);
         // The Aura survives: its host is no longer a land, so
@@ -693,11 +722,14 @@ describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.8)
             controllerId: "p1",
             ownerId: "p1",
         });
-        const artifact = makeInstance(getCardByName("Ornithopter").id, {
-            id: "art",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const artifact = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "art",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [folk] }),
@@ -719,11 +751,14 @@ describe("Niall Silvain — regenerate target creature (CR 605 / 701.19)", () =>
             id: "niall",
             controllerId: "p1",
         });
-        const friend = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "friend",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const friend = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "friend",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [niall, friend] }),
@@ -746,11 +781,14 @@ describe("Scarwood Hag — grant / strip forestwalk until EOT (CR 605 / 611)", (
             id: "hag",
             controllerId: "p1",
         });
-        const target = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "tgt",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const target = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "tgt",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [hag, target] }),
@@ -792,11 +830,14 @@ describe("Scarwood Bandits — steal an artifact unless opponent pays {2} (CR 11
             id: "bandits",
             controllerId: "p1",
         });
-        const artifact = makeInstance(getCardByName("Ornithopter").id, {
-            id: "art",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const artifact = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "art",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bandits] }),
@@ -849,12 +890,15 @@ describe("Spitting Slug — combat first-strike trigger (CR 509.1h / 118.4)", ()
             ownerId: "p1",
             isAttacking: true,
         });
-        const blocker = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "blocker",
-            controllerId: "p2",
-            ownerId: "p2",
-            isBlocking: true,
-        });
+        const blocker = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "blocker",
+                controllerId: "p2",
+                ownerId: "p2",
+                isBlocking: true,
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [slug] }),
@@ -909,12 +953,15 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
             ? "Wall of Swords"
             : "Grizzly Bears";
         // Host (p1 attacker) carries Venom; "other" creature is p2's blocker.
-        const host = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "host",
-            controllerId: "p1",
-            ownerId: "p1",
-            isAttacking: true,
-        });
+        const host = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "host",
+                controllerId: "p1",
+                ownerId: "p1",
+                isAttacking: true,
+            }
+        );
         const aura = makeInstance(venom.id, {
             id: "venom",
             controllerId: "p1",
@@ -995,11 +1042,14 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
             id: "whip",
             controllerId: "p1",
         });
-        const victim = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "victim",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const victim = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "victim",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [whip] }),
@@ -1026,11 +1076,14 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
             id: "whip",
             controllerId: "p1",
         });
-        const victim = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "victim",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const victim = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "victim",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [whip] }),
@@ -1194,7 +1247,9 @@ describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120
 
     it("registry parity: reachable by id and by name (debug-panel / pool path)", () => {
         expect(getDefinition(marshViper.id)).toBe(marshViper);
-        expect(getCardByName("Marsh Viper")).toBe(marshViper);
+        expect(getDefinition("109cce7a-96f7-4e67-878a-bd5c93ea8643")).toBe(
+            marshViper
+        );
         expect(getAllCards()).toContain(marshViper);
     });
 });

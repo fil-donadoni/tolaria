@@ -13,9 +13,6 @@
 // it earns a hand-written test at every layer below.
 
 import { describe, it, expect } from "vitest";
-import { pestInfestation } from "../green";
-import { ankhOfMishra, basaltMonolith } from "../../lea/colorless";
-import { badMoon } from "../../lea/black";
 import {
     makeInstance,
     makePlayer,
@@ -30,6 +27,12 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const pestInfestation = getDefinition("4720b4f2-e6af-4223-9250-a0ed21ed5693");
+const ankhOfMishra = getDefinition("f594b7aa-d44e-47c4-989b-565f881e25f1");
+const basaltMonolith = getDefinition("66a74c89-6f86-4ec8-af17-391cd5026054");
+const badMoon = getDefinition("43572906-ea74-4411-a549-5dc401591d2a");
 
 function pestTokens(state: ReturnType<typeof makeState>, controllerId = "p1") {
     const player = state.players.find((p) => p.id === controllerId)!;

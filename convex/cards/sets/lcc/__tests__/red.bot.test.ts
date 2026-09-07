@@ -5,11 +5,15 @@
 // fails the build over.
 
 import { describe, it, expect } from "vitest";
-import { broadsideBombardiers } from "../red";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { enumerateMoves } from "../../../../gre/moves";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const broadsideBombardiers = getDefinition(
+    "ec9df172-9fdb-4b0c-a23a-865b83c8fa40"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const BOAST_ID = "broadside-bombardiers-boast-damage";
 

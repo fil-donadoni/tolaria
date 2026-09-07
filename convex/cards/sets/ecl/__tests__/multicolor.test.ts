@@ -11,7 +11,9 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { figureOfFable } from "../multicolor";
+import { getDefinition } from "../../../index";
+
+const figureOfFable = getDefinition("e0ef33dd-5f6d-48fa-8ef6-a8092868d50f");
 
 // Figure of Fable (ECL, issue #684 — shipped by #1749). Same staged-respec
 // shape as Figure of Destiny (eve/multicolor.ts), plus two things that card

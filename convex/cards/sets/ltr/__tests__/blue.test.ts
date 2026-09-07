@@ -2,11 +2,13 @@
 // `convex/cards/sets/ltr/blue.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { lorienRevealed } from "../blue";
 import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { makeInstance } from "../../../__tests__/setup";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const lorienRevealed = getDefinition("0ce44270-a684-4489-9077-521456e6dfaa");
 
 const FILLER_ID = "test-ltr-filler";
 registerTokenDefinition({

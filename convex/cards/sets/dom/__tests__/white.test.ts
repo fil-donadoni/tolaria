@@ -15,8 +15,6 @@
 // created the way a real game creates it.
 
 import { describe, it, expect } from "vitest";
-import { historyOfBenalia } from "../white";
-import { elvishArchers } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
@@ -31,6 +29,10 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { LORE_COUNTER } from "../../../abilities/sagas";
+import { getDefinition } from "../../../index";
+
+const historyOfBenalia = getDefinition("d134385d-b01c-41c7-bb2d-30722b44dc5a");
+const elvishArchers = getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
 
 /** One CR 714.3c turn-based lore counter on the active player's Sagas, the
  *  chapter trigger it raises put on the stack (CR 603.2), and that chapter

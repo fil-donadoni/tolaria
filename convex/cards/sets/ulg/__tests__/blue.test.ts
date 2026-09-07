@@ -1,9 +1,6 @@
 // Urza's Legacy (ULG) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { franticSearch, miscalculation, tinker } from "../blue";
-import { ornithopter } from "../../atq/colorless";
-import { lightningBolt } from "../../lea/red";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +13,13 @@ import {
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const franticSearch = getDefinition("1904db14-6df7-424f-afa5-e3dfab31300a");
+const miscalculation = getDefinition("4b4956a2-9a39-4152-9c98-70e4b2acfa26");
+const tinker = getDefinition("7da23b15-dfb8-4267-9b33-d7a4c035c434");
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 const handCard = (id: string) =>
     makeInstance(franticSearch.id, {

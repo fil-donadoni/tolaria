@@ -12,8 +12,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { figureOfDestiny } from "../multicolor";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const figureOfDestiny = getDefinition("0da69523-cece-425a-b08a-fb27fac29374");
 
 // Figure of Destiny (EVE, issue #1749) — the reference card for TWO engine
 // capabilities: guild-hybrid pips payable with mana (CR 202.1a, issue #1738)

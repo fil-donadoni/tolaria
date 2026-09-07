@@ -13,7 +13,6 @@
 //     so there is nothing to return).
 
 import { describe, it, expect } from "vitest";
-import { sorinLordOfInnistrad } from "../multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -25,6 +24,11 @@ import { checkPermanentTargetFilters } from "../../../../gre/targetFilters";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 import type { TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const sorinLordOfInnistrad = getDefinition(
+    "27bb371f-d49f-41bd-bbe0-d5e1e2067e36"
+);
 
 const MINUS6 = "sorin-lord-of-innistrad-minus6";
 

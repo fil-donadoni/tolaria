@@ -5,7 +5,6 @@
 // justification in mh3/red.ts), so it carries a full per-card GRE + wire test.
 
 import { describe, it, expect } from "vitest";
-import { galvanicDischarge } from "../red";
 import {
     makeInstance,
     makePlayer,
@@ -16,11 +15,13 @@ import type { GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const galvanicDischarge = getDefinition("32aa6e33-221f-414c-9b51-850d97a7e051");
 
 // Grizzly Bears — a vanilla 2/2, so 3+ damage is lethal (moves to graveyard via
 // SBA) while 1 damage leaves it on the battlefield with the damage marked.
-const BEARS = getCardByName("Grizzly Bears").id;
+const BEARS = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
 
 // Submit the head option-pick choice and resume resolution (mirrors the drk
 // `answerChoice` helper — writes the collected answer under the interpreter's

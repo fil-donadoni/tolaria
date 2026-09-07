@@ -2,14 +2,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    traumaticCritique,
-    witherbloomCharm,
-    silverquillCharm,
-    quandrixCharm,
-    loreholdCharm,
-    viciousRivalry,
-} from "../multicolor";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -27,7 +19,15 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../..";
-import { forest } from "../../lea/colorless";
+import { getDefinition } from "../../../index";
+
+const traumaticCritique = getDefinition("2a812fa7-4599-4e25-97db-20ffc6bc0b26");
+const witherbloomCharm = getDefinition("254437f7-7a8a-4b11-9cea-e8e7ea23c59e");
+const silverquillCharm = getDefinition("3eb73579-f1c6-4762-81d2-9568ab501fac");
+const quandrixCharm = getDefinition("318486e0-f255-40f5-8150-dc272eec9d7d");
+const loreholdCharm = getDefinition("5fe70295-e550-4577-a341-dab6c25aabfd");
+const viciousRivalry = getDefinition("6fa9cd18-3181-4373-ab65-49bf9de9487f");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 // A NON-creature artifact (Black Lotus, mv 0 — no toughness, so it can't die

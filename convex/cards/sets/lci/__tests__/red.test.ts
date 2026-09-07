@@ -7,8 +7,6 @@
 // to re-prove the underlying machinery.
 
 import { describe, it, expect } from "vitest";
-import { intiSeneschalOfTheSun } from "../red";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -25,8 +23,13 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { finalizeCleanup } from "../../../../gre/phases";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
 
-const grizzlyBears = getCardByName("Grizzly Bears");
+const intiSeneschalOfTheSun = getDefinition(
+    "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd"
+);
+
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function pushAttackTrigger(state: GameState, inti: CardInstanceState) {
     state.stack.push({
@@ -92,7 +95,7 @@ describe("Inti, Seneschal of the Sun (CR 603.12 reflexive trigger + impulse draw
 
     it("discarding fires the reflexive trigger: +1/+1 counter and trample on target attacking creature", () => {
         const { state, inti } = boardWithAttackingInti();
-        const top = getCardByName("Grizzly Bears");
+        const top = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
         state.players[0].library = [
             makeInstance(top.id, {
                 id: "own-top",

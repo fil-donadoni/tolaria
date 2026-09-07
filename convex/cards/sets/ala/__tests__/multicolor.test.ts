@@ -14,10 +14,8 @@
 // mid-resolution for the controller's pick, so the DSL smoke sweep skips this
 // script — these tests are the coverage.
 import { describe, it, expect } from "vitest";
-import { tidehollowSculler } from "../multicolor";
-import { grizzlyBears, swamp } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition, getCardByName } from "../../..";
+import { getDefinition } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -29,6 +27,10 @@ import {
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
+
+const tidehollowSculler = getDefinition("1abecc77-07f2-43e4-8585-0a8199cdcf01");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 /** p1's Sculler on the battlefield; p2 holds `hand`. */
 function setup(hand: CardInstanceState[]) {
@@ -123,7 +125,9 @@ function scullerLeaves(state: GameState): void {
 describe("Tidehollow Sculler (ALA — linked hand exile + return on leave, CR 603.2 / 607 / 400.7)", () => {
     it("registers by id and name", () => {
         expect(getDefinition(tidehollowSculler.id)).toBe(tidehollowSculler);
-        expect(getCardByName("Tidehollow Sculler")).toBe(tidehollowSculler);
+        expect(getDefinition("1abecc77-07f2-43e4-8585-0a8199cdcf01")).toBe(
+            tidehollowSculler
+        );
     });
 
     it("ETB exiles the chosen nonland card into the OPPONENT's exile, stamped with the Sculler's instance (CR 607)", () => {

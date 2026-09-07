@@ -5,7 +5,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -13,7 +13,8 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { sunfall } from "../white";
+
+const sunfall = getDefinition("32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d");
 
 // Sunfall — {3}{W}{W} Sorcery. "Exile all creatures. Incubate X, where X is
 // the number of creatures exiled this way." (CR 701.13 exile; CR 701.53 incubate
@@ -52,7 +53,9 @@ describe("Sunfall (CR 701.13 exile, CR 701.53 Incubate, issue #924)", () => {
         expect(sunfall.manaCost).toEqual({ generic: 3, W: 2 });
         expect(sunfall.types).toEqual(["Sorcery"]);
         expect(sunfall.oracleText).toContain("Exile all creatures");
-        expect(getCardByName("Sunfall").id).toBe(sunfall.id);
+        expect(getDefinition("32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d").id).toBe(
+            sunfall.id
+        );
     });
 
     it("exiles every creature on both battlefields and incubates X = that count", () => {

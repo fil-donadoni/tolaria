@@ -3,16 +3,18 @@ import { describe, expect, it } from "vitest";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
-import { counterspell } from "../../lea/blue";
-import { lightningBolt } from "../../lea/red";
-import { balduvianBears } from "../../ice/green";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { stifle } from "../blue";
+import { getDefinition } from "../../../index";
+
+const counterspell = getDefinition("0df55e3f-14de-46ef-b6b1-616618724d9e");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const stifle = getDefinition("2d7643c0-b2db-478f-944e-b27b77bad3eb");
 
 /** Build a triggered-ability stack item from a source card def id (CR 603 —
  *  the trigger goes on the stack carrying its source's characteristics). */

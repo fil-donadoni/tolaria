@@ -5,7 +5,6 @@
 // whole-table reset uses composed SpellContext zone primitives (resolve()); the
 // flashback exile itself is covered class-wide by convex/gre/__tests__/flashback.test.ts.
 import { describe, it, expect } from "vitest";
-import { echoOfEons, forceOfNegation, urzaLordHighArtificer } from "../blue";
 import {
     makeInstance,
     makePlayer,
@@ -24,10 +23,6 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { grizzlyBears } from "../../lea";
-import { lightningBolt } from "../../lea/red";
-import { ornithopter } from "../../atq/colorless";
-import { brainstorm } from "../../ice/blue";
 import { projectPublicState } from "../../../../gameProjections";
 import { activateManaAbility, announceCast } from "../../../../game";
 import {
@@ -38,6 +33,17 @@ import {
 } from "../../../../__tests__/gameMutationHarness";
 import type { Id } from "../../../../_generated/dataModel";
 import { FACE_DOWN_CARD_ID } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const echoOfEons = getDefinition("ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5");
+const forceOfNegation = getDefinition("e9be371c-c688-44ad-ab71-bd4c9f242d58");
+const urzaLordHighArtificer = getDefinition(
+    "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
 
 function bears(owner: string, count: number, prefix: string, zone: string) {
     return Array.from({ length: count }, (_, i) =>

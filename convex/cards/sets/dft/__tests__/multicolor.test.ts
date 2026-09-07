@@ -2,12 +2,16 @@
 // `convex/cards/sets/dft/multicolor.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { brightglassGearhulk } from "../multicolor";
-import { ornithopter } from "../../atq/colorless";
 import { registerTokenDefinition } from "../../..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const brightglassGearhulk = getDefinition(
+    "3dea5b45-925c-4732-8e9d-fa8232792736"
+);
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 
 // Ornithopter is mana value 0 (an Artifact Creature) — a real registered
 // mv-0 card covers the "artifact" branch. A synthetic mv-1 Enchantment and a

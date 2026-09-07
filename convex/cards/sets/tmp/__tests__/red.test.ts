@@ -5,8 +5,6 @@
 // Exercised through the GRE entry point: pay the cost (move the source to the
 // graveyard), then resolve the `dealDamage` off the stack-item clone.
 import { describe, it, expect } from "vitest";
-import { moggFanatic, jackalPup } from "..";
-import { lightningBolt } from "../../lea/red";
 import {
     getPlayer,
     processPendingActionTriggers,
@@ -24,6 +22,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const moggFanatic = getDefinition("ca2ecfd4-c874-4468-8601-87aa110d5a00");
+const jackalPup = getDefinition("3707ab74-9aec-4d30-86e0-ffa5f72d5b4f");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Mirror of the game.ts commit path for a no-mana, no-tap self-sacrifice
  *  activated ability (`cost.sacrifice: true`): pay the cost by moving the

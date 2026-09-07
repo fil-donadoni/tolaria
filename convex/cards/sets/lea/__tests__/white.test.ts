@@ -5,73 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    ancestralRecall,
-    animateWall,
-    armageddon,
-    balance,
-    benalishHero,
-    blackWard,
-    blazeOfGlory,
-    blessing,
-    blueWard,
-    bogWraith,
-    castle,
-    chaoslace,
-    circleOfProtectionBlue,
-    circleOfProtectionGreen,
-    circleOfProtectionRed,
-    circleOfProtectionWhite,
-    consecrateLand,
-    conversion,
-    crusade,
-    deathWard,
-    deathlace,
-    disenchant,
-    farmstead,
-    fireball,
-    forest,
-    giantGrowth,
-    goblinKing,
-    greenWard,
-    grizzlyBears,
-    guardianAngel,
-    holyArmor,
-    holyStrength,
-    hypnoticSpecter,
-    island,
-    islandSanctuary,
-    jayemdaeTome,
-    karma,
-    lance,
-    lifelace,
-    lightningBolt,
-    mesaPegasus,
-    monssGoblinRaiders,
-    mountain,
-    northernPaladin,
-    personalIncarnation,
-    plains,
-    purelace,
-    redWard,
-    resurrection,
-    reverseDamage,
-    righteousness,
-    samiteHealer,
-    savannahLions,
-    serraAngel,
-    shivanDragon,
-    stoneRain,
-    swamp,
-    swordsToPlowshares,
-    thoughtlace,
-    verduranEnchantress,
-    veteranBodyguard,
-    wallOfSwords,
-    whiteKnight,
-    whiteWard,
-    wrathOfGod,
-} from "..";
-import {
     regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
@@ -119,6 +52,89 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { activatePump, grizzlyBearsId } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
+const animateWall = getDefinition("d5c83259-9b90-47c2-b48e-c7d78519e792");
+const armageddon = getDefinition("5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb");
+const balance = getDefinition("6f9ea46a-411f-40ce-a873-a905180093f4");
+const benalishHero = getDefinition("11600105-56c6-4073-a4a6-8469030b39c9");
+const blackWard = getDefinition("15967a39-303f-457d-bcde-51837c8d63e1");
+const blazeOfGlory = getDefinition("98fba951-c5bb-497c-9292-ce1b2a1e1247");
+const blessing = getDefinition("f131fd27-18da-47ca-b59f-135bcac83abd");
+const blueWard = getDefinition("93f9f0f2-e1cc-4740-888c-1336c6de0a27");
+const bogWraith = getDefinition("6701874e-986e-4b81-9268-90b6171e6187");
+const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
+const chaoslace = getDefinition("72ea2048-57bc-43d5-8987-33ca727f1a97");
+const circleOfProtectionBlue = getDefinition(
+    "848b1a7f-e8ba-40b5-92b7-af1e963a0319"
+);
+const circleOfProtectionGreen = getDefinition(
+    "1ae32d20-b438-4f43-b603-e8f706ecfb03"
+);
+const circleOfProtectionRed = getDefinition(
+    "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e"
+);
+const circleOfProtectionWhite = getDefinition(
+    "92df19c9-e127-42d9-8dd2-7fa5a7095428"
+);
+const consecrateLand = getDefinition("d2379f78-c03f-447f-b3c9-10a918d556e9");
+const conversion = getDefinition("13186bc9-8d9c-433b-ba15-121ef94dd68a");
+const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
+const deathWard = getDefinition("fa5466cc-aa57-4a7f-8b21-d92b2fe02e13");
+const deathlace = getDefinition("6ff1cefc-62cb-4525-b0c5-2b09603b4314");
+const disenchant = getDefinition("2722d7e2-61c6-4934-9c21-875ee78fd06c");
+const farmstead = getDefinition("3455b006-9ea5-4aef-8ad2-d0701eb0cacf");
+const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const giantGrowth = getDefinition("367dbefe-3366-408e-9fcf-7dc00f8cc201");
+const goblinKing = getDefinition("5873672d-37ea-4c0f-97f3-12b74fde112d");
+const greenWard = getDefinition("1f6118b2-fe01-425a-a2ed-6d7c42286c8e");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const guardianAngel = getDefinition("0f84d676-5327-454c-a033-b4498a9d28e2");
+const holyArmor = getDefinition("b01041d2-687e-4972-81c8-16690809275b");
+const holyStrength = getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03");
+const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const islandSanctuary = getDefinition("c15e8a42-89de-42bc-8d5f-33426d207c3a");
+const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
+const karma = getDefinition("6f30ad61-fcb7-4d55-ba86-94de1bf545e4");
+const lance = getDefinition("ddb633f5-cc4d-4157-8217-def90cb15e24");
+const lifelace = getDefinition("38cb601b-a35c-412e-b386-e77dad3daa54");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mesaPegasus = getDefinition("eaac88da-d19e-4771-944c-3709963d04e7");
+const monssGoblinRaiders = getDefinition(
+    "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
+);
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const northernPaladin = getDefinition("6303233b-35eb-49ca-b844-ba6b9fe1cbd2");
+const personalIncarnation = getDefinition(
+    "caf9cef4-0f2d-478a-b119-fe1967687f74"
+);
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const purelace = getDefinition("2facf462-55cd-4da4-997f-2cf4add75628");
+const redWard = getDefinition("e0c64c01-c2aa-470b-88c6-3d3e4a969649");
+const resurrection = getDefinition("4fff6e6f-4ebd-4ec8-9443-59efb22d376c");
+const reverseDamage = getDefinition("943baea8-b173-4863-a3ab-dd217d483cd9");
+const righteousness = getDefinition("d0ba7b76-f3d0-47d0-8a35-0c08e67200fb");
+const samiteHealer = getDefinition("efba235e-04e5-449c-906c-0ac33f6d7929");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const shivanDragon = getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
+const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const swordsToPlowshares = getDefinition(
+    "386ea9eb-abc1-4862-aa2d-8fb808d79490"
+);
+const thoughtlace = getDefinition("23749375-1416-47a4-9251-52f41fe2fae9");
+const verduranEnchantress = getDefinition(
+    "9f87178b-1221-4d7a-a7a5-20d7f01b8089"
+);
+const veteranBodyguard = getDefinition("cbd9ab01-a833-4fa4-8dee-151bd9800835");
+const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
+const whiteKnight = getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129");
+const whiteWard = getDefinition("49b22665-1501-420a-82ad-f71f6768bcf8");
+const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
 
 describe("Castle (static pt-buff: +0/+2 to your untapped creatures)", () => {
     function setup() {

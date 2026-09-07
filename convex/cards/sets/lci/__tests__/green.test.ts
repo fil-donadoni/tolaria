@@ -15,9 +15,8 @@
 //    `.claude/rules/gre-development.md` requires one integration test for.
 
 import { describe, it, expect } from "vitest";
-import { sentinelOfTheNamelessCity } from "../green";
 import { MAP_TOKEN_SPEC } from "../../../abilities/tokens/mapToken";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -43,8 +42,12 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 
-const grizzlyBears = getCardByName("Grizzly Bears");
-const forest = getCardByName("Forest");
+const sentinelOfTheNamelessCity = getDefinition(
+    "eeeffc0b-dc92-458e-ad58-86ff6077a508"
+);
+
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const MAP_ABILITY_ID = "map-token-sacrifice-explore";
 
 /** Board: p1 controls Sentinel; p1's library is `libraryCardIds` (top first). */

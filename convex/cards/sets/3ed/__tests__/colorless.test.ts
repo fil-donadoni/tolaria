@@ -20,8 +20,6 @@ import {
     circleOfProtectionBlack3ed,
     mountain3ed,
 } from "..";
-import { airElemental, lightningBolt, mountain } from "../../lea";
-import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
 import {
     getDefinition,
     getPrintingsForCard,
@@ -33,6 +31,14 @@ import { validateDeck } from "../../../../formats";
 import type { ValidatableDeck } from "../../../../formats";
 import * as revised from "..";
 import type { CardPrint } from "../../../types";
+
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const volcanicIsland = getDefinition("0324641d-af55-4c53-b4dc-c8262e967da5");
+const circleOfProtectionBlack = getDefinition(
+    "fa47b4cd-8da4-4544-b011-ba92b7009203"
+);
 
 const ALL_3ED = Object.values(revised).filter(
     (v): v is CardPrint => typeof v === "object" && v !== null && "printId" in v

@@ -7,23 +7,27 @@
 // shape (enters tapped, dual mana, self-ETB trigger) and one end-to-end
 // surveil resolution through the real trigger → PendingChoice path.
 import { describe, it, expect } from "vitest";
-import {
-    commercialDistrict,
-    elegantParlor,
-    hedgeMaze,
-    lushPortico,
-    meticulousArchive,
-    raucousTheater,
-    shadowyBackstreet,
-    thunderingFalls,
-    undercitySewers,
-    undergroundMortuary,
-} from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const commercialDistrict = getDefinition(
+    "bf220c06-3cce-4bdd-aa58-83940c223e9c"
+);
+const elegantParlor = getDefinition("72c6d541-e2cb-4d6e-acac-90a8f53b7006");
+const hedgeMaze = getDefinition("5260f8ae-805b-4eae-badf-62de0f768867");
+const lushPortico = getDefinition("c17816e8-28b1-4295-a637-efb0e5c18873");
+const meticulousArchive = getDefinition("652236c2-84ef-45e4-b5fc-ed6170bc3d6c");
+const raucousTheater = getDefinition("b598c93e-dae1-4d71-a9e4-917abf76d2d0");
+const shadowyBackstreet = getDefinition("69c1b656-1d67-499c-bf0f-417682a86c7d");
+const thunderingFalls = getDefinition("17260fff-b239-4af4-9306-3236ae3fa5a5");
+const undercitySewers = getDefinition("2b5801fb-2026-4f25-98bc-ebb2f99684b9");
+const undergroundMortuary = getDefinition(
+    "f6ca59cd-8779-4a84-a54b-e863b79c61f0"
+);
 
 const CYCLE: { card: CardDefinition; subtypes: [string, string] }[] = [
     { card: commercialDistrict, subtypes: ["Mountain", "Forest"] },
@@ -84,12 +88,15 @@ describe("MKM surveil lands (CR 701.25)", () => {
 
     it("surveils the top card into the graveyard when resolved end-to-end", () => {
         const land = makeInstance(undercitySewers.id, { id: "land1" });
-        const top = makeInstance(getCardByName("Island").id, {
-            id: "top1",
-            zone: "library",
-            ownerId: "p1",
-            controllerId: "p1",
-        });
+        const top = makeInstance(
+            getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id,
+            {
+                id: "top1",
+                zone: "library",
+                ownerId: "p1",
+                controllerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [land], library: [top] }),

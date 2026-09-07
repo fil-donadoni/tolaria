@@ -9,9 +9,6 @@
 // card's OWNER rather than its controller — so it earns a card-level test.
 
 import { describe, it, expect } from "vitest";
-import { emrakulTheAeonsTorn } from "../colorless";
-import { grizzlyBears } from "../../lea/green";
-import { lightningBolt } from "../../lea/red";
 import {
     makeInstance,
     makePlayer,
@@ -31,6 +28,12 @@ import {
 import { pushSpell } from "../../../__tests__/setup";
 import { annihilatorTriggerId } from "../../../abilities/annihilator";
 import { getDefinition } from "../../..";
+
+const emrakulTheAeonsTorn = getDefinition(
+    "67600383-bbb8-411c-b8e6-2296650bc747"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Drains the stack, resolving every pending item (including a `trigger-order`
  *  PendingChoice, CR 603.3b / ADR 0058). */

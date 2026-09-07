@@ -9,8 +9,6 @@
 // earns a hand-written test at the GRE target path, the real finalize path,
 // and the wire projection.
 import { describe, it, expect } from "vitest";
-import { endurance } from "../green";
-import { swamp, forest, grizzlyBears } from "../../lea";
 import {
     resolveTopOfStack,
     type GameState,
@@ -21,6 +19,12 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const endurance = getDefinition("eb0e0404-4846-4891-acfa-bd0951ecf9c6");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Put Endurance on p1's battlefield and fire its ETB so the trigger sits on the
 // stack with an un-set target slot (`triggerSourceId` pinned by

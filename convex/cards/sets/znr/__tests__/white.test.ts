@@ -1,7 +1,6 @@
 // ZNR — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { luminarchAspirant, skyclaveApparition } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     processPendingActionTriggers,
@@ -15,6 +14,12 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const luminarchAspirant = getDefinition("fe964e7e-e2c5-4263-889d-0a531eb51442");
+const skyclaveApparition = getDefinition(
+    "b83cfbaa-7890-4f6f-878b-4edb45677371"
+);
 
 // Luminarch Aspirant — {1}{W} Creature — Human Cleric, 1/1 (CR 603.6a
 // combat-begin trigger; CR 122 counter placement). "At the beginning of

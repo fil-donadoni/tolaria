@@ -18,36 +18,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    alabasterLeech,
-    benalishEmissary,
-    benalishLancer,
-    crusadingKnight,
-    deathOrGlory,
-    divinePresence,
-    fightOrFlight,
-    harshJudgment,
-    liberate,
-    prisonBarricade,
-    restrain,
-    reyaDawnbringer,
-    ruhamDjinn,
-    strengthOfUnity,
-    wayfaringGiant,
-    winnow,
-} from "../white";
-import { shackles } from "../../exo/white";
-import { blackVise } from "../../lea/colorless";
-import { balduvianBears } from "../../ice/green";
-import { psionicBlast } from "../../lea/blue";
-import {
-    blackKnight,
-    drudgeSkeletons,
-    island,
-    plains,
-    savannahLions,
-    swamp,
-} from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -76,8 +46,36 @@ import {
     applyAllCombatDamage,
     fireDelayedTriggers,
 } from "../../../../gre/phases";
-import { questingBeast } from "../../eld/green";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const alabasterLeech = getDefinition("c86b45d9-aba6-4c09-8605-037754ba7fd4");
+const benalishEmissary = getDefinition("6b82d56e-80d7-4be9-ac22-de3257efc458");
+const benalishLancer = getDefinition("3a38d40a-e745-4fee-b179-f8c27e9b2fbd");
+const crusadingKnight = getDefinition("a4ab4640-1871-41dd-bd21-64741e21ba37");
+const deathOrGlory = getDefinition("81f967c9-b38d-489d-96cc-44a6b1804e10");
+const divinePresence = getDefinition("28cb898d-d6ce-410a-83bf-37962cca2735");
+const fightOrFlight = getDefinition("46bde162-3737-4b93-a27a-63b909a4183d");
+const harshJudgment = getDefinition("34c78dee-ab45-4638-b89a-10686145b19a");
+const liberate = getDefinition("96794470-31ea-478f-b11c-dc8342a508e2");
+const prisonBarricade = getDefinition("449c4800-8718-4593-a61e-03ad7f348c6d");
+const restrain = getDefinition("f6b5c765-619c-4db9-b509-91892fb65e8f");
+const reyaDawnbringer = getDefinition("e1e0e72b-e65e-4578-b610-9f529daa32d7");
+const ruhamDjinn = getDefinition("a46c7718-1ecc-418c-b213-13be9de5cb7f");
+const strengthOfUnity = getDefinition("1a9d4ff8-af35-413f-9aa2-f4c6e34fade2");
+const wayfaringGiant = getDefinition("57e45de5-0e8b-41d3-979b-ec5a29cac682");
+const winnow = getDefinition("d61748dd-4010-47da-8717-ca0147877057");
+const shackles = getDefinition("c5315668-b8ef-49ab-a8f5-144adc7bcd84");
+const blackVise = getDefinition("76ac72f8-5b1e-4d67-a796-ef69cde27424");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
+const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
+const drudgeSkeletons = getDefinition("23614289-0d73-4747-a849-5cb67cc97d6a");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const questingBeast = getDefinition("e41cf82d-3213-47ce-a015-6e51a8b07e4f");
 
 // ---------------------------------------------------------------------------
 // Alabaster Leech — cost-modifier (CR 601.2f), scoped to the controller's own

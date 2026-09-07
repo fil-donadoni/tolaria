@@ -21,7 +21,6 @@
 //      would sit on the stack with an unfilled slot and no move to fill it.
 
 import { describe, it, expect } from "vitest";
-import { getCardByName } from "../../../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -35,10 +34,13 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { necromancy } from "../black";
-import { animateDead, grizzlyBears } from "../../lea";
+import { getDefinition } from "../../../index";
 
-const SWAMP = getCardByName("Swamp").id;
+const necromancy = getDefinition("311a6257-dd77-4bb6-81cb-c8e7862350f3");
+const animateDead = getDefinition("8fd7861d-925f-4b4c-a4ab-60be6f43d50b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
 
 /** p1 holds `cardId` with `landCount` untapped Swamps. p1 always holds
  *  priority; only whose TURN it is moves (the `flashSurchargeMoves` shape). */

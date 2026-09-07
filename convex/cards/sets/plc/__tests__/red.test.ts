@@ -5,12 +5,16 @@
 // as a `CardPrint` in `m11/red.ts`.
 
 import { describe, it, expect } from "vitest";
-import { prodigalPyromancer } from "../red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getAbilityEffectFn } from "../../../effectRegistry";
 import { validateAbilityEffectScript } from "../../../../gre/effects/validate";
+import { getDefinition } from "../../../index";
+
+const prodigalPyromancer = getDefinition(
+    "97787109-408e-42d3-acc5-300f5f5bf2ff"
+);
 
 // Prodigal Pyromancer — "{T}: This creature deals 1 damage to any target."
 // DSL-only ACTIVATED ability (ADR 0045, issue #803): the effect payload is a

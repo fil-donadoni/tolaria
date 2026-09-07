@@ -13,17 +13,21 @@
 // categorized pick survives the wire projection the client actually reads.
 
 import { describe, it, expect } from "vitest";
-import { atraxaGrandUnifier } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
-import { swamp } from "../../lea/colorless";
-import { lightningBolt } from "../../lea/red";
-import { blackLotus } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const atraxaGrandUnifier = getDefinition(
+    "4a1f905f-1d55-4d02-9d24-e58070793d3f"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 /** Atraxa on the battlefield with `library` (top-first) under her, then her
  *  ETB trigger collected and put on the stack. */

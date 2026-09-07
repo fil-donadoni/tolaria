@@ -3,68 +3,12 @@
 // cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import {
-    balduvianBears,
-    meteorShower,
-    kjeldoranKnight,
-    brainstorm,
-    glacialWall,
-    seaSpirit,
-    anarchy,
-    conquer,
-    flameSpirit,
-    imposingVisage,
-    incinerate,
-    jokulhaups,
-    karplusanYeti,
-    lavaBurst,
-    orcishCannoneers,
-    orcishHealer,
-    pyroblast,
-    pyroclasm,
-    sabretoothTiger,
-    shatterIce,
-    stoneRainIce,
-    stoneSpirit,
-    stonehands,
-    vertigo,
-    wallOfLava,
-    wordOfBlasting,
-    melee,
-    brandOfIllOmen,
-    aggression,
-    balduvianHydra,
-    battleFrenzy,
-    boneShaman,
-    chaosLord,
-    dwarvenArmory,
-    gameOfChaos,
-    goblinMutant,
-    goblinSappers,
-    grizzledWolverine,
-    mRtonStromgald,
-    mudslide,
-    orcishSquatters,
-    totalWar,
-    flare,
-    panic,
-    snowCoveredMountain,
-    barbarianGuides,
-    goblinSkiPatrol,
-    chaosMoon,
-    orcishFarmer,
-    errantry,
-    orcishConscripts,
-    curseOfMaritLage,
-    goblinSnowman,
-    orcishLumberjack,
-} from "../../ice";
+import { shatterIce, stoneRainIce } from "../../ice";
 import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
     collectBlockBypassCharges,
 } from "../../../../gre/combat";
-import { plains, mountain, forest, island } from "../../lea";
 import {
     applyLandManaReplacement,
     getBasicLandMana,
@@ -136,6 +80,65 @@ import {
     makeTargetCreature,
     makeLand,
 } from "./helpers";
+
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const meteorShower = getDefinition("50b4851e-677b-468e-9baa-e47a3b4b8339");
+const kjeldoranKnight = getDefinition("d5b9db8f-93b5-44e3-9e2b-728c80dfbb37");
+const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
+const glacialWall = getDefinition("07b71bc1-d9a2-4e99-a8fa-cd696925328d");
+const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
+const anarchy = getDefinition("28d941da-b5cb-4b7e-84f2-ece883f89af3");
+const conquer = getDefinition("ae610e66-7bcb-40ec-bed5-86dcfd098654");
+const flameSpirit = getDefinition("add2b82a-9aa5-4d5c-a1c2-e313541f12c8");
+const imposingVisage = getDefinition("cca42b74-9b42-482b-b12a-79cafdcd087e");
+const incinerate = getDefinition("9c3f00af-010d-4485-b8b7-47400d99c496");
+const jokulhaups = getDefinition("3bf0d325-5928-4593-8faa-64ffa414cb48");
+const karplusanYeti = getDefinition("7dd9b214-d9fe-4c2e-b45b-7145ad98c408");
+const lavaBurst = getDefinition("79dc0e20-5790-4927-8432-cf0e9b7381d4");
+const orcishCannoneers = getDefinition("a4309a2f-27f5-4652-b0b4-6a6119436f75");
+const orcishHealer = getDefinition("7ff511f3-416e-4919-acd6-fd8183bf5c60");
+const pyroblast = getDefinition("c342cac5-08ae-4428-9c2c-f6c5904e54d2");
+const pyroclasm = getDefinition("88040748-ad76-4b9a-bd4e-87e5980e9816");
+const sabretoothTiger = getDefinition("6914c5a8-2114-41c5-a471-ca97524d622f");
+const stoneSpirit = getDefinition("789dfae7-fe23-4e2e-9f5f-304535d22a78");
+const stonehands = getDefinition("d23fa1af-78e5-4d23-bbf6-cd62bc54b4e9");
+const vertigo = getDefinition("3067e7af-7bbd-48c1-9f1d-df2a91a0ec54");
+const wallOfLava = getDefinition("b99d6d11-b3f7-4d73-967c-3049af82a9d8");
+const wordOfBlasting = getDefinition("46b383c8-d604-4131-a869-9e9d13e30b94");
+const melee = getDefinition("b13a064d-bff4-4a48-a158-1b61951b0ac3");
+const brandOfIllOmen = getDefinition("ceeb7bbc-2d41-4709-95be-1ceb952ed1fb");
+const aggression = getDefinition("f3f26060-0c24-496c-b8e2-4dac7ea6166b");
+const balduvianHydra = getDefinition("c3a3b37f-daa6-4502-bb12-c72afe3df035");
+const battleFrenzy = getDefinition("a85ae675-56ca-4a00-83d2-ee035f33d6d1");
+const boneShaman = getDefinition("0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c");
+const chaosLord = getDefinition("ee245922-b380-4b2e-a43f-ab1ba8078943");
+const dwarvenArmory = getDefinition("7d14a430-6e08-40cf-970a-cae84bba6ef7");
+const gameOfChaos = getDefinition("08265332-2c0e-4c42-8c51-83ac20462eed");
+const goblinMutant = getDefinition("6db54f95-6652-45a3-b960-c2fc118beca1");
+const goblinSappers = getDefinition("de839540-a7b9-4f91-91df-3fd4f5c0bc4e");
+const grizzledWolverine = getDefinition("95bb17b9-55c4-4cc1-83f6-75490b9a97d0");
+const mRtonStromgald = getDefinition("7880e815-53e7-43e0-befd-e368f00a75d8");
+const mudslide = getDefinition("65acce56-8674-471e-9d5e-91b7e3f672c1");
+const orcishSquatters = getDefinition("f3ee7bd5-612b-4916-a914-1294805b8f64");
+const totalWar = getDefinition("6107388b-ec1e-401e-a407-a821c908ed8d");
+const flare = getDefinition("d5350236-7bd2-462d-9768-50087626c764");
+const panic = getDefinition("a9ab85ac-311c-4e36-943a-817e43a3c8a8");
+const snowCoveredMountain = getDefinition(
+    "ccd3afb3-5574-4f2d-adbe-969a428f1c63"
+);
+const barbarianGuides = getDefinition("fe65a045-dacb-4392-bcb6-843394ef98c9");
+const goblinSkiPatrol = getDefinition("fde1c8b5-1e01-4920-8d02-bf80d5b238c5");
+const chaosMoon = getDefinition("aae0543f-7f8b-4327-b735-ac21244e9936");
+const orcishFarmer = getDefinition("efa5beef-d609-4809-a813-621b0b4cff7f");
+const errantry = getDefinition("8346e741-61f8-4283-be51-f5f80e9595a5");
+const orcishConscripts = getDefinition("e71394f8-3038-4cad-adea-a704f004777f");
+const curseOfMaritLage = getDefinition("69b381c1-aa71-4d40-a320-70f58a440d51");
+const goblinSnowman = getDefinition("5bbb260a-6763-4d1c-a009-4e34cd572519");
+const orcishLumberjack = getDefinition("21ef13e3-658c-43a3-a290-4c5dde8e8b55");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // ===========================================================================
 // Red free tranche (#633)
@@ -863,16 +866,22 @@ describe("Balduvian Hydra — ETB X +1/+0, remove-counter prevent, upkeep grow (
 
 describe("Battle Frenzy — instant batch pump (CR 611.1)", () => {
     it("buffs green creatures +1/+1 and nongreen +1/+0", () => {
-        const greenC = makeInstance(getCardByName("Balduvian Bears").id, {
-            id: "green",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const redC = makeInstance(getCardByName("Balduvian Barbarians").id, {
-            id: "red",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const greenC = makeInstance(
+            getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id,
+            {
+                id: "green",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const redC = makeInstance(
+            getDefinition("efeabe8e-8107-4d19-8a43-362aa79cdd92").id,
+            {
+                id: "red",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [greenC, redC] }),
@@ -980,11 +989,14 @@ describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a /
             ownerId: "p1",
         });
         // p1 has the Lord (1) + 1 land = 2 → even total.
-        const land = makeInstance(getCardByName("Mountain").id, {
-            id: "mtn",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const land = makeInstance(
+            getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id,
+            {
+                id: "mtn",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [lord, land] }),
@@ -1452,12 +1464,15 @@ describe("Mudslide — non-flying untap-lock + per-upkeep pay-{2}-to-untap (CR 6
         });
         // A real registered non-flying creature (the pay path scans the
         // battlefield for land mana and rejects fake card ids).
-        const ground = makeInstance(getCardByName("Balduvian Bears").id, {
-            id: "ground",
-            controllerId: "p1",
-            ownerId: "p1",
-            isTapped: true,
-        });
+        const ground = makeInstance(
+            getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id,
+            {
+                id: "ground",
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: true,
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [slide, ground] }),
@@ -1523,11 +1538,14 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             ownerId: "p1",
             isAttacking: true,
         });
-        const land = makeInstance(getCardByName("Mountain").id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land = makeInstance(
+            getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id,
+            {
+                id: "land",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [squatters] }),
@@ -1558,16 +1576,22 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             ownerId: "p1",
             isAttacking: true,
         });
-        const land1 = makeInstance(getCardByName("Mountain").id, {
-            id: "land1",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const land2 = makeInstance(getCardByName("Mountain").id, {
-            id: "land2",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land1 = makeInstance(
+            getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id,
+            {
+                id: "land1",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const land2 = makeInstance(
+            getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id,
+            {
+                id: "land2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [squatters] }),
@@ -1607,11 +1631,14 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             ownerId: "p1",
             isAttacking: true,
         });
-        const land = makeInstance(getCardByName("Mountain").id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land = makeInstance(
+            getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56").id,
+            {
+                id: "land",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [squatters] }),

@@ -5,18 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    dandan,
-    fishliverOil,
-    giantTortoise,
-    islandFishJasconius,
-    moorishCavalry,
-    oldManOfTheSea,
-    serendibDjinn,
-    serendibEfreet,
-    unstableMutation,
-} from "..";
-import { grizzlyBears, island, mountain } from "../../lea";
-import {
     makeInstance,
     makePlayer,
     makeState,
@@ -37,6 +25,22 @@ import {
     answerChoice,
     upkeepEvent,
 } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const dandan = getDefinition("414d3cae-b8cf-4d53-bd6b-1aa83a828ba9");
+const fishliverOil = getDefinition("deb6ed87-aa07-4b5e-ac40-1e16dc2a817a");
+const giantTortoise = getDefinition("096f7ac8-c639-4347-9767-7305eaf490ba");
+const islandFishJasconius = getDefinition(
+    "8537cb0f-4821-417b-80cc-ea57d51ee9b8"
+);
+const moorishCavalry = getDefinition("f86f0781-7614-4779-a58d-f13ce96bdf33");
+const oldManOfTheSea = getDefinition("d10f8a05-78b0-42a7-adcd-83f6bafe5417");
+const serendibDjinn = getDefinition("0458b733-d689-4cb5-8970-3b675c67fc4d");
+const serendibEfreet = getDefinition("cf56e862-3169-4f63-acd0-731080fa32f2");
+const unstableMutation = getDefinition("a79e9236-a39e-471a-b18a-2c2ba16e7774");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 describe("Serendib Efreet (flying + upkeep: 1 damage to you)", () => {
     it("has flying and pings its controller", () => {

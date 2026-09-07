@@ -5,14 +5,14 @@
 // a three-colour mana ability, and Cycling {3} (CR 702.29).
 
 import { describe, it, expect } from "vitest";
-import {
-    raugrinTriome,
-    indathaTriome,
-    savaiTriome,
-    ketriaTriome,
-    zagothTriome,
-} from "../colorless";
 import type { CardDefinition } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const raugrinTriome = getDefinition("02138fbb-3962-4348-8d31-faaefba0b8b2");
+const indathaTriome = getDefinition("2b74bb81-fb9a-40e5-a941-e517430b52f5");
+const savaiTriome = getDefinition("748e6a61-9c1f-4225-9f04-e54002f63ac3");
+const ketriaTriome = getDefinition("a249b1f4-2b22-4b67-a207-e0c4ae95d2e1");
+const zagothTriome = getDefinition("cc520518-2063-4b57-a0d4-10cf62a7175e");
 
 function expectTriome(
     card: CardDefinition,

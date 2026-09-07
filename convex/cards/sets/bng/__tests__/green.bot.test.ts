@@ -11,7 +11,9 @@
 import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../../../../gre/moves";
 import { courserBoard } from "./courserBoard";
-import { forest } from "../../lea/colorless";
+import { getDefinition } from "../../../index";
+
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("bot move enumeration — the permission is reachable by the AI", () => {
     it("enumerates a play-land move for the top library land", () => {

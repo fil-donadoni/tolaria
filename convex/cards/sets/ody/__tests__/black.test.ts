@@ -1,7 +1,6 @@
 // ODY (Odyssey) — black behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { innocentBlood, entomb } from "../black";
 import {
     makeInstance,
     makePlayer,
@@ -14,6 +13,10 @@ import { refreshExpectedInput } from "../../../../gre/expectedInput";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const innocentBlood = getDefinition("d26af8f6-df64-4027-880c-f2fae2d8103f");
+const entomb = getDefinition("f60a2091-fb97-4f04-911b-fce9b6351044");
 
 const BEAR_ID = "test-odyb-bear";
 registerTokenDefinition({

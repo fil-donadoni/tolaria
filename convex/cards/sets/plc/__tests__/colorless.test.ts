@@ -5,8 +5,6 @@
 // clobbering the printed ones (CR 305.7, 611).
 
 import { describe, it, expect } from "vitest";
-import { urborgTombOfYawgmoth } from "..";
-import { forest, tropicalIsland } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { getBasicLandMana } from "../../../../gre/constants";
@@ -16,6 +14,13 @@ import {
     removePermanentTo,
 } from "../../../../gre/state";
 import { applyPlayLand } from "../../../../gre/playLand";
+import { getDefinition } from "../../../index";
+
+const urborgTombOfYawgmoth = getDefinition(
+    "19e1224f-82cb-4f41-8739-f880cba61bbb"
+);
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const tropicalIsland = getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56");
 
 describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR 305.7, 611)", () => {
     it("adds Swamp to its OWN subtypes when played (it is itself a Land)", () => {

@@ -10,9 +10,11 @@ import type {
 import { finalizeCleanup } from "../../../../gre/phases";
 import { castProhibitionReason } from "../../../castRestrictions";
 import { projectPublicState } from "../../../../gameProjections";
-import { lightningBolt } from "../../lea/red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { xantidSwarm } from "../green";
+import { getDefinition } from "../../../index";
+
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const xantidSwarm = getDefinition("6a87911a-3931-46aa-9348-2728c4b73b96");
 
 /** Push Xantid Swarm's attack trigger onto the stack with the firing event and
  *  resolve it (CR 603 — the trigger carries its source's characteristics). */

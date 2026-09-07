@@ -1,8 +1,6 @@
 // STH (Stronghold) — white behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { sacredGround } from "../white";
-import { plains } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     destroyWithReplacements,
@@ -11,6 +9,10 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const sacredGround = getDefinition("37ae4b01-a9c1-4eec-9204-78cb2508e0df");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 
 // Sacred Ground (CR 603.10 leave-the-battlefield trigger, issue #1054):
 // "Whenever a spell or ability an opponent controls causes a land to be put

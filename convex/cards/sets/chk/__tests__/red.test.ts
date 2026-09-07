@@ -1,12 +1,14 @@
 // CHK (Champions of Kamigawa) — red behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { lavaSpike } from "../red";
 import { makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getResolveFn } from "../../../effectRegistry";
 import { validateEffectScript } from "../../../../gre/effects/validate";
+import { getDefinition } from "../../../index";
+
+const lavaSpike = getDefinition("60b2fae1-242b-45e0-a757-b1adc02c06f3");
 
 describe("Lava Spike (3 damage to target player, CR 120.1 — first DSL-only card, ADR 0045)", () => {
     it("is DSL-only: a valid Effect Script, no imperative resolve", () => {

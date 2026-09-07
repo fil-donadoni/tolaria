@@ -16,7 +16,6 @@
 // planeswalker; see `docs/findings/2391-bot-skips-loyalty-abilities.md`.
 
 import { describe, it, expect } from "vitest";
-import { getCardByName } from "../../../index";
 import { finalizeTargetSelection } from "../../../../game";
 import { DACK_FAYDEN_EMBLEM_ID } from "../../../emblems";
 import { enumerateMoves } from "../../../../gre/moves";
@@ -25,10 +24,11 @@ import { cloneGameState } from "../../../../gre/clone";
 import { refreshExpectedInput } from "../../../../gre/expectedInput";
 import type { GameState, PendingTarget } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
 
-const TWIDDLE = getCardByName("Twiddle").id;
-const ORNITHOPTER = getCardByName("Ornithopter").id;
-const BEARS = getCardByName("Balduvian Bears").id;
+const TWIDDLE = getDefinition("576e811f-26a3-4a7c-bd13-3b1cc3e184eb").id;
+const ORNITHOPTER = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id;
+const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id;
 
 /** p1 (the bot seat) holds Twiddle and Dack's emblem; p2 has two permanents. */
 function board(): GameState {

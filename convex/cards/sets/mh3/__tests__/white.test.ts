@@ -17,13 +17,16 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
-import { guideOfSouls, ocelotPride, phelia } from "../white";
 import {
     grantCityBlessing,
     hasCityBlessing,
 } from "../../../../gre/cityBlessing";
-import { balduvianBears } from "../../ice/green";
-import { forest } from "../../lea/colorless";
+
+const guideOfSouls = getDefinition("76c3cad2-1e25-4abe-878d-9194de6fcc27");
+const ocelotPride = getDefinition("89cf6f57-230f-497e-a14e-ad1e8737fd42");
+const phelia = getDefinition("55707746-da6e-46e5-a5ca-7ac843fdc38e");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("Guide of Souls — ETB (CR 603.6a): another creature entering", () => {
     it("gains 1 life and 1 energy when ANOTHER creature you control enters", () => {

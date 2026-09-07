@@ -5,7 +5,6 @@
 // in `m11/black.ts`.
 
 import { describe, it, expect } from "vitest";
-import { mindRot } from "../black";
 import {
     makeInstance,
     makePlayer,
@@ -22,6 +21,9 @@ import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const mindRot = getDefinition("b91d355d-8409-4f0b-87ce-7590a8b9ebc0");
 
 // A filler card for the target player's hand.
 const FILLER_ID = "test-m11-filler";

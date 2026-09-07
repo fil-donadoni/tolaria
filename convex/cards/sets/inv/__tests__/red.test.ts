@@ -18,24 +18,6 @@
 // authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
-import {
-    overload,
-    obliterate,
-    urzasRage,
-    kavuScout,
-    collapsingBorders,
-    tribalFlames,
-    bendOrBreak,
-    standOrFall,
-    pouncingKavu,
-    kavuRunner,
-    goblinSpy,
-    ancientKavu,
-    lightningDart,
-    loafingGiant,
-    scorchingLava,
-} from "../red";
-import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
 import {
     makeInstance,
@@ -65,12 +47,34 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { drawCard } from "../../../../gre/state";
 import { makeRng, shuffleWithRng } from "../../../../gre/rng";
-import { mountain, forest, plains, island, swamp } from "../../lea/colorless";
-import { savannahLions } from "../../lea";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getDefinition } from "../../../index";
+
+const overload = getDefinition("c91fca91-7296-422e-b251-d571b710ff71");
+const obliterate = getDefinition("cdabde40-2143-4677-b7b4-ea8fbf9b1f25");
+const urzasRage = getDefinition("61a25a35-3ae4-471e-adcd-d8baf2f77b68");
+const kavuScout = getDefinition("cbc2670d-a3f4-47c2-b424-01fd379ff186");
+const collapsingBorders = getDefinition("cc019633-788e-4095-9610-6c0a432f7656");
+const tribalFlames = getDefinition("9b32531e-c759-4603-abd0-1724e8df70db");
+const bendOrBreak = getDefinition("b76b6660-d4b2-44de-a1a7-8d00811f90f6");
+const standOrFall = getDefinition("60c34970-a106-490c-ac37-6156eb7f34ce");
+const pouncingKavu = getDefinition("7e6e2e49-7bde-43c1-8caf-43d237dfc052");
+const kavuRunner = getDefinition("2bc1b462-4e3c-47cc-87c5-f6e29dd70c01");
+const goblinSpy = getDefinition("2a89a099-8805-4b26-babd-5d9f48ee406a");
+const ancientKavu = getDefinition("c8ccb5d0-735b-443f-addd-8b70f5f2c60d");
+const lightningDart = getDefinition("54d05157-d154-4203-bf3e-add110cb1cee");
+const loafingGiant = getDefinition("fab5f738-04d0-44c9-88ec-28469b668040");
+const scorchingLava = getDefinition("2a85437f-052e-494c-a9ee-265c4624a409");
+const stun = getDefinition("c09c0da6-37a7-42ba-b264-18898ee372f0");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 
 // Synthetic artifacts with controlled mana values.
 const ART_MV2 = "test-overload-art-mv2";

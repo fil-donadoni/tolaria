@@ -6,39 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import { UPKEEP_C5, answerChoice, resolveTrigger } from "./helpers";
-import {
-    activeVolcano,
-    aerathiBerserker,
-    amrouKithkin,
-    azureDrake,
-    beastsOfBogardan,
-    bloodLust,
-    cavernsOfDespair,
-    chainLightning,
-    crimsonKobolds,
-    crookshankKobolds,
-    eternalWarrior,
-    frostGiant,
-    giantStrength,
-    glyphOfDestruction,
-    glyphOfLife,
-    gravitySphere,
-    hyperionBlacksmith,
-    immolation,
-    jasmineBoreal,
-    keepersOfTheFaith,
-    koboldDrillSergeant,
-    koboldOverlord,
-    koboldTaskmaster,
-    koboldsOfKherKeep,
-    primordialOoze,
-    spinalVillain,
-    theBrute,
-    wallOfEarth,
-    wallOfHeat,
-    wallOfOpposition,
-    windsOfChange,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import {
@@ -74,13 +41,49 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
-import {
-    forest,
-    grizzlyBears,
-    island,
-    lightningBolt,
-    mountain,
-} from "../../lea";
+
+const activeVolcano = getDefinition("ad402e65-6fac-4005-a2d4-592983df0c30");
+const aerathiBerserker = getDefinition("06673800-22a7-4ee3-92fa-7c7cd4865d30");
+const amrouKithkin = getDefinition("cbce1c55-123c-4a05-bde4-18a1601fcc5a");
+const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
+const beastsOfBogardan = getDefinition("f885d776-2953-4ed4-b63f-91dc2b42783b");
+const bloodLust = getDefinition("fbbf1a9c-8b94-4ee7-92db-65b531149990");
+const cavernsOfDespair = getDefinition("209f7479-b3a0-4c27-9602-78babb8d2e99");
+const chainLightning = getDefinition("b5883762-ca0a-4932-8d2a-41a45796a5f8");
+const crimsonKobolds = getDefinition("13696657-aeef-4add-9a3b-8137fce01fe3");
+const crookshankKobolds = getDefinition("7af6b119-7db4-49dd-aaa4-044b8c133f13");
+const eternalWarrior = getDefinition("97cdc38e-1d96-4de2-98e2-713f5d4d2180");
+const frostGiant = getDefinition("6955d54f-7b37-4e43-8183-51677fb1ee11");
+const giantStrength = getDefinition("a86190bb-1f41-4128-b9fb-dfb1d178359d");
+const glyphOfDestruction = getDefinition(
+    "8e9c153c-9224-491b-bc84-8a9f0a83ee5a"
+);
+const glyphOfLife = getDefinition("ba1384e5-d140-4074-9548-250af09cb413");
+const gravitySphere = getDefinition("a2749332-e99a-4a0c-b3a3-5578b552fa11");
+const hyperionBlacksmith = getDefinition(
+    "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08"
+);
+const immolation = getDefinition("9b3d34fa-398c-4ea0-a392-6690bd3a615c");
+const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
+const keepersOfTheFaith = getDefinition("b63a69ae-99ce-4d26-88b7-784793c43cd4");
+const koboldDrillSergeant = getDefinition(
+    "741b14f8-625d-41be-a734-0efe042a6ee8"
+);
+const koboldOverlord = getDefinition("490eeedb-9c03-4dc7-81fd-ae54a7932e4d");
+const koboldTaskmaster = getDefinition("1b9c63eb-8d4e-4d8b-8637-308459ef036b");
+const koboldsOfKherKeep = getDefinition("df0320d9-7c2a-456a-9159-1b4fae67bfb5");
+const primordialOoze = getDefinition("a46e47e1-8639-48f7-94c4-5f9e9666839a");
+const spinalVillain = getDefinition("d6d5e36f-0049-4be8-bf85-8dc0186339a4");
+const theBrute = getDefinition("f9ffb265-872f-47b3-974c-92bcbebd557e");
+const wallOfEarth = getDefinition("c12e97c1-ca28-432a-8140-3f08bb4485a3");
+const wallOfHeat = getDefinition("a38059a8-be69-4cc1-969b-951c610f2f11");
+const wallOfOpposition = getDefinition("2b3d1430-9978-4983-a4fd-d1fa8dea2169");
+const windsOfChange = getDefinition("186fd917-8d65-4de5-8546-a32a5f6d3bab");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 describe("Kobold Taskmaster (other Kobolds +1/+0, CR 611)", () => {
     it("buffs other Kobolds but not itself (GRE + wire)", () => {

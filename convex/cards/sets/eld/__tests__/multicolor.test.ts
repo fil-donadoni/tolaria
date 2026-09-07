@@ -19,8 +19,6 @@
 //     CR 701.12b same-controller no-op driven straight at the Op list.
 
 import { describe, it, expect } from "vitest";
-import { oko } from "../multicolor";
-import { getCardByName } from "../../../index";
 import type { GameState, CardInstanceState } from "../../../../gre/state";
 import { removePermanentTo, resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -36,15 +34,18 @@ import {
     applyOneTargetSelection,
 } from "../../../../game";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const oko = getDefinition("3462a3d0-5552-49fa-9eb7-100960c55891");
 
 const PLUS2 = "oko-thief-of-crowns-plus2";
 const PLUS1 = "oko-thief-of-crowns-plus1";
 const MINUS5 = "oko-thief-of-crowns-minus5";
 
-const BEARS = getCardByName("Balduvian Bears").id; // vanilla 2/2
-const SERRA = getCardByName("Serra Angel").id; // 4/4 flying, vigilance
-const ORNITHOPTER = getCardByName("Ornithopter").id; // 0/2 artifact creature, flying
-const LOTUS = getCardByName("Black Lotus").id; // noncreature artifact, mana ability
+const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id; // vanilla 2/2
+const SERRA = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id; // 4/4 flying, vigilance
+const ORNITHOPTER = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id; // 0/2 artifact creature, flying
+const LOTUS = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe").id; // noncreature artifact, mana ability
 
 function okoOnBattlefield(loyalty = 4) {
     return makeInstance(oko.id, {

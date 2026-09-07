@@ -5,59 +5,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    aspectOfWolf,
-    badlands,
-    bayou,
-    berserk,
-    birdsOfParadise,
-    channel,
-    cockatrice,
-    elvishArchers,
-    fastbond,
-    fog,
-    forceOfNature,
-    forest,
-    fungusaur,
-    gaeasLiege,
-    giantGrowth,
-    giantSpider,
-    grizzlyBears,
-    hurricane,
-    hypnoticSpecter,
-    iceStorm,
-    instillEnergy,
-    island,
-    kudzu,
-    leyDruid,
-    lifeforce,
-    lightningBolt,
-    livingArtifact,
-    livingLands,
-    llanowarElves,
-    lure,
-    mountain,
-    naturalSelection,
-    plains,
-    regeneration,
-    regrowth,
-    savannahLions,
-    serraAngel,
-    shanodinDryads,
-    shivanDragon,
-    solRing,
-    streamOfLife,
-    swamp,
-    thicketBasilisk,
-    tranquility,
-    tsunami,
-    verduranEnchantress,
-    wallOfBrambles,
-    wanderlust,
-    web,
-    wildGrowth,
-    wrathOfGod,
-} from "..";
-import {
     regenerateOrDestroy,
     removePermanentTo,
     removeFromZone,
@@ -73,7 +20,6 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { getCardByName } from "../../../catalogue";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -107,6 +53,61 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const aspectOfWolf = getDefinition("fd9ac9e6-1395-4fbd-80e2-645f0d910c29");
+const badlands = getDefinition("717f6d10-9144-4ade-9ac6-a481cc66b875");
+const bayou = getDefinition("412ceddd-2b9a-4551-a6bf-ae2830a2010a");
+const berserk = getDefinition("e173c8ce-2352-405e-ad00-e3bb94ced1ad");
+const birdsOfParadise = getDefinition("55fe6449-1f23-43dc-adee-d144cd505b5c");
+const channel = getDefinition("c1862c47-71cc-45a3-8805-a5ddc62e55ea");
+const cockatrice = getDefinition("9cd91814-6177-4a3d-a1c1-a3be7d7c7957");
+const elvishArchers = getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
+const fastbond = getDefinition("a575a9af-e1de-4a1d-91d8-440585377e4f");
+const fog = getDefinition("cfba606d-bb55-43ba-aa0c-299649958788");
+const forceOfNature = getDefinition("21551cb6-3a53-42dd-9bbd-4bc56304d6d3");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const fungusaur = getDefinition("5ad89f0d-b09b-40a0-84d6-3ee60dec7e23");
+const gaeasLiege = getDefinition("e2b15221-c8b0-4861-9f8b-8a65834ad499");
+const giantGrowth = getDefinition("367dbefe-3366-408e-9fcf-7dc00f8cc201");
+const giantSpider = getDefinition("77636b4c-faea-4bf5-b88c-dd5bb88dc930");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hurricane = getDefinition("52f5a19f-16e4-4d35-89e1-969ac8202f88");
+const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
+const iceStorm = getDefinition("9914836e-2fa6-4390-94b2-431427848a54");
+const instillEnergy = getDefinition("5bd38716-874c-4e3c-a315-837839a6258c");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const kudzu = getDefinition("b2b72dcd-9ea1-4729-baae-ecd262fdff67");
+const leyDruid = getDefinition("f9232508-d363-4ef3-987a-741f6bff331f");
+const lifeforce = getDefinition("e292577e-6232-44fa-a9c2-cc09949c6ed3");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const livingArtifact = getDefinition("c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e");
+const livingLands = getDefinition("80be0580-7948-4d8e-8c0f-5e2797ac411b");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const lure = getDefinition("2a87b26e-0431-42e9-b44f-94ba8546111a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const naturalSelection = getDefinition("a8917dc8-01c0-4e72-9310-c4d501775411");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const regeneration = getDefinition("b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4");
+const regrowth = getDefinition("badc73ec-3728-4246-90c7-5f4eb7051ed5");
+const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
+const shanodinDryads = getDefinition("814cf35c-f1ad-4bf4-8c10-a5592c3b1be8");
+const shivanDragon = getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const streamOfLife = getDefinition("aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const thicketBasilisk = getDefinition("e92cce01-b3bd-4307-aae5-9a7c8fa386ab");
+const tranquility = getDefinition("774cc5a6-3a69-4812-add4-eb5eb6389238");
+const tsunami = getDefinition("9ed67d61-cf47-446b-b454-eb404a8686b7");
+const verduranEnchantress = getDefinition(
+    "9f87178b-1221-4d7a-a7a5-20d7f01b8089"
+);
+const wallOfBrambles = getDefinition("af2a4558-db6e-41b2-aff6-b164d93282a0");
+const wanderlust = getDefinition("220a03ca-8c9b-4acb-821d-f6577fbb20fb");
+const web = getDefinition("37c7890a-86dc-4a97-a7ce-1436fa22d0c0");
+const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
+const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
 
 describe("Hurricane ({X}{G} — X damage to each flying creature and each player, CR 107.3 / 120.3)", () => {
     function setupBoard() {
@@ -1421,7 +1422,9 @@ describe("Verduran Enchantress (may draw on enchantment cast)", () => {
     // here, not just in the trigger's own `matches()` unit (already covered
     // above).
     it("fires the may-draw trigger when the enchantment is RECAST after being bounced to hand (issue #1989)", () => {
-        const mirrisGuile = getCardByName("Mirri's Guile");
+        const mirrisGuile = getDefinition(
+            "73d51a3c-95c0-4810-b847-4b8afd12fd64"
+        );
         const guile = makeInstance(mirrisGuile.id, {
             id: "guile",
             controllerId: "p1",

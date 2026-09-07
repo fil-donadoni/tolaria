@@ -40,10 +40,14 @@ import {
     emitAttackersDeclaredEvents,
 } from "../../../../gre/phases";
 import { getDefinition } from "../../../index";
-import { tamiyoInquisitiveStudent } from "../blue";
 import { TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID } from "../../../emblems";
-import { lightningBolt } from "../../lea/red";
-import { giantGrowth, grizzlyBears } from "../../lea/green";
+
+const tamiyoInquisitiveStudent = getDefinition(
+    "2a717b98-cdac-416d-bf6c-f6b6638e65d1"
+);
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const giantGrowth = getDefinition("367dbefe-3366-408e-9fcf-7dc00f8cc201");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const TAMIYO = tamiyoInquisitiveStudent.id;
 

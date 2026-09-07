@@ -5,9 +5,6 @@
 // `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { emryLurkerOfTheLoch } from "..";
-import { solRing } from "../../lea";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -24,6 +21,12 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const emryLurkerOfTheLoch = getDefinition(
+    "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a"
+);
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slice #1337 (PRD #702, ADR 0063) — count-driven SELF-HOST cost reduction:
@@ -280,7 +283,10 @@ describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (
     it("only artifact cards in the activator's OWN graveyard are legal targets (CR 601.2c)", () => {
         const { state } = emryBoard([
             gyCard(solRing.id, "gy-artifact"),
-            gyCard(getCardByName("Grizzly Bears").id, "gy-creature"),
+            gyCard(
+                getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+                "gy-creature"
+            ),
         ]);
         // An artifact in the OPPONENT's graveyard must not qualify.
         state.players[1].graveyard.push(

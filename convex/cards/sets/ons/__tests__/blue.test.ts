@@ -5,8 +5,6 @@
 // convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { chainOfVapor } from "../blue";
-import { grizzlyBears, island } from "../../lea";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -21,6 +19,10 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
+
+const chainOfVapor = getDefinition("30f6b4a2-5780-46e9-b239-459d2cf37743");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // ---------------------------------------------------------------------------
 // Chain of Vapor — {U} instant: return target nonland permanent to hand, then

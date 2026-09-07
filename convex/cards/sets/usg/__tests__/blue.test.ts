@@ -9,15 +9,6 @@
 // spells, illegal against creature / instant spells and abilities.
 
 import { describe, it, expect } from "vitest";
-import { annul, showAndTell, timeSpiral } from "..";
-import {
-    blackLotus,
-    crusade,
-    forest,
-    grizzlyBears,
-    lightningBolt,
-    mountain,
-} from "../../lea";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -27,6 +18,17 @@ import {
     makePlayer,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const annul = getDefinition("3f8c73ff-be92-41ca-93a7-76f9823adb38");
+const showAndTell = getDefinition("4b851c17-55ed-4671-b471-dc7b34944432");
+const timeSpiral = getDefinition("f3d62dbd-63db-4ac9-950f-9852627f23f2");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 
 describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.6a / 114.1)", () => {
     it("legal targets are exactly the artifact and enchantment spells on the stack", () => {

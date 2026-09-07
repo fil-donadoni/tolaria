@@ -25,12 +25,14 @@
 // catalogue-wide follow-up this surfaced.
 
 import { describe, it, expect } from "vitest";
-import { gutTrueSoulZealot } from "../red";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { enumerateMoves } from "../../../../gre/moves";
+import { getDefinition } from "../../../index";
+
+const gutTrueSoulZealot = getDefinition("3d8ca18d-9099-4f1e-95c1-f04da58a26bd");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function declareAttackers(state: GameState, attackerIds: string[]): void {
     state.phase = "DECLARE_ATTACKERS";

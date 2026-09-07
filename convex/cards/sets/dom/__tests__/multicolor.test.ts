@@ -9,9 +9,6 @@
 // seam Chandra, Torch of Defiance's −7 validates).
 
 import { describe, it, expect } from "vitest";
-import { teferiHeroOfDominaria } from "../multicolor";
-import { elvishArchers } from "../../lea/green";
-import { island } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
@@ -27,6 +24,13 @@ import { projectPublicState } from "../../../../gameProjections";
 import { TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID } from "../../../emblems";
 import { PERMANENT_TYPES } from "../../../types";
 import type { GameEvent, TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const teferiHeroOfDominaria = getDefinition(
+    "5d10b752-d9cb-419d-a5c4-d4ee1acb655e"
+);
+const elvishArchers = getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 const PLUS1 = "teferi-hero-of-dominaria-plus1";
 const MINUS3 = "teferi-hero-of-dominaria-minus3";

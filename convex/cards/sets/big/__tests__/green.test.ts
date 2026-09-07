@@ -1,10 +1,5 @@
 // BIG — green card behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import {
-    ancientCornucopia,
-    sandstormSalvager,
-    vaultbornTyrant,
-} from "../green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -18,6 +13,10 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, registerTokenDefinition } from "../../../index";
 import type { Color } from "../../../types";
+
+const ancientCornucopia = getDefinition("f977975d-0439-4731-b129-270cc4cdbb23");
+const sandstormSalvager = getDefinition("13b0f27c-a359-4702-833a-82fec161eeec");
+const vaultbornTyrant = getDefinition("62b3f560-262b-4bc3-9aef-535fd7082c28");
 
 // Throwaway vanilla creature fixture, power 4 — deliberately NOT a
 // `vaultbornTyrant` instance: reusing the card's own id would give the

@@ -1,13 +1,15 @@
 // Theros (THS) — green behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { sylvanCaryatid } from "../green";
-import { lightningBolt } from "../../lea/red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import type { TargetRequirement } from "../../../types";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const sylvanCaryatid = getDefinition("d40b65c1-b24d-492d-81b9-d8474ebdc08c");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 // Lightning Bolt targets "any target" (CR 115) — the real removal spell the
 // acceptance test names.

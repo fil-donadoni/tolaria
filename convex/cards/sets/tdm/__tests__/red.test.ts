@@ -13,8 +13,6 @@
 // + static effects apply CR 611/613 correctly end-to-end.
 
 import { describe, it, expect } from "vitest";
-import { coriSteelCutter } from "../red";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -29,6 +27,10 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { CardType } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const coriSteelCutter = getDefinition("490eb213-9ae2-4b45-abec-6f1dfc83792a");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 function resolveActivated(
     state: GameState,

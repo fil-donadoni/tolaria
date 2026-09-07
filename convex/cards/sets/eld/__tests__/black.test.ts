@@ -2,8 +2,6 @@
 // `convex/cards/sets/eld/black.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { wishclawTalisman } from "../black";
-import { forest } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +14,10 @@ import {
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const wishclawTalisman = getDefinition("07c17b01-ee5d-491a-8403-b3f819b778c4");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("Wishclaw Talisman (CR 122 counters / 701.23 / 400.7 / 701.24 / 613.1b)", () => {
     it("enters with three wish counters as it enters, with nothing on the stack (CR 121.6 / 614.1c)", () => {

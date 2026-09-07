@@ -2,10 +2,6 @@
 // `convex/cards/sets/vis/green.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { naturalOrder, elephantGrass } from "../green";
-import { grizzlyBears } from "../../lea/green";
-import { scatheZombies } from "../../lea/black";
-import { forest } from "../../lea/colorless";
 import { makePlayer, makeState, pushSpell } from "../../../__tests__/setup";
 import { makeInstance } from "../../../__tests__/setup";
 import {
@@ -25,6 +21,13 @@ import { collectAttackManaTax } from "../../../../gre/combat";
 import { globalAttackProhibitionReason } from "../../../attackRestrictions";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const naturalOrder = getDefinition("0845f0b0-9413-4ddd-861d-9607636bebc6");
+const elephantGrass = getDefinition("f4c1f5a7-0d28-43ab-9b66-937e963f42cd");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const scatheZombies = getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("Natural Order (CR 118.8 additional cost / 701.23 / 400.7 / 701.24)", () => {
     it("searches for a green creature card and puts it onto the battlefield", () => {

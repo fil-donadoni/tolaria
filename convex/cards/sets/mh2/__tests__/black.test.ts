@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { boneShards, dauthiVoidwalker } from "../black";
-import { grizzlyBears, lightningBolt, swamp } from "../../lea";
 import { payableAdditionalCostLegs } from "../../../../gre/additionalCost";
 import { getLegalActions } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../../index";
@@ -23,6 +21,13 @@ import {
     castZoneOwner,
 } from "../../../../game";
 import { applyPlayLandFromExile } from "../../../../gre/playLand";
+import { getDefinition } from "../../../index";
+
+const boneShards = getDefinition("1ee98955-4c47-4d45-9377-608dfa755337");
+const dauthiVoidwalker = getDefinition("dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 // Synthetic creatures for the fixtures below (`registerTokenDefinition` is
 // the shared test-registry injection seam, mirrors the interpreter test

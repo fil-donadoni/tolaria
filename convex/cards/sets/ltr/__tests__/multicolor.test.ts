@@ -17,9 +17,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { arwenMortalQueen } from "../multicolor";
-import { grizzlyBears } from "../../lea/green";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const arwenMortalQueen = getDefinition("547f92d4-cd1d-4ca7-a6e2-6473b4d3c832");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Mirrors the per-set `resolveActivated` shim (arn/__tests__/helpers.ts and
 // every other set's local copy) — pushes an already-targeted activated

@@ -11,8 +11,6 @@
 // mandatory wire-format P/T assertion.
 
 import { describe, it, expect } from "vitest";
-import { karnScionOfUrza } from "../colorless";
-import { ornithopter } from "../../atq/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
@@ -23,6 +21,10 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const karnScionOfUrza = getDefinition("07a3d9e8-8597-498b-869c-cff79e0df516");
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 
 const PLUS1 = "karn-scion-of-urza-plus1";
 const MINUS1 = "karn-scion-of-urza-minus1";

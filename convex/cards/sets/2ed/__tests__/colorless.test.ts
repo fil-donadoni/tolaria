@@ -16,8 +16,6 @@ import {
     volcanicIsland2ed,
     circleOfProtectionBlack2ed,
 } from "..";
-import { airElemental, ancestralRecall, lightningBolt } from "../../lea";
-import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
 import {
     getDefinition,
     getPrintingsForCard,
@@ -26,6 +24,14 @@ import {
 import { setName } from "../../../setMeta";
 import { validateDeck } from "../../../../formats";
 import type { ValidatableDeck } from "../../../../formats";
+
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+const volcanicIsland = getDefinition("0324641d-af55-4c53-b4dc-c8262e967da5");
+const circleOfProtectionBlack = getDefinition(
+    "fa47b4cd-8da4-4544-b011-ba92b7009203"
+);
 
 describe("2ED registry parity (ADR 0014)", () => {
     it("resolves reprint prints to their shared LEA definition", () => {

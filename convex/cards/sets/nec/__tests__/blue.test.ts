@@ -7,7 +7,6 @@
 // that Ward is declared — not the underlying machinery.
 
 import { describe, it, expect } from "vitest";
-import { kappaCannoneer } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type {
@@ -15,6 +14,9 @@ import type {
     GameState,
     StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const kappaCannoneer = getDefinition("85a89077-b384-4fca-9d26-7297962c1541");
 
 function pushArtifactEtb(
     state: GameState,

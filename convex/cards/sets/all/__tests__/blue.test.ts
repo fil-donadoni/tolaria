@@ -1,11 +1,13 @@
 // ALL (Alliances) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { forceOfWill } from "../blue";
 import { makeState, pushSpell } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { lightningBolt } from "../../lea/red";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const forceOfWill = getDefinition("9a879b60-4381-447d-8a5a-8e0b6a1d49ca");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 // Force of Will — {3}{U}{U} Instant. "You may pay 1 life and exile a blue card
 // from your hand rather than pay this spell's mana cost. Counter target

@@ -5,9 +5,6 @@
 // trigger and its interaction with cycling another card.
 
 import { describe, it, expect } from "vitest";
-import { maraudingMako } from "../red";
-import { raugrinTriome } from "../../iko/colorless";
-import { grizzlyBears } from "../../lea";
 import {
     discardCardsAtRandom,
     normalizeManaCost,
@@ -21,6 +18,11 @@ import {
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const maraudingMako = getDefinition("9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8");
+const raugrinTriome = getDefinition("02138fbb-3962-4348-8d31-faaefba0b8b2");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 const DISCARD_TRIGGER = "marauding-mako-discard";
 

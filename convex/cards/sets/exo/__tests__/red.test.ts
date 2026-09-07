@@ -2,9 +2,6 @@
 // (Exodus, split by colour per ADR 0043). Fixtures from
 // `convex/cards/__tests__/setup.ts`.
 import { describe, it, expect } from "vitest";
-import { priceOfProgress } from "..";
-import { mountain } from "../../lea/colorless";
-import { wasteland } from "../../tmp/colorless";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -17,6 +14,11 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const priceOfProgress = getDefinition("8e5283db-3e22-4862-9d95-56d03d09c2ae");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const wasteland = getDefinition("99ff731b-8399-40c8-b539-ba6ba5783771");
 
 // Price of Progress — "Price of Progress deals damage to each player equal to
 // twice the number of nonbasic lands that player controls." (CR 120.1 damage,

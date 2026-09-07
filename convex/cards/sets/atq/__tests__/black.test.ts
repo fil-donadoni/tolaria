@@ -5,18 +5,6 @@
 // `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import {
-    ornithopter,
-    amuletOfKroog,
-    yawgmothDemon,
-    priestOfYawgmoth,
-    gateToPhyrexia,
-    hauntingWind,
-    artifactPossession,
-    phyrexianGremlins,
-    xenicPoltergeist,
-} from "..";
-import { solRing } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { hasManaAbility } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
@@ -39,6 +27,20 @@ import {
     resolveActivated,
     vanilla,
 } from "./helpers";
+import { getDefinition } from "../../../index";
+
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
+const yawgmothDemon = getDefinition("04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c");
+const priestOfYawgmoth = getDefinition("c9fd4054-42fc-4f95-a6f7-369a5da43dd5");
+const gateToPhyrexia = getDefinition("1f372950-6693-4838-80ef-8fd9aa3e0349");
+const hauntingWind = getDefinition("a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114");
+const artifactPossession = getDefinition(
+    "587d6ac8-fad8-49e0-862e-636e06628ff9"
+);
+const phyrexianGremlins = getDefinition("21a985a9-5612-4844-982e-fd1aa6249770");
+const xenicPoltergeist = getDefinition("5149ffff-d38f-458e-bcfa-a4b6b332a0b4");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // Yawgmoth Demon (CR 603.6a upkeep may-sacrifice-or-else)
 describe("Yawgmoth Demon (upkeep may-sac artifact, else tap+2)", () => {

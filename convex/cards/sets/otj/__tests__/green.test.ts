@@ -8,8 +8,6 @@
 // assertion through `projectPublicState` is mandatory.
 
 import { describe, it, expect } from "vitest";
-import { bristlyBillSpineSower } from "../green";
-import { swamp, grizzlyBears } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -21,6 +19,13 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const bristlyBillSpineSower = getDefinition(
+    "52eef0d6-24b7-40b7-8403-e8e863d0cd55"
+);
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Pushes an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolves it. Mirrors the

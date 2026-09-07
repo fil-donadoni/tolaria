@@ -6,8 +6,6 @@
 // for the precedent citations).
 
 import { describe, it, expect } from "vitest";
-import { multiversalPassage } from "../colorless";
-import { forest } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -21,6 +19,12 @@ import {
     applyLandEntrySubmit,
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
+
+const multiversalPassage = getDefinition(
+    "f5fb426a-5618-4dd4-9c51-0cc847be8c1d"
+);
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.7 subtype-set)", () => {
     it("the subtype-set static applies ONLY to itself (a pre-set chosenSubtypes)", () => {

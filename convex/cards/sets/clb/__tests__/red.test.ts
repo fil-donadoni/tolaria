@@ -4,8 +4,6 @@
 
 import { describe, it, expect } from "vitest";
 import type { CardType } from "../../../types";
-import { gutTrueSoulZealot } from "../red";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -17,6 +15,9 @@ import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
 import { getDefinition } from "../../../index";
+
+const gutTrueSoulZealot = getDefinition("3d8ca18d-9099-4f1e-95c1-f04da58a26bd");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Declares `attackerIds` as attackers through the REAL production entry
  *  point (`emitAttackersDeclaredEvents`, CR 508.1) rather than hand-building

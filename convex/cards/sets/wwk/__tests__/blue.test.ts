@@ -10,14 +10,19 @@
 // peek is exposed to the chooser (not the library owner).
 
 import { describe, it, expect } from "vitest";
-import { jaceTheMindSculptor } from "../blue";
-import { grizzlyBears, ironrootTreefolk } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { TargetSelection } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const jaceTheMindSculptor = getDefinition(
+    "0e606072-a3aa-4300-ba90-ec92a721fa76"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const ironrootTreefolk = getDefinition("b93c5869-7777-44bb-967a-e9439b25ced4");
 
 const PLUS2 = "jace-the-mind-sculptor-plus2";
 const ZERO = "jace-the-mind-sculptor-zero";

@@ -6,21 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-    angryMob,
-    dustToDust,
-    exorcist,
-    fasting,
-    fireAndBrimstone,
-    holyLight,
-    martyrsCry,
-    miracleWorker,
-    preacher,
-    scarwoodGoblins,
-    squire,
-    tivadarsCrusade,
-    witchHunter,
-} from "..";
-import {
     UPKEEP,
     answerChoice,
     resolveActivated,
@@ -41,7 +26,6 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { dominate } from "../../nem/blue";
 import {
     type CardInstanceState,
     type GameState,
@@ -49,7 +33,22 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
+
+const angryMob = getDefinition("9e14db1c-0a05-47d2-9f27-df881f7f37ab");
+const dustToDust = getDefinition("ade075fd-73ee-4d12-a2da-48e5938043af");
+const exorcist = getDefinition("184b7d52-e991-4668-9f6a-bcded97f51ac");
+const fasting = getDefinition("8da35f9f-e72c-4154-a212-7de98f84ad7d");
+const fireAndBrimstone = getDefinition("d5208dbb-63d2-4789-8ef9-f82499a43b3a");
+const holyLight = getDefinition("c3c8a850-bc99-4679-a316-45ecdea696b2");
+const martyrsCry = getDefinition("e2c9f463-d1cc-4f11-aad2-d4a4520aa978");
+const miracleWorker = getDefinition("35d29bda-096c-44d4-b45e-c2c507f8efbe");
+const preacher = getDefinition("1e03d335-d259-4ab4-814f-9333cfd3afc9");
+const scarwoodGoblins = getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0");
+const squire = getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9");
+const tivadarsCrusade = getDefinition("8b6da540-6803-47e5-9af0-7ae8e2f84b6c");
+const witchHunter = getDefinition("4eef9bb7-cd3c-422e-a93b-90d98684675a");
+const dominate = getDefinition("63b2dcb1-8c3e-434c-865a-196d4d799706");
 
 // ---------------------------------------------------------------------------
 // Vanilla creatures (CR 302 — Creature cards as pure data: types/subtypes +
@@ -83,7 +82,9 @@ describe("Angry Mob — CDA P/T (CR 604.3 / 102.1)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const swampId = getCardByName("Swamp").id;
+        const swampId = getDefinition(
+            "6176936d-72e2-4205-8871-4c5a4f1cb2d8"
+        ).id;
         const swamps = Array.from({ length: opponentSwamps }, (_, i) =>
             makeInstance(swampId, {
                 id: `swamp-${i}`,
@@ -115,7 +116,9 @@ describe("Angry Mob — CDA P/T (CR 604.3 / 102.1)", () => {
 
     it("only counts opponents' Swamps, not the controller's", () => {
         const { state, mob } = setup("p1", 0);
-        const swampId = getCardByName("Swamp").id;
+        const swampId = getDefinition(
+            "6176936d-72e2-4205-8871-4c5a4f1cb2d8"
+        ).id;
         state.players[0].battlefield.push(
             makeInstance(swampId, {
                 id: "own-swamp",
@@ -148,11 +151,14 @@ describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
         // Knight (protection from white, CR 702.16b) is not a legal target for
         // its ability — and since issue #2942 the CR 608.2b resolution gate
         // counters the ability instead of destroying it anyway.
-        const black = makeInstance(getCardByName("Scathe Zombies").id, {
-            id: "black",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const black = makeInstance(
+            getDefinition("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e").id,
+            {
+                id: "black",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [ex] }),
@@ -171,16 +177,22 @@ describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
     });
 
     it("only lists black creatures as legal targets", () => {
-        const black = makeInstance(getCardByName("Black Knight").id, {
-            id: "black",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const white = makeInstance(getCardByName("White Knight").id, {
-            id: "white",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const black = makeInstance(
+            getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e").id,
+            {
+                id: "black",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const white = makeInstance(
+            getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129").id,
+            {
+                id: "white",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -209,13 +221,16 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
             id: "mw",
             controllerId: "p1",
         });
-        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "mine",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const myCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "mine",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         // A DRK Brainwash-style Aura would attach here; reuse any Aura in pool.
-        const auraId = getCardByName("Holy Strength").id;
+        const auraId = getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03").id;
         const aura = makeInstance(auraId, {
             id: "aura",
             controllerId: "p1",
@@ -248,28 +263,40 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
     // offered in the first place, before resolution's own re-check would
     // even run.
     it("does NOT offer an Aura on an opponent's creature as a legal target", () => {
-        const theirCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "theirs",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const theirAura = makeInstance(getCardByName("Holy Strength").id, {
-            id: "aura-theirs",
-            controllerId: "p2",
-            ownerId: "p2",
-            attachedTo: "theirs",
-        });
-        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "mine",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const myAura = makeInstance(getCardByName("Holy Strength").id, {
-            id: "aura-mine",
-            controllerId: "p1",
-            ownerId: "p1",
-            attachedTo: "mine",
-        });
+        const theirCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const theirAura = makeInstance(
+            getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03").id,
+            {
+                id: "aura-theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+                attachedTo: "theirs",
+            }
+        );
+        const myCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "mine",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const myAura = makeInstance(
+            getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03").id,
+            {
+                id: "aura-mine",
+                controllerId: "p1",
+                ownerId: "p1",
+                attachedTo: "mine",
+            }
+        );
         const mw = makeInstance(miracleWorker.id, {
             id: "mw",
             controllerId: "p1",
@@ -306,17 +333,23 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
             id: "mw",
             controllerId: "p1",
         });
-        const theirCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "theirs",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const aura = makeInstance(getCardByName("Holy Strength").id, {
-            id: "aura",
-            controllerId: "p2",
-            ownerId: "p2",
-            attachedTo: "theirs",
-        });
+        const theirCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const aura = makeInstance(
+            getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03").id,
+            {
+                id: "aura",
+                controllerId: "p2",
+                ownerId: "p2",
+                attachedTo: "theirs",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [mw] }),
@@ -346,17 +379,23 @@ describe("Miracle Worker — destroy your Aura (CR 605 / 701.8)", () => {
             id: "mw",
             controllerId: "p1",
         });
-        const myCreature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "mine",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const aura = makeInstance(getCardByName("Holy Strength").id, {
-            id: "aura",
-            controllerId: "p1",
-            ownerId: "p1",
-            attachedTo: "mine",
-        });
+        const myCreature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "mine",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const aura = makeInstance(
+            getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03").id,
+            {
+                id: "aura",
+                controllerId: "p1",
+                ownerId: "p1",
+                attachedTo: "mine",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [mw, myCreature, aura] }),
@@ -422,11 +461,14 @@ describe("Witch Hunter — ping a player and bounce a creature", () => {
             id: "wh",
             controllerId: "p1",
         });
-        const creature = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "lion",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const creature = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "lion",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [wh] }),
@@ -455,11 +497,14 @@ describe("Preacher — steal a creature while tapped (CR 611.2b)", () => {
             ownerId: "p1",
             isTapped: true, // {T} cost already paid
         });
-        const victim = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "victim",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const victim = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "victim",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [pr] }),
@@ -519,16 +564,22 @@ describe("Preacher — steal a creature while tapped (CR 611.2b)", () => {
 
 describe("Dust to Dust — exile two target artifacts (CR 701.13)", () => {
     it("exiles both targeted artifacts", () => {
-        const art1 = makeInstance(getCardByName("Ornithopter").id, {
-            id: "a1",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const art2 = makeInstance(getCardByName("Ornithopter").id, {
-            id: "a2",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const art1 = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "a1",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const art2 = makeInstance(
+            getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0").id,
+            {
+                id: "a2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -555,11 +606,14 @@ describe("Tivadar's Crusade — destroy all Goblins (CR 701.8 / 205.3)", () => {
             controllerId: "p2",
             ownerId: "p2",
         });
-        const bear = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const bear = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "bear",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -579,16 +633,22 @@ describe("Tivadar's Crusade — destroy all Goblins (CR 701.8 / 205.3)", () => {
 
 describe("Holy Light — nonwhite creatures get -1/-1 (CR 611.2 / 202.2)", () => {
     it("weakens nonwhite creatures but spares white ones", () => {
-        const white = makeInstance(getCardByName("White Knight").id, {
-            id: "white",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const black = makeInstance(getCardByName("Black Knight").id, {
-            id: "black",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const white = makeInstance(
+            getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129").id,
+            {
+                id: "white",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const black = makeInstance(
+            getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e").id,
+            {
+                id: "black",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [white] }),
@@ -610,27 +670,39 @@ describe("Holy Light — nonwhite creatures get -1/-1 (CR 611.2 / 202.2)", () =>
 
 describe("Martyr's Cry — exile white creatures, draw per exiled (CR 701.13 / 121.1)", () => {
     it("exiles all white creatures and each controller draws one per exiled", () => {
-        const w1 = makeInstance(getCardByName("White Knight").id, {
-            id: "w1",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const w2 = makeInstance(getCardByName("Savannah Lions").id, {
-            id: "w2",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const black = makeInstance(getCardByName("Black Knight").id, {
-            id: "black",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const libCard = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "lib",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "library",
-        });
+        const w1 = makeInstance(
+            getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129").id,
+            {
+                id: "w1",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        const w2 = makeInstance(
+            getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0").id,
+            {
+                id: "w2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const black = makeInstance(
+            getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e").id,
+            {
+                id: "black",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
+        const libCard = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "lib",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [w1] }),
@@ -660,12 +732,15 @@ describe("Martyr's Cry — exile white creatures, draw per exiled (CR 701.13 / 1
 describe("Fire and Brimstone — 4 to a player who attacked + 4 to you (CR 506.2 / 119)", () => {
     function attackerState() {
         // p2 controls a creature flagged as having attacked this turn.
-        const attacker = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "atk",
-            controllerId: "p2",
-            ownerId: "p2",
-            hasAttackedThisTurn: true,
-        });
+        const attacker = makeInstance(
+            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
+            {
+                id: "atk",
+                controllerId: "p2",
+                ownerId: "p2",
+                hasAttackedThisTurn: true,
+            }
+        );
         return makeState({
             players: [
                 makePlayer("p1"),
@@ -731,12 +806,15 @@ describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
     }
 
     function libraryCard(id = "lib-top"): CardInstanceState {
-        return makeInstance(getCardByName("Squire").id, {
-            id,
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
+        return makeInstance(
+            getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9").id,
+            {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }
+        );
     }
 
     // (a) Skip-draw golden path: gain 2 life, no card drawn.

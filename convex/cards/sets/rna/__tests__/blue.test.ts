@@ -10,7 +10,6 @@
 // authoring) to add this hand-written test.
 
 import { describe, it, expect } from "vitest";
-import { skitterEel } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -19,6 +18,9 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const skitterEel = getDefinition("db328f03-7dae-445b-8e71-99dd88f26a9e");
 
 /** Pushes an activated ability directly onto the stack (bypassing cost
  *  payment, which `adaptAbility` doesn't special-case) and resolves it. */

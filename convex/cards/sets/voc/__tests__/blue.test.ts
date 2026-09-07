@@ -1,8 +1,6 @@
 // Streets of New Capenna Commander (VOC) — blue behavior tests (ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { occultEpiphany } from "../blue";
-import { ponder } from "../../lrw/blue";
 import {
     makeInstance,
     makePlayer,
@@ -12,6 +10,10 @@ import {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const occultEpiphany = getDefinition("6920c895-bc98-4871-a53f-219fa27a74e5");
+const ponder = getDefinition("ba6b6fc5-5077-4812-b8e9-906783dbaf67");
 
 describe("Occult Epiphany (draw X, discard X, spirits per card type; CR 107.3 / 707.2)", () => {
     it("draws X, discards X, and makes one flying Spirit per distinct discarded card type", () => {

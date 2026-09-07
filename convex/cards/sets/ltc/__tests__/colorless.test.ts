@@ -1,8 +1,6 @@
 // Tales of Middle-earth Commander (LTC) — colorless behavior tests (ADR 0043).
 import { describe, it, expect } from "vitest";
-import { relicOfSauron } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -10,8 +8,11 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const relicOfSauron = getDefinition("175b3d28-5c74-4972-9b5c-5e39762c78f4");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 function resolveActivated(
     state: GameState,
@@ -41,7 +42,9 @@ function answerChoice(state: GameState, picks: string[]): void {
 
 describe("Relic of Sauron (Grixis rock + draw-two-discard-one, CR 605 / 608.2)", () => {
     it("has a {U}{B}{R} two-mana ability with six combinations", () => {
-        expect(getCardByName("Relic of Sauron")).toBe(relicOfSauron);
+        expect(getDefinition("175b3d28-5c74-4972-9b5c-5e39762c78f4")).toBe(
+            relicOfSauron
+        );
         expect(relicOfSauron.manaCost).toEqual({ X: 4 });
         const mana = relicOfSauron.activatedAbilities!.find(
             (a) => a.id === "relic-of-sauron-mana"

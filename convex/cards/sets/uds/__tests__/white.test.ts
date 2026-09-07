@@ -3,7 +3,6 @@
 // (zone changes after resolution).
 
 import { describe, it, expect } from "vitest";
-import { replenish } from "..";
 import { registerTokenDefinition } from "../../..";
 import {
     makeInstance,
@@ -13,6 +12,9 @@ import {
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const replenish = getDefinition("7fd2fe13-bbc0-42b7-bc42-3b51910ce118");
 
 // A vanilla enchantment fixture for the graveyard.
 const ENCH_ID = "uds-test-enchantment";

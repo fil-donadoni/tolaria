@@ -33,8 +33,10 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { theOneRing } from "../colorless";
-import { lightningBolt } from "../../lea/red";
+import { getDefinition } from "../../../index";
+
+const theOneRing = getDefinition("d5806e68-1054-458e-866d-1f2470f682b2");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Per-set shim (mirrors `resolveActivated` in this set's multicolor tests):
  *  pushes an already-paid activated ability onto the stack and resolves it,

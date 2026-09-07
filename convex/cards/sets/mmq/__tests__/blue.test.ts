@@ -7,8 +7,6 @@
 // `convex/gre/__tests__/alternative-cost.test.ts`; the draw/counter Ops are
 // covered catalogue-wide by the interpreter + smoke suites.
 import { describe, it, expect } from "vitest";
-import { gush, thwart } from "..";
-import { island, lightningBolt } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
 import {
@@ -25,6 +23,12 @@ import {
 } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const gush = getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");
+const thwart = getDefinition("c12a0717-e9ea-4be3-a29f-179671ed4489");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 function islands(playerId: string, n: number) {
     return Array.from({ length: n }, (_, i) =>

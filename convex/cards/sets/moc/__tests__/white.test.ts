@@ -15,12 +15,13 @@
 // closes), and that the cap tracks a power change.
 
 import { describe, it, expect } from "vitest";
-import { guardianScalelord } from "../white";
-import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import type { CardInstanceState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const guardianScalelord = getDefinition("94716d24-e8c6-4cd2-a3ac-20cdb929bfd4");
 
 const ATTACK_TRIGGER = guardianScalelord.triggeredAbilities!.find(
     (a) => a.id === "guardian-scalelord-attack"
@@ -29,9 +30,9 @@ const ATTACK_TRIGGER = guardianScalelord.triggeredAbilities!.find(
 function attackersDeclaredState(
     sourceOverrides: Partial<CardInstanceState> = {}
 ) {
-    const grizzlyBears = getCardByName("Grizzly Bears"); // {1}{G}, mv 2
-    const crawWurm = getCardByName("Craw Wurm"); // {4}{G}{G}, mv 6
-    const island = getCardByName("Island");
+    const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870"); // {1}{G}, mv 2
+    const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f"); // {4}{G}{G}, mv 6
+    const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
     const source = makeInstance(guardianScalelord.id, {
         id: "scalelord",

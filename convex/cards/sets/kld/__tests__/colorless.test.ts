@@ -1,19 +1,21 @@
 // kld (Kaladesh) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import {
-    inspiringVantage,
-    bloomingMarsh,
-    botanicalSanctum,
-    concealedCourtyard,
-    spirebluffCanal,
-} from "../colorless";
-import { island } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer } from "../../../../gre/state";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const inspiringVantage = getDefinition("160ac412-005f-48ca-a204-10207307c6c2");
+const bloomingMarsh = getDefinition("90da33d4-fe9c-42fe-b326-2fe337dc3ecd");
+const botanicalSanctum = getDefinition("8744471b-a528-47d9-84d0-4526273f55e9");
+const concealedCourtyard = getDefinition(
+    "c8769e97-aee8-4466-a9d7-0f4245ae4a97"
+);
+const spirebluffCanal = getDefinition("4e587ea7-0632-4789-ba75-3c410da2bb96");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // The KLD "fast land" cycle — see SOM's Copperline Gorge test
 // (`convex/cards/sets/som/__tests__/colorless.test.ts`) for the full

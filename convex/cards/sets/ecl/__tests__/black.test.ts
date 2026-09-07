@@ -1,8 +1,6 @@
 // ECL — black card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { moonshadow, ironShieldElf, twilightDiviner } from "../black";
-import { balduvianBears, aurochs } from "../../ice";
 import {
     makeInstance,
     makePlayer,
@@ -25,6 +23,13 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { compactState, expandState } from "../../../../gre/serialize";
+import { getDefinition } from "../../../index";
+
+const moonshadow = getDefinition("2573e694-eaa0-42ca-b470-2ab507cbcec1");
+const ironShieldElf = getDefinition("9e0140b2-0185-4adb-b365-2611ce89a0e2");
+const twilightDiviner = getDefinition("443b6f30-1493-4d48-93d9-a91e22a7ebb3");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const aurochs = getDefinition("7e973a84-7f7d-4524-9f2f-ec9a014d52ee");
 
 // Moonshadow — {B} Creature — Elemental (CR 702.111 menace; CR 122.1
 // -1/-1 counters; CR 603.2 zone-change triggers).

@@ -11,8 +11,6 @@
 // CR 404.3) must be the one that returns. A test that put only one creature
 // in the graveyard would pass with the scan running in either direction.
 import { describe, it, expect } from "vitest";
-import { shallowGrave } from "..";
-import { griselbrand } from "../../avr";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -22,6 +20,10 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const shallowGrave = getDefinition("d5c782cc-c951-4c6f-a93f-774ae6c1c214");
+const griselbrand = getDefinition("b51666ae-2aef-4cb1-9cd4-44aec81530f8");
 
 describe("Shallow Grave (CR 404.3 ordered graveyard, CR 400.7 reanimation, CR 702.10 haste, CR 603.7 delayed exile)", () => {
     /** Graveyard ids MINUS Shallow Grave itself — an instant puts itself into

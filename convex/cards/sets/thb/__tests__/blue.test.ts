@@ -1,8 +1,6 @@
 // Theros Beyond Death (THB) — blue behavior tests (ADR 0043 colour split).
 import { describe, it, expect } from "vitest";
-import { thassasOracle } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
 import {
     type CardInstanceState,
     type GameState,
@@ -10,8 +8,11 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getDefinition } from "../../../index";
 
-const FOREST = getCardByName("Forest").id;
+const thassasOracle = getDefinition("726e8b29-13e9-4138-b6a9-d2a0d8188d1c");
+
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
 function libCard(id: string, owner: string): CardInstanceState {
     return makeInstance(FOREST, {
@@ -66,7 +67,9 @@ function submitKeep(state: GameState, keep: string[]): void {
 
 describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
     it("declares the card and its ETB trigger", () => {
-        expect(getCardByName("Thassa's Oracle")).toBe(thassasOracle);
+        expect(getDefinition("726e8b29-13e9-4138-b6a9-d2a0d8188d1c")).toBe(
+            thassasOracle
+        );
         expect(thassasOracle.manaCost).toEqual({ U: 2 });
         expect(thassasOracle.power).toBe(1);
         expect(thassasOracle.toughness).toBe(3);

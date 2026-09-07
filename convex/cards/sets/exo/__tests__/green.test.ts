@@ -3,14 +3,17 @@
 // `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { oathOfDruids } from "../green";
-import { grizzlyBears, forest } from "../../lea";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const oathOfDruids = getDefinition("cf14de50-d123-400c-862e-2c95fd2aa23f");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 // Oath of Druids — "At the beginning of each player's upkeep, that player
 // chooses target player who controls more creatures than they do and is their

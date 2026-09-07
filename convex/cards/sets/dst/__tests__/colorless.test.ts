@@ -15,8 +15,6 @@
 //     catch a payload dropped by the SBA.
 
 import { describe, it, expect } from "vitest";
-import { skullclamp } from "../colorless";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -32,6 +30,10 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const skullclamp = getDefinition("55318397-de3c-47ea-a088-72a24df5c8fa");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Resolve Skullclamp's Equip ability against `targetId`, the way the engine
  *  does (activated ability on the stack, CR 702.6e). */

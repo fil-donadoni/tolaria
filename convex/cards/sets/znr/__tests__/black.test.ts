@@ -5,15 +5,17 @@
 // the chosen target.
 
 import { describe, it, expect } from "vitest";
-import { bloodchiefsThirst } from "../black";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { serraAngel } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const bloodchiefsThirst = getDefinition("059e8447-6b1c-4651-a734-a8fea2cbf7b2");
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 
 describe("Bloodchief's Thirst (Kicker {2}{B}, CR 702.33)", () => {
     it("destroys the targeted creature on resolution", () => {

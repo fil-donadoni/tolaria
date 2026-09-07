@@ -5,7 +5,6 @@
 // `CardPrint` in `m11/white.ts`.
 
 import { describe, it, expect } from "vitest";
-import { dayOfJudgment } from "../white";
 import {
     makeInstance,
     makePlayer,
@@ -16,6 +15,9 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import { getDefinition } from "../../../index";
+
+const dayOfJudgment = getDefinition("2aa98fca-972b-46c2-bdec-6ace35c988d5");
 
 // Fillers: a vanilla creature and a non-creature artifact (the sweep must
 // leave non-creatures alone).

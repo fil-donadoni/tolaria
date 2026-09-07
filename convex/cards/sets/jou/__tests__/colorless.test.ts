@@ -1,10 +1,12 @@
 // jou (Journey into Nyx) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { manaConfluence } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const manaConfluence = getDefinition("504a69eb-3c2d-4bb1-b117-252b15acf0c2");
 
 // Mana Confluence — "{T}, Pay 1 life: Add one mana of any color." (CR 605.1a
 // mana ability, CR 119.4 life payment cost.) Unlike the Talisman/painland

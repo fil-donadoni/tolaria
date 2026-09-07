@@ -1,7 +1,5 @@
 // MH3 black — per-colour card behavior tests (ADR 0043 parallel test file).
 import { describe, it, expect } from "vitest";
-import { nethergoyf, emperorOfBones } from "../black";
-import { grizzlyBears } from "../../lea/green";
 import {
     makeInstance,
     makePlayer,
@@ -24,6 +22,11 @@ import { fireDelayedTriggers } from "../../../../gre/phases";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { CardType } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const nethergoyf = getDefinition("3ee3945e-5089-4751-b7b3-5961c39d2a33");
+const emperorOfBones = getDefinition("df9d9075-2d1e-4848-b661-816d539e05eb");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // A dead card of a chosen card type sitting in a graveyard (the CDA reads the
 // instance `.types`).

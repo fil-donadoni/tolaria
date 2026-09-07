@@ -5,12 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../types";
-import { hullbreacher } from "../blue";
-import {
-    registerTokenDefinition,
-    getCardByName,
-    getDefinition,
-} from "../../../index";
+import { registerTokenDefinition, getDefinition } from "../../../index";
 import {
     buildDrawEvent,
     getPlayer,
@@ -25,7 +20,9 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 
-const bearsId = getCardByName("Balduvian Bears").id;
+const hullbreacher = getDefinition("4df8aabc-7fcb-4b7b-980b-18f499e6c170");
+
+const bearsId = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id;
 
 function hullbreacherInstance(controllerId: string) {
     return makeInstance(hullbreacher.id, {

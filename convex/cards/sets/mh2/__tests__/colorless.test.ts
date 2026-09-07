@@ -8,13 +8,6 @@
 // project's per-Op / lighter-mirror testing convention.
 
 import { describe, it, expect } from "vitest";
-import { yavimayaCradleOfGrowth, urzasSaga } from "..";
-import { swamp, blackVise } from "../../lea";
-import { grizzlyBears } from "../../lea/green";
-import { ornithopter, mishrasFactory } from "../../atq/colorless";
-import { walkingBallista } from "../../aer/colorless";
-import { portableHole } from "../../afr/white";
-import { bloodMoon } from "../../drk/red";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition } from "../../..";
 import {
@@ -51,12 +44,26 @@ import {
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import { projectPublicState } from "../../../../gameProjections";
 import { sagaBoard, tickChapter } from "./urzasSagaFixtures";
-import { kaldraCompleat, nettlecyst } from "../colorless";
-import { blackLotus } from "../../lea/colorless";
-import { crusade } from "../../lea/white";
 import { type StackItem } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { tokenPrintIdFor } from "../../../tokenPrintLookup";
+
+const yavimayaCradleOfGrowth = getDefinition(
+    "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c"
+);
+const urzasSaga = getDefinition("c1e0f201-42cb-46a1-901a-65bb4fc18f6c");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const blackVise = getDefinition("76ac72f8-5b1e-4d67-a796-ef69cde27424");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const mishrasFactory = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428");
+const walkingBallista = getDefinition("329a8738-3e17-403a-857a-0ba529ce8cd1");
+const portableHole = getDefinition("80fca8c0-ae3e-439e-b202-228b9f360e9a");
+const bloodMoon = getDefinition("78373616-e2d6-4ccf-998f-09f02bea45b4");
+const kaldraCompleat = getDefinition("87cc2855-6b14-44dd-a398-7dc2bbae081f");
+const nettlecyst = getDefinition("4a0bb5dc-75a6-4bd6-81f8-611197fb0fba");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — CR 305.7, 611)", () => {
     it("adds Forest additively to another land already on the battlefield (original subtype NOT replaced)", () => {

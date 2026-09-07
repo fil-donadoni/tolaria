@@ -10,7 +10,6 @@
 // activated mana abilities, no new primitive needed.
 
 import { describe, it, expect } from "vitest";
-import { startingTown } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     getManaTapOptions,
@@ -18,6 +17,9 @@ import {
 } from "../../../../gre/constants";
 import { tapSourceIntoPayment } from "../../../../game";
 import { shouldEnterTapped } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const startingTown = getDefinition("fc7d1912-7e27-49ef-bd98-375d975a42b0");
 
 describe("Starting Town (CR 614.1c turn-gated tapped-entry + two {T} mana abilities)", () => {
     it("declares a turn-gated entersTappedUnless and two independently-costed activated abilities", () => {

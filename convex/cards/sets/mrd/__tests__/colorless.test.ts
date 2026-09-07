@@ -1,15 +1,6 @@
 // mrd (Mirrodin) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import {
-    talismanOfProgress,
-    talismanOfDominance,
-    chromeMox,
-    lightningGreaves,
-    frogmite,
-} from "../colorless";
-import { balduvianBears } from "../../ice/green";
-import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -27,7 +18,20 @@ import {
     normalizeManaCost,
 } from "../../../../gre/state";
 import { getLegalActions } from "../../../../gre/rules";
-import { solRing } from "../../lea";
+import { getDefinition } from "../../../index";
+
+const talismanOfProgress = getDefinition(
+    "41ff849e-2439-4690-8aa4-769039b6da4c"
+);
+const talismanOfDominance = getDefinition(
+    "991037a2-fea2-49f5-8ace-ebbf9f678cff"
+);
+const chromeMox = getDefinition("6a058e68-70af-4a64-859c-c881e5578368");
+const lightningGreaves = getDefinition("61a28870-cf78-4323-9d82-cee764067764");
+const frogmite = getDefinition("ff504dcb-2eb8-4b3c-a8b9-29697739b649");
+const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // Talisman cycle (issue #675) — same painland shape as ICE's Adarkar Wastes
 // cycle (`convex/cards/sets/ice/__tests__/colorless.test.ts`): one choice

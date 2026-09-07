@@ -13,16 +13,9 @@
 // and the Eldrazi Spawn token is created alongside.
 
 import { describe, it, expect } from "vitest";
-import {
-    fanaticOfRhonas,
-    malevolentRumble,
-    springheartNantuko,
-} from "../green";
-import { grizzlyBears } from "../../lea";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applyBestowCharacteristics } from "../../../../gre/bestow";
-import { forest, island } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -49,6 +42,15 @@ import {
     buildPendingActivation,
     tryAutoCommitPendingActivation,
 } from "../../../../game";
+
+const fanaticOfRhonas = getDefinition("1f9fb33a-3b39-4aff-93b8-aedafe0ea694");
+const malevolentRumble = getDefinition("a178cfe8-f9fa-4255-88d0-54a0bed079f5");
+const springheartNantuko = getDefinition(
+    "54a3ea87-005e-4985-b2a5-21711d0b71c0"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 // Two throwaway nonpermanent library-filler defs (mirrors Reviving Vapors'
 // `REVIVING_VAPORS_MV4_ID` pattern) — proves the filter actually EXCLUDES

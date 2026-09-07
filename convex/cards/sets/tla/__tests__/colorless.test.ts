@@ -1,14 +1,19 @@
 // TLA — colorless card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { abandonedAirTemple } from "../colorless";
-import { island, tundra } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer, resolveTopOfStack } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const abandonedAirTemple = getDefinition(
+    "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9"
+);
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
 
 /** Pushes an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolves it. Mirrors the

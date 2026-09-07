@@ -18,57 +18,6 @@ import {
     resolveActivated,
     resolveTrigger,
 } from "./helpers";
-import {
-    akronLegionnaire,
-    alabasterPotion,
-    amrouKithkin,
-    angelicVoices,
-    azureDrake,
-    cleanse,
-    clergyOfTheHolyNimbus,
-    concordantCrossroads,
-    davenantArcher,
-    devouringDeep,
-    divineIntervention,
-    divineOffering,
-    divineTransformation,
-    dwarvenSong,
-    enchantedBeing,
-    equinox,
-    fortifiedArea,
-    frostGiant,
-    greatDefender,
-    greatWall,
-    greaterRealmOfPreservation,
-    holyDay,
-    indestructibleAura,
-    infiniteAuthority,
-    ivoryGuardians,
-    jasmineBoreal,
-    jovialEvil,
-    keepersOfTheFaith,
-    kismet,
-    lifeblood,
-    moat,
-    osaiVultures,
-    partWater,
-    petraSphinx,
-    presenceOfTheMaster,
-    rapidFire,
-    removeEnchantments,
-    righteousAvengers,
-    seeker,
-    shieldWall,
-    spiritLink,
-    spiritualSanctuary,
-    thunderSpirit,
-    touchOfDarkness,
-    tundraWolves,
-    undertow,
-    visions,
-    wallOfCaltrops,
-    wallOfLight,
-} from "..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getDamageAssignerId,
@@ -123,15 +72,81 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { entersTappedByReplacement } from "../../../entersTapped";
-import { getCardByName } from "../../../index";
-import {
-    blackLotus,
-    forest,
-    grizzlyBears,
-    hypnoticSpecter,
-    lightningBolt,
-} from "../../lea";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { getDefinition } from "../../../index";
+
+const akronLegionnaire = getDefinition("5d074af2-8dbd-42d3-87eb-30f6e7d171ff");
+const alabasterPotion = getDefinition("2806c7f6-8fdd-4e65-9c71-f2e8b0cdede2");
+const amrouKithkin = getDefinition("cbce1c55-123c-4a05-bde4-18a1601fcc5a");
+const angelicVoices = getDefinition("8068c263-e5fa-4449-8887-418e9d0a4da4");
+const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
+const cleanse = getDefinition("2fbd611b-ac97-4516-bad7-cc9ee4ef74f7");
+const clergyOfTheHolyNimbus = getDefinition(
+    "db1f578f-fa3b-4447-953b-1490852b6c80"
+);
+const concordantCrossroads = getDefinition(
+    "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db"
+);
+const davenantArcher = getDefinition("b09aee5c-8b9e-46c2-b4d4-508062f8af05");
+const devouringDeep = getDefinition("0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59");
+const divineIntervention = getDefinition(
+    "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5"
+);
+const divineOffering = getDefinition("9c78c2f3-2f40-48ad-9dc4-55d1fa399a56");
+const divineTransformation = getDefinition(
+    "a89ad9fd-33a6-4d31-9f4c-8bf192882f21"
+);
+const dwarvenSong = getDefinition("29a50f72-9524-4440-9380-9d3e0b693351");
+const enchantedBeing = getDefinition("94c2880d-b37a-43ea-9fee-cd5a8ed75a7e");
+const equinox = getDefinition("840c6586-a7a9-4ae8-96be-a995a0693eb6");
+const fortifiedArea = getDefinition("dc64f19c-5b2b-4697-b4dc-2be9c3790794");
+const frostGiant = getDefinition("6955d54f-7b37-4e43-8183-51677fb1ee11");
+const greatDefender = getDefinition("879a8653-1538-4f78-a3d3-a900a4d9499b");
+const greatWall = getDefinition("cd860a1d-aa17-4579-b9b1-d101d2416387");
+const greaterRealmOfPreservation = getDefinition(
+    "5e236816-0c49-4b48-b18b-03add5a80d72"
+);
+const holyDay = getDefinition("f6c95a2b-bf44-4ff2-9c6a-916773346edd");
+const indestructibleAura = getDefinition(
+    "ed2a7333-c9ce-4011-b00e-1304e1eec25e"
+);
+const infiniteAuthority = getDefinition("dc60077f-d577-4a6c-a78f-697317024c40");
+const ivoryGuardians = getDefinition("9bf9cccd-fe97-4632-a90a-9eeb0d41135e");
+const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
+const jovialEvil = getDefinition("c993c74c-a574-423b-81c8-96b0a7a6e529");
+const keepersOfTheFaith = getDefinition("b63a69ae-99ce-4d26-88b7-784793c43cd4");
+const kismet = getDefinition("7e0651ad-6901-4f9b-8807-d66e53a4ada8");
+const lifeblood = getDefinition("4ecb1362-9a67-4d4c-8d69-9ac2ebf4d0b0");
+const moat = getDefinition("952ba126-0915-47f0-9b6a-a0a6dcd22c6f");
+const osaiVultures = getDefinition("f85614b3-62a3-4da9-a74a-7ea40fad1b52");
+const partWater = getDefinition("4b659475-c8b7-493d-af63-04f34d8cc3b1");
+const petraSphinx = getDefinition("5ef99f07-c987-451a-b18a-2719eea654cd");
+const presenceOfTheMaster = getDefinition(
+    "1cb86b2f-116d-4952-b35a-1398341baaf5"
+);
+const rapidFire = getDefinition("e26e7c9c-e6de-47f4-8394-7e853408f84c");
+const removeEnchantments = getDefinition(
+    "bf2e3a8a-b386-474d-b8e9-4c2d56a2b742"
+);
+const righteousAvengers = getDefinition("d96b463e-9579-4e7b-87c2-342527b91e7c");
+const seeker = getDefinition("df608b59-cc07-4e1d-b6d6-f15e69b15b92");
+const shieldWall = getDefinition("a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3");
+const spiritLink = getDefinition("5e2d35f8-3cf6-4843-9030-0e9a885d836c");
+const spiritualSanctuary = getDefinition(
+    "654dd1e0-a91d-44ee-af20-c025bf360c3f"
+);
+const thunderSpirit = getDefinition("61a59775-b1cd-4ed0-8abf-c2b37f7be0d5");
+const touchOfDarkness = getDefinition("eda7177f-1354-4008-aaaa-2c8b823ed5e9");
+const tundraWolves = getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
+const undertow = getDefinition("cf05e5c9-b7e4-4bd8-ab73-b54565710527");
+const visions = getDefinition("21d00299-e183-4b3d-b015-18808e7135b9");
+const wallOfCaltrops = getDefinition("664ad588-3002-4f63-93bd-38663171018f");
+const wallOfLight = getDefinition("f5758e82-f901-42b7-b705-0e68ca7ba59e");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 // ---------------------------------------------------------------------------
 // White free tranche (#371)
@@ -194,8 +209,8 @@ describe("Amrou Kithkin (can't be blocked by power ≥3, CR 509.1b)", () => {
 });
 
 describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.14)", () => {
-    const plainsId = getCardByName("Plains").id;
-    const islandId = getCardByName("Island").id;
+    const plainsId = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id;
+    const islandId = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5").id;
 
     // Build a defender board: one matching basic land + a vanilla blocker +
     // optionally the negation enchantment. Returns the attacker, the blocker,
@@ -292,10 +307,13 @@ describe("Great Wall / Undertow (landwalk-negation static, CR 509.1b / 702.14)",
             id: "blk",
             controllerId: "p2",
         });
-        const swamp = makeInstance(getCardByName("Swamp").id, {
-            id: "swamp",
-            controllerId: "p2",
-        });
+        const swamp = makeInstance(
+            getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id,
+            {
+                id: "swamp",
+                controllerId: "p2",
+            }
+        );
         const wall = makeInstance(greatWall.id, {
             id: "wall",
             controllerId: "p2",
@@ -2503,11 +2521,14 @@ describe("Clergy of the Holy Nimbus (CR 614.5, 701.19c, 602.1)", () => {
         // the mana planner; the enumerator surfaces opponent-only abilities off
         // the opponent's board.
         state.priorityPlayerId = "p2";
-        const land = makeInstance(getCardByName("Plains").id, {
-            id: "p2-plains",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const land = makeInstance(
+            getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id,
+            {
+                id: "p2-plains",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         state.players[1].battlefield = [land];
         void clergy;
         const p2Moves = enumerateMoves(state, "p2");
