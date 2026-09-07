@@ -8288,6 +8288,33 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
     "Forest",
 ];
 
+/** Canonical "nonbasic land" predicate (CR 305.7, CR 205.4a) — a permanent
+ *  whose PRINTED type line is a Land and which lacks the Basic supertype.
+ *  Shared by every card printing "Nonbasic lands are Mountains": Blood Moon
+ *  (`sets/drk/red.ts`) and Magus of the Moon (`sets/fut/red.ts`), each of which
+ *  needs the IDENTICAL set scanned twice — once for the CR 613.1f layer-6
+ *  `ability-loss` that strips the land's printed abilities, once for the
+ *  CR 305.7 layer-4 `subtype-set` that replaces its land types — so the two
+ *  halves can never drift apart from each other or between the two cards.
+ *
+ *  `ctx.getPrintedTypes`, not the live `types`: a land animated into a creature
+ *  by another effect is still a land for CR 305.7's purposes, and a permanent
+ *  that merely GAINED the Land type from a layer-4 effect is not a land the
+ *  printed text is talking about (the same discriminator role
+ *  `IS_NONCREATURE_ARTIFACT` plays for Titania's Song).
+ *
+ *  Typed off `StaticAbilityLoss`, the one consumer whose `applies` is
+ *  REQUIRED — `StaticSubtypeSet.applies` is optional (it has a computed-output
+ *  sibling), so borrowing that field type would make the constant nullable for
+ *  no reason. The two signatures are identical. */
+export const IS_NONBASIC_LAND: StaticAbilityLoss["applies"] = (
+    target,
+    _source,
+    ctx
+) =>
+    ctx.getPrintedTypes(target).includes("Land") &&
+    !ctx.hasSupertype(target, "Basic");
+
 /** The five basic land types' landwalk keyword (CR 702.14 landwalk variants
  *  restricted to CR 305.6 basics — no "desertwalk", since Desert isn't a
  *  basic land type), keyed by basic land subtype. Lives in this

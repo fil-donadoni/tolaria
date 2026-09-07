@@ -14,6 +14,7 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
 } from "../../types";
+import { IS_NONBASIC_LAND } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -66,7 +67,10 @@ export const goblinHero: CardDefinition = {
 // which falls out of `LAND_SUBTYPE_MANA` once the subtype is Mountain). Basic
 // lands (including basic Mountains) are untouched.
 //
-// Composed from two existing static-effect primitives (no new engine kind):
+// Composed from two existing static-effect primitives (no new engine kind),
+// applied in the CR 613.1 layer order — 4 before 6. The order they are
+// DECLARED in below does not matter: each layer is an independently computed
+// read, not a chained mutation.
 //   • `ability-loss` (CR 613.1f layer 6) — strips the land's printed activated
 //     mana abilities, triggered abilities, and keywords. This is the same
 //     generic "loses all abilities" static introduced for Titania's Song; the
@@ -77,13 +81,10 @@ export const goblinHero: CardDefinition = {
 //     `["Mountain"]`, which makes `getBasicLandMana` return {R}.
 // The layer system recomputes both live and `stopApplyingStaticEffects`
 // reverts them cleanly when Blood Moon leaves the battlefield.
-const IS_NONBASIC_LAND: (
-    target: PermanentView,
-    source: PermanentView,
-    ctx: StaticEffectContext
-) => boolean = (target, _source, ctx) =>
-    ctx.getPrintedTypes(target).includes("Land") &&
-    !ctx.hasSupertype(target, "Basic");
+//
+// The `IS_NONBASIC_LAND` predicate both halves scan lives in `cards/types.ts`:
+// Magus of the Moon (`sets/fut/red.ts`) prints the identical Oracle line, so
+// the set is shared rather than restated once per card.
 
 export const bloodMoon: CardDefinition = {
     id: "78373616-e2d6-4ccf-998f-09f02bea45b4",
@@ -93,9 +94,9 @@ export const bloodMoon: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
     staticEffects: [
-        // CR 613.1f — strip all printed abilities (and other land types) BEFORE
-        // the subtype change so the only ability the land has afterward is the
-        // intrinsic Mountain mana ability granted by its new subtype.
+        // CR 613.1f — the layer-6 ability strip: the only ability the land has
+        // afterward is the intrinsic Mountain mana ability its layer-4 subtype
+        // grants it.
         {
             kind: "ability-loss",
             applies: IS_NONBASIC_LAND,
