@@ -25,6 +25,13 @@ import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
 import type { GracefulPriority } from "./loop-status";
 import { homedir } from "node:os";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { injectActionToken } from "./lib/action-token";
+import {
+    DASHBOARD_BUILD_COMMAND,
+    DASHBOARD_OUT_DIR,
+    readDashboardBuild,
+} from "./lib/dashboard-build";
+import type { DashboardBuild } from "./lib/dashboard-build";
 import {
     LiveIndex,
     readTail,
@@ -37,8 +44,9 @@ import type { SessionSummary } from "./lib/live-activity";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
-const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
-const DASHBOARD_DIR = join(PROJECT_DIR, "scripts/dashboard");
+/** Where `vite.dashboard.config.ts` writes the built dashboard (ADR 0117).
+ *  Nothing is served from outside it. */
+const DASHBOARD_BUILD_DIR = join(PROJECT_DIR, DASHBOARD_OUT_DIR);
 /** Where the harness keeps this project's session transcripts — the same
  *  slug rule `telemetry-ingest.ts` uses (`/` → `-`), and the ONLY root the
  *  live routes ever read under (issue #3135). */
@@ -49,79 +57,34 @@ const PROJECTS_ROOT = join(homedir(), ".claude/projects");
 const PROJECT_SLUG = primaryCheckout(PROJECT_DIR).replace(/\//g, "-");
 
 /**
- * The dashboard's static assets (#2625), as an EXPLICIT list of names.
+ * The dashboard's build, read ONCE per process (ADR 0117).
  *
- * This is an allow-list, not sanitisation: the only thing a request
- * contributes is a lookup key. It is never joined with a path, never
- * decoded, never normalised, never compared with `startsWith` against a
- * root — so `..`, an encoded `%2e%2e%2f`, an absolute path, a symlink or a
- * null byte are all just keys that are not in the map, and the traversal is
- * refused BY CONSTRUCTION rather than by a filter that has to be right.
- * The paths below are built from these literals once, at module load.
- *
- * `Map`, not a plain object, so `__proto__` / `constructor` are ordinary
- * missing keys rather than inherited truthy values.
- *
- * Kept in sync with the directory by
- * `scripts/__tests__/telemetry-serve.test.ts`, which reds when a file lands
- * in `scripts/dashboard/` without an entry here (the shape a later #2621
- * ticket would otherwise ship: a module written, imported, and 404ing).
+ * `undefined` means "not looked at yet"; `null` means "looked, and there is no
+ * build". Both are distinct from a `DashboardBuild`, and the difference is why
+ * this is not a plain `??=`: a missing build must not be re-`stat`ed on every
+ * request, and it must keep answering 503 until the operator rebuilds and
+ * restarts — the process reads the manifest at boot by design, so the set of
+ * served names cannot drift under a running server.
  */
-export const DASHBOARD_ASSET_NAMES = [
-    "dashboard.css",
-    "main.js",
-    "tabs.js",
-    "theme.js",
-    "shortcuts.js",
-    "dialog.js",
-    "format.js",
-    "glossary.js",
-    "tooltip.js",
-    "svg.js",
-    "now.js",
-    "now-loop-status.js",
-    "now-verdict-band.js",
-    "now-lights.js",
-    "now-nav.js",
-    "now-claims-table.js",
-    "now-timeline.js",
-    "now-atoms.js",
-    "now-activity.js",
-    "now-live.js",
-    "now-tail.js",
-    "actions.js",
-    "history-boot.js",
-    "history-state.js",
-    "history-colors.js",
-    "history-query.js",
-    "history-filters.js",
-    "history-refresh.js",
-    "history-narrative.js",
-    "history-timeline.js",
-    "history-ranking.js",
-    "history-metrics-table.js",
-    "history-tiles.js",
-    "history-drilldown.js",
-    "history-issues-table.js",
-    "history-sessions-table.js",
-    "history-families-table.js",
-] as const;
+let dashboardBuildCache: DashboardBuild | null | undefined;
+function loadDashboardBuild(): DashboardBuild | null {
+    if (dashboardBuildCache === undefined) {
+        dashboardBuildCache = readDashboardBuild(DASHBOARD_BUILD_DIR);
+    }
+    return dashboardBuildCache;
+}
 
-const ASSET_CONTENT_TYPES: Record<string, string> = {
-    css: "text/css; charset=utf-8",
-    js: "text/javascript; charset=utf-8",
-};
-
-const ASSET_ALLOW_LIST: ReadonlyMap<string, { path: string; type: string }> =
-    new Map(
-        DASHBOARD_ASSET_NAMES.map((name) => [
-            name,
-            {
-                path: join(DASHBOARD_DIR, name),
-                type: ASSET_CONTENT_TYPES[name.split(".").pop() as string],
-            },
-        ])
+/** The one answer for every dashboard route when there is no build: which
+ *  command makes one. Never a blank page, never a stack trace. */
+function noDashboardBuildResponse(): Response {
+    return new Response(
+        `the telemetry dashboard is not built — run: ${DASHBOARD_BUILD_COMMAND}`,
+        {
+            status: 503,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+        }
     );
+}
 
 /** Everything under this prefix is an allow-list lookup and nothing else. */
 const ASSET_PREFIX = "/assets/";
@@ -599,8 +562,6 @@ function getLoopStatusCached(): Promise<unknown> {
 
 const ACTION_PATH = "/api/action";
 const ACTION_TOKEN_HEADER = "x-loop-action-token";
-/** The `<meta name>` the served page carries the boot token in. */
-const ACTION_TOKEN_META = "loop-action-token";
 
 /**
  * Minted once, at module load — i.e. once per server boot, since the only
@@ -756,7 +717,7 @@ type ActionHandler = (
  *
  * `Map`, not a plain object, so `__proto__` / `constructor` / `toString` are
  * ordinary missing keys rather than inherited truthy values (same reasoning as
- * `ASSET_ALLOW_LIST` above).
+ * the dashboard's asset map (`scripts/lib/dashboard-build.ts`)).
  */
 const ACTION_ALLOW_LIST: ReadonlyMap<string, ActionHandler> = new Map<
     string,
@@ -826,40 +787,6 @@ function tokenMatches(presented: string, expected: string): boolean {
     const b = Buffer.from(expected, "utf8");
     if (a.length !== b.length) return false;
     return timingSafeEqual(a, b);
-}
-
-/** Attribute-context escaping for the injected token. The real token is a
- *  UUID and needs none of this; the escape is here so that the injection is
- *  safe by construction rather than by the token's current shape. */
-function escapeAttribute(value: string): string {
-    return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
-/**
- * Puts the boot token in the served page's `<head>`, which is how the
- * dashboard gets hold of it (guard 2). A cross-origin page cannot read it —
- * that is the same-origin policy doing the work the `Origin` check backs up.
- *
- * If the shell somehow had no `</head>` the injection would no-op and every
- * action would then be refused for a missing token — fail-closed, but silent,
- * so `telemetry-serve.test.ts` asserts the shipped shell has exactly one.
- */
-function injectActionToken(html: string, token: string): string {
-    const tag = `<meta name="${ACTION_TOKEN_META}" content="${escapeAttribute(token)}" />`;
-    // A FUNCTION replacer, never a string one (#2628 review round 1,
-    // finding 5). `String.prototype.replace` reads `$&`, `` $` ``, `$'` and
-    // `$1` in a STRING replacement as replacement patterns, and
-    // `escapeAttribute` deliberately does not escape `$` (it is harmless in an
-    // attribute) — so a token carrying one would splice surrounding document
-    // text into the page. A function's return value is inserted verbatim,
-    // which is what makes `escapeAttribute`'s "safe by construction rather
-    // than by the token's current shape" claim actually true.
-    return html.replace("</head>", () => `    ${tag}\n    </head>`);
 }
 
 /**
@@ -976,6 +903,13 @@ export interface TelemetryDeps {
     /** The three reversible operations `/api/action` dispatches (#2628). */
     driverActions: DriverActions;
     /**
+     * The dashboard's build manifest, or `null` when it has not been built
+     * (ADR 0117). Injected for the same reason `readAsset` is: the serving
+     * allow-list is the part that must be tested, and a test cannot run a
+     * Vite build to obtain one.
+     */
+    dashboardBuild: DashboardBuild | null;
+    /**
      * The transcript index behind `/api/activity`, `/api/live` and
      * `/api/tail` (issue #3135). Injected so a test can point it at a temp
      * directory it wrote itself — the default reads the operator's real
@@ -998,6 +932,9 @@ function defaultLiveIndex(): LiveIndex {
 const defaultDeps: TelemetryDeps = {
     getLoopStatus: getLoopStatusCached,
     readAsset: (absolutePath) => readFile(absolutePath, "utf8"),
+    get dashboardBuild() {
+        return loadDashboardBuild();
+    },
     actionToken: BOOT_ACTION_TOKEN,
     allowedOrigins: loopbackOrigins(resolvePort()),
     driverActions: defaultDriverActions,
@@ -1169,7 +1106,10 @@ export async function handleRequest(
     // `Partial`, so a test that only cares about one seam keeps passing one
     // key — adding `readAsset` in #2625 must not force every existing call
     // site to name every dependency.
-    const { getLoopStatus, readAsset, liveIndex } = { ...defaultDeps, ...deps };
+    const { getLoopStatus, readAsset, liveIndex, dashboardBuild } = {
+        ...defaultDeps,
+        ...deps,
+    };
     const { actionToken, allowedOrigins, driverActions } =
         resolveSecurityDeps(deps);
     const url = new URL(req.url);
@@ -1231,19 +1171,25 @@ export async function handleRequest(
             return Response.json(runQuery((await req.json()) as QueryBody));
         }
         if (url.pathname === "/" || url.pathname === "/index.html") {
+            if (!dashboardBuild) return noDashboardBuildResponse();
             // The boot token rides into the page here and nowhere else
-            // (#2628) — it is served, never stored.
-            const shell = await readAsset(HTML_PATH);
+            // (#2628) — it is served, never stored. The document is the
+            // BUILD's `index.html` (ADR 0117): it already carries the hashed
+            // asset URLs, so the injection is the only thing left to do.
+            const shell = await readAsset(dashboardBuild.htmlPath);
             return new Response(injectActionToken(shell, actionToken), {
                 headers: { "content-type": "text/html; charset=utf-8" },
             });
         }
         if (url.pathname.startsWith(ASSET_PREFIX)) {
+            if (!dashboardBuild) return noDashboardBuildResponse();
             // The remainder of the path is used as a Map KEY and for nothing
             // else. There is no `join` with it, no normalisation, no
-            // `startsWith` containment check — an unlisted name (including
-            // every spelling of a traversal) simply misses and 404s.
-            const asset = ASSET_ALLOW_LIST.get(
+            // `startsWith` containment check — a name the build did not write
+            // (including every spelling of a traversal) simply misses and
+            // 404s. The manifest replaced the list of literals; it did not
+            // replace that property. See `scripts/lib/dashboard-build.ts`.
+            const asset = dashboardBuild.assets.get(
                 url.pathname.slice(ASSET_PREFIX.length)
             );
             if (!asset) return new Response("not found", { status: 404 });
@@ -1281,14 +1227,34 @@ function resolvePort(): number {
  * `require.main === module`; `import.meta.main` is the idiomatic
  * equivalent and reads `false` for a module reached via `import()`.
  */
-export function startServer(port: number = resolvePort()) {
+export interface StartServerOptions {
+    /**
+     * The origins the SERVED PAGE will have, when that is not this server's
+     * own bound port. Only `--dev` passes it: there the document comes from
+     * the Vite dev server, so the origin allowed to POST `/api/action` is
+     * Vite's — this process's ephemeral port never appears in a browser.
+     * Still built from `loopbackOrigins`' literals, never from a request.
+     */
+    pageOrigins?: ReadonlySet<string>;
+    /**
+     * Whether to print the banner. `false` in `--dev`, where Vite prints the
+     * URL the operator actually opens and this server's port is an
+     * implementation detail nobody should type.
+     */
+    announce?: boolean;
+}
+
+export function startServer(
+    port: number = resolvePort(),
+    { pageOrigins, announce = true }: StartServerOptions = {}
+) {
     // The Origin allow-list is built from the port the server ACTUALLY bound,
     // not from the one requested (#2628): `startServer(0)` lets the OS pick,
     // and an allow-list naming port 0 would refuse the page this very server
     // just served. Reassigned below, before `Bun.serve` can dispatch a first
     // request — read through a `let` rather than off `server` inside its own
     // initializer, which TypeScript cannot type (TS7022/TS7023).
-    let origins: ReadonlySet<string> = loopbackOrigins(port);
+    let origins: ReadonlySet<string> = pageOrigins ?? loopbackOrigins(port);
     const server = Bun.serve({
         port,
         hostname: "127.0.0.1",
@@ -1297,11 +1263,64 @@ export function startServer(port: number = resolvePort()) {
     // `server.port` is optional in Bun's types (a unix-socket server has
     // none); this one is always a TCP listener, so the fallback is the
     // requested port rather than a widening of the allow-list.
-    origins = loopbackOrigins(server.port ?? port);
-    console.log(`telemetry dashboard → http://127.0.0.1:${server.port}`);
+    origins = pageOrigins ?? loopbackOrigins(server.port ?? port);
+    if (announce) {
+        console.log(`telemetry dashboard → http://127.0.0.1:${server.port}`);
+    }
     return server;
 }
 
+/**
+ * `--dev` (ADR 0117): the page comes from Vite, every `/api/*` route still
+ * comes from this server.
+ *
+ * The topology is deliberately that way round rather than "Bun proxies
+ * `/assets/*` to Vite": HMR is a WebSocket upgrade plus a module graph, and
+ * proxying it through a hand-written Bun handler is a second, worse
+ * implementation of something Vite's own dev server already does. Vite binds
+ * the well-known port — so `bun run telemetry:dash --dev` still means "open
+ * http://127.0.0.1:5174" — and proxies `/api` here.
+ *
+ * The boot token reaches the dev document through the CHILD'S ENVIRONMENT and
+ * nowhere else (`vite.dashboard.config.ts`'s `tolaria:dev-action-token`). It
+ * is never written to disk, never logged, and no HTTP route ever hands it out.
+ */
+function startDevServer(): void {
+    const pagePort = resolvePort();
+    const api = startServer(0, {
+        pageOrigins: loopbackOrigins(pagePort),
+        announce: false,
+    });
+    const vite = Bun.spawn(
+        [
+            "bunx",
+            "vite",
+            "--config",
+            "vite.dashboard.config.ts",
+            "--port",
+            String(pagePort),
+            "--strictPort",
+        ],
+        {
+            cwd: PROJECT_DIR,
+            stdio: ["inherit", "inherit", "inherit"],
+            env: {
+                ...process.env,
+                TELEMETRY_DEV_API_PORT: String(api.port ?? 0),
+                TELEMETRY_DEV_ACTION_TOKEN: BOOT_ACTION_TOKEN,
+            },
+        }
+    );
+    // The API server exists only to answer the dev page: when Vite is gone,
+    // so is the page, and a stray Bun listener holding the token in memory is
+    // exactly what the per-boot token exists to avoid.
+    void vite.exited.then((code) => {
+        api.stop(true);
+        process.exit(code ?? 0);
+    });
+}
+
 if (import.meta.main) {
-    startServer();
+    if (process.argv.includes("--dev")) startDevServer();
+    else startServer();
 }
