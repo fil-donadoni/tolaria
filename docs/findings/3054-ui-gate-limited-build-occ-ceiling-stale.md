@@ -1,7 +1,8 @@
 ---
 title: check:ui has been red on main since before this issue — limited-build @ 844x390x3 cardsOcc/ctrlsOcc 15 > 13
 discoveredBy: 3054
-status: draft
+status: triaged
+issue: 3114
 confidence: high
 ---
 
@@ -30,6 +31,12 @@ DEPLOYMENT and were re-recorded twice with no `src/` change (issue #2825,
 `docs/findings/2671-limited-list-budgets-drifted.md`) — `cardsOcc` here is the
 ADR 0075 column-pile overlay, so it is a function of the seeded fixture's pool
 size, not of any component.
+
+**Triaged 2026-09-07 → issue #3114 (board `Priority` P0).** The maintainer
+took it as a ticket rather than a line on an existing tracker: the red blocks
+the receipt for EVERY UI-affecting PR, and #3114 deliberately does not
+pre-decide between the two readings below — it requires the verdict be argued
+from a measurement.
 
 **Why it may not deserve its own issue.** The remedy may be one line —
 `844x390x3` `cardsOcc`/`ctrlsOcc` 13 → 15 — and that is arguably a line on the
