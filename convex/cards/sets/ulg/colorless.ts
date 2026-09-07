@@ -139,3 +139,55 @@ export const memoryJar: CardDefinition = {
         },
     ],
 };
+
+// Treetop Village — the ULG "manland" cycle's green member. Three lines:
+//  • "This land enters tapped." (`entersTapped`, the FEM sacrifice-land shape.)
+//  • "{T}: Add {G}." (CR 605.1a/605.3a mana ability, `useStack: false`.)
+//  • "{1}{G}: This land becomes a 3/3 green Ape creature with trample until
+//    end of turn. It's still a land." (CR 611.1 animate — the Mishra's Factory
+//    shape, `atq/colorless.ts`.) The `animate` Op sets the 3/3 base P/T and the
+//    Ape subtype, grants trample (CR 702.19a) and applies the layer-5 colour
+//    set (CR 613.1e — green REPLACES the land's colourlessness, CR 105.3), all
+//    on the same end-of-turn duration so the whole animation reverts together.
+//    No `additionalTypes`: unlike Mishra's Factory this becomes a plain
+//    creature, and "It's still a land" is exactly what `animate` already does
+//    by ADDING the Creature type rather than setting it.
+//
+// compiler-gap: {1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (#2693)
+export const treetopVillage: CardDefinition = {
+    id: "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
+    name: "Treetop Village",
+    rarity: "uncommon",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "treetop-village-mana",
+            oracleText: "{T}: Add {G}.",
+            produces: { G: 1 },
+        }),
+        {
+            id: "treetop-village-animate",
+            oracleText:
+                "{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+            cost: { mana: { X: 1, G: 1 } },
+            useStack: true,
+            animatesSelf: true,
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 3,
+                    toughness: 3,
+                    subtype: "Ape",
+                    colors: ["G"],
+                    grantedAbilities: ["trample"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
