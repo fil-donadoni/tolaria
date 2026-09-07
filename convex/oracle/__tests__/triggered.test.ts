@@ -232,10 +232,9 @@ describe('optionality — "you may <effect>" (CR 603.2)', () => {
         ]);
         // Said again as the three properties the shape rests on, because
         // `toEqual` above would still pass if all three moved together.
-        const [may, branch] = triggers[0]!.effects as [
-            Record<string, unknown>,
-            Record<string, unknown>,
-        ];
+        const [may, branch] = triggers[0]!.effects;
+        if (may?.op !== "mayPay" || branch?.op !== "if")
+            throw new Error("expected a mayPay + if pair");
         expect(may.cost).toBeUndefined();
         expect(branch.else).toBeUndefined();
         expect(branch.predicate).toEqual({ binding: may.bind });
