@@ -4,10 +4,9 @@
     --plane: #f9f9f7;
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
-    --muted: #898781;
+    --text-muted: #898781;
     --grid: #e1e0d9;
     --axis: #c3c2b7;
-    --border: rgba(11, 11, 11, 0.1);
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
@@ -43,10 +42,9 @@
         --plane: #0d0d0d;
         --text-primary: #ffffff;
         --text-secondary: #c3c2b7;
-        --muted: #898781;
+        --text-muted: #898781;
         --grid: #2c2c2a;
         --axis: #383835;
-        --border: rgba(255, 255, 255, 0.1);
         --series-1: #3987e5;
         --series-2: #d95926;
         --series-3: #199e70;
@@ -75,10 +73,9 @@
     --plane: #0d0d0d;
     --text-primary: #ffffff;
     --text-secondary: #c3c2b7;
-    --muted: #898781;
+    --text-muted: #898781;
     --grid: #2c2c2a;
     --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
@@ -175,7 +172,7 @@ button.shortcuts-btn {
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 select,
 input[type="date"] {
@@ -226,7 +223,7 @@ input[type="date"] {
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .tile .v {
     font-size: 26px;
@@ -300,7 +297,7 @@ td:first-child {
     font-variant-numeric: normal;
 }
 th {
-    color: var(--muted);
+    color: var(--text-muted);
     font-weight: 500;
     font-size: 11px;
     letter-spacing: 0.03em;
@@ -338,7 +335,7 @@ tbody tr:hover {
 }
 .ls-pass {
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 /* Claim verdict marks (#2632) — words ("orphaned"/"unsure"/"working"), not
    the `×`/`?`/`·` symbols they replace, so `width: 14px; text-align: center`
@@ -410,7 +407,7 @@ tbody tr:hover {
     white-space: nowrap;
 }
 .ls-empty {
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 12px;
 }
 .ls-unavailable {
@@ -601,7 +598,7 @@ tbody tr:hover {
     color: var(--text-primary);
     background: var(--plane);
     border: 1px solid var(--border);
-    border-left: 4px solid var(--muted);
+    border-left: 4px solid var(--text-muted);
     border-radius: 8px;
     padding: 10px 12px;
     cursor: pointer;
@@ -706,7 +703,7 @@ tbody tr:hover {
 }
 .ls-tl-track-label {
     font-size: 11px;
-    /* --text-secondary, not --muted (measured 3.41:1 against --plane, below
+    /* --text-secondary, not --text-muted (measured 3.41:1 against --plane, below
        WCAG AA's 4.5:1 — the SAME pre-existing gap PR #2837 already found on
        .ls-pass/table th, not repeated here since the fix was this cheap). */
     color: var(--text-secondary);
@@ -816,7 +813,7 @@ tbody tr:hover {
     margin-left: 2px;
     background: repeating-linear-gradient(
         to right,
-        var(--muted) 0 4px,
+        var(--text-muted) 0 4px,
         transparent 4px 8px
     );
 }
@@ -1045,7 +1042,7 @@ button.theme:focus-visible {
     font-size: 13px;
 }
 .mini {
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .row-filters {
     display: flex;
@@ -1053,7 +1050,7 @@ button.theme:focus-visible {
     flex-wrap: wrap;
     margin: 6px 0 10px;
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .row-filters label {
     display: flex;

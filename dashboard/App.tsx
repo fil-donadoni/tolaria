@@ -1,158 +1,133 @@
+import { useSyncExternalStore } from "react";
+import { Shell } from "./components/Shell";
+import { Section } from "./components/Section";
+import { subscribeToView, viewFromParams } from "./lib/view";
+
 /**
- * The dashboard shell, as the React tree that replaces
- * `scripts/telemetry-dashboard.html` (ADR 0117).
+ * The dashboard's page (PRD #3148 S0 → S1).
  *
- * S0 of PRD #3148 is the BUILD seam and nothing else: this component renders
- * the exact markup the hand-written shell rendered — same ids, same classes,
- * same ARIA wiring — because the vanilla modules under `scripts/dashboard/`
- * still attach to it by `getElementById`. Every id below is therefore load
+ * S0 reproduced the hand-written shell verbatim so the port could not change
+ * anything. S1 replaces the CHROME — header, tabs, theme, shortcuts, the
+ * framed section — with React and shadcn, and leaves the two view BODIES
+ * exactly where they were: the vanilla modules under `scripts/dashboard/`
+ * still fill them, still by `getElementById`, so every id below is load
  * bearing until the slice that ports its section (S2 for Now, S3 for History)
  * deletes both halves together.
  *
- * That is what makes this a strangler rather than a rewrite: at every commit
- * the page is a React tree, and at every commit it behaves exactly as it did.
+ * The legacy class names ride along for the same reason. `dashboard.css` is
+ * unlayered and is imported after the Tailwind entry, so where the two overlap
+ * the legacy rule still wins and an un-ported section looks exactly as it did.
+ * Each class disappears with the module that needs it.
  */
 export function App() {
+    const view = useSyncExternalStore(subscribeToView, () =>
+        viewFromParams(new URLSearchParams(location.search))
+    );
     return (
         <>
-            <div className="wrap">
-                <header>
-                    <h1>Tolaria telemetry</h1>
-                    <span className="sub" id="meta-line">
-                        loading…
-                    </span>
-                    {/*
-                        #2635 — the only affordance that makes the keyboard
-                        layer discoverable without already knowing `?` opens it.
-                    */}
-                    <button
-                        className="shortcuts-btn"
-                        id="shortcuts-btn"
-                        type="button"
-                        aria-haspopup="dialog"
+            <Shell
+                view={view}
+                now={
+                    <Section
+                        id="loop-status-card"
+                        className="card"
+                        title="Loop status"
+                        meta={
+                            <div className="h-sub" id="loop-status-sub">
+                                loading…
+                            </div>
+                        }
                     >
-                        Keyboard shortcuts
-                    </button>
-                    <button className="theme" id="theme">
-                        theme
-                    </button>
-                </header>
-
-                {/*
-                    Two explicit modes. Now is operations and reads only
-                    /api/loop-status (no database); History is analysis and
-                    reads the telemetry store. The active one lives in ?view=.
-                */}
-                <nav
-                    className="tabs"
-                    role="tablist"
-                    aria-label="Dashboard view"
-                >
-                    <button
-                        className="tab"
-                        id="tab-now"
-                        type="button"
-                        role="tab"
-                        data-view="now"
-                        aria-controls="view-now"
-                        aria-selected="true"
-                    >
-                        Now
-                    </button>
-                    <button
-                        className="tab"
-                        id="tab-history"
-                        type="button"
-                        role="tab"
-                        data-view="history"
-                        aria-controls="view-history"
-                        aria-selected="false"
-                    >
-                        History
-                    </button>
-                </nav>
-
-                <div
-                    className="view"
-                    id="view-now"
-                    role="tabpanel"
-                    aria-labelledby="tab-now"
-                >
-                    <section className="card" id="loop-status-card">
-                        <h2>Loop status</h2>
-                        <div className="h-sub" id="loop-status-sub">
-                            loading…
-                        </div>
                         <div id="loop-status-body" />
-                    </section>
-                </div>
+                    </Section>
+                }
+                history={
+                    <>
+                        <div className="filters" id="filters" />
+                        <div className="tiles" id="tiles" />
 
-                <div
-                    className="view"
-                    id="view-history"
-                    role="tabpanel"
-                    aria-labelledby="tab-history"
-                    hidden
-                >
-                    <div className="filters" id="filters" />
-                    <div className="tiles" id="tiles" />
+                        <Section
+                            className="card"
+                            title="Issues"
+                            meta={<div className="h-sub" id="issues-sub" />}
+                        >
+                            <div className="row-filters" id="issues-filters" />
+                            <div className="tbl-wrap">
+                                <table id="issues-tbl" />
+                            </div>
+                        </Section>
 
-                    <section className="card">
-                        <h2>Issues</h2>
-                        <div className="h-sub" id="issues-sub" />
-                        <div className="row-filters" id="issues-filters" />
-                        <div className="tbl-wrap">
-                            <table id="issues-tbl" />
-                        </div>
-                    </section>
+                        <Section
+                            className="card"
+                            title="Sessions"
+                            meta={
+                                <div className="h-sub">
+                                    One row per session in range. Click a header
+                                    to sort, a row for its agent runs.
+                                </div>
+                            }
+                        >
+                            <div
+                                className="row-filters"
+                                id="sessions-filters"
+                            />
+                            <div className="tbl-wrap">
+                                <table id="sessions-tbl" />
+                            </div>
+                        </Section>
 
-                    <section className="card">
-                        <h2>Sessions</h2>
-                        <div className="h-sub">
-                            One row per session in range. Click a header to
-                            sort, a row for its agent runs.
-                        </div>
-                        <div className="row-filters" id="sessions-filters" />
-                        <div className="tbl-wrap">
-                            <table id="sessions-tbl" />
-                        </div>
-                    </section>
+                        <Section
+                            className="card"
+                            title={
+                                <span id="fam-title">Agent family × role</span>
+                            }
+                            meta={<div className="h-sub" id="fam-sub" />}
+                        >
+                            <div className="tbl-wrap">
+                                <table id="families-tbl" />
+                            </div>
+                        </Section>
 
-                    <section className="card">
-                        <h2 id="fam-title">Agent family × role</h2>
-                        <div className="h-sub" id="fam-sub" />
-                        <div className="tbl-wrap">
-                            <table id="families-tbl" />
-                        </div>
-                    </section>
+                        <Section
+                            className="card"
+                            title={<span id="ts-title">Over time</span>}
+                            meta={<div className="h-sub" id="ts-sub" />}
+                        >
+                            <div className="scroll">
+                                <svg id="ts" />
+                            </div>
+                            <div className="legend" id="ts-legend" />
+                        </Section>
 
-                    <section className="card">
-                        <h2 id="ts-title">Over time</h2>
-                        <div className="h-sub" id="ts-sub" />
-                        <div className="scroll">
-                            <svg id="ts" />
-                        </div>
-                        <div className="legend" id="ts-legend" />
-                    </section>
+                        <Section
+                            className="card"
+                            title={<span id="rank-title">Ranking</span>}
+                            meta={<div className="h-sub" id="rank-sub" />}
+                        >
+                            <div className="scroll">
+                                <svg id="rank" />
+                            </div>
+                        </Section>
 
-                    <section className="card">
-                        <h2 id="rank-title">Ranking</h2>
-                        <div className="h-sub" id="rank-sub" />
-                        <div className="scroll">
-                            <svg id="rank" />
-                        </div>
-                    </section>
-
-                    <section className="card">
-                        <h2>Table</h2>
-                        <div className="h-sub" id="tbl-sub" />
-                        <div className="tbl-wrap">
-                            <table id="tbl" />
-                        </div>
-                    </section>
-                </div>
-            </div>
-            {/* Outside both views: the tooltip layer is position:fixed chrome. */}
+                        <Section
+                            className="card"
+                            title="Table"
+                            meta={<div className="h-sub" id="tbl-sub" />}
+                        >
+                            <div className="tbl-wrap">
+                                <table id="tbl" />
+                            </div>
+                        </Section>
+                    </>
+                }
+            />
+            {/*
+                Outside the shell: the vanilla tooltip layer is `position:fixed`
+                chrome, and `scripts/dashboard/tooltip.js` resolves it by id.
+                It serves the `data-term` strings the un-ported views still
+                paint; the React chrome uses `<Term>` and the shadcn tooltip.
+                Both read `dashboard/glossary.ts`, so they cannot drift.
+            */}
             <div id="tip" />
         </>
     );

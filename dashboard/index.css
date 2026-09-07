@@ -1,0 +1,223 @@
+/**
+ * The dashboard's Tailwind entry (PRD #3148 S1).
+ *
+ * Same stack as `src/index.css` — Tailwind 4, `shadcn/tailwind.css`, Geist —
+ * WITHOUT the game-only pieces: no Beleren, no keyrune, no card-preview safe
+ * area. The dashboard prints numbers; it renders no cards.
+ *
+ * The one real difference from the game app is THEME. `src/` is dark-only, so
+ * its `:root` and `.dark` blocks hold identical values. The dashboard has a
+ * real toggle with THREE states — an explicit `data-theme="light"`, an
+ * explicit `data-theme="dark"`, and absent, meaning "follow the system"
+ * (`dashboard/lib/theme.ts`). All three are expressed by REDEFINING the shadcn
+ * tokens, not by `dark:` utilities, so a component built on `bg-card` /
+ * `text-muted-foreground` themes itself with no variant at any call site.
+ * `@custom-variant dark` below still exists for the rare case that needs a
+ * different RULE rather than a different value, and it implements the same
+ * three states so it can never disagree with the token blocks.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+/* Tailwind scans upward from this file, which would miss the shadcn
+   primitives: they live in `src/components/ui/` (shared with the game app —
+   ADR 0117 aliases `@` to `src/` for exactly this) and that is outside the
+   dashboard's Vite root. */
+@source ".";
+@source "../src/components/ui";
+
+/* The three theme states, as one variant. `data-theme` on <html> is the
+   existing mechanism (`?theme=light|dark` pins it for a shared link), and its
+   ABSENCE is not "light" — it is "whatever the operator's system says". */
+@custom-variant dark {
+    &:where([data-theme="dark"], [data-theme="dark"] *) {
+        @slot;
+    }
+    @media (prefers-color-scheme: dark) {
+        &:where(
+            html:not([data-theme]),
+            html:not([data-theme]) *,
+            [data-theme="system"],
+            [data-theme="system"] *
+        ) {
+            @slot;
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LIGHT — the default, and the only place every token is written out. The two
+   dark blocks below redefine the ones that MOVE and nothing else, so a token
+   added here cannot be silently missing in dark.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+    color-scheme: light;
+
+    --background: #f9f9f7;
+    --foreground: #0b0b0b;
+    --card: #fcfcfb;
+    --card-foreground: #0b0b0b;
+    --popover: #fcfcfb;
+    --popover-foreground: #0b0b0b;
+    --primary: #0b0b0b;
+    --primary-foreground: #fcfcfb;
+    --secondary: #efeee9;
+    --secondary-foreground: #0b0b0b;
+    --muted: #efeee9;
+    --muted-foreground: #52514e;
+    --accent: #efeee9;
+    --accent-foreground: #0b0b0b;
+    --destructive: #eb6834;
+    --destructive-foreground: #fcfcfb;
+    /* ONE declaration for both systems (S1): `--border` was also a
+       dashboard.css token with the same ROLE and a near-identical value, and
+       two declarations of one name in two imported stylesheets is decided by
+       import order rather than by intent. */
+    --border: rgba(11, 11, 11, 0.1);
+    --input: #fcfcfb;
+    --ring: #2a78d6;
+    --radius: 0.5rem;
+
+    /* Chart slots, wired to the dashboard's own series ramp so a shadcn chart
+       and a hand-drawn SVG cannot drift apart. */
+    --chart-1: #2a78d6;
+    --chart-2: #eb6834;
+    --chart-3: #1baf7a;
+    --chart-4: #eda100;
+    --chart-5: #e87ba4;
+
+    /* Semantic STATE roles (#2630), carried over verbatim. Role names, never
+       chromatic ones. `unknown` is deliberately its OWN hue rather than a
+       second name for `bad`: "I could not tell" is not "this is wrong". */
+    --state-good: #1baf7a;
+    --state-warn: #eda100;
+    --state-bad: #eb6834;
+    --state-unknown: #4a3aa7;
+    --state-neutral: #898781;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --background: #0d0d0d;
+        --foreground: #ffffff;
+        --card: #1a1a19;
+        --card-foreground: #ffffff;
+        --popover: #1a1a19;
+        --popover-foreground: #ffffff;
+        --primary: #ffffff;
+        --primary-foreground: #0d0d0d;
+        --secondary: #262624;
+        --secondary-foreground: #ffffff;
+        --muted: #262624;
+        --muted-foreground: #c3c2b7;
+        --accent: #262624;
+        --accent-foreground: #ffffff;
+        --destructive: #d95926;
+        --destructive-foreground: #0d0d0d;
+        --border: rgba(255, 255, 255, 0.1);
+        --input: #1a1a19;
+        --ring: #3987e5;
+        --chart-1: #3987e5;
+        --chart-2: #d95926;
+        --chart-3: #199e70;
+        --chart-4: #c98500;
+        --chart-5: #d55181;
+        --state-good: #199e70;
+        --state-warn: #c98500;
+        --state-bad: #d95926;
+        --state-unknown: #9085e9;
+        --state-neutral: #898781;
+    }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --background: #0d0d0d;
+    --foreground: #ffffff;
+    --card: #1a1a19;
+    --card-foreground: #ffffff;
+    --popover: #1a1a19;
+    --popover-foreground: #ffffff;
+    --primary: #ffffff;
+    --primary-foreground: #0d0d0d;
+    --secondary: #262624;
+    --secondary-foreground: #ffffff;
+    --muted: #262624;
+    --muted-foreground: #c3c2b7;
+    --accent: #262624;
+    --accent-foreground: #ffffff;
+    --destructive: #d95926;
+    --destructive-foreground: #0d0d0d;
+    --border: rgba(255, 255, 255, 0.1);
+    --input: #1a1a19;
+    --ring: #3987e5;
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --state-good: #199e70;
+    --state-warn: #c98500;
+    --state-bad: #d95926;
+    --state-unknown: #9085e9;
+    --state-neutral: #898781;
+}
+
+@theme inline {
+    --font-sans: "Geist Variable", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    /* The state roles as UTILITIES (`bg-state-good`, `text-state-bad`), which
+       is what lets `dashboard/lib/tones.ts` be ONE table of class names rather
+       than a table of inline styles. */
+    --color-state-good: var(--state-good);
+    --color-state-warn: var(--state-warn);
+    --color-state-bad: var(--state-bad);
+    --color-state-unknown: var(--state-unknown);
+    --color-state-neutral: var(--state-neutral);
+
+    /* The named z rungs the shared primitives already reference. The
+       dashboard needs exactly the layering ones — a tooltip and a sheet over
+       the page, nothing else — so this is the game app's scale TRUNCATED, not
+       a second scale with different numbers. */
+    --z-sheet: 50;
+    --z-modal: 100;
+
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+    }
+}

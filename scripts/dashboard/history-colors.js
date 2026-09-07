@@ -17,7 +17,7 @@ const SERIES = [
     "--series-7",
     "--series-8",
 ];
-export const OTHER = "var(--muted)";
+export const OTHER = "var(--text-muted)";
 export const MAX_SERIES = 8;
 
 /**
