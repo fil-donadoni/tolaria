@@ -2660,8 +2660,7 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
     /** An attack decision for p1, with the given boards. */
     function attackWith(
         mine: ReturnType<typeof creature>[],
-        theirs: ReturnType<typeof creature>[],
-        defenderLife = 20
+        theirs: ReturnType<typeof creature>[]
     ): GameState {
         return makeState({
             phase: "DECLARE_ATTACKERS",
@@ -2669,7 +2668,7 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
             priorityPlayerId: "p1",
             players: [
                 makePlayer("p1", { battlefield: mine }),
-                makePlayer("p2", { battlefield: theirs, life: defenderLife }),
+                makePlayer("p2", { battlefield: theirs }),
             ],
             combat: {
                 attackerIds: [],
@@ -2705,16 +2704,16 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
     });
 
     it("does NOT fire when the swing kills a blocker", () => {
-        // 3/3 into a lone 2/2 with the defender at 3 life: the predictor has it
-        // CHUMP (taking 3 is lethal, CR 704.5a), so the swing eats a creature
-        // and pushes no damage. That is productive, not wasteful — and it is the
-        // only shape in this block that exercises the `deadBlockerIds` clause,
-        // since a defender at a healthy life total simply declines the losing
-        // block and the swing is ruled in by its face damage instead.
+        // 3/3 into a 3/3: the predictor has the defender TRADE (both bodies
+        // die, CR 704.5g, no damage through). The swing eats a creature, so it
+        // is productive rather than wasteful — and this is the only shape here
+        // that exercises the `deadBlockerIds` clause. A losing block is simply
+        // declined by the predictor (measured: a 3/3 into a lone 2/2 predicts 3
+        // face damage, at 20 life and at 3), so every other NO-FIRE case below
+        // is ruled in by face damage instead.
         const state = attackWith(
             [creature(GIANT, "p1", "g")],
-            [creature(BEARS, "p2", "wall")],
-            3
+            [creature(GIANT, "p2", "wall")]
         );
         expect(isWastefulAttack(state, swing("g"))).toBe(false);
     });
