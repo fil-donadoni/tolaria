@@ -39,7 +39,14 @@ export const TIER1_SIDEBOARD_SIZE = 15;
  */
 export type DeckCardState = "ours" | CompileState;
 
-/** Playable today: shipped by hand, or compiled and served from the pool. */
+/**
+ * Playable today: shipped by hand, or compiled and served from the pool.
+ *
+ * The ONE definition — `deckReport` derives its `playable` figure by summing
+ * these counts rather than re-listing the two states, so a change to what
+ * counts as playable cannot update the constant and leave the arithmetic
+ * behind (review of PR #3150, finding 3).
+ */
 export const PLAYABLE_STATES: readonly DeckCardState[] = ["ours", "ready"];
 
 export interface Tier1DeckEntry {
@@ -291,7 +298,7 @@ export function deckReport(
         name: deck.name,
         cards,
         counts,
-        playable: counts.ours + counts.ready,
+        playable: PLAYABLE_STATES.reduce((sum, s) => sum + counts[s], 0),
         total: cards.length,
     };
 }
