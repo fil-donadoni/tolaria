@@ -38,6 +38,7 @@ import {
     type StackItem,
 } from "../state";
 import { finalizeCleanup } from "../phases";
+import { continuousEffectsInLayer } from "../continuousEffects";
 import {
     makeInstance,
     makePlayer,
@@ -85,6 +86,32 @@ function leaveBattlefield(state: GameState, card: CardInstanceState): void {
 }
 
 /** Drives the real CR 514.2 cleanup purge (not a hand-rolled tick). */
+/** The expiry KIND of every live layer-6 registry entry on `id`, which
+ *  is where a grant's provenance lives since PRD #2064 S6b — `duration`
+ *  for an until-EOT grant, `counter` for a keyword counter's,
+ *  `indefinite` for one that outlives everything but the permanent. */
+function layer6ExpiriesOn(state: GameState, id: string): string[] {
+    return continuousEffectsInLayer(state, 6)
+        .filter(
+            (e) =>
+                e.affected.kind === "instances" &&
+                e.affected.instanceIds.includes(id)
+        )
+        .map((e) => e.expiry.kind);
+}
+
+/** The live duration-scoped `keyword-remove` entries on `id`
+ *  (PRD #2064 S6b — what `temporaryRemovedKeywords` used to hold). */
+function durationRemovalsOn(state: GameState, id: string) {
+    return continuousEffectsInLayer(state, 6).filter(
+        (e) =>
+            e.expiry.kind === "duration" &&
+            e.payload.kind === "keyword-remove" &&
+            e.affected.kind === "instances" &&
+            e.affected.instanceIds.includes(id)
+    );
+}
+
 function runCleanup(state: GameState): void {
     state.phase = "CLEANUP";
     finalizeCleanup(state);
@@ -112,12 +139,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // survives, and its provenance record is untouched.
             expect(count(bear, "flying")).toBe(1);
             expect(bear.counters?.flying).toBeUndefined();
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({
-                    ability: "flying",
-                    duration: { phase: "end-of-turn" },
-                }),
-            ]);
+            // PRD #2064 S6b — the provenance is the registry ENTRY's expiry.
+            expect(layer6ExpiriesOn(state, "bear-1")).toEqual(["duration"]);
 
             // Wire format — evasion is board-visible, so the surviving grant
             // must still read as flying after the projection.
@@ -146,12 +169,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // The duration grant expired; the counter grant persists (CR
             // 122.1c — it lasts as long as a counter of the type remains).
             expect(count(bear, "flying")).toBe(1);
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({
-                    ability: "flying",
-                    counterType: "flying",
-                }),
-            ]);
+            expect(layer6ExpiriesOn(state, "bear-2")).toEqual(["counter"]);
         });
 
         it("a natively-printed keyword survives a counter grant's teardown (CR 113.1)", () => {
@@ -191,9 +209,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             runCleanup(state);
 
             expect(count(bear, "flying")).toBe(1);
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({ ability: "flying" }),
-            ]);
+            expect(layer6ExpiriesOn(state, bear.id)).toEqual(["indefinite"]);
         });
 
         it("a second indefinite grant of the same keyword stays idempotent", () => {
@@ -211,9 +227,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             );
 
             expect(count(bear, "flying")).toBe(1);
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({ ability: "flying" }),
-            ]);
+            expect(layer6ExpiriesOn(state, bear.id)).toEqual(["indefinite"]);
         });
 
         it("an animate-granted keyword survives an until-EOT grant's purge", () => {
@@ -268,7 +282,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // the purge releases the grant's occupancy from the HOLD, since
             // that is where the occurrence it owns currently sits.
             runCleanup(state);
-            expect(bear.grantedStaticAbilities).toBeUndefined();
+            expect(layer6ExpiriesOn(state, bear.id)).toEqual([]);
             expect(bear.removedKeywords).toBeUndefined();
 
             // Sphere leaves — there is nothing left to restore. Without the
@@ -387,7 +401,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
                 UNTIL_EOT
             );
             expect(count(bear, "flying")).toBe(0);
-            expect(bear.temporaryRemovedKeywords).toHaveLength(1);
+            expect(durationRemovalsOn(state, "bear-7")).toHaveLength(1);
 
             ctx.removeCounter({ type: "permanent", id: "bear-7" }, "flying", 1);
             // The duration-scoped removal is still on record — nothing was
@@ -419,12 +433,15 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
                 UNTIL_EOT
             );
             expect(count(elemental, "flying")).toBe(0);
-            expect(elemental.temporaryRemovedKeywords).toHaveLength(1);
+            expect(durationRemovalsOn(state, "ae-4")).toHaveLength(1);
 
             removePermanentTo(state, "ae-4", "hand");
             const bounced = state.players[0].hand.find((c) => c.id === "ae-4")!;
             expect(count(bounced, "flying")).toBe(1);
-            expect(bounced.temporaryRemovedKeywords).toBeUndefined();
+            // PRD #2064 S6b — the hold is a REGISTRY entry now, and the release
+            // is CR 400.7's `purgeContinuousEffectsForInstance` (S6a) rather
+            // than a `delete` on the instance. Same fact, one owner.
+            expect(durationRemovalsOn(state, "ae-4")).toHaveLength(0);
 
             // And the purge that would have expired it never sees the card
             // again, so the restore above is the only one there is.
@@ -433,32 +450,21 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
     });
 
-    describe("a suppressed grant owns nothing and releases nothing (CR 613.1f)", () => {
-        it("the CLEANUP purge does not splice for a suppressed duration grant", () => {
-            // Constructed directly: no shipped card currently produces a
-            // SUPPRESSED grant that also carries a duration, which is exactly
-            // why the purge's correctness here was accidental rather than
-            // structural. The invariant must hold regardless of which producer
-            // writes the record.
-            const elemental = makeInstance(airElemental.id, { id: "ae-3" });
-            elemental.grantedStaticAbilities = [
-                {
-                    ability: "flying",
-                    duration: { phase: "end-of-turn" },
-                    suppressed: true,
-                },
-            ];
-            const state = makeBoard(elemental);
-            expect(count(elemental, "flying")).toBe(1);
-
-            runCleanup(state);
-
-            // The printed flying is untouched — the expired grant never had an
-            // occurrence of its own to give back.
-            expect(count(elemental, "flying")).toBe(1);
-            expect(elemental.grantedStaticAbilities).toBeUndefined();
-        });
-    });
+    // PRD #2064 S6b — "a suppressed grant owns nothing and releases nothing
+    // (CR 613.1f)" stood here, pinning that the CLEANUP purge did not splice a
+    // `staticAbilities` occurrence for a grant recorded `suppressed`. Its
+    // subject is gone in both halves: the purge loop it exercised was deleted
+    // with the instance ledger it ticked (`gre/phases.ts` — the registry's own
+    // `tickContinuousEffectDurations` counts CR 611.2a boundaries now), and the
+    // row it had to construct by hand — `duration` plus `suppressed` — can no
+    // longer be built, because `duration` is an ENTRY's expiry and `suppressed`
+    // is written only on the derived aura path.
+    //
+    // The invariant survives structurally rather than by accounting: an expired
+    // entry is spliced from the registry and the derivation simply stops
+    // composing it, so there is no give-back step for a suppressed grant to be
+    // wrongly credited by. That is the same reason the four ESCROW tests below
+    // were replaced by a direct statement of what they protected.
 
     // ────────────────────────────────────────────────────────────────────
     // What replaced the ESCROW model (issues #1706 / #1750, PRD #2064 S3).

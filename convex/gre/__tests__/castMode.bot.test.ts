@@ -41,6 +41,7 @@ import { cloneGameState } from "../clone";
 import { resolveTopOfStack } from "../state";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
@@ -240,7 +241,7 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
             )!;
             const item = structuredClone(subject);
             const altCostId = altCostIdFor(getCardByName(fixture.card), mode);
-            applyCastModeCharacteristics(item, altCostId);
+            applyCastModeCharacteristics(NO_BOARD_LAYER_VIEW, item, altCostId);
             fixture.assertStamped(modeMarkersOf(item));
         });
 

@@ -587,7 +587,7 @@ function quietDefensiveGrantFlat(
     state: GameState,
     card: CardInstanceState
 ): number {
-    const keywords = temporaryDefensiveKeywords(card);
+    const keywords = temporaryDefensiveKeywords(state, card);
     if (keywords.length === 0) return 0;
     if (!isQuietFor(state, card)) return 0;
     const power = Math.max(0, getPermanentEffectivePower(state, card));

@@ -7,6 +7,7 @@ import {
     type StackItem,
     resolveTopOfStack,
     payRemoveCounterCost,
+    addCounterToCard,
 } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
@@ -18,6 +19,7 @@ import {
 } from "../../../__tests__/setup";
 import { arwenMortalQueen } from "../multicolor";
 import { grizzlyBears } from "../../lea/green";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // Mirrors the per-set `resolveActivated` shim (arn/__tests__/helpers.ts and
 // every other set's local copy) — pushes an already-targeted activated
@@ -49,10 +51,16 @@ describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #
         )!;
         expect(arwen.counters).toEqual({ indestructible: 1 });
         expect(arwen.staticAbilities).toContain("indestructible");
-        expect(arwen.grantedStaticAbilities).toContainEqual(
+        expect(counterEntries(state)).toContainEqual(
             expect.objectContaining({
-                ability: "indestructible",
-                counterType: "indestructible",
+                expiry: expect.objectContaining({
+                    kind: "counter",
+                    counterType: "indestructible",
+                }),
+                payload: expect.objectContaining({
+                    kind: "keyword-grant",
+                    keyword: "indestructible",
+                }),
             })
         );
 
@@ -75,11 +83,9 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
             ownerId: "p1",
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"], // mirrors post-ETB state
-            grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
-            ],
-            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
-            // base must say what the permanent has WITHOUT it.
+            // PRD #2064 S6b — a counter grant is a REGISTRY entry, gated on the
+            // counter itself, so there is no row to hand-write here; the base
+            // must still say what the permanent has WITHOUT it.
             baseStaticAbilities: [],
         });
         const bear = makeInstance(grizzlyBears.id, {
@@ -106,9 +112,15 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
 
         // "Another target creature gains indestructible until end of turn."
         expect(afterBear.staticAbilities).toContain("indestructible");
-        expect(afterBear.grantedStaticAbilities).toContainEqual(
-            expect.objectContaining({ ability: "indestructible" })
-        );
+        expect(
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "indestructible" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(afterBear.id)
+            )
+        ).toBe(true);
 
         // "Put a +1/+1 counter and a lifelink counter on that creature" —
         // CR 122.1c: the lifelink counter grants lifelink the instant it
@@ -170,48 +182,74 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
     });
 });
 
+/** Arwen on a real board with `count` indestructible counters, the keyword
+ *  granted through the production path (`addCounterToCard` →
+ *  `applyKeywordCounterGrant`) rather than hand-written onto the instance.
+ *
+ *  PRD #2064 S6b — the grant is a REGISTRY ENTRY now, so it cannot be faked
+ *  with an instance field and there is a `GameState` to put it in. */
+function boardWithIndestructibleCounters(
+    id: string,
+    count: number
+): { state: GameState; arwen: CardInstanceState } {
+    const arwen = makeInstance(arwenMortalQueen.id, { id });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [arwen] }),
+            makePlayer("p2", {}),
+        ],
+    });
+    for (let i = 0; i < count; i++) {
+        addCounterToCard(state, arwen, "indestructible", 1);
+    }
+    return { state, arwen };
+}
+
+/** Every live `counter`-expiry keyword grant in the registry. */
+function counterEntries(state: GameState) {
+    return (state.continuousEffects ?? []).filter(
+        (e) => e.expiry.kind === "counter"
+    );
+}
+
 describe("Arwen, Mortal Queen — paying her own removeCounter cost splices the grant back out (issue #1318 cost-pay gap)", () => {
     it("spending her last indestructible counter strips indestructible", () => {
-        const arwen = makeInstance(arwenMortalQueen.id, {
-            id: "arwen3",
-            counters: { indestructible: 1 },
-            staticAbilities: ["indestructible"],
-            grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
-            ],
-            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
-            // base must say what the permanent has WITHOUT it.
-            baseStaticAbilities: [],
+        const { state, arwen } = boardWithIndestructibleCounters("arwen3", 1);
+        expect(arwen.staticAbilities).toContain("indestructible");
+
+        payRemoveCounterCost(state, arwen, {
+            type: "indestructible",
+            count: 1,
         });
-        payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
         expect(arwen.counters).toBeUndefined();
         expect(arwen.staticAbilities).not.toContain("indestructible");
-        // PRD #2064 S3 — `unapplyKeywordCounterGrant` drops the LEDGER row
-        // (the only thing that record still carries is the CR 613.7c
-        // timestamp), and an emptied list is cleared rather than left as `[]`,
-        // matching every other layer-6 record on the instance.
-        expect(arwen.grantedStaticAbilities).toBeUndefined();
+        // PRD #2064 S6b — `unapplyKeywordCounterGrant` drops the REGISTRY
+        // ENTRY. The grant had already stopped composing the moment the counter
+        // left (the entry's `counter` expiry re-reads `card.counters`), so what
+        // the drop buys is CR 613.7c freshness: a counter re-added later must
+        // sort at ITS moment, not at the first one's.
+        expect(counterEntries(state)).toEqual([]);
     });
 
     it("a partial removal (2 -> 1, an unusual but legal board state) leaves the grant intact", () => {
-        const arwen = makeInstance(arwenMortalQueen.id, {
-            id: "arwen4",
-            counters: { indestructible: 2 },
-            staticAbilities: ["indestructible"],
-            grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
-            ],
-            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
-            // base must say what the permanent has WITHOUT it.
-            baseStaticAbilities: [],
+        const { state, arwen } = boardWithIndestructibleCounters("arwen4", 2);
+
+        payRemoveCounterCost(state, arwen, {
+            type: "indestructible",
+            count: 1,
         });
-        payRemoveCounterCost(arwen, { type: "indestructible", count: 1 });
         expect(arwen.counters).toEqual({ indestructible: 1 });
         expect(arwen.staticAbilities).toContain("indestructible");
-        expect(arwen.grantedStaticAbilities).toContainEqual(
+        expect(counterEntries(state)).toContainEqual(
             expect.objectContaining({
-                ability: "indestructible",
-                counterType: "indestructible",
+                expiry: expect.objectContaining({
+                    kind: "counter",
+                    counterType: "indestructible",
+                }),
+                payload: expect.objectContaining({
+                    kind: "keyword-grant",
+                    keyword: "indestructible",
+                }),
             })
         );
     });

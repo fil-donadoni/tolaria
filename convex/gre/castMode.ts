@@ -52,6 +52,7 @@ import { applyBestowCharacteristics } from "./bestow";
 import { turnFaceDown } from "./faceDown";
 import { isMorphCastId, MORPH_CAST_ALT_COST_ID } from "./morph";
 import type { CardInstanceState } from "./state";
+import type { LayerStateView } from "./layers";
 
 /** A cast mode: an alternative cost that changes what the spell IS or what
  *  becomes of the permanent, rather than only what it costs. An alt cost that
@@ -69,7 +70,7 @@ type CastModeRow = {
     idOf: (def: CardDefinition | undefined) => string | undefined;
     /** What the mode stamps on the freshly-built cast stack item. Every stamper
      *  is idempotent, so a re-walked commit path can never double-apply. */
-    stamp: (item: CardInstanceState) => void;
+    stamp: (state: LayerStateView, item: CardInstanceState) => void;
 };
 
 /** The census. `Record<CastMode, …>` is the guard: a mode added to the union
@@ -82,7 +83,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // rides onto the permanent.
     bestow: {
         idOf: (def) => def?.bestow?.id,
-        stamp: (item) => applyBestowCharacteristics(item),
+        stamp: (_state, item) => applyBestowCharacteristics(item),
     },
     // CR 702.37c — a morph cast puts a FACE-DOWN 2/2 on the stack, not the
     // printed card. Its alt-cost id is SYNTHESIZED (the {3} belongs to the
@@ -90,7 +91,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // constant rather than a field on the definition.
     morph: {
         idOf: (def) => (def?.morph ? MORPH_CAST_ALT_COST_ID : undefined),
-        stamp: (item) => turnFaceDown(item, "morph"),
+        stamp: (state, item) => turnFaceDown(state, item, "morph"),
     },
     // CR 702.109a — the `dashed` marker `dashTrigger`
     // (`convex/cards/abilities/dash.ts`) reads via `conditionOnSelf`. Without
@@ -98,7 +99,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // inside a search, so the tree prices a dashed creature as a permanent one.
     dash: {
         idOf: (def) => def?.dash?.id,
-        stamp: (item) => {
+        stamp: (_state, item) => {
             item.dashed = true;
         },
     },
@@ -109,7 +110,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // over-valued line the bot can see.
     evoke: {
         idOf: (def) => def?.evoke?.id,
-        stamp: (item) => {
+        stamp: (_state, item) => {
             item.evoked = true;
         },
     },
@@ -172,11 +173,16 @@ export function castModeIdsAreUnambiguous(def: CardDefinition): boolean {
  *  and before it is pushed, which is where each of them used to keep its own
  *  partial copy of this logic. */
 export function applyCastModeCharacteristics(
+    /** PRD #2064 S6b — the morph stamper turns the item FACE DOWN, which
+     *  recomposes layer 6 over the new copiable values and therefore needs the
+     *  registry the permanent's own grants live in. Every stamper takes it so
+     *  the census stays one shape; `_state` marks the ones that do not read it. */
+    state: LayerStateView,
     stackItem: CardInstanceState,
     alternativeCostId: string | undefined
 ): void {
     const def = tryGetDefinition((stackItem.card as { id?: string }).id ?? "");
     const mode = castModeOf(def ?? undefined, alternativeCostId);
     if (!mode) return;
-    CAST_MODE_CENSUS[mode].stamp(stackItem);
+    CAST_MODE_CENSUS[mode].stamp(state, stackItem);
 }

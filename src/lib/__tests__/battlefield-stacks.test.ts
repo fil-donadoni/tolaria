@@ -210,10 +210,16 @@ describe("groupBattlefield — altered predicate ejects to singleton", () => {
     });
 
     it("granted static ability ejects", () => {
+        // PRD #2064 S6b — the three non-aura provenances moved into the
+        // registry, so the row the WIRE carries for a resolved-ability grant is
+        // rebuilt by `registryKeywordGrantsFor` (`convex/gre/wireCharacteristics.ts`)
+        // and carries a `seq`. Asserting the hand-written `{ ability }` shape
+        // alone kept this green while the real projection stopped producing
+        // anything here at all.
         assertEjects(
             makeCard({
                 id: "gs",
-                grantedStaticAbilities: [{ ability: "flying" }],
+                grantedStaticAbilities: [{ ability: "flying", seq: 7 }],
             }),
             "granted static"
         );

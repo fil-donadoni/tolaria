@@ -27,6 +27,7 @@ import type { TargetRequirement } from "@convex/cards/types";
 import type { PendingTarget, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { useDivideTargets } from "../useDivideTargets";
+import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 
 type Ctx = React.ContextType<typeof GameContext>;
 
@@ -37,7 +38,7 @@ describe("useDivideTargets — permanent label for the controller's own face-dow
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(faceDown, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, faceDown, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [faceDown] }),

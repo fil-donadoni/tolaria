@@ -14,6 +14,7 @@
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
+import type { LayerStateView } from "./layers";
 
 /**
  * WHICH MECHANIC put an object face down — the census the DISPLAY layer keys
@@ -94,6 +95,7 @@ export function isHiddenFromKnower(
  *  generic face; the FIELD stays optional, since state deserialized from
  *  before issue #2904 legitimately has none. */
 export function turnFaceDown(
+    state: LayerStateView,
     card: CardInstanceState,
     producer: FaceDownProducer
 ): void {
@@ -105,7 +107,7 @@ export function turnFaceDown(
     // CR 708.2a — the 2/2 vanilla values are the permanent's new COPIABLE
     // VALUES (layer 1). Turning face down is not a zone change (CR 400.7), so
     // the permanent's own layers 2–7 are replayed on top (issue #1705).
-    rebuildCopiableValuesAndReplayOverlays(card, {
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
         types: ["Creature"],
         subtypes: [],
         power: 2,
@@ -120,7 +122,10 @@ export function turnFaceDown(
  *  face-down markers so the permanent reads (and projects) as its true self to
  *  both players. No-op if the card isn't face down or its real id is missing
  *  from the registry. */
-export function turnFaceUp(card: CardInstanceState): void {
+export function turnFaceUp(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
     if (!card.faceDown || !card.faceDownOf) return;
     const def = tryGetDefinition(card.faceDownOf);
     if (!def) return;
@@ -128,7 +133,7 @@ export function turnFaceUp(card: CardInstanceState): void {
     // Every array is COPIED, never aliased: `def.staticAbilities` is the
     // shared printed `CardDefinition` array, and handing it to the instance
     // would let any later in-place writer corrupt the catalogue globally.
-    rebuildCopiableValuesAndReplayOverlays(card, {
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
         types: [...def.types],
         subtypes: [...(def.subtypes ?? [])],
         power: def.power,

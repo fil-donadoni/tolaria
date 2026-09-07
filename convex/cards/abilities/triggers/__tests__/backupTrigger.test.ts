@@ -69,6 +69,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { consumingAetherborn } from "../../../sets/mom/black";
 import { guardianScalelord } from "../../../sets/moc/white";
 import { deathGreetersChampion } from "../../../sets/moc/red";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 const TARGET_ID = "backup-target";
 
@@ -142,10 +143,19 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             expect(target.staticAbilities).toContain(keyword);
             // CR 611.2 — the grant is duration-scoped, tracked for the
             // phase-boundary purge.
-            expect(target.grantedStaticAbilities).toEqual([
+            expect(
+                continuousEffectsInLayer(state, 6).filter(
+                    (e) =>
+                        e.affected.kind === "instances" &&
+                        e.affected.instanceIds.includes(target.id)
+                )
+            ).toEqual([
                 expect.objectContaining({
-                    ability: keyword,
-                    duration: { phase: "end-of-turn" },
+                    expiry: expect.objectContaining({
+                        kind: "duration",
+                        duration: { phase: "end-of-turn" },
+                    }),
+                    payload: { kind: "keyword-grant", keyword },
                 }),
             ]);
         });
@@ -226,7 +236,13 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
         state = expandState(compactState(state));
         const target = findOnBoard(state, TARGET_ID);
         expect(target.staticAbilities).not.toContain("lifelink");
-        expect(target.grantedStaticAbilities).toBeUndefined();
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(target.id)
+            )
+        ).toEqual([]);
         expect(target.counters?.["+1/+1"]).toBe(1);
     });
 
@@ -245,7 +261,13 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
         resolveTopOfStack(state);
         const source = state.players[0].battlefield[0];
         expect(source.counters?.["+1/+1"]).toBe(1);
-        expect(source.grantedStaticAbilities).toBeUndefined();
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(source.id)
+            )
+        ).toEqual([]);
         // The printed lifelink is still there exactly once — never re-granted.
         expect(
             source.staticAbilities.filter((a) => a === "lifelink")
@@ -266,7 +288,13 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             (c) => c.id !== TARGET_ID
         )!;
         expect(source.counters?.["+1/+1"]).toBe(1);
-        expect(source.grantedStaticAbilities).toBeUndefined();
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(source.id)
+            )
+        ).toEqual([]);
     });
 
     // CR 702.165c (issue #1665) — Backup grants EVERY non-backup ability

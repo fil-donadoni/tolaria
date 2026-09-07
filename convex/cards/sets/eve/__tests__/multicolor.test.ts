@@ -13,6 +13,7 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { figureOfDestiny } from "../multicolor";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // Figure of Destiny (EVE, issue #1749) — the reference card for TWO engine
 // capabilities: guild-hybrid pips payable with mana (CR 202.1a, issue #1738)
@@ -118,9 +119,10 @@ describe("Figure of Destiny — staged respec (CR 611.2b / 613.4b / 205.1b)", ()
         expect(live.staticAbilities).toContain("flying");
         expect(live.staticAbilities).toContain("first strike");
         // CR 611.2b — an indefinite grant carries no duration, so the
-        // phase-boundary purge can never tick it out.
-        for (const grant of live.grantedStaticAbilities ?? []) {
-            expect(grant.duration).toBeUndefined();
+        // phase-boundary purge can never tick it out. PRD #2064 S6b: the grant
+        // is a registry entry, so the expiry KIND is the assertion.
+        for (const entry of continuousEffectsInLayer(state, 6)) {
+            expect(entry.expiry.kind).not.toBe("duration");
         }
     });
 

@@ -21,6 +21,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const FRONT_ID = "test-transform-front";
 registerTokenDefinition({
@@ -107,7 +108,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
 
         expect(card.transformed).toBe(true);
         expect(card.transformedFrom).toBe(FRONT_ID);
@@ -131,8 +132,8 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
 
         expect(card.transformed).toBeUndefined();
         expect(card.transformedFrom).toBeUndefined();
@@ -147,7 +148,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         expect(card.transformed).toBeUndefined();
         expect((card.card as { id: string }).id).toBe(NO_BACK_FACE_ID);
     });
@@ -165,7 +166,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
                 makePlayer("p2"),
             ],
         });
-        transformPermanent(card);
+        transformPermanent(state, card);
         expect(card.counters).toEqual({ "+1/+1": 2 });
         // The base 0/0 Construct + 2 +1/+1 counters reads as 2/2 (layer 7c).
         expect(getEffectivePower(state, card)).toBe(2);
@@ -186,7 +187,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         const backId = (card.card as { id: string }).id;
         // A `token:`-prefixed id is exactly what `maybeSynthesizeToken`
         // decodes on a client that never saw this session's
@@ -211,8 +212,8 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(a);
-        transformPermanent(b);
+        transformPermanent(NO_BOARD_LAYER_VIEW, a);
+        transformPermanent(NO_BOARD_LAYER_VIEW, b);
         expect((a.card as { id: string }).id).toBe(
             (b.card as { id: string }).id
         );
@@ -224,7 +225,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         const backId = (card.card as { id: string }).id;
         const backDef = tryGetDefinition(backId);
         expect(backDef).not.toBeNull();
@@ -241,7 +242,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         const backId = (card.card as { id: string }).id;
         const backDef = tryGetDefinition(backId);
         expect(backDef).not.toBeNull();
@@ -251,7 +252,7 @@ describe("transformPermanent (CR 712, ADR 0067)", () => {
         // Flipping back to front restores the FRONT definition, which was
         // never passed through `registerBackFaceDefinition` — it carries no
         // `imagePrintFace` and so resolves to the default "front".
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         const frontDef = tryGetDefinition((card.card as { id: string }).id);
         expect(frontDef!.imagePrintFace).toBeUndefined();
     });
@@ -292,7 +293,7 @@ describe("a transformed permanent reverts to its FRONT face on leaving the battl
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         expect(card.transformed).toBe(true);
         const state = makeState({
             players: [
@@ -374,7 +375,7 @@ describe("a transformed permanent reverts to its FRONT face on leaving the battl
         expect(inHand.transformed).toBeUndefined();
         expect((inHand.card as { id: string }).id).toBe(WALKER_FRONT_ID);
         expect(inHand.types).toEqual(["Creature"]);
-        expect(revertTransform(inHand)).toBe(false);
+        expect(revertTransform(state, inHand)).toBe(false);
     });
 
     it("the departure revert does NOT undo a back-face stamp applied afterwards in exile (issue #2380 ordering)", () => {
@@ -389,7 +390,7 @@ describe("a transformed permanent reverts to its FRONT face on leaving the battl
         const exiled = state.players[0].exile.find((c) => c.id === "f5")!;
         expect(exiled.transformed).toBeUndefined(); // reverted on the way out
 
-        expect(stampBackFaceForEntry(exiled)).toBe(true);
+        expect(stampBackFaceForEntry(state, exiled)).toBe(true);
         expect(exiled.transformed).toBe(true);
         expect(exiled.transformedFrom).toBe(WALKER_FRONT_ID);
         expect(exiled.types).toEqual(["Planeswalker"]);
@@ -406,7 +407,7 @@ describe("transform is always PUBLIC information (CR 712.6) — no per-viewer hi
             controllerId: "p1",
             ownerId: "p1",
         });
-        transformPermanent(card);
+        transformPermanent(NO_BOARD_LAYER_VIEW, card);
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [card] }),

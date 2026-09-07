@@ -153,6 +153,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { grizzlyBearsId, runUntapForJ } from "./helpers";
+import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
 
 describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
     // Drives the incoming player's UNTAP step by advancing from END_STEP:
@@ -4407,7 +4408,7 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
             ownerId: controllerId,
             zone: "battlefield",
         });
-        turnFaceDown(inst, "cast-face-down");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, inst, "cast-face-down");
         return inst;
     }
 
@@ -4415,7 +4416,7 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
         const fd = faceDownPerm(hillGiant.id, "fd");
         expect(fd.faceDown).toBe(true);
         expect((fd.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
-        turnFaceUp(fd);
+        turnFaceUp(NO_BOARD_LAYER_VIEW, fd);
         expect(fd.faceDown).toBeUndefined();
         expect(fd.faceDownOf).toBeUndefined();
         expect((fd.card as { id: string }).id).toBe(hillGiant.id);

@@ -103,6 +103,7 @@ import {
     pushDelayedTrigger,
     runUntapForJ,
 } from "./helpers";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
     it("deals 3 damage to a target player", () => {
@@ -2351,8 +2352,12 @@ describe("Stone Giant (CR 113.1, 611.2a, 603.7a — dynamic toughness target + f
         const { state, giant, bear } = setup();
         activate(state, giant, "bear");
         expect(bear.staticAbilities).toContain("flying");
-        expect(bear.grantedStaticAbilities).toHaveLength(1);
-        expect(bear.grantedStaticAbilities![0].ability).toBe("flying");
+        // PRD #2064 S6b — the grant is one registry entry, not a ledger row.
+        expect(continuousEffectsInLayer(state, 6)).toHaveLength(1);
+        expect(continuousEffectsInLayer(state, 6)[0].payload).toEqual({
+            kind: "keyword-grant",
+            keyword: "flying",
+        });
     });
 
     it("schedules delayed destroy at end step", () => {

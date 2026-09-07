@@ -28,7 +28,7 @@
 // derivation writes below the permanent.
 
 import type { CardInstanceState, GameState } from "./state";
-import { continuousEffectsInLayer } from "./continuousEffects";
+import { continuousEffectsInLayer, renderKeyword } from "./continuousEffects";
 import { deriveLayer6Board, layer6DerivedFields } from "./layer6";
 import { deriveLayers2to5Board, layers2to5DerivedFields } from "./layers2to5";
 
@@ -48,6 +48,44 @@ import { deriveLayers2to5Board, layers2to5DerivedFields } from "./layers2to5";
 export type WireCharacteristics = Partial<CardInstanceState> & {
     temporaryPTMods?: { power: number; toughness: number }[];
 };
+
+/** CR 611.2a / 611.2c / 122.1b (PRD #2064 S6b) — the layer-6 keyword grants
+ *  applying to `instanceId` that a RESOLVING ability or a keyword counter put
+ *  there, flattened back into the `{ ability }` rows the wire has always
+ *  carried.
+ *
+ *  Twin of `temporaryPTModsFor` above, for the same reason and the same
+ *  consumers: S6b moved these three provenances off the instance into the
+ *  registry, and `grantedStaticAbilities` now holds only the `auraId` rows
+ *  layer 6 derives. Two client reducers ask "is this permanent altered?" off
+ *  that array without wanting a layer walk — `isAltered`
+ *  (`src/lib/battlefield-stacks.ts`, whether the card may collapse into a
+ *  stack) and `src/lib/preview-body.ts` — so without this a creature whose only
+ *  alteration is "gains flying until end of turn" would silently re-collapse
+ *  into a stack of identical-looking creatures and the player could not tell
+ *  which one flies.
+ *
+ *  ADR 0082 decision 4 and PRD #2064 S5 AC 3: the client keeps a materialised
+ *  snapshot and the client call sites stay untouched. `duration` is carried
+ *  because the client's own reducers key off its presence; `auraId` is not,
+ *  because these are the rows that have none. */
+function registryKeywordGrantsFor(
+    state: GameState,
+    instanceId: string
+): NonNullable<CardInstanceState["grantedStaticAbilities"]> {
+    const rows: { ability: string; seq?: number }[] = [];
+    for (const entry of continuousEffectsInLayer(state, 6)) {
+        if (entry.expiry.kind === "source") continue;
+        if (entry.affected.kind !== "instances") continue;
+        if (!entry.affected.instanceIds.includes(instanceId)) continue;
+        if (entry.payload.kind !== "keyword-grant") continue;
+        rows.push({
+            ability: renderKeyword(entry.payload),
+            seq: entry.timestamp,
+        });
+    }
+    return rows;
+}
 
 /** A shallow clone of the board: fresh player objects, a fresh array of fresh
  *  permanent objects, everything below shared with `state`. Cheap enough to pay
@@ -170,6 +208,20 @@ export function deriveWireCharacteristics(
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
+            // PRD #2064 S6b — the aura-derived rows `layer6DerivedFields`
+            // produces, PLUS the resolving-ability and counter grants that
+            // moved into the registry. See `registryKeywordGrantsFor`: two
+            // client reducers read this array as "is it altered?", and the
+            // three provenances S6b moved out would otherwise vanish from it.
+            grantedStaticAbilities: (() => {
+                const derived = layer6DerivedFields(
+                    card,
+                    result
+                ).grantedStaticAbilities;
+                const fromRegistry = registryKeywordGrantsFor(state, card.id);
+                const all = [...(derived ?? []), ...fromRegistry];
+                return all.length > 0 ? all : undefined;
+            })(),
             // CR 613.4c (PRD #2064 S6) — the until-boundary pumps applying to
             // this permanent, flattened for the two client reducers that ask
             // "is it pumped?" rather than "what is its P/T?". The P/T question

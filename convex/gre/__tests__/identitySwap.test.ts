@@ -24,6 +24,8 @@ import { applyCopy, revertCopy } from "../copy";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { transformPermanent } from "../transform";
 import { syncLayer6 } from "../layer6";
+import { continuousEffectsInLayer } from "../continuousEffects";
+import type { LayerStateView } from "../layers";
 import { syncLayers2to5 } from "../layers2to5";
 import {
     applySourceStaticEffects,
@@ -47,6 +49,7 @@ import {
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { airElemental, flight, mahamotiDjinn } from "../../cards/sets/lea/blue";
 import { gravitySphere } from "../../cards/sets/leg/red";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 
@@ -181,33 +184,46 @@ function projected(state: GameState, id: string) {
  *  is a Mahamoti Djinn on the board for the copy legs to copy. */
 const SWAP_SITES: {
     name: string;
-    run: (card: CardInstanceState, source: CardInstanceState) => void;
+    /** PRD #2064 S6b — every site takes the live `state`: the permanent's own
+     *  grants are REGISTRY entries, so a swap driven against a boardless view
+     *  would compose over an empty registry and drop them. */
+    run: (
+        state: GameState,
+        card: CardInstanceState,
+        source: CardInstanceState
+    ) => void;
 }[] = [
-    { name: "applyCopy", run: (card, source) => applyCopy(card, source) },
+    {
+        name: "applyCopy",
+        run: (state, card, source) => applyCopy(state, card, source),
+    },
     {
         name: "revertCopy",
-        run: (card, source) => {
-            applyCopy(card, source);
-            revertCopy(card);
+        run: (state, card, source) => {
+            applyCopy(state, card, source);
+            revertCopy(state, card);
         },
     },
-    { name: "turnFaceDown", run: (card) => turnFaceDown(card, "morph") },
+    {
+        name: "turnFaceDown",
+        run: (state, card) => turnFaceDown(state, card, "morph"),
+    },
     {
         name: "turnFaceUp",
-        run: (card) => {
-            turnFaceDown(card, "morph");
-            turnFaceUp(card);
+        run: (state, card) => {
+            turnFaceDown(state, card, "morph");
+            turnFaceUp(state, card);
         },
     },
     {
         name: "transformPermanent (front → back)",
-        run: (card) => transformPermanent(card),
+        run: (state, card) => transformPermanent(state, card),
     },
     {
         name: "transformPermanent (back → front)",
-        run: (card) => {
-            transformPermanent(card);
-            transformPermanent(card);
+        run: (state, card) => {
+            transformPermanent(state, card);
+            transformPermanent(state, card);
         },
     },
 ];
@@ -230,20 +246,26 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             );
             expect(count(card, "haste")).toBe(1);
 
-            site.run(card, source);
+            site.run(state, card, source);
 
             expect(count(card, "haste")).toBe(1);
-            // The provenance record is untouched, so the CLEANUP purge can
-            // still find and release exactly its own occurrence.
-            expect(card.grantedStaticAbilities).toEqual([
-                {
-                    ability: "haste",
-                    duration: { phase: "end-of-turn" },
-                    // CR 613.7 (PRD #2064 S3) — a resolving ability's
-                    // continuous effect carries its own layer timestamp now,
-                    // so a grant that lands after a strip survives it.
-                    seq: expect.any(Number),
-                },
+            // The provenance is untouched, so the CLEANUP tick can still find
+            // and expire exactly its own entry. PRD #2064 S6b: that provenance
+            // is a REGISTRY entry, which is the whole reason the swap sites had
+            // to be handed the state — a boardless recompose composes over an
+            // empty registry and drops the grant.
+            expect(continuousEffectsInLayer(state, 6)).toEqual([
+                expect.objectContaining({
+                    expiry: expect.objectContaining({
+                        kind: "duration",
+                        duration: { phase: "end-of-turn" },
+                    }),
+                    payload: { kind: "keyword-grant", keyword: "haste" },
+                    // CR 613.7 — a resolving ability's continuous effect
+                    // carries its own layer timestamp, so a grant that lands
+                    // after a strip survives it.
+                    timestamp: expect.any(Number),
+                }),
             ]);
             // Board-visible: the grant must survive the wire too.
             expect(projected(state, "swap-1").staticAbilities).toContain(
@@ -260,7 +282,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // Printed flying + the counter's own occurrence.
         expect(count(card, "flying")).toBe(2);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -285,7 +307,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             "vigilance"
         );
 
-        turnFaceDown(card, "morph");
+        turnFaceDown(state, card, "morph");
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -298,7 +320,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         expect(count(card, "flying")).toBe(0);
         expect(count(card, "vigilance")).toBe(1);
 
-        turnFaceUp(card);
+        turnFaceUp(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -314,13 +336,13 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
 
     it("turnFaceUp never aliases the shared printed CardDefinition array", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-alias" });
-        turnFaceDown(card, "morph");
-        turnFaceUp(card);
+        turnFaceDown(NO_BOARD_LAYER_VIEW, card, "morph");
+        turnFaceUp(NO_BOARD_LAYER_VIEW, card);
         card.staticAbilities.push("mutated");
         // A second permanent of the same printing must be unaffected.
         const other = makeInstance(SWAP_FRONT_ID, { id: "swap-alias-2" });
-        turnFaceDown(other, "morph");
-        turnFaceUp(other);
+        turnFaceDown(NO_BOARD_LAYER_VIEW, other, "morph");
+        turnFaceUp(NO_BOARD_LAYER_VIEW, other);
         expect(other.staticAbilities).toEqual(["flying"]);
     });
 
@@ -333,7 +355,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             "flying",
             UNTIL_EOT
         );
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -368,7 +390,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, sphere);
         expect(count(elemental, "flying")).toBe(0);
 
-        applyCopy(elemental, djinn);
+        applyCopy(state, elemental, djinn);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -395,7 +417,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, sphere);
         expect(count(card, "flying")).toBe(0);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -420,7 +442,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         expect(count(elemental, "flying")).toBe(0);
 
         // Becomes a Grizzly Bear — which prints no flying at all.
-        applyCopy(elemental, bear);
+        applyCopy(state, elemental, bear);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -443,7 +465,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, nullifier);
         expect(card.staticAbilities).toEqual([]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -463,7 +485,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const state = makeBoard(card, nullifier);
 
         applySourceStaticEffects(state, nullifier);
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -490,7 +512,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, aura); // later — wins
         expect(count(card, "flying")).toBe(1);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -517,7 +539,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, nullifier); // later — strips it
         expect(card.staticAbilities).toEqual([]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -549,7 +571,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, nullifier); // later — takes the rest
         expect(card.staticAbilities).toEqual([]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -606,7 +628,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, second); // seq 3 — eats the grant
         expect(card.staticAbilities).toEqual([]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -636,17 +658,32 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // the replay must not disagree with it.
         expect(grantOutrankedByAbilityLoss(5, 5)).toBe(false);
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b9" });
-        // An INDEFINITE grant from a resolving ability (CR 611.2c) — the
-        // residue channel, so it is the permanent's own record rather than a
-        // source's, which is what lets it be stamped by hand at all.
-        card.grantedStaticAbilities = [{ ability: "haste", seq: 5 }];
         card.baseStaticAbilities = [];
         card.staticAbilities = ["haste"];
         // PRD #2064 S3 — the resolving arm's LEDGER; `abilitiesSuppressedBy`
         // is the derived output the swap recomputes.
         card.abilityLossHolds = [{ sourceId: "null-tie", seq: 5 }];
+        // An INDEFINITE grant from a resolving ability (CR 611.2c) — the
+        // residue channel, so it is the permanent's own record rather than a
+        // source's, which is what lets it be stamped by hand at all. PRD #2064
+        // S6b: that record is a REGISTRY entry, so the tie is built there and
+        // the view is the one the swap has to be handed.
+        const view: LayerStateView = {
+            players: [{ id: "p1", battlefield: [card] }] as never,
+            continuousEffects: [
+                {
+                    id: "ce-tie",
+                    layer: 6,
+                    timestamp: 5,
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: { kind: "indefinite", controllerId: "p1" },
+                    payload: { kind: "keyword-grant", keyword: "haste" },
+                    characteristicDefining: false,
+                },
+            ],
+        };
 
-        transformPermanent(card);
+        transformPermanent(view, card);
 
         expect(card.staticAbilities).toEqual(["haste"]);
         // The back face's printed flying + trample are both eaten by the
@@ -671,7 +708,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         applySourceStaticEffects(state, aura); // later grant wins
         expect(count(card, "flying")).toBe(1);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -709,7 +746,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.power).toBe(2);
         expect(card.animation?.addedCreatureType).toBe(true);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -751,7 +788,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         );
         expect(card.power).toBe(5);
 
-        applyCopy(card, bear);
+        applyCopy(state, card, bear);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -780,7 +817,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         expect(card.subtypes).toEqual(["Zombie"]);
         expect(card.temporarySubtypeChange?.restoreSubtypes).toEqual(["Bird"]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -807,7 +844,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         ctx.setSubtypes({ type: "permanent", id: "sub-2" }, ["Spirit"]);
         expect(card.subtypes).toEqual(["Spirit"]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
@@ -831,7 +868,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         applySourceStaticEffects(state, adder);
         expect(card.types).toEqual(["Creature", "Artifact"]);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1d/f (PRD #2064 S3/S4) — every layer is DERIVED, so an
         // identity swap recomposes only what the INSTANCE bears; the board's
         // own continuous effects come back at the engine's recompute tick,
@@ -863,7 +900,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         ctx.setBasePT({ type: "permanent", id: "pt-1" }, 7, 7, UNTIL_EOT);
         expect(getEffectivePower(state, card)).toBe(7);
 
-        transformPermanent(card);
+        transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every

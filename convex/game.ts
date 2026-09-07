@@ -1875,7 +1875,7 @@ export function tapSourceIntoPayment(
             if (have < choiceIndex) {
                 throw new Error("Not enough counters for this choice");
             }
-            payRemoveCounterCost(card, {
+            payRemoveCounterCost(state, card, {
                 type: counterType,
                 count: choiceIndex,
             });
@@ -2982,7 +2982,7 @@ export function tryAutoCommitPendingActivation(
         card.isTapped = true;
     }
     if (pa.removeCounterCost) {
-        payRemoveCounterCost(card, pa.removeCounterCost);
+        payRemoveCounterCost(state, card, pa.removeCounterCost);
     }
     if (pa.discardLastDrawnSource) {
         // CR 118.3 — re-check at commit: the recorded card may have left the
@@ -3729,7 +3729,7 @@ export function tryAutoCommitPendingCast(
     // the {3} is almost never already floating. Turned down BEFORE the push and
     // before `emitSpellCastEvent` below, so no viewer and no cast trigger ever
     // observes the face-up card on the stack.
-    if (state.pendingCast.morphed) turnFaceDown(stackItem, "morph");
+    if (state.pendingCast.morphed) turnFaceDown(state, stackItem, "morph");
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -5955,7 +5955,7 @@ export function applyTurnPermanentFaceUp(
     // CR 702.37e — "then turn the permanent face up. The morph effect on it
     // ends, and it regains its normal characteristics." One primitive, shared
     // with ADR 0013's replacement-driven turn-up.
-    turnFaceUp(permanent);
+    turnFaceUp(state, permanent);
 
     // CR 116 — a special action puts nothing on the stack and cannot be
     // responded to, but it IS a game action: the pass cycle restarts and
@@ -6700,7 +6700,7 @@ export function finalizeTargetSelection(
             ? manaSpentDelta(poolBeforePayment, player.manaPool)
             : undefined;
         if (ability.cost.removeCounter) {
-            payRemoveCounterCost(card, ability.cost.removeCounter);
+            payRemoveCounterCost(state, card, ability.cost.removeCounter);
         }
         if (ability.cost.discardAtRandom) {
             payDiscardAtRandomCost(
@@ -8637,7 +8637,7 @@ export const announceCast = mutation({
             // with no name — which is what the spell IS at that moment — and so
             // the projection can never observe a face-up morph spell on the
             // stack even for one intermediate state.
-            if (isMorphCost) turnFaceDown(stackItem, "morph");
+            if (isMorphCost) turnFaceDown(state, stackItem, "morph");
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);
@@ -14489,7 +14489,7 @@ export function activateAbilityOnState(
         ? manaSpentDelta(poolBeforePayment, player.manaPool)
         : undefined;
     if (ability.cost.removeCounter) {
-        payRemoveCounterCost(card, ability.cost.removeCounter);
+        payRemoveCounterCost(state, card, ability.cost.removeCounter);
     }
     if (ability.cost.discardLastDrawn) {
         payDiscardLastDrawn(state, player);
@@ -14866,7 +14866,7 @@ export const tapUntap = mutation({
                     if (have < choiceIndex) {
                         throw new Error("Not enough counters for this choice");
                     }
-                    payRemoveCounterCost(card, {
+                    payRemoveCounterCost(state, card, {
                         type: counterType,
                         count: choiceIndex,
                     });

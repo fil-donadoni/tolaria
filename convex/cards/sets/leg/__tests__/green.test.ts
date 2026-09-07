@@ -75,6 +75,7 @@ import {
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 import { forest, grizzlyBears, island } from "../../lea";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Green free tranche (#375)
@@ -211,8 +212,12 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.2a)", () => 
         resolveActivated(state, dragonfly, "emerald-dragonfly-first-strike");
         const live = state.players[0].battlefield.find((c) => c.id === "df")!;
         expect(
-            live.grantedStaticAbilities?.some(
-                (g) => g.ability === "first strike"
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "first strike" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
             )
         ).toBe(true);
     });
@@ -259,7 +264,13 @@ describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () 
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "apes")!;
         expect(
-            live.grantedStaticAbilities?.some((g) => g.ability === "flying")
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "flying" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
+            )
         ).toBe(true);
     });
 });
@@ -746,10 +757,16 @@ describe("Cocoon (pupa counters on the Aura + hatch into +1/+1 and flying, CR 12
         const host = state.players[0].battlefield.find((c) => c.id === "host")!;
         expect(host.counters?.["+1/+1"]).toBe(1);
         expect(host.staticAbilities).toContain("flying");
-        // Flying persists permanently (no aura link, no duration).
+        // Flying persists permanently — PRD #2064 S6b: an `indefinite` expiry,
+        // which is what "no aura link, no duration" became.
         expect(
-            host.grantedStaticAbilities?.some(
-                (g) => g.ability === "flying" && !g.duration && !g.auraId
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.expiry.kind === "indefinite" &&
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "flying" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(host.id)
             )
         ).toBe(true);
     });

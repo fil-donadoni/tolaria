@@ -20,6 +20,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance } from "~/types/game";
 import CardImage from "../card-image";
 import { resetPreviewSingleton } from "../card-preview-singleton";
+import { NO_BOARD_LAYER_VIEW } from "../../../../convex/gre/layers";
 
 const SERRA = getCardByName("Serra Angel");
 
@@ -74,7 +75,7 @@ function projectFaceDownPermanent(viewerId: "p1" | "p2") {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(morph, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, morph, "morph");
     const base = makeState();
     const state = makeState({
         players: [
@@ -171,7 +172,7 @@ describe("Face-down card preview (CR 708.5 / CR 406.3, issue #2904)", () => {
             ownerId: "p1",
             zone: "stack",
         });
-        turnFaceDown(spell, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, spell, "morph");
         const base = makeState();
         const state = makeState({
             players: [{ ...base.players[0], id: "p1" }, base.players[1]],

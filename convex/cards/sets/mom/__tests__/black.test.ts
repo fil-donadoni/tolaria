@@ -9,6 +9,7 @@ import type {
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { consumingAetherborn } from "../black";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // Consuming Aetherborn — {3}{B} Creature, 2/2. "Backup 1 (When this creature
 // enters, put a +1/+1 counter on target creature. If that's another
@@ -70,7 +71,13 @@ describe("Consuming Aetherborn (CR 702.165 Backup, issue #1315)", () => {
         expect(after.counters?.["+1/+1"]).toBe(1);
         // CR 702.165a — "If that's ANOTHER creature" is false on self: no
         // grant is tracked (lifelink was already printed, not re-granted).
-        expect(after.grantedStaticAbilities ?? []).toHaveLength(0);
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(after.id)
+            )
+        ).toHaveLength(0);
     });
 
     it("other-target: puts a +1/+1 counter AND grants lifelink until end of turn (wire format)", () => {
@@ -103,7 +110,13 @@ describe("Consuming Aetherborn (CR 702.165 Backup, issue #1315)", () => {
         // printed ability) until end of turn — Grizzly Bears has no lifelink
         // of its own.
         expect(granted.staticAbilities).toContain("lifelink");
-        expect(granted.grantedStaticAbilities).toHaveLength(1);
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(granted.id)
+            )
+        ).toHaveLength(1);
         // Wire format — both the counter and the granted keyword are
         // board-visible; `projectPublicState` must not strip either.
         const projected = projectPublicState(state, 1, "p1");

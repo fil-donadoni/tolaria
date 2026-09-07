@@ -25,12 +25,14 @@ import {
 } from "../state";
 import { deriveLayer6, recomposeLayer6ForInstance } from "../layer6";
 import {
+    continuousEffectsInLayer,
     outrankedBy,
     renderKeyword,
     type ContinuousEffect,
 } from "../continuousEffects";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { finalizeCleanup, untapStep } from "../phases";
+import { compactState, expandState } from "../serialize";
 import { withTemporaryDefinition } from "../../cards";
 import { withTemporaryEmblemDefinition } from "../../cards/emblems";
 import type {
@@ -127,9 +129,9 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
 
             // The spell that granted it has LEFT — the provenance a board walk
             // cannot reproduce, and the reason the registry exists at all.
-            expect(bear.grantedStaticAbilities).toEqual([
-                expect.objectContaining({ duration: { phase: "end-of-turn" } }),
-            ]);
+            // PRD #2064 S6b: that provenance IS the entry now, not a row the
+            // derivation had to synthesise an entry around at every read.
+            expect(expiriesOn(state, bear)).toEqual(["duration"]);
             refreshCounterGatedStatics(state);
             expect(count(bear, "flying")).toBe(1);
         });
@@ -169,6 +171,70 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 UNTIL_EOT
             );
             expect(count(elemental, "flying")).toBe(0);
+        });
+    });
+
+    describe("one continuous effect is one entry-set with one controller (CR 611.2a / 611.2c)", () => {
+        it("a multi-keyword strip shares ONE CR 613.7 timestamp", () => {
+            // CR 611.2a — `removeStaticAbilities` is ONE continuous effect
+            // however many keywords its predicate matched, so its entries share
+            // one stamp. Minting per entry spreads them over a range and
+            // silently defeats `compareLayer6Entries`' equal-timestamp
+            // tie-break, which exists so a grant sharing a stripper's stamp
+            // survives it (CR 613.1f, issue #1715).
+            const bear = makeInstance(grizzlyBears.id, { id: "multi" });
+            bear.staticAbilities = ["flying", "trample", "vigilance"];
+            bear.baseStaticAbilities = ["flying", "trample", "vigilance"];
+            const state = boardOf(bear);
+            ctxFor(state).removeStaticAbilities(
+                { type: "permanent", id: "multi" },
+                (kw) => kw === "flying" || kw === "trample",
+                { phase: "end-of-turn" }
+            );
+
+            const stamps = continuousEffectsInLayer(state, 6)
+                .filter((e) => e.payload.kind === "keyword-remove")
+                .map((e) => e.timestamp);
+            expect(stamps).toHaveLength(2);
+            expect(new Set(stamps).size).toBe(1);
+            expect(count(bear, "flying")).toBe(0);
+            expect(count(bear, "trample")).toBe(0);
+            expect(count(bear, "vigilance")).toBe(1);
+        });
+
+        it("an entry records the ABILITY's controller, not the target's (CR 611.2c)", () => {
+            // CR 611.2c fixes the controller of a resolving ability's
+            // continuous effect to the ability's controller, at creation. The
+            // affected permanent's controller is a different fact and can
+            // change afterwards, so a grant aimed at an OPPONENT's creature is
+            // where the two come apart. Nothing reads `expiry.controllerId`
+            // yet; it is stored provenance, and storing the wrong player is a
+            // bug the first duration or end-step that reads it inherits.
+            const mine = makeInstance(grizzlyBears.id, { id: "mine" });
+            const theirs = makeInstance(grizzlyBears.id, {
+                id: "theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = boardOf(mine, theirs);
+            state.players[1].battlefield = [theirs];
+            state.players[0].battlefield = [mine];
+            const ctx = ctxFor(state); // cast by p1
+            ctx.grantStaticAbility(
+                { type: "permanent", id: "theirs" },
+                "flying",
+                { phase: "end-of-turn" }
+            );
+            ctx.grantStaticAbilityPermanent(
+                { type: "permanent", id: "theirs" },
+                "trample"
+            );
+
+            for (const entry of continuousEffectsInLayer(state, 6)) {
+                expect(entry.expiry).toEqual(
+                    expect.objectContaining({ controllerId: "p1" })
+                );
+            }
         });
     });
 
@@ -387,9 +453,13 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
 
             expect(victim.staticAbilities).not.toContain("does-not-untap");
             expect(getEffectiveActivatedAbilities(victim)).toEqual([]);
-            // No revoke primitive was called — the entries are still on the
-            // registry, they simply no longer apply.
-            expect(expiriesOn(state, victim)).toEqual(["counter", "counter"]);
+            // No revoke primitive was called for the untap lock or the granted
+            // activation — both are still on the registry and simply no longer
+            // apply. The keyword counter's own grant IS taken back
+            // (`unapplyKeywordCounterGrant`, PRD #2064 S6b), because CR 613.7c
+            // orders it at the moment the counter went on and a re-added
+            // counter must sort at ITS moment — so one `counter` entry, not two.
+            expect(expiriesOn(state, victim)).toEqual(["counter"]);
 
             victim.isTapped = true;
             state.activePlayerId = "p2";
@@ -498,19 +568,32 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         });
 
         it("gives back a keyword a DURATION-scoped removal had taken", () => {
-            const elemental = legacyStrippedElemental({
-                temporaryRemovedKeywords: [
-                    { keyword: "flying", duration: { phase: "end-of-turn" } },
-                ],
-            });
-            const state = boardOf(elemental);
+            // PRD #2064 S6b — the duration-scoped strip is a REGISTRY entry, so
+            // the legacy shape this case is about (`temporaryRemovedKeywords`
+            // on the instance, `staticAbilities` already stripped, no
+            // `baseStaticAbilities`) can only arrive through a LOAD. It comes
+            // in via `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`)
+            // and the capture then inverts the migrated ENTRY, which is the
+            // half of `captureLayer6Base` this slice rewrote.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            elemental.staticAbilities = [];
+            const compact = compactState(boardOf(elemental)) as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            };
+            compact.players[0].battlefield[0].temporaryRemovedKeywords = [
+                { keyword: "flying", duration: { phase: "end-of-turn" } },
+            ];
+            const state = expandState(
+                compact as unknown as Record<string, unknown>
+            );
+            const loaded = state.players[0].battlefield[0];
             refreshCounterGatedStatics(state);
 
-            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
-            expect(count(elemental, "flying")).toBe(0);
+            expect(loaded.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(loaded, "flying")).toBe(0);
             state.phase = "CLEANUP";
             finalizeCleanup(state);
-            expect(count(elemental, "flying")).toBe(1);
+            expect(count(loaded, "flying")).toBe(1);
         });
 
         it("gives back a keyword a continuous ABILITY-LOSS had cleared", () => {
@@ -568,6 +651,65 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             expect(count(elemental, "flying")).toBe(0);
         });
 
+        it("does not eat a PRINTED keyword a grant of the same name never got to add", () => {
+            // The invariant "a suppressed grant owns nothing and releases
+            // nothing" (CR 613.1f), which used to live on the instance's
+            // `grant.suppressed` flag and moved here when PRD #2064 S6b made
+            // the grant a registry ENTRY.
+            //
+            // Air Elemental PRINTS flying. Grant it flying again, then strip
+            // all abilities at a strictly LATER timestamp so the grant never
+            // reaches the multiset (CR 613.7). The capture's registry loop
+            // subtracts applying grants — and this one applies to nothing, so
+            // subtracting it would take the PRINTED occurrence and the
+            // Elemental would never fly again, however long after the strip.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            const ctx = ctxFor(state);
+            ctx.grantStaticAbilityPermanent(
+                { type: "permanent", id: "ae" },
+                "flying"
+            );
+            ctx.loseAllAbilities({ type: "permanent", id: "ae" });
+            expect(elemental.staticAbilities).toEqual([]);
+
+            delete elemental.baseStaticAbilities;
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+        });
+
+        it("does not subtract a grant whose counter has already gone", () => {
+            // The other filter: an entry that is no longer LIVE contributed no
+            // occurrence either. A `counter`-expiry grant reads false the
+            // moment the last counter comes off (CR 122.1b), and the entry can
+            // outlive that by a beat — `unapplyKeywordCounterGrant` is hygiene,
+            // not the gate.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            state.continuousEffects = [
+                {
+                    id: "ce-stale",
+                    layer: 6,
+                    timestamp: 1,
+                    characteristicDefining: false,
+                    expiry: {
+                        kind: "counter",
+                        permanentId: "ae",
+                        counterType: "flying",
+                    },
+                    affected: { kind: "instances", instanceIds: ["ae"] },
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                } as ContinuousEffect,
+            ];
+
+            delete elemental.baseStaticAbilities;
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(elemental, "flying")).toBe(1);
+        });
+
         it("survives a base CLEAR while a grant and a strip are both live", () => {
             // The same arithmetic on a FRESH state: an identity swap or a
             // CR 614.12c body choice drops the base, and the re-capture reads
@@ -605,7 +747,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         applySourceStaticEffects(state, aura);
         expect(count(bear, "flying")).toBe(1);
 
-        recomposeLayer6ForInstance(bear);
+        recomposeLayer6ForInstance(state, bear);
         expect(count(bear, "flying")).toBe(1);
         expect(bear.grantedStaticAbilities).toEqual([
             expect.objectContaining({ ability: "flying", auraId: "aura" }),
@@ -625,7 +767,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             expect.objectContaining({ sourceId: "song" }),
         ]);
 
-        recomposeLayer6ForInstance(gear);
+        recomposeLayer6ForInstance(state, gear);
         expect(gear.staticAbilities).toEqual([]);
         expect(gear.abilitiesSuppressedBy).toEqual([
             expect.objectContaining({ sourceId: "song" }),
@@ -647,7 +789,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         const state = boardOf(bear, aura);
         applySourceStaticEffects(state, aura);
 
-        payRemoveCounterCost(bear, { type: "fade", count: 1 });
+        payRemoveCounterCost(state, bear, { type: "fade", count: 1 });
         expect(count(bear, "flying")).toBe(1);
     });
 

@@ -139,6 +139,7 @@ import {
 } from "@convex/cards/__tests__/setup";
 import type { PendingTarget } from "~/types/game";
 import type { CardInstanceState } from "@convex/gre/state";
+import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -910,7 +911,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, legendary, "morph");
         const karakasInstance = makeInstance(karakas.id, {
             id: "karakas-1",
             controllerId: "p2",
@@ -1041,8 +1042,8 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary, "morph");
-        turnFaceUp(legendary);
+        turnFaceDown(NO_BOARD_LAYER_VIEW, legendary, "morph");
+        turnFaceUp(NO_BOARD_LAYER_VIEW, legendary);
         const req: TargetRequirement = {
             type: "Creature",
             count: 1,
@@ -1097,7 +1098,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(norrittCard, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, norrittCard, "morph");
         const state = makeState({
             players: [
                 makeServerPlayer("p1", { battlefield: [norrittCard] }),
@@ -1160,7 +1161,7 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(legendary, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, legendary, "morph");
         const state = makeState({
             players: [
                 makeServerPlayer("p1", { battlefield: [legendary] }),

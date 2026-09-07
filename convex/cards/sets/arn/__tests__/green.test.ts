@@ -56,6 +56,7 @@ import {
     answerChoice,
     upkeepEvent,
 } from "./helpers";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 describe("Sandstorm (1 damage to each attacking creature)", () => {
     it("kills a 1-toughness attacker, spares a non-attacker", () => {
@@ -226,10 +227,19 @@ describe("Erhnam Djinn (upkeep: target non-Wall creature gains forestwalk)", () 
         )!;
         expect(target.staticAbilities).toContain("forestwalk");
         // "Until your next upkeep" — scoped to Erhnam's controller (p1).
-        expect(target.grantedStaticAbilities).toContainEqual(
+        expect(
+            continuousEffectsInLayer(state, 6).filter(
+                (e) =>
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(target.id)
+            )
+        ).toContainEqual(
             expect.objectContaining({
-                ability: "forestwalk",
-                duration: { phase: "upkeep", playerId: "p1" },
+                expiry: expect.objectContaining({
+                    kind: "duration",
+                    duration: { phase: "upkeep", playerId: "p1" },
+                }),
+                payload: { kind: "keyword-grant", keyword: "forestwalk" },
             })
         );
     });

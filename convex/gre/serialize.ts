@@ -284,7 +284,6 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "tapBonusMana",
     "tapTriggerCommitted",
     "temporaryColorOverride",
-    "temporaryRemovedKeywords",
     "temporarySubtypeChange",
     "textChangeHolds",
     "textChanges",
@@ -399,9 +398,6 @@ function compactCard(
     }
     if (card.removedKeywords?.length) {
         out.removedKeywords = card.removedKeywords;
-    }
-    if (card.temporaryRemovedKeywords?.length) {
-        out.temporaryRemovedKeywords = card.temporaryRemovedKeywords;
     }
     if (card.abilitiesSuppressedBy?.length) {
         out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
@@ -881,10 +877,6 @@ function expandCard(
     if (compact.removedKeywords) {
         result.removedKeywords =
             compact.removedKeywords as CardInstanceState["removedKeywords"];
-    }
-    if (compact.temporaryRemovedKeywords) {
-        result.temporaryRemovedKeywords =
-            compact.temporaryRemovedKeywords as CardInstanceState["temporaryRemovedKeywords"];
     }
     if (compact.abilitiesSuppressedBy) {
         // Rows persisted before the field carried a layer timestamp hold bare
@@ -2256,6 +2248,7 @@ export function expandState(data: Record<string, unknown>): GameState {
     }
     backfillLegacyStaticSeq(result);
     migrateLegacyInstancePTLedgers(result, data);
+    migrateLegacyInstanceKeywordLedgers(result, data);
     return result;
 }
 
@@ -2348,6 +2341,162 @@ function migrateLegacyInstancePTLedgers(
                         kind: "pt-modify",
                         power: mod.power,
                         toughness: mod.toughness,
+                    },
+                    characteristicDefining: false,
+                });
+            }
+        }
+    }
+}
+
+/** One-shot migration for a state persisted BEFORE PRD #2064 S6b, when layer
+ *  6's residue of a resolved spell or ability lived on the affected permanent:
+ *  `grantedStaticAbilities` rows keyed by `duration` (CR 611.2a, "gains flying
+ *  until end of turn"), by `counterType` (CR 122.1b, a keyword counter's
+ *  CR 613.7c stamp) or by NOTHING at all (CR 611.2c, Cocoon's indefinite
+ *  grant), plus every `temporaryRemovedKeywords` row (CR 611.2a, Shelkin
+ *  Brownie's until-end-of-turn strip).
+ *
+ *  All four are Continuous Effects Registry entries now, so a state written by
+ *  the old engine would otherwise come back with every such grant and every
+ *  such strip silently gone: the ledger shapes no longer exist on
+ *  `CardInstanceState`, so `expandCard` drops them and nothing reds.
+ *
+ *  Read off the COMPACT record rather than the expanded card for exactly that
+ *  reason, and in the same order the old `layer6EffectsFor` synthesised them —
+ *  counter grants, then the resolved-ability grants, then the removals — so
+ *  that a legacy board whose rows all shared a stamp (a pre-S3 state, where
+ *  `seq` was absent and read as 0) is restamped in the order the old read path
+ *  had composed them in.
+ *
+ *  `auraId`-keyed rows are deliberately NOT migrated: those are layer 6's own
+ *  DERIVED OUTPUT, re-walked from the live board at the next `syncLayer6`, and
+ *  migrating them would double every aura's grant. They are also all that
+ *  survives on `grantedStaticAbilities` after this slice. */
+function migrateLegacyInstanceKeywordLedgers(
+    state: GameState,
+    data: Record<string, unknown>
+): void {
+    type LegacyGrant = {
+        ability: string;
+        duration?: Duration;
+        auraId?: string;
+        counterType?: string;
+    };
+    type LegacyRemoval = { keyword: string; duration: Duration };
+    const compactPlayers = data.players as CompactPlayer[] | undefined;
+    if (!compactPlayers?.length) return;
+    for (let index = 0; index < compactPlayers.length; index++) {
+        const live = state.players[index];
+        if (!live) continue;
+        for (const compact of compactPlayers[index].battlefield ?? []) {
+            const legacy = compact as unknown as {
+                id?: string;
+                grantedStaticAbilities?: LegacyGrant[];
+                temporaryRemovedKeywords?: LegacyRemoval[];
+            };
+            if (!legacy.id) continue;
+            const card = live.battlefield.find((c) => c.id === legacy.id);
+            if (!card) continue;
+            const auraRows = (legacy.grantedStaticAbilities ?? []).filter(
+                (g) => g.auraId
+            );
+            const grants = (legacy.grantedStaticAbilities ?? []).filter(
+                (g) => !g.auraId
+            );
+            const removals = legacy.temporaryRemovedKeywords ?? [];
+            if (grants.length === 0 && removals.length === 0) continue;
+            // CR 613 layer-6 base = staticAbilities + removals - grants.
+            //
+            // Seeded HERE and not by `captureLayer6Base` (`gre/layer6.ts`),
+            // because this is the one moment the formula's precondition holds:
+            // the rows being migrated were written by the old engine at the
+            // instant it spliced the keyword, so every one of them IS already
+            // reflected in the `staticAbilities` this state was persisted with.
+            // A registry entry carries no such guarantee — it can exist before
+            // any composition has run — which is why the capture reads only the
+            // instance-borne records and this runs before the entries exist.
+            //
+            // A state persisted after PRD #2064 S3 already carries
+            // `baseStaticAbilities` and is left alone.
+            if (card.baseStaticAbilities === undefined) {
+                const base = [...card.staticAbilities];
+                for (const removal of removals) base.push(removal.keyword);
+                for (const grant of grants) {
+                    const at = base.indexOf(grant.ability);
+                    if (at !== -1) base.splice(at, 1);
+                }
+                card.baseStaticAbilities = base;
+            }
+            // IDEMPOTENCE — the migrated rows are STRUCK from the expanded card,
+            // or the next save/load migrates them again.
+            //
+            // The layer-7 twin (`migrateLegacyInstancePTLedgers`) needs no such
+            // line because its source fields no longer exist on
+            // `CardInstanceState` at all, so `expandCard` drops them and they
+            // can never be re-persisted. `grantedStaticAbilities` is different:
+            // it SURVIVES this slice as layer 6's derived output, `expandCard`
+            // copies every row it finds, and `layer6DerivedFields` deliberately
+            // carries non-`auraId` rows through `syncLayer6` — so `compactCard`
+            // would write the legacy rows straight back out and the next
+            // `expandState` would mint a second entry for each. `game_state` is
+            // expanded and compacted on EVERY mutation, so that is one extra
+            // keyword occurrence per action, not per session: a Shelkin Brownie
+            // strip would take one of them and the creature would keep flying.
+            //
+            // Only the `auraId` rows survive, which is exactly what this field
+            // holds from this slice on.
+            card.grantedStaticAbilities =
+                auraRows.length > 0
+                    ? (auraRows as NonNullable<
+                          CardInstanceState["grantedStaticAbilities"]
+                      >)
+                    : undefined;
+            for (const grant of grants) {
+                if (!grant.counterType) continue;
+                appendMigratedEffect(state, {
+                    layer: 6,
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: {
+                        kind: "counter",
+                        permanentId: card.id,
+                        counterType: grant.counterType,
+                    },
+                    payload: { kind: "keyword-grant", keyword: grant.ability },
+                    characteristicDefining: false,
+                });
+            }
+            for (const grant of grants) {
+                if (grant.counterType) continue;
+                appendMigratedEffect(state, {
+                    layer: 6,
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: grant.duration
+                        ? {
+                              kind: "duration",
+                              duration: grant.duration,
+                              controllerId: card.controllerId,
+                          }
+                        : {
+                              kind: "indefinite",
+                              controllerId: card.controllerId,
+                          },
+                    payload: { kind: "keyword-grant", keyword: grant.ability },
+                    characteristicDefining: false,
+                });
+            }
+            for (const removal of removals) {
+                appendMigratedEffect(state, {
+                    layer: 6,
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: {
+                        kind: "duration",
+                        duration: removal.duration,
+                        controllerId: card.controllerId,
+                    },
+                    payload: {
+                        kind: "keyword-remove",
+                        keyword: removal.keyword,
                     },
                     characteristicDefining: false,
                 });

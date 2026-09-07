@@ -797,7 +797,7 @@ export function applyActivationCostsForSearch(
     // so reaching here means the source is not short and `payRemoveCounterCost`
     // cannot throw.
     if (ability.cost.removeCounter) {
-        payRemoveCounterCost(src, ability.cost.removeCounter);
+        payRemoveCounterCost(state, src, ability.cost.removeCounter);
     }
     // CR 118.3 — "discard the last card you drew this turn" (Jandor's Ring).
     if (ability.cost.discardLastDrawn && payer) {
@@ -1227,7 +1227,7 @@ export function applyMoveForSearch(
                         if (tapped.has(src.id)) src.isTapped = true;
                     }
                 }
-                turnFaceUp(permanent);
+                turnFaceUp(state, permanent);
             }
             // CR 704.3 / 613.1f — SBAs, like every sibling branch (the
             // `madness-decline` / `play-land` / `activate-ability` arms all run
@@ -1489,7 +1489,11 @@ export function applyMoveForSearch(
             // one carried bestow and dash, the tree carried morph, neither
             // carried evoke), which is exactly the divergence issue #2473 named
             // when it called them two reimplementations of the same thing.
-            applyCastModeCharacteristics(stackItem, move.alternativeCostId);
+            applyCastModeCharacteristics(
+                state,
+                stackItem,
+                move.alternativeCostId
+            );
             // CR 601.2i / 603.3 (issue #3026) — announce the cast through the
             // single choke point, which is what makes `spellsCastThisTurn`
             // (Storm, ADR 0052), the caster's own per-turn tally (issue #1343,

@@ -19,6 +19,7 @@ import {
 } from "./activatedAbilities";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
+import type { LayerStateView } from "./layers";
 
 /** Everything a copy SOURCE contributes to a copy effect (CR 707.2). Narrower
  *  than `CardInstanceState` on purpose: the copiable values are the presented
@@ -56,6 +57,7 @@ export function presentedDefId(card: Pick<CardInstanceState, "card">): string {
  *  recipient's printed identity in `copiedFrom` (idempotent across Vesuvan
  *  re-copy so the anchor always points at the true printed card). */
 export function applyCopy(
+    state: LayerStateView,
     recipient: CardInstanceState,
     source: CopySource,
     opts: CopyOptions = {}
@@ -102,7 +104,7 @@ export function applyCopy(
     // CR 707.2 / 613.1a — the copy effect replaces the recipient's COPIABLE
     // VALUES only. The recipient is the same object (CR 400.7 needs a zone
     // change), so its own live layers 2–7 are replayed on top (issue #1705).
-    rebuildCopiableValuesAndReplayOverlays(recipient, {
+    rebuildCopiableValuesAndReplayOverlays(state, recipient, {
         types: [...def.types, ...(opts.additionalTypes ?? [])],
         subtypes: [...(def.subtypes ?? []), ...(opts.additionalSubtypes ?? [])],
         // CR 707.2 "except its base power and toughness are 4/4" (Eternalize,
@@ -186,7 +188,10 @@ export function applyCopy(
  *  lasts only while the object is on the battlefield). Restores the printed
  *  definition id and base characteristics; clears the copy anchor and any
  *  color override the copy installed. No-op for non-copies. */
-export function revertCopy(card: CardInstanceState): void {
+export function revertCopy(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
     if (!card.copiedFrom) return;
     const printedId = card.copiedFrom;
     const def = tryGetDefinition(printedId);
@@ -198,7 +203,7 @@ export function revertCopy(card: CardInstanceState): void {
     // applying any more.
     delete card.copyExcept;
     if (def) {
-        rebuildCopiableValuesAndReplayOverlays(card, {
+        rebuildCopiableValuesAndReplayOverlays(state, card, {
             types: [...def.types],
             subtypes: [...(def.subtypes ?? [])],
             power: def.power,

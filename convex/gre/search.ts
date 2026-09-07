@@ -948,7 +948,7 @@ export function applyMoveInSearch(
                         if (tapped.has(src.id)) src.isTapped = true;
                     }
                 }
-                turnFaceUp(permanent);
+                turnFaceUp(state, permanent);
             }
             state.passCount = 0;
             checkStateBasedActions(state);
@@ -1205,7 +1205,11 @@ export function applyMoveInSearch(
             // which is how the bot came to bestow a +1/+1 Aura onto the
             // OPPONENT's creature (issue #2796), and an evoked creature was
             // modelled as one that stays.
-            applyCastModeCharacteristics(stackItem, move.alternativeCostId);
+            applyCastModeCharacteristics(
+                state,
+                stackItem,
+                move.alternativeCostId
+            );
             state.stack.push(stackItem);
             // CR 117: the caster gets priority but auto-passes it (no Ctrl), so
             // the opponent gets to respond before the spell resolves.

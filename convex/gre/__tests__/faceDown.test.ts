@@ -21,6 +21,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { NO_BOARD_LAYER_VIEW } from "../layers";
 
 describe("face-down characteristics (CR 708.2)", () => {
     it("reads as a 2/2 colourless creature with no abilities on fat state", () => {
@@ -32,7 +33,7 @@ describe("face-down characteristics (CR 708.2)", () => {
         });
         expect(STATIC_EFFECT_CTX.getColors(card)).toContain("U");
 
-        turnFaceDown(card, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, card, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [card] }),
@@ -65,8 +66,8 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
             controllerId: "p2",
             ownerId: "p2",
         });
-        turnFaceDown(mine, "morph");
-        turnFaceDown(theirs, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, mine, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, theirs, "morph");
         return makeState({
             players: [
                 makePlayer("p1", { battlefield: [mine] }),
@@ -134,7 +135,7 @@ describe("face-down serialize round-trip", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(card, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, card, "morph");
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [card] }),
@@ -161,10 +162,10 @@ describe("face-down producer census (issue #2904)", () => {
         });
         expect(card.faceDownBy).toBeUndefined();
 
-        turnFaceDown(card, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, card, "morph");
         expect(card.faceDownBy).toBe("morph");
 
-        turnFaceUp(card);
+        turnFaceUp(NO_BOARD_LAYER_VIEW, card);
         // A stale marker on a face-up permanent would pick a face-down face
         // for it the moment any future reader forgot to check `faceDown`.
         expect(card.faceDownBy).toBeUndefined();
@@ -182,8 +183,8 @@ describe("face-down producer census (issue #2904)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        turnFaceDown(morphed, "morph");
-        turnFaceDown(masked, "cast-face-down");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, morphed, "morph");
+        turnFaceDown(NO_BOARD_LAYER_VIEW, masked, "cast-face-down");
         expect(morphed.faceDownBy).toBe("morph");
         expect(masked.faceDownBy).toBe("cast-face-down");
         // Both are the same rules object regardless (CR 708.2a).

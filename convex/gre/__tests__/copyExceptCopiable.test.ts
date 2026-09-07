@@ -46,7 +46,7 @@ const find = (s: GameState, id: string) =>
 describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => {
     it("stamps the overridden base P/T on the copy itself", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
@@ -58,12 +58,12 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
 
     it("a copy OF the copy keeps N/N (CR 707.3) — the copiable-vs-layer-7 proof", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
         // No `except` of its own: a plain Clone copying the 1/1 token.
-        applyCopy(find(state, "clone"), find(state, "tok"));
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
 
         const clone = find(state, "clone");
         // A layer-7 override on the token would leave the printed 2/2 here.
@@ -73,11 +73,11 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
 
     it("does not survive the copy leaving the battlefield (revertCopy)", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        revertCopy(find(state, "tok"));
+        revertCopy(state, find(state, "tok"));
 
         const reverted = find(state, "tok");
         // Hill Giant's own printed body, with no trace of the 1/1 exception.
@@ -89,11 +89,11 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
     it("a re-copy WITHOUT the clause drops it (Vesuvan idempotency)", () => {
         const state = scenario();
         const token = find(state, "tok");
-        applyCopy(token, find(state, "src"), {
+        applyCopy(state, token, find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        applyCopy(token, find(state, "src"));
+        applyCopy(state, token, find(state, "src"));
 
         expect(getEffectivePower(state, find(state, "tok"))).toBe(2);
         expect(getEffectiveToughness(state, find(state, "tok"))).toBe(2);
@@ -102,7 +102,7 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
     it("a layer-7 overlay still stacks on top of the overridden base (CR 613.4a)", () => {
         const state = scenario();
         const token = find(state, "tok");
-        applyCopy(token, find(state, "src"), {
+        applyCopy(state, token, find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
@@ -116,11 +116,11 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
 
     it("wire format: a copy made FROM the projected instance is still N/N", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        applyCopy(find(state, "clone"), find(state, "tok"));
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = (id: string) =>
@@ -142,14 +142,18 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         // are materialised instance fields `slimCard` forwarded long before
         // this change, so such an assertion passes eitherway.
         const recipient = { ...slim("src") } as unknown as CardInstanceState;
-        applyCopy(recipient, slim("tok") as unknown as CardInstanceState);
+        applyCopy(
+            state,
+            recipient,
+            slim("tok") as unknown as CardInstanceState
+        );
         expect(getEffectivePower(projected, recipient)).toBe(1);
         expect(getEffectiveToughness(projected, recipient)).toBe(1);
     });
 
     it("survives a serialize/deserialize round trip", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
@@ -162,13 +166,13 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         const recipient = round.players[0].battlefield.find(
             (c) => c.id === "clone"
         )!;
-        applyCopy(recipient, token);
+        applyCopy(state, recipient, token);
         expect(getEffectivePower(round, recipient)).toBe(1);
     });
 
     it("a new clause overrides only the half it names (CR 707.2)", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
@@ -176,7 +180,9 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         // (already 1/1 per CR 707.3), and only then does this effect's own
         // "except" overwrite the halves it actually names. So power is 7 and
         // toughness stays the inherited 1, NOT the printed 2.
-        applyCopy(find(state, "clone"), find(state, "tok"), { basePower: 7 });
+        applyCopy(state, find(state, "clone"), find(state, "tok"), {
+            basePower: 7,
+        });
 
         expect(getEffectivePower(state, find(state, "clone"))).toBe(7);
         expect(getEffectiveToughness(state, find(state, "clone"))).toBe(1);
@@ -187,12 +193,12 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         const third = makeInstance(OGRE, { id: "third", controllerId: "p1" });
         state.players[0].battlefield.push(third);
 
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        applyCopy(find(state, "clone"), find(state, "tok"));
-        applyCopy(find(state, "third"), find(state, "clone"));
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+        applyCopy(state, find(state, "third"), find(state, "clone"));
 
         expect(getEffectivePower(state, find(state, "third"))).toBe(1);
         expect(getEffectiveToughness(state, find(state, "third"))).toBe(1);
@@ -200,14 +206,14 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
 
     it("a REVERTED source contributes no exception to a later copy", () => {
         const state = scenario();
-        applyCopy(find(state, "tok"), find(state, "src"), {
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        revertCopy(find(state, "tok"));
+        revertCopy(state, find(state, "tok"));
         // The copy effect ended, so the object is Hill Giant again and there
         // is no exception left for a copier to acquire.
-        applyCopy(find(state, "clone"), find(state, "tok"));
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
 
         expect(getEffectivePower(state, find(state, "clone"))).toBe(3);
         expect(getEffectiveToughness(state, find(state, "clone"))).toBe(3);
@@ -216,12 +222,12 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
     it("a FACE-DOWN source copies as the 2/2 sentinel, not its exception (CR 707.2)", () => {
         const state = scenario();
         const token = find(state, "tok");
-        applyCopy(token, find(state, "src"), {
+        applyCopy(state, token, find(state, "src"), {
             basePower: 1,
             baseToughness: 1,
         });
-        turnFaceDown(token, "morph");
-        applyCopy(find(state, "clone"), find(state, "tok"));
+        turnFaceDown(state, token, "morph");
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
 
         // CR 707.2's own example: a Clone of a face-down creature is a 2/2.
         expect(getEffectivePower(state, find(state, "clone"))).toBe(2);
@@ -229,8 +235,8 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
 
         // The copy effect never stopped applying, so turning the source back
         // face up restores its exception for the NEXT copier.
-        turnFaceUp(find(state, "tok"));
-        applyCopy(find(state, "clone"), find(state, "tok"));
+        turnFaceUp(state, find(state, "tok"));
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
         expect(getEffectivePower(state, find(state, "clone"))).toBe(1);
     });
 });

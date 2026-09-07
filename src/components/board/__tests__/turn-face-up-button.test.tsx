@@ -31,6 +31,7 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 
 import TurnFaceUpButton from "../turn-face-up-button";
+import { NO_BOARD_LAYER_VIEW } from "../../../../convex/gre/layers";
 
 const ANGEL = getCardByName("Exalted Angel").id;
 const PLAINS = getCardByName("Plains").id;
@@ -44,7 +45,7 @@ function projectFaceDownAngel(lands: number, viewerId: string): CardInstance {
         ownerId: "p1",
         zone: "battlefield",
     });
-    turnFaceDown(permanent, "morph");
+    turnFaceDown(NO_BOARD_LAYER_VIEW, permanent, "morph");
     const state = makeState({
         players: [
             makePlayer("p1", {

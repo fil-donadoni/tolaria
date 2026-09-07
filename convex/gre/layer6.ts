@@ -38,7 +38,6 @@
 
 import { tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
-import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { compareContinuousEffects, renderKeyword } from "./continuousEffects";
 import type { ContinuousEffect } from "./continuousEffects";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
@@ -147,13 +146,20 @@ export function layer6Base(card: CardInstanceState): string[] {
 
 /** Captures the layer-6 base if it has not been captured yet.
  *
- *  Called at the TOP of every ledger writer (`SpellContext.grantStaticAbility`,
+ *  Called at the TOP of every producer (`SpellContext.grantStaticAbility`,
  *  `grantStaticAbilityPermanent`, `removeStaticAbilities`, `animateAsCreature`,
- *  `applyKeywordCounterGrant`) BEFORE it adds its row, and once per permanent
- *  from `syncLayer6`. */
-export function ensureLayer6Base(card: CardInstanceState): void {
+ *  `applyKeywordCounterGrant`) BEFORE it writes its entry, and once per
+ *  permanent from `syncLayer6`.
+ *
+ *  Takes the `LayerStateView` since PRD #2064 S6b: the reconstruction below
+ *  subtracts what layer 6 composed, and since that slice the grants and
+ *  removals it composed live in the REGISTRY rather than on the instance. */
+export function ensureLayer6Base(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
     if (card.baseStaticAbilities !== undefined) return;
-    card.baseStaticAbilities = captureLayer6Base(card);
+    card.baseStaticAbilities = captureLayer6Base(state, card);
 }
 
 /** Snapshots the pre-layer-6 base out of a permanent's `staticAbilities`.
@@ -182,11 +188,28 @@ export function ensureLayer6Base(card: CardInstanceState): void {
  *    the records are this module's own derived output, which is the same
  *    arithmetic read the other way.
  *
+ *  The REGISTRY is deliberately not read here, though layer 6's grants and
+ *  removals live there since PRD #2064 S6b. The terms this formula subtracts
+ *  are the ones ALREADY MATERIALISED into `staticAbilities`, and an instance
+ *  record was exactly that by construction — it was written at the moment the
+ *  keyword was spliced. A registry ENTRY carries no such guarantee: it can be
+ *  created before any composition has run, and adding its keyword back would
+ *  invent an occurrence (a `keyword-remove` entry on a permanent whose printed
+ *  keyword is still in `staticAbilities` produced a base with the keyword
+ *  TWICE, so the removal took one and the wire still shipped the other). The
+ *  legacy state that does need the registry terms is reconstructed where the
+ *  guarantee holds: `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`)
+ *  seeds `baseStaticAbilities` from the rows it is migrating, before the
+ *  entries exist.
+ *
  *  A `suppressed` grant — a pre-slice row that never reached the multiset — took
  *  no occurrence and gives none back. Layer 4 has the same shape and the same
  *  reason: `capturePrintedSubtypes` (`gre/state.ts`) filters out subtypes a live
  *  `subtype-add` put there. This goes with the field when S6 deletes it. */
-function captureLayer6Base(card: CardInstanceState): string[] {
+function captureLayer6Base(
+    state: LayerStateView,
+    card: CardInstanceState
+): string[] {
     const base = [...card.staticAbilities];
     // Removals first, then grants: a removal and a grant of the SAME keyword
     // must not cancel each other out of the reconstruction by ordering
@@ -195,15 +218,79 @@ function captureLayer6Base(card: CardInstanceState): string[] {
     for (const removal of card.removedKeywords ?? []) {
         base.push(removal.keyword);
     }
-    for (const removal of card.temporaryRemovedKeywords ?? []) {
-        base.push(removal.keyword);
-    }
     for (const grant of card.grantedStaticAbilities ?? []) {
         if (grant.suppressed) continue;
         const index = base.indexOf(grant.ability);
         if (index !== -1) base.splice(index, 1);
     }
+    // PRD #2064 S6b — the registry half of the SUBTRACTED term only. A layer-6
+    // `keyword-grant` entry that applies to this permanent put an occurrence
+    // into the composition the line above is inverting, so it comes back off,
+    // exactly as its `grantedStaticAbilities` row used to.
+    //
+    // Its mirror — adding a `keyword-remove` entry's keyword BACK — is
+    // deliberately absent; see the note above for the occurrence it invented.
+    for (const keyword of registryGrantedKeywordsFor(state, card.id)) {
+        const index = base.indexOf(keyword);
+        if (index !== -1) base.splice(index, 1);
+    }
     return base;
+}
+
+/** The keywords layer-6 registry `keyword-grant` entries contribute to
+ *  `permanentId` (PRD #2064 S6b).
+ *
+ *  Template payloads are skipped: resolving one needs the live board and the
+ *  card definition (`resolveLayer6Action`), and a template is always
+ *  source-provenance — re-walked from the board at the next derivation, so it
+ *  is never part of the base this capture reconstructs. */
+function registryGrantedKeywordsFor(
+    state: LayerStateView,
+    permanentId: string
+): string[] {
+    const out: string[] = [];
+    for (const entry of state.continuousEffects ?? []) {
+        if (entry.layer !== 6) continue;
+        if (entry.affected.kind !== "instances") continue;
+        if (!entry.affected.instanceIds.includes(permanentId)) continue;
+        if (entry.payload.kind !== "keyword-grant") continue;
+        // The registry twins of the two filters the instance loop above
+        // carries. An entry that put NO occurrence into the multiset gives none
+        // back, and there are two ways to put none:
+        //
+        //  - the entry is not live (`counter` whose counter is gone, `source`
+        //    whose source has left) — the `grant.suppressed` case, one layer up;
+        //  - a later `ability-loss` cleared the occurrence in `deriveLayer6`'s
+        //    ordered walk (CR 613.1f), which is what `suppressed` recorded
+        //    before layer 6 was derived.
+        //
+        // Without them a base capture on a permanent under Humility would
+        // subtract a grant that contributed nothing and eat a PRINTED keyword.
+        if (!layer6ExpiryLive(state, entry)) continue;
+        if (grantClearedByAbilityLoss(state, permanentId, entry)) continue;
+        out.push(renderKeyword(entry.payload));
+    }
+    return out;
+}
+
+/** CR 613.1f / 613.7 — whether a live `ability-loss` outranks `entry`, so the
+ *  grant it carries never reached the multiset. Strictly-greater, matching
+ *  `grantOutrankedByAbilityLoss` (`gre/activatedAbilities.ts`): a grant sharing
+ *  a stripper's timestamp survives it. */
+function grantClearedByAbilityLoss(
+    state: LayerStateView,
+    permanentId: string,
+    entry: ContinuousEffect
+): boolean {
+    for (const other of state.continuousEffects ?? []) {
+        if (other.layer !== 6) continue;
+        if (other.payload.kind !== "ability-loss") continue;
+        if (other.affected.kind !== "instances") continue;
+        if (!other.affected.instanceIds.includes(permanentId)) continue;
+        if (!layer6ExpiryLive(state, other)) continue;
+        if (other.timestamp > entry.timestamp) return true;
+    }
+    return false;
 }
 
 /** The static effects a source contributes, resolved through the card registry
@@ -373,76 +460,15 @@ function layer6EffectsFor(
     const instance = target as unknown as CardInstanceState;
     const granted = instance.grantedStaticAbilities ?? [];
 
-    // CR 122.1b — a keyword counter causes the object to gain that keyword. The
-    // gate IS the counter: no unapply site is needed, because a count of zero
-    // stops producing the entry. The ledger row (`grantedStaticAbilities` with
-    // a `counterType`) survives only to carry the CR 613.7c timestamp, which
-    // nothing else records.
-    for (const [counterType, count] of Object.entries(target.counters ?? {})) {
-        if (count <= 0) continue;
-        const keyword = getKeywordCounterGrant(counterType);
-        if (!keyword) continue;
-        const ledger = (instance.grantedStaticAbilities ?? []).find(
-            (g) => g.counterType === counterType
-        );
-        entries.push({
-            id: `ce6-counter-${target.id}-${counterType}`,
-            layer: 6,
-            timestamp: ledger?.seq ?? 0,
-            expiry: { kind: "counter", permanentId: target.id, counterType },
-            affected: { kind: "instances", instanceIds: [target.id] },
-            payload: { kind: "keyword-grant", keyword },
-            characteristicDefining: false,
-        });
-    }
-
-    // CR 611.2a / 611.2c — residue of a resolved spell or ability: an
-    // until-end-of-turn grant (`duration`) and an indefinite one (neither
-    // duration nor source nor counter). Entries keyed by `auraId` are NOT read
-    // here: those are the source provenance, re-derived from the live board
-    // above, and a persisted state written before this slice can still carry
-    // them.
-    for (let index = 0; index < granted.length; index++) {
-        const grant = granted[index];
-        if (grant.auraId || grant.counterType) continue;
-        entries.push({
-            id: `ce6-grant-${target.id}-${index}`,
-            layer: 6,
-            timestamp: grant.seq ?? 0,
-            expiry: grant.duration
-                ? {
-                      kind: "duration",
-                      duration: grant.duration,
-                      controllerId: target.controllerId,
-                  }
-                : { kind: "indefinite", controllerId: target.controllerId },
-            affected: { kind: "instances", instanceIds: [target.id] },
-            payload: { kind: "keyword-grant", keyword: grant.ability },
-            characteristicDefining: false,
-        });
-    }
-
-    // CR 611.2a — a duration-scoped keyword REMOVAL (Shelkin Brownie stripping
-    // banding until end of turn). The removal twin of the block above: same
-    // expiry, opposite payload, which is the whole of what "provenance" means
-    // once the registry has absorbed it.
-    const temporaryRemovals = instance.temporaryRemovedKeywords ?? [];
-    for (let index = 0; index < temporaryRemovals.length; index++) {
-        const removal = temporaryRemovals[index];
-        entries.push({
-            id: `ce6-tempremove-${target.id}-${index}`,
-            layer: 6,
-            timestamp: removal.seq ?? 0,
-            expiry: {
-                kind: "duration",
-                duration: removal.duration,
-                controllerId: target.controllerId,
-            },
-            affected: { kind: "instances", instanceIds: [target.id] },
-            payload: { kind: "keyword-remove", keyword: removal.keyword },
-            characteristicDefining: false,
-        });
-    }
+    // PRD #2064 S6b — three blocks stood here, synthesising a throwaway
+    // registry entry per instance-ledger row at EVERY read: the keyword-counter
+    // grant (CR 122.1b), the resolved-ability grants (CR 611.2a / 611.2c) and
+    // the duration-scoped removals (CR 611.2a). Their producers now write real
+    // entries through `pushContinuousEffect`, so the entries arrive through the
+    // stored-entry walk below like every other one and the ledgers they were
+    // reading are gone. `auraId` rows were never read here — those are source
+    // provenance, re-derived from the live board above — and they are all that
+    // is left on `grantedStaticAbilities`, which is pure derived output now.
 
     // CR 613.1f — "loses all abilities" generated by a RESOLVING ability
     // (`SpellContext.loseAllAbilities`, Oko's +1 — indefinite, sentinel-keyed;
@@ -942,9 +968,20 @@ export function deriveLayer6(
  *  not a narrowing: the replay it replaces read the same instance-borne records
  *  and no board either. PRD #2064 S5/S6, which put the registry on the state
  *  itself, remove the need for the synthetic view. */
-export function recomposeLayer6ForInstance(card: CardInstanceState): void {
+export function recomposeLayer6ForInstance(
+    state: LayerStateView,
+    card: CardInstanceState
+): void {
+    // PRD #2064 S6b — the synthetic one-card board carries the REGISTRY, which
+    // is where the permanent's own duration-scoped, indefinite and counter-borne
+    // grants live since this slice. Without it the swap sites would compose
+    // over an empty registry and drop every one of them (CR 400.7 — an identity
+    // swap makes no new object, so none of those effects has ended). The
+    // battlefield stays synthetic: the SOURCE-provenance half is still what the
+    // next `syncLayer6` re-derives, and a one-card walk must not try.
     const view = {
         players: [{ id: card.controllerId, battlefield: [card] }],
+        continuousEffects: state.continuousEffects,
     } as unknown as LayerStateView;
     const result = deriveLayer6(view, card as unknown as PermanentView, {
         trustInstanceLedger: true,
@@ -1080,7 +1117,7 @@ export function deriveLayer6Board(
             // handled here, and only here, because both need the BOARD to be
             // read correctly (see `migrateLegacyAbilityLossHolds`).
             const legacy = card.baseStaticAbilities === undefined;
-            ensureLayer6Base(card);
+            ensureLayer6Base(state, card);
             if (legacy) migrateLegacyAbilityLossHolds(state, card);
             derived.push({
                 card,
