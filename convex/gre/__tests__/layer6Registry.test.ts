@@ -586,6 +586,65 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             expect(count(elemental, "flying")).toBe(0);
         });
 
+        it("does not eat a PRINTED keyword a grant of the same name never got to add", () => {
+            // The invariant "a suppressed grant owns nothing and releases
+            // nothing" (CR 613.1f), which used to live on the instance's
+            // `grant.suppressed` flag and moved here when PRD #2064 S6b made
+            // the grant a registry ENTRY.
+            //
+            // Air Elemental PRINTS flying. Grant it flying again, then strip
+            // all abilities at a strictly LATER timestamp so the grant never
+            // reaches the multiset (CR 613.7). The capture's registry loop
+            // subtracts applying grants — and this one applies to nothing, so
+            // subtracting it would take the PRINTED occurrence and the
+            // Elemental would never fly again, however long after the strip.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            const ctx = ctxFor(state);
+            ctx.grantStaticAbilityPermanent(
+                { type: "permanent", id: "ae" },
+                "flying"
+            );
+            ctx.loseAllAbilities({ type: "permanent", id: "ae" });
+            expect(elemental.staticAbilities).toEqual([]);
+
+            delete elemental.baseStaticAbilities;
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+        });
+
+        it("does not subtract a grant whose counter has already gone", () => {
+            // The other filter: an entry that is no longer LIVE contributed no
+            // occurrence either. A `counter`-expiry grant reads false the
+            // moment the last counter comes off (CR 122.1b), and the entry can
+            // outlive that by a beat — `unapplyKeywordCounterGrant` is hygiene,
+            // not the gate.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            state.continuousEffects = [
+                {
+                    id: "ce-stale",
+                    layer: 6,
+                    timestamp: 1,
+                    characteristicDefining: false,
+                    expiry: {
+                        kind: "counter",
+                        permanentId: "ae",
+                        counterType: "flying",
+                    },
+                    affected: { kind: "instances", instanceIds: ["ae"] },
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                } as ContinuousEffect,
+            ];
+
+            delete elemental.baseStaticAbilities;
+            refreshCounterGatedStatics(state);
+
+            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(elemental, "flying")).toBe(1);
+        });
+
         it("survives a base CLEAR while a grant and a strip are both live", () => {
             // The same arithmetic on a FRESH state: an identity swap or a
             // CR 614.12c body choice drops the base, and the re-capture reads
