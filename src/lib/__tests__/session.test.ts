@@ -30,6 +30,14 @@ describe("difficulty persistence (issue #114)", () => {
         expect(getStoredDifficulty()).toBe("easy");
     });
 
+    // issue #2790 — `expert` is a fourth valid value; a hand-maintained
+    // `"easy" | "medium" | "hard"` whitelist here would silently fall back to
+    // the default for it, exactly as if it were a stale string.
+    it("round-trips the expert difficulty", () => {
+        storeDifficulty("expert");
+        expect(getStoredDifficulty()).toBe("expert");
+    });
+
     it("falls back to the default for a stale/invalid stored value", () => {
         localStorage.setItem("tolaria:aiDifficulty", "nightmare");
         expect(getStoredDifficulty()).toBe(DEFAULT_DIFFICULTY);

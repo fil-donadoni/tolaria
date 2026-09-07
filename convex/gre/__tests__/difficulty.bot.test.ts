@@ -2,14 +2,21 @@
 // one knob (just budgets — no separate logic), and a higher preset measurably
 // plays better than a lower one on a fixed seeded scenario. See
 // `convex/gre/difficulty.ts`.
+//
+// `expert` (issue #2790, PRD #2787) amends the first claim: a preset now
+// carries a budget AND an opponent-knowledge mode. The budget gradient is
+// still asserted the same way (strictly increasing, expert now the top of
+// it); the knowledge axis gets its own describe block below.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { search } from "../search";
 import {
     DIFFICULTIES,
     DIFFICULTY_BUDGETS,
+    DIFFICULTY_KNOWS_OPPONENT,
     DEFAULT_DIFFICULTY,
     budgetFor,
+    knowsOpponent,
 } from "../difficulty";
 import {
     makeInstance,
@@ -48,9 +55,30 @@ describe("difficulty presets — one knob (issue #114)", () => {
     it("budgetFor maps a difficulty and falls back to the default for junk", () => {
         expect(budgetFor("hard")).toBe(DIFFICULTY_BUDGETS.hard);
         expect(budgetFor("easy")).toBe(DIFFICULTY_BUDGETS.easy);
+        expect(budgetFor("expert")).toBe(DIFFICULTY_BUDGETS.expert);
         expect(budgetFor(null)).toBe(DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]);
         expect(budgetFor("nonsense")).toBe(
             DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]
+        );
+    });
+});
+
+describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
+    it("only expert feeds the search the opponent's real decklist", () => {
+        expect(DIFFICULTY_KNOWS_OPPONENT.easy).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.medium).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.hard).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.expert).toBe(true);
+    });
+
+    it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
+        expect(knowsOpponent("expert")).toBe(true);
+        expect(knowsOpponent("hard")).toBe(false);
+        expect(knowsOpponent(null)).toBe(
+            DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
+        );
+        expect(knowsOpponent("nonsense")).toBe(
+            DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );
     });
 });

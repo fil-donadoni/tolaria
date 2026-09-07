@@ -86,7 +86,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
-import { shouldThink, budgetFor } from "@convex/gre";
+import { shouldThink, budgetFor, knowsOpponent } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
 import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
 import {
@@ -123,18 +123,19 @@ const THINK_DELAY_MS = 200;
 /** How long the game may sit unchanged while the engine's Expected Input names
  *  the bot before the driver escalates (issue #2284). Tuned in this one place.
  *
- *  The floor is the hardest search the bot can run: `DIFFICULTY_BUDGETS.hard` is
- *  `{ iterations: 1200, timeMs: 3000 }` (raised from 600 by issue #2682,
- *  keeping `hard`'s pre-#2682 2× ratio to `medium.timeMs` once `medium` was
- *  re-aligned to the real `DEFAULT_BUDGET`, 1500ms). Plus `THINK_DELAY_MS`
- *  and the Worker round-trip, a legitimate think still sits comfortably
- *  inside the watchdog interval (`useVsAiDriver-liveness.bot.test.ts` asserts
- *  exactly that against the real constants — no longer "an order of
- *  magnitude" above at this scale, but still ample: ~2× hard's own budget),
- *  so a legitimately slow think is never mistaken for a hang, while a real
- *  freeze is over in seconds rather than forever. A decision that is already
- *  KNOWN to be missing does not wait at all — see `escalateImmediately`
- *  below. */
+ *  The floor is the hardest search the bot can run: `DIFFICULTY_BUDGETS.expert`
+ *  is `{ iterations: 1320, timeMs: 3300 }` (issue #2790 — `expert`'s +10%
+ *  margin over `hard`'s `{ iterations: 1200, timeMs: 3000 }`, itself raised
+ *  from 600 by issue #2682, keeping `hard`'s pre-#2682 2× ratio to
+ *  `medium.timeMs` once `medium` was re-aligned to the real `DEFAULT_BUDGET`,
+ *  1500ms). Plus `THINK_DELAY_MS` and the Worker round-trip, a legitimate
+ *  think still sits comfortably inside the watchdog interval
+ *  (`useVsAiDriver-liveness.bot.test.ts` asserts exactly that against the
+ *  real constants, taking the max over every preset so a new harder level
+ *  re-proves the margin rather than silently eroding it), so a legitimately
+ *  slow think is never mistaken for a hang, while a real freeze is over in
+ *  seconds rather than forever. A decision that is already KNOWN to be
+ *  missing does not wait at all — see `escalateImmediately` below. */
 export const BOT_WATCHDOG_MS = 6000;
 
 /** How many times a thrown bot submission is retried — with the state re-read —
@@ -220,25 +221,52 @@ export function useVsAiDriver(
         api.game.getSeatDeck,
         botId ? { gameId, playerId: botId } : "skip"
     );
-    // Per-seat deck knowledge (issue #2788, generalising #1509's single-seat
-    // shape). Only the bot's OWN seat is ever populated here — the human
-    // opponent's seat has no entry and stays on the blind/placeholder path,
-    // exactly as `getSeatDeck`'s ownership gate (`seatBelongsToUser`,
-    // `convex/game.ts`) already enforces server-side. This is a prefactor: the
-    // map exists so a future ticket can add a second entry without reshaping
-    // this seam again.
+    // The HUMAN seat's decklist (issue #2790, PRD #2787) — the second entry
+    // the #2788 per-seat shape was left room for. Read only once `botState`
+    // has resolved the opponent's seat id; both `botId` and this id are the
+    // one user's own handles in a vs-AI game (`${userId}-p1`/`-p2`), so
+    // `getSeatDeck`'s ownership gate admits it exactly as it does the bot's
+    // own lookup above — no new authorisation surface, and a real 2-player
+    // game never mounts this hook at all (it runs no Brain, see the module
+    // header). Whether this seat's cards actually reach the search is gated
+    // below, by difficulty alone — fetching it eagerly here just avoids a
+    // second round trip once `expert` is selected mid-render.
+    const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
+    const humanDeck = useQuery(
+        api.game.getSeatDeck,
+        humanId ? { gameId, playerId: humanId } : "skip"
+    );
+    // Per-seat deck knowledge (issue #2788, generalised to two seats by
+    // #2790). The bot's OWN seat is populated unconditionally (issue #1509,
+    // unrelated to difficulty — a bot always knows its own decklist); the
+    // HUMAN seat is populated only at `expert` (`knowsOpponent`,
+    // `convex/gre/difficulty.ts`), so `easy`/`medium`/`hard` stay on the
+    // blind/placeholder path for the opponent, exactly as `getSeatDeck`'s
+    // ownership gate (`seatBelongsToUser`, `convex/game.ts`) already enforces
+    // server-side regardless.
     const deckKnowledge = useMemo(() => {
         // `null` when the seat has no decklist row (or the caller does not own
         // the seat) — deckKnowledge stays undefined and the search falls back
         // to the placeholder library, exactly as it did before issue #1509.
         if (!botId || !botDeck?.cards) return undefined;
-        return [
+        const knowledge = [
             {
                 playerId: botId,
                 cardIds: botDeck.cards.map((c) => c.cardId),
             },
         ];
-    }, [botDeck, botId]);
+        if (
+            knowsOpponent(getStoredDifficulty()) &&
+            humanId &&
+            humanDeck?.cards
+        ) {
+            knowledge.push({
+                playerId: humanId,
+                cardIds: humanDeck.cards.map((c) => c.cardId),
+            });
+        }
+        return knowledge;
+    }, [botDeck, botId, humanDeck, humanId]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:

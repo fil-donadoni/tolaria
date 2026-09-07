@@ -25,6 +25,7 @@ import {
     computeExpectedInput,
     computeOwedPlayerIds,
 } from "@convex/gre/expectedInput";
+import { storeDifficulty } from "~/lib/session";
 
 const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id;
@@ -57,12 +58,15 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
-// What `getSeatDeck` answers (issue #2506). `undefined` = still loading;
+// What `getSeatDeck` answers (issue #2506), keyed by the requested seat
+// (issue #2790 — the driver now queries TWO seats, bot and human, so a single
+// shared value can no longer stand in for both). `undefined` = still loading;
 // `null` = the seat has no decklist row, or the caller does not own it.
-let seatDeck:
+type SeatDeckAnswer =
     | { playerId: string; cards: { cardId: string; cardName: string }[] }
     | null
-    | undefined = undefined;
+    | undefined;
+let seatDecks: Record<string, SeatDeckAnswer> = {};
 // Every `projectedToGameState` call the search path makes, with the
 // `deckKnowledge` it was handed and the bot library it produced — the seam
 // where a real decklist either becomes real card identities or is thrown away
@@ -169,7 +173,9 @@ vi.mock("convex/react", () => ({
         // stubbing it away unconditionally, as this mock first did, left the
         // ENTIRE #1509 path unproven, and a `getSeatDeck` that returns null
         // degrades the bot in silence (#2506 review, finding 2).
-        if (ref === "getSeatDeck") return seatDeck;
+        if (ref === "getSeatDeck") {
+            return seatDecks[(args as { playerId: string }).playerId];
+        }
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
             if (forceNullTick) return null;
@@ -348,7 +354,10 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
-        seatDeck = undefined;
+        seatDecks = {};
+        // issue #2790 — a test that opts into `expert` via `storeDifficulty`
+        // must not leak it to the next one, which assumes the default.
+        localStorage.removeItem("tolaria:aiDifficulty");
         adapterCalls.length = 0;
         heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
@@ -399,7 +408,7 @@ describe("useVsAiDriver (issue #110)", () => {
     }
 
     it("feeds the bot's own getSeatDeck cards into the search adapter", async () => {
-        seatDeck = {
+        seatDecks[BOT] = {
             playerId: BOT,
             cards: [
                 { cardId: MOUNTAIN, cardName: "Mountain" },
@@ -434,7 +443,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("falls back to a placeholder library when getSeatDeck answers null", async () => {
         // The silent-degradation case the widened stub used to hide: an
         // unowned seat / missing row is not an error anywhere on this path.
-        seatDeck = null;
+        seatDecks[BOT] = null;
         currentState = botStateWithLibrary(2);
         renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();
@@ -445,6 +454,64 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(searched[0].libraries[BOT]).toEqual([
             PLACEHOLDER_CARD_ID,
             PLACEHOLDER_CARD_ID,
+        ]);
+    });
+
+    // ── Expert difficulty also feeds the HUMAN seat's decklist (issue #2790,
+    //    PRD #2787) ───────────────────────────────────────────────────────
+    //
+    // `expert` is the one level that amends the #2788 per-seat shape's
+    // criterion by populating a SECOND entry — the opponent's — so the
+    // search stops imagining a human who has surrendered. The other three
+    // levels must keep reproducing today's behaviour exactly: the human seat
+    // stays absent from `deckKnowledge` regardless of whether `getSeatDeck`
+    // would answer for it.
+    it("expert also feeds the human seat's getSeatDeck cards into the search adapter", async () => {
+        storeDifficulty("expert");
+        seatDecks[BOT] = {
+            playerId: BOT,
+            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
+        };
+        seatDecks[HUMAN] = {
+            playerId: HUMAN,
+            cards: [
+                { cardId: BEARS, cardName: "Grizzly Bears" },
+                { cardId: WURM, cardName: "Craw Wurm" },
+            ],
+        };
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+            { playerId: HUMAN, cardIds: [BEARS, WURM] },
+        ]);
+    });
+
+    it("hard does NOT feed the human seat's decklist even though getSeatDeck would answer it", async () => {
+        // No `storeDifficulty` call — the default preset (`medium`) applies,
+        // proving the gate is the DIFFICULTY, not merely `getSeatDeck`
+        // answering null for an unowned seat (the other test above already
+        // covers that path).
+        seatDecks[BOT] = {
+            playerId: BOT,
+            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
+        };
+        seatDecks[HUMAN] = {
+            playerId: HUMAN,
+            cards: [{ cardId: BEARS, cardName: "Grizzly Bears" }],
+        };
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
         ]);
     });
 

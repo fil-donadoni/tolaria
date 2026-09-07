@@ -1,5 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
-import { DEFAULT_DIFFICULTY, type Difficulty } from "@convex/gre";
+import { DEFAULT_DIFFICULTY, DIFFICULTIES, type Difficulty } from "@convex/gre";
 import { isFormatId, type FormatId } from "@convex/formats";
 
 const GAME_KEY = "tolaria:gameId";
@@ -63,8 +63,12 @@ export function clearAiDeckId() {
  *  last choice; falls back to the default preset when unset or stale. */
 export function getStoredDifficulty(): Difficulty {
     const stored = localStorage.getItem(DIFFICULTY_KEY);
-    if (stored === "easy" || stored === "medium" || stored === "hard") {
-        return stored;
+    // Checked against the live list, not a hand-maintained union member by
+    // member — a hard-coded `"easy" | "medium" | "hard"` here is exactly how
+    // issue #2790's `expert` almost fell back to the default silently despite
+    // being a perfectly valid stored value.
+    if (stored && (DIFFICULTIES as readonly string[]).includes(stored)) {
+        return stored as Difficulty;
     }
     return DEFAULT_DIFFICULTY;
 }
