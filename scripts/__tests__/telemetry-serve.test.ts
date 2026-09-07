@@ -1,7 +1,13 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createServer } from "node:net";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DashboardBuild } from "../lib/dashboard-build";
