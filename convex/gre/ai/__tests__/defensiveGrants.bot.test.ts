@@ -102,7 +102,9 @@ describe("indestructible granted in a quiet position (#2937, CR 702.12b)", () =>
         withGrantResolved(state);
         const elf = theElf(state);
         expect(isQuietFor(state, elf)).toBe(true);
-        expect(temporaryDefensiveKeywords(elf)).toEqual(["indestructible"]);
+        expect(temporaryDefensiveKeywords(state, elf)).toEqual([
+            "indestructible",
+        ]);
         // The flat KEYWORD_BONUS occurrence is taken back off, so the granted
         // keyword moves the creature's realized worth not at all.
         expect(evaluateCreature(state, elf)).toBe(before);
@@ -167,7 +169,7 @@ describe("indestructible granted in a quiet position (#2937, CR 702.12b)", () =>
             (k) => k !== "indestructible"
         );
         expect(elf.grantedStaticAbilities?.length).toBeGreaterThan(0);
-        expect(temporaryDefensiveKeywords(elf)).toEqual([]);
+        expect(temporaryDefensiveKeywords(state, elf)).toEqual([]);
         expect(evaluateCreature(state, elf)).toBe(withGrant);
     });
 });

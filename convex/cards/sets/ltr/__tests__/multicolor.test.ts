@@ -76,11 +76,9 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
             ownerId: "p1",
             counters: { indestructible: 1 },
             staticAbilities: ["indestructible"], // mirrors post-ETB state
-            grantedStaticAbilities: [
-                { ability: "indestructible", counterType: "indestructible" },
-            ],
-            // PRD #2064 S3 — a counter grant is DERIVED from `counters`, so the
-            // base must say what the permanent has WITHOUT it.
+            // PRD #2064 S6b — a counter grant is a REGISTRY entry, gated on the
+            // counter itself, so there is no row to hand-write here; the base
+            // must still say what the permanent has WITHOUT it.
             baseStaticAbilities: [],
         });
         const bear = makeInstance(grizzlyBears.id, {

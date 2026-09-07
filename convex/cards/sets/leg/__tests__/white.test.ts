@@ -131,6 +131,7 @@ import {
     hypnoticSpecter,
     lightningBolt,
 } from "../../lea";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // ---------------------------------------------------------------------------
 // White free tranche (#371)
@@ -1451,9 +1452,15 @@ describe("Rapid Fire (CR 117.1b cast timing + CR 702.23 conditional rampage)", (
         castAtTarget(state);
         const t = liveTarget(state);
         expect(t.staticAbilities).toContain("first strike");
+        // PRD #2064 S6b — the until-end-of-turn grant is a registry entry.
         expect(
-            t.grantedStaticAbilities?.some(
-                (g) => g.ability === "first strike" && g.duration
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.expiry.kind === "duration" &&
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "first strike" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(t.id)
             )
         ).toBe(true);
     });

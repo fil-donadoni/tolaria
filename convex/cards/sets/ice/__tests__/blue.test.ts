@@ -144,6 +144,7 @@ import {
     applyOneTargetSelection,
 } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -1818,8 +1819,12 @@ describe("Illusionary Presence (CR 603.6a upkeep + 702.14 chosen-type landwalk)"
         submitChoice(state, ["Swamp"]);
         let after = state.players[0].battlefield.find((c) => c.id === "ip")!;
         expect(after.staticAbilities).toContain("swampwalk");
-        expect(after.grantedStaticAbilities?.[0].duration?.phase).toBe(
-            "end-of-turn"
+        // PRD #2064 S6b — the until-end-of-turn grant is a registry entry.
+        expect(continuousEffectsInLayer(state, 6)[0].expiry).toEqual(
+            expect.objectContaining({
+                kind: "duration",
+                duration: expect.objectContaining({ phase: "end-of-turn" }),
+            })
         );
 
         // The until-end-of-turn grant expires at CLEANUP. Drive END_STEP and

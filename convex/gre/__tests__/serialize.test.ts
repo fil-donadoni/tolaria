@@ -1068,11 +1068,13 @@ describe("game_state serialize round-trip", () => {
         lion.canAttackDespiteDefenderThisTurn = true;
         lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
+        // PRD #2064 S6b — only `auraId` rows survive here: this array is pure
+        // layer-6 DERIVED OUTPUT now. The duration-scoped grant that used to sit
+        // beside them (Wall of Caltrops' EOT banding, #495) is a registry entry,
+        // and a state persisted with the old shape is migrated — see
+        // "migrates a pre-S6b layer-6 ledger" below.
         lion.grantedStaticAbilities = [
             { ability: "flying", auraId: "aura-1", seq: 3 },
-            // CR 611.2a — duration-scoped keyword grant (Wall of Caltrops' EOT
-            // banding, #495). Persists across the DB round-trip with its duration.
-            { ability: "banding", duration: { phase: "end-of-turn" } },
             // CR 613.1f (issue #1715) — a grant a strictly-later stripper
             // outranked: recorded but never materialized. The flag has to
             // survive the round trip or the next unapply eats an occurrence
@@ -1091,14 +1093,6 @@ describe("game_state serialize round-trip", () => {
         // are load-bearing for `composeMaterializedSubtypes` after a reload.
         lion.grantedSubtypesAdd = [
             { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
-        ];
-        // CR 611.2a — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
-        lion.temporaryRemovedKeywords = [
-            {
-                keyword: "bands with other:legendary",
-                duration: { phase: "end-of-turn" },
-            },
-            { keyword: "banding", duration: { phase: "end-of-turn" } },
         ];
         lion.grantedActivatedAbilities = [
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
@@ -1238,7 +1232,6 @@ describe("game_state serialize round-trip", () => {
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
             { ability: "flying", auraId: "aura-1", seq: 3 },
-            { ability: "banding", duration: { phase: "end-of-turn" } },
             {
                 ability: "trample",
                 auraId: "aura-2",
@@ -1249,13 +1242,6 @@ describe("game_state serialize round-trip", () => {
         expect(got.staticSeq).toBe(4);
         expect(got.grantedSubtypesAdd).toEqual([
             { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
-        ]);
-        expect(got.temporaryRemovedKeywords).toEqual([
-            {
-                keyword: "bands with other:legendary",
-                duration: { phase: "end-of-turn" },
-            },
-            { keyword: "banding", duration: { phase: "end-of-turn" } },
         ]);
         expect(got.grantedActivatedAbilities).toEqual([
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },

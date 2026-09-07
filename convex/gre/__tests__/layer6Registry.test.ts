@@ -31,6 +31,7 @@ import {
 } from "../continuousEffects";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { finalizeCleanup, untapStep } from "../phases";
+import { compactState, expandState } from "../serialize";
 import { withTemporaryDefinition } from "../../cards";
 import { withTemporaryEmblemDefinition } from "../../cards/emblems";
 import type {
@@ -498,19 +499,32 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         });
 
         it("gives back a keyword a DURATION-scoped removal had taken", () => {
-            const elemental = legacyStrippedElemental({
-                temporaryRemovedKeywords: [
-                    { keyword: "flying", duration: { phase: "end-of-turn" } },
-                ],
-            });
-            const state = boardOf(elemental);
+            // PRD #2064 S6b — the duration-scoped strip is a REGISTRY entry, so
+            // the legacy shape this case is about (`temporaryRemovedKeywords`
+            // on the instance, `staticAbilities` already stripped, no
+            // `baseStaticAbilities`) can only arrive through a LOAD. It comes
+            // in via `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`)
+            // and the capture then inverts the migrated ENTRY, which is the
+            // half of `captureLayer6Base` this slice rewrote.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            elemental.staticAbilities = [];
+            const compact = compactState(boardOf(elemental)) as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            };
+            compact.players[0].battlefield[0].temporaryRemovedKeywords = [
+                { keyword: "flying", duration: { phase: "end-of-turn" } },
+            ];
+            const state = expandState(
+                compact as unknown as Record<string, unknown>
+            );
+            const loaded = state.players[0].battlefield[0];
             refreshCounterGatedStatics(state);
 
-            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
-            expect(count(elemental, "flying")).toBe(0);
+            expect(loaded.baseStaticAbilities).toEqual(["flying"]);
+            expect(count(loaded, "flying")).toBe(0);
             state.phase = "CLEANUP";
             finalizeCleanup(state);
-            expect(count(elemental, "flying")).toBe(1);
+            expect(count(loaded, "flying")).toBe(1);
         });
 
         it("gives back a keyword a continuous ABILITY-LOSS had cleared", () => {
