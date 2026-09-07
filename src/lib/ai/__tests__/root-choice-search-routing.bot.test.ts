@@ -108,6 +108,31 @@ function stateWithBotLibrarySearch(names: string[]): GameState {
     );
 }
 
+/** CR 701.22 (issue #2996) — a live `order-top` choice over the bot's own top
+ *  `top` cards, with `rest` beneath them: the Scry position, whose answer sends
+ *  the un-kept cards to the library bottom. */
+function stateWithBotOrderTop(top: string[], rest: string[]): GameState {
+    const library = [...top, ...rest].map((name, i) =>
+        makeInstance(getCardByName(name).id, {
+            id: `lib-${i}`,
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "library",
+        })
+    );
+    return stateWithBotChoice(
+        {
+            kind: "order-top",
+            zone: "library",
+            destination: "library-bottom",
+            candidateIds: library.slice(0, top.length).map((c) => c.id),
+            count: { min: 0, max: top.length },
+            prompt: "Scry 2 — keep on top or send to the bottom.",
+        },
+        { library }
+    );
+}
+
 /** CR 603.3c (issue #2461) — a modal TRIGGERED ability's announce-time mode
  *  choice (Deceiver Exarch's "untap yours / tap an opponent's"), raised by the
  *  ENGINE itself as the trigger goes on the stack rather than hand-written
@@ -278,6 +303,16 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
     // had a generator, so the search saw an EMPTY move list at the window.
     "madness-cast": () => stateWithBotCastWindow("madness-cast"),
     "rebound-cast": () => stateWithBotCastWindow("rebound-cast"),
+    // CR 701.22 / 701.25 / 701.44a (issue #2996) — the ordered-top family, in
+    // its Scry 2 shape: the two looked-at cards are the whole answer space, and
+    // the answer PARTITIONS them between the library top and the bottom. It is
+    // the one kind whose submission needs a second ordered list, which is why
+    // it could not be a decision node until the `Move` union carried one.
+    "order-top": () =>
+        stateWithBotOrderTop(
+            ["Ornithopter", "Craw Wurm"],
+            ["Island", "Island", "Island"]
+        ),
     "choose-hand-card": () =>
         stateWithBotChoice(
             {
