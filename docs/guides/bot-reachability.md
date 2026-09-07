@@ -57,22 +57,36 @@ Name the kind your card raises and say which of the three it is.
 
 ### 3. `OP_VALUERS` / `OP_BENEFICENCE` — does it know it WANTS to?
 
-`convex/gre/ai/opValuers.ts`. A missing **valuer** reds
-`opValuerCoverage.bot.test.ts`. A missing **beneficence** sign does not red
-anything — it reads `?? "neutral"`, and the Bot loses the who-does-this-help
-axis. That is the Wild Growth shape: the Bot hands a beneficial effect to its
-opponent because it cannot tell the effect is a gift.
+`convex/gre/ai/opValuers.ts`. Both sites are now guarded, in the BOT suite: a
+missing **valuer** reds `opValuerCoverage.bot.test.ts`, and since issue #3006 a
+missing **beneficence** sign reds `opBeneficenceCensus.bot.test.ts`. The reader
+still falls back to `?? "neutral"`, but an implemented Op can no longer reach
+it — which matters because a silent neutral is the Wild Growth shape: the Bot
+hands a beneficial effect to its opponent because nothing told it the effect is
+a gift.
 
-`/new-op` walks both sites (7 and 7b). Site 7b has no guard, so it is the one
-to check by hand.
+What the guard cannot decide for you is WHICH answer is right. Three are
+accepted and there is no fourth: a static `OP_BENEFICENCE` row, a `case` in
+`opBeneficence` plus the name in `PARAMETRIZED_BENEFICENCE_OPS` when the sign is
+a function of the Op's own fields (`pump`, `counters`, `addPlayerCounter`,
+`tapUntap`, `scryReorder`), or a `"neutral"` row whose comment says why the Op
+moves no stake — bind-only Ops (`mayPay`, `nameCard`) and self-directed ones
+(`exileSelf`, `rangedTopdeck`) are the honest neutrals. There is no allowlist to
+park one in. Note what the guard can and cannot do: it enforces that a reason is
+PRESENT, never that it is a reason — `// deferred, see #N` would satisfy it, and
+is precisely what a row must not say.
+
+`/new-op` walks both sites (7 and 7b), and a green `bun run test:app` proves
+nothing about either — run `bun run check:guards`.
 
 ## Checklist
 
 1. New activation or cost shape? → `*.bot.test.ts` proving the Move enumerates.
 2. Raises a `PendingChoice`? → name the kind, say which of the three outcomes
    above applies.
-3. Introduces an Op? → `/new-op`, and confirm **site 7b** (`OP_BENEFICENCE`),
-   not just the guarded site 7.
+3. Introduces an Op? → `/new-op`, and answer **site 7b** (`OP_BENEFICENCE`)
+   as deliberately as site 7: a sign, a parametrized case, or a `"neutral"` row
+   whose comment says why. Both censuses live in the bot suite.
 4. A `resolve()` card? → it owes `aiEffects` (guarded — but the guard only
    checks the shadow EXISTS, not that it is faithful).
 5. Declare the outcome in the PR, the way a preset scenario is declared.

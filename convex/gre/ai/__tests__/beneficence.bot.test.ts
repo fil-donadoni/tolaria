@@ -25,6 +25,8 @@ import { misdirectedTargetCount, targetSlotBeneficence } from "../beneficence";
 import { opBeneficence } from "../opValuers";
 import {
     PLAYER_COUNTER_KINDS,
+    type EffectChoiceKind,
+    type EffectOp,
     type EffectPlayerRef,
     type PlayerCounterKind,
 } from "../../../cards/types";
@@ -212,6 +214,112 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
         );
         for (const kind of PLAYER_COUNTER_KINDS) {
             expect(sign(kind, "controller")).not.toBe("neutral");
+        }
+    });
+
+    // CR 701.22 scry vs CR 701.29 fateseal (issue #3006). Found by censusing
+    // `OP_BENEFICENCE`: `scryReorder` had no row, so Jace, the Mind Sculptor's
+    // `+2` — whose `targetRequirement: { type: "player" }` offers BOTH seats
+    // (CR 115.1) — read `neutral` and the pick fell to rollout noise. The
+    // discriminator is the Op's OWN `chooser` field, which is why this is a
+    // parametrized case rather than a flat row: the field exists precisely to
+    // name "the player who MAKES the decision, when it is NOT the library's
+    // owner".
+    it("reads a library reorder's sign off `chooser`: a scry is a gift, a fateseal is an attack (CR 701.22 / 701.29)", () => {
+        const scry: EffectOp = {
+            op: "scryReorder",
+            player: { target: 0 },
+            count: 1,
+            destination: "library-bottom",
+        };
+        expect(opBeneficence(scry)).toBe("beneficial");
+        expect(opBeneficence({ ...scry, chooser: "controller" })).toBe(
+            "harmful"
+        );
+        // The sign is the Op's, not the recipient's — naming yourself must not
+        // flip it (that inversion is `misdirectedTargetCount`'s job).
+        expect(
+            opBeneficence({
+                ...scry,
+                player: "controller",
+                chooser: "opponent",
+            })
+        ).toBe("harmful");
+        // A surveil (CR 701.25, `destination: "graveyard"`) the owner decides
+        // for themselves is still their own call, so still a gift.
+        expect(opBeneficence({ ...scry, destination: "graveyard" })).toBe(
+            "beneficial"
+        );
+    });
+
+    // The other two signs issue #3006's census added. Neither has an announced
+    // slot in the catalogue TODAY, so nothing in the blade suite can pin them
+    // — this is where they are pinned instead, against the semantics that
+    // earned them the row.
+    it("signs a categorized reveal like its twin `lookDistribute`, and a categorized sweep as an attack (issue #3006)", () => {
+        // CR 701.20a — Atraxa's shape: the kept cards come out of `player`'s
+        // own library and into `player`'s hand.
+        expect(
+            opBeneficence({
+                op: "revealAndCategorize",
+                player: { target: 0 },
+                look: 10,
+                categories: [{ label: "Land", filter: { type: "Land" } }],
+                destination: "library-bottom",
+            })
+        ).toBe("beneficial");
+        // CR 701.9 — Noxious Vapors' shape: being picked means SURVIVING the
+        // sweep; every card not picked is discarded.
+        expect(
+            opBeneficence({
+                op: "chooseCategorized",
+                player: { target: 0 },
+                zone: "hand",
+                categories: [{ label: "White", filter: { color: "W" } }],
+                onPicked: "keep",
+                sweep: { action: "discard" },
+            })
+        ).toBe("harmful");
+    });
+
+    // Both found by REVIEWING the census, not by writing it — each had been
+    // adjudicated `"neutral"` on a reason that a shipped card falsifies.
+    it("signs a forced hand-to-library put-back as an attack (CR 401.4, Stunted Growth)", () => {
+        expect(
+            opBeneficence({
+                op: "putBack",
+                player: { target: 0 },
+                count: 3,
+            })
+        ).toBe("harmful");
+    });
+
+    it("reads a `choice`'s sign off its KIND: a coerced pick is an attack, a free one is a binding (CR 601.2b)", () => {
+        const pick = (kind: EffectChoiceKind): EffectOp => ({
+            op: "choice",
+            kind,
+            player: { target: 0 },
+            zone: kind === "discard-hand" ? "hand" : "battlefield",
+            count: 1,
+            prompt: "pick",
+            bind: "$picked",
+        });
+        // Coerced: Liliana of the Veil's `−2`, the Mind Rot family. The
+        // announced slot lives on THIS Op — the `sacrifice`/`discard` that
+        // consumes the binding names no slot at all — so a neutral here left
+        // the whole edict shape unranked.
+        expect(opBeneficence(pick("sacrifice-permanents"))).toBe("harmful");
+        expect(opBeneficence(pick("discard-hand"))).toBe("harmful");
+        // Free: the chooser picks what they want, so the Op is a binder and
+        // the stake belongs to whatever reads the binding.
+        for (const kind of [
+            "choose-permanents",
+            "search-library",
+            "choose-hand-card",
+            "choose-graveyard-card",
+            "choose-exile-card",
+        ] as const) {
+            expect(opBeneficence(pick(kind)), kind).toBe("neutral");
         }
     });
 });
