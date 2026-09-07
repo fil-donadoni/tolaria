@@ -1350,6 +1350,30 @@ export interface ActivatedAbility {
          *  determined at announcement), each successive activation costs one
          *  more (1 counter → {1}, then {2}, …). */
         manaEqualToCounterCount?: { type: string };
+        /** CR 601.2f — this ABILITY's intrinsic discount to its own activation
+         *  cost. The ability arm of ADR 0063's self-host reduction (ADR 0096):
+         *  read off the ANNOUNCED ability itself because its source may not be
+         *  a permanent at all — a Hand-Activated Ability (CR 113.6j, whose cost
+         *  discards its own card) is announced from the hand, so the
+         *  battlefield `cost-modifier` scan cannot discover its reducer any
+         *  more than it can discover a spell's own. Structurally the same hole
+         *  the spell-side {@link SelfCostReduction} fills, one zone over.
+         *
+         *  PER-ABILITY, never per-card: the Oracle says "**this** ability costs
+         *  {1} less to activate", and a card carrying this typically has other
+         *  activated abilities the reduction must not touch (Boseiju, Who
+         *  Endures has a mana ability alongside its channel ability).
+         *
+         *  Carries the shared {@link CostReductionAmount} union and is resolved
+         *  by the SAME `resolveCostReductionGeneric` the battlefield scan and
+         *  the spell self-host arm use (`getCostModifiers`, `gre/state.ts`), so
+         *  a spell reduction and an ability reduction can never disagree about
+         *  what a reduction may touch: generic-only (coloured pips survive any
+         *  count) and floored at zero. No `minTotalMana` twin — the floor is a
+         *  property of the reducing EFFECT and no self-reducing ability
+         *  declares one; a static that does still contributes its floor here
+         *  through the scan. */
+        selfReduction?: CostReductionAmount;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -7826,8 +7850,9 @@ export type CostReductionAmount =
  *  she isn't on the battlefield (or an artifact) at announcement time. Reuses
  *  the same `costReduction` / `minTotalMana` shape as `StaticCostModifier` so
  *  both apply sites in `getCostModifiers` (`gre/state.ts`) share one
- *  reduction-amount resolver. Spell-only — an activated ability has no "self"
- *  spell object to self-reduce. */
+ *  reduction-amount resolver. SPELL-only: an activated ability declares its own
+ *  self reduction on the ability's `cost.selfReduction` instead (ADR 0096),
+ *  because the Oracle scopes it to "this ability" and a card may carry several. */
 export interface SelfCostReduction {
     costReduction: CostReductionAmount;
     minTotalMana?: number;

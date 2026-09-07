@@ -64,7 +64,7 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
             pending.cardInstanceId,
             isSorceryTiming(state)
         ),
-        ...buildBoardAbilityDemands(player.battlefield, {
+        ...buildBoardAbilityDemands(state, player.battlefield, {
             phase: state.phase,
             isControllersTurn: state.activePlayerId === player.id,
         }),

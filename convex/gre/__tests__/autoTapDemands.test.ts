@@ -9,7 +9,11 @@ import {
     buildBoardAbilityDemands,
     buildHandSpellDemands,
 } from "../autoTapDemands";
-import { makeInstance } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import type { Phase } from "../types";
 
 // Card instance ids → definitions (verified in the set files).
@@ -132,12 +136,19 @@ const MAIN: Phase = "PRECOMBAT_MAIN";
 const COMBAT: Phase = "DECLARE_ATTACKERS";
 const myTurn = { phase: MAIN, isControllersTurn: true };
 
+/** The board the Demands are built against. `buildBoardAbilityDemands` folds
+ *  the CR 601.2f cost modifiers (ADR 0096), which are board-wide, so it needs
+ *  the whole state rather than the bare battlefield array. */
+function stateWith(battlefield: ReturnType<typeof makeInstance>[]) {
+    return makeState({
+        players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+    });
+}
+
 describe("buildBoardAbilityDemands — on-board activated abilities (issue #476, CR 602.1)", () => {
     it("a firebreathing ability ({R}: +1/+0) becomes a {R} Demand", () => {
-        const demands = buildBoardAbilityDemands(
-            [onBoard(SHIVAN_DRAGON, "shiv")],
-            myTurn
-        );
+        const shiv = [onBoard(SHIVAN_DRAGON, "shiv")];
+        const demands = buildBoardAbilityDemands(stateWith(shiv), shiv, myTurn);
         expect(ids(demands)).toEqual(["shiv#shivan-dragon-pump"]);
         expect(demands[0].cost).toEqual({ R: 1 });
     });
@@ -145,16 +156,19 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
     it("a repeatable ability is counted ONCE, not per activation (PRD story 12)", () => {
         // One firebreathing creature must yield exactly one Demand regardless of
         // how many times it could be re-activated.
-        const demands = buildBoardAbilityDemands(
-            [onBoard(SHIVAN_DRAGON, "shiv")],
-            myTurn
-        );
+        const shiv = [onBoard(SHIVAN_DRAGON, "shiv")];
+        const demands = buildBoardAbilityDemands(stateWith(shiv), shiv, myTurn);
         expect(demands).toHaveLength(1);
     });
 
     it("two distinct firebreathing creatures are two distinct Demands", () => {
+        const shivs = [
+            onBoard(SHIVAN_DRAGON, "shivA"),
+            onBoard(SHIVAN_DRAGON, "shivB"),
+        ];
         const demands = buildBoardAbilityDemands(
-            [onBoard(SHIVAN_DRAGON, "shivA"), onBoard(SHIVAN_DRAGON, "shivB")],
+            stateWith(shivs),
+            shivs,
             myTurn
         );
         expect(ids(demands)).toEqual([
@@ -166,8 +180,10 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
     it("instant-speed abilities count in any window (off-turn included)", () => {
         // Shivan's pump has no timing restriction → instant-speed (CR 602.5b).
         const offTurn = { phase: MAIN, isControllersTurn: false };
+        const shiv = [onBoard(SHIVAN_DRAGON, "shiv")];
         const demands = buildBoardAbilityDemands(
-            [onBoard(SHIVAN_DRAGON, "shiv")],
+            stateWith(shiv),
+            shiv,
             offTurn
         );
         expect(ids(demands)).toEqual(["shiv#shivan-dragon-pump"]);
@@ -176,9 +192,11 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
     it("a phase-restricted ability counts only in its phase (Jade Statue, combat-only)", () => {
         const statue = [onBoard(JADE_STATUE, "jade")];
         // Main phase, own turn: NOT activatable now → not a Demand.
-        expect(buildBoardAbilityDemands(statue, myTurn)).toHaveLength(0);
+        expect(
+            buildBoardAbilityDemands(stateWith(statue), statue, myTurn)
+        ).toHaveLength(0);
         // During combat: activatable → a {2} Demand.
-        const inCombat = buildBoardAbilityDemands(statue, {
+        const inCombat = buildBoardAbilityDemands(stateWith(statue), statue, {
             phase: COMBAT,
             isControllersTurn: true,
         });
@@ -193,13 +211,20 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
             zone: "battlefield",
             abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
         });
-        expect(buildBoardAbilityDemands([suppressed], myTurn)).toHaveLength(0);
+        expect(
+            buildBoardAbilityDemands(
+                stateWith([suppressed]),
+                [suppressed],
+                myTurn
+            )
+        ).toHaveLength(0);
     });
 
     it("a permanent with no mana-costed activated ability yields nothing", () => {
         // Savannah Lions is a vanilla creature — no activated abilities.
+        const lions = [onBoard(SAVANNAH_LIONS, "lions")];
         expect(
-            buildBoardAbilityDemands([onBoard(SAVANNAH_LIONS, "lions")], myTurn)
+            buildBoardAbilityDemands(stateWith(lions), lions, myTurn)
         ).toHaveLength(0);
     });
 });

@@ -2806,6 +2806,18 @@ function enumerateAbilityMoves(
                 perm.counters?.[ability.cost.manaEqualToCounterCount.type] ?? 0;
             if (have > 0) manaCost.X = (manaCost.X ?? 0) + have;
         }
+        // CR 601.2f (ADR 0096, issue #2288) — fold the SAME cost modifiers the
+        // server charges at both `activateAbility` commit paths: the
+        // battlefield `cost-modifier` scan plus the announced ability's own
+        // `cost.selfReduction`. Until this call the enumerator read
+        // `ability.cost.mana` raw while its spell twin above already went
+        // through `getCostModifiers` — an omission, not a design: a bot that
+        // believes an ability is unaffordable never activates it, so a
+        // reduction the server honours was invisible to the search.
+        applyCostModifiers(
+            manaCost,
+            getCostModifiers(state, perm, "ability", ability, player.id)
+        );
         const tapPlan = planManaPayment(state, player, manaCost);
         if (tapPlan === null) continue;
 

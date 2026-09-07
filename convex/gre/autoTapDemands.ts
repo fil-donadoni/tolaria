@@ -3,8 +3,12 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { Demand } from "./autoTap";
 import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
 import type { Phase } from "./types";
-import type { CardInstanceState } from "./state";
-import { normalizeManaCost } from "./state";
+import type { CardInstanceState, GameState } from "./state";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+} from "./state";
 
 /**
  * Build the **hand-spell Demands** for smart auto-tap (PRD #472, ADR 0034,
@@ -133,6 +137,15 @@ export function buildHandSpellDemands(
  * hand-spell helper; X-cost ability inflation is out of scope for this slice
  * (issue #477 handles X-spells).
  *
+ * **Reserved at the MODIFIED cost (CR 601.2f, ADR 0096, issue #2288).** The
+ * amount reserved is what the server would actually charge — the battlefield
+ * `cost-modifier` scan plus the ability's own `cost.selfReduction` — not the
+ * printed `cost.mana`. That is why this helper needs the whole `state`: the
+ * scan is board-wide and the reduction's count is read off the reserving
+ * player's permanents. Reserving the PRINTED cost for an ability that now
+ * costs less strands mana the player needed elsewhere, and it makes the
+ * solver disagree with the mutation that will charge the activation.
+ *
  * Demand affordability *before* and *after* payment is decided downstream in
  * `solveSmartAutoTap` — this helper only assembles the candidate cost list,
  * deterministically in battlefield order then ability order. The Demand `id`
@@ -140,6 +153,7 @@ export function buildHandSpellDemands(
  * same ability across permanents) stay distinct for debugging.
  */
 export function buildBoardAbilityDemands(
+    state: GameState,
     battlefield: CardInstanceState[],
     timing: { phase: Phase; isControllersTurn: boolean }
 ): Demand[] {
@@ -184,6 +198,12 @@ export function buildBoardAbilityDemands(
                 continue;
             }
             const cost = normalizeManaCost(ability.cost.mana);
+            // CR 601.2f (ADR 0096) — reserve the REDUCED total, through the
+            // same collector + apply pair the `activateAbility` mutation uses.
+            applyCostModifiers(
+                cost,
+                getCostModifiers(state, perm, "ability", ability)
+            );
             // A free (no-mana) ability can never be stranded by auto-tap.
             if (Object.keys(cost).length === 0) continue;
             // Counted once per (permanent, ability) — repeatable activations do
