@@ -136,10 +136,17 @@ describe("ConfirmDialog — nothing is sent before the effect is stated", () => 
         raise();
         const confirm = await screen.findByRole("button", { name: "Confirm" });
 
-        // Both clicks are dispatched before the first request resolves, and
-        // the second is dispatched programmatically — which is exactly the
-        // case `disabled` is not guaranteed to suppress.
         fireEvent.click(confirm);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        // The control says it is busy without going `disabled`, so the second
+        // click genuinely REACHES the handler — which is what makes this a
+        // test of the latch rather than a test of a browser behaviour. With
+        // `disabled` the browser would refuse the click before any of the
+        // component's code ran, and removing the latch would leave the test
+        // green (measured).
+        expect(confirm.getAttribute("aria-disabled")).toBe("true");
+        expect((confirm as HTMLButtonElement).disabled).toBe(false);
+
         fireEvent.click(confirm);
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -198,7 +205,9 @@ describe("ConfirmDialog — nothing is sent before the effect is stated", () => 
 
         raise();
         fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
-        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        const cancel = screen.getByRole("button", { name: "Cancel" });
+        expect((cancel as HTMLButtonElement).disabled).toBe(false);
+        fireEvent.click(cancel);
         await act(async () => {
             release?.();
         });

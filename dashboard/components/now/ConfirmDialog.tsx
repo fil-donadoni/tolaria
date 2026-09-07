@@ -82,18 +82,36 @@ export function ConfirmDialog({ onSuccess }: { onSuccess: () => void }) {
                 </div>
             ) : null}
             <div className="flex justify-end gap-2">
-                <button
-                    type="button"
-                    className={CONTROL_CLASS}
-                    disabled={busy}
-                    onClick={close}
-                >
+                {/*
+                    Cancel stays ENABLED while a request is out. There is no
+                    reason to make an operator wait one out, and the close path
+                    already supports it — Escape and the backdrop could always
+                    do this, so a Cancel button that could not was the odd one.
+                */}
+                <button type="button" className={CONTROL_CLASS} onClick={close}>
                     Cancel
                 </button>
+                {/*
+                    `aria-disabled`, not `disabled`. Two reasons, and the
+                    second is the one that matters:
+
+                    - `disabled` on the button the operator has just pressed
+                      moves focus to `<body>` mid-interaction.
+                    - `disabled` would also make the re-entrancy latch
+                      UNTESTABLE, because the browser refuses the second click
+                      before any of this component's code runs — and a guard
+                      nothing can exercise is a guard nobody knows still works
+                      (measured: with `disabled`, deleting the latch left every
+                      test green). With `aria-disabled` the second click
+                      reaches the handler and `inFlight` is what refuses it,
+                      which is the AC — "a double click cannot send two" —
+                      enforced HERE rather than delegated to a host behaviour
+                      this module does not control.
+                */}
                 <button
                     type="button"
                     className={CONTROL_PRIMARY_CLASS}
-                    disabled={busy}
+                    aria-disabled={busy}
                     onClick={() => void confirm()}
                 >
                     {busy ? "Working…" : "Confirm"}
