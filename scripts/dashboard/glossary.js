@@ -253,7 +253,7 @@ export const GLOSSARY = {
     },
     "loop.STALLED": {
         label: "stalled",
-        tip: "The driver is alive and armed but no pass has finished recently. Distinct from stopped: nothing asked it to halt.",
+        tip: "No driver process is running, yet work is outstanding — issues still claimed, or a queue the armed loop should be draining. Distinct from stopped: nothing asked it to halt, it is simply not there.",
     },
     "loop.STOPPED": {
         label: "stopped",
@@ -493,6 +493,176 @@ export const GLOSSARY = {
     "empty.families.none": {
         label: "no family activity",
         tip: "No agent activity is recorded against any issue family in the selected date range.",
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Now view sections (issue #3135) — the `ⓘ` beside every heading and
+    // every traffic light. `label` is the heading itself; `tip` says what
+    // the section shows and where the numbers come from.
+    // ─────────────────────────────────────────────────────────────────────
+    "section.verdict": {
+        label: "Loop health",
+        tip: "One verdict for the whole AFK loop, computed server-side from the driver process, the claims and the queue — the same call `bun run loop:status` prints. The findings underneath are the evidence it rests on.",
+    },
+    "section.driver": {
+        label: "Driver",
+        tip: "The loop-drain process that runs passes unattended: whether a pid file names a live process, whether the end-of-pass handoff is armed, and the last passes it logged.",
+    },
+    "section.queue": {
+        label: "Queue",
+        tip: "Open issues labelled ready-for-agent that nobody has claimed, split by the project board's Priority field. What the next pass would pick from.",
+    },
+    "section.claims": {
+        label: "Claimed issues",
+        tip: "Issues carrying the in-progress label — taken by a pass or by a session started by hand. Each row says how far the work got and whether anything on disk or on the remote still vouches for it.",
+    },
+    "section.batch": {
+        label: "Batch",
+        tip: "The newest batch of review receipts under .claude/receipts: one receipt per subagent that yielded, plus a marker for each session the receipt guard saw with no receipt. Only wip, failed, blocking and collision receipts are listed individually.",
+    },
+    "section.timeline": {
+        label: "Last 24 hours",
+        tip: "Driver passes as blocks (width is duration), currently held claims as pins with a tail running to now, merged pull requests as ticks — one shared time axis, oldest on the left.",
+    },
+    "section.activity": {
+        label: "Activity by hour",
+        tip: "Tokens generated per hour over the last 24 hours, read straight from the session transcripts (main threads and subagents, each API response counted once), with the pull requests merged in that hour overlaid. Local time.",
+    },
+    "section.live": {
+        label: "Live sessions",
+        tip: "Claude Code sessions whose transcript was written to in the last 30 minutes — the AFK driver's passes and any conversation started by hand. Open one to follow it like tail -f.",
+    },
+
+    // Driver pass table columns
+    "pass.number": {
+        label: "pass",
+        tip: "The driver's own sequence number for the pass, from loop-drain.log.",
+    },
+    "pass.exit": {
+        label: "exit code",
+        tip: "How the pass's own claude invocation exited: 0 is clean, anything else is a crash, a rate limit or a kill.",
+    },
+    "pass.outcome": {
+        label: "outcome",
+        tip: "What the pass achieved: landed something, ran and landed nothing, or died. Derived from the reason code the driver logged.",
+    },
+    "pass.reason": {
+        label: "reason",
+        tip: "The driver's own reason code for how the pass ended — a dash when it simply finished, otherwise no-progress, claims-held, rate-limit, claude-error or claude-retry.",
+    },
+
+    // Queue stat boxes
+    "queue.P0": {
+        label: "P0",
+        tip: "Unclaimed ready-for-agent issues whose board Priority is P0 — picked before anything else.",
+    },
+    "queue.P1": {
+        label: "P1",
+        tip: "Unclaimed ready-for-agent issues at board Priority P1.",
+    },
+    "queue.P2": {
+        label: "P2",
+        tip: "Unclaimed ready-for-agent issues at board Priority P2.",
+    },
+    "queue.unprioritized": {
+        label: "no priority",
+        tip: "Unclaimed ready-for-agent issues with no Priority set on the board — picked last, oldest first.",
+    },
+    "queue.total": {
+        label: "total waiting",
+        tip: "Every unclaimed ready-for-agent issue, whatever its priority.",
+    },
+
+    // Batch stat boxes
+    "receipts.total": {
+        label: "receipts",
+        tip: "Receipt files in the batch directory, every role and outcome included.",
+    },
+    "receipts.missing": {
+        label: "missing session markers",
+        tip: "Sessions the receipt guard saw finish with no receipt written — a marker file per session, not a review. Large counts are normal: every subagent that never owed a receipt leaves one.",
+    },
+    "receipts.attention": {
+        label: "needing attention",
+        tip: "Receipts whose outcome is wip, failed, blocking or collision — the ones an operator has to act on.",
+    },
+
+    // Verdict findings
+    "finding.claims-held": {
+        label: "claims held",
+        tip: "No driver is running, yet issues are still labelled in-progress. That work was taken and never landed — not the same as an empty queue.",
+    },
+    "finding.orphaned-claims": {
+        label: "orphaned claims",
+        tip: "Claims old enough to judge with nothing to show — no worktree, no branch, no PR. Nothing in the loop will release them; loop:doctor --release does.",
+    },
+    "finding.failed-reads": {
+        label: "failed reads",
+        tip: "One of the loop's own reads (gh, git, the board) failed, so a number on this screen may be a zero that means 'could not tell'.",
+    },
+
+    // Activity chart
+    "activity.outTok": {
+        label: "output tokens",
+        tip: "Tokens the models generated in that hour, across every session and subagent of this project. The cost driver.",
+    },
+    "activity.inTok": {
+        label: "input tokens",
+        tip: "Uncached prompt tokens sent in that hour — small next to cache reads, which are billed at a tenth of the rate.",
+    },
+    "activity.cacheRead": {
+        label: "cache reads",
+        tip: "Prompt tokens served from the cache in that hour — the bulk of the context on every message, at a tenth of the input price.",
+    },
+    "activity.cost": {
+        label: "list-price cost",
+        tip: "That hour's messages priced at published API rates — a comparison figure between hours, not what the subscription charged.",
+    },
+    "activity.merged": {
+        label: "PRs merged",
+        tip: "Pull requests merged in that hour, from GitHub — each one an issue resolved.",
+    },
+
+    // Live sessions
+    "live.active": {
+        label: "active",
+        tip: "The transcript was written to within the last few minutes — a turn is in progress right now.",
+    },
+    "live.live": {
+        label: "recent",
+        tip: "Written to within the last 30 minutes, but not in the last few — between turns, or waiting on the operator.",
+    },
+    "live.idle": {
+        label: "idle",
+        tip: "No write in the last 30 minutes.",
+    },
+    "live.session": {
+        label: "session",
+        tip: "The session's title when it has one, otherwise its first prompt; the id is behind the tooltip on the row.",
+    },
+    "live.branch": {
+        label: "branch",
+        tip: "The git branch the session's last message was stamped with — an issue worktree's branch names the issue it is on.",
+    },
+    "live.last": {
+        label: "last activity",
+        tip: "How long ago the transcript was last written to.",
+    },
+    "live.tokens": {
+        label: "output tokens (24h)",
+        tip: "Tokens this session and its subagents generated inside the 24-hour window.",
+    },
+    "live.subagents": {
+        label: "subagents",
+        tip: "Subagent transcripts this session spawned that were written to inside the window.",
+    },
+    "live.watch": {
+        label: "watch",
+        tip: "Open the conversation in a side panel that follows the transcript as it grows — prompts, replies, tool calls and results, like tail -f on the terminal running it.",
+    },
+    "claim.session": {
+        label: "session",
+        tip: "The session most likely working this issue: the transcript in the window that names the issue most often, most recently. A heuristic — nothing on disk records the pairing.",
     },
 };
 

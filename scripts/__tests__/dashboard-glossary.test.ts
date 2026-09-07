@@ -459,3 +459,210 @@ describe("dashboard tooltip engine — the imperative chart path still works (#2
         expect(tipOf(win).style.opacity).toBe("0");
     });
 });
+
+describe("dashboard tooltip engine — the whole Now body and per-datum tips (issue #3135)", () => {
+    it("the REAL Now body, run through the real engine, declares no term the glossary cannot resolve", async () => {
+        const { nowBodyHtml } = await import("../dashboard/now.js");
+        const nowMs = Date.now();
+        const html = nowBodyHtml(
+            {
+                verdict: {
+                    state: "STALLED",
+                    sentence: "s",
+                    remedy: "`bun run loop:afk` arms it",
+                    findings: [
+                        { code: "claims-held", detail: "d" },
+                        { code: "orphaned-claims", detail: "d" },
+                        { code: "failed-reads", detail: "d" },
+                    ],
+                },
+                driver: {
+                    armed: false,
+                    pid: null,
+                    pidAlive: false,
+                    stopFilePresent: false,
+                    recentPasses: [
+                        {
+                            epoch: Math.floor(nowMs / 1000) - 60,
+                            pass: 1,
+                            claudeExit: 0,
+                            pct: "1",
+                            queueBefore: 1,
+                            queueAfter: 1,
+                            reason: "claims-held",
+                        },
+                        {
+                            epoch: Math.floor(nowMs / 1000) - 30,
+                            pass: 2,
+                            claudeExit: 0,
+                            pct: "1",
+                            queueBefore: 1,
+                            queueAfter: 1,
+                            reason: "-",
+                        },
+                        {
+                            epoch: Math.floor(nowMs / 1000) - 10,
+                            pass: 3,
+                            claudeExit: 0,
+                            pct: "1",
+                            queueBefore: 1,
+                            queueAfter: 1,
+                            reason: "no-progress",
+                        },
+                    ],
+                },
+                claims: [
+                    {
+                        issue: 3096,
+                        title: "t",
+                        stage: "PR open",
+                        verdict: { state: "live", reason: "" },
+                        priority: "P1",
+                        ageHours: 1,
+                        dependents: 1,
+                    },
+                    {
+                        issue: 3097,
+                        title: "t",
+                        stage: "claimed",
+                        verdict: { state: "orphan", reason: "" },
+                        priority: null,
+                        ageHours: 30,
+                        dependents: 0,
+                    },
+                ],
+                claimsError: null,
+                queueDepth: { P0: 1, P1: 1, P2: 1, unprioritized: 1, total: 4 },
+                queueDepthError: null,
+                receiptsSummary: {
+                    total: 3,
+                    counts: [
+                        { role: "implement", outcome: "pr-open", count: 1 },
+                        { role: "review", outcome: "approve", count: 1 },
+                        { role: "missing", outcome: "missing", count: 1 },
+                    ],
+                    interesting: [
+                        {
+                            issue: 3096,
+                            role: "implement",
+                            outcome: "failed",
+                            pr: 1,
+                        },
+                    ],
+                },
+                batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
+                batchStartedAt: Math.floor(nowMs / 1000),
+                priorityWarning: null,
+                receiptErrors: [],
+                timelinePasses: [],
+                recentMerges: [
+                    {
+                        number: 1,
+                        title: "m",
+                        mergedAt: new Date(nowMs - 3600_000).toISOString(),
+                    },
+                ],
+                activity: {
+                    windowHours: 24,
+                    asOf: nowMs,
+                    buckets: [
+                        {
+                            hourStart: nowMs - (nowMs % 3600_000),
+                            outTok: 10,
+                            inTok: 1,
+                            cacheRead: 1,
+                            cacheWrite: 0,
+                            cost: 0.1,
+                            messages: 1,
+                        },
+                    ],
+                },
+                live: {
+                    asOf: nowMs,
+                    liveMinutes: 30,
+                    activeMinutes: 3,
+                    sessions: [
+                        {
+                            session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
+                            title: "s",
+                            lastPrompt: null,
+                            cwd: null,
+                            gitBranch: "b",
+                            lastWriteMs: nowMs,
+                            lastMessageMs: nowMs,
+                            outTok: 1,
+                            inTok: 1,
+                            cacheRead: 1,
+                            cost: 0,
+                            messages: 1,
+                            subagents: 0,
+                            topIssues: [{ issue: 3096, mentions: 2 }],
+                            liveness: "active",
+                        },
+                        {
+                            session: "11111111-1111-4111-8111-111111111111",
+                            title: null,
+                            lastPrompt: "p",
+                            cwd: null,
+                            gitBranch: null,
+                            lastWriteMs: nowMs - 600_000,
+                            lastMessageMs: null,
+                            outTok: 0,
+                            inTok: 0,
+                            cacheRead: 0,
+                            cost: 0,
+                            messages: 0,
+                            subagents: 1,
+                            topIssues: [],
+                            liveness: "live",
+                        },
+                    ],
+                    byIssue: {
+                        3096: [
+                            {
+                                session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
+                                liveness: "active",
+                                lastWriteMs: nowMs,
+                                title: "s",
+                            },
+                        ],
+                    },
+                },
+            },
+            nowMs
+        );
+        const win = mountPage(`<div id="host">${html}</div>`);
+        const { unknown } = installTooltipEngine();
+        expect(unknown).toEqual([]);
+        // Sanity: this is the rich page, not an empty one.
+        expect(
+            win.document.querySelectorAll(".ls-info").length
+        ).toBeGreaterThanOrEqual(8);
+        expect(
+            win.document.querySelectorAll(".ls-watch").length
+        ).toBeGreaterThanOrEqual(2);
+        expect(win.document.querySelectorAll(".ls-act-hit").length).toBe(24);
+        // The `ⓘ` keeps its glyph — the engine must not paint the label over
+        // it (it carries its own aria-label, the merge-tick rule).
+        for (const el of win.document.querySelectorAll(".ls-info")) {
+            expect(el.textContent).toBe("ⓘ");
+        }
+    });
+
+    it("a `data-tip` element shows its own text on hover and on focus — the per-datum path beside the glossary", () => {
+        const win = mountPage(
+            `<svg><rect id="bar" tabindex="0" data-tip="14:00–15:00&#10;output tokens: 12.3k"></rect></svg>`
+        );
+        installTooltipEngine();
+        const bar = win.document.getElementById("bar")!;
+        fire(win, bar, "mouseover");
+        expect(tipOf(win).innerHTML).toBe(
+            "14:00–15:00<br>output tokens: 12.3k"
+        );
+        expect(tipOf(win).getAttribute("aria-hidden")).toBe("false");
+        fire(win, bar, "mouseout");
+        expect(tipOf(win).getAttribute("aria-hidden")).toBe("true");
+        fire(win, bar, "focusin");
+        expect(tipOf(win).getAttribute("aria-hidden")).toBe("false");
+    });
+});

@@ -1,8 +1,16 @@
-import { esc, fmtAgo, issueLink } from "./format.js";
+import { esc, fmtAgo, fmtAgoMs, issueLink } from "./format.js";
+import {
+    sectionHtml,
+    tableHtml,
+    badgeHtml,
+    emptyHtml,
+    unavailableHtml,
+} from "./now-atoms.js";
+import { watchButtonHtml, sessionLabel } from "./now-live.js";
 
 /**
  * The claimed-issues table of the Now panel (#2519, split out in #2625,
- * reworded for a person in #2632).
+ * reworded for a person in #2632, framed and made watchable in #3135).
  *
  * `claims` is `null` (with a sibling `claimsError`) when the underlying `gh`
  * read failed (#2519 round 3, finding 5) — rendered as an explicit
@@ -10,6 +18,13 @@ import { esc, fmtAgo, issueLink } from "./format.js";
  * indistinguishable from a healthy read that genuinely found nothing (the
  * exact bug: at 0/5000 GraphQL quota this panel used to say "no claimed
  * issues", reading as an idle, drained loop).
+ *
+ * THE SESSION COLUMN (issue #3135). `data.live.byIssue[issue]` — from
+ * `/api/live?issues=…` — lists the transcripts that name this issue most,
+ * most recently. The first is offered as a Watch button opening the tail
+ * drawer; the row also says how long ago that transcript was written to,
+ * which is the one fact the claim itself cannot carry: whether ANYONE is
+ * typing on it right now. A claim with no candidate session says so.
  *
  * Pure — the loop-status payload in, an HTML string out.
  */
@@ -45,14 +60,13 @@ const VERDICT_WORD = {
     suspect: "unsure",
     live: "working",
 };
+const VERDICT_TONE = { orphan: "bad", suspect: "warn", live: "good" };
 
 /**
  * Stage → a sentence naming what is DONE and what is MISSING (#2632 AC),
  * more specific than the glossary's own short `stage.*` label ("branch
- * pushed"). A genuinely new glossary TERM was not added for this (brief:
- * report the need rather than editing `glossary.js`) — this local mapping is
- * the reported need. `data-term` is still set to the existing `stage.*` key
- * so hovering/focusing surfaces the glossary's own explanation as a SECOND,
+ * pushed"). `data-term` is still set to the existing `stage.*` key so
+ * hovering/focusing surfaces the glossary's own explanation as a SECOND,
  * complementary layer (`enhanceTerms` only fills EMPTY text content, so the
  * sentence below is never overwritten).
  */
@@ -145,38 +159,105 @@ function blocksBadgeHtml(c) {
  */
 function dependentsUnavailableHtml(data) {
     if (data.dependentsError == null) return "";
-    return (
-        `<div class="ls-unavailable">⚠ blocked-by counts unavailable — ${esc(data.dependentsError)}` +
-        `<br>cannot tell whether any claim blocks others — not the same as "blocks nothing"</div>`
+    return unavailableHtml(
+        `blocked-by counts unavailable — ${data.dependentsError}`,
+        'cannot tell whether any claim blocks others — not the same as "blocks nothing"'
     );
 }
 
-function claimsBodyHtml(data) {
+/**
+ * The session cell (issue #3135): the best candidate's Watch button and
+ * how recently that transcript was written to; "no session found" when no
+ * transcript in the window names the issue; the UNAVAILABLE dash when the
+ * live read itself failed (the table-level note says why).
+ */
+export function sessionCellHtml(c, data, nowMs) {
+    if (data.liveError != null) return `<span class="mini">—</span>`;
+    const candidates = data.live?.byIssue?.[c.issue] ?? [];
+    if (!candidates.length) return `<span class="mini">no session found</span>`;
+    const best = candidates[0];
+    const tone =
+        best.liveness === "active"
+            ? "good"
+            : best.liveness === "live"
+              ? "warn"
+              : "neutral";
+    return (
+        watchButtonHtml(best.session, sessionLabel(best), c.issue) +
+        ` ${badgeHtml(fmtAgoMs(best.lastWriteMs, nowMs), tone, `live.${best.liveness ?? "idle"}`)}` +
+        (candidates.length > 1
+            ? ` <span class="mini">+${candidates.length - 1} more</span>`
+            : "")
+    );
+}
+
+function liveUnavailableHtml(data) {
+    if (data.liveError == null) return "";
+    return unavailableHtml(
+        `session lookup unavailable — ${data.liveError}`,
+        "cannot tell which session is on each claim — not the same as none"
+    );
+}
+
+export const CLAIM_COLUMNS = [
+    { term: "claim.live", label: "status" },
+    { term: "issue", label: "issue" },
+    { term: "pri", label: "Priority" },
+    { term: "stage.claimed", label: "stage" },
+    { term: "first_ts", label: "age" },
+    { term: "claim.session", label: "session" },
+    { term: "issue", label: "title", prose: true },
+];
+
+function claimsBodyHtml(data, nowMs) {
     const claims = data.claims;
     if (data.claimsError != null) {
-        return `<div class="ls-unavailable">⚠ ${esc(data.claimsError)}<br>cannot tell whether anything is claimed — not the same as "no claimed issues"</div>`;
+        return unavailableHtml(
+            data.claimsError,
+            'cannot tell whether anything is claimed — not the same as "no claimed issues"'
+        );
     }
     if (!claims || !claims.length) {
-        return `<div class="ls-empty">no claimed issues</div>`;
+        return emptyHtml("No claimed issues.");
     }
+    const rows = claims.map((c) => [
+        `${verdictMarkHtml(c)}${releaseButtonHtml(c)}`,
+        issueLink(c.issue),
+        c.priority
+            ? badgeHtml(
+                  c.priority,
+                  c.priority === "P0"
+                      ? "bad"
+                      : c.priority === "P1"
+                        ? "warn"
+                        : "neutral",
+                  "pri"
+              )
+            : `<span class="mini">—</span>`,
+        stageHtml(c.stage, c.issue),
+        ageHtml(c.ageHours),
+        sessionCellHtml(c, data, nowMs),
+        `${esc(c.title)}${blocksBadgeHtml(c)}`,
+    ]);
     return (
         dependentsUnavailableHtml(data) +
-        `<div class="tbl-wrap"><table><thead><tr><th></th><th>issue</th><th>Priority</th><th>stage</th><th>age</th><th>title</th></tr></thead><tbody>` +
-        claims
-            .map((c) => {
-                return (
-                    `<tr><td>${verdictMarkHtml(c)}${releaseButtonHtml(c)}</td><td>${issueLink(c.issue)}</td><td>${esc(c.priority ?? "—")}</td>` +
-                    `<td>${stageHtml(c.stage, c.issue)}</td>` +
-                    `<td>${ageHtml(c.ageHours)}</td>` +
-                    `<td>${esc(c.title)}${blocksBadgeHtml(c)}</td></tr>`
-                );
-            })
-            .join("") +
-        `</tbody></table></div>`
+        liveUnavailableHtml(data) +
+        tableHtml(CLAIM_COLUMNS, rows, { cls: "ls-claims-table" })
     );
 }
 
-/** The whole "Claimed issues (N)" block, heading included. */
-export function claimsSectionHtml(data) {
-    return `<div style="margin-top:12px"><b>Claimed issues (${claimsHeaderCount(data)})</b>${claimsBodyHtml(data)}</div>`;
+/** The whole "Claimed issues (N)" section, heading included. */
+export function claimsSectionHtml(
+    data,
+    id = "ls-section-claims",
+    nowMs = Date.now()
+) {
+    const count = claimsHeaderCount(data);
+    return sectionHtml({
+        id,
+        term: "section.claims",
+        title: "Claimed issues",
+        extra: `<span class="ls-section-meta">${esc(String(count))} ${count === 1 ? "issue" : "issues"} in progress</span>`,
+        body: claimsBodyHtml(data, nowMs),
+    });
 }

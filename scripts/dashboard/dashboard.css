@@ -320,9 +320,12 @@ tbody tr:hover {
 }
 
 /* Loop status panel (#2519). */
+/* 300px, not 220px (issue #3135): the Driver section now holds a six-column
+   table, and at 820-844px three 240px columns squeezed it into a 208px
+   scroller. Two columns there, three from ~960px, one on a phone. */
 .ls-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 16px;
 }
 .ls-driver {
@@ -1119,4 +1122,481 @@ tr.drill th:first-child {
    a later ticket gives one of them `display: grid`. */
 .view[hidden] {
     display: none !important;
+}
+
+/* ── Now view sections, stats, badges, tables (issue #3135) ─────────────────
+   Every detail section is the same frame: a heading row (title, `ⓘ` glossary
+   mark, a right-hand meta), then a body of stat boxes / badges / a compact
+   table. Figures are the text colour at a readable size; the state hue rides
+   on a left rule or a tint, never as the only carrier (the #2630 rule). */
+.ls-section {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px 14px;
+    margin-top: 14px;
+    min-width: 0;
+}
+.ls-grid > .ls-section {
+    margin-top: 0;
+}
+.ls-grid {
+    margin-top: 14px;
+}
+.ls-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.ls-section-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+}
+.ls-section-extra {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ls-section-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+/* The `ⓘ` mark: a glyph, not a dotted word. Overrides `.term`'s underline
+   (the engine adds the class) — the circle IS the affordance. */
+.ls-info,
+.ls-info.term {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-secondary);
+    cursor: help;
+    user-select: none;
+}
+.ls-info:hover,
+.ls-info:focus-visible {
+    color: var(--text-primary);
+    background: var(--plane);
+}
+.ls-info:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 1px;
+}
+.ls-light .ls-info {
+    width: 16px;
+    height: 16px;
+    font-size: 12px;
+}
+
+.ls-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ls-stat {
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-width: 0;
+}
+.ls-stat.good {
+    border-left-color: var(--state-good);
+}
+.ls-stat.warn {
+    border-left-color: var(--state-warn);
+}
+.ls-stat.bad {
+    border-left-color: var(--state-bad);
+}
+.ls-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+.ls-stat-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.ls-stat-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.ls-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.ls-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--plane);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+.ls-badge.good {
+    border-color: color-mix(in srgb, var(--state-good) 55%, var(--border));
+    background: color-mix(in srgb, var(--state-good) 12%, var(--plane));
+}
+.ls-badge.warn {
+    border-color: color-mix(in srgb, var(--state-warn) 55%, var(--border));
+    background: color-mix(in srgb, var(--state-warn) 14%, var(--plane));
+}
+.ls-badge.bad {
+    border-color: color-mix(in srgb, var(--state-bad) 55%, var(--border));
+    background: color-mix(in srgb, var(--state-bad) 14%, var(--plane));
+}
+.ls-badge.unknown {
+    border-color: color-mix(in srgb, var(--state-unknown) 55%, var(--border));
+    background: color-mix(in srgb, var(--state-unknown) 12%, var(--plane));
+}
+.ls-badge.term {
+    border-bottom-style: solid;
+}
+
+.ls-tbl-wrap {
+    max-height: 380px;
+}
+/* Cells stay on one line and the table scrolls inside `.ls-tbl-wrap` on a
+   narrow screen (measured at 390px: wrapped titles made a six-row table
+   1,900px tall); the two prose columns are clamped with an ellipsis and
+   carry the full text in a `title`. */
+.ls-table th,
+.ls-table td {
+    font-size: 12px;
+    padding: 6px 8px;
+    text-align: left;
+    white-space: nowrap;
+}
+.ls-table td.prose {
+    white-space: normal;
+    min-width: 220px;
+    max-width: 520px;
+}
+.ls-table th.num,
+.ls-table td.num {
+    text-align: right;
+    white-space: nowrap;
+}
+.ls-table th {
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    cursor: default;
+}
+.ls-table td .ls-cmd {
+    font-size: 11px;
+}
+
+/* Verdict band (#3135 reframe) — the loudest box on the page: state word,
+   sentence, next step and evidence in one tinted frame. */
+.ls-verdict-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: var(--surface-1);
+}
+.ls-verdict {
+    margin-bottom: 8px;
+}
+.ls-verdict-state.term {
+    border-bottom: none;
+    cursor: help;
+}
+.ls-verdict-remedy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.ls-verdict-remedy-label,
+.ls-findings-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-right: 4px;
+}
+.ls-findings {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+}
+.ls-finding {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.ls-finding-detail {
+    color: var(--text-primary);
+}
+
+/* Activity chart (#3135). The SVG scales to the card; below ~600px it
+   scrolls sideways inside its own container rather than squashing labels. */
+.ls-act-scroll {
+    margin-top: 4px;
+}
+.ls-act-svg {
+    width: 100%;
+    min-width: 560px;
+    height: auto;
+}
+.ls-act-hit {
+    cursor: help;
+    outline: none;
+}
+.ls-act-hit:hover,
+.ls-act-hit:focus-visible {
+    fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+.ls-act-hit:focus-visible {
+    stroke: var(--text-primary);
+    stroke-width: 2;
+}
+.ls-act-legend {
+    margin-top: 6px;
+}
+
+/* Watch button (#3135) — the tail drawer's opener. Same family as
+   `.ls-action` but inert (opens a view, changes nothing), so outlined. */
+.ls-watch {
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    min-height: 28px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ls-watch:hover {
+    background: var(--surface-1);
+    border-color: var(--text-secondary);
+}
+.ls-watch:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+.ls-watch.term {
+    border-bottom: 1px solid var(--border);
+}
+.ls-live-title {
+    font-weight: 500;
+    display: inline-block;
+    max-width: 36ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+}
+
+/* Tail drawer (#3135) — a fixed right-hand panel following one transcript.
+   Non-modal: the dashboard stays interactive behind it. On a wide screen the
+   page keeps its right margin clear; on a phone the drawer is the screen. */
+.ls-tail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(600px, 100vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    border-left: 1px solid var(--border);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.18);
+    z-index: 25;
+}
+.ls-tail[hidden] {
+    display: none !important;
+}
+@media (min-width: 1240px) {
+    body.ls-tail-open .wrap {
+        padding-right: 620px;
+    }
+}
+.ls-tail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+.ls-tail-titles {
+    min-width: 0;
+    flex: 1;
+}
+.ls-tail-title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ls-tail-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    align-items: center;
+}
+.ls-tail-controls {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+.ls-tail-follow,
+.ls-tail-close,
+.ls-tail-jump {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--plane);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    min-height: 32px;
+    cursor: pointer;
+}
+.ls-tail-follow[aria-pressed="true"] {
+    border-color: var(--state-good);
+    background: color-mix(in srgb, var(--state-good) 12%, var(--plane));
+}
+.ls-tail-follow:focus-visible,
+.ls-tail-close:focus-visible,
+.ls-tail-jump:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+.ls-tail-log {
+    flex: 1;
+    overflow: auto;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    background: var(--plane);
+}
+.ls-tail-log:focus-visible {
+    outline: 2px solid var(--text-secondary);
+    outline-offset: -2px;
+}
+.ls-tail-entry {
+    display: grid;
+    grid-template-columns: 60px 76px minmax(0, 1fr);
+    gap: 0 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--grid);
+}
+.ls-tail-ts {
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding-top: 1px;
+}
+.ls-tail-kind {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-top: 1px;
+}
+.ls-tail-text {
+    margin: 0;
+    font: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+}
+.kind-user .ls-tail-kind {
+    color: var(--series-1);
+}
+.kind-user .ls-tail-text {
+    font-weight: 600;
+}
+.kind-assistant .ls-tail-kind {
+    color: var(--state-good);
+}
+.kind-thinking .ls-tail-kind,
+.kind-thinking .ls-tail-text {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.kind-tool_use .ls-tail-kind {
+    color: var(--series-4);
+}
+.kind-tool_result .ls-tail-text {
+    color: var(--text-secondary);
+}
+.kind-tool_result.is-error .ls-tail-kind,
+.kind-tool_result.is-error .ls-tail-text {
+    color: var(--state-bad);
+}
+.kind-system .ls-tail-kind {
+    color: var(--state-unknown);
+}
+.ls-tail-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.ls-tail-status.bad {
+    color: var(--state-bad);
+}
+@media (max-width: 480px) {
+    .ls-tail-entry {
+        grid-template-columns: 52px minmax(0, 1fr);
+    }
+    .ls-tail-kind {
+        grid-column: 1 / -1;
+        padding-top: 0;
+    }
 }

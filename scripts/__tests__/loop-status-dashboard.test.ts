@@ -460,8 +460,10 @@ describe("telemetry dashboard — Now claims table wording (#2632)", () => {
         const html = nowBodyHtml(
             payload({ claims: [claim("live")] })
         ) as string;
-        expect(html).toContain("<th>Priority</th>");
-        expect(html).not.toContain("<th>pri</th>");
+        // #3135: headers carry their glossary term; the visible word stays
+        // 'Priority'.
+        expect(html).toMatch(/<th class="" data-term="pri">Priority<\/th>/);
+        expect(html).not.toMatch(/<th[^>]*>pri<\/th>/);
     });
 
     it("a stage renders as a sentence naming what is done AND what is missing", () => {
@@ -672,10 +674,22 @@ describe("telemetry dashboard — Now batch heading (#2632)", () => {
                 },
             })
         ) as string;
-        expect(html).toContain(
-            "389 receipts · 4 implement, 2 review, 383 missing session markers"
+        // #3135: the sentence became a row of stat boxes — one per role,
+        // the figure big, the caption a glossary term. The wording rule
+        // survives: `missing` reads "missing session markers", never
+        // "missing missing".
+        expect(html).toContain("389</div>");
+        expect(html).toMatch(/data-term="receipts.total">receipts</);
+        expect(html).toMatch(
+            /4<\/div><div class="ls-stat-label" data-term="role.implement">implement</
         );
-        expect(html).not.toContain("missing missing:");
+        expect(html).toMatch(
+            /2<\/div><div class="ls-stat-label" data-term="role.review">review</
+        );
+        expect(html).toMatch(
+            /383<\/div><div class="ls-stat-label" data-term="receipts.missing">missing session markers</
+        );
+        expect(html).not.toContain("missing missing");
     });
 
     it("an interesting (non-`missing`) receipt row's issue number is a real GitHub link (round 2 review, low: now.js was the other of two `issueLink()` producer sites with no test)", () => {
@@ -1106,4 +1120,373 @@ describe("telemetry dashboard — keyboard focus survives a poll (PR #2837 revie
         expect(doc.activeElement.getAttribute("data-issue")).toBe("2582");
     });
     /* eslint-enable @typescript-eslint/no-explicit-any */
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// issue #3135 — legibility: framed sections, rounded figures, stat boxes,
+// the activity chart, the live sessions list and the claim → session cell.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("telemetry dashboard — Now sections are framed and explained (issue #3135)", () => {
+    it("every section renders a heading with an info mark whose term resolves in the glossary", async () => {
+        const { lookupTerm } = await import("../dashboard/glossary.js");
+        const html = nowBodyHtml(
+            payload({ claims: [claim("live")] })
+        ) as string;
+        const terms = [
+            ...html.matchAll(/class="ls-info"[^>]*data-term="([^"]+)"/g),
+        ].map((m) => m[1]);
+        expect(terms).toEqual(
+            expect.arrayContaining([
+                "section.verdict",
+                "section.driver",
+                "section.queue",
+                "section.claims",
+                "section.batch",
+                "section.timeline",
+                "section.activity",
+                "section.live",
+            ])
+        );
+        for (const t of terms) expect(lookupTerm(t), t).toBeDefined();
+    });
+
+    it("the four lights carry the SAME section term as the section they point at — one explanation per subsystem", () => {
+        const html = nowBodyHtml(payload()) as string;
+        for (const id of ["driver", "queue", "claims", "batch"]) {
+            const light = html.match(
+                new RegExp(
+                    `<button type="button" class="ls-light [a-z]+" data-target="ls-section-${id}"[\\s\\S]*?</button>`
+                )
+            )![0];
+            expect(light).toContain(`data-term="section.${id}"`);
+        }
+    });
+
+    it("the driver's passes are a table with a rounded budget column — never the raw 28.03027192142857", () => {
+        const html = nowBodyHtml(
+            payload({
+                driver: {
+                    armed: false,
+                    pid: null,
+                    pidAlive: false,
+                    stopFilePresent: false,
+                    recentPasses: [
+                        {
+                            epoch: 1,
+                            pass: 3,
+                            claudeExit: 0,
+                            pct: "28.03027192142857",
+                            queueBefore: 221,
+                            queueAfter: 218,
+                            reason: "claims-held",
+                        },
+                        {
+                            epoch: 2,
+                            pass: 4,
+                            claudeExit: 0,
+                            pct: "n/a",
+                            queueBefore: 218,
+                            queueAfter: 218,
+                            reason: "no-progress",
+                        },
+                        {
+                            epoch: 3,
+                            pass: 5,
+                            claudeExit: 0,
+                            pct: "49.6",
+                            queueBefore: 218,
+                            queueAfter: 217,
+                            reason: "-",
+                        },
+                    ],
+                },
+            })
+        ) as string;
+        expect(html).toContain('class="ls-table ls-pass-table"');
+        expect(html).toContain(">28%<");
+        expect(html).not.toContain("28.03027192142857");
+        expect(html).toContain(">n/a<");
+        expect(html).toContain(">50%<");
+        // Outcome as a badge carrying the timeline's own pass.* vocabulary.
+        expect(html).toContain('data-term="pass.died">died<');
+        expect(html).toContain(
+            'data-term="pass.ran-nothing">ran, nothing landed<'
+        );
+        expect(html).toContain('data-term="pass.landed">landed<');
+        // The raw driver facts as badges, not a `·`-joined line.
+        expect(html).toContain(">no pid file<");
+        expect(html).toContain(">handoff not armed<");
+        expect(html).not.toContain('class="ls-pass"');
+    });
+
+    it("the queue is five stat boxes, each captioned by a glossary term", () => {
+        const html = nowBodyHtml(payload()) as string;
+        for (const [term, value] of [
+            ["queue.total", 10],
+            ["queue.P0", 1],
+            ["queue.P1", 2],
+            ["queue.P2", 3],
+            ["queue.unprioritized", 4],
+        ] as const) {
+            expect(html).toMatch(
+                new RegExp(
+                    `<div class="ls-stat-value">${value}</div><div class="ls-stat-label" data-term="${term}">`
+                )
+            );
+        }
+    });
+
+    it("a failed queue read is still an UNAVAILABLE note, never five zero boxes", () => {
+        const html = nowBodyHtml(
+            payload({ queueDepth: null, queueDepthError: "gh: rate limited" })
+        ) as string;
+        expect(html).toContain("gh: rate limited");
+        expect(html).not.toContain('data-term="queue.total"');
+    });
+
+    it("a verdict finding renders as a badge with a finding.* term plus the engine's own detail sentence", () => {
+        const html = nowBodyHtml(
+            payload({
+                verdict: {
+                    state: "STALLED",
+                    sentence: "No driver is running.",
+                    remedy: "`bun run loop:afk` arms the loop",
+                    findings: [
+                        {
+                            code: "claims-held",
+                            detail: "no driver is running, yet 1 issue(s) are still claimed",
+                        },
+                    ],
+                },
+            })
+        ) as string;
+        expect(html).toContain('data-term="finding.claims-held">claims-held<');
+        expect(html).toContain("yet 1 issue(s) are still claimed");
+        expect(html).toContain('data-term="loop.STALLED">STALLED<');
+        expect(html).toContain("Next step");
+    });
+});
+
+describe("telemetry dashboard — activity chart (issue #3135)", () => {
+    const HOUR = 3_600_000;
+    const nowMs = Date.parse("2026-09-07T15:30:00");
+    const hourStart = (offsetHours: number) => {
+        const d = new Date(nowMs);
+        d.setMinutes(0, 0, 0);
+        return d.getTime() - offsetHours * HOUR;
+    };
+    const buckets = Array.from({ length: 24 }, (_, i) => ({
+        hourStart: hourStart(23 - i),
+        outTok: i === 20 ? 12_345 : i === 23 ? 500 : 0,
+        inTok: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        cost: i === 20 ? 1.5 : 0,
+        messages: i === 20 ? 40 : 0,
+    }));
+
+    it("the restated window matches the server's own constant", async () => {
+        const { ACTIVITY_WINDOW_HOURS: server } =
+            await import("../lib/live-activity");
+        const { ACTIVITY_WINDOW_HOURS: client } =
+            await import("../dashboard/now-activity.js");
+        expect(client).toBe(server);
+    });
+
+    it("draws one bar and one keyboard-reachable hit target per hour, each carrying its own numbers", () => {
+        const html = nowBodyHtml(
+            payload({
+                activity: { windowHours: 24, asOf: nowMs, buckets },
+                recentMerges: [
+                    {
+                        number: 1,
+                        title: "a",
+                        mergedAt: new Date(
+                            hourStart(3) + 600_000
+                        ).toISOString(),
+                    },
+                    {
+                        number: 2,
+                        title: "b",
+                        mergedAt: new Date(
+                            hourStart(3) + 900_000
+                        ).toISOString(),
+                    },
+                ],
+            }),
+            nowMs
+        ) as string;
+        expect(html.match(/class="ls-act-bar"/g)).toHaveLength(24);
+        const hits = html.match(/<rect class="ls-act-hit"[^>]*>/g)!;
+        expect(hits).toHaveLength(24);
+        for (const h of hits) {
+            expect(h).toContain('tabindex="0"');
+            expect(h).toContain("data-tip=");
+        }
+        // The busy hour's tip names its figures, rounded the tally way.
+        expect(html).toContain("output tokens: 12.3k");
+        // Two merges in the same hour are one point at 2 — a marker drawn.
+        expect(html).toContain("PRs merged: 2");
+        expect(html.match(/<circle cx=/g)).toHaveLength(1);
+        // Window totals above the chart.
+        expect(html).toMatch(
+            /<div class="ls-stat-value">12.8k<\/div><div class="ls-stat-label" data-term="activity.outTok">output tokens, 24h/
+        );
+        expect(html).toMatch(
+            /<div class="ls-stat-value">2<\/div><div class="ls-stat-label" data-term="activity.merged">PRs merged, 24h/
+        );
+    });
+
+    it("a failed activity read is UNAVAILABLE, never a flat row of zero bars", () => {
+        const html = nowBodyHtml(
+            payload({ activityError: "ENOENT: projects root" }),
+            nowMs
+        ) as string;
+        expect(html).toContain("ENOENT: projects root");
+        expect(html).not.toContain('class="ls-act-bar"');
+    });
+
+    it("a quiet window is a sentence, not an empty axis", () => {
+        const html = nowBodyHtml(
+            payload({
+                activity: {
+                    windowHours: 24,
+                    asOf: nowMs,
+                    buckets: buckets.map((b) => ({ ...b, outTok: 0 })),
+                },
+            }),
+            nowMs
+        ) as string;
+        expect(html).toContain("No tokens generated and nothing merged");
+        expect(html).not.toContain('class="ls-act-bar"');
+    });
+});
+
+describe("telemetry dashboard — live sessions and the claim's session cell (issue #3135)", () => {
+    const nowMs = Date.now();
+    const session = (over: Record<string, unknown> = {}) => ({
+        session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
+        title: "Emrakul",
+        lastPrompt: "/next-issue 3096",
+        cwd: "/x",
+        gitBranch: "feat/issue-3096",
+        lastWriteMs: nowMs - 90_000,
+        lastMessageMs: nowMs - 90_000,
+        outTok: 15_432,
+        inTok: 1,
+        cacheRead: 2,
+        cost: 0.5,
+        messages: 3,
+        subagents: 2,
+        topIssues: [{ issue: 3096, mentions: 784 }],
+        liveness: "active",
+        ...over,
+    });
+
+    it("lists each live session with a status badge, its branch, a rounded token count and a Watch button", () => {
+        const html = nowBodyHtml(
+            payload({
+                live: {
+                    asOf: nowMs,
+                    liveMinutes: 30,
+                    activeMinutes: 3,
+                    sessions: [session()],
+                    byIssue: {},
+                },
+            }),
+            nowMs
+        ) as string;
+        expect(html).toContain('data-term="live.active">active<');
+        expect(html).toContain(">Emrakul<");
+        expect(html).toContain("feat/issue-3096");
+        expect(html).toContain(">15.4k<");
+        expect(html).toContain("1m ago");
+        expect(html).toContain(
+            '<button type="button" class="ls-watch" data-session="dd8ad5bf-8093-4f8f-bc83-b9a19cac924f" data-label="Emrakul" data-issue="3096"'
+        );
+        expect(html).toContain("1 in the last 30 min");
+    });
+
+    it("no live session is a sentence; a failed live read is UNAVAILABLE and offers no Watch button", () => {
+        const none = nowBodyHtml(
+            payload({
+                live: {
+                    asOf: nowMs,
+                    liveMinutes: 30,
+                    activeMinutes: 3,
+                    sessions: [],
+                    byIssue: {},
+                },
+            }),
+            nowMs
+        ) as string;
+        expect(none).toContain(
+            "No session has written to its transcript in the last 30 minutes."
+        );
+        const failed = nowBodyHtml(
+            payload({
+                liveError: "fetch failed",
+                claims: [claim("live", 3096)],
+            }),
+            nowMs
+        ) as string;
+        expect(failed).toContain("fetch failed");
+        expect(failed).not.toContain('class="ls-watch"');
+    });
+
+    it("a claim row offers Watch on the session that names its issue most, and says when that transcript was last written", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [claim("live", 3096), claim("live", 4000)],
+                live: {
+                    asOf: nowMs,
+                    liveMinutes: 30,
+                    activeMinutes: 3,
+                    sessions: [],
+                    byIssue: {
+                        3096: [
+                            session(),
+                            session({
+                                session: "11111111-1111-4111-8111-111111111111",
+                                liveness: "idle",
+                            }),
+                        ],
+                    },
+                },
+            }),
+            nowMs
+        ) as string;
+        const rows = html
+            .match(/<tr>[\s\S]*?<\/tr>/g)!
+            .filter(
+                (r) => r.includes("issues/3096") || r.includes("issues/4000")
+            );
+        const r3096 = rows.find((r) => r.includes("issues/3096"))!;
+        const r4000 = rows.find((r) => r.includes("issues/4000"))!;
+        expect(r3096).toContain(
+            'class="ls-watch" data-session="dd8ad5bf-8093-4f8f-bc83-b9a19cac924f"'
+        );
+        expect(r3096).toContain('data-issue="3096"');
+        expect(r3096).toContain("1m ago");
+        expect(r3096).toContain("+1 more");
+        expect(r4000).toContain("no session found");
+        expect(r4000).not.toContain('class="ls-watch"');
+    });
+
+    it("a tail entry renders its time, its kind and its text — a tool call labelled by the tool's name, an error result marked", async () => {
+        const { entryHtml } = await import("../dashboard/now-tail.js");
+        const ts = new Date(2026, 8, 7, 15, 4, 9).getTime();
+        expect(
+            entryHtml({ kind: "tool_use", tool: "Bash", ts, text: "bun test" })
+        ).toBe(
+            '<div class="ls-tail-entry kind-tool_use"><span class="ls-tail-ts">15:04:09</span><span class="ls-tail-kind">Bash</span><pre class="ls-tail-text">bun test</pre></div>'
+        );
+        expect(
+            entryHtml({ kind: "tool_result", ts, text: "boom", isError: true })
+        ).toContain('class="ls-tail-entry kind-tool_result is-error"');
+        expect(
+            entryHtml({ kind: "user", ts: null, text: "<b>hi</b>" })
+        ).toContain("&lt;b&gt;hi&lt;/b&gt;");
+    });
 });

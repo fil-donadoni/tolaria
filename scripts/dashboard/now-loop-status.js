@@ -66,6 +66,19 @@ export function nowControlKey(el) {
         return `tl-merge:${el.dataset.pr ?? ""}`;
     if (el.classList.contains("ls-stage"))
         return `stage:${el.dataset.issue ?? ""}`;
+    // issue #3135 — a Watch button is keyed on its session; an activity bar
+    // on its hour; an info mark on its term (one per section, so the term
+    // is the identity); a table header on its term too.
+    if (el.classList.contains("ls-watch"))
+        return `watch:${el.dataset.session ?? ""}:${el.dataset.issue ?? ""}`;
+    if (el.classList.contains("ls-act-hit"))
+        return `act:${el.getAttribute("x") ?? ""}`;
+    if (el.classList.contains("ls-info"))
+        return `info:${el.dataset.term ?? ""}`;
+    if (el.tagName === "TH" && el.dataset.term)
+        return `th:${el.dataset.term}:${el.textContent ?? ""}`;
+    if (el.classList.contains("ls-stat-label"))
+        return `stat:${el.dataset.term ?? ""}:${el.textContent ?? ""}`;
     // #2636 — the verdict band's Stop/Resume button and a claims row's
     // Release button. Keyed on `action`+`issue` together: the verdict band
     // has at most one at a time (no `issue`, so the empty string is stable),
@@ -78,7 +91,7 @@ export function nowControlKey(el) {
 
 /** Everything in the Now body a keyboard can land on. */
 const NOW_CONTROLS =
-    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge, .ls-stage, .ls-action";
+    ".ls-light, .ls-copy, .ls-tl-pass, .ls-tl-claim, .ls-tl-merge, .ls-stage, .ls-action, .ls-watch, .ls-act-hit, .ls-info, th[data-term], .ls-stat-label";
 
 /**
  * Write `html` into `container` without destroying keyboard focus. Returns
@@ -134,16 +147,50 @@ export function renderLoopStatus(data) {
     initActions(undefined, refreshLoopStatus);
 }
 
+/**
+ * The two live reads (issue #3135) — `/api/activity` and `/api/live` — ride
+ * alongside the loop-status poll and are folded into the SAME payload the
+ * composition root renders (`data.activity`, `data.live`), each with its
+ * own `*Error` sibling on failure, the fail-closed shape every other read on
+ * this page uses. Fetched in parallel; a failed live read never takes the
+ * loop status down with it.
+ */
+async function fetchJson(url) {
+    const res = await fetch(url);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    return body;
+}
+
+/** Monotonic per call — a response from an older call than the newest
+ *  one in flight is dropped, so a slow `gh`-backed poll can never paint
+ *  over a fresher one (review of PR #3136). */
+let refreshSeq = 0;
+
 export async function refreshLoopStatus() {
+    const seq = ++refreshSeq;
+    let data;
     try {
-        const res = await fetch("/api/loop-status");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        renderLoopStatus(data);
+        data = await fetchJson("/api/loop-status");
     } catch (e) {
+        if (seq !== refreshSeq) return;
         document.getElementById("loop-status-sub").textContent =
             `error: ${e.message}`;
+        return;
     }
+    const issues = (data.claims ?? []).map((c) => c.issue).join(",");
+    const [activity, live] = await Promise.allSettled([
+        fetchJson("/api/activity"),
+        fetchJson(`/api/live${issues ? `?issues=${issues}` : ""}`),
+    ]);
+    if (activity.status === "fulfilled") data.activity = activity.value;
+    else
+        data.activityError =
+            activity.reason?.message ?? String(activity.reason);
+    if (live.status === "fulfilled") data.live = live.value;
+    else data.liveError = live.reason?.message ?? String(live.reason);
+    if (seq !== refreshSeq) return;
+    renderLoopStatus(data);
 }
 
 const LOOP_STATUS_POLL_MS = 10_000;

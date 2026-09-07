@@ -137,3 +137,38 @@ export const issueUrl = (n) => `https://github.com/${GITHUB_REPO}/issues/${n}`;
  *  navigate the operator away from the dashboard they were reading. */
 export const issueLink = (n) =>
     `<a class="issue-link" href="${issueUrl(n)}" target="_blank" rel="noopener noreferrer">#${esc(String(n))}</a>`;
+
+/**
+ * Elapsed time from an epoch-ms stamp to `nowMs` (issue #3135): `just now`,
+ * `3m ago`, `2h ago`, `3d ago`. Floors like `fmtAgo` and for the same
+ * reason — "2h ago" must mean at least two whole hours have elapsed.
+ */
+export function fmtAgoMs(ms, nowMs = Date.now()) {
+    if (ms == null || !Number.isFinite(ms)) return "—";
+    const s = Math.max(0, Math.floor((nowMs - ms) / 1000));
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86_400)}d ago`;
+}
+
+/**
+ * The driver's `pct` field as a person reads it (issue #3135): a whole
+ * percent — `28%`, never `28.03027192142857` — or the literal `n/a` the
+ * driver logs when no budget ceiling is configured, passed through as words.
+ */
+export function fmtPct(raw) {
+    const n = Number(raw);
+    if (raw == null || raw === "" || !Number.isFinite(n)) {
+        return raw == null || raw === "" ? "—" : String(raw);
+    }
+    return `${Math.round(n)}%`;
+}
+
+/** A whole-token figure with a thousands separator or a k/M suffix — the
+ *  tally form, never `1234.0`. */
+export const fmtTokens = (n) => fmtNum(n, true);
+
+/** Epoch ms → a local `HH:MM` clock reading; `fmtClock` takes seconds. */
+export const fmtClockMs = (ms) =>
+    ms == null ? null : fmtClock(Math.floor(ms / 1000));
