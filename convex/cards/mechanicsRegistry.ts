@@ -2484,6 +2484,15 @@ const ABILITY_WORDS: MechanicRow[] = [
             "hasMetalcraft (cards/types.ts) — an activated mana ability's canActivate gate",
         note: 'Issue #1530 — "you control three or more artifacts" board-state condition (SOM/NPH block ability word). Shared helper `hasMetalcraft(state, controllerId)` (cards/types.ts, mirrors `countDomain`\'s shape) counts live battlefield permanents whose `types` include "Artifact" for the given controller. First consumer: Mox Opal\'s tap-mana ability (`som/colorless.ts`) gates via `canActivate: (source, state) => hasMetalcraft(state, source.controllerId)` — the SAME `canActivate` gate Chrome Mox\'s imprint check already proves is enforced by every real consumer of a tap mana ability (`getManaTapOptionsDetailed` / `hasManaAbility` / `getActivatedManaAbility`, issue #947), not merely a card-shaped closure with no engine teeth.',
     },
+    {
+        id: "channel",
+        name: "Channel",
+        kind: "ability-word",
+        cr: "207.2c",
+        status: "implemented",
+        binding: "channelAbility (cards/abilities/channel.ts)",
+        note: 'Issue #2290 — "channel" is in the CR 207.2c ability-word glossary (`bun run cr grep "Channel"`) but, like every ability word, carries "no special rules meaning" of its own: unlike Cycling (a real CR 702.29 keyword ability whose cost AND effect the rules text defines), the printed clause after "Channel — " is a complete, bespoke activated ability per card. This row exists so the NAME has one authority, the same reason Domain earns a row above despite an identical lack of independent rules text — it grants nothing by itself. `channelAbility` fixes the three properties every Channel ability shares structurally (mirroring `cyclingActivationShell`): activatable from hand (CR 113.6j), the discard-this cost (routed through the shared `discardToGraveyard` choke point, so a "whenever you discard" trigger fires, CR 701.8), and stack use (CR 602.1, instant speed by default — no printed Channel card restricts timing further). The optional self-cost reduction some Channel lands print ("costs {1} less … for each legendary creature you control") is a factory PARAMETER (`selfReduction`, `ActivatedAbility.cost.selfReduction`, ADR 0096) rather than a default — Channel itself implies no reduction, and only 5 of NEO\'s 23 Channel cards carry one. First consumers: Boseiju, Who Endures and Otawara, Soaring City (`neo/colorless.ts`) — the ONLY word-for-word Channel destroy/bounce pair NEO ships with a target requirement and a per-ability reduction; both use the snapshot idiom (issue #2287) to read the destroyed/bounced permanent\'s last-known controller. NOTE the homonym: an unrelated Alpha sorcery named literally "Channel" (`sets/lea/green.ts`) is already in the catalogue — distinct card, distinct id, no collision with this ability-word row or the factory\'s own identifiers.',
+    },
 ];
 
 /** Named mechanics reused across a specific SET's cards, censused for the

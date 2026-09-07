@@ -4202,6 +4202,14 @@
         "source": "compiled"
     },
     {
+        "name": "Boseiju, Who Endures",
+        "scryfallId": "2135ac5a-187b-4dc9-8f82-34e8d1603416",
+        "oracleId": "bf1341dd-41a3-49f6-87ec-63170dde4324",
+        "firstSet": "neo",
+        "firstPrintId": "2135ac5a-187b-4dc9-8f82-34e8d1603416",
+        "firstPrintSet": "neo"
+    },
+    {
         "name": "Botanical Plaza",
         "scryfallId": "9f8a6f93-1fc8-4690-add4-538763277f8e",
         "oracleId": "19e6ebaf-7148-428f-8c79-1e9e57a4e659",
@@ -23824,6 +23832,14 @@
         "firstPrintSet": "gpt",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Otawara, Soaring City",
+        "scryfallId": "486d7edc-d983-41f0-8b78-c99aecd72996",
+        "oracleId": "e9b6a394-691c-425a-9307-76d8edc7375e",
+        "firstSet": "neo",
+        "firstPrintId": "486d7edc-d983-41f0-8b78-c99aecd72996",
+        "firstPrintSet": "neo"
     },
     {
         "name": "Otepec Huntmaster",
