@@ -38,9 +38,3 @@ export function searchIndex(): readonly SearchIndexRow[] {
 export function useSearchIndex(): readonly SearchIndexRow[] {
     return searchIndex();
 }
-
-/** TEST-ONLY. Drops the memo so a test can rebuild the index after changing
- *  what the registry holds. Production builds it exactly once. */
-export function resetSearchIndexForTests(): void {
-    cached = null;
-}

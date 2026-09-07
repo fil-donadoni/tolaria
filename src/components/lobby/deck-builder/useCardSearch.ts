@@ -355,7 +355,9 @@ export function useCardSearch(
     // not yet loaded), the hook falls back to index-only search (today's behavior).
     fullCatalogue?: FullCatalogueResult
 ): {
-    entries: CardIndexEntry[] | undefined;
+    /** Never `undefined`: the index is derived, not fetched (issue #3054), so
+     *  the search has no loading state and the caller needs no branch for one. */
+    entries: CardIndexEntry[];
     total: number;
     /** True when no filter is set - caller should suppress result rendering
      *  (and the associated image fetches) until the user narrows the set. */

@@ -23,10 +23,10 @@
 // the HAND-WRITTEN population only (`compiledCatalogue.ts` documents that
 // exclusion). `src/lib/fullCatalogue.ts` derived a card's availability from
 // membership in it, so every compiled card read as *Unavailable* in the deck
-// builder however well the engine could play it. The registry does not make
-// that distinction — `getDefinition` never tells the two apart (PRD #2693) —
-// so deriving from the registry is what makes availability mean "the engine
-// has this card".
+// builder however well the engine could play it. `getAllCatalogueCards()` is
+// both populations, which is what makes availability mean "the engine has this
+// card" — the distinction was never one the engine drew (`getDefinition` has
+// never told the two apart, PRD #2693); only this index did.
 //
 // WHEN IT IS SAFE TO CALL. After the registry is hydrated, which
 // `src/components/ui/catalogue-gate.tsx` makes structural: it sits above the
@@ -35,8 +35,11 @@
 // side effect. There is no third case.
 import { getCardColorIdentity } from "./colors";
 import { aggregateOracleText } from "./oracleAggregator";
-import { getPrintingsForCard, type CardPrinting } from "./catalogue";
-import { FACE_DOWN_CARD_ID, registeredDefinitions } from "./registry";
+import {
+    getAllCatalogueCards,
+    getPrintingsForCard,
+    type CardPrinting,
+} from "./catalogue";
 import { foldAccents } from "./textNormalize";
 import type { CardDefinition } from "./types";
 import { manaValue } from "../gre/constants";
@@ -62,17 +65,27 @@ export interface SearchIndexRow {
      *  A COMPILED card has no `CardPrint` in the module graph, so it carries
      *  exactly one printing with an EMPTY `setCode` — the set a compiled row
      *  was printed in lives on `data/card-index.json`, which is a server-side
-     *  input and reaches no client. Consequence, stated rather than hidden:
-     *  a compiled card is not reachable through the Set filter. Nothing
-     *  regresses — `set-filter.tsx` builds its options from
-     *  `getAllSetCodes()`, the hand-written population, so no selectable set
-     *  ever named a compiled card either. */
+     *  input and reaches no client. Two consequences, stated rather than
+     *  hidden, and neither a regression:
+     *
+     *   - a compiled card is not reachable through the Set filter, but
+     *     `set-filter.tsx` builds its options from `getAllSetCodes()` — the
+     *     hand-written population — so no selectable set ever named one
+     *     either;
+     *   - `matchesFormatSets` excludes compiled cards from the two Formats
+     *     with a non-null `allowedSets`, `alpha-40` and `old-school`
+     *     (`convex/formats.ts`). Search and validation still AGREE, which is
+     *     the property that matters: `checkSets` rejects exactly the same
+     *     cards, so nothing offers a card the validator would refuse.
+     *     Premodern is unaffected — it overrides the set gate with
+     *     `PREMODERN_LEGAL_NAMES` on both sides. Carrying the set code into
+     *     the artifact is its own ticket. */
     prints: CardPrinting[];
 }
 
 /** Project ONE definition into its index row. Pure; the definition must
  *  already be expanded (ADR 0054) — {@link buildSearchIndex} routes every row
- *  through `registeredDefinitions`, which expands. */
+ *  through `getAllCatalogueCards`, which expands. */
 export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
     const nameLower = def.name.toLowerCase();
     const oracleText = aggregateOracleText(def).searchable;
@@ -93,18 +106,16 @@ export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
 }
 
 /**
- * The whole index, in registry hydration order.
+ * The whole index, in catalogue order.
  *
- * The population is every definition the runtime registry holds — hand-written
- * and compiled alike — minus the face-down sentinel, which is a rules object
- * (CR 708.2) and not a printed card: `registry.ts` registers it in the lookup
- * map on purpose and keeps it out of every set export for exactly this reason.
+ * The population is `getAllCatalogueCards()` — hand-written plus compiled, and
+ * NOTHING else. Enumerating the runtime registry instead would be wrong in a
+ * way no type catches: that map also holds the face-down sentinel (CR 708.2)
+ * and every token definition an engine run synthesized (CR 111.1), so the deck
+ * builder would offer a `token:…` id as an addable card, and only after the
+ * user happened to visit a board first. See `catalogue.ts`'s
+ * `compiledRegistered` for the whole argument.
  */
 export function buildSearchIndex(): SearchIndexRow[] {
-    const rows: SearchIndexRow[] = [];
-    for (const def of registeredDefinitions()) {
-        if (def.id === FACE_DOWN_CARD_ID) continue;
-        rows.push(toSearchIndexRow(def));
-    }
-    return rows;
+    return getAllCatalogueCards().map(toSearchIndexRow);
 }

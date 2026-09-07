@@ -5,7 +5,7 @@ import ResultCard from "./result-card";
 import { useGridWindow } from "./useGridWindow";
 
 interface ResultsGridProps {
-    entries: CardIndexEntry[] | undefined;
+    entries: CardIndexEntry[];
     /** True when no filter is set — show prompt instead of cards. */
     idle: boolean;
     /** Active set filter — forwarded to each card to pick its default edition. */
@@ -30,24 +30,16 @@ export default function ResultsGrid({
     const outerRef = useRef<HTMLDivElement | null>(null);
     const innerRef = useRef<HTMLDivElement | null>(null);
     const { start, end, offsetTop, totalHeight } = useGridWindow(
-        entries?.length ?? 0,
+        entries.length,
         outerRef,
         innerRef,
         entries
     );
-    const visible = entries ? entries.slice(start, end) : [];
+    const visible = entries.slice(start, end);
     // Before the first cell exists there is nothing to measure, so the seed
     // slice renders in normal flow; the spacer and the absolute positioning
     // only switch on once the geometry is known.
     const measured = totalHeight > 0;
-
-    if (entries === undefined) {
-        return (
-            <div className="flex h-full items-center justify-center text-sm text-text-muted">
-                Loading card library…
-            </div>
-        );
-    }
 
     if (idle) {
         return (

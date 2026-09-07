@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { getAllCards } from "../catalogue";
-import { FACE_DOWN_CARD_ID, registeredDefinitions } from "../registry";
+import { getAllCards, getAllCatalogueCards } from "../catalogue";
+import {
+    FACE_DOWN_CARD_ID,
+    registeredDefinitions,
+    tryGetDefinition,
+    withTemporaryDefinition,
+} from "../registry";
 import { buildSearchIndex } from "../searchIndex";
 import { foldAccents } from "../textNormalize";
+import type { CardDefinition } from "../types";
 
 /**
  * The deck-builder search index, derived from the runtime registry
@@ -47,12 +53,40 @@ describe("the search index population (issue #3054)", () => {
         expect(missing).toEqual([]);
     });
 
-    it("is the registry minus the face-down sentinel — a rules object (CR 708.2), not a printed card", () => {
+    it("is the CATALOGUE, not the registry — the face-down sentinel is registered and stays out", () => {
         const index = buildSearchIndex();
         const registered = [...registeredDefinitions()];
+        // The sentinel (CR 708.2) is a rules object, not a printed card. It is
+        // in the lookup map and must not be in the pool.
         expect(registered.some((d) => d.id === FACE_DOWN_CARD_ID)).toBe(true);
         expect(index.some((r) => r.cardId === FACE_DOWN_CARD_ID)).toBe(false);
-        expect(index).toHaveLength(registered.length - 1);
+        expect(index).toHaveLength(getAllCatalogueCards().length);
+    });
+
+    it("ignores a token definition the engine synthesized into the registry (CR 111.1)", () => {
+        // The failure this guards is invisible and order-dependent: the
+        // registry is a LIVE map, and `maybeSynthesizeToken` /
+        // `registerTokenDefinition` write into it on any board render that
+        // resolves a token permanent. An index enumerated from the registry
+        // would then offer `token:…` as an addable card — but only for a
+        // session that visited a board BEFORE opening the deck builder.
+        const token: CardDefinition = {
+            id: "token:searchindex-probe|Creature|1|1",
+            name: "Searchindex Probe",
+            rarity: "common",
+            manaCost: {},
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+        };
+        withTemporaryDefinition(token, () => {
+            // The registry really does serve it — otherwise the assertion
+            // below would pass vacuously.
+            expect(tryGetDefinition(token.id)?.name).toBe("Searchindex Probe");
+            expect(buildSearchIndex().some((r) => r.cardId === token.id)).toBe(
+                false
+            );
+        });
     });
 
     it("folds accents on every row, so an accented name is searchable unaccented", () => {

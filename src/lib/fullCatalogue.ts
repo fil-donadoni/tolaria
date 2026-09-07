@@ -198,9 +198,13 @@ export function useFullCatalogue(enabled = true): FullCatalogueResult {
     }, [enabled]);
 
     const rows = useMemo(() => {
-        if (!catalogue) return undefined;
+        // `enabled` too, not just `catalogue`: the fetched rows are never
+        // cleared, so a true→false flip would otherwise hand a disabled caller
+        // the full row set with every `available` false — a shape it has never
+        // had to handle. Disabled means `undefined`, in both directions.
+        if (!enabled || !catalogue) return undefined;
         return patchAvailability(catalogue, availableFolds);
-    }, [catalogue, availableFolds]);
+    }, [enabled, catalogue, availableFolds]);
 
     return { rows, error };
 }
