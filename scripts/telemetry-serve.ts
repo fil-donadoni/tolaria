@@ -41,6 +41,8 @@ import {
     ACTIVE_SESSION_MINUTES,
 } from "./lib/live-activity";
 import type { SessionSummary } from "./lib/live-activity";
+import { OriginLedger, resolveOrigin } from "./lib/session-origin";
+import type { SessionOrigin } from "./lib/session-origin";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -55,6 +57,15 @@ const PROJECTS_ROOT = join(homedir(), ".claude/projects");
  *  an issue worktree still shows the project's sessions — the worktree's own
  *  `<slug>-issue-N` directory is one of the dirs the slug's prefix owns. */
 const PROJECT_SLUG = primaryCheckout(PROJECT_DIR).replace(/\//g, "-");
+/** The session-origin journal (issue #3144) — in the PRIMARY checkout, like
+ *  `claims.jsonl` beside it: `CLAUDE_PROJECT_DIR` is fixed at session start,
+ *  so a `/next-issue` session writes there even after it cd's into its own
+ *  worktree, and a dashboard launched from a worktree must read the same
+ *  file. Same reasoning as `PROJECT_SLUG` above. */
+const ORIGIN_LEDGER_PATH = join(
+    primaryCheckout(PROJECT_DIR),
+    ".claude/telemetry/sessions.jsonl"
+);
 
 /**
  * The dashboard's build, read ONCE per process (ADR 0117).
@@ -927,6 +938,14 @@ export interface TelemetryDeps {
      * `~/.claude/projects/<slug>*`, which no test may touch.
      */
     liveIndex: LiveIndex;
+    /**
+     * Who started each session, as recorded by `.claude/hooks/session-origin.sh`
+     * (issue #3144). Injected for the same reason as `liveIndex`: the default
+     * reads the operator's own `.claude/telemetry/sessions.jsonl`, and a test
+     * points it at a file it wrote. A missing journal is an EMPTY ledger, so
+     * every session falls back to its transcript `entrypoint`.
+     */
+    originLedger: OriginLedger;
 }
 
 /** One index per process, built on first use — `refresh` walks the disk,
@@ -938,6 +957,14 @@ function defaultLiveIndex(): LiveIndex {
         projectSlug: PROJECT_SLUG,
     });
     return liveIndexSingleton;
+}
+
+/** One ledger per process, like the index — `refresh` stats a file, and
+ *  nothing should stat it at import time. */
+let originLedgerSingleton: OriginLedger | null = null;
+function defaultOriginLedger(): OriginLedger {
+    originLedgerSingleton ??= new OriginLedger(ORIGIN_LEDGER_PATH);
+    return originLedgerSingleton;
 }
 
 const defaultDeps: TelemetryDeps = {
@@ -952,6 +979,9 @@ const defaultDeps: TelemetryDeps = {
     driverActions: defaultDriverActions,
     get liveIndex() {
         return defaultLiveIndex();
+    },
+    get originLedger() {
+        return defaultOriginLedger();
     },
 };
 
@@ -972,11 +1002,24 @@ function refreshThrottled(index: LiveIndex, nowMs: number): void {
     index.refresh(nowMs);
 }
 
-/** A session summary as the page receives it — the mentions map reduced to
- *  the issues it names most, and liveness stated as words, not left to the
- *  client to re-derive from timestamps. */
-export function sessionView(s: SessionSummary, nowMs: number) {
+/**
+ * A session summary as the page receives it — the mentions map reduced to
+ * the issues it names most, and liveness stated as words, not left to the
+ * client to re-derive from timestamps.
+ *
+ * `origin`/`originSource` answer "who started this?" (issue #3144), resolved
+ * HERE rather than on the page: the two signals it combines live on opposite
+ * sides of the server (a journal on disk, a transcript field), and a client
+ * re-deriving the precedence is a second authority that can drift from the
+ * first. `recorded` is the ledger's answer for this session, or `undefined`.
+ */
+export function sessionView(
+    s: SessionSummary,
+    nowMs: number,
+    recorded?: SessionOrigin
+) {
     const ageMin = (nowMs - s.lastWriteMs) / 60_000;
+    const { origin, source } = resolveOrigin(recorded, s.entrypoint);
     const topIssues = Object.entries(s.mentions)
         .map(([issue, n]) => ({ issue: Number(issue), mentions: n }))
         .sort((a, b) => b.mentions - a.mentions)
@@ -995,6 +1038,9 @@ export function sessionView(s: SessionSummary, nowMs: number) {
         cost: s.cost,
         messages: s.messages,
         subagents: s.subagents,
+        entrypoint: s.entrypoint,
+        origin,
+        originSource: source,
         topIssues,
         liveness:
             ageMin <= ACTIVE_SESSION_MINUTES
@@ -1019,8 +1065,14 @@ function activityView(index: LiveIndex, nowMs: number) {
  * `/api/live?issues=3096,3100` — the sessions live right now, and for each
  * issue asked about, the sessions most likely working it.
  */
-function liveView(index: LiveIndex, url: URL, nowMs: number) {
+function liveView(
+    index: LiveIndex,
+    ledger: OriginLedger,
+    url: URL,
+    nowMs: number
+) {
     refreshThrottled(index, nowMs);
+    ledger.refresh();
     const issues = (url.searchParams.get("issues") ?? "")
         .split(",")
         .map((s) => Number(s.trim()))
@@ -1029,13 +1081,15 @@ function liveView(index: LiveIndex, url: URL, nowMs: number) {
     for (const issue of issues) {
         byIssue[issue] = index
             .sessionsForIssue(issue, nowMs)
-            .map((s) => sessionView(s, nowMs));
+            .map((s) => sessionView(s, nowMs, ledger.recorded(s.session)));
     }
     return {
         asOf: index.refreshedAt,
         liveMinutes: LIVE_SESSION_MINUTES,
         activeMinutes: ACTIVE_SESSION_MINUTES,
-        sessions: index.liveSessions(nowMs).map((s) => sessionView(s, nowMs)),
+        sessions: index
+            .liveSessions(nowMs)
+            .map((s) => sessionView(s, nowMs, ledger.recorded(s.session))),
         byIssue,
     };
 }
@@ -1047,7 +1101,12 @@ function liveView(index: LiveIndex, url: URL, nowMs: number) {
  * directories (`LiveIndex.transcriptPath`); anything else is a 400 or a 404,
  * and no other spelling of a path exists on this route.
  */
-function tailView(index: LiveIndex, url: URL, nowMs: number): Response {
+function tailView(
+    index: LiveIndex,
+    ledger: OriginLedger,
+    url: URL,
+    nowMs: number
+): Response {
     const session = url.searchParams.get("session") ?? "";
     if (!SESSION_ID_RE.test(session)) {
         return Response.json({ error: "bad session id" }, { status: 400 });
@@ -1064,10 +1123,13 @@ function tailView(index: LiveIndex, url: URL, nowMs: number): Response {
               ? Number(rawOffset)
               : null;
     refreshThrottled(index, nowMs);
+    ledger.refresh();
     const summary = index.session(session);
     return Response.json({
         ...readTail(path, session, offset),
-        summary: summary ? sessionView(summary, nowMs) : null,
+        summary: summary
+            ? sessionView(summary, nowMs, ledger.recorded(session))
+            : null,
     });
 }
 
@@ -1124,6 +1186,7 @@ export async function handleRequest(
         readAssetBytes,
         liveIndex,
         dashboardBuild,
+        originLedger,
     } = {
         ...defaultDeps,
         ...deps,
@@ -1144,10 +1207,12 @@ export async function handleRequest(
             return Response.json(activityView(liveIndex, Date.now()));
         }
         if (url.pathname === "/api/live") {
-            return Response.json(liveView(liveIndex, url, Date.now()));
+            return Response.json(
+                liveView(liveIndex, originLedger, url, Date.now())
+            );
         }
         if (url.pathname === "/api/tail") {
-            return tailView(liveIndex, url, Date.now());
+            return tailView(liveIndex, originLedger, url, Date.now());
         }
         if (url.pathname === "/api/meta") {
             return Response.json(meta());

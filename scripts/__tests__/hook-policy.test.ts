@@ -38,6 +38,7 @@ const HOOKS = path.join(REPO_ROOT, ".claude", "hooks");
 const DENY_GUARD = path.join(HOOKS, "deny-guard.sh");
 const CLAIM_LEDGER = path.join(HOOKS, "claim-ledger.sh");
 const CLAIM_SWEEP = path.join(HOOKS, "claim-sweep.sh");
+const SESSION_ORIGIN = path.join(HOOKS, "session-origin.sh");
 const JOIN_AWK = path.join(HOOKS, "lib", "join-continued-lines.awk");
 
 type HookResult = { code: number; stderr: string };
@@ -1755,6 +1756,7 @@ describe("hooks are wired into settings.json", () => {
             "claim-sweep.sh": "SessionEnd",
             "deny-guard.sh": "PreToolUse",
             "receipt-guard.sh": "SubagentStop",
+            "session-origin.sh": "SessionStart",
             "spawn-guard.sh": "PreToolUse",
             "timing-log.sh": "PreToolUse", // also PostToolUse; asserted below
         };
@@ -2052,5 +2054,70 @@ describe("claim-ledger — records the owning process (#2627)", () => {
             TOLARIA_CLAIM_OWNER_COMM: "no-such-process-name-anywhere",
         });
         expect(row.owner).toBeNull();
+    });
+});
+
+describe("session-origin hook — who started this session (issue #3144)", () => {
+    let projectDir: string;
+    const journal = () =>
+        path.join(projectDir, ".claude", "telemetry", "sessions.jsonl");
+
+    const start = (session: string) => ({
+        session_id: session,
+        hook_event_name: "SessionStart",
+    });
+
+    beforeAll(() => {
+        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "session-origin-"));
+    });
+    afterAll(() => {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+    });
+
+    it("records `afk` under TOLARIA_LOOP_DRAIN and `interactive` without it", () => {
+        // BOTH directions, per this file's own contract: a hook that always
+        // wrote `interactive` would pass a one-sided test while making the
+        // whole feature a lie, and one that always wrote `afk` would put a
+        // robot badge on every session a person opened.
+        expect(
+            runHook(SESSION_ORIGIN, start("sess-afk"), {
+                CLAUDE_PROJECT_DIR: projectDir,
+                TOLARIA_LOOP_DRAIN: "1",
+            }).code
+        ).toBe(0);
+        expect(
+            runHook(SESSION_ORIGIN, start("sess-human"), {
+                CLAUDE_PROJECT_DIR: projectDir,
+                TOLARIA_LOOP_DRAIN: "",
+            }).code
+        ).toBe(0);
+
+        const rows = fs
+            .readFileSync(journal(), "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l));
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toMatchObject({ session: "sess-afk", origin: "afk" });
+        expect(rows[1]).toMatchObject({
+            session: "sess-human",
+            origin: "interactive",
+        });
+    });
+
+    it("writes nothing when the payload names no session, and never fails the session start", () => {
+        // A SessionStart hook that exits non-zero, or prints to stdout, is a
+        // hook that changes the session it was only supposed to observe.
+        const before = fs.readFileSync(journal(), "utf8");
+        for (const payload of [{}, { hook_event_name: "SessionStart" }]) {
+            const r = spawnSync("sh", [SESSION_ORIGIN], {
+                input: JSON.stringify(payload),
+                encoding: "utf8",
+                env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+            });
+            expect(r.status).toBe(0);
+            expect(r.stdout).toBe("");
+        }
+        expect(fs.readFileSync(journal(), "utf8")).toBe(before);
     });
 });

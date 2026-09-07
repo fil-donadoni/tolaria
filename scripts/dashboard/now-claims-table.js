@@ -6,7 +6,7 @@ import {
     emptyHtml,
     unavailableHtml,
 } from "./now-atoms.js";
-import { watchButtonHtml, sessionLabel } from "./now-live.js";
+import { watchButtonHtml, sessionLabel, originBadgeHtml } from "./now-live.js";
 
 /**
  * The claimed-issues table of the Now panel (#2519, split out in #2625,
@@ -176,6 +176,14 @@ export function sessionCellHtml(c, data, nowMs) {
     const candidates = data.live?.byIssue?.[c.issue] ?? [];
     if (!candidates.length) return `<span class="mini">no session found</span>`;
     const best = candidates[0];
+    // The trigger badge rides on the CANDIDATE, not on the claim: the claim
+    // is a GitHub label and carries no origin of its own, so what this cell
+    // can honestly say is "the session most likely on this issue was started
+    // by X" — which inherits the mention heuristic's uncertainty on top of
+    // the origin's own (issue #3144). One badge, one source of truth
+    // (`originBadgeHtml`, `now-live.js`) — never a second copy of the word
+    // list here.
+
     const tone =
         best.liveness === "active"
             ? "good"
@@ -185,6 +193,7 @@ export function sessionCellHtml(c, data, nowMs) {
     return (
         watchButtonHtml(best.session, sessionLabel(best), c.issue) +
         ` ${badgeHtml(fmtAgoMs(best.lastWriteMs, nowMs), tone, `live.${best.liveness ?? "idle"}`)}` +
+        ` ${originBadgeHtml(best)}` +
         (candidates.length > 1
             ? ` <span class="mini">+${candidates.length - 1} more</span>`
             : "")

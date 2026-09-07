@@ -1490,3 +1490,112 @@ describe("telemetry dashboard — live sessions and the claim's session cell (is
         ).toContain("&lt;b&gt;hi&lt;/b&gt;");
     });
 });
+
+describe("telemetry dashboard — who started the session (issue #3144)", () => {
+    const nowMs = Date.now();
+    const session = (over: Record<string, unknown> = {}) => ({
+        session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
+        title: "Emrakul",
+        lastPrompt: "/next-issue 3096",
+        cwd: "/x",
+        gitBranch: "feat/issue-3096",
+        lastWriteMs: nowMs - 90_000,
+        lastMessageMs: nowMs - 90_000,
+        outTok: 15_432,
+        inTok: 1,
+        cacheRead: 2,
+        cost: 0.5,
+        messages: 3,
+        subagents: 2,
+        topIssues: [{ issue: 3096, mentions: 784 }],
+        liveness: "active",
+        entrypoint: "sdk-cli",
+        origin: "afk",
+        originSource: "ledger",
+        ...over,
+    });
+
+    const liveWith = (sessions: unknown[], byIssue = {}) => ({
+        asOf: nowMs,
+        liveMinutes: 30,
+        activeMinutes: 3,
+        sessions,
+        byIssue,
+    });
+
+    it("gives every live session a trigger badge — afk loop, manual, or unknown, never manual by default", () => {
+        const html = nowBodyHtml(
+            payload({
+                live: liveWith([
+                    session(),
+                    session({
+                        session: "11111111-1111-4111-8111-111111111111",
+                        origin: "interactive",
+                        originSource: "ledger",
+                    }),
+                    // The pre-#3144 shape: a payload that carries no origin
+                    // at all. It must render `unknown` — the one reading that
+                    // is never a claim about who is at the keyboard.
+                    session({
+                        session: "22222222-2222-4222-8222-222222222222",
+                        origin: undefined,
+                        originSource: undefined,
+                    }),
+                ]),
+            }),
+            nowMs
+        ) as string;
+        for (const [term, word] of [
+            ["live.origin.afk", "afk loop"],
+            ["live.origin.manual", "manual"],
+            ["live.origin.unknown", "unknown"],
+        ]) {
+            const badge = html
+                .match(/<span class="ls-badge[^>]*>[^<]*<\/span>/g)!
+                .find((b) => b.includes(`data-term="${term}"`));
+            expect(badge, term).toBeDefined();
+            expect(badge).toContain(`>${word}</span>`);
+        }
+        // The column header declares its own term, so the tooltip engine can
+        // explain the column and not only the words in it.
+        expect(html).toContain('data-term="live.origin">trigger<');
+    });
+
+    it("marks an INFERRED origin as inferred — a guess and a recording must not render identically", () => {
+        // The badge word is the same either way; the difference decides
+        // whether "afk loop" is a fact recorded inside the session or a
+        // reading of its transcript, and a badge that hides that is the one
+        // believed when it is wrong.
+        const recorded = nowBodyHtml(
+            payload({ live: liveWith([session({ originSource: "ledger" })]) }),
+            nowMs
+        ) as string;
+        const inferred = nowBodyHtml(
+            payload({
+                live: liveWith([session({ originSource: "entrypoint" })]),
+            }),
+            nowMs
+        ) as string;
+        expect(recorded).not.toContain("data-inferred");
+        expect(inferred).toContain("data-inferred");
+        expect(inferred).toContain("Inferred from the transcript's");
+    });
+
+    it("carries the same badge into the claim's session cell, on the candidate it offers to Watch", () => {
+        const html = nowBodyHtml(
+            payload({
+                claims: [claim("live", 3096)],
+                live: liveWith([], {
+                    3096: [session({ origin: "afk", originSource: "ledger" })],
+                }),
+            }),
+            nowMs
+        ) as string;
+        const row = html
+            .match(/<tr>[\s\S]*?<\/tr>/g)!
+            .find((r) => r.includes("issues/3096"))!;
+        expect(row).toContain('class="ls-watch"');
+        expect(row).toContain('data-term="live.origin.afk"');
+        expect(row).toContain(">afk loop</span>");
+    });
+});
