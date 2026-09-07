@@ -43,6 +43,7 @@ import {
     shChecked,
     type ShRunner,
 } from "./loop-doctor";
+import { withRestFallback, withRestFallbackSh } from "./lib/gh-rest-fallback";
 import {
     approvedReviewIssues,
     batchStartedAt,
@@ -445,7 +446,17 @@ export function gatherLoopStatus(
     // them makes the whole claims computation unreliable, not just one
     // field of it — reporting the other two as if they were trustworthy
     // would be a narrower version of the same fail-open bug.
-    const claimsRunner = opts.claimsRunner ?? shChecked;
+    // The four `gh`-backed runners below default to the fail-CLOSED
+    // `shChecked`/`ghChecked` wrapped in `withRestFallback`: `gh issue list`
+    // and `gh pr list` are GraphQL, metered on a pool this repo's own
+    // automation exhausts routinely (measured 2026-09-07: `graphql 0/5000`
+    // while `core 5000/5000`), and every one of these reads has an exact REST
+    // equivalent. GraphQL stays the primary path; ONLY a rate-limit refusal
+    // is retried over REST, and only for a query the translator recognises
+    // exactly — anything else still surfaces as UNAVAILABLE, never as zero
+    // (#2519 round 3, finding 5, whose contract this preserves).
+    const claimsRunner =
+        opts.claimsRunner ?? withRestFallbackSh(shChecked, PROJECT_REPO);
     const claimsInputs = gatherSection(() => {
         const claimedIssues = fetchClaimedIssues(claimsRunner);
         const prBranches = fetchOpenPrBranches(claimsRunner);
@@ -453,7 +464,8 @@ export function gatherLoopStatus(
         return { claimedIssues, prBranches, branches };
     }, "claimed issues / open PRs / branch list");
 
-    const queueRunner = opts.queueRunner ?? ghChecked;
+    const queueRunner =
+        opts.queueRunner ?? withRestFallback(ghChecked, PROJECT_REPO);
     const readyQueueSection = gatherSection(
         () => fetchUnclaimedReadyQueue(queueRunner),
         "ready-for-agent queue"
@@ -462,7 +474,8 @@ export function gatherLoopStatus(
     // #2631 — the Now timeline's merge-tick data source. `gh`-backed, so
     // fail-closed via `gatherSection` like every other `gh` read here: a
     // failed fetch must render as "cannot tell", never as "nothing merged".
-    const mergedPrRunner = opts.mergedPrRunner ?? ghChecked;
+    const mergedPrRunner =
+        opts.mergedPrRunner ?? withRestFallback(ghChecked, PROJECT_REPO);
     const mergedPrsSection = gatherSection(
         () => fetchRecentMergedPrs(TIMELINE_WINDOW_HOURS, mergedPrRunner),
         "recently merged PRs"
@@ -471,7 +484,8 @@ export function gatherLoopStatus(
     // #2632 — the claims table's `blocks N others` badge. `gh`-backed, so
     // fail-closed via `gatherSection` like every other `gh` read here: a
     // failed fetch must render as "cannot tell", never as "blocks nothing".
-    const openIssuesRunner = opts.openIssuesRunner ?? ghChecked;
+    const openIssuesRunner =
+        opts.openIssuesRunner ?? withRestFallback(ghChecked, PROJECT_REPO);
     const openIssuesSection = gatherSection(
         () => fetchOpenIssueBodies(openIssuesRunner),
         "open issue bodies (blocked-by counts)"

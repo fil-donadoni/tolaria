@@ -492,7 +492,27 @@ function runsView(url: URL) {
 // because it only pays for git/gh calls that were never the bottleneck.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PRIORITY_TTL_MS = 5 * 60_000;
+// 30 minutes, not 5 (measured 2026-09-07). One board read costs ~768 GraphQL
+// points — `gh project item-list --limit 2000` walks 400+ items with every
+// field attached, and GitHub meters GraphQL on a 5000-point/HOUR pool:
+//
+//     bun run loop:status --no-priority   →   10 points
+//     bun run loop:status                 →  774 points  (again: 778)
+//
+// So the pool affords 6.5 board reads an hour, total, across every session
+// and script on this machine. At a 5-minute TTL ONE open dashboard tab asks
+// for 12 of them — 9216 points/hour, 1.8x the whole quota — which is how the
+// account reached `graphql 0/5000` with `core 5000/5000` untouched and every
+// `gh`-backed section of `loop:status` reporting UNAVAILABLE at once. 30
+// minutes puts a permanently-open tab at ~1536 points/hour (31% of the pool)
+// and leaves the rest for `queue:plan`, `land` and the drain loop.
+//
+// The board's `Priority` field is a human edit made a few times a day, so
+// this costs the dashboard nothing anyone will notice. The real fix is a
+// cheaper read — a GraphQL query asking for the Priority field alone instead
+// of `item-list`'s every-field page — which is a `lib/board-priority.ts`
+// change, not a constant.
+const PRIORITY_TTL_MS = 30 * 60_000;
 let priorityCache: {
     promise: Promise<GracefulPriority>;
     expiresAt: number;
