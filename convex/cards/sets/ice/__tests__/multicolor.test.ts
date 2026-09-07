@@ -18,7 +18,7 @@ import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     runDamageReplacement,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
 } from "../../../../gre/state";
 import { resolveAbilityManaCost } from "../../../../game";
 import { describeDamageSource } from "../../../../gre/replacements";
@@ -1739,7 +1739,7 @@ describe("Glaciers (CR 613.1d subtype-set — All Mountains are Plains)", () => 
                 makePlayer("p2", { battlefield: [glac] }),
             ],
         });
-        applySourceStaticEffects(state, glac);
+        beginApplyingStaticEffects(state, glac);
         expect(mtn.subtypes).toEqual(["Plains"]);
         expect(getBasicLandMana(mtn)).toBe("W");
 

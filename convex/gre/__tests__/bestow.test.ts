@@ -60,6 +60,10 @@ import {
     hasLegalBestowHost,
     revertBestow,
 } from "../bestow";
+import {
+    grantedKeywordRows,
+    wireCharacteristicsOf,
+} from "../../cards/__tests__/setup";
 
 const NANTUKO = springheartNantuko.id;
 const BEARS = grizzlyBears.id;
@@ -285,7 +289,7 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         // guards needs the OTHER bestow shape — the Theros creature whose
         // Aura half GRANTS the enchanted creature a keyword. Its footprint on
         // the host is `grantedStaticAbilities` keyed by the aura's instance
-        // id, exactly as `applySourceStaticEffects` writes it; that is what
+        // id, exactly as `beginApplyingStaticEffects` writes it; that is what
         // is stamped here, and the entry's own doc says it is "removed when
         // the aura unattaches".
         const { state, host } = boardWithHost();
@@ -298,16 +302,14 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         //
         // PRD #2064 S3 — protection is an intrinsic characteristic BELOW layer
         // 6, so it belongs to the base; the Aura's flying is a layer-6 grant
-        // stamped on top of it, exactly as `applySourceStaticEffects` used to
+        // stamped on top of it, exactly as `beginApplyingStaticEffects` used to
         // write it.
         host.baseStaticAbilities = [
             ...host.staticAbilities,
             "protection from green",
         ];
         host.staticAbilities = [...host.baseStaticAbilities, "flying"];
-        host.grantedStaticAbilities = [
-            { ability: "flying", auraId: "nantuko" },
-        ];
+
         checkStateBasedActions(state);
 
         const p1 = getPlayer(state, "p1");
@@ -316,7 +318,7 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         expect(nantuko!.bestowed).toBeUndefined();
         const stillThere = p1.battlefield.find((c) => c.id === "host")!;
         expect(stillThere).toBeDefined();
-        expect(stillThere.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state, stillThere)).toEqual([]);
         expect(stillThere.staticAbilities).not.toContain("flying");
     });
 
@@ -412,7 +414,7 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
         )!;
         expect(after.bestowed).toBeUndefined();
         expect(after.types).toEqual(["Enchantment", "Creature", "Artifact"]);
-        expect(after.grantedTypes).toEqual([
+        expect(wireCharacteristicsOf(state, after.id).grantedTypes).toEqual([
             { type: "Artifact", auraId: "indefinite" },
         ]);
     });

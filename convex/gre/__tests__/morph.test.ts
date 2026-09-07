@@ -30,7 +30,7 @@ import {
 } from "../morph";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     removePermanentTo,
     resolveTopOfStack,
 } from "../state";
@@ -489,7 +489,7 @@ describe("morph — wire redaction (CR 702.37c, issue #2705)", () => {
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, vc);
+        beginApplyingStaticEffects(state, vc);
 
         const triggers = collectTriggers(state, [
             {

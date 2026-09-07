@@ -1,5 +1,5 @@
 import type { CardInstanceState, GameState } from "./state";
-import { refreshCounterGatedStatics } from "./state";
+import { recomputeContinuousEffects } from "./state";
 import type {
     ManaCost,
     PermanentView,
@@ -162,7 +162,7 @@ export function unblockedAttackerIds(
  *  - `hasBlockedThisTurn` — "blocked this combat" (CR 506.4 keeps it true
  *    after the creature leaves combat). Read by Clockwork Beast / Clockwork
  *    Avian's end-of-combat intervening-if and Fungal Bloom-style shroud.
- *  - `refreshCounterGatedStatics` — a `keyword-grant` static effect carrying a
+ *  - `recomputeContinuousEffects` — a `keyword-grant` static effect carrying a
  *    `condition` is MATERIALIZED into the affected permanent's
  *    `staticAbilities` array, not recomputed at read time (`gre/state.ts`).
  *    A condition that reads `isBlocking` (Snow Devil's "has first strike as
@@ -204,7 +204,7 @@ export function markDeclaredBlockers(state: GameState): void {
             break;
         }
     }
-    refreshCounterGatedStatics(state);
+    recomputeContinuousEffects(state);
 }
 
 /** True when any permanent with the given card id is on any player's

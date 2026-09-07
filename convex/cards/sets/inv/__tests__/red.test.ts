@@ -27,8 +27,8 @@ import {
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     removePermanentTo,
     putReanimatedSetOnBattlefield,
     sourcePreventionShieldApplies,
@@ -721,8 +721,8 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
     // Revert-sensitive regressions (issue #1716): before the fix, the
     // `keyword-grant` gated on `(target.counters?.["+1/+1"] ?? 0) >= 2` — an
     // exact proxy for "was kicked" ONLY at the instant `entersWith` placed the
-    // counters. Forcing a re-materialization (`unapplySourceStaticEffects` +
-    // `applySourceStaticEffects`, what `refreshCounterGatedStatics` does
+    // counters. Forcing a re-materialization (`stopApplyingStaticEffects` +
+    // `beginApplyingStaticEffects`, what `recomputeContinuousEffects` does
     // internally for any counter-dependent grant) exposes the proxy's two
     // failure modes directly against the real production apply path — these
     // fail if the `applies` predicate is reverted to read `target.counters`.
@@ -735,8 +735,8 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         // Simulate an unrelated pump spell (one of 40+ catalogue "+1/+1"
         // sources) landing 2 counters on the never-kicked Kavu post-ETB.
         kavu.counters = { "+1/+1": 2 };
-        unapplySourceStaticEffects(state, kavu);
-        applySourceStaticEffects(state, kavu);
+        stopApplyingStaticEffects(state, kavu);
+        beginApplyingStaticEffects(state, kavu);
         expect(kavu.staticAbilities).not.toContain("haste");
     });
 
@@ -748,8 +748,8 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         expect(kavu.staticAbilities).toContain("haste");
         // Simulate -1/-1 counter annihilation wiping the +1/+1 counters.
         delete kavu.counters?.["+1/+1"];
-        unapplySourceStaticEffects(state, kavu);
-        applySourceStaticEffects(state, kavu);
+        stopApplyingStaticEffects(state, kavu);
+        beginApplyingStaticEffects(state, kavu);
         expect(kavu.staticAbilities).toContain("haste");
     });
 
@@ -858,7 +858,7 @@ describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, kavu);
+        beginApplyingStaticEffects(state, kavu);
         return { state, kavu };
     }
 
@@ -880,10 +880,10 @@ describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", 
     // `keyword-grant` is MATERIALIZED at apply time (not recomputed at every
     // read like `pt-buff`), so the "as long as" gate only stays live because
     // the real production SBA path (`checkStateBasedActions` →
-    // `refreshCounterGatedStatics`, generalized in issue #1095 to also sweep
+    // `recomputeContinuousEffects`, generalized in issue #1095 to also sweep
     // `keyword-grant`s that declare a `condition`) re-runs `applies`/
     // `condition` every SBA pass. Exercised via `checkStateBasedActions`
-    // (not a direct `refreshCounterGatedStatics` call) so this test would go
+    // (not a direct `recomputeContinuousEffects` call) so this test would go
     // red if the wiring at `gre/sba.ts` ever dropped that call.
     it("loses haste once an opponent controls a white creature (re-evaluated via checkStateBasedActions)", () => {
         const { state, kavu } = makeKavuRunnerState();
@@ -937,7 +937,7 @@ describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", 
     // board-state gate holds. Asserted through `validateAttackerEligibility`
     // (not a hand-rolled `staticAbilities` check) so this proves the real
     // combat-eligibility path, not just the materialized keyword array —
-    // deleting the `refreshCounterGatedStatics` call at `gre/sba.ts:725`
+    // deleting the `recomputeContinuousEffects` call at `gre/sba.ts:725`
     // would leave this test red (still eligible before SBA runs, but the
     // post-SBA assertion below would then wrongly stay eligible too).
     it("can attack despite summoning sickness while the gate holds, and loses that eligibility once it lapses (validateAttackerEligibility)", () => {
@@ -953,7 +953,7 @@ describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, kavu);
+        beginApplyingStaticEffects(state, kavu);
 
         expect(validateAttackerEligibility(kavu)).toEqual({ eligible: true });
 

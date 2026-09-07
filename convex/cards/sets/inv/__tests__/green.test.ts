@@ -19,13 +19,13 @@ import {
 } from "../../../__tests__/setup";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     emitPermanentEntered,
     emitSpellCastEvent,
     processPendingActionTriggers,
     removePermanentTo,
     resolveTopOfStack,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -1226,7 +1226,7 @@ describe("Kavu Titan (Kicker → three +1/+1 counters + trample; CR 702.33 / 122
     // Revert-sensitive regression: gating the grant on the +1/+1 counter
     // COUNT rather than `wasKicked` would let an unrelated pump spell forge
     // trample on a never-kicked Titan. Forces a re-materialization
-    // (`unapplySourceStaticEffects` + `applySourceStaticEffects`) against the
+    // (`stopApplyingStaticEffects` + `beginApplyingStaticEffects`) against the
     // real production apply path.
     it("(regression) unkicked, later pumped to 3+ +1/+1 counters externally: still does not gain trample", () => {
         const state = enterKicked(false);
@@ -1235,8 +1235,8 @@ describe("Kavu Titan (Kicker → three +1/+1 counters + trample; CR 702.33 / 122
         )!;
         expect(titan.staticAbilities).not.toContain("trample");
         titan.counters = { "+1/+1": 3 };
-        unapplySourceStaticEffects(state, titan);
-        applySourceStaticEffects(state, titan);
+        stopApplyingStaticEffects(state, titan);
+        beginApplyingStaticEffects(state, titan);
         expect(titan.staticAbilities).not.toContain("trample");
     });
 

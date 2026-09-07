@@ -5,12 +5,12 @@ import {
     destroyWithReplacements,
     getOpponentId,
     processPendingActionTriggers,
-    refreshCounterGatedStatics,
+    recomputeContinuousEffects,
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
     unapplyAuraControlChange,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
@@ -223,7 +223,7 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
         const bestowed = findOnBattlefield(state, id);
         if (bestowed?.bestowed) {
             unapplyAuraControlChange(state, bestowed);
-            unapplySourceStaticEffects(state, bestowed);
+            stopApplyingStaticEffects(state, bestowed);
             revertBestow(bestowed);
             // CR 613.1d (PRD #2064 S4) — `revertBestow` re-seated the object's
             // layer-4 BASES; this is the board-wide recompute that replays
@@ -289,7 +289,7 @@ export function checkAttachmentSBA(state: GameState): boolean {
     for (const id of toDetach) {
         const found = findOnBattlefield(state, id);
         if (!found) continue;
-        unapplySourceStaticEffects(state, found);
+        stopApplyingStaticEffects(state, found);
         found.attachedTo = undefined;
     }
     return toDetach.length > 0;
@@ -867,7 +867,7 @@ export function checkStateBasedActions(state: GameState): void {
         // (CR 704.5q annihilation below, Freyalise's Winds' untap-step wind
         // strip, depletion counters on tap, `payRemoveCounterCost`, loyalty).
         // Idempotent, so it does not gate the fixpoint.
-        refreshCounterGatedStatics(state);
+        recomputeContinuousEffects(state);
         let acted = false;
         acted = checkAuraAttachmentSBA(state) || acted;
         // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling

@@ -38,8 +38,9 @@ import {
     canPayMayPayCost,
     payMayPayCost,
     normalizeMayPayCost,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    recomputeContinuousEffects,
+    stopApplyingStaticEffects,
     applyExistingGrantsTo,
     addRestrictedManaToPool,
     manaSpentDelta,
@@ -1795,10 +1796,10 @@ describe("Melting (CR 205.4a supertype-set static — remove Snow)", () => {
             ],
         });
         expect(hasSnowSupertype(snowF)).toBe(true);
-        applySourceStaticEffects(state, meltInst);
+        beginApplyingStaticEffects(state, meltInst);
         expect(hasSnowSupertype(snowF)).toBe(false);
         expect(countSnowLands(state.players[0].battlefield)).toBe(0);
-        unapplySourceStaticEffects(state, meltInst);
+        stopApplyingStaticEffects(state, meltInst);
         expect(hasSnowSupertype(snowF)).toBe(true);
     });
 
@@ -1814,7 +1815,7 @@ describe("Melting (CR 205.4a supertype-set static — remove Snow)", () => {
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, meltInst);
+        beginApplyingStaticEffects(state, meltInst);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "sf"
@@ -1833,7 +1834,7 @@ describe("Melting (CR 205.4a supertype-set static — remove Snow)", () => {
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, meltInst);
+        beginApplyingStaticEffects(state, meltInst);
         const newSnow = snowLand(snowCoveredForest.id, "new-sf", "p1");
         state.players[0].battlefield.push(newSnow);
         applyExistingGrantsTo(state, newSnow);
@@ -2173,7 +2174,7 @@ describe("Snowblind (CR 604.3 snow-count -X/-Y aura)", () => {
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         // X = 2 snow lands → -2/-2 (toughness 4 → cap min(2, 3) = 2).
         expect(getEffectivePower(state, creature)).toBe(2);
         expect(getEffectiveToughness(state, creature)).toBe(2);
@@ -2237,15 +2238,19 @@ describe("Arcum's Sleigh (CR 205.4a defending-player snow gate)", () => {
 describe("supertype filter wire-format round-trip (CR 205.4a)", () => {
     it("hasSupertypeLive reads an indefinite add/remove after projection", () => {
         const land = snowLand(snowCoveredForest.id, "sf", "p1");
-        land.removedSupertypes = [
-            { supertype: "Snow", sourceId: "indefinite" },
-        ];
+        // The LEDGER, not the derived row (PRD #2064 S6b-part-2): the
+        // projection re-derives layers 2-5, so a hand-written output row is
+        // overwritten by the answer the registry and the ledgers produce.
+        land.supertypeHolds = [{ remove: ["Snow"], seq: 1 }];
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [land] }),
                 makePlayer("p2"),
             ],
         });
+        // The ledger is the INPUT; the row `hasSupertypeLive` reads is derived
+        // output, written by the sync every production write reaches.
+        recomputeContinuousEffects(state);
         expect(hasSupertypeLive(land, "Snow")).toBe(false);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(

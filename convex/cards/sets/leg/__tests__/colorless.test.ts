@@ -32,11 +32,11 @@ import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applyCostModifiers,
     applyExistingGrantsTo,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     getCostModifiers,
     normalizeManaCost,
     resolveTopOfStack,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
@@ -608,7 +608,7 @@ describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
                 makePlayer("p2", { battlefield: [oppGreenLegend] }),
             ],
         });
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
 
         const kw = "bands with other:legendary";
         expect(greenLegend.staticAbilities).toContain(kw); // green + legendary + yours
@@ -644,7 +644,7 @@ describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
         // Both legendary, one grants the legendary quality → band is legal.
         expect(isLegalBandComposition([a, b])).toBe(true);
     });
@@ -677,7 +677,7 @@ describe("Cathedral of Serra (CR 702.22j keyword-grant, white legendary creature
                 makePlayer("p2", { battlefield: [oppWhiteLegend] }),
             ],
         });
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
 
         const kw = "bands with other:legendary";
         expect(whiteLegend.staticAbilities).toContain(kw); // white + legendary + yours
@@ -721,7 +721,7 @@ describe("Seafarer's Quay (CR 702.22j keyword-grant, blue legendary creatures)",
                 makePlayer("p2", { battlefield: [oppBlueLegend] }),
             ],
         });
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
 
         const kw = "bands with other:legendary";
         expect(blueLegend.staticAbilities).toContain(kw); // blue + legendary + yours
@@ -763,7 +763,7 @@ describe("Unholy Citadel (CR 702.22j keyword-grant, black legendary creatures)",
                 makePlayer("p2", { battlefield: [oppBlackLegend] }),
             ],
         });
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
 
         const kw = "bands with other:legendary";
         expect(blackLegend.staticAbilities).toContain(kw); // black + legendary + yours
@@ -913,9 +913,9 @@ describe("The Tabernacle at Pendrell Vale (CR 113.1 triggered-grant + CR 603.6a 
         ).toBe(true);
     });
 
-    it("removes the grant when the Tabernacle leaves play (unapplySourceStaticEffects)", () => {
+    it("removes the grant when the Tabernacle leaves play (stopApplyingStaticEffects)", () => {
         const { state, tabernacle, bear } = withTabernacle("p1");
-        unapplySourceStaticEffects(state, tabernacle);
+        stopApplyingStaticEffects(state, tabernacle);
         expect(
             effectiveTriggeredAbilities(bear).some(
                 (a) => a.id === "tabernacle-upkeep"

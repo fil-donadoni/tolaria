@@ -26,7 +26,7 @@ import {
 import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     discardToGraveyard,
     type CardInstanceState,
     type StackItem,
@@ -147,7 +147,7 @@ describe("Goblin War Drums — grants menace anthem-style (CR 611, 702.111a)", (
                 makePlayer("p2", { battlefield: [theirs] }),
             ],
         });
-        applySourceStaticEffects(state, drums);
+        beginApplyingStaticEffects(state, drums);
         const mineLive = state.players[0].battlefield.find(
             (c) => c.id === "mine"
         )!;

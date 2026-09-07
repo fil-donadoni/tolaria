@@ -29,7 +29,7 @@ import {
     type GameState,
     type PlayerState,
     allocInstanceId,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     createTokenPermanents,
     exileFaceDownCard,
     getOpponentId,
@@ -510,7 +510,7 @@ export function buildStateFromScenario(
     // a function of subtype/id, not of timestamp.
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            applySourceStaticEffects(state, source);
+            beginApplyingStaticEffects(state, source);
         }
     }
 
@@ -739,7 +739,7 @@ function sameStringSet(a: string[], b: string[]): boolean {
  *  Deliberately does NOT compare `staticAbilities`: a lord/anthem-style
  *  keyword grant sourced from another STILL-PRESENT battlefield permanent is
  *  rebuild behaviour, not spec-keyed data — `buildStateFromScenario` re-runs
- *  `applySourceStaticEffects` across the whole battlefield on every load
+ *  `beginApplyingStaticEffects` across the whole battlefield on every load
  *  (same as the original build did), so it re-derives that exact grant for
  *  free as long as the granting source and the attachment/board state that
  *  feeds it are captured (which they always are). See `reportCardResidue`
@@ -806,7 +806,7 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "castableFromExileBy",
     "castableFromExileUntilTurn",
     "castableFromExileIncludesLand",
-    // Rebuild behaviour, not spec-keyed data: `applySourceStaticEffects`
+    // Rebuild behaviour, not spec-keyed data: `beginApplyingStaticEffects`
     // (CR 611.2) re-derives every CONTINUOUS grant/strip from a
     // still-present battlefield source on every load, exactly as the
     // original build did — see `reportCharacteristicDrift`'s doc.
@@ -815,10 +815,8 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "enteredOnTurn",
     "chosenPlayerId",
     "staticSeq",
-    "grantedStaticAbilities",
     "grantedActivatedAbilities",
     "grantedTriggeredAbilities",
-    "removedKeywords",
     "abilitiesSuppressedBy",
     // Same class, PRD #2064 S3: `baseStaticAbilities` is the pre-layer-6
     // keyword multiset and `abilityLossHolds` the resolving-ability ledger.
@@ -828,6 +826,21 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     // rule as a duration-scoped grant.
     "baseStaticAbilities",
     "abilityLossHolds",
+    // WIRE-ONLY keys (ADR 0082 decision 4, PRD #2064 S6b-part-2). These are not
+    // `CardInstanceState` fields at all any more — they are derived
+    // characteristics `gre/wireCharacteristics.ts` materialises onto the
+    // projected card so the client's 53 call sites keep working. This scan runs
+    // over a card that may have come through `projectFullState`, so it sees
+    // them; they are the definition of rebuild behaviour, since the next
+    // derivation on the loaded board produces them again from scratch.
+    "grantedStaticAbilities",
+    "removedKeywords",
+    "textChanges",
+    "grantedTypes",
+    "suppressedTypes",
+    "grantedSubtypes",
+    "grantedSubtypesAdd",
+    "printedSubtypes",
     // Same class again, PRD #2064 S4, for layers 2-5: `baseControllerId`,
     // `baseTypes` and `baseSubtypes` are the pre-layer bases, re-captured from
     // the reloaded `controllerId` / `types` / `subtypes` at the first
@@ -839,10 +852,8 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     // spec that drops one has genuinely dropped state and the generic scan
     // must keep reporting it.
     "baseControllerId",
-    "layers2to5Derived",
     "baseTypes",
     "baseSubtypes",
-    "printedSubtypes",
     // Privacy field — never present on a real read (`slimCard` deletes it
     // even in the full debug projection); read separately (raw states only)
     // to derive `faceDownExile`.
@@ -868,17 +879,20 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
  *  escape as `reportDanglingStripperResidue` one field over (CR 611.2,
  *  issue #2148 review finding on #2866): a `duration`-scoped entry — a
  *  ONE-SHOT resolved effect's "gains flying until end of turn" grant, which
- *  has no source permanent for `applySourceStaticEffects` to replay — and an
+ *  has no source permanent for `beginApplyingStaticEffects` to replay — and an
  *  `auraId`-scoped entry whose aura has since left BOTH battlefields, which
- *  leaves `applySourceStaticEffects` nothing to walk on reload either. */
+ *  leaves `beginApplyingStaticEffects` nothing to walk on reload either. */
 function reportTemporaryGrantResidue(
     state: GameState,
     card: CardInstanceState,
     label: string,
     dropped: string[]
 ): void {
+    // `grantedStaticAbilities` left this list with PRD #2064 S6b-part-2: the
+    // field is gone from `CardInstanceState` and every provenance it carried is
+    // a registry entry, whose own expiry ends it (a `source` entry whose source
+    // has left simply stops applying — there is no residue to report).
     const fields = [
-        "grantedStaticAbilities",
         "grantedActivatedAbilities",
         "grantedTriggeredAbilities",
     ] as const;
@@ -899,7 +913,7 @@ function reportTemporaryGrantResidue(
             )
         ) {
             dropped.push(
-                `${label}: ${field} sourced from an aura no longer on either battlefield — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
+                `${label}: ${field} sourced from an aura no longer on either battlefield — beginApplyingStaticEffects has nothing to replay it from on reload; not spec-expressible`
             );
         }
     }
@@ -907,7 +921,7 @@ function reportTemporaryGrantResidue(
 
 /** True when `sourceId` is still a permanent on EITHER player's battlefield
  *  in the LIVE state being lowered — the precondition for
- *  `applySourceStaticEffects` to re-derive a source-keyed grant/removal on
+ *  `beginApplyingStaticEffects` to re-derive a source-keyed grant/removal on
  *  reload (CR 611.2). */
 function sourceStillOnBattlefield(state: GameState, sourceId: string): boolean {
     return state.players.some((p) =>
@@ -928,7 +942,7 @@ function sourceStillOnBattlefield(state: GameState, sourceId: string): boolean {
  *  `temporaryRemovedKeywords` (which is NOT in `CARD_STATE_ALLOWLIST`).
  *
  *  Their rebuild path mirrors a continuous
- *  `granted*` entry: `applySourceStaticEffects` re-derives the strip on
+ *  `granted*` entry: `beginApplyingStaticEffects` re-derives the strip on
  *  every load PROVIDED the stripping source is still a battlefield
  *  permanent for the reload to walk. When `sourceId` names nothing on
  *  either battlefield the entry can't be re-derived — report it, the same
@@ -940,21 +954,11 @@ function reportDanglingStripperResidue(
     label: string,
     dropped: string[]
 ): void {
-    const danglingRemoved = (card.removedKeywords ?? []).filter(
-        (r) =>
-            r.sourceId !== INDEFINITE_SOURCE_ID &&
-            !sourceStillOnBattlefield(state, r.sourceId)
-    );
-    if (danglingRemoved.length > 0) {
-        dropped.push(
-            `${label}: removedKeywords stripped by a source no longer on either battlefield (${danglingRemoved
-                .map((r) => r.keyword)
-                .sort()
-                .join(
-                    ", "
-                )}) — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
-        );
-    }
+    // The `removedKeywords` half of this report went with PRD #2064
+    // S6b-part-2: a strip is a registry entry now, and an entry whose `source`
+    // expiry names a permanent that is no longer on either battlefield is not
+    // dangling residue — it is an effect that has ENDED, and the derivation
+    // simply stops producing it. Nothing survives a reload to report.
     const danglingSuppressed = (card.abilitiesSuppressedBy ?? []).filter(
         (s) =>
             s.sourceId !== INDEFINITE_SOURCE_ID &&
@@ -962,7 +966,7 @@ function reportDanglingStripperResidue(
     );
     if (danglingSuppressed.length > 0) {
         dropped.push(
-            `${label}: abilitiesSuppressedBy a source no longer on either battlefield — applySourceStaticEffects has nothing to replay it from on reload; not spec-expressible`
+            `${label}: abilitiesSuppressedBy a source no longer on either battlefield — beginApplyingStaticEffects has nothing to replay it from on reload; not spec-expressible`
         );
     }
 }

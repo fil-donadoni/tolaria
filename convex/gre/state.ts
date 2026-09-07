@@ -59,6 +59,7 @@ import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import {
+    deriveLayer6,
     ensureLayer6Base,
     recomposeLayer6ForInstance,
     syncLayer6,
@@ -219,6 +220,7 @@ import {
     getEffectiveToughness,
     countDevotion,
 } from "./layers";
+import type { LayerStateView } from "./layers";
 import {
     getMadnessCost,
     markMadnessExiled,
@@ -538,43 +540,6 @@ export type CardInstanceState = {
      *  step began. Read by upkeep triggers phrased "if ~ started the turn
      *  untapped" (Rasputin Dreamweaver, LEG). Refreshed each untap step. */
     startedTurnUntapped?: boolean;
-    /** Keyword abilities granted for a limited duration (CR 113.1 / 611.2a).
-     *  Each entry is also pushed to `staticAbilities` for read-time lookups
-     *  (combat logic inspects `staticAbilities.includes("trample")`) and is
-     *  spliced back out either when the parametric `duration` expires,
-     *  for grants sourced from an attached aura, when the aura leaves the
-     *  battlefield, or — for a keyword-counter grant — when the counter is
-     *  fully removed. Since PRD #2064 S6b only the `auraId` provenance is left
-     *  here — the other two are registry entries — which makes this array pure
-     *  layer-6 DERIVED OUTPUT. */
-    grantedStaticAbilities?: {
-        ability: string;
-        /** Instance id of the aura that produced this grant (CR 303.4e).
-         *  The entry is removed when the aura unattaches or leaves play.
-         *
-         *  Since PRD #2064 S6b the ONLY provenance this array carries, which
-         *  makes the whole field pure DERIVED OUTPUT of `layer6DerivedFields`.
-         *  The three INPUT provenances that used to share it — `duration`
-         *  (CR 611.2a), `counterType` (CR 122.1b) and the bare indefinite row
-         *  (CR 611.2c) — are registry entries written by their producers, and
-         *  a state persisted before that slice has them migrated across by
-         *  `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`). */
-        auraId?: string;
-        /** CR 613.7 layer timestamp of the granting SOURCE (issue #1715).
-         *  Copied from the source's `staticSeq` when a continuous static
-         *  effect materializes this grant, so layer 6 can order this grant
-         *  against a `removedKeywords` entry from a different source. Absent
-         *  on duration- and counter-keyed grants (nothing orders those). */
-        seq?: number;
-        /** CR 613.1f (issue #1715) — this grant applied while a STRICTLY
-         *  LATER `keyword-remove` / `ability-loss` was already stripping the
-         *  keyword, so it was recorded but NOT pushed onto `staticAbilities`.
-         *  `unapplySourceStaticEffects` must skip the matching splice, or the
-         *  apply/unapply pair eats an occurrence that belongs to another
-         *  source (or to the printed card). Cleared when the stripper's own
-         *  unapply restores the keyword. */
-        suppressed?: boolean;
-    }[];
     /** Activated abilities granted to this permanent by another source
      *  (CR 113.1, 611). Each entry references an ability template on another
      *  card def — the template is looked up at activation time on
@@ -622,36 +587,34 @@ export type CardInstanceState = {
          *  `grantedActivatedAbilities`. */
         seq?: number;
     }[];
-    /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
-     *  layer 6). Each entry records the removed keyword and the source that
-     *  removed it so `unapplySourceStaticEffects` can restore it. */
-    removedKeywords?: {
-        keyword: string;
-        sourceId: string;
-        /** CR 613.7 layer timestamp of the removing SOURCE (issue #1715),
-         *  copied from its `staticSeq`. A `keyword-grant` whose own `seq` is
-         *  LOWER loses to this removal and is recorded `suppressed`; a grant
-         *  with a HIGHER seq applies on top and keeps the keyword (CR 613.1f
-         *  — Gravity Sphere then Flight: the creature flies). */
-        seq?: number;
-    }[];
-    /** `ability-loss` static-effect sources that have stripped this permanent
-     *  of ALL its abilities (CR 613.1f — "loses all abilities", Titania's Song;
-     *  Blood Moon strips a nonbasic land before setting its type). While
-     *  non-empty: native activated abilities don't resolve, native triggered
-     *  abilities are excluded from the trigger scan, and the intrinsic mana
-     *  ability is unavailable. Keyword abilities are stripped imperatively into
-     *  `removedKeywords` (so the existing restore path rebuilds them). Multiple
-     *  sources stack; the last source to unapply clears the suppression.
+    /** CR 613.1f — every `ability-loss` effect currently applying to this
+     *  permanent, both arms: the CONTINUOUS one derived from a live source's
+     *  static ability (Titania's Song, Blood Moon) and the LEDGER one generated
+     *  by a resolving ability (`abilityLossHolds`). While non-empty: native
+     *  activated abilities don't resolve, native triggered abilities are
+     *  excluded from the trigger scan, and the intrinsic mana ability is
+     *  unavailable.
      *
-     *  `seq` is the source's layer timestamp (`staticSeq`), because layer 6
-     *  applies grants and removals in TIMESTAMP order (CR 613.7): an ability
-     *  GRANTED to this permanent before the stripper applied is removed by it,
-     *  one granted after survives (Humility, then Fire Whip). Stored per source
-     *  — not as a bare id list — so `getEffectiveActivatedAbilities` /
-     *  `effectiveTriggeredAbilities` can make that comparison at read time,
-     *  which they could not while the field held ids alone (a Blood Moon'd
-     *  Urza's Saga kept the mana ability its own chapter I had granted it). */
+     *  DERIVED OUTPUT, written ONLY by `layer6DerivedFields` (`gre/layer6.ts`)
+     *  and read back by nothing in the derivation — the input arm is
+     *  `abilityLossHolds` below.
+     *
+     *  It is the ONE derived-output field PRD #2064 S6b-part-2 kept, and the
+     *  reason is that its consult sites have no board. `abilitiesSuppressed`
+     *  (`gre/constants.ts`) is a per-card predicate the whole mana planner gates
+     *  on — eleven call sites in that module alone, plus `gre/rules.ts`,
+     *  `gre/autoTapDemands.ts`, `gre/tapManaBonus.ts`, `gre/manaConverters.ts`
+     *  — and `abilityLossTimestamp` (`gre/activatedAbilities.ts`) is read by the
+     *  CLIENT's ability view through the same module. None of them can reach a
+     *  `GameState`, and the continuous arm cannot be answered without one, so
+     *  deriving here would turn every mana read into a battlefield sweep: the
+     *  precise hazard ADR 0082's consequences section says to measure rather
+     *  than assume.
+     *
+     *  `seq` is the source's layer timestamp, because layer 6 applies grants and
+     *  removals in TIMESTAMP order (CR 613.7): an ability GRANTED to this
+     *  permanent before the stripper applied is removed by it, one granted after
+     *  survives (Humility, then Fire Whip). */
     abilitiesSuppressedBy?: { sourceId: string; seq: number }[];
     /** CR 611.2b / 611.2c — the LEDGER of "loses all abilities" effects
      *  generated by a RESOLVING ability: `SpellContext.loseAllAbilities`
@@ -990,13 +953,13 @@ export type CardInstanceState = {
      *  permanent and is re-stamped). */
     worldSeq?: number;
     /** CR 613.7 layer timestamp of THIS permanent's continuous static effects
-     *  (issue #1715). Stamped by `applySourceStaticEffects` every time the
+     *  (issue #1715). Stamped by `beginApplyingStaticEffects` every time the
      *  source's effects are applied afresh — the permanent entering the
      *  battlefield, or an Aura becoming attached to a different object
      *  (CR 613.7d) — and copied onto every layer-4/6 record the apply writes
      *  (`grantedStaticAbilities.seq`, `removedKeywords.seq`,
      *  `grantedSubtypes.seq`, `grantedSubtypesAdd.seq`). A counter-gated
-     *  RE-EVALUATION (`refreshCounterGatedStatics`) explicitly PRESERVES it:
+     *  RE-EVALUATION (`recomputeContinuousEffects`) explicitly PRESERVES it:
      *  re-running a predicate is not a new timestamp, so the source keeps its
      *  position in every layer's ordering no matter how many SBA passes run.
      *  Cleared when the permanent leaves the battlefield, so a permanent that
@@ -1054,87 +1017,33 @@ export type CardInstanceState = {
      *  Set by Nettling Imp's activated ability. Checked by combat enforcement
      *  in `mustAttack()`. Transient — cleared at CLEANUP (CR 514.2). */
     mustAttackThisTurn?: boolean;
-    /** Tracks card types added by `StaticTypeAdd` effects (layer 4 surrogate
-     *  — see `cards/types.ts` for the model's limits). One entry per
-     *  `(auraId, type)` pair so multiple concurrent sources don't double-add
-     *  and unapplying one source only removes the type when no other source
-     *  still grants it. The `type` itself is also pushed into `types[]` at
-     *  apply time so every existing `types.includes(...)` read observes the
-     *  effect; `unapplySourceStaticEffects` removes from `types[]` once the
-     *  last origin entry is gone, provided the type wasn't printed. */
-    grantedTypes?: { type: string; auraId: string }[];
-    /** Tracks card types REMOVED by `StaticTypeRemove` effects (layer 4
-     *  surrogate, subtractive counterpart of `grantedTypes`). One entry per
-     *  `(sourceId, type)` pair so unapplying one source only restores the
-     *  type when no other source still suppresses it, and only if the type
-     *  was originally printed. Used by Reconfigure's "isn't a creature while
-     *  attached" (CR 702.151b, issue #1311). */
-    suppressedTypes?: { type: string; sourceId: string }[];
-    /** Layer 4 subtype replacements (CR 305.7). Each entry records one
-     *  source's override. The engine also snapshots `printedSubtypes` before
-     *  the first replacement so unapply can restore them. When multiple
-     *  sources overlap, the last entry's subtypes are the active ones. */
-    grantedSubtypes?: {
-        subtypes: string[];
-        sourceId: string;
-        /** CR 613.7 layer timestamp of the setting SOURCE (issue #1715),
-         *  copied from its `staticSeq`. `composeMaterializedSubtypes` merges
-         *  this list with `grantedSubtypesAdd` and replays BOTH in seq order,
-         *  so a later set overwrites an earlier "in addition" add and a later
-         *  add survives an earlier set. */
-        seq?: number;
-    }[];
-    /** Tracks subtypes ADDED by `StaticSubtypeAdd` effects (layer 4 additive
-     *  surrogate — see `cards/types.ts` for the model's limits), mirroring
-     *  `grantedTypes` one-for-one: one entry per `(auraId, subtype)` pair so
-     *  concurrent sources don't double-add and unapplying one source only
-     *  removes the subtype when no other source still grants it. The
-     *  `subtype` itself is also pushed into `subtypes[]` at apply time.
-     *  Unlike `grantedSubtypes` (subtype-SET, a destructive replace), this
-     *  never touches `printedSubtypes` — nothing is ever hidden. */
-    grantedSubtypesAdd?: {
-        subtype: string;
-        auraId: string;
-        /** CR 613.7 layer timestamp of the adding SOURCE (issue #1715) — see
-         *  `grantedSubtypes.seq`. Stamped for the `"indefinite"` sentinel
-         *  source too (issue #1750, part a): `SpellContext.addSubtype`
-         *  mints a real `allocStaticTimestamp` like every other layer-4
-         *  writer, so a resolved one-shot add orders against a live
-         *  `subtype-set` by WHEN it resolved, not as an automatic earliest —
-         *  a genuinely later add must survive an earlier set's recompose. */
-        seq?: number;
-    }[];
-    /** Layer 5 color grants (CR 305.7). Each entry records one source's
-     *  granted colors. Used by Kormus Bell ("black creatures"). */
+    /** CR 613.1e layer 5 — the colour grants applying (Kormus Bell's "black
+     *  creatures"). DERIVED OUTPUT, written only by `layers2to5DerivedFields`
+     *  (`gre/layers2to5.ts`) and never read back as input.
+     *
+     *  Kept materialised for the reason `abilitiesSuppressedBy` is (PRD #2064
+     *  S6b-part-2): its consult site has no board. `getEffectiveColors`
+     *  (`cards/effectiveColors.ts`) is a frontend-safe leaf module with no
+     *  engine imports at all, and seven call sites read a permanent's colours
+     *  through it. */
     grantedColors?: { color: string; sourceId: string }[];
-    /** Supertypes added by a `supertype-set` static effect or an indefinite
-     *  `setSupertype` mutation (CR 205.4a). Source-keyed (`"indefinite"` for
-     *  non-source-bound mutations). Read by `hasSnowSupertype` / the
-     *  `STATIC_EFFECT_CTX.hasSupertype` helper so live snow status is observed
-     *  (Arcum's Weathervane "becomes snow"). */
+    /** CR 205.4a layer 4 — supertypes ADDED by a `supertype-set` static effect
+     *  or an indefinite `setSupertype` mutation (Arcum's Weathervane's "becomes
+     *  snow"). DERIVED OUTPUT, written only by `layers2to5DerivedFields`.
+     *
+     *  Materialised for the same reason as `grantedColors` above:
+     *  `hasSupertypeLive` (`cards/snowReads.ts`) is the cycle-free LEAF module
+     *  card sets value-import directly, so it can never take a `GameState`. */
     grantedSupertypes?: { supertype: string; sourceId: string }[];
-    /** Supertypes removed by a `supertype-set` static effect or an indefinite
-     *  `setSupertype` mutation (Melting / Arcum's Weathervane "no longer
-     *  snow" — CR 205.4a). Source-keyed like `grantedSupertypes`; unapply
-     *  restores the printed supertype when the last source leaves. */
+    /** CR 205.4a layer 4 — the subtractive twin of `grantedSupertypes` (Melting
+     *  / Arcum's Weathervane's "is no longer snow"). Same provenance, same
+     *  reason for staying materialised. */
     removedSupertypes?: { supertype: string; sourceId: string }[];
-    /** Original printed subtypes, snapshotted before the first subtype-set
-     *  static effect overwrites `subtypes`. DERIVED OUTPUT since PRD #2064 S4 —
-     *  `syncLayers2to5` keeps it in step with `baseSubtypes`, which is the real
-     *  authority — and read only by consult sites that predate the split (the
-     *  wire projection, `gre/bestow.ts`'s re-anchor). S6 deletes both. */
-    printedSubtypes?: string[];
     /** CR 613.1b (PRD #2064 S4) — the pre-layer-2 controller: who put the
      *  permanent onto the battlefield (CR 108.3), before any control-change
      *  effect applies. The layer-2 twin of `baseStaticAbilities`;
      *  `controllerId` is the derived answer. */
     baseControllerId?: string;
-    /** PRD #2064 S4 — true once `syncLayers2to5` has derived this instance's
-     *  layers 2-5 at least once. NOT a base and NOT cleared by the CR 400.7
-     *  departure reset: it records which ENGINE wrote the instance's
-     *  characteristic fields, which is what decides whether the pre-S4 ledger
-     *  migration may read them. Absent means the row predates this slice. */
-    layers2to5Derived?: boolean;
     /** CR 613.1d (PRD #2064 S4) — the pre-layer-4 card types, captured lazily
      *  at the first derivation. Cleared by every path that rewrites the
      *  copiable values from below (copy, face-down, transform, identity swap),
@@ -1298,15 +1207,6 @@ export type CardInstanceState = {
         restoreColorOverride?: Color[];
         duration: Duration;
     };
-    /** Text-changing effects (CR 612, layer 3). Each entry replaces every
-     *  instance of one word with another inside this object's structured text.
-     *  Applied at read time by `applySubstitution` (gre/textChanges.ts) at the
-     *  word-bearing parser chokepoints (land subtype → mana/landwalk, color
-     *  words). Absent on essentially every instance — readers fast-path when
-     *  undefined. Carried on the instance so the effect ends on a zone change
-     *  for free (CR 612.7 — a new object). Set by Magical Hack / Sleight of
-     *  Mind. Entries apply in array (timestamp) order. */
-    textChanges?: TextChange[];
     /** Copy effect anchor (CR 707.2, 706). When this permanent is a copy of
      *  another (Clone, Copy Artifact, Vesuvan Doppelganger), `card.id` is
      *  overwritten with the copied object's definition id so every
@@ -4813,7 +4713,7 @@ export type GameState = {
      *  EMPTY IN PRODUCTION as of slice S1 (#3002): the structure and its
      *  ordering contract ship first, and each layer migrates onto it in turn
      *  (S2 #3003 layer 7, S3 #3004 layer 6, S4 #3005 layers 2-5). Until then
-     *  the materialised model in `applySourceStaticEffects` and friends stays
+     *  the materialised model in `beginApplyingStaticEffects` and friends stays
      *  authoritative. */
     continuousEffects?: ContinuousEffect[];
 };
@@ -7476,7 +7376,7 @@ function finalizeSpellResolution(
         // every matching permanent (aura → host via AURA_AFFECTS_HOST;
         // lord-style → all matching subtype/etc.).
         applyExistingGrantsTo(state, item);
-        applySourceStaticEffects(state, item);
+        beginApplyingStaticEffects(state, item);
         if (isAura(item)) {
             // CR 613.1b layer 2 — apply any control-changing static effect
             // the aura declares (e.g. Control Magic). Runs after keyword
@@ -7727,7 +7627,7 @@ export function emitPermanentEntered(
  *  mode-level effects when a `chosenModeId` is present (CR 700.2c).
  *  Exported (issue #1750, part c) so `serialize.ts`'s legacy `staticSeq`
  *  backfill can gate on the EXACT same "does this source ever get stamped"
- *  question `applySourceStaticEffects` answers with its own `effects.length
+ *  question `beginApplyingStaticEffects` answers with its own `effects.length
  *  === 0` early return — a card with no continuous static effects is never a
  *  `staticSeq` producer/consumer and must not be backfilled one. */
 export function getEffectiveStaticEffects(
@@ -7757,7 +7657,7 @@ export function getEffectiveStaticEffects(
  *  Goblin King ("other Goblins have mountainwalk") use a subtype-based
  *  predicate and grant the keyword to every matching permanent. The grant is
  *  recorded on each affected permanent's `grantedStaticAbilities` keyed by
- *  `source.id` so `unapplySourceStaticEffects` can splice it back out when
+ *  `source.id` so `stopApplyingStaticEffects` can splice it back out when
  *  the source leaves play. No-op if the source has no keyword-grant effects
  *  or no permanent matches its predicate. */
 /** CR 122.1b / 613.7c (issue #1194, PRD #2064 S6b) — writes the REGISTRY ENTRY
@@ -7785,7 +7685,7 @@ function applyKeywordCounterGrant(
     // the entry's own expiry rather than on the composed keyword, for the same
     // own-record reason `grantStaticAbilityPermanent` documents below.
     if (findKeywordCounterEntry(state, card.id, counterType)) return;
-    ensureLayer6Base(state, card);
+    ensureLayer6Base(card);
     pushContinuousEffect(state, {
         layer: 6,
         affected: { kind: "instances", instanceIds: [card.id] },
@@ -7975,13 +7875,27 @@ export function allocStaticTimestamp(state: GameState): number {
     // registry is empty until S2 (#3003), so this scan is a no-op today and a
     // precondition afterwards.
     for (const entry of state.continuousEffects ?? []) bump(entry.timestamp);
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    // CR 613.7d — an emblem carries a minted stamp of its own since PRD #2064
+    // S6b-part-2, and it is a sourceless record like every other shape above.
+    for (const emblem of state.emblems ?? []) bump(emblem.staticSeq);
+    // CR 702.26b — a PHASED OUT permanent is treated as though it did not
+    // exist, but it is still the same OBJECT: `phaseOutPermanent` splices it out
+    // of the battlefield array with its `staticSeq` and every ledger row intact,
+    // and `beginApplyingStaticEffects`'s `preserveTimestamp` hands that same
+    // stamp back on phase-in. Unscanned, the max drops while the bundle is away
+    // and the next caller mints a TIE with a source that is about to come back —
+    // the ordering bug this function exists to prevent, on a board where nobody
+    // can see the colliding source (issue #3120 review).
+    const stamped: CardInstanceState[] = [];
+    for (const player of state.players) stamped.push(...player.battlefield);
+    for (const bundle of state.phasedOut ?? []) stamped.push(...bundle.cards);
+    {
+        for (const card of stamped) {
             bump(card.staticSeq);
             for (const g of card.grantedActivatedAbilities ?? []) bump(g.seq);
             for (const g of card.grantedTriggeredAbilities ?? []) bump(g.seq);
             for (const s of card.abilityLossHolds ?? []) bump(s.seq);
-            for (const s of card.abilitiesSuppressedBy ?? []) bump(s.seq);
+
             // PRD #2064 S3 — two MORE sourceless record shapes, for the same
             // reason as the three documented above: a resolving ability's
             // keyword grant / removal (`SpellContext.grantStaticAbility`,
@@ -7993,9 +7907,23 @@ export function allocStaticTimestamp(state: GameState): number {
             // equal-timestamp tie in the REMOVAL's favour, so Scarwood Hag's
             // "target loses forestwalk" silently lost to the forestwalk it was
             // meant to take off.
-            for (const g of card.grantedStaticAbilities ?? []) bump(g.seq);
-            for (const g of card.grantedSubtypesAdd ?? []) bump(g.seq);
-            for (const g of card.grantedSubtypes ?? []) bump(g.seq);
+            // PRD #2064 S6b-part-2 — the LEDGERS, where the four record shapes
+            // this used to scan through their derived-output copies
+            // (`grantedStaticAbilities`, `grantedSubtypes`,
+            // `grantedSubtypesAdd`, `abilitiesSuppressedBy`) now live. Scanning
+            // the output was scanning the ledger one indirection away; with the
+            // output deleted, dropping these would let the next caller mint a
+            // TIE with a live indefinite subtype add or a live text change —
+            // the sourceless-record gap documented above, one layer down
+            // (issue #1750).
+            for (const h of card.textChangeHolds ?? []) bump(h.seq);
+            for (const h of card.typeLineHolds ?? []) bump(h.seq);
+            for (const h of card.subtypeAddHolds ?? []) bump(h.seq);
+            for (const h of card.supertypeHolds ?? []) bump(h.seq);
+            for (const c of card.controlChanges ?? []) bump(c.seq);
+            bump(card.animation?.seq);
+            bump(card.indefiniteSubtypeSet?.seq);
+            bump(card.temporarySubtypeChange?.seq);
         }
     }
     return max + 1;
@@ -8045,12 +7973,25 @@ export function applyAbilityLossHold(
     return true;
 }
 
-export function applySourceStaticEffects(
+/** CR 613.7a / 611.2 — `source` BEGINS APPLYING its static abilities: it takes
+ *  a layer timestamp, and the board is recomputed as of that moment.
+ *
+ *  Two things, and since PRD #2064 S6b-part-2 the name says both. It was called
+ *  `applySourceStaticEffects` when it really did apply them — a triple-nested
+ *  push loop, one branch per `StaticEffect` kind, each owing a matching unwind
+ *  in its reverse. Nothing is materialised onto a target any more: every
+ *  characteristic-changing continuous effect this source generates is DERIVED
+ *  per read from the Continuous Effects Registry, which walks the board and
+ *  reads this `staticSeq` plus the effect's own `applies` / `condition`
+ *  closures. What is left is the CR 613.7a STAMP MINT plus a recompute, and a
+ *  name claiming otherwise is how a reader looks for an unwind that no longer
+ *  exists. */
+export function beginApplyingStaticEffects(
     state: GameState,
     source: CardInstanceState,
     options?: {
         /** CR 613.7 — keep the source's EXISTING layer timestamp instead of
-         *  minting a new one. Set only by `refreshCounterGatedStatics`: a
+         *  minting a new one. Set only by `recomputeContinuousEffects`: a
          *  counter-gated re-evaluation re-runs the predicate but does NOT
          *  re-stamp the effect, so the source keeps its ordering position
          *  across an arbitrary number of SBA passes. Every other caller
@@ -8077,7 +8018,7 @@ export function applySourceStaticEffects(
     // walks the board and reads this `staticSeq` plus the effect's own
     // `applies` / `condition` closures. What used to be a triple-nested push
     // loop — one branch per `StaticEffect` kind, each owing a matching unwind
-    // in `unapplySourceStaticEffects` — is these two calls.
+    // in `stopApplyingStaticEffects` — is these two calls.
     //
     // They run here, not only at the next stable transition, so a resolution
     // that reads a permanent's characteristics between an ETB and the SBA pass
@@ -8086,19 +8027,19 @@ export function applySourceStaticEffects(
     syncLayer6(state);
 }
 
-/** Aura-flavored alias kept for back-compat at the call site that resolves an
- *  aura cast. Behaves identically to `applySourceStaticEffects`. */
-export const applyAuraStaticEffects = applySourceStaticEffects;
-
-/** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
- *  splices out every grant whose `auraId` matches `source.id`. Call before
- *  the source transitions off the battlefield (destroy, exile, SBA detach,
- *  return to hand). Releases exactly one occurrence per granted keyword so
- *  native duplicates on a target are preserved (CR 113.1).
+/** CR 611.2 — `source` STOPS APPLYING its static abilities: its ability-loss
+ *  ledger rows are released and the board is recomputed as of that moment. Call
+ *  before the source transitions off the battlefield (destroy, exile, SBA
+ *  detach, return to hand).
+ *
+ *  The reverse of `beginApplyingStaticEffects`, and renamed with it (PRD #2064
+ *  S6b-part-2) for the same reason: it no longer UNAPPLIES anything. Revocation
+ *  is not an operation under a derivation — once the source stops applying, the
+ *  derivation simply stops producing its entries.
  *
  *  `transient` (issue #1706) marks a teardown that is immediately followed by
  *  a re-apply of the SAME source onto the SAME targets — the counter-gated
- *  refresh (`refreshCounterGatedStatics`) and nothing else. It matters only
+ *  refresh (`recomputeContinuousEffects`) and nothing else. It matters only
  *  for a grant whose occurrence a stripper is currently HOLDING: a FINAL
  *  release cancels that hold (the occurrence has no owner left, so the
  *  stripper must not resurrect it later), whereas a transient one leaves the
@@ -8111,7 +8052,7 @@ export const applyAuraStaticEffects = applySourceStaticEffects;
  *  detach and a leaves-the-battlefield are all final for the targets being
  *  unapplied here, and a future caller that forgets the flag gets the
  *  conservative behaviour rather than a silent resurrection. */
-export function unapplySourceStaticEffects(
+export function stopApplyingStaticEffects(
     state: GameState,
     source: CardInstanceState
 ): void {
@@ -8142,11 +8083,8 @@ export function unapplySourceStaticEffects(
     syncLayer6(state, { stoppedSourceIds });
 }
 
-/** Aura-flavored alias kept for back-compat. */
-export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
-
-/** CR 613.1f / 613.5 — the layer-6 recomputation tick (issue #1711, rewritten
- *  for PRD #2064 S3).
+/** CR 613.1 — the recomputation tick: both derivations, over the whole board,
+ *  as of right now (issue #1711, rewritten for PRD #2064 S3).
  *
  *  It used to be a NARROW sweep: find the sources whose static effects declare
  *  `dependsOnCounters` (or, by a kind-specific special case, a `keyword-grant`
@@ -8162,14 +8100,17 @@ export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
  *  re-evaluated against the live board on every call. `dependsOnCounters`
  *  survives on `StaticEffect` only for the layers this slice does not own.
  *
- *  Kept under its old name because ~a dozen call sites and card comments name
- *  it as the recomputation tick; PRD #2064 S6 renames it with the rest. */
-export function refreshCounterGatedStatics(state: GameState): void {
+ *  It kept its old name — `refreshCounterGatedStatics` — through S3 and S4
+ *  because ~a dozen call sites and card comments named it as the recomputation
+ *  tick. This is the slice that renames it: nothing about it is counter-gated,
+ *  and a name that says so sent readers looking for a sweep that no longer
+ *  exists. */
+export function recomputeContinuousEffects(state: GameState): void {
     // PRD #2064 S4 — the tick is now BOTH derivations and nothing else.
     //
     // What was here until this slice: a sweep that found every source whose
     // effects declare `dependsOnCounters` or carry a `condition`, tore it down
-    // with `unapplySourceStaticEffects` and re-applied it with
+    // with `stopApplyingStaticEffects` and re-applied it with
     // `preserveTimestamp`. That round trip existed because layers 2-5 were
     // MATERIALISED and a gate that flipped had no other way to be noticed.
     // Both halves are derivations now, so the round trip is a no-op that costs
@@ -8211,7 +8152,7 @@ export function applyExistingGrantsTo(
     newPermanent: CardInstanceState
 ): void {
     ensureLayers2to5Base(newPermanent);
-    ensureLayer6Base(state, newPermanent);
+    ensureLayer6Base(newPermanent);
     syncLayers2to5(state);
     syncLayer6(state);
 }
@@ -9611,9 +9552,9 @@ export function removePermanentTo(
     // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5n).
     if (isAura(initial.card)) {
         unapplyAuraControlChange(state, initial.card);
-        unapplySourceStaticEffects(state, initial.card);
+        stopApplyingStaticEffects(state, initial.card);
     } else {
-        unapplySourceStaticEffects(state, initial.card);
+        stopApplyingStaticEffects(state, initial.card);
         unapplyAurasAttachedTo(state, cardId);
     }
     // Re-locate after unapply: a reversed control-change may have moved the
@@ -10252,9 +10193,9 @@ export function returnExiledForSource(
             putReanimatedOnBattlefield(state, auraCard, a.ownerId);
             // Wire the attachment + (re)apply the aura's static grants to the
             // host, mirroring `reattachAura`.
-            unapplySourceStaticEffects(state, auraCard);
+            stopApplyingStaticEffects(state, auraCard);
             auraCard.attachedTo = bundle.hostId;
-            applySourceStaticEffects(state, auraCard);
+            beginApplyingStaticEffects(state, auraCard);
         }
     }
 }
@@ -10978,7 +10919,7 @@ export function addCounterToCard(
     // Wight's paralyzation lock, Cocoon's pupa counters) is written onto its
     // target once and never recomputed; re-run the materialization now so the
     // untap step and `getEffectiveActivatedAbilities` see the new answer.
-    refreshCounterGatedStatics(state);
+    recomputeContinuousEffects(state);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -11175,7 +11116,7 @@ function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
             if (card.attachedTo !== hostId) continue;
             if (!isAura(card)) continue;
             unapplyAuraControlChange(state, card);
-            unapplyAuraStaticEffects(state, card);
+            stopApplyingStaticEffects(state, card);
         }
     }
 }
@@ -11300,7 +11241,7 @@ export function revertAnimation(card: CardInstanceState): void {
  *  instance, restoring its printed type line.
  *
  *  Both maps live on the TARGET and are keyed by the SOURCE, so the standard
- *  reversal (`unapplySourceStaticEffects`) only fires when the SOURCE leaves
+ *  reversal (`stopApplyingStaticEffects`) only fires when the SOURCE leaves
  *  the battlefield. Nothing reversed them when the TARGET left: a permanent
  *  whose type was added or suppressed by ANOTHER permanent's static (Titania's
  *  Song / Animate Artifact, `sets/atq/green.ts` / `sets/lea/blue.ts`) came
@@ -11310,7 +11251,7 @@ export function revertAnimation(card: CardInstanceState): void {
  *  permanents (whose granting source is still on the battlefield) are
  *  untouched.
  *
- *  Mirrors `unapplySourceStaticEffects`' per-`(source, type)` origin
+ *  Mirrors `stopApplyingStaticEffects`' per-`(source, type)` origin
  *  discipline exactly: a granted type is stripped only when it was NOT
  *  printed, and a suppressed type is restored only when it WAS printed — so a
  *  type the card never printed is never "restored".
@@ -11319,46 +11260,18 @@ export function revertAnimation(card: CardInstanceState): void {
  *  permanent (the one-shot layer-4 type SET arm, issue #2084) is cleared by
  *  the same block rather than a parallel one. */
 export function revertTypeProvenance(card: CardInstanceState): void {
-    // PRD #2064 S4 — when the layer-4 BASE has been captured, restoring it IS
-    // the revert: `types` is derived output, so the printed line is exactly
-    // what the derivation started from. The marker walk below survives for an
-    // instance that has never been derived for (a hand-built fixture, or a
-    // state persisted before this slice), where the markers are the only
-    // record of what layer 4 did.
-    if (card.baseTypes) {
-        card.types = [...card.baseTypes];
-        delete card.grantedTypes;
-        delete card.suppressedTypes;
-        delete card.typeLineHolds;
-        return;
-    }
-    const granted = card.grantedTypes;
-    const suppressed = card.suppressedTypes;
-    if (
-        (granted === undefined || granted.length === 0) &&
-        (suppressed === undefined || suppressed.length === 0)
-    ) {
-        return;
-    }
-    const targetCardId = (card.card as { id?: string }).id;
-    const def = targetCardId ? tryGetDefinition(targetCardId) : undefined;
-    const printedTypes = (def?.types ?? []) as string[];
-    if (granted && granted.length > 0) {
-        for (const g of granted) {
-            if (printedTypes.includes(g.type)) continue;
-            card.types = card.types.filter((t) => t !== g.type);
-        }
-        delete card.grantedTypes;
-    }
-    if (suppressed && suppressed.length > 0) {
-        for (const s of suppressed) {
-            if (!printedTypes.includes(s.type)) continue;
-            if (!card.types.includes(s.type as CardType)) {
-                card.types = [...card.types, s.type as CardType];
-            }
-        }
-        delete card.suppressedTypes;
-    }
+    // PRD #2064 S4 — restoring the layer-4 BASE IS the revert: `types` is
+    // derived output, so the printed line is exactly what the derivation
+    // started from. PRD #2064 S6b-part-2 deleted the marker walk that stood
+    // behind this: the `grantedTypes` / `suppressedTypes` surrogates it read are
+    // gone from `CardInstanceState`, and an instance with no captured base is
+    // one no derivation has ever run over — its `types` IS its base, so there is
+    // nothing to revert. A state persisted with markers and no base has both
+    // reconstructed at load (`migrateLegacyLayer2to5Ledgers`,
+    // `gre/serialize.ts`).
+    if (!card.baseTypes) return;
+    card.types = [...card.baseTypes];
+    delete card.typeLineHolds;
 }
 
 /** CR 205.1a layer 4 (CR 613.1d) — SET `card`'s card types on the INSTANCE,
@@ -11638,8 +11551,14 @@ export function resetBattlefieldTransientState(
     card.staticAbilities = [
         ...(card.baseStaticAbilities ?? card.staticAbilities),
     ];
-    delete card.baseStaticAbilities;
-    delete card.grantedStaticAbilities;
+    // The base is KEPT, and set to what was just written (PRD #2064 S6b-part-2).
+    // Leaving it deleted would hand the next `captureLayer6Base` an UNCOMPOSED
+    // `staticAbilities` while registry entries naming this instance were still
+    // live, and the capture's formula — base = staticAbilities + removals -
+    // grants — is exact only over a COMPOSED multiset. An identity swap re-seats
+    // the base from the new copiable values (`gre/identitySwap.ts`), which is
+    // the only thing CR 400.7 asks for here.
+    card.baseStaticAbilities = [...card.staticAbilities];
     // CR 400.7 (PRD #2064 S4) — the same reset, one layer group down: layers
     // 2-5 go back to their BASES and every ledger row goes with the old object.
     // A ledger is CR 611.2a residue attached to an OBJECT; the object that
@@ -11655,12 +11574,20 @@ export function resetBattlefieldTransientState(
     delete card.typeLineHolds;
     delete card.subtypeAddHolds;
     delete card.supertypeHolds;
+    // The layer-4/5 DERIVED OUTPUT of the old object goes with its ledgers
+    // (PRD #2064 S6b-part-2 — these three stayed materialised because their
+    // consult sites have no board). Leaving them behind would let a bounced
+    // permanent read as snow, or as black, until the next sync overwrote them —
+    // and a save/load in that window would promote the rows into ledgers of
+    // their own (`migrateLegacyLayer2to5Ledgers`, `gre/serialize.ts`).
+    delete card.grantedSupertypes;
+    delete card.removedSupertypes;
+    delete card.grantedColors;
     // CR 613.7 (issue #1715) — a permanent that leaves and re-enters is a NEW
     // object and takes a NEW layer timestamp on its next apply.
     delete card.staticSeq;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
-    delete card.removedKeywords;
     delete card.abilitiesSuppressedBy;
     delete card.abilityLossHolds;
     delete card.chosenMana;
@@ -11716,9 +11643,7 @@ export function resetBattlefieldTransientState(
     // Terrain) is stored while the permanent stays in play; a zone change makes
     // a new object, so the choice does not carry over.
     delete card.chosenSubtypes;
-    // CR 612.7 — a text-changing effect ends when the object changes zones
-    // (it becomes a new object). Same lifecycle as colorOverride above.
-    delete card.textChanges;
+
     // CR 303.4 / 400.7 — a runtime-granted enchant restriction ("it becomes an
     // Aura with enchant creature") belongs to the object that was on the
     // battlefield. The object that leaves — and the one that re-enters — is a
@@ -12001,7 +11926,7 @@ function stageReanimatedOnBattlefield(
         // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`).
         checkAscendCityBlessing(state);
         applyExistingGrantsTo(state, card);
-        applySourceStaticEffects(state, card);
+        beginApplyingStaticEffects(state, card);
         enqueueLandEntryChoice(
             state,
             controllerId,
@@ -12043,7 +11968,7 @@ function finishReanimatedEntry(
     // CR 611.2 second read: the reanimated permanent's own static effects
     // push out to matching battlefield permanents (e.g. a reanimated
     // Goblin King re-grants mountainwalk to allied Goblins).
-    applySourceStaticEffects(state, card);
+    beginApplyingStaticEffects(state, card);
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
@@ -12089,7 +12014,7 @@ function putReanimatedOnBattlefield(
  *  event (issue #1094), not N sequential `moveZone` calls: every entry is
  *  staged onto the battlefield (or Aura-attached) BEFORE ANY of them runs
  *  the grant-application pass, so a sibling's "existing grants" scan
- *  (`applyExistingGrantsTo` / `applySourceStaticEffects`) and a reanimated
+ *  (`applyExistingGrantsTo` / `beginApplyingStaticEffects`) and a reanimated
  *  Aura's host-legality check both see the WHOLE set already present — never
  *  just the members staged earlier in iteration order — and every ETB
  *  notification (`emitPermanentEntered`) fires only once staging/attachment
@@ -12211,7 +12136,7 @@ export function putReanimatedSetOnBattlefield(
     // whole board from the registry — so each staged member needs only its
     // `staticSeq` minted, and one recompute settles every pair at once.
     // ETB simultaneity is preserved: all grants settle, THEN every ETB fires.
-    for (const card of staged) applySourceStaticEffects(state, card);
+    for (const card of staged) beginApplyingStaticEffects(state, card);
     for (const card of staged) applyExistingGrantsTo(state, card);
     for (const card of staged)
         emitPermanentEntered(state, card, { enteredFromGraveyard });
@@ -12814,10 +12739,13 @@ function applyAsEntersAnswer(
                         ),
                     ];
                     // CR 614.12c (PRD #2064 S3) — this rewrites the object's
-                    // own printed keywords, which is BELOW layer 6. Drop the
-                    // captured base so the next `syncLayer6` re-captures it
-                    // from the new list.
-                    delete card.baseStaticAbilities;
+                    // own printed keywords, which is BELOW layer 6, so the base
+                    // is re-seated from the new list. SET rather than deleted
+                    // (PRD #2064 S6b-part-2): a deleted base sends the next
+                    // `captureLayer6Base` down a formula that is exact only over
+                    // a COMPOSED multiset, and what this just wrote is the
+                    // uncomposed one.
+                    card.baseStaticAbilities = [...card.staticAbilities];
                 }
             }
             return {};
@@ -12828,11 +12756,10 @@ function applyAsEntersAnswer(
             for (const ability of option?.staticAbilities ?? []) {
                 if (!card.staticAbilities.includes(ability)) {
                     card.staticAbilities.push(ability);
-                    // CR 614.12c (PRD #2064 S3) — this rewrites the object's
-                    // own printed keywords, which is BELOW layer 6. Drop the
-                    // captured base so the next `syncLayer6` re-captures it
-                    // from the new list.
-                    delete card.baseStaticAbilities;
+                    // CR 614.12c (PRD #2064 S3/S6b-part-2) — see `setSelfBody`
+                    // above: the base is re-seated from the new list, never
+                    // deleted.
+                    card.baseStaticAbilities = [...card.staticAbilities];
                 }
             }
             return {};
@@ -13208,7 +13135,7 @@ function declaredAsEntersFor(card: CardInstanceState): AsEntersChoice[] {
  *  with `attachedTo` set. */
 function finishAuraEntry(state: GameState, aura: CardInstanceState): void {
     applyExistingGrantsTo(state, aura);
-    applySourceStaticEffects(state, aura);
+    beginApplyingStaticEffects(state, aura);
     applyAuraControlChange(state, aura);
     emitPermanentEntered(state, aura);
 }
@@ -13738,7 +13665,7 @@ export function buildSpellContext(
             // the first type swap on the live board. Idempotent: the ETB pass
             // recorded no grant (subtypesFor returned null), so this is the
             // first and only materialisation for this source.
-            applySourceStaticEffects(state, src.card);
+            beginApplyingStaticEffects(state, src.card);
         },
 
         getChosenModeId(): string | undefined {
@@ -13751,11 +13678,16 @@ export function buildSpellContext(
 
         hasRemovedKeyword(permanentId: string, keyword: string): boolean {
             const found = findOnBattlefield(state, permanentId);
-            return (
-                found?.card.removedKeywords?.some(
-                    (r) => r.keyword === keyword
-                ) ?? false
-            );
+            if (!found) return false;
+            // PRD #2064 S6b-part-2 — read through the DERIVATION. The
+            // `removedKeywords` field this used to probe was layer 6's derived
+            // output; asking the derivation directly is the same answer from the
+            // authority rather than from a cache of it, and it is the only one
+            // available on a board no sync has run over.
+            return deriveLayer6(
+                state as unknown as LayerStateView,
+                found.card as unknown as PermanentView
+            ).removedKeywords.some((r) => r.keyword === keyword);
         },
 
         becomeCopyOf(sourceCreatureId: string, opts?: CopyOptions): void {
@@ -13809,11 +13741,12 @@ export function buildSpellContext(
                 }
                 recipient.staticAbilities = next;
                 // CR 614.12c — a chosen BODY rewrites the object's own printed
-                // keywords, which is BELOW layer 6. Drop the captured base so
-                // the next `syncLayer6` re-captures it from the new list;
-                // leaving the old one would make the choice invisible the
-                // moment any grant recomputes (PRD #2064 S3, `gre/layer6.ts`).
-                delete recipient.baseStaticAbilities;
+                // keywords, which is BELOW layer 6, so the base is re-seated
+                // from the new list; leaving the old one would make the choice
+                // invisible the moment any grant recomputes (PRD #2064 S3,
+                // `gre/layer6.ts`). SET rather than deleted since PRD #2064
+                // S6b-part-2 — see `captureLayer6Base`.
+                recipient.baseStaticAbilities = [...recipient.staticAbilities];
             }
         },
 
@@ -14564,7 +14497,7 @@ export function buildSpellContext(
             // re-materialize every counter-gated static so a grant whose
             // predicate has just gone false is actually lifted (Dread Wight's
             // "{4}: Remove a paralyzation counter" freeing its own victim).
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
             // removed" triggers (Vanishing's CR 702.63a sacrifice) can fire.
             // Drained by `processPendingActionTriggers` after the current
@@ -14668,7 +14601,7 @@ export function buildSpellContext(
         // CR 613.1d layer 4 (issue #1194) — indefinite subtype-add mutation
         // generated by a RESOLVING ability (CR 611.2c: doesn't depend on its
         // source staying in play, unlike the aura-style `subtype-add` static
-        // effect below in `applySourceStaticEffects`). Writes the SAME
+        // effect below in `beginApplyingStaticEffects`). Writes the SAME
         // `grantedSubtypesAdd` markers that static effect uses, keyed to the
         // `"indefinite"` sentinel source id — mirrors `setSupertype` exactly.
         addSubtype(
@@ -14697,7 +14630,7 @@ export function buildSpellContext(
             if (already) return;
             // CR 613.7 / 611.2c (issue #1750, part a) — stamp a real layer
             // timestamp like every other layer-4 writer
-            // (`applySourceStaticEffects`'s `subtype-add` branch). Left
+            // (`beginApplyingStaticEffects`'s `subtype-add` branch). Left
             // unstamped, `composeMaterializedSubtypes` reads the entry via
             // `seq ?? 0` and sorts it as the EARLIEST possible record, so a
             // live `subtype-set` that applies later always wins the replay —
@@ -14724,7 +14657,7 @@ export function buildSpellContext(
         //
         // Writes the SAME `grantedTypes` / `suppressedTypes` markers the
         // aura-style `type-add` / `type-remove` static effects write (see
-        // `applySourceStaticEffects`), keyed to the `"indefinite"` sentinel
+        // `beginApplyingStaticEffects`), keyed to the `"indefinite"` sentinel
         // source id — the exact shape `setSupertype` / `addSubtype` already
         // use for a resolved one-shot, so `revertTypeProvenance` (already
         // source-agnostic) restores the printed line on a zone change
@@ -14752,7 +14685,7 @@ export function buildSpellContext(
         // `ability-loss` static effect (Titania's Song); both go through the
         // SAME applier, keyed here to the `"indefinite"` sentinel source id
         // that no live permanent's instance id can match, so
-        // `unapplySourceStaticEffects` never releases the hold.
+        // `stopApplyingStaticEffects` never releases the hold.
         //
         // A FRESH layer timestamp (CR 613.7) is what makes a LATER grant
         // survive the strip — Oko's printed ruling: "If the affected creature
@@ -14762,7 +14695,7 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            ensureLayer6Base(state, found.card);
+            ensureLayer6Base(found.card);
             applyAbilityLossHold(
                 found.card,
                 "indefinite",
@@ -14779,11 +14712,11 @@ export function buildSpellContext(
         //
         // Goes through the SAME shared applier `applyAbilityLossHold`, keyed
         // to the RESOLVING permanent's OWN battlefield instance id — exactly
-        // the call shape `applySourceStaticEffects`'s `ability-loss` branch
+        // the call shape `beginApplyingStaticEffects`'s `ability-loss` branch
         // already uses for the CONTINUOUS static effect (Titania's Song), NOT
         // `loseAllAbilities`'s `"indefinite"` sentinel above. That is what
         // makes the duration work with no new storage and no bespoke
-        // teardown: `unapplySourceStaticEffects`, called unconditionally
+        // teardown: `stopApplyingStaticEffects`, called unconditionally
         // whenever ANY permanent leaves the battlefield (`removePermanentTo`,
         // the single funnel for every departure path — dies / sacrifice /
         // bounce / destroy), already releases a `sourceId`-keyed hold for
@@ -14811,7 +14744,7 @@ export function buildSpellContext(
             if (!src) return;
             const found = findOnBattlefield(state, targetId);
             if (!found) return;
-            ensureLayer6Base(state, found.card);
+            ensureLayer6Base(found.card);
             applyAbilityLossHold(
                 found.card,
                 src.card.id,
@@ -16549,6 +16482,14 @@ export function buildSpellContext(
                 // entirely when the def declares none to keep the object JSON-
                 // minimal (client falls back to a text placeholder).
                 ...(def.imagePrintId ? { imagePrintId: def.imagePrintId } : {}),
+                // CR 613.7d — an object receives a timestamp at the time it
+                // enters a zone, and CR 613.7a gives every continuous effect its
+                // static abilities generate that same stamp. Minted here (PRD
+                // #2064 S6b-part-2) because the layer walks used to stand the
+                // emblem's creation ORDER in for one, at a floor below every
+                // minted stamp: an emblem could not outrank a permanent that
+                // entered before it, whatever the CR says.
+                staticSeq: allocStaticTimestamp(state),
             };
             // CR 114.4 — emblems can't be removed and persist the rest of the
             // game, so the list only ever grows.
@@ -16700,7 +16641,7 @@ export function buildSpellContext(
             // effect has one (CR 611.2a) — without it an until-end-of-turn
             // grant sorted at 0 and was removed by any "loses all abilities"
             // that had ever resolved, however long before.
-            ensureLayer6Base(state, found.card);
+            ensureLayer6Base(found.card);
             pushContinuousEffect(state, {
                 layer: 6,
                 affected: { kind: "instances", instanceIds: [target.id] },
@@ -16741,7 +16682,7 @@ export function buildSpellContext(
             // shared occurrence away and this indefinite grant vanished with
             // it. Every grant owns exactly one occurrence.
             if (hasIndefiniteKeywordGrant(state, target.id, ability)) return;
-            ensureLayer6Base(state, found.card);
+            ensureLayer6Base(found.card);
             pushContinuousEffect(state, {
                 layer: 6,
                 affected: { kind: "instances", instanceIds: [target.id] },
@@ -16934,7 +16875,7 @@ export function buildSpellContext(
             // permanent's effective abilities. Each match becomes a registry
             // entry with a `duration` expiry and its own layer timestamp
             // (CR 613.7), so a grant that lands afterwards wins.
-            ensureLayer6Base(state, found.card);
+            ensureLayer6Base(found.card);
             const removedNow = found.card.staticAbilities.filter((kw) =>
                 predicate(kw)
             );
@@ -17073,7 +17014,7 @@ export function buildSpellContext(
                     // and own none of its own.
                     if (hasIndefiniteKeywordGrant(state, card.id, ability))
                         continue;
-                    ensureLayer6Base(state, card);
+                    ensureLayer6Base(card);
                     pushContinuousEffect(state, {
                         layer: 6,
                         affected: {
@@ -17817,7 +17758,13 @@ export function buildSpellContext(
             } else if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);
                 if (!si) return;
-                si.textChanges = [...(si.textChanges ?? []), change];
+                // CR 612 — a spell on the stack carries the same LEDGER a
+                // permanent does; `applySubstitution` reads either shape
+                // (`textChangesOf`, `gre/textChanges.ts`).
+                si.textChangeHolds = [
+                    ...(si.textChangeHolds ?? []),
+                    { change, seq: allocStaticTimestamp(state) },
+                ];
             }
         },
 
@@ -18700,9 +18647,9 @@ export function buildSpellContext(
             const aura = findOnBattlefield(state, auraInstanceId);
             const newHost = findOnBattlefield(state, newHostId);
             if (!aura || !newHost) return false;
-            unapplySourceStaticEffects(state, aura.card);
+            stopApplyingStaticEffects(state, aura.card);
             aura.card.attachedTo = newHostId;
-            applySourceStaticEffects(state, aura.card);
+            beginApplyingStaticEffects(state, aura.card);
             return true;
         },
         // CR 701.3a/701.3c (ADR 0065, issue #1311) — generalizes `reattachAura`
@@ -18717,9 +18664,9 @@ export function buildSpellContext(
             const source = findOnBattlefield(state, sourceInstanceId);
             const newHost = findOnBattlefield(state, newHostId);
             if (!source || !newHost) return false;
-            unapplySourceStaticEffects(state, source.card);
+            stopApplyingStaticEffects(state, source.card);
             source.card.attachedTo = newHostId;
-            applySourceStaticEffects(state, source.card);
+            beginApplyingStaticEffects(state, source.card);
             return true;
         },
         // CR 701.3d (ADR 0065, issue #1311) — unattach `sourceInstanceId`,
@@ -18731,7 +18678,7 @@ export function buildSpellContext(
         detachFrom(sourceInstanceId: string): boolean {
             const source = findOnBattlefield(state, sourceInstanceId);
             if (!source || !source.card.attachedTo) return false;
-            unapplySourceStaticEffects(state, source.card);
+            stopApplyingStaticEffects(state, source.card);
             source.card.attachedTo = undefined;
             return true;
         },
@@ -20543,7 +20490,7 @@ function finishTokenEntry(
             markAttacking(state, token);
         }
         applyExistingGrantsTo(state, token);
-        applySourceStaticEffects(state, token);
+        beginApplyingStaticEffects(state, token);
         // CR 111.1 / 603.6a (issue #2300) — a token IS a permanent, so its
         // entry announces the same `PERMANENT_ENTERED` every other entry site
         // announces. ONE per token that actually entered — contrast the
@@ -20562,7 +20509,7 @@ function finishTokenEntry(
         //     real instance up on the battlefield to snapshot P/T, so an emit
         //     before the push silently drops `power`/`toughness` from the
         //     payload and every P/T-keyed trigger condition stops matching.
-        //   * AFTER `applyExistingGrantsTo` / `applySourceStaticEffects` —
+        //   * AFTER `applyExistingGrantsTo` / `beginApplyingStaticEffects` —
         //     these two passes MATERIALIZE layer-4 grants onto the instance
         //     (CR 613.1d): the `type-add` branch stamps `token.types` (and
         //     `subtype-set` / `subtype-add` stamp `token.subtypes`). The emit
@@ -21293,7 +21240,7 @@ export function payRemoveCounterCost(
     // CR 122.1b (PRD #2064 S3) — recompose this permanent's layer 6 now, so a
     // cost payment that removed the last keyword counter is visible before the
     // next SBA pass (a mana ability resolves in place, with no pass in
-    // between). This helper takes no `GameState` — it is a cost payment on one
+    // between). This helper used to take no `GameState` — it is a cost payment on one
     // card — which is why the instance-scoped recompose exists; that recompose
     // preserves every board-derived record it cannot re-walk to, so an anthem
     // keyword or a live ability-loss survives the call untouched.

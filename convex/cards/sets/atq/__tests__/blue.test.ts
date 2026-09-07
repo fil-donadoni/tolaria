@@ -17,8 +17,8 @@ import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     applyExistingGrantsTo,
     isManaCostCovered,
     normalizeManaCost,
@@ -624,7 +624,7 @@ describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 
             zone: "battlefield",
         });
         state.players[0].battlefield.push(flux, bear);
-        applySourceStaticEffects(state, flux);
+        beginApplyingStaticEffects(state, flux);
         expect(bear.grantedTriggeredAbilities).toBeUndefined();
         expect(
             effectiveTriggeredAbilities(bear).some(
@@ -702,9 +702,9 @@ describe("Energy Flux ({2}{U} Enchantment — CR 113.1 triggered-grant + CR 611 
         ).toBe(true);
     });
 
-    it("removes the grant when Energy Flux leaves play (unapplySourceStaticEffects)", () => {
+    it("removes the grant when Energy Flux leaves play (stopApplyingStaticEffects)", () => {
         const { state, flux, ring } = withEnergyFlux("p1");
-        unapplySourceStaticEffects(state, flux);
+        stopApplyingStaticEffects(state, flux);
         expect(ring.grantedTriggeredAbilities).toBeUndefined();
         expect(
             effectiveTriggeredAbilities(ring).some(

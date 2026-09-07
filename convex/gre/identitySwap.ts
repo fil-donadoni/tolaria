@@ -93,7 +93,6 @@ function reseatLayer6Base(
     card.staticAbilities = [...base.staticAbilities];
     card.baseStaticAbilities = [...base.staticAbilities];
     // Derived output of the OLD face: recomputed, never carried across.
-    delete card.removedKeywords;
     delete card.abilitiesSuppressedBy;
     recomposeLayer6ForInstance(state, card);
 }
@@ -146,7 +145,7 @@ function replayAnimation(
  *  701.27b).
  *
  *  `card.card` must ALREADY present the new identity when this is called: the
- *  layer-4 restore paths (`revertTypeProvenance`, `unapplySourceStaticEffects`)
+ *  layer-4 restore paths (`revertTypeProvenance`, `stopApplyingStaticEffects`)
  *  read the live definition to decide what was printed.
  *
  *  Never mutates a nested record in place — one call site runs this on a
@@ -177,7 +176,6 @@ export function rebuildCopiableValuesAndReplayOverlays(
     // the CR 613.7 walk, kept in step with the apply path by hand.
     card.baseTypes = [...base.types];
     card.baseSubtypes = [...base.subtypes];
-    card.printedSubtypes = [...base.subtypes];
     // Anchor re-derivation before the recompose, so the animation entry the
     // derivation reads describes what it adds to the NEW line.
     replayAnimation(card, base, priorPower, priorToughness);

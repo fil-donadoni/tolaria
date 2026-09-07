@@ -361,7 +361,7 @@ export const fungusaur: CardDefinition = {
 // The {T} ability marks the target land with a `gaea-forest` counter; a
 // counter-driven subtype-set (CR 305.7, layer 4) turns it into a Forest while
 // Gaea's Liege is on the battlefield — when Gaea's Liege leaves,
-// `unapplySourceStaticEffects` reverts the land (CR 611.2), satisfying "until
+// `stopApplyingStaticEffects` reverts the land (CR 611.2), satisfying "until
 // this creature leaves the battlefield".
 const countForestsControlledBy = (
     controllerId: string,

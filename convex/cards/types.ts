@@ -3552,9 +3552,9 @@ export interface SpellContext {
      *  keyword) through the SAME shared applier `applyAbilityLossHold`
      *  (`gre/state.ts`), keyed here to the RESOLVING permanent's OWN
      *  battlefield instance id rather than a sentinel — exactly the call
-     *  shape `applySourceStaticEffects`'s `ability-loss` branch already uses
+     *  shape `beginApplyingStaticEffects`'s `ability-loss` branch already uses
      *  for Titania's Song. That is what makes the duration work with NO new
-     *  storage and NO bespoke teardown: `unapplySourceStaticEffects`, called
+     *  storage and NO bespoke teardown: `stopApplyingStaticEffects`, called
      *  unconditionally whenever ANY permanent LEAVES THE BATTLEFIELD via
      *  `removePermanentTo` (dies / sacrifice / bounce / destroy — every
      *  ZONE-CHANGE departure, not every way a permanent can stop being
@@ -3569,7 +3569,7 @@ export interface SpellContext {
      *  Out of scope for issue #1562 (pre-existing gap, not a regression this
      *  card introduces): phasing OUT (CR 702.26b — a phased-out permanent
      *  "is treated as though it doesn't exist") does NOT call
-     *  `unapplySourceStaticEffects` (`phaseOutPermanent`, `gre/state.ts`
+     *  `stopApplyingStaticEffects` (`phaseOutPermanent`, `gre/state.ts`
      *  splices the battlefield array directly), so a phased-out source
      *  keeps its target stripped instead of releasing the hold. Latent in
      *  the shared applier since Titania's Song — this Op does not make it
@@ -3615,7 +3615,7 @@ export interface SpellContext {
      *  summoning sickness is set for creatures (CR 302.1), and existing
      *  battlefield lord-grants reach the new permanent via
      *  `applyExistingGrantsTo`. The card's own `staticEffects` are pushed out
-     *  to matching battlefield permanents via `applySourceStaticEffects`.
+     *  to matching battlefield permanents via `beginApplyingStaticEffects`.
      *  `controllerId` defaults to `playerId` (owner == controller, Resurrection).
      *  Pass a distinct `controllerId` to reanimate a card from any player's
      *  graveyard/exile under a DIFFERENT player's control (CR 400.7 / 800.4a —
@@ -6918,7 +6918,7 @@ export interface StaticEffectContext {
      *  `keyword-grant` gated on "as long as this has a stun counter on it"
      *  (issue #1318). Evaluated whenever the owning predicate is: at
      *  layer-application time (ETB / a new matching permanent entering,
-     *  `applySourceStaticEffects` / `applyExistingGrantsTo`) for
+     *  `beginApplyingStaticEffects` / `applyExistingGrantsTo`) for
      *  `keyword-grant`, and at every read for the continuously-recomputed
      *  `pt-buff` / `pt-cda` kinds. */
     getCounterCount: (card: PermanentView, type: string) => number;
@@ -6998,9 +6998,9 @@ export interface StaticKeywordGrant {
      *  haste as long as no opponent controls a white or blue creature").
      *  Unlike `pt-buff`/`pt-cda` (recomputed at every read), `keyword-grant`
      *  is MATERIALIZED into `target.staticAbilities` at apply time
-     *  (`applySourceStaticEffects` / `applyExistingGrantsTo`), so a `condition`
+     *  (`beginApplyingStaticEffects` / `applyExistingGrantsTo`), so a `condition`
      *  additionally requires the source to be picked up by
-     *  `refreshCounterGatedStatics`'s per-SBA-pass sweep (`gre/state.ts`) to
+     *  `recomputeContinuousEffects`'s per-SBA-pass sweep (`gre/state.ts`) to
      *  stay live as the board changes — the sweep re-runs `applies` AND
      *  `condition` fresh on every stable transition, the same "as long as"
      *  staleness fix already shipped for `dependsOnCounters`. */
@@ -7806,7 +7806,7 @@ export interface CountDrivenCostReduction {
  *  path (one execution path, CLAUDE.md § Primitive reuse). That also means the
  *  land types are read from the LIVE `subtypes` array on each battlefield
  *  instance, which layer-4 `subtype-set` / `subtype-add` statics materialize
- *  onto the instance (`applySourceStaticEffects`, `gre/state.ts`) — so a land
+ *  onto the instance (`beginApplyingStaticEffects`, `gre/state.ts`) — so a land
  *  whose type was added or changed counts correctly, CR 613.1d. */
 export interface DomainDrivenCostReduction {
     /** Mana subtracted PER distinct basic land type (generic-only, CR 601.2f —
@@ -8202,7 +8202,7 @@ export interface StaticCastTimingLock {
  *   - **Materialized** kinds (`keyword-grant`, `activated-grant`,
  *     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
  *     `supertype-set`, `color`, `keyword-remove`, `control-change`, …) are
- *     WRITTEN ONTO the target instance once, by `applySourceStaticEffects`, at
+ *     WRITTEN ONTO the target instance once, by `beginApplyingStaticEffects`, at
  *     the moment the source or the target enters the battlefield. Nothing
  *     re-runs them afterwards, so a predicate reading `target.counters` /
  *     `ctx.getCounterCount(...)` goes stale the instant a counter changes: the
@@ -8210,7 +8210,7 @@ export interface StaticCastTimingLock {
  *     arrays, so the grant is silently absent (or silently stuck on).
  *
  *  Setting `dependsOnCounters: true` enrolls the effect's SOURCE in
- *  `refreshCounterGatedStatics` (`gre/state.ts`), the recomputation tick that
+ *  `recomputeContinuousEffects` (`gre/state.ts`), the recomputation tick that
  *  unapplies and re-applies its grants whenever counters move. Set it whenever
  *  an `applies` / `condition` predicate reads counters on EITHER the target or
  *  the source — it is harmless (and ignored) on a recomputed kind.
@@ -10068,6 +10068,18 @@ export interface EmblemInstance {
      *  and the client renders the emblem's real card art without resolving the
      *  registry. Absent → the client shows an in-app text placeholder. */
     imagePrintId?: string;
+    /** CR 613.7d / 613.7a — the emblem's layer timestamp, minted by
+     *  `allocStaticTimestamp` when it enters the command zone (CR 114.3 — an
+     *  emblem is not a permanent, so it has no `staticSeq` of its own to
+     *  inherit). Every continuous effect its static abilities generate carries
+     *  this stamp.
+     *
+     *  PRD #2064 S6b-part-2 — before it, the layer walks stood an emblem's
+     *  creation-ORDER in for a timestamp, at a floor below every minted stamp,
+     *  so an emblem could never outrank a permanent however much later it was
+     *  created. Absent only on a state persisted before this slice, which
+     *  `migrateLegacyLayer2to5Ledgers` (`gre/serialize.ts`) stamps on load. */
+    staticSeq?: number;
 }
 
 // --- Replacement effects (CR 614) ---
@@ -11002,7 +11014,7 @@ export interface EffectCardFilter {
      *  (`StaticKeywordGrant`, CR 611/113.1 — an Aura granting flying, a
      *  board-conditional keyword grant) is MATERIALIZED directly onto the
      *  permanent's `staticAbilities` array at apply time
-     *  (`applySourceStaticEffects`, `gre/state.ts`), so a plain
+     *  (`beginApplyingStaticEffects`, `gre/state.ts`), so a plain
      *  `card.staticAbilities.includes(...)` check — which is exactly what
      *  `matchesPermanentFilter` already does for `requireAbility` — observes
      *  a granted keyword with no separate "effective abilities" helper

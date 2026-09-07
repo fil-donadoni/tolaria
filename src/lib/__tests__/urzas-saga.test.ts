@@ -32,7 +32,7 @@ import type { GameState } from "@convex/gre/state";
 import { advanceSagasAtPrecombatMain, LORE_COUNTER } from "@convex/gre/sagas";
 import { projectPublicState } from "@convex/gameProjections";
 import { bloodMoon } from "@convex/cards/sets/drk/red";
-import { applySourceStaticEffects } from "@convex/gre/state";
+import { beginApplyingStaticEffects } from "@convex/gre/state";
 import { buildPreviewBody } from "../preview-body";
 import type { CardInstance } from "~/types/game";
 
@@ -144,7 +144,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
             zone: "battlefield",
         });
         state.players[1].battlefield.push(moon);
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, moon);
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(

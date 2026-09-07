@@ -12,7 +12,7 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     gainLifeEmitting,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -38,7 +38,7 @@ function board(): GameState {
             makePlayer("p2", { life: 20 }),
         ],
     });
-    applySourceStaticEffects(state, tenacity);
+    beginApplyingStaticEffects(state, tenacity);
     return state;
 }
 

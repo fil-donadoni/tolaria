@@ -31,7 +31,7 @@ import {
     shouldEnterTapped,
     applyEntersWithCounters,
     applyExistingGrantsTo,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     getPlayer,
     payMayPayCost,
     normalizeMayPayCost,
@@ -533,7 +533,7 @@ function settleEnteredLand(
 
     // CR 611.2 — two-way static-effect reconciliation (see step 5 above).
     applyExistingGrantsTo(state, card);
-    applySourceStaticEffects(state, card);
+    beginApplyingStaticEffects(state, card);
 
     // CR 603.6a — ETB triggers see the permanent enter. CR 305.2 — `wasPlayed`
     // marks this as a PLAYED land (vs. one put onto the battlefield by an

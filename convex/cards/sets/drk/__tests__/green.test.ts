@@ -30,7 +30,7 @@ import {
     type CardInstanceState,
     type GameState,
     type StackItem,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -465,7 +465,7 @@ describe("Hidden Path — green creatures have forestwalk (CR 611 / 702.13c)", (
 
     it("grants forestwalk to green creatures (both players') but not others", () => {
         const { state } = setup();
-        applySourceStaticEffects(state, state.players[0].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[0].battlefield[0]);
         const green = state.players[0].battlefield.find(
             (c) => c.id === "green"
         )!;
@@ -478,7 +478,7 @@ describe("Hidden Path — green creatures have forestwalk (CR 611 / 702.13c)", (
 
     it("wire format: forestwalk survives projectPublicState", () => {
         const { state } = setup();
-        applySourceStaticEffects(state, state.players[0].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[0].battlefield[0]);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "green"

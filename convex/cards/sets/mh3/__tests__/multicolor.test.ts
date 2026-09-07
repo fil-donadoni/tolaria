@@ -7,7 +7,7 @@ import {
     type GameState,
     type StackItem,
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     discardToGraveyard,
 } from "../../../../gre/state";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
@@ -518,7 +518,7 @@ function withNadu(): {
     });
     state.players[0].battlefield.push(nadu, bear);
     state.players[1].battlefield.push(oppBear);
-    applySourceStaticEffects(state, nadu);
+    beginApplyingStaticEffects(state, nadu);
     return { state, nadu, bear, oppBear };
 }
 

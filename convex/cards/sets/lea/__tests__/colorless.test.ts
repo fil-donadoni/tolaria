@@ -16,8 +16,8 @@ import {
     processPendingActionTriggers,
     matchesPermanentFilter,
     moveCard,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     payManaCost,
     isManaCostCovered,
     getManaSubstitutions,
@@ -3711,14 +3711,13 @@ describe("grantedSubtypes serialization round-trip", () => {
         });
         aura.attachedTo = mtn.id;
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[0].battlefield.find(
             (c: CardInstanceState) => c.id === mtn.id
         )!;
-        expect(got.grantedSubtypes).toEqual(mtn.grantedSubtypes);
-        expect(got.printedSubtypes).toEqual(["Mountain"]);
+        expect(got.baseSubtypes).toEqual(["Mountain"]);
         expect(got.subtypes).toEqual(["Swamp"]);
     });
 
@@ -3757,7 +3756,7 @@ describe("Kormus Bell ({4} — all Swamps are 1/1 black creatures, still lands)"
             zone: "battlefield",
         });
         state.players[0].battlefield.push(kb);
-        applySourceStaticEffects(state, kb);
+        beginApplyingStaticEffects(state, kb);
 
         expect(sw.types).toContain("Creature");
         expect(sw.types).toContain("Land");
@@ -3778,7 +3777,7 @@ describe("Kormus Bell ({4} — all Swamps are 1/1 black creatures, still lands)"
             zone: "battlefield",
         });
         state.players[0].battlefield.push(kb);
-        applySourceStaticEffects(state, kb);
+        beginApplyingStaticEffects(state, kb);
 
         const colors = STATIC_EFFECT_CTX.getColors(sw);
         expect(colors).toContain("B");
@@ -3797,9 +3796,9 @@ describe("Kormus Bell ({4} — all Swamps are 1/1 black creatures, still lands)"
             zone: "battlefield",
         });
         state.players[0].battlefield.push(kb);
-        applySourceStaticEffects(state, kb);
+        beginApplyingStaticEffects(state, kb);
 
-        unapplySourceStaticEffects(state, kb);
+        stopApplyingStaticEffects(state, kb);
         expect(sw.types).not.toContain("Creature");
         expect(sw.grantedColors).toBeUndefined();
     });
@@ -3826,14 +3825,14 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
         mtn.counters = { mire: 1 };
 
         // Apply static effects from tomb
-        applySourceStaticEffects(state, tomb);
+        beginApplyingStaticEffects(state, tomb);
 
         expect(mtn.subtypes).toEqual(["Swamp"]);
         expect(getBasicLandMana(mtn)).toBe("B");
     });
 
     // REAL SEQUENCE (issue #1711). The test above hand-seeds the mire counter
-    // and THEN calls `applySourceStaticEffects` — an ordering that never occurs
+    // and THEN calls `beginApplyingStaticEffects` — an ordering that never occurs
     // in play. `subtype-set` is a MATERIALIZED kind, so in a real game the
     // static pass had already run (at the Tomb's ETB, with no counter yet) and
     // nothing re-ran it when the {2},{T} ability put the counter on: the land
@@ -3855,7 +3854,7 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
         state.players[1].battlefield.push(tomb);
 
         // ETB materialization, BEFORE any mire counter exists.
-        applySourceStaticEffects(state, tomb);
+        beginApplyingStaticEffects(state, tomb);
         expect(mtn.subtypes).toEqual(["Mountain"]);
 
         state.stack.push({
@@ -3885,7 +3884,7 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
             zone: "battlefield",
         });
         state.players[1].battlefield.push(tomb);
-        applySourceStaticEffects(state, tomb);
+        beginApplyingStaticEffects(state, tomb);
 
         expect(mtn.subtypes).toEqual(["Mountain"]);
     });
@@ -3899,7 +3898,7 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
         });
         mtn.counters = { mire: 2 };
         mtn.subtypes = ["Swamp"];
-        mtn.printedSubtypes = ["Mountain"];
+        mtn.baseSubtypes = ["Mountain"];
         state.players[0].battlefield.push(mtn);
 
         const tomb = makeInstance(cyclopeanTomb.id, {

@@ -3,7 +3,7 @@
 //
 // THE BUG THIS SUITE GUARDS. A `keyword-grant` static effect carrying a
 // `condition` is MATERIALIZED into the affected permanent's `staticAbilities`
-// array (`refreshCounterGatedStatics`, `gre/state.ts`) — it is NOT recomputed
+// array (`recomputeContinuousEffects`, `gre/state.ts`) — it is NOT recomputed
 // at read time the way a `pt-buff` is. So for a condition that reads
 // `CardInstanceState.isBlocking` (Snow Devil's "enchanted creature has first
 // strike as long as it's blocking and you control a snow land", CR 611.2c)
@@ -37,7 +37,7 @@ import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { confirmBlockers } from "../../game";
 import { advancePhase } from "../phases";
-import { applySourceStaticEffects } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 import { expandState } from "../serialize";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
@@ -140,7 +140,7 @@ function makeCombatState(): {
     });
     // Aura attach materialization (the real permanent-entry path): flying only,
     // since nothing is blocking yet.
-    applySourceStaticEffects(state, aura);
+    beginApplyingStaticEffects(state, aura);
     expect(blocker.staticAbilities).toContain("flying");
     expect(blocker.staticAbilities).not.toContain("first strike");
     return { state, attacker, blocker };
@@ -152,7 +152,7 @@ function makeCombatState(): {
 // `MutationCtx`, same harness discipline as
 // `gre/__tests__/keywordGrantHandSizeCondition.test.ts` /
 // `convex/__tests__/gameTicks.test.ts` (this repo has no convex-test harness).
-// NOTHING here calls `checkStateBasedActions` or `refreshCounterGatedStatics`:
+// NOTHING here calls `checkStateBasedActions` or `recomputeContinuousEffects`:
 // the only thing that can make the grant visible to the CR 510.4 decision is
 // the mutation's own marking order.
 type Row = Record<string, unknown>;

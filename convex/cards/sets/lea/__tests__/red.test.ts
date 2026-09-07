@@ -11,7 +11,7 @@ import {
     emitPermanentEntered,
     emitPermanentTapped,
     processPendingActionTriggers,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -116,6 +116,10 @@ const wallOfBone = getDefinition("ae20d442-a544-4a03-9ebf-5ecb137c67dd");
 const wallOfFire = getDefinition("efcf12cd-fb70-444e-9641-73ffa0e8f16e");
 const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const wheelOfFortune = getDefinition("67b369c4-faa8-45c8-a1b9-98f228b69682");
+import {
+    grantedKeywordRows,
+    removedKeywordRows,
+} from "../../../__tests__/setup";
 
 describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
     it("deals 3 damage to a target player", () => {
@@ -808,10 +812,10 @@ describe("Lord-style keyword grant — Goblin King mountainwalk", () => {
         });
         // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
         // and a source's continuous effects begin applying when the engine
-        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // stamps it (`beginApplyingStaticEffects`, run on every battlefield entry
         // path). A fixture that places the source directly has to run that step
         // itself, exactly as an ETB would.
-        applySourceStaticEffects(state, king);
+        beginApplyingStaticEffects(state, king);
         pushSpell(state, monssGoblinRaiders.id, "p1");
         resolveTopOfStack(state);
         const newRat = state.players[0].battlefield.find(
@@ -831,17 +835,17 @@ describe("Lord-style keyword grant — Goblin King mountainwalk", () => {
         });
         // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
         // and a source's continuous effects begin applying when the engine
-        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // stamps it (`beginApplyingStaticEffects`, run on every battlefield entry
         // path). A fixture that places the source directly has to run that step
         // itself, exactly as an ETB would.
-        applySourceStaticEffects(state, king);
+        beginApplyingStaticEffects(state, king);
         expect(goblin.staticAbilities).toContain("mountainwalk");
         removePermanentTo(state, "king", "graveyard");
         const ratAfter = state.players[0].battlefield.find(
             (c) => c.id === "rat"
         )!;
         expect(ratAfter.staticAbilities).not.toContain("mountainwalk");
-        expect(ratAfter.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state, ratAfter)).toEqual([]);
     });
 
     it("does NOT grant mountainwalk to non-Goblin creatures", () => {
@@ -2415,12 +2419,12 @@ describe("Earthbind (CR 613.1a — keyword-remove: flying + ETB damage)", () => 
         const p1 = makePlayer("p1", { battlefield: [aura] });
         const p2 = makePlayer("p2", { battlefield: [flier] });
         const state = makeState({ players: [p1, p2] });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(flier.staticAbilities).not.toContain("flying");
         // `seq` is the CR 613.7 layer timestamp the source stamps on every
         // record it writes (issue #1715) — an implementation detail here.
-        expect(flier.removedKeywords).toEqual([
+        expect(removedKeywordRows(state, flier)).toEqual([
             expect.objectContaining({ keyword: "flying", sourceId: "eb" }),
         ]);
     });
@@ -2440,7 +2444,7 @@ describe("Earthbind (CR 613.1a — keyword-remove: flying + ETB damage)", () => 
         const p1 = makePlayer("p1", { battlefield: [aura] });
         const p2 = makePlayer("p2", { battlefield: [flier] });
         const state = makeState({ players: [p1, p2] });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         // Emit the ETB event and collect triggers
         emitPermanentEntered(state, aura);
@@ -2468,7 +2472,7 @@ describe("Earthbind (CR 613.1a — keyword-remove: flying + ETB damage)", () => 
         const p1 = makePlayer("p1", { battlefield: [aura] });
         const p2 = makePlayer("p2", { battlefield: [bear] });
         const state = makeState({ players: [p1, p2] });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         emitPermanentEntered(state, aura);
         processPendingActionTriggers(state);

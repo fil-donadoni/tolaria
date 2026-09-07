@@ -10,8 +10,8 @@ import {
     resolveTopOfStack,
     emitSpellCastEvent,
     processPendingActionTriggers,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     applyExistingGrantsTo,
     type CardInstanceState,
     type GameState,
@@ -135,6 +135,10 @@ const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const whiteKnight = getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129");
 const whiteWard = getDefinition("49b22665-1501-420a-82ad-f71f6768bcf8");
 const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
+import {
+    grantedKeywordRows,
+    removedKeywordRows,
+} from "../../../__tests__/setup";
 
 describe("Castle (static pt-buff: +0/+2 to your untapped creatures)", () => {
     function setup() {
@@ -927,7 +931,7 @@ describe("Red Ward (Aura keyword-grant → protection from red, CR 611 + 702.16)
 
         // Keyword lifted from the host.
         expect(bear.staticAbilities).not.toContain("protection from red");
-        expect(bear.grantedStaticAbilities ?? []).toHaveLength(0);
+        expect(grantedKeywordRows(state, bear)).toHaveLength(0);
     });
 
     it("wire format: granted protection survives projectPublicState", () => {
@@ -2544,10 +2548,10 @@ describe("Resurrection (return target Creature card from your graveyard to the b
         });
         // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
         // and a source's continuous effects begin applying when the engine
-        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // stamps it (`beginApplyingStaticEffects`, run on every battlefield entry
         // path). A fixture that places the source directly has to run that step
         // itself, exactly as an ETB would.
-        applySourceStaticEffects(state, king);
+        beginApplyingStaticEffects(state, king);
         pushSpell(state, resurrection.id, "p1", [
             { type: "graveyard-card", id: "dead-goblin", playerId: "p1" },
         ]);
@@ -3069,7 +3073,7 @@ describe("Conversion ({2}{W}{W} — all Mountains are Plains)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(conv);
-        applySourceStaticEffects(state, conv);
+        beginApplyingStaticEffects(state, conv);
 
         expect(mtn1.subtypes).toEqual(["Plains"]);
         expect(mtn2.subtypes).toEqual(["Plains"]);
@@ -3090,7 +3094,7 @@ describe("Conversion ({2}{W}{W} — all Mountains are Plains)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(conv);
-        applySourceStaticEffects(state, conv);
+        beginApplyingStaticEffects(state, conv);
 
         expect(isl.subtypes).toEqual(["Island"]);
     });
@@ -3108,10 +3112,10 @@ describe("Conversion ({2}{W}{W} — all Mountains are Plains)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(conv);
-        applySourceStaticEffects(state, conv);
+        beginApplyingStaticEffects(state, conv);
         expect(mtn.subtypes).toEqual(["Plains"]);
 
-        unapplySourceStaticEffects(state, conv);
+        stopApplyingStaticEffects(state, conv);
         expect(mtn.subtypes).toEqual(["Mountain"]);
         expect(getBasicLandMana(mtn)).toBe("R");
     });
@@ -3366,12 +3370,12 @@ describe("Animate Wall (CR 702.3 — keyword-remove: defender)", () => {
         });
         const p1 = makePlayer("p1", { battlefield: [wall, aura] });
         const state = makeState({ players: [p1, makePlayer("p2")] });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(wall.staticAbilities).not.toContain("defender");
         // `seq` is the CR 613.7 layer timestamp the source stamps on every
         // record it writes (issue #1715) — an implementation detail here.
-        expect(wall.removedKeywords).toEqual([
+        expect(removedKeywordRows(state, wall)).toEqual([
             expect.objectContaining({ keyword: "defender", sourceId: "anim" }),
         ]);
         const result = validateAttackerEligibility(
@@ -3395,34 +3399,55 @@ describe("Animate Wall (CR 702.3 — keyword-remove: defender)", () => {
         });
         const p1 = makePlayer("p1", { battlefield: [wall, aura] });
         const state = makeState({ players: [p1, makePlayer("p2")] });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(wall.staticAbilities).not.toContain("defender");
 
-        unapplySourceStaticEffects(state, aura);
+        stopApplyingStaticEffects(state, aura);
 
+        // The multiset IS the assertion since PRD #2064 S6b-part-2: the
+        // provenance row has no field behind it, and this runs while the aura is
+        // still in the battlefield array (`stopApplyingStaticEffects` is called
+        // before the splice), so a fresh derivation over that board still
+        // reports the removal the sync was told to skip.
         expect(wall.staticAbilities).toContain("defender");
-        expect(wall.removedKeywords).toBeUndefined();
     });
 });
 
-describe("Serialization: removedKeywords + damageCapShields", () => {
-    it("removedKeywords survives compact/expand round-trip", () => {
+describe("Serialization: keyword removals + damageCapShields", () => {
+    it("a pre-slice removedKeywords row is MIGRATED, not round-tripped", () => {
+        // PRD #2064 S6b-part-2 — `removedKeywords` is derived output and no
+        // longer exists on `CardInstanceState`, so `compactCard` can never write
+        // one and `expandCard` drops any it finds. That is what makes the
+        // pre-slice ledger migration idempotent, and it is the shape a
+        // `game_state` persisted before the slice arrives in.
         const wall = makeInstance(wallOfSwords.id, {
             id: "wall",
             controllerId: "p1",
             ownerId: "p1",
         });
-        wall.removedKeywords = [{ keyword: "defender", sourceId: "anim" }];
         const p1 = makePlayer("p1", { battlefield: [wall] });
         const state = makeState({ players: [p1, makePlayer("p2")] });
 
-        const compacted = compactState(state);
-        const restored = expandState(compacted);
-        const restoredWall = restored.players[0].battlefield[0];
-        expect(restoredWall.removedKeywords).toEqual([
+        const compacted = compactState(state) as {
+            players: { battlefield: Record<string, unknown>[] }[];
+        };
+        compacted.players[0].battlefield[0].removedKeywords = [
             { keyword: "defender", sourceId: "anim" },
-        ]);
+        ];
+        const restored = expandState(
+            compacted as unknown as Record<string, unknown>
+        );
+        const restoredWall = restored.players[0].battlefield[0];
+        expect(
+            (restoredWall as unknown as Record<string, unknown>).removedKeywords
+        ).toBeUndefined();
+        const recompacted = compactState(restored) as {
+            players: { battlefield: Record<string, unknown>[] }[];
+        };
+        expect(
+            recompacted.players[0].battlefield[0].removedKeywords
+        ).toBeUndefined();
     });
 
     it("damageCapShields survives compact/expand round-trip", () => {

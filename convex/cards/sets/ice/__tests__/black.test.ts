@@ -17,7 +17,7 @@ import {
     tapPermanent,
     emitPermanentTapped,
     dealDamageFromPermanentToPlayer,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     removePermanentTo,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
@@ -3010,11 +3010,11 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
      *  counter then arrives ONLY by resolving the end-of-combat trigger.
      *
      *  The previous fixture hand-seeded `counters` and THEN called
-     *  `applySourceStaticEffects`, an ordering that never occurs in play: it
+     *  `beginApplyingStaticEffects`, an ordering that never occurs in play: it
      *  made the grant look live while, in a real game, the materialization had
      *  already run before the counter existed and was never re-run. Every
      *  assertion below therefore proves the RE-materialization
-     *  (`refreshCounterGatedStatics`), not the fixture. The victim is a REAL
+     *  (`recomputeContinuousEffects`), not the fixture. The victim is a REAL
      *  registered card (not the `vanilla` fixture) because the granted-ability
      *  enumeration resolves its definition. */
     function paralyzedByCombat() {
@@ -3042,7 +3042,7 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
             },
         });
         // ETB materialization, BEFORE any counter exists.
-        applySourceStaticEffects(state, wight);
+        beginApplyingStaticEffects(state, wight);
         expect(victim.staticAbilities ?? []).not.toContain("does-not-untap");
         expect(getEffectiveActivatedAbilities(victim)).toEqual([]);
 
@@ -3074,7 +3074,7 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        applySourceStaticEffects(state, wight);
+        beginApplyingStaticEffects(state, wight);
         return { state, victim };
     }
 
@@ -3147,7 +3147,7 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
         });
         resolveTopOfStack(state);
         expect(victim.counters?.paralyzation ?? 0).toBe(0);
-        // No `unapplySourceStaticEffects` / `applySourceStaticEffects` here:
+        // No `stopApplyingStaticEffects` / `beginApplyingStaticEffects` here:
         // `SpellContext.removeCounter` re-materializes on its own, which is the
         // whole point of issue #1711.
         expect(victim.staticAbilities ?? []).not.toContain("does-not-untap");

@@ -146,7 +146,7 @@ export function applyZoneCharacteristics(card: CardInstanceState): void {
  *
  *  Kept SEPARATE from `applyZoneCharacteristics` rather than folded in as a
  *  battlefield branch of it: it must run BEFORE the layer-4 `type-add` grants
- *  of the entry path (`applyExistingGrantsTo` / `applySourceStaticEffects`),
+ *  of the entry path (`applyExistingGrantsTo` / `beginApplyingStaticEffects`),
  *  and an automatic battlefield branch on the general applier could be reached
  *  AFTER those grants by some other path and silently erase them. The two are
  *  paired EXPLICITLY at each call site instead, which is what lets every

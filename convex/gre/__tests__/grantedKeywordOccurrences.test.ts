@@ -28,11 +28,11 @@
 // (a differently-sourced grant that must SURVIVE another grant's teardown).
 import { describe, it, expect } from "vitest";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
-    refreshCounterGatedStatics,
+    recomputeContinuousEffects,
     removePermanentTo,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -49,6 +49,10 @@ import { projectPublicState } from "../../gameProjections";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { airElemental, flight } from "../../cards/sets/lea/blue";
 import { gravitySphere } from "../../cards/sets/leg/red";
+import {
+    grantedKeywordRows,
+    removedKeywordRows,
+} from "../../cards/__tests__/setup";
 
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 
@@ -78,11 +82,11 @@ function count(card: CardInstanceState, keyword: string): number {
  *  applying. Production splices it out immediately after
  *  (`removePermanentTo`); so does this. */
 function leaveBattlefield(state: GameState, card: CardInstanceState): void {
-    unapplySourceStaticEffects(state, card);
+    stopApplyingStaticEffects(state, card);
     for (const player of state.players) {
         player.battlefield = player.battlefield.filter((c) => c.id !== card.id);
     }
-    refreshCounterGatedStatics(state);
+    recomputeContinuousEffects(state);
 }
 
 /** Drives the real CR 514.2 cleanup purge (not a hand-rolled tick). */
@@ -260,7 +264,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // The CLEANUP duration purge (`gre/phases.ts`) is the site issue
             // #1706 names by line number, and the stripper-hold reclaim is the
             // half of it nothing else reaches: every other reclaim test enters
-            // through `removeCounter` or `unapplySourceStaticEffects`.
+            // through `removeCounter` or `stopApplyingStaticEffects`.
             const bear = makeInstance(grizzlyBears.id, { id: "bear-9" });
             const sphere = makeInstance(gravitySphere.id, { id: "sphere-4" });
             const state = makeBoard(bear, [sphere]);
@@ -274,21 +278,21 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             expect(count(bear, "flying")).toBe(1);
 
             // "All creatures lose flying" takes the occurrence and holds it.
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(count(bear, "flying")).toBe(0);
-            expect(bear.removedKeywords).toHaveLength(1);
+            expect(removedKeywordRows(state, bear)).toHaveLength(1);
 
             // The grant expires while the Sphere is still on the battlefield:
             // the purge releases the grant's occupancy from the HOLD, since
             // that is where the occurrence it owns currently sits.
             runCleanup(state);
             expect(layer6ExpiriesOn(state, bear.id)).toEqual([]);
-            expect(bear.removedKeywords).toBeUndefined();
+            expect(removedKeywordRows(state, bear)).toEqual([]);
 
             // Sphere leaves — there is nothing left to restore. Without the
             // reclaim the restore resurrects an occurrence whose owner expired
             // at end of turn: phantom flying.
-            unapplySourceStaticEffects(state, sphere);
+            stopApplyingStaticEffects(state, sphere);
             expect(count(bear, "flying")).toBe(0);
 
             const projected = projectPublicState(state, 1, "p1");
@@ -308,18 +312,18 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             expect(count(bear, "flying")).toBe(1);
 
             // "All creatures lose flying" takes the occurrence and holds it.
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(count(bear, "flying")).toBe(0);
-            expect(bear.removedKeywords).toHaveLength(1);
+            expect(removedKeywordRows(state, bear)).toHaveLength(1);
 
             // The counter runs out while the Sphere is still on the
             // battlefield: the grant's occupancy is released from the HOLD.
             ctx.removeCounter({ type: "permanent", id: "bear-6" }, "flying", 1);
-            expect(bear.grantedStaticAbilities ?? []).toHaveLength(0);
-            expect(bear.removedKeywords).toBeUndefined();
+            expect(grantedKeywordRows(state, bear)).toHaveLength(0);
+            expect(removedKeywordRows(state, bear)).toEqual([]);
 
             // Sphere leaves — there is no longer anything to restore.
-            unapplySourceStaticEffects(state, sphere);
+            stopApplyingStaticEffects(state, sphere);
             expect(count(bear, "flying")).toBe(0);
 
             const projected = projectPublicState(state, 1, "p1");
@@ -338,7 +342,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             ctx.addCounter({ type: "permanent", id: "ae-2" }, "flying", 1);
             expect(count(elemental, "flying")).toBe(2);
 
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             // Occupancy BOOKKEEPING only — deliberately not "how many
             // occurrences survive". Layer-6 `keyword-remove` takes ONE
             // occurrence and records one hold, so a doubled keyword still reads
@@ -346,20 +350,20 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // defect, pre-existing and outside this fix's release-side model.
             // Asserting the survivor count here would lock that defect in.
             // tracked-by: #2198
-            expect(elemental.removedKeywords).toHaveLength(1);
+            expect(removedKeywordRows(state, elemental)).toHaveLength(1);
 
             ctx.removeCounter({ type: "permanent", id: "ae-2" }, "flying", 1);
             // The live occurrence belongs to the counter grant and is the one
             // released; the Sphere keeps holding the printed one.
             expect(count(elemental, "flying")).toBe(0);
-            expect(elemental.removedKeywords).toHaveLength(1);
+            expect(removedKeywordRows(state, elemental)).toHaveLength(1);
 
-            unapplySourceStaticEffects(state, sphere);
+            stopApplyingStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(1);
         });
 
         it("an aura grant that leaves under Gravity Sphere does not come back when the Sphere leaves", () => {
-            // The `unapplySourceStaticEffects` row of the census, FINAL
+            // The `stopApplyingStaticEffects` row of the census, FINAL
             // flavour: Flight is destroyed while the Sphere holds the
             // occurrence it granted. (The TRANSIENT flavour — the counter-gated
             // refresh, which must NOT cancel the hold — is guarded by
@@ -372,17 +376,17 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             const sphere = makeInstance(gravitySphere.id, { id: "sphere-3" });
             const state = makeBoard(bear, [aura, sphere]);
 
-            applySourceStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, aura);
             expect(count(bear, "flying")).toBe(1);
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(count(bear, "flying")).toBe(0);
-            expect(bear.removedKeywords).toHaveLength(1);
+            expect(removedKeywordRows(state, bear)).toHaveLength(1);
 
             leaveBattlefield(state, aura);
             expect(count(bear, "flying")).toBe(0);
             // Nothing is being held down any more — the grant that was being
             // stripped is simply no longer derived.
-            expect(bear.removedKeywords).toBeUndefined();
+            expect(removedKeywordRows(state, bear)).toEqual([]);
 
             leaveBattlefield(state, sphere);
             expect(count(bear, "flying")).toBe(0);
@@ -496,8 +500,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
                 id: `${bearId}-sphere`,
             });
             const state = makeBoard(bear, [aura, sphere]);
-            applySourceStaticEffects(state, aura); // earlier timestamp
-            applySourceStaticEffects(state, sphere); // later — outranks it
+            beginApplyingStaticEffects(state, aura); // earlier timestamp
+            beginApplyingStaticEffects(state, sphere); // later — outranks it
             return { bear, state, aura, sphere };
         }
 
@@ -542,7 +546,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // derivation re-decides everything from the board every time, so
             // the flag — and the way it could be forgotten — is gone.
             const { bear, state } = outrankedBoard("bear-13");
-            for (let i = 0; i < 5; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 5; i++) recomputeContinuousEffects(state);
             expect(count(bear, "flying")).toBe(0);
         });
 
@@ -558,7 +562,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
                 attachedTo: "bear-14",
             });
             const state = makeBoard(bear, [aura]);
-            applySourceStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, aura);
             expect(count(bear, "flying")).toBe(1);
         });
     });

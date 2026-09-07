@@ -8,12 +8,13 @@ import type {
 } from "./gre/state";
 import { getPendingChoiceMax, getPlayer } from "./gre/state";
 import type { CardAction } from "./gre/types";
+import type { Duration } from "./gre/state";
 import type { WireCharacteristics } from "./gre/wireCharacteristics";
 import {
     applyWireCharacteristics,
     deriveWireCharacteristics,
 } from "./gre/wireCharacteristics";
-import type { ActivatedAbility, ManaCost } from "./cards/types";
+import type { ActivatedAbility, ManaCost, TextChange } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
@@ -310,6 +311,25 @@ export type SlimBattlefieldCard = SlimCardInstance & {
      *  signature — never for P/T itself, which the client computes from the
      *  registry through the same layer walk the server uses. */
     temporaryPTMods?: { power: number; toughness: number }[];
+    /** CR 613 (ADR 0082 decision 4, PRD #2064 S6b-part-2) — the derived
+     *  characteristics that no longer have a `CardInstanceState` field behind
+     *  them either. The engine derives them per read; the client keeps this
+     *  materialised snapshot and does not re-derive, so its 53 call sites stay
+     *  untouched. Produced by `gre/wireCharacteristics.ts`, which is also where
+     *  the full list and its shapes live (`WireCharacteristics`). */
+    textChanges?: TextChange[];
+    grantedTypes?: { type: string; auraId: string }[];
+    suppressedTypes?: { type: string; sourceId: string }[];
+    grantedSubtypes?: { subtypes: string[]; sourceId: string; seq?: number }[];
+    grantedSubtypesAdd?: { subtype: string; auraId: string; seq?: number }[];
+    printedSubtypes?: string[];
+    grantedStaticAbilities?: {
+        ability: string;
+        auraId?: string;
+        seq?: number;
+        duration?: Duration;
+    }[];
+    removedKeywords?: { keyword: string; sourceId: string; seq?: number }[];
 };
 
 export type PublicGameState = Omit<

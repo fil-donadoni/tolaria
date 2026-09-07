@@ -22,6 +22,7 @@ import { syncLayer6 } from "../layer6";
 import { syncLayers2to5 } from "../layers2to5";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { GameState } from "../state";
+import { deriveWireCharacteristics } from "../wireCharacteristics";
 
 const WAR_MAMMOTH = getCardByName("War Mammoth")!.id;
 
@@ -161,18 +162,16 @@ describe("wire projection derives layer 6 from the registry (CR 613.1f)", () => 
         expect(projectedCard(state).staticAbilities).toEqual([]);
     });
 
-    it("does NOT ship a materialised grant the registry does not produce", () => {
-        // The exact stale-cache shape S6 deletes: an aura-keyed grant left on
-        // the instance by a sync whose aura has since left the battlefield.
-        // `syncLayer6` would wipe it at the next stable point; the wire must
-        // not carry it in the meantime, because after S6 there is no field for
-        // it to be carried in at all.
+    it("does NOT ship a grant the registry does not produce", () => {
+        // The stale-cache shape S6b-part-2 deleted outright: a permanent whose
+        // `staticAbilities` still holds a keyword no live effect grants. There
+        // is no instance field for the provenance to be carried in any more, so
+        // the wire's only source is the derivation — and the derivation says
+        // the Mammoth has trample and nothing else.
         const mammoth = makeInstance(WAR_MAMMOTH, {
             id: "m1",
             staticAbilities: ["trample", "flying"],
-            grantedStaticAbilities: [
-                { ability: "flying", auraId: "aura-that-left" },
-            ],
+            baseStaticAbilities: ["trample"],
         });
         const state = stateWith(mammoth, []);
 
@@ -320,7 +319,7 @@ describe("provenance changes, shape does not (PRD #2064 S5 AC 3)", () => {
     it("projects exactly what a synced board already holds", () => {
         const mammoth = makeInstance(WAR_MAMMOTH, { id: "m1" });
         // CR 613.7a — a static ability's effect is stamped when the object
-        // BEGINS applying (`applySourceStaticEffects`). A hand-built fixture
+        // BEGINS applying (`beginApplyingStaticEffects`). A hand-built fixture
         // never went through that path, and an unstamped source is skipped.
         const flight = makeInstance(FLIGHT, {
             id: "a1",
@@ -348,8 +347,12 @@ describe("provenance changes, shape does not (PRD #2064 S5 AC 3)", () => {
             expect(card.types).toEqual(instance.types);
             expect(card.subtypes).toEqual(instance.subtypes);
             expect(card.controllerId).toEqual(instance.controllerId);
+            // Derived output with no instance field behind it since PRD #2064
+            // S6b-part-2 — asserted against the derivation the wire is built
+            // from, which is the only place the answer exists.
             expect(card.grantedStaticAbilities).toEqual(
-                instance.grantedStaticAbilities
+                deriveWireCharacteristics(state).get(card.id)
+                    ?.grantedStaticAbilities
             );
             expect(card.baseStaticAbilities).toEqual(
                 instance.baseStaticAbilities

@@ -13,8 +13,8 @@ import {
     emitPermanentTapped,
     processPendingActionTriggers,
     realizeManaAbilityTapBonus,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -108,6 +108,7 @@ const wanderlust = getDefinition("220a03ca-8c9b-4acb-821d-f6577fbb20fb");
 const web = getDefinition("37c7890a-86dc-4a97-a7ce-1436fa22d0c0");
 const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
 const wrathOfGod = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
+import { grantedKeywordRows } from "../../../__tests__/setup";
 
 describe("Hurricane ({X}{G} — X damage to each flying creature and each player, CR 107.3 / 120.3)", () => {
     function setupBoard() {
@@ -727,7 +728,7 @@ describe("Berserk ({G} — trample + X/+0, delayed destroy if attacked, CR 117.1
         resolveTopOfStack(state2); // delayed trigger: no-op (didn't attack)
         advancePhase(state2); // CLEANUP (auto) → next turn UNTAP
         expect(pacifistBear.staticAbilities).not.toContain("trample");
-        expect(pacifistBear.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state2, pacifistBear)).toEqual([]);
         expect(pacifistBear.hasAttackedThisTurn).toBeUndefined();
     });
 
@@ -2768,7 +2769,7 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
             zone: "battlefield",
         });
         state.players[0].battlefield.push(ll);
-        applySourceStaticEffects(state, ll);
+        beginApplyingStaticEffects(state, ll);
 
         expect(f.types).toContain("Creature");
         expect(f.types).toContain("Land");
@@ -2795,7 +2796,7 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
             zone: "battlefield",
         });
         state.players[0].battlefield.push(ll);
-        applySourceStaticEffects(state, ll);
+        beginApplyingStaticEffects(state, ll);
 
         expect(f.types).toContain("Creature");
         expect(f.isSummoningSick).toBe(true);
@@ -2815,7 +2816,7 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
             zone: "battlefield",
         });
         state.players[0].battlefield.push(ll);
-        applySourceStaticEffects(state, ll);
+        beginApplyingStaticEffects(state, ll);
 
         expect(f.types).toContain("Creature");
         expect(f.isSummoningSick).toBeUndefined();
@@ -2834,10 +2835,10 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
             zone: "battlefield",
         });
         state.players[0].battlefield.push(ll);
-        applySourceStaticEffects(state, ll);
+        beginApplyingStaticEffects(state, ll);
         expect(f.types).toContain("Creature");
 
-        unapplySourceStaticEffects(state, ll);
+        stopApplyingStaticEffects(state, ll);
         expect(f.types).not.toContain("Creature");
         expect(f.types).toContain("Land");
     });
@@ -2856,7 +2857,7 @@ describe("Living Lands ({3}{G} — all Forests are 1/1 creatures, still lands)",
             zone: "battlefield",
         });
         state.players[0].battlefield.push(ll);
-        applySourceStaticEffects(state, ll);
+        beginApplyingStaticEffects(state, ll);
 
         const projected = projectPublicState(state, 1, "p1");
         const projF = projected.players[0].battlefield.find(
@@ -3068,7 +3069,7 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
         expect(mtn.counters?.["gaea-forest"]).toBe(1);
 
         // The counter-driven subtype-set turns it into a Forest.
-        applySourceStaticEffects(state, liege);
+        beginApplyingStaticEffects(state, liege);
         expect(mtn.subtypes).toEqual(["Forest"]);
 
         // When Gaea's Liege leaves, the land reverts (CR 611.2).

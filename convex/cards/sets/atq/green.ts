@@ -344,7 +344,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // already artifacts, so no Artifact type-add is required. The leave-the-battlefield "continues until end
 // of turn" linger clause is NOT modeled: when the Song leaves play the engine
 // reverts the type/ability changes immediately (the standard
-// `unapplySourceStaticEffects` path). This is observable only in the window
+// `stopApplyingStaticEffects` path). This is observable only in the window
 // between the Song leaving and the cleanup step; the common play pattern keeps
 // the Song in play, so the simplification is acceptable for ATQ scope. The
 // missing piece is a "this continuous effect survives its own source until end

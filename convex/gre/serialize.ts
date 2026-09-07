@@ -47,10 +47,14 @@ import type {
 import type { Zone } from "./types";
 import type { FaceDownProducer } from "./faceDown";
 import type {
+    CardSupertype,
     CardType,
     ManaCost,
     ManaSubstitutionBreadth,
+    TextChange,
 } from "../cards/types";
+import { INDEFINITE_SOURCE_ID } from "./layers2to5";
+import { migrateLegacyAbilityLossHolds } from "./layer6";
 
 type CompactCard = Record<string, unknown>;
 // [instanceId, cardId] for the common case; a third element carries persistent
@@ -235,12 +239,8 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "grantedColors",
     "grantedEnchantRestriction",
     "grantedFlashback",
-    "grantedStaticAbilities",
-    "grantedSubtypes",
-    "grantedSubtypesAdd",
     "grantedSupertypes",
     "grantedTriggeredAbilities",
-    "grantedTypes",
     "hasAttackedThisTurn",
     "hasBlockedThisTurn",
     "entersAsTypeLine",
@@ -252,7 +252,6 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "isSummoningSick",
     "isToken",
     "kickerPayments",
-    "layers2to5Derived",
     "knownTo",
     "lifePaidThisTap",
     "linkedTokenId",
@@ -269,10 +268,8 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "notedManaSpentOnCast",
     "pileLabel",
     "power",
-    "printedSubtypes",
     "reboundExiled",
     "regenerationShields",
-    "removedKeywords",
     "removedSupertypes",
     "skipNextUntap",
     "sourceTappedPTMods",
@@ -280,13 +277,11 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "staticSeq",
     "subtypeAddHolds",
     "supertypeHolds",
-    "suppressedTypes",
     "tapBonusMana",
     "tapTriggerCommitted",
     "temporaryColorOverride",
     "temporarySubtypeChange",
     "textChangeHolds",
-    "textChanges",
     "typeLineHolds",
     "toughness",
     "transformed",
@@ -387,20 +382,14 @@ function compactCard(
     if (card.lifePaidThisTap) out.lifePaidThisTap = card.lifePaidThisTap;
     if (card.manaPaidThisTap) out.manaPaidThisTap = card.manaPaidThisTap;
     if (card.tapBonusMana) out.tapBonusMana = card.tapBonusMana;
-    if (card.grantedStaticAbilities?.length) {
-        out.grantedStaticAbilities = card.grantedStaticAbilities;
-    }
     if (card.grantedActivatedAbilities?.length) {
         out.grantedActivatedAbilities = card.grantedActivatedAbilities;
     }
-    if (card.grantedTriggeredAbilities?.length) {
-        out.grantedTriggeredAbilities = card.grantedTriggeredAbilities;
-    }
-    if (card.removedKeywords?.length) {
-        out.removedKeywords = card.removedKeywords;
-    }
     if (card.abilitiesSuppressedBy?.length) {
         out.abilitiesSuppressedBy = card.abilitiesSuppressedBy;
+    }
+    if (card.grantedTriggeredAbilities?.length) {
+        out.grantedTriggeredAbilities = card.grantedTriggeredAbilities;
     }
     // PRD #2064 S3 — the layer-6 base and the resolving-ability ability-loss
     // LEDGER. Both are genuine state, not derivable from the definition: the
@@ -418,7 +407,6 @@ function compactCard(
     // the lower layers put there, and a ledger holds an effect whose source has
     // already left the stack, so neither is derivable from the definition.
     if (card.baseControllerId) out.baseControllerId = card.baseControllerId;
-    if (card.layers2to5Derived) out.layers2to5Derived = true;
     if (card.baseTypes) out.baseTypes = card.baseTypes;
     if (card.baseSubtypes) out.baseSubtypes = card.baseSubtypes;
     if (card.textChangeHolds?.length) {
@@ -512,24 +500,8 @@ function compactCard(
     ) {
         out.triggersThisTurn = card.triggersThisTurn;
     }
-    if (card.grantedTypes && card.grantedTypes.length > 0) {
-        out.grantedTypes = card.grantedTypes;
-    }
-    if (card.suppressedTypes && card.suppressedTypes.length > 0) {
-        out.suppressedTypes = card.suppressedTypes;
-    }
-    if (card.grantedSubtypes && card.grantedSubtypes.length > 0) {
-        out.grantedSubtypes = card.grantedSubtypes;
-    }
-    // Layer-4 ADD grants (CR 305.7 — Urborg / Yavimaya). Load-bearing since
-    // issue #1715: `composeMaterializedSubtypes` replays this record against
-    // `grantedSubtypes` on every re-apply, so dropping it across a save/load
-    // would make the added land type vanish at the next SBA refresh.
-    if (card.grantedSubtypesAdd && card.grantedSubtypesAdd.length > 0) {
-        out.grantedSubtypesAdd = card.grantedSubtypesAdd;
-    }
-    if (card.printedSubtypes && card.printedSubtypes.length > 0) {
-        out.printedSubtypes = card.printedSubtypes;
+    if (card.colorOverride && card.colorOverride.length > 0) {
+        out.colorOverride = card.colorOverride;
     }
     if (card.grantedColors && card.grantedColors.length > 0) {
         out.grantedColors = card.grantedColors;
@@ -539,12 +511,6 @@ function compactCard(
     }
     if (card.removedSupertypes && card.removedSupertypes.length > 0) {
         out.removedSupertypes = card.removedSupertypes;
-    }
-    if (card.colorOverride && card.colorOverride.length > 0) {
-        out.colorOverride = card.colorOverride;
-    }
-    if (card.textChanges && card.textChanges.length > 0) {
-        out.textChanges = card.textChanges;
     }
     // CR 707.2's "except it's N/N" clause, stamped on this copy so a copy OF
     // it inherits the exception (CR 707.3, issue #2076). Persisted rather than
@@ -862,21 +828,9 @@ function expandCard(
     if (compact.tapBonusMana) {
         result.tapBonusMana = compact.tapBonusMana as ManaCost;
     }
-    if (compact.grantedStaticAbilities) {
-        result.grantedStaticAbilities =
-            compact.grantedStaticAbilities as CardInstanceState["grantedStaticAbilities"];
-    }
     if (compact.grantedActivatedAbilities) {
         result.grantedActivatedAbilities =
             compact.grantedActivatedAbilities as CardInstanceState["grantedActivatedAbilities"];
-    }
-    if (compact.grantedTriggeredAbilities) {
-        result.grantedTriggeredAbilities =
-            compact.grantedTriggeredAbilities as CardInstanceState["grantedTriggeredAbilities"];
-    }
-    if (compact.removedKeywords) {
-        result.removedKeywords =
-            compact.removedKeywords as CardInstanceState["removedKeywords"];
     }
     if (compact.abilitiesSuppressedBy) {
         // Rows persisted before the field carried a layer timestamp hold bare
@@ -890,6 +844,10 @@ function expandCard(
             typeof s === "string" ? { sourceId: s, seq: 0 } : s
         ) as CardInstanceState["abilitiesSuppressedBy"];
     }
+    if (compact.grantedTriggeredAbilities) {
+        result.grantedTriggeredAbilities =
+            compact.grantedTriggeredAbilities as CardInstanceState["grantedTriggeredAbilities"];
+    }
     if (compact.baseStaticAbilities) {
         result.baseStaticAbilities = compact.baseStaticAbilities as string[];
     }
@@ -900,7 +858,6 @@ function expandCard(
     if (compact.baseControllerId) {
         result.baseControllerId = compact.baseControllerId as string;
     }
-    if (compact.layers2to5Derived) result.layers2to5Derived = true;
     if (compact.baseTypes) {
         result.baseTypes = compact.baseTypes as CardInstanceState["baseTypes"];
     }
@@ -996,24 +953,9 @@ function expandCard(
             number
         >;
     }
-    if (compact.grantedTypes) {
-        result.grantedTypes =
-            compact.grantedTypes as CardInstanceState["grantedTypes"];
-    }
-    if (compact.suppressedTypes) {
-        result.suppressedTypes =
-            compact.suppressedTypes as CardInstanceState["suppressedTypes"];
-    }
-    if (compact.grantedSubtypesAdd) {
-        result.grantedSubtypesAdd =
-            compact.grantedSubtypesAdd as CardInstanceState["grantedSubtypesAdd"];
-    }
-    if (compact.grantedSubtypes) {
-        result.grantedSubtypes =
-            compact.grantedSubtypes as CardInstanceState["grantedSubtypes"];
-    }
-    if (compact.printedSubtypes) {
-        result.printedSubtypes = compact.printedSubtypes as string[];
+    if (compact.colorOverride) {
+        result.colorOverride =
+            compact.colorOverride as CardInstanceState["colorOverride"];
     }
     if (compact.grantedColors) {
         result.grantedColors =
@@ -1026,14 +968,6 @@ function expandCard(
     if (compact.removedSupertypes) {
         result.removedSupertypes =
             compact.removedSupertypes as CardInstanceState["removedSupertypes"];
-    }
-    if (compact.colorOverride) {
-        result.colorOverride =
-            compact.colorOverride as CardInstanceState["colorOverride"];
-    }
-    if (compact.textChanges) {
-        result.textChanges =
-            compact.textChanges as CardInstanceState["textChanges"];
     }
     if (compact.copyExcept) {
         result.copyExcept =
@@ -2246,9 +2180,11 @@ export function expandState(data: Record<string, unknown>): GameState {
                       ),
         })) as GameState["stagedEntries"];
     }
-    backfillLegacyStaticSeq(result);
+    backfillLegacyStaticSeq(result, data);
     migrateLegacyInstancePTLedgers(result, data);
     migrateLegacyInstanceKeywordLedgers(result, data);
+    migrateLegacyLayer2to5Ledgers(result, data);
+    migrateLegacyAbilityLossLedger(result, data);
     return result;
 }
 
@@ -2394,18 +2330,37 @@ function migrateLegacyInstanceKeywordLedgers(
                 id?: string;
                 grantedStaticAbilities?: LegacyGrant[];
                 temporaryRemovedKeywords?: LegacyRemoval[];
+                removedKeywords?: { keyword: string; sourceId: string }[];
             };
             if (!legacy.id) continue;
             const card = live.battlefield.find((c) => c.id === legacy.id);
             if (!card) continue;
-            const auraRows = (legacy.grantedStaticAbilities ?? []).filter(
-                (g) => g.auraId
-            );
             const grants = (legacy.grantedStaticAbilities ?? []).filter(
                 (g) => !g.auraId
             );
             const removals = legacy.temporaryRemovedKeywords ?? [];
-            if (grants.length === 0 && removals.length === 0) continue;
+            // PRD #2064 S6b-part-2 — the CONTINUOUS strip's record. `removedKeywords`
+            // held every occurrence a live `keyword-remove` static effect (Gravity
+            // Sphere, Animate Wall) or an `ability-loss` (Titania's Song) had
+            // spliced out of `staticAbilities`. It is DERIVED OUTPUT since S3 and
+            // this slice deleted the field, so `expandCard` drops it and this is
+            // the last moment it is readable at all.
+            //
+            // It is not promoted to an entry — the board re-derives every one of
+            // those on the first sync — but it IS part of the base, and nothing
+            // else can reconstruct it: `registryRemovedKeywordsFor` sees only
+            // `instances`-affected entries, so a source-derived strip and every
+            // ability-loss are invisible to it. Left out, a Wall of Swords loaded
+            // under Animate Wall captures its base as `[]` and never has defender
+            // again, however long after the aura dies.
+            const derivedRemovals = legacy.removedKeywords ?? [];
+            if (
+                grants.length === 0 &&
+                removals.length === 0 &&
+                derivedRemovals.length === 0
+            ) {
+                continue;
+            }
             // CR 613 layer-6 base = staticAbilities + removals - grants.
             //
             // Seeded HERE and not by `captureLayer6Base` (`gre/layer6.ts`),
@@ -2422,36 +2377,27 @@ function migrateLegacyInstanceKeywordLedgers(
             if (card.baseStaticAbilities === undefined) {
                 const base = [...card.staticAbilities];
                 for (const removal of removals) base.push(removal.keyword);
+                for (const removal of derivedRemovals) {
+                    base.push(removal.keyword);
+                }
                 for (const grant of grants) {
                     const at = base.indexOf(grant.ability);
                     if (at !== -1) base.splice(at, 1);
                 }
                 card.baseStaticAbilities = base;
             }
-            // IDEMPOTENCE — the migrated rows are STRUCK from the expanded card,
-            // or the next save/load migrates them again.
+            // IDEMPOTENCE is now structural: `grantedStaticAbilities` does not
+            // exist on `CardInstanceState` since PRD #2064 S6b-part-2, so
+            // `expandCard` drops every row it finds and `compactCard` can never
+            // write one back out. Until that slice this function had to strike
+            // the migrated rows by hand — the field survived as layer 6's
+            // derived output, and `gameStates` is expanded and compacted on
+            // EVERY mutation, so a row left behind minted one extra entry per
+            // action.
             //
-            // The layer-7 twin (`migrateLegacyInstancePTLedgers`) needs no such
-            // line because its source fields no longer exist on
-            // `CardInstanceState` at all, so `expandCard` drops them and they
-            // can never be re-persisted. `grantedStaticAbilities` is different:
-            // it SURVIVES this slice as layer 6's derived output, `expandCard`
-            // copies every row it finds, and `layer6DerivedFields` deliberately
-            // carries non-`auraId` rows through `syncLayer6` — so `compactCard`
-            // would write the legacy rows straight back out and the next
-            // `expandState` would mint a second entry for each. `gameStates` is
-            // expanded and compacted on EVERY mutation, so that is one extra
-            // keyword occurrence per action, not per session: a Shelkin Brownie
-            // strip would take one of them and the creature would keep flying.
-            //
-            // Only the `auraId` rows survive, which is exactly what this field
-            // holds from this slice on.
-            card.grantedStaticAbilities =
-                auraRows.length > 0
-                    ? (auraRows as NonNullable<
-                          CardInstanceState["grantedStaticAbilities"]
-                      >)
-                    : undefined;
+            // The `auraId` rows are dropped with the rest and re-derived from
+            // the live board at the next `syncLayer6`, which is what they always
+            // were.
             for (const grant of grants) {
                 if (!grant.counterType) continue;
                 appendMigratedEffect(state, {
@@ -2529,9 +2475,319 @@ function appendMigratedEffect(
     ];
 }
 
+/** One-shot migration for a state persisted BEFORE PRD #2064 S6b-part-2, when
+ *  layers 2-5 kept their answer in thirteen materialised fields on the affected
+ *  permanent rather than deriving it.
+ *
+ *  Three of those fields were also the only record of an effect: layer 3's
+ *  `textChanges` WAS the ledger as well as the output, and a one-shot card-type
+ *  SET, an indefinite supertype mutation and an indefinite subtype ADD were
+ *  recorded as `"indefinite"`-keyed provenance rows. Without this a deploy
+ *  landing mid-game would come back with every Magical Hack rewrite, every Oko
+ *  `+1` type line and every Arcum's Weathervane snow toggle silently gone.
+ *
+ *  It also seeds the two layer-4 BASES. `ensureLayer4Base` (`gre/layers2to5.ts`)
+ *  used to reconstruct them by unwinding the provenance rows; the rows are gone
+ *  from `CardInstanceState`, so the unwind moved here, to the one moment they
+ *  are readable. The PRINTED-type discipline it carried is preserved verbatim
+ *  (issue #2086): a granted type the card also prints is not removed from the
+ *  base, and a suppressed type the card never printed is not resurrected.
+ *
+ *  This is the migration path an issue-#3120 reviewer should follow for "a
+ *  persisted state written before this slice loads correctly": the pre-slice
+ *  document reaches `expandState`, its compact rows still carry every deleted
+ *  field, and this promotes them into the ledgers and bases the derivation
+ *  reads. Idempotent by construction — `compactCard` cannot write any of these
+ *  fields back out, so a second load finds nothing to migrate.
+ *
+ *  What is deliberately NOT migrated: an aura-sourced row (`auraId` naming a
+ *  live permanent). Those are re-derived from the board on the first sync, so
+ *  promoting them to a ledger would apply them twice, permanently. Only the
+ *  `"indefinite"` sentinel rows — the ones no board walk can reproduce — are
+ *  promoted. */
+function migrateLegacyLayer2to5Ledgers(
+    state: GameState,
+    data: Record<string, unknown>
+): void {
+    const compactById = compactBattlefieldRows(data);
+    if (compactById.size === 0) return;
+    // CR 613.7 — every promoted row takes a real stamp, strictly increasing,
+    // and strictly BELOW every stamp the loaded board already carries.
+    //
+    // `LEGACY_LEDGER_TIMESTAMP_BASE` and its two siblings went with this slice
+    // because a magic constant a mint could never reach is not a timestamp. The
+    // ORDER they encoded is kept: a promoted row is the residue of an effect
+    // that resolved before this document was written, and it lost to every live
+    // source under the old engine. Flipping that silently would load the same
+    // pre-S4 document to a different type line before and after the deploy —
+    // a one-shot card-type set would start outranking a live Blood Moon.
+    // Derived from the board rather than declared, so nothing has to stay clear
+    // of it.
+    let floor = 0;
+    const sink = (seq: number | undefined) => {
+        if (seq !== undefined && seq < floor) floor = seq;
+    };
+    for (const entry of state.continuousEffects ?? []) sink(entry.timestamp);
+    for (const emblem of state.emblems ?? []) sink(emblem.staticSeq);
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            sink(card.staticSeq);
+            for (const h of card.textChangeHolds ?? []) sink(h.seq);
+            for (const h of card.typeLineHolds ?? []) sink(h.seq);
+            for (const h of card.subtypeAddHolds ?? []) sink(h.seq);
+            for (const h of card.supertypeHolds ?? []) sink(h.seq);
+            for (const h of card.abilityLossHolds ?? []) sink(h.seq);
+            for (const c of card.controlChanges ?? []) sink(c.seq);
+        }
+    }
+    // One descending run below the lowest stamp on the board. Strictly
+    // decreasing, so promoted rows keep their relative order among themselves —
+    // which for the layer-3 ledger IS the CR 612.6 order (array order WAS the
+    // timestamp before S4, the field's own doc said so).
+    let next = floor - 1;
+    const mint = () => next--;
+
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const row = compactById.get(card.id);
+            // A document written by PRD #2064 S4 or later carries BOTH layer-4
+            // bases — `ensureLayer4Base` writes them at the first derivation and
+            // `compactCard` persists them — so it has already been through this
+            // promotion and there is nothing here for it. The gate matters
+            // because two of the six fields read below (`grantedSupertypes` /
+            // `removedSupertypes`) survived this slice and DO round-trip, so
+            // "the field cannot be written back out" is not, on its own, the
+            // idempotence argument the other four get for free.
+            if (
+                !row ||
+                (row.baseTypes !== undefined && row.baseSubtypes !== undefined)
+            ) {
+                continue;
+            }
+            const legacy = {
+                textChanges: asRows(row.textChanges),
+                grantedTypes: asRows(row.grantedTypes),
+                suppressedTypes: asRows(row.suppressedTypes),
+                grantedSupertypes: asRows(row.grantedSupertypes),
+                removedSupertypes: asRows(row.removedSupertypes),
+                grantedSubtypesAdd: asRows(row.grantedSubtypesAdd),
+                printedSubtypes: Array.isArray(row.printedSubtypes)
+                    ? (row.printedSubtypes as string[])
+                    : undefined,
+            };
+            const carriesRows =
+                legacy.textChanges.length > 0 ||
+                legacy.grantedTypes.length > 0 ||
+                legacy.suppressedTypes.length > 0 ||
+                legacy.grantedSupertypes.length > 0 ||
+                legacy.removedSupertypes.length > 0 ||
+                legacy.grantedSubtypesAdd.length > 0;
+            if (!carriesRows && legacy.printedSubtypes === undefined) continue;
+
+            // --- the two layer-4 BASES ------------------------------------
+            //
+            // Seeded before any promotion below reads them, and only when the
+            // loaded row carried none of its own: a document written after
+            // PRD #2064 S4 already has them and is left alone.
+            const cardId = (card.card as { id?: string }).id;
+            const printed = cardId ? tryGetDefinition(cardId) : null;
+            if (card.baseTypes === undefined) {
+                const printedTypes = (printed?.types ?? []).map(
+                    (t) => t as CardType
+                );
+                const base = [...card.types];
+                for (const g of legacy.grantedTypes) {
+                    const type = g.type as CardType;
+                    if (printedTypes.includes(type)) continue;
+                    const at = base.indexOf(type);
+                    if (at !== -1) base.splice(at, 1);
+                }
+                for (const suppressed of legacy.suppressedTypes) {
+                    const type = suppressed.type as CardType;
+                    if (!printedTypes.includes(type)) continue;
+                    if (!base.includes(type)) base.push(type);
+                }
+                card.baseTypes = base;
+            }
+            if (card.baseSubtypes === undefined) {
+                // #1715's guard, carried verbatim from the
+                // `capturePrintedSubtypes` this replaces: a subtype that is only
+                // present because a live `subtype-add` put it there is EXCLUDED,
+                // or the add would survive its own source leaving play. One the
+                // card actually PRINTS is kept even when an add duplicates it.
+                const base = [...(legacy.printedSubtypes ?? card.subtypes)];
+                const adds = [
+                    ...legacy.grantedSubtypesAdd.map(
+                        (a) => a.subtype as string
+                    ),
+                    ...(card.subtypeAddHolds ?? []).map((a) => a.subtype),
+                ];
+                card.baseSubtypes =
+                    adds.length === 0
+                        ? base
+                        : base.filter(
+                              (sub) =>
+                                  (printed?.subtypes ?? []).includes(sub) ||
+                                  !adds.includes(sub)
+                          );
+            }
+
+            // --- CR 612 layer 3: `textChanges` was ledger AND output -------
+            if (
+                card.textChangeHolds === undefined &&
+                legacy.textChanges.length
+            ) {
+                card.textChangeHolds = legacy.textChanges.map((change) => ({
+                    change: change as unknown as TextChange,
+                    // Array order WAS the CR 612.6 timestamp before S4 (the
+                    // field's own doc said so), so it is preserved as one.
+                    seq: mint(),
+                }));
+            }
+
+            // --- CR 205.1a layer 4: a one-shot card-type SET ---------------
+            //
+            // The SET's value is recoverable: it is exactly the live `types`,
+            // which is what it set.
+            if (
+                card.typeLineHolds === undefined &&
+                (legacy.grantedTypes.some(
+                    (g) => g.auraId === INDEFINITE_SOURCE_ID
+                ) ||
+                    legacy.suppressedTypes.some(
+                        (s) => s.sourceId === INDEFINITE_SOURCE_ID
+                    ))
+            ) {
+                card.typeLineHolds = [{ types: [...card.types], seq: mint() }];
+            }
+
+            // --- CR 205.4a layer 4: an indefinite supertype mutation -------
+            if (card.supertypeHolds === undefined) {
+                const added = legacy.grantedSupertypes.filter(
+                    (g) => g.sourceId === INDEFINITE_SOURCE_ID
+                );
+                const removed = legacy.removedSupertypes.filter(
+                    (r) => r.sourceId === INDEFINITE_SOURCE_ID
+                );
+                if (added.length > 0 || removed.length > 0) {
+                    card.supertypeHolds = [
+                        {
+                            ...(added.length > 0
+                                ? {
+                                      add: added.map(
+                                          (a) => a.supertype as CardSupertype
+                                      ),
+                                  }
+                                : {}),
+                            ...(removed.length > 0
+                                ? {
+                                      remove: removed.map(
+                                          (r) => r.supertype as CardSupertype
+                                      ),
+                                  }
+                                : {}),
+                            seq: mint(),
+                        },
+                    ];
+                }
+            }
+
+            // --- CR 305.7 layer 4: an indefinite subtype ADD ---------------
+            //
+            // These DID carry a real minted stamp (issue #1750), so the stamp
+            // survives the promotion and only a row that never had one is
+            // re-minted.
+            if (card.subtypeAddHolds === undefined) {
+                const adds = legacy.grantedSubtypesAdd.filter(
+                    (a) => a.auraId === INDEFINITE_SOURCE_ID
+                );
+                if (adds.length > 0) {
+                    card.subtypeAddHolds = adds.map((a) => ({
+                        subtype: a.subtype as string,
+                        seq: typeof a.seq === "number" ? a.seq : mint(),
+                    }));
+                }
+            }
+        }
+    }
+
+    // CR 613.7 — the instance-borne layer-2-to-5 records that survived this
+    // slice but were written before their `seq` existed. The derivation skips a
+    // row with no stamp (it has no position in its layer), so an undated one is
+    // stamped here rather than silently dropped.
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            for (const change of card.controlChanges ?? []) {
+                if (change.seq === undefined) change.seq = mint();
+            }
+            if (card.animation && card.animation.seq === undefined) {
+                card.animation.seq = mint();
+            }
+            if (
+                card.indefiniteSubtypeSet &&
+                card.indefiniteSubtypeSet.seq === undefined
+            ) {
+                card.indefiniteSubtypeSet.seq = mint();
+            }
+            if (
+                card.temporarySubtypeChange &&
+                card.temporarySubtypeChange.seq === undefined
+            ) {
+                card.temporarySubtypeChange.seq = mint();
+            }
+        }
+    }
+
+    // CR 613.7d — an emblem receives a timestamp when it enters the command
+    // zone. A document written before `createEmblem` minted one carries none,
+    // and an unstamped source is skipped by both layer walks, so every
+    // emblem-granted continuous effect would ship inert.
+    for (const emblem of state.emblems ?? []) {
+        if (emblem.staticSeq === undefined) emblem.staticSeq = mint();
+    }
+}
+
+/** One-shot migration for a state persisted BEFORE PRD #2064 S3, when
+ *  `abilitiesSuppressedBy` was the LEDGER of every "loses all abilities" hold
+ *  rather than layer 6's derived output.
+ *
+ *  Ran inside `deriveLayer6Board`'s base-capture pass until PRD #2064
+ *  S6b-part-2, gated on `baseStaticAbilities` being absent. That gate is a
+ *  fact about the persisted DOCUMENT, so it belongs where the document is
+ *  read: the pass now runs once, here, instead of asking the question on every
+ *  board sync forever. The split of the two arms stays in `gre/layer6.ts`,
+ *  which owns the board walk and the card registry that tells them apart. */
+function migrateLegacyAbilityLossLedger(
+    state: GameState,
+    data: Record<string, unknown>
+): void {
+    const compactById = compactBattlefieldRows(data);
+    if (compactById.size === 0) return;
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            const row = compactById.get(card.id);
+            // A document written after PRD #2064 S3 carries the layer-6 base,
+            // and from that moment `abilitiesSuppressedBy` is derived output —
+            // re-seeding the ledger from it would make every continuous strip
+            // indefinite.
+            if (!row || row.baseStaticAbilities !== undefined) continue;
+            migrateLegacyAbilityLossHolds(
+                state,
+                card,
+                card.abilitiesSuppressedBy
+            );
+        }
+    }
+}
+
+/** One record array off a loosely-typed compact row. */
+function asRows(value: unknown): Record<string, unknown>[] {
+    return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
 /** One (field, id-key) pair per CR 613.7-timestamped layer-4/6 record a
  *  continuous-effect SOURCE can own on some OTHER permanent's card state
- *  (`gre/state.ts`'s `applySourceStaticEffects`). `idKey` is whichever field
+ *  (`gre/state.ts`'s `beginApplyingStaticEffects`). `idKey` is whichever field
  *  the record uses to name its owning source: `auraId` for the four record
  *  kinds that ALSO serve non-static-effect grant paths (duration-, counter-
  *  or resolving-ability-sourced, none of which can ever name a legacy
@@ -2571,12 +2827,16 @@ const LEGACY_SEQ_RECORD_SPECS: {
  *  the cast at every call site. */
 function legacySeqRecords(
     card: CardInstanceState,
+    /** The card's own compact row, where the five deleted record kinds live. */
+    compact: Record<string, unknown> | undefined,
     field: (typeof LEGACY_SEQ_RECORD_SPECS)[number]["field"]
 ): Record<string, unknown>[] {
-    return (
-        (card as unknown as Record<string, Record<string, unknown>[]>)[field] ??
-        []
-    );
+    const live = (card as unknown as Record<string, unknown>)[field];
+    if (Array.isArray(live)) return live as Record<string, unknown>[];
+    const persisted = compact?.[field];
+    return Array.isArray(persisted)
+        ? (persisted as Record<string, unknown>[])
+        : [];
 }
 
 /** CR 613.7 (issue #1750, part c) — backfill `staticSeq` for every
@@ -2589,8 +2849,8 @@ function legacySeqRecords(
  *  consulted (`composeMaterializedSubtypes`, the `keyword-grant`
  *  `outrankedBy` check) — harmless AS LONG AS it stays undated, since every
  *  other undated card ties with it the same way. The moment ONE of them is
- *  next touched by `refreshCounterGatedStatics` (any counter- or
- *  condition-gated static effect), `applySourceStaticEffects`'s
+ *  next touched by `recomputeContinuousEffects` (any counter- or
+ *  condition-gated static effect), `beginApplyingStaticEffects`'s
  *  `preserveTimestamp && source.staticSeq !== undefined` guard is false, so
  *  it mints a BRAND NEW timestamp — the current board's highest — jumping
  *  that one card from "tied earliest with everyone else" to "strictly
@@ -2607,10 +2867,10 @@ function legacySeqRecords(
  *  round 2). A card-level restamp alone is not enough: those records
  *  (`grantedSubtypes[].seq` etc., see `LEGACY_SEQ_RECORD_SPECS`) are what
  *  `composeMaterializedSubtypes` / the `keyword-grant` `outrankedBy` check
- *  actually read, and `applySourceStaticEffects`'s `already = grants.some(g
+ *  actually read, and `beginApplyingStaticEffects`'s `already = grants.some(g
  *  => g.sourceId === source.id)` guard means a plain re-apply never revisits
  *  an existing record to fix its `seq` — only a full unapply+reapply
- *  (`refreshCounterGatedStatics`) replaces the entry, and by then it copies
+ *  (`recomputeContinuousEffects`) replaces the entry, and by then it copies
  *  the NEW `staticSeq` this pass assigns. Left unstamped, a record kept
  *  reading `?? 0` = tied-earliest even after its owning source stopped being
  *  tied — exactly the bug this function exists to remove, just moved one
@@ -2641,7 +2901,7 @@ function legacySeqRecords(
  *  first-ever load with no records at all).
  *
  *  **Gated on `getEffectiveStaticEffects` being non-empty** — the SAME
- *  condition `applySourceStaticEffects` itself early-returns on
+ *  condition `beginApplyingStaticEffects` itself early-returns on
  *  (`effects.length === 0`). The overwhelming majority of battlefield cards
  *  (a vanilla creature, a basic land) never author a `staticSeq` at all —
  *  not because they are legacy, but because nothing ever asks them to order
@@ -2652,7 +2912,17 @@ function legacySeqRecords(
  *  failing the compact/expand round-trip for ordinary boards that were never
  *  the target of this fix (caught by `serialize.test.ts`'s round-trip
  *  assertion, which is exactly why this gate exists). */
-function backfillLegacyStaticSeq(state: GameState): void {
+function backfillLegacyStaticSeq(
+    state: GameState,
+    data: Record<string, unknown>
+): void {
+    // PRD #2064 S6b-part-2 — five of the eight record kinds below no longer
+    // exist on `CardInstanceState`, so the evidence they carry is readable only
+    // on the COMPACT rows. Both passes read there; the stamping pass writes
+    // there too, because the migrations that consume those rows
+    // (`migrateLegacyInstanceKeywordLedgers`,
+    // `migrateLegacyLayer2to5Ledgers`) run after this one and need the stamp.
+    const compactById = compactBattlefieldRows(data);
     const legacy: CardInstanceState[] = [];
     for (const player of state.players) {
         for (const card of player.battlefield) {
@@ -2688,8 +2958,9 @@ function backfillLegacyStaticSeq(state: GameState): void {
     };
     for (const player of state.players) {
         for (const target of player.battlefield) {
+            const row = compactById.get(target.id);
             for (const spec of LEGACY_SEQ_RECORD_SPECS) {
-                const ids = legacySeqRecords(target, spec.field)
+                const ids = legacySeqRecords(target, row, spec.field)
                     .map((entry) => entry[spec.idKey] as string | undefined)
                     .filter(
                         (id): id is string =>
@@ -2748,8 +3019,9 @@ function backfillLegacyStaticSeq(state: GameState): void {
     // source's freshly assigned seq — the actual fix (see doc comment).
     for (const player of state.players) {
         for (const target of player.battlefield) {
+            const row = compactById.get(target.id);
             for (const spec of LEGACY_SEQ_RECORD_SPECS) {
-                for (const entry of legacySeqRecords(target, spec.field)) {
+                for (const entry of legacySeqRecords(target, row, spec.field)) {
                     if (entry.seq !== undefined) continue;
                     const id = entry[spec.idKey] as string | undefined;
                     if (id === undefined) continue;
@@ -2759,4 +3031,25 @@ function backfillLegacyStaticSeq(state: GameState): void {
             }
         }
     }
+}
+
+/** The compact battlefield rows of a persisted document, keyed by instance id.
+ *
+ *  The one place a pre-slice record can still be read: PRD #2064 S6b-part-2
+ *  deleted thirteen derived-output fields from `CardInstanceState`, so
+ *  `expandCard` drops every one of them and the expanded board carries no trace
+ *  (that is also what makes each migration below idempotent by construction —
+ *  `compactCard` can never write them back out). */
+function compactBattlefieldRows(
+    data: Record<string, unknown>
+): Map<string, Record<string, unknown>> {
+    const rows = new Map<string, Record<string, unknown>>();
+    for (const player of (data.players as CompactPlayer[] | undefined) ?? []) {
+        for (const compact of player.battlefield ?? []) {
+            const row = compact as unknown as Record<string, unknown>;
+            const id = row.id;
+            if (typeof id === "string") rows.set(id, row);
+        }
+    }
+    return rows;
 }

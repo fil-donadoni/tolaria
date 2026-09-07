@@ -22,6 +22,7 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
+import { compactState, expandState } from "@convex/gre/serialize";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import { deriveLayer6 } from "@convex/gre/layer6";
 import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
@@ -176,8 +177,15 @@ describe("a pre-S3 legacy state stays reproducible on the client", () => {
     // resolution-armed "loses all abilities" hold in `abilitiesSuppressedBy`
     // and no `abilityLossHolds`; without the migrated ledger the Brain
     // re-derives the permanent WITH the abilities the resolution took away.
+    /** The pre-S3 document, LOADED — which is where the migration runs since
+     *  PRD #2064 S6b-part-2. It used to run inside `deriveLayer6Board`'s base
+     *  capture, so a hand-built `GameState` migrated itself on the first sync;
+     *  the gate it read (`baseStaticAbilities === undefined`) is a fact about
+     *  the persisted DOCUMENT, so the pass moved to `expandState`
+     *  (`gre/serialize.ts`) and a state that never went through a load has
+     *  nothing to migrate. */
     function legacyState(): GameState {
-        return makeState({
+        const fresh = makeState({
             players: [
                 makePlayer("bot", {
                     battlefield: [
@@ -185,16 +193,6 @@ describe("a pre-S3 legacy state stays reproducible on the client", () => {
                             id: "m1",
                             controllerId: "bot",
                             ownerId: "bot",
-                            // Pre-S3 shape: the ledger IS this field, and no
-                            // base has been captured yet.
-                            // CR 611.2c — the `"indefinite"` sentinel is the
-                            // resolving arm that has no source to check
-                            // against the board, so it is the arm that
-                            // actually survives a re-derivation and the only
-                            // one the migrated ledger can be observed through.
-                            abilitiesSuppressedBy: [
-                                { sourceId: "indefinite", seq: 5 },
-                            ],
                             baseStaticAbilities: undefined,
                         }),
                     ],
@@ -204,6 +202,18 @@ describe("a pre-S3 legacy state stays reproducible on the client", () => {
             activePlayerId: "bot",
             priorityPlayerId: "bot",
         });
+        const compact = compactState(fresh) as {
+            players: { battlefield: Record<string, unknown>[] }[];
+        };
+        // Pre-S3 shape: the ledger IS this field, and no base has been captured
+        // yet. CR 611.2c — the `"indefinite"` sentinel is the resolving arm that
+        // has no source to check against the board, so it is the arm that
+        // actually survives a re-derivation and the only one the migrated ledger
+        // can be observed through.
+        compact.players[0].battlefield[0].abilitiesSuppressedBy = [
+            { sourceId: "indefinite", seq: 5 },
+        ];
+        return expandState(compact as unknown as Record<string, unknown>);
     }
 
     it("carries the migrated ability-loss ledger onto the Brain's GameState", () => {

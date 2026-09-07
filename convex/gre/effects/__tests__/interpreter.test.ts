@@ -87,6 +87,7 @@ import { counterAddedTrigger } from "../../../cards/abilities/triggers/counterAd
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
 import { flight } from "../../../cards/sets/lea/blue";
 import { continuousEffectsInLayer } from "../../continuousEffects";
+import { grantedKeywordRows } from "../../../cards/__tests__/setup";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -1336,7 +1337,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         // triggered ability to every OTHER creature. Reanimated in one batch,
         // A receives B's grants and vice versa; each grant must land once. The
         // pre-fix per-member finish pass ran applyExistingGrantsTo AND
-        // applySourceStaticEffects for every member, applying each batch→batch
+        // beginApplyingStaticEffects for every member, applying each batch→batch
         // cross-grant twice (a granted trigger would then fire twice).
         const id = registerScript(
             "test-foreach-gy-simul-mutual-grant",
@@ -1368,19 +1369,15 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         expect(count(a.staticAbilities, (k) => k === "flying")).toBe(0);
         expect(count(b.staticAbilities, (k) => k === "flying")).toBe(1);
         // These are SOURCE-provenance grants (each enchantment creature's own
-        // `keyword-grant` static effect), so they are layer 6's DERIVED OUTPUT
-        // on `grantedStaticAbilities`, keyed by `auraId` — not registry
-        // entries. PRD #2064 S6b moved the three INPUT provenances out of that
-        // array and left exactly this one behind, which is why the assertion
-        // reads the same field it always did.
+        // `keyword-grant` static effect), so they are layer 6's DERIVED OUTPUT,
+        // keyed by `auraId` — not registry entries. PRD #2064 S6b moved the
+        // three INPUT provenances out of that array and S6b-part-2 deleted the
+        // array itself, so the assertion reads the derivation that produces it.
         expect(
-            count(
-                a.grantedStaticAbilities ?? [],
-                (g) => g.ability === "trample"
-            )
+            count(grantedKeywordRows(state, a), (g) => g.ability === "trample")
         ).toBe(1);
         expect(
-            count(b.grantedStaticAbilities ?? [], (g) => g.ability === "flying")
+            count(grantedKeywordRows(state, b), (g) => g.ability === "flying")
         ).toBe(1);
         // activated-grant duplication (grantedActivatedAbilities).
         expect(
@@ -9202,7 +9199,7 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
     // `PermanentFilter.requireAbility` by `toPermanentFilter`) — printed
     // keywords AND any keyword GRANTED by a static effect (CR 611/113.1),
     // since a `keyword-grant` is MATERIALIZED directly into that array at
-    // apply time (`applySourceStaticEffects`, `gre/state.ts`) rather than
+    // apply time (`beginApplyingStaticEffects`, `gre/state.ts`) rather than
     // computed at read time, so no separate "effective abilities" helper is
     // needed. Per the per-Op regime, this is the FIELD's own test (a new
     // `EffectCardFilter` clause); Canopy Surge (issue #1097, `inv/green.ts`)
@@ -24607,8 +24604,7 @@ describe("Effect Script Op: setCardTypes (CR 205.1a layer 4)", () => {
         removePermanentTo(state, "relic", "hand");
         const bounced = state.players[1].hand.find((c) => c.id === "relic")!;
         expect(bounced.types).toEqual(["Artifact"]);
-        expect(bounced.grantedTypes).toBeUndefined();
-        expect(bounced.suppressedTypes).toBeUndefined();
+        expect(bounced.typeLineHolds).toBeUndefined();
     });
 
     it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {

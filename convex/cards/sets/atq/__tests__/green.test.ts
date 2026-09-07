@@ -20,8 +20,8 @@ import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     applyExistingGrantsTo,
     runDamageReplacement,
     type GameState,
@@ -61,6 +61,7 @@ const ashnodsBattleGear = getDefinition("aeeec853-dd3f-4ac3-8b20-c07fada8888f");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+import { removedKeywordRows } from "../../../__tests__/setup";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact removal & bounce (free tranche, #274)
@@ -658,7 +659,7 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
             zone: "battlefield",
         });
         state.players[0].battlefield.push(song, tower);
-        applySourceStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
         // Ivory Tower's "at the beginning of your upkeep" trigger is gone.
         expect(effectiveTriggeredAbilities(tower)).toHaveLength(0);
         const triggers = collectTriggers(state, [
@@ -682,7 +683,7 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
             zone: "battlefield",
         });
         state.players[0].battlefield.push(song, bird);
-        applySourceStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
         // Printed artifact creature: keeps flying, unsuppressed, base 0/2.
         expect(bird.abilitiesSuppressedBy).toBeUndefined();
         expect(bird.staticAbilities).toContain("flying");
@@ -724,12 +725,12 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
             zone: "battlefield",
         });
         state.players[0].battlefield.push(gear);
-        applySourceStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
         expect(gear.staticAbilities).toEqual([]);
-        expect(gear.removedKeywords).toHaveLength(1);
+        expect(removedKeywordRows(state, gear)).toHaveLength(1);
 
-        applySourceStaticEffects(state, song);
-        applySourceStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
         expect(ring.abilitiesSuppressedBy).toHaveLength(1);
         expect(gear.abilitiesSuppressedBy).toHaveLength(1);
         // The keyword occurrence stays taken exactly once: the recompute must
@@ -741,9 +742,9 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
         expect(hasManaAbility(ring)).toBe(false);
     });
 
-    it("reverts cleanly when the Song leaves play (unapplySourceStaticEffects)", () => {
+    it("reverts cleanly when the Song leaves play (stopApplyingStaticEffects)", () => {
         const { state, song, ring } = withTitaniasSong();
-        unapplySourceStaticEffects(state, song);
+        stopApplyingStaticEffects(state, song);
         expect(ring.types).not.toContain("Creature");
         expect(ring.abilitiesSuppressedBy).toBeUndefined();
         expect(hasManaAbility(ring)).toBe(true);

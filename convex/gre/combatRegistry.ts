@@ -283,7 +283,7 @@ export const MINIMUM_BLOCKER_RULES: readonly MinimumBlockerRule[] = [
  *  Reads the attacker instance's EFFECTIVE `staticAbilities`, which already
  *  include keywords granted by anthems such as Goblin War Drums (the grant is
  *  pushed into `staticAbilities` imperatively when the source resolves — see
- *  `applySourceStaticEffects`). */
+ *  `beginApplyingStaticEffects`). */
 export function describeMinimumBlockers(attacker: CardInstanceState): {
     min: number;
     sourceLabel?: string;

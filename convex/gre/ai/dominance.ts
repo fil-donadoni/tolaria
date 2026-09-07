@@ -703,8 +703,6 @@ const IGNORED_INSTANCE_KEYS = [
     "baseControllerId",
     "baseTypes",
     "baseSubtypes",
-    "printedSubtypes",
-    "layers2to5Derived",
     "activationsThisTurn",
     "triggersThisTurn",
 ] as const;

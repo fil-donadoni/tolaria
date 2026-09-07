@@ -15,6 +15,12 @@ import {
     refreshExpectedInput,
 } from "../../gre/expectedInput";
 import { applyPendingChoiceSubmit } from "../../gre/pendingChoiceSubmit";
+import { deriveLayer6 } from "../../gre/layer6";
+import type { Layer6Derivation } from "../../gre/layer6";
+import type { LayerStateView } from "../../gre/layers";
+import type { PermanentView } from "../types";
+import { deriveWireCharacteristics } from "../../gre/wireCharacteristics";
+import type { WireCharacteristics } from "../../gre/wireCharacteristics";
 
 /** Builds a CardInstanceState from a registered card id. Honors overrides.
  *  The engine persists only the slim `{ id }` reference in `card.card`;
@@ -126,4 +132,52 @@ export function resolveTriggerOrder(state: GameState): void {
             cardInstanceIds: head.candidateIds ?? [],
         });
     }
+}
+
+/** CR 613.1f — layer 6's PROVENANCE rows for one permanent, read through the
+ *  derivation.
+ *
+ *  PRD #2064 S6b-part-2 deleted `grantedStaticAbilities` and `removedKeywords`
+ *  from `CardInstanceState`: they are derived output, and the only consumers
+ *  left are the WIRE (`gre/wireCharacteristics.ts`) and assertions like these.
+ *  Reading them off the derivation is what every such assertion now does —
+ *  from the authority rather than from a cache of it — and it is available on a
+ *  board no sync has run over, which the field never was. */
+export function layer6Provenance(
+    state: GameState,
+    card: CardInstanceState
+): Layer6Derivation {
+    return deriveLayer6(
+        state as unknown as LayerStateView,
+        card as unknown as PermanentView
+    );
+}
+
+/** The keyword grants applying to `card`, in the shape `grantedStaticAbilities`
+ *  carried. Empty rather than `undefined` when there are none. */
+export function grantedKeywordRows(
+    state: GameState,
+    card: CardInstanceState
+): Layer6Derivation["grantedStatic"] {
+    return layer6Provenance(state, card).grantedStatic;
+}
+
+/** The keyword removals taking an occurrence off `card` right now, in the shape
+ *  `removedKeywords` carried. */
+export function removedKeywordRows(
+    state: GameState,
+    card: CardInstanceState
+): Layer6Derivation["removedKeywords"] {
+    return layer6Provenance(state, card).removedKeywords;
+}
+
+/** The layer-2-to-5 derived characteristics of one permanent as the WIRE
+ *  carries them — the home of `grantedTypes`, `suppressedTypes`,
+ *  `grantedSubtypes`, `grantedSubtypesAdd`, `printedSubtypes` and `textChanges`
+ *  since PRD #2064 S6b-part-2 (ADR 0082 decision 4). */
+export function wireCharacteristicsOf(
+    state: GameState,
+    instanceId: string
+): WireCharacteristics {
+    return deriveWireCharacteristics(state).get(instanceId) ?? {};
 }

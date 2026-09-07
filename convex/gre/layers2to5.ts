@@ -9,8 +9,8 @@
 //
 // WHAT CHANGED. Layers 2-5 used to be MATERIALISE-AT-APPLY, and worse than
 // layer 6 was: three separate walks over `staticEffects[]`
-// (`applySourceStaticEffects`, `applyExistingGrantsTo`,
-// `unapplySourceStaticEffects`) each pushed provenance rows onto the affected
+// (`beginApplyingStaticEffects`, `applyExistingGrantsTo`,
+// `stopApplyingStaticEffects`) each pushed provenance rows onto the affected
 // permanent and each had to know how to hand an occupancy back. The rows were
 // the authority, so an `applies` predicate that stopped holding was invisible
 // until something happened to re-walk. Here the rows are DERIVED OUTPUT — the
@@ -102,27 +102,6 @@ export const LAYER_2_5_STATIC_EFFECT_KINDS: Record<string, 2 | 4 | 5> = {
     "color-grant": 5,
 };
 
-/** Timestamp floor for entries this module DERIVES per read rather than reads
- *  out of `state.continuousEffects`. Same constant, same argument as layer 7's
- *  (`gre/layers.ts`): a derived entry has no minted CR 613.7 stamp, so record
- *  order is the only ordering proxy available, and starting it far below every
- *  minted stamp keeps the proxy from interleaving with real ones. It disappears
- *  when PRD #2064 S6's producers write these entries with their own stamps. */
-const DERIVED_TIMESTAMP_BASE = -1_000_000_000;
-
-/** CR 613.7 — where a source with no minted `staticSeq` sorts. Below every
- *  derived ordinal as well as every minted stamp, so "unstamped" reads as
- *  "earliest in the layer" — the `?? 0` the pre-migration walks used, kept
- *  clear of the ordinal band so it cannot interleave with an instance ledger's
- *  rows. */
-const UNSTAMPED_SOURCE_TIMESTAMP = DERIVED_TIMESTAMP_BASE - 1_000_000;
-
-/** CR 613.7 — where a ledger row PROMOTED from a pre-S4 snapshot sorts. Below
- *  every minted stamp (the effect is older than anything this session mints)
- *  but above `UNSTAMPED_SOURCE_TIMESTAMP`, so a promoted row still outranks a
- *  source that has not begun applying. */
-const LEGACY_LEDGER_TIMESTAMP_BASE = DERIVED_TIMESTAMP_BASE - 500_000;
-
 /** The sentinel source id every non-source-bound mutation is keyed to — the
  *  `"indefinite"` string `SpellContext.setSupertype` / `applyCardTypeSet` have
  *  always written. Re-exported shape-compatibly with `gre/layer6.ts`'s. */
@@ -182,14 +161,14 @@ export function layer4TypeBase(card: CardInstanceState): CardType[] {
     return card.baseTypes ?? card.types;
 }
 
-/** CR 613.1d layer 4 — the pre-layer-4 subtypes. Supersedes `printedSubtypes`,
+/** CR 613.1d layer 4 — the pre-layer-4 subtypes. Superseded `printedSubtypes`,
  *  which was captured only when a `subtype-set` first fired and therefore could
- *  not be trusted as a base once `subtypes` became derived output: the old
- *  fallback read `target.subtypes`, which would be the derivation's OWN answer.
- *  That is precisely the feedback loop `baseStaticAbilities` was introduced to
- *  break for layer 6. */
+ *  not be trusted as a base once `subtypes` became derived output: its fallback
+ *  read `target.subtypes`, which would be the derivation's OWN answer. That is
+ *  precisely the feedback loop `baseStaticAbilities` was introduced to break for
+ *  layer 6. PRD #2064 S6b-part-2 deleted the field. */
 export function layer4SubtypeBase(card: CardInstanceState): string[] {
-    return card.baseSubtypes ?? card.printedSubtypes ?? card.subtypes;
+    return card.baseSubtypes ?? card.subtypes;
 }
 
 /** Captures every pre-layer base for `card` if it has none yet.
@@ -199,26 +178,6 @@ export function layer4SubtypeBase(card: CardInstanceState): string[] {
  *  is only correct while the output fields still hold nothing but the base, and
  *  that is true exactly once. */
 export function ensureLayers2to5Base(card: CardInstanceState): void {
-    // A card this ENGINE has never derived for is the only state in which the
-    // pre-S4 migration below is correct, and `layers2to5Derived` is the only
-    // honest way to ask: it is set by `writeDerivedCharacteristics` and never
-    // cleared, not even by the CR 400.7 departure reset, because "has this
-    // instance ever been through the derivation" is a fact about the ENGINE
-    // that wrote the row, not about the object's current zone.
-    //
-    // The gate is load-bearing, not defensive. Every field the migration reads
-    // — `grantedTypes`, `grantedSubtypesAdd`, `textChanges`, the supertype
-    // markers — is ALSO this engine's own derived output, written with the
-    // `"indefinite"` attribution the pre-S4 engine used for a one-shot. Run the
-    // migration a second time and each of those rows is promoted into a ledger
-    // of its own: the effect applies twice, forever.
-    //
-    // Deriving the gate from the BASES instead would be wrong twice over. An
-    // identity swap re-seats the layer-4 bases (`gre/identitySwap.ts`), and a
-    // CR 400.7 departure deletes all three while leaving the output rows on the
-    // instance — so a permanent that merely left and re-entered would have its
-    // own derived output promoted into permanent ledger rows.
-    const legacy = card.layers2to5Derived !== true;
     ensureLayer4Base(card);
     if (card.baseControllerId === undefined) {
         // A control change already materialised into `controllerId` (a state
@@ -246,122 +205,6 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
                     : card.controllerId),
         }));
     }
-    if (legacy) migrateLegacyLayer3To5Ledgers(card);
-}
-
-/** One-shot migration for a `gameStates` snapshot persisted BEFORE PRD #2064
- *  S4, where three of the four layer-2-to-5 ledgers did not exist and their
- *  effects lived in what are now DERIVED OUTPUT fields.
- *
- *  `gameStates` is a live per-game snapshot, so a deploy lands mid-game. Every
- *  output field is overwritten at the first `syncLayers2to5`; without this the
- *  overwrite is not a no-op, it is a DELETION — a Magical Hack rewrite, an Oko
- *  `+1` type line and an Arcum's Weathervane snow toggle would each simply
- *  vanish from a game in progress.
- *
- *  Runs at the same moment as the base capture, and for the same reason: it is
- *  only correct while the output fields still hold what the pre-S4 engine put
- *  there, and that is true exactly once.
- *
- *  What is deliberately NOT migrated: an aura-sourced row (`auraId` naming a
- *  live permanent). Those are re-derived from the board on the first sync, so
- *  promoting them to a ledger would apply them twice, permanently. Only the
- *  `"indefinite"` sentinel rows — the ones no board walk can reproduce — are
- *  promoted. */
-function migrateLegacyLayer3To5Ledgers(card: CardInstanceState): void {
-    // PRD #2064 S7 — the whole migration is a no-op on a card carrying none of
-    // the six pre-S4 OUTPUT fields it reads: every block below is gated on one
-    // of them being present, so this early-out is the same answer, reached
-    // without the `?? []` allocations and `filter`/`some` walks that answer it.
-    //
-    // Load-bearing, not defensive. The `legacy` gate above is
-    // `layers2to5Derived !== true`, and that flag is written by
-    // `writeDerivedCharacteristics` — which the sync's FAST PATH never reaches.
-    // So every permanent the fast path skips arrives here on EVERY sync,
-    // forever, and the ISMCTS search syncs at every apply site on every node it
-    // expands. Measured on the blade suite before this early-out: 1.23s, 1.7%
-    // of total search wall clock, spent re-answering "no" for boards with no
-    // pre-S4 row anywhere on them.
-    if (
-        card.textChanges === undefined &&
-        card.grantedTypes === undefined &&
-        card.suppressedTypes === undefined &&
-        card.grantedSupertypes === undefined &&
-        card.removedSupertypes === undefined &&
-        card.grantedSubtypesAdd === undefined
-    ) {
-        return;
-    }
-    // CR 612 layer 3 — `textChanges` was the ledger AND the output.
-    if (card.textChangeHolds === undefined && card.textChanges?.length) {
-        card.textChangeHolds = card.textChanges.map((change, index) => ({
-            change,
-            // Array order WAS the CR 612.6 timestamp before S4 (the field's own
-            // doc said so), so it is preserved as one, below every minted stamp.
-            seq: LEGACY_LEDGER_TIMESTAMP_BASE + index,
-        }));
-    }
-    // CR 205.1a layer 4 (issue #2084) — a one-shot card-type SET was recorded
-    // as `"indefinite"`-keyed granted / suppressed rows. The SET's value is
-    // recoverable: it is exactly the live `types`, which is what it set.
-    if (
-        card.typeLineHolds === undefined &&
-        ((card.grantedTypes ?? []).some(
-            (g) => g.auraId === INDEFINITE_SOURCE_ID
-        ) ||
-            (card.suppressedTypes ?? []).some(
-                (s) => s.sourceId === INDEFINITE_SOURCE_ID
-            ))
-    ) {
-        card.typeLineHolds = [
-            { types: [...card.types], seq: LEGACY_LEDGER_TIMESTAMP_BASE },
-        ];
-    }
-    // CR 205.4a layer 4 — an indefinite supertype mutation was recorded as
-    // `"indefinite"`-keyed granted / removed markers.
-    if (card.supertypeHolds === undefined) {
-        const added = (card.grantedSupertypes ?? []).filter(
-            (g) => g.sourceId === INDEFINITE_SOURCE_ID
-        );
-        const removed = (card.removedSupertypes ?? []).filter(
-            (r) => r.sourceId === INDEFINITE_SOURCE_ID
-        );
-        if (added.length > 0 || removed.length > 0) {
-            card.supertypeHolds = [
-                {
-                    ...(added.length > 0
-                        ? {
-                              add: added.map(
-                                  (a) => a.supertype as CardSupertype
-                              ),
-                          }
-                        : {}),
-                    ...(removed.length > 0
-                        ? {
-                              remove: removed.map(
-                                  (r) => r.supertype as CardSupertype
-                              ),
-                          }
-                        : {}),
-                    seq: LEGACY_LEDGER_TIMESTAMP_BASE,
-                },
-            ];
-        }
-    }
-    // CR 305.7 layer 4 — an indefinite subtype ADD was recorded as an
-    // `"indefinite"`-keyed `grantedSubtypesAdd` row, which DID carry a real
-    // minted stamp (issue #1750), so the stamp survives the promotion.
-    if (card.subtypeAddHolds === undefined) {
-        const adds = (card.grantedSubtypesAdd ?? []).filter(
-            (a) => a.auraId === INDEFINITE_SOURCE_ID
-        );
-        if (adds.length > 0) {
-            card.subtypeAddHolds = adds.map((a) => ({
-                subtype: a.subtype,
-                seq: a.seq ?? LEGACY_LEDGER_TIMESTAMP_BASE,
-            }));
-        }
-    }
 }
 
 /** CR 613.1d — the layer-4 half of the base capture, on its own.
@@ -375,35 +218,12 @@ function migrateLegacyLayer3To5Ledgers(card: CardInstanceState): void {
  *  straight back to whoever last controlled it (CR 108.3 / 400.7 — the DSK
  *  "Enduring" cycle returning under its owner's control, not the thief's). */
 export function ensureLayer4Base(card: CardInstanceState): void {
-    if (card.baseTypes === undefined) {
-        // A pre-slice state carries the granted / suppressed markers that were
-        // materialised into `types`; unwinding them recovers the base. A fresh
-        // permanent has neither and `types` IS the base.
-        //
-        // Same PRINTED-type discipline `revertTypeProvenance` has always
-        // applied (issue #2086): a granted type the card also PRINTS is not
-        // removed, and a suppressed type the card never printed is not
-        // resurrected. Without it a Titania's Song grant of "Artifact" onto
-        // Black Lotus would unwind the printed Artifact out of the base, and a
-        // Reconfigure-style suppression of a type the card never had would
-        // invent one.
-        const cardId = (card.card as { id?: string }).id;
-        const printed = (cardId ? (tryGetDefinition(cardId)?.types ?? []) : [])
-            .slice()
-            .map((t) => t as CardType);
-        const base = [...card.types];
-        for (const g of card.grantedTypes ?? []) {
-            if (printed.includes(g.type as CardType)) continue;
-            const idx = base.indexOf(g.type as CardType);
-            if (idx !== -1) base.splice(idx, 1);
-        }
-        for (const suppressed of card.suppressedTypes ?? []) {
-            const type = suppressed.type as CardType;
-            if (!printed.includes(type)) continue;
-            if (!base.includes(type)) base.push(type);
-        }
-        card.baseTypes = base;
-    }
+    // PRD #2064 S6b-part-2 — `types` is the base by construction here. The
+    // granted / suppressed provenance rows this capture used to unwind are gone
+    // from `CardInstanceState`; a state persisted while they held something is
+    // unwound at load, in `migrateLegacyLayer2to5Ledgers` (`gre/serialize.ts`),
+    // which is the only moment they are readable at all.
+    if (card.baseTypes === undefined) card.baseTypes = [...card.types];
     if (card.baseSubtypes === undefined) {
         card.baseSubtypes = captureSubtypeBase(card);
     }
@@ -418,11 +238,8 @@ export function ensureLayer4Base(card: CardInstanceState): void {
  *  survive its own source leaving play. A subtype the card is actually PRINTED
  *  with is kept even when an add duplicates it. */
 function captureSubtypeBase(card: CardInstanceState): string[] {
-    const base = [...(card.printedSubtypes ?? card.subtypes)];
-    const adds = [
-        ...(card.grantedSubtypesAdd ?? []).map((a) => a.subtype),
-        ...(card.subtypeAddHolds ?? []).map((a) => a.subtype),
-    ];
+    const base = [...card.subtypes];
+    const adds = (card.subtypeAddHolds ?? []).map((a) => a.subtype);
     if (adds.length === 0) return base;
     const cardId = (card.card as { id?: string }).id;
     const printed = cardId ? (tryGetDefinition(cardId)?.subtypes ?? []) : [];
@@ -583,17 +400,18 @@ function carriesLayer2to5State(card: CardInstanceState): boolean {
     return (
         card.controlChanges !== undefined ||
         card.textChangeHolds !== undefined ||
-        card.textChanges !== undefined ||
         card.typeLineHolds !== undefined ||
         card.subtypeAddHolds !== undefined ||
         card.supertypeHolds !== undefined ||
         card.animation !== undefined ||
         card.indefiniteSubtypeSet !== undefined ||
         card.temporarySubtypeChange !== undefined ||
-        card.grantedTypes !== undefined ||
-        card.suppressedTypes !== undefined ||
-        card.grantedSubtypes !== undefined ||
-        card.grantedSubtypesAdd !== undefined ||
+        // The three DERIVED-OUTPUT rows that stayed on the instance (PRD #2064
+        // S6b-part-2). Their presence is exactly the "the output still differs
+        // from the base" case the doc above describes: a source that has just
+        // STOPPED applying leaves no entry behind, but the row it wrote is still
+        // sitting here, and skipping the permanent would leave Melting's
+        // un-snow marker on a land whose Melting is gone.
         card.grantedSupertypes !== undefined ||
         card.removedSupertypes !== undefined ||
         card.grantedColors !== undefined
@@ -608,31 +426,24 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
 
     const pushSourceEffects = (
         source: PermanentView,
-        effects: readonly StaticEffect[],
-        /** CR 114.3 — an emblem is not a permanent and the engine mints it no
-         *  `staticSeq`, so array order is its timestamp, kept far below every
-         *  minted stamp. Same proxy layer 6 and layer 7 use. */
-        derivedSeq?: number
+        effects: readonly StaticEffect[]
     ): void => {
         // CR 613.7a — a continuous effect generated by a static ability has the
         // timestamp of the object the ability is on. `staticSeq` is that stamp,
         // minted by `allocStaticTimestamp` the moment the object begins
-        // applying (`applySourceStaticEffects`, called on EVERY battlefield
+        // applying (`beginApplyingStaticEffects`, called on EVERY battlefield
         // entry path).
         //
-        // An UNSTAMPED source derives at `UNSTAMPED_SOURCE_TIMESTAMP` rather
-        // than being skipped, which is what the three materialising walks this
-        // module replaces did (`source.staticSeq ?? 0`): "earliest in the
-        // layer". Reachable only from a hand-built fixture — production stamps
-        // before it syncs — and preserving it is the difference between this
+        // An UNSTAMPED source derives at 0 — "earliest in the layer", which is
+        // what the three materialising walks this module replaces did
+        // (`source.staticSeq ?? 0`). PRD #2064 S6b-part-2 deleted the FLOOR it
+        // used to sort at (`UNSTAMPED_SOURCE_TIMESTAMP`, a constant a mint could
+        // never reach) and kept the semantics: reachable only from a hand-built
+        // fixture — production stamps before it syncs, and a pre-#1730 board is
+        // stamped by `backfillLegacyStaticSeq` (`gre/serialize.ts`) before
+        // anything reads it — and preserving it is the difference between this
         // slice changing WHERE the answer comes from and changing WHAT it is.
-        // Layer 6 skips instead (`gre/layer6.ts`); its pre-migration path had
-        // no `?? 0` to preserve. PRD #2064 S6, where the producers write the
-        // entries with their own stamps, removes the concept.
-        const seq =
-            derivedSeq ??
-            (source as { staticSeq?: number }).staticSeq ??
-            UNSTAMPED_SOURCE_TIMESTAMP;
+        const seq = (source as { staticSeq?: number }).staticSeq ?? 0;
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
             const layer = LAYER_2_5_STATIC_EFFECT_KINDS[effect.kind];
@@ -682,14 +493,15 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
     }
     // CR 114 — command-zone emblems generate continuous effects like any other
     // object (issue #1221).
-    let emblemOrdinal = DERIVED_TIMESTAMP_BASE;
     for (const emblem of state.emblems ?? []) {
         const synthetic = emblemAsStaticSource(emblem);
-        pushSourceEffects(
-            synthetic,
-            sourceStaticEffects(synthetic),
-            emblemOrdinal++
-        );
+        // CR 613.7d — an emblem receives a timestamp when it enters the command
+        // zone, which is what `createEmblem` (`gre/state.ts`) mints on it. PRD
+        // #2064 S6b-part-2 replaced the creation-order ordinal that stood in for
+        // one; an emblem persisted without a stamp is backfilled on load
+        // (`gre/serialize.ts`) and, failing that, skipped like any other
+        // unstamped source.
+        pushSourceEffects(synthetic, sourceStaticEffects(synthetic));
     }
     // CR 613.7 — sorted ONCE here, not once per target: the board's own order
     // does not depend on which permanent is being derived.
@@ -712,10 +524,12 @@ function finishEffectsFor(
 } {
     // --- Instance-borne ledgers (CR 611.2a residue of a resolved spell) -----
     //
-    // Ordinals below the minted-stamp floor, in the order the CR 613.7 proxy
-    // has always used for them: the record's own `seq` where one was minted,
-    // else array order.
-    let ordinal = DERIVED_TIMESTAMP_BASE;
+    // Every row carries the CR 613.7 stamp its producer minted through
+    // `allocStaticTimestamp`. A row without one has no position in its layer
+    // and is SKIPPED, the same rule the source half above applies (PRD #2064
+    // S6b-part-2): the array-order ordinal that used to stand in for a stamp is
+    // gone, and the pre-S4 rows that had none are stamped on load by
+    // `migrateLegacyLayer2to5Ledgers` (`gre/serialize.ts`).
 
     // CR 613.1b layer 2 — control changes left by a RESOLVING spell or ability
     // (Aladdin, Old Man of the Sea, Ghazbán Ogre, Ray of Command). An AURA's
@@ -727,11 +541,11 @@ function finishEffectsFor(
         // including a legacy row persisted before S4; a row without one here
         // would be a row the base capture never saw, which cannot happen.
         const installed = change.controllerId;
-        if (installed === undefined) continue;
+        if (installed === undefined || change.seq === undefined) continue;
         entries.push({
             id: `ce-control-${instance.id}-${change.auraId}`,
             layer: 2,
-            timestamp: change.seq ?? ordinal++,
+            timestamp: change.seq,
             expiry: change.duration
                 ? {
                       kind: "duration",
@@ -787,22 +601,25 @@ function finishEffectsFor(
                 : []),
             ...(animation.addedTypes ?? []),
         ];
-        if (added.length > 0) {
+        if (added.length > 0 && animation.seq !== undefined) {
             entries.push({
                 id: `ce-animate-types-${instance.id}`,
                 layer: 4,
-                timestamp: animation.seq ?? ordinal++,
+                timestamp: animation.seq,
                 expiry: animationExpiry(instance, animation),
                 affected: { kind: "instances", instanceIds: [instance.id] },
                 payload: { kind: "type-change", add: added },
                 characteristicDefining: false,
             });
         }
-        if (animation.addedSubtype !== undefined) {
+        if (
+            animation.addedSubtype !== undefined &&
+            animation.seq !== undefined
+        ) {
             entries.push({
                 id: `ce-animate-subtype-${instance.id}`,
                 layer: 4,
-                timestamp: animation.seq ?? ordinal++,
+                timestamp: animation.seq,
                 expiry: animationExpiry(instance, animation),
                 affected: { kind: "instances", instanceIds: [instance.id] },
                 payload: {
@@ -818,11 +635,11 @@ function finishEffectsFor(
     // (`SpellContext.setSubtypes` — Figure of Destiny, Living Lands). A staged
     // respec keeps only the LATEST value, which is what the ledger holds.
     const indefiniteSet = instance.indefiniteSubtypeSet;
-    if (indefiniteSet?.subtypes) {
+    if (indefiniteSet?.subtypes && indefiniteSet.seq !== undefined) {
         entries.push({
             id: `ce-subtypeset-${instance.id}`,
             layer: 4,
-            timestamp: indefiniteSet.seq ?? ordinal++,
+            timestamp: indefiniteSet.seq,
             expiry: { kind: "indefinite", controllerId: instance.controllerId },
             affected: { kind: "instances", instanceIds: [instance.id] },
             payload: {
@@ -845,11 +662,11 @@ function finishEffectsFor(
     // (`tickContinuousEffectDurations`, `gre/phases.ts`) cannot see them and
     // cannot double-count the boundary the instance ledger is already counting.
     const temporarySet = instance.temporarySubtypeChange;
-    if (temporarySet) {
+    if (temporarySet && temporarySet.seq !== undefined) {
         entries.push({
             id: `ce-subtypeset-timed-${instance.id}`,
             layer: 4,
-            timestamp: temporarySet.seq ?? ordinal++,
+            timestamp: temporarySet.seq,
             expiry: {
                 kind: "duration",
                 duration: temporarySet.duration,
@@ -1286,15 +1103,21 @@ function viewOf(
         controllerId: result.controllerId,
         types: result.types,
         subtypes: result.subtypes,
+        // The three provenance rows a PREDICATE reads back off the working view
+        // (`hasSupertypeLive`, `getEffectiveColors`). They are no longer
+        // instance fields, so they ride the synthetic view alone — which is
+        // where the derivation's running answer belongs anyway (CR 613.7: each
+        // entry is evaluated against everything already applied).
         grantedSupertypes: result.grantedSupertypes,
         removedSupertypes: result.removedSupertypes,
         grantedColors: result.grantedColors,
-        textChanges: result.textChanges,
     } as unknown as CardInstanceState;
     if (result.textChanges.length === 0) {
         return base as unknown as PermanentView;
     }
-    const substituted = applySubstitution(base);
+    // CR 613.7 — only the changes applied SO FAR, which is what the running
+    // answer holds; the instance ledger holds every one of them.
+    const substituted = applySubstitution(base, result.textChanges);
     return {
         ...base,
         subtypes: substituted.subtypes,
@@ -1343,7 +1166,7 @@ export function syncLayers2to5(
     state: GameState,
     /** CR 611.2 — source ids whose static abilities have STOPPED applying as of
      *  this recompute, though the permanent is still in the battlefield array
-     *  (`unapplySourceStaticEffects` runs BEFORE the permanent is spliced out).
+     *  (`stopApplyingStaticEffects` runs BEFORE the permanent is spliced out).
      *  Same contract as `syncLayer6`'s. */
     opts?: { stoppedSourceIds?: ReadonlySet<string> }
 ): void {
@@ -1440,24 +1263,67 @@ export function deriveLayers2to5Board(
     return derived;
 }
 
-/** The layer-3-to-5 derived output as a plain FIELD PATCH — the single mapping
- *  from a `Layers2to5Derivation` to the instance fields that hold it. Layer 2
- *  is not here: its output is the permanent's PLACEMENT, which only the
- *  board-level pass can perform, and its `controllerId` half is applied
- *  separately by each consumer.
+/** The layer-4 derived output as a plain FIELD PATCH — the single mapping from
+ *  a `Layers2to5Derivation` to the instance fields that still hold it.
  *
- *  Pure, and shared with the wire projection (PRD #2064 S5): the sync
- *  `Object.assign`s it onto the live permanent, the projection spreads it onto
- *  the slimmed wire card. Two consumers writing this list by hand is how a
- *  projected characteristic drifts from the engine's answer. */
+ *  Since PRD #2064 S6b-part-2 that is the effective type line and nothing else.
+ *  Every provenance row this used to write (`grantedTypes`, `suppressedTypes`,
+ *  `grantedSubtypes`, `grantedSubtypesAdd`, `grantedSupertypes`,
+ *  `removedSupertypes`, `grantedColors`, `printedSubtypes`, `textChanges`, and
+ *  the `layers2to5Derived` marker) is gone from `CardInstanceState`; they
+ *  survive on the WIRE (ADR 0082 decision 4), which is `layers2to5WireFields`
+ *  below.
+ *
+ *  Layer 2 is not here: its output is the permanent's PLACEMENT, which only the
+ *  board-level pass can perform, and its `controllerId` half is applied
+ *  separately by each consumer. */
 export function layers2to5DerivedFields(
-    card: CardInstanceState,
     result: Layers2to5Derivation
 ): Partial<CardInstanceState> {
     return {
-        // The one-way marker `ensureLayers2to5Base` gates the pre-S4 migration
-        // on.
-        layers2to5Derived: true,
+        types: result.types,
+        subtypes: result.subtypes,
+        // The three layer-4/5 provenance rows whose consult sites have no board
+        // — see their docs on `CardInstanceState`. Derived output like the type
+        // line above; nothing reads them back as input.
+        grantedColors:
+            result.grantedColors.length > 0 ? result.grantedColors : undefined,
+        grantedSupertypes:
+            result.grantedSupertypes.length > 0
+                ? result.grantedSupertypes
+                : undefined,
+        removedSupertypes:
+            result.removedSupertypes.length > 0
+                ? result.removedSupertypes
+                : undefined,
+    };
+}
+
+/** The layer-3-to-5 provenance rows the WIRE still carries, in the exact shapes
+ *  the client has always read (ADR 0082 decision 4, PRD #2064 S5 AC 3 — the
+ *  client call sites stay untouched). Derived output here, exactly like the two
+ *  fields above; the difference is only that no engine consult site reads them
+ *  any more, so they are not written onto the instance.
+ *
+ *  `printedSubtypes` is the pre-slice name for the layer-4 subtype base and is
+ *  shipped as such: `baseSubtypes` IS what it named. */
+export function layers2to5WireFields(
+    card: CardInstanceState,
+    result: Layers2to5Derivation
+): {
+    textChanges?: TextChange[];
+    types: CardType[];
+    subtypes: string[];
+    grantedTypes?: { type: string; auraId: string }[];
+    suppressedTypes?: { type: string; sourceId: string }[];
+    grantedSubtypes?: { subtypes: string[]; sourceId: string; seq?: number }[];
+    grantedSubtypesAdd?: { subtype: string; auraId: string; seq?: number }[];
+    grantedSupertypes?: { supertype: string; sourceId: string }[];
+    removedSupertypes?: { supertype: string; sourceId: string }[];
+    grantedColors?: { color: string; sourceId: string }[];
+    printedSubtypes?: string[];
+} {
+    return {
         textChanges:
             result.textChanges.length > 0 ? result.textChanges : undefined,
         types: result.types,
@@ -1486,11 +1352,6 @@ export function layers2to5DerivedFields(
                 : undefined,
         grantedColors:
             result.grantedColors.length > 0 ? result.grantedColors : undefined,
-        // `printedSubtypes` is the pre-slice name for the layer-4 subtype base
-        // and is still read by the wire projection and by `bestow.ts`'s
-        // re-anchor. It is now derived output of `baseSubtypes`, kept in step so
-        // no consult site has to learn a second field before PRD #2064 S6
-        // deletes both.
         printedSubtypes: card.baseSubtypes,
     };
 }
@@ -1500,7 +1361,7 @@ function writeDerivedCharacteristics(
     card: CardInstanceState,
     result: Layers2to5Derivation
 ): void {
-    Object.assign(card, layers2to5DerivedFields(card, result));
+    Object.assign(card, layers2to5DerivedFields(result));
 }
 
 /** CR 400.7 / 613.1b-e — recomposes layers 2-5 for ONE permanent whose copiable
@@ -1537,9 +1398,4 @@ export function recomposeLayers2to5ForInstance(card: CardInstanceState): void {
 export function clearLayers2to5Base(card: CardInstanceState): void {
     card.baseTypes = undefined;
     card.baseSubtypes = undefined;
-    // `printedSubtypes` is the pre-split name for the same base and
-    // `layer4SubtypeBase` falls back to it FIRST, so leaving it behind would
-    // let a stale value outrank the recapture this call exists to force — the
-    // rewrite from below would be silently undone at the next sync.
-    card.printedSubtypes = undefined;
 }

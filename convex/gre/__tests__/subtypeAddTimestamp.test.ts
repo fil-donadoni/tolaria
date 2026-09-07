@@ -1,7 +1,7 @@
 // CR 613.7 / 611.2c (issue #1750, part a) — `SpellContext.addSubtype`
 // (a resolving-ability, one-shot INDEFINITE subtype-add) must stamp a real
 // layer timestamp, the same way every other layer-4 writer in
-// `applySourceStaticEffects` does. Before this fix it wrote no `seq` at all,
+// `beginApplyingStaticEffects` does. Before this fix it wrote no `seq` at all,
 // a missing `seq` reads as the EARLIEST possible value, so a genuinely LATER
 // add lost to any live `subtype-set`, of any age, on the next recompose.
 //
@@ -11,7 +11,7 @@
 // from has moved.
 import { describe, it, expect } from "vitest";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
     type CardInstanceState,
     type GameState,
@@ -26,6 +26,7 @@ import {
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { bloodMoon } from "../../cards/sets/drk/red";
 import { tundra } from "../../cards/sets/lea/colorless";
+import { wireCharacteristicsOf } from "../../cards/__tests__/setup";
 
 function makeBoard(land: CardInstanceState, extra: CardInstanceState[] = []) {
     return makeState({
@@ -49,9 +50,9 @@ describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 
         const ctx = ctxFor(state);
 
         // Blood Moon applies FIRST — seq 1, subtype-set to ["Mountain"].
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, moon);
         expect(land.subtypes).toEqual(["Mountain"]);
-        expect(land.grantedSubtypes).toEqual([
+        expect(wireCharacteristicsOf(state, land.id).grantedSubtypes).toEqual([
             { subtypes: ["Mountain"], sourceId: "moon-add-1", seq: 1 },
         ]);
 
@@ -80,7 +81,7 @@ describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 
         const ctx = ctxFor(state);
 
         ctx.addSubtype({ type: "permanent", id: "land-add-2" }, "Forest");
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, moon);
 
         expect(land.subtypes).toEqual(["Mountain"]);
     });

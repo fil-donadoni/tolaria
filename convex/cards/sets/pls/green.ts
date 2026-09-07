@@ -380,7 +380,7 @@ function controllerControlsBasicLandType(
 // Traveler's Cloak's five-entry fan-out (`inv/blue.ts`) with a board-derived
 // `condition` in place of Traveler's Cloak's stored chosen-type flag. No new
 // construct: `keyword-grant`'s `condition` (CR 611.2c "as long as") already
-// re-evaluates every stable transition via `refreshCounterGatedStatics`, so
+// re-evaluates every stable transition via `recomputeContinuousEffects`, so
 // gaining/losing a basic land type mid-game keeps the granted set current.
 // The subtype → keyword lookup is the shared `LANDWALK_KEYWORD_BY_BASIC_TYPE`
 // (`cards/types.ts` — a dependency-free leaf, unlike `gre/constants.ts`,

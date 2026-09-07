@@ -9,8 +9,8 @@ import {
     resolveTopOfStack,
     emitPermanentTapped,
     processPendingActionTriggers,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -131,6 +131,8 @@ const volcanicEruption = getDefinition("a80582b1-09db-45f8-b362-0e5207a5a8e6");
 const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const wallOfWater = getDefinition("41faed1a-ded8-49ee-8e2a-c60d377775d7");
 const wildGrowth = getDefinition("fd896dfa-66c0-4327-8e5b-489bbe350c95");
+import { wireCharacteristicsOf } from "../../../__tests__/setup";
+import { textChangesOf } from "../../../../gre/textChanges";
 
 describe("Psionic Blast ({2}{U} — 4 to any target, 2 to you, CR 120.3)", () => {
     it("deals 4 damage to target player and 2 damage to the caster", () => {
@@ -1608,8 +1610,11 @@ describe("Unsummon (return target creature to its owner's hand, CR 400.7)", () =
         resolveTopOfStack(state);
 
         const returned = state.players[1].hand.find((c) => c.id === "bear")!;
+        // The multiset IS the assertion since PRD #2064 S6b-part-2: the
+        // provenance row has no instance field behind it, and the orphan aura
+        // is still on the battlefield with a stale `attachedTo`, so deriving
+        // for a card that has LEFT the battlefield would re-report its grant.
         expect(returned.staticAbilities).not.toContain("protection from red");
-        expect(returned.grantedStaticAbilities ?? []).toHaveLength(0);
 
         // The orphan aura is still on the battlefield with stale attachedTo;
         // SBA sweeps it to the graveyard (CR 704.5n).
@@ -2723,7 +2728,9 @@ describe("Animate Artifact ({3}{U} — aura: artifact becomes creature with P/T 
             (c) => c.id === "vault"
         )!;
         // No grant tracked since predicate gated on !isCreature.
-        expect(vaultAfter.grantedTypes ?? []).toEqual([]);
+        expect(
+            wireCharacteristicsOf(state, vaultAfter.id).grantedTypes ?? []
+        ).toEqual([]);
     });
 
     it("CDA P/T survives the wire format projection", () => {
@@ -2956,7 +2963,7 @@ describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", (
         aura.attachedTo = mtn.id;
         aura.chosenModeId = "island";
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(mtn.subtypes).toEqual(["Island"]);
         expect(getBasicLandMana(mtn)).toBe("U");
@@ -2977,7 +2984,7 @@ describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", (
         aura.attachedTo = pln.id;
         aura.chosenModeId = "forest";
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(pln.subtypes).toEqual(["Forest"]);
         expect(getBasicLandMana(pln)).toBe("G");
@@ -2998,10 +3005,10 @@ describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", (
         aura.attachedTo = mtn.id;
         aura.chosenModeId = "swamp";
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Swamp"]);
 
-        unapplySourceStaticEffects(state, aura);
+        stopApplyingStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Mountain"]);
     });
 });
@@ -3506,7 +3513,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         castMagicalHack(state, "f1", "permanent", "island");
 
         const after = state.players[1].battlefield.find((c) => c.id === "f1")!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(getBasicLandMana(after)).toBe("U");
@@ -3566,7 +3573,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         castMagicalHack(state, "d1", "permanent", "island");
 
         const d = state.players[0].battlefield.find((c) => c.id === "d1")!;
-        expect(d.textChanges).toEqual([
+        expect(textChangesOf(d)).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
 
@@ -3608,7 +3615,9 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         });
         castMagicalHack(state, "f1", "permanent", "island");
         expect(
-            state.players[1].battlefield.find((c) => c.id === "f1")!.textChanges
+            textChangesOf(
+                state.players[1].battlefield.find((c) => c.id === "f1")!
+            )
         ).toHaveLength(1);
 
         // CR 612.7 / 400.7 — leaving the battlefield clears the change as the
@@ -3616,7 +3625,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         // hand/library move, mirroring colorOverride).
         removePermanentTo(state, "f1", "hand");
         const bounced = state.players[1].hand.find((c) => c.id === "f1")!;
-        expect(bounced.textChanges).toBeUndefined();
+        expect(textChangesOf(bounced)).toEqual([]);
         expect(getBasicLandMana(bounced)).toBe("G");
     });
 
@@ -3636,7 +3645,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         castMagicalHack(state, "f1", "permanent", "mountain"); // Island → Mountain
 
         const after = state.players[1].battlefield.find((c) => c.id === "f1")!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
             { kind: "land-type", from: "Island", to: "Mountain" },
         ]);
@@ -3653,7 +3662,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         castMagicalHack(state, creatureSpell.id, "spell", "island");
 
         const onStack = state.stack.find((s) => s.id === creatureSpell.id)!;
-        expect(onStack.textChanges).toEqual([
+        expect(textChangesOf(onStack)).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
     });
@@ -3676,7 +3685,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         const after = restored.players[1].battlefield.find(
             (c) => c.id === "f1"
         )!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "land-type", from: "Forest", to: "Island" },
         ]);
         expect(getBasicLandMana(after)).toBe("U");
@@ -3719,7 +3728,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         castSleight(state, "bk", "permanent", "blue");
 
         const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "color-word", from: "white", to: "blue" },
         ]);
         expect(getProtectedColors(after)).toEqual(["U"]);
@@ -3786,7 +3795,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         const copAfter = state.players[0].battlefield.find(
             (c) => c.id === "cop"
         )!;
-        expect(copAfter.textChanges).toEqual([
+        expect(textChangesOf(copAfter)).toEqual([
             { kind: "color-word", from: "white", to: "red" },
         ]);
 
@@ -3829,7 +3838,12 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
             id: "cop",
             controllerId: "p1",
             ownerId: "p1",
-            textChanges: [{ kind: "color-word", from: "white", to: "red" }],
+            textChangeHolds: [
+                {
+                    change: { kind: "color-word", from: "white", to: "red" },
+                    seq: 1,
+                },
+            ],
         });
         const redSrc = makeInstance(monssGoblinRaiders.id, {
             id: "r",
@@ -3917,12 +3931,14 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         });
         castSleight(state, "bk", "permanent", "blue");
         expect(
-            state.players[1].battlefield.find((c) => c.id === "bk")!.textChanges
+            textChangesOf(
+                state.players[1].battlefield.find((c) => c.id === "bk")!
+            )
         ).toHaveLength(1);
 
         removePermanentTo(state, "bk", "hand");
         const bounced = state.players[1].hand.find((c) => c.id === "bk")!;
-        expect(bounced.textChanges).toBeUndefined();
+        expect(textChangesOf(bounced)).toEqual([]);
         expect(getProtectedColors(bounced)).toEqual(["W"]);
     });
 
@@ -3947,7 +3963,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         castSleight(state, "bk", "permanent", "green"); // red → green
 
         const after = state.players[1].battlefield.find((c) => c.id === "bk")!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "color-word", from: "white", to: "red" },
             { kind: "color-word", from: "red", to: "green" },
         ]);
@@ -3963,7 +3979,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         castSleight(state, knightSpell.id, "spell", "blue");
 
         const onStack = state.stack.find((s) => s.id === knightSpell.id)!;
-        expect(onStack.textChanges).toEqual([
+        expect(textChangesOf(onStack)).toEqual([
             { kind: "color-word", from: "white", to: "blue" },
         ]);
     });
@@ -3986,7 +4002,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         const after = restored.players[1].battlefield.find(
             (c) => c.id === "bk"
         )!;
-        expect(after.textChanges).toEqual([
+        expect(textChangesOf(after)).toEqual([
             { kind: "color-word", from: "white", to: "blue" },
         ]);
         expect(getProtectedColors(after)).toEqual(["U"]);

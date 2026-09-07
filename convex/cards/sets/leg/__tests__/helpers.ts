@@ -5,7 +5,7 @@
 // convex/cards/__tests__/setup.ts.
 
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -207,7 +207,7 @@ export function withTabernacle(creatureController: "p1" | "p2" = "p1"): {
     const state = makeState();
     state.players[0].battlefield.push(tabernacle);
     state.players[creatureController === "p1" ? 0 : 1].battlefield.push(bear);
-    applySourceStaticEffects(state, tabernacle);
+    beginApplyingStaticEffects(state, tabernacle);
     return { state, tabernacle, bear };
 }
 

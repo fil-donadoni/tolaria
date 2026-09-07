@@ -21,7 +21,7 @@ import {
     resolveTopOfStack,
     tapPermanent,
     emitPermanentTapped,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     dealDamageFromPermanentToPlayer,
 } from "../../../../gre/state";
 import {
@@ -1690,9 +1690,9 @@ describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.2a)"
 describe("Woolly Mammoths / Whiteout (snow-flavored green)", () => {
     // Woolly Mammoths — "This creature has trample as long as you control a
     // snow land." (CR 205.4a snow; CR 611.2c "as long as" conditional keyword
-    // grant; CR 702.19 trample; issue #1827.) `applySourceStaticEffects`
+    // grant; CR 702.19 trample; issue #1827.) `beginApplyingStaticEffects`
     // materializes the `keyword-grant` at ETB and `checkStateBasedActions` →
-    // `refreshCounterGatedStatics` re-evaluates its `condition` every stable
+    // `recomputeContinuousEffects` re-evaluates its `condition` every stable
     // transition — mirrors the Kavu Runner test shape (`inv/__tests__/red.test.ts`).
     describe("conditional trample (issue #1827)", () => {
         /** Build Woolly Mammoths + a 1-toughness blocker, ready to attack, with
@@ -1723,7 +1723,7 @@ describe("Woolly Mammoths / Whiteout (snow-flavored green)", () => {
                     blockersConfirmed: true,
                 },
             });
-            applySourceStaticEffects(state, mammoth);
+            beginApplyingStaticEffects(state, mammoth);
             return { state, mammoth, blocker };
         }
 
@@ -2616,7 +2616,7 @@ describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
             ],
         });
         if (withAura) {
-            applySourceStaticEffects(
+            beginApplyingStaticEffects(
                 state,
                 battlefield.find((c) => c.id === "aura")!
             );
@@ -2696,7 +2696,7 @@ describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", ()
             players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
         });
         if (withAura) {
-            applySourceStaticEffects(
+            beginApplyingStaticEffects(
                 state,
                 battlefield.find((c) => c.id === "aura")!
             );

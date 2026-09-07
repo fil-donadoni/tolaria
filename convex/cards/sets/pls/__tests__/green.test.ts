@@ -10,9 +10,9 @@ import {
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     dealDamageFromPermanentToPlayer,
-    refreshCounterGatedStatics,
+    recomputeContinuousEffects,
     resolveTopOfStack,
     runDamageReplacement,
     sourcePreventionShieldApplies,
@@ -717,7 +717,7 @@ describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 pream
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, treefolk);
+        beginApplyingStaticEffects(state, treefolk);
         const after = state.players[0].battlefield.find((c) => c.id === "mag")!;
         expect(after.staticAbilities).toEqual(
             expect.arrayContaining(["forestwalk", "islandwalk"])
@@ -744,7 +744,7 @@ describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 pream
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, treefolk);
+        beginApplyingStaticEffects(state, treefolk);
         let after = state.players[0].battlefield.find((c) => c.id === "mag2")!;
         expect(after.staticAbilities).toContain("forestwalk");
         expect(after.staticAbilities).not.toContain("plainswalk");
@@ -752,7 +752,7 @@ describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 pream
         state.players[0].battlefield.push(
             makeInstance(plains.id, { controllerId: "p1" })
         );
-        refreshCounterGatedStatics(state);
+        recomputeContinuousEffects(state);
         after = state.players[0].battlefield.find((c) => c.id === "mag2")!;
         expect(after.staticAbilities).toContain("forestwalk");
         expect(after.staticAbilities).toContain("plainswalk");
@@ -775,7 +775,7 @@ describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 pream
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, treefolk);
+        beginApplyingStaticEffects(state, treefolk);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "mag3"
@@ -803,7 +803,7 @@ describe("Multani's Harmony ({G} Aura — grants a mana ability, CR 303.4 / 611.
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         const hostAfter = state.players[0].battlefield.find(
             (c) => c.id === "host"
         )!;
@@ -834,7 +834,7 @@ describe("Multani's Harmony ({G} Aura — grants a mana ability, CR 303.4 / 611.
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         const hostAfter = state.players[0].battlefield.find(
             (c) => c.id === "host2"
         )!;
@@ -880,7 +880,7 @@ describe("Multani's Harmony ({G} Aura — grants a mana ability, CR 303.4 / 611.
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         const projected = projectPublicState(state, 1, "p1");
         const slimHost = projected.players[0].battlefield.find(
             (c) => c.id === "host3"

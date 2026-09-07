@@ -22,7 +22,7 @@ import {
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -765,7 +765,7 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
                 }),
             ],
         });
-        applySourceStaticEffects(state, vc);
+        beginApplyingStaticEffects(state, vc);
         return { state, vc, bear };
     }
 
@@ -1357,7 +1357,7 @@ describe("Fires of Yavimaya (controller-scoped haste anthem + sacrifice-for-pump
                 makePlayer("p2", { battlefield: [theirs] }),
             ],
         });
-        applySourceStaticEffects(state, enchantment);
+        beginApplyingStaticEffects(state, enchantment);
         const mineLive = state.players[0].battlefield.find(
             (c) => c.id === "mine"
         )!;

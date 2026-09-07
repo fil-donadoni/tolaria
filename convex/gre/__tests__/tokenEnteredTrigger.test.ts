@@ -363,7 +363,7 @@ describe("token entry emits PERMANENT_ENTERED (CR 111.1 / 603.6a, issue #2300)",
 
     it("announces layer-4 GRANTED types: a Treasure entering under Titania's Song is an artifact CREATURE (CR 613.1d)", () => {
         // Pins the ORDERING of the emit against `applyExistingGrantsTo` /
-        // `applySourceStaticEffects` in `createTokenPermanents`. Unlike the
+        // `beginApplyingStaticEffects` in `createTokenPermanents`. Unlike the
         // anthem case above — layer 7d is a LIVE battlefield scan, already
         // visible the instant the token is pushed — a layer-4 `type-add`
         // MATERIALIZES onto `token.types`, and `emitPermanentEntered` reads

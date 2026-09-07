@@ -18,8 +18,8 @@ import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     applyExistingGrantsTo,
-    applySourceStaticEffects,
-    refreshCounterGatedStatics,
+    beginApplyingStaticEffects,
+    recomputeContinuousEffects,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
@@ -736,9 +736,9 @@ describe("Aggression — Aura: first strike + trample + end-step destroy (CR 611
         const live = state.players[0].battlefield.find((c) => c.id === "host")!;
         // CR 613.7a (PRD #2064 S3) — layer 6 derives from the live board, and
         // an Aura's continuous effects begin applying when the engine stamps it
-        // (`applySourceStaticEffects`, run when it enters / attaches). A fixture
+        // (`beginApplyingStaticEffects`, run when it enters / attaches). A fixture
         // that places it directly has to run that step itself.
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         applyExistingGrantsTo(state, live);
         expect(live.staticAbilities).toContain("first strike");
         expect(live.staticAbilities).toContain("trample");
@@ -1062,7 +1062,7 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
      *  summoning sickness cannot: both are sick, only the earlier-entered one
      *  gets the permission.
      *
-     *  `refreshCounterGatedStatics` is the production sweep `saveGameState`
+     *  `recomputeContinuousEffects` is the production sweep `saveGameState`
      *  runs before every persisted write, so the instance reaches the mutation
      *  with its conditional statics materialized exactly as in a real game. */
     function chaosLordCombatState(
@@ -1098,8 +1098,8 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
         // is derived from the live board and needs the entry stamp the engine
         // mints on every battlefield entry path; the recompute tick below then
         // composes it.
-        applySourceStaticEffects(state, lord);
-        refreshCounterGatedStatics(state);
+        beginApplyingStaticEffects(state, lord);
+        recomputeContinuousEffects(state);
         return state;
     }
 
@@ -1134,7 +1134,7 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
     });
 
     it("does not pick up haste when it actually resolves onto the battlefield", () => {
-        // Guards the ETB ORDERING: `applySourceStaticEffects` runs at entry,
+        // Guards the ETB ORDERING: `beginApplyingStaticEffects` runs at entry,
         // and if it ran before `markEnteredThisTurn` stamped `enteredOnTurn`
         // (CR 400.7) the condition would read "unknown" and the grant would
         // stick. Cast it for real instead of hand-placing the instance.

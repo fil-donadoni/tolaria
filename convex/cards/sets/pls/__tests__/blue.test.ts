@@ -28,7 +28,7 @@ import {
     resolveTriggerOrder,
 } from "../../../__tests__/setup";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     getCostModifiers,
     resolveTopOfStack,
     type CardInstanceState,
@@ -766,7 +766,7 @@ describe("Sleeping Potion (untap lock + becomes-target sacrifice, CR 502.1 / 603
                 makePlayer("p2", { battlefield: [host] }),
             ],
         });
-        applySourceStaticEffects(state, potion);
+        beginApplyingStaticEffects(state, potion);
         expect(host.staticAbilities).toContain("does-not-untap");
     });
 

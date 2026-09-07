@@ -27,6 +27,7 @@ import { projectFullState, projectPublicState } from "../../gameProjections";
 import { buildSpellContext } from "../state";
 import type { GameState, PendingChoice } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
+import { removedKeywordRows } from "../../cards/__tests__/setup";
 
 describe("buildStateFromScenario (issue #1424)", () => {
     // CR 122.1 (issue #1969) — a debug scenario must be able to START at a
@@ -1145,7 +1146,7 @@ describe("specFromState (issue #2148)", () => {
             (kw) => kw === "flying",
             { phase: "end-of-turn" }
         );
-        expect(bear.removedKeywords).toEqual([
+        expect(removedKeywordRows(state, bear)).toEqual([
             expect.objectContaining({ sourceId: "indefinite" }),
         ]);
 
@@ -1155,7 +1156,7 @@ describe("specFromState (issue #2148)", () => {
         ).toBe(false);
     });
 
-    it("reports removedKeywords/abilitiesSuppressedBy sourced from a permanent that has already left the battlefield (dangling sourceId), unlike a still-present source which is rebuild behaviour and stays silent", () => {
+    it("reports abilitiesSuppressedBy sourced from a permanent that has already left the battlefield (dangling sourceId), unlike a still-present source which is rebuild behaviour and stays silent", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
@@ -1163,10 +1164,7 @@ describe("specFromState (issue #2148)", () => {
         const bear = state.players[0].battlefield[0];
         // No permanent on either battlefield has this id — simulates a
         // stripper source that has since left play, the one shape
-        // `applySourceStaticEffects` cannot replay on reload.
-        bear.removedKeywords = [
-            { keyword: "flying", sourceId: "gone-forever", seq: 1 },
-        ];
+        // `beginApplyingStaticEffects` cannot replay on reload.
         bear.abilitiesSuppressedBy = [{ sourceId: "gone-forever", seq: 1 }];
 
         const { dropped } = specFromState(state, {
@@ -1174,14 +1172,11 @@ describe("specFromState (issue #2148)", () => {
         });
 
         expect(
-            dropped.some((d) => d.includes("removedKeywords stripped by"))
-        ).toBe(true);
-        expect(
             dropped.some((d) => d.includes("abilitiesSuppressedBy a source"))
         ).toBe(true);
     });
 
-    it("does NOT flag removedKeywords/abilitiesSuppressedBy sourced from a still-present battlefield permanent — applySourceStaticEffects re-derives it on reload (no false positive)", () => {
+    it("does NOT flag abilitiesSuppressedBy sourced from a still-present battlefield permanent — beginApplyingStaticEffects re-derives it on reload (no false positive)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
@@ -1190,9 +1185,6 @@ describe("specFromState (issue #2148)", () => {
             ],
         });
         const [bear, dragon] = state.players[0].battlefield;
-        bear.removedKeywords = [
-            { keyword: "flying", sourceId: dragon.id, seq: 1 },
-        ];
         bear.abilitiesSuppressedBy = [{ sourceId: dragon.id, seq: 1 }];
 
         const { dropped } = specFromState(state, {
@@ -1213,18 +1205,15 @@ describe("specFromState (issue #2148)", () => {
     // dangling `auraId` (its aura has left both battlefields) is the same
     // un-replayable shape `reportDanglingStripperResidue` already catches
     // for the stripper arrays, one field over.
-    it("reports grantedStaticAbilities/grantedActivatedAbilities/grantedTriggeredAbilities sourced from an aura that has already left the battlefield (dangling auraId)", () => {
+    it("reports grantedActivatedAbilities/grantedTriggeredAbilities sourced from an aura that has already left the battlefield (dangling auraId)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
         });
         const bear = state.players[0].battlefield[0];
         // No permanent on either battlefield has this id — simulates an aura
-        // that has since left play, the one shape `applySourceStaticEffects`
+        // that has since left play, the one shape `beginApplyingStaticEffects`
         // cannot replay on reload.
-        bear.grantedStaticAbilities = [
-            { ability: "flying", auraId: "gone-forever" },
-        ];
         bear.grantedActivatedAbilities = [
             {
                 sourceCardId: fear.id,
@@ -1245,7 +1234,6 @@ describe("specFromState (issue #2148)", () => {
         });
 
         for (const field of [
-            "grantedStaticAbilities",
             "grantedActivatedAbilities",
             "grantedTriggeredAbilities",
         ]) {
@@ -1259,7 +1247,7 @@ describe("specFromState (issue #2148)", () => {
         }
     });
 
-    it("does NOT flag grantedStaticAbilities/grantedActivatedAbilities/grantedTriggeredAbilities sourced from a still-present battlefield aura — applySourceStaticEffects re-derives it on reload (no false positive)", () => {
+    it("does NOT flag grantedActivatedAbilities/grantedTriggeredAbilities sourced from a still-present battlefield aura — beginApplyingStaticEffects re-derives it on reload (no false positive)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
@@ -1268,9 +1256,6 @@ describe("specFromState (issue #2148)", () => {
             ],
         });
         const [bear, dragon] = state.players[0].battlefield;
-        bear.grantedStaticAbilities = [
-            { ability: "flying", auraId: dragon.id },
-        ];
         bear.grantedActivatedAbilities = [
             { sourceCardId: fear.id, abilityId: "a1", auraId: dragon.id },
         ];
@@ -1283,7 +1268,6 @@ describe("specFromState (issue #2148)", () => {
         });
 
         for (const field of [
-            "grantedStaticAbilities",
             "grantedActivatedAbilities",
             "grantedTriggeredAbilities",
         ]) {

@@ -2,14 +2,14 @@
 // state (hand size, CR 611.2c "as long as ..."), issue #1379.
 //
 // CORRECTED VERDICT. This suite originally shipped with the OPPOSITE, FALSE
-// conclusion — "the existing `refreshCounterGatedStatics` SBA re-apply sweep
+// conclusion — "the existing `recomputeContinuousEffects` SBA re-apply sweep
 // is sufficient, no new live-read path is needed" — which a review on PR
 // #1837 disproved. `checkStateBasedActions` DOES run that sweep, but NOT
 // every state-changing mutation calls `checkStateBasedActions` before
 // persisting a stable, priority-awaiting position. In particular
 // `announceCast` (`game.ts`) moves a card hand→stack via `removeFromZone`
 // and then calls `saveGameState` with ZERO SBA pass anywhere in the path
-// (confirmed by inspection: no `checkStateBasedActions` / `refreshCounterGatedStatics`
+// (confirmed by inspection: no `checkStateBasedActions` / `recomputeContinuousEffects`
 // call in `announceCast`'s handler body, nor in `emitSpellCastEvent` /
 // `processPendingActionTriggers` / `drainAutoPasses`, the three functions it
 // calls after the move). `tryAutoCommitPendingCast`, `summonCompanion`, and
@@ -23,7 +23,7 @@
 // different table — `gameTicks`, `games`, `matches`, …) — every stable
 // position in the ENTIRE engine flows through it before it is persisted and
 // projected to either client, regardless of which caller reached it. It now
-// calls `refreshCounterGatedStatics(state)` unconditionally, immediately
+// calls `recomputeContinuousEffects(state)` unconditionally, immediately
 // before packing the state for storage: the same idempotent, SBA-free
 // re-materialization sweep `checkStateBasedActions` already runs at the top
 // of its own fixpoint loop (`gre/sba.ts`), just ALSO run at the one choke
@@ -35,7 +35,7 @@
 // This suite now has two parts:
 //   1. The ORIGINAL four `checkStateBasedActions`-driven tests, kept as
 //      regression coverage of a real (if narrower than first believed)
-//      mechanism — commenting out `refreshCounterGatedStatics` at
+//      mechanism — commenting out `recomputeContinuousEffects` at
 //      `gre/sba.ts` still fails these.
 //   2. The reviewer's actual counterexample, below: a hand-size-gated
 //      `menace` grant, a card LEAVING THE HAND VIA THE REAL CAST PATH
@@ -43,7 +43,7 @@
 //      hand-rolled `removeFromZone`), landed through the REAL `saveGameState`
 //      (via the registered mutation's own `_handler`, not a reimplementation),
 //      then read back at a load-bearing site (`validateMinimumBlockers`, wire
-//      format). This test FAILS if the `refreshCounterGatedStatics` call is
+//      format). This test FAILS if the `recomputeContinuousEffects` call is
 //      reverted from `saveGameState` (verified manually — see the PR
 //      receipt) — the original four tests, exercising only
 //      `checkStateBasedActions` directly, could never have caught the bug
@@ -61,7 +61,7 @@
 // `setModules` list, not this dynamic registry, so a synthetic test card is
 // invisible to those sweeps).
 import { describe, it, expect, beforeAll } from "vitest";
-import { applySourceStaticEffects } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import { checkStateBasedActions } from "../sba";
 import type { GameState, CardInstanceState } from "../state";
 import { expandState } from "../serialize";
@@ -200,7 +200,7 @@ function makeBoard(handSize: number): {
             makePlayer("p2"),
         ],
     });
-    applySourceStaticEffects(state, creature);
+    beginApplyingStaticEffects(state, creature);
     return { state, creature };
 }
 
@@ -310,7 +310,7 @@ describe("hand-size-gated keyword-grant (CR 611.2c, issue #1379) — SBA-sweep p
 // in-memory stub `MutationCtx` — same harness discipline as
 // `convex/__tests__/gameTicks.test.ts` / `seatOwnership.test.ts` (this repo
 // has no convex-test harness). Unlike the suite above, NOTHING in this test
-// calls `checkStateBasedActions` or `refreshCounterGatedStatics` directly —
+// calls `checkStateBasedActions` or `recomputeContinuousEffects` directly —
 // the only thing that can keep the persisted menace grant correct is
 // `saveGameState`'s own sweep, exercised transitively through the real
 // mutation call.
@@ -404,7 +404,7 @@ describe("hand-size-gated menace survives the REAL cast path (issue #1379 review
         });
         // ETB materialization at hand size 2 — no menace yet, mirrors the
         // engine's real `finalizeSpellResolution` / permanent-entry path.
-        applySourceStaticEffects(state, creature);
+        beginApplyingStaticEffects(state, creature);
         expect(creature.staticAbilities).not.toContain("menace");
 
         const stub = makeCtx("p1", [
@@ -451,7 +451,7 @@ describe("hand-size-gated menace survives the REAL cast path (issue #1379 review
 
         // THE REGRESSION. No line in this test (or in `announceCast`'s own
         // handler — confirmed by inspection, see the header) calls
-        // `checkStateBasedActions` / `refreshCounterGatedStatics`. The ONLY
+        // `checkStateBasedActions` / `recomputeContinuousEffects`. The ONLY
         // thing that can have refreshed the menace grant for the new hand
         // size is `saveGameState`'s own sweep. This assertion FAILS if that
         // call is reverted from `saveGameState` — verified manually: reverted

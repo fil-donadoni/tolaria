@@ -165,11 +165,10 @@ export function revertBestow(card: CardInstanceState): void {
     const printedSubtypes = [...(def.subtypes ?? [])];
     card.subtypes = printedSubtypes;
     card.baseSubtypes = [...printedSubtypes];
-    if (card.printedSubtypes) card.printedSubtypes = [...printedSubtypes];
     // The CR 702.103f road leaves the object ON the battlefield, so every
     // effect applying to it is still applying. Recompose what the INSTANCE
     // bears immediately; a SOURCE-provenance effect comes back at the caller's
-    // next `syncLayers2to5` (`gre/sba.ts` runs `unapplySourceStaticEffects`
+    // next `syncLayers2to5` (`gre/sba.ts` runs `stopApplyingStaticEffects`
     // right before this, which syncs the whole board).
     recomposeLayers2to5ForInstance(card);
 }

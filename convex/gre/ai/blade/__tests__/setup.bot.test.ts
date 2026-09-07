@@ -542,7 +542,7 @@ describe("blade setup — `activate` resolves post-layer abilities (issue #1522)
         const zombie = state.players[0].battlefield.find(
             (c) => c.power === 2 && c.toughness === 2
         )!;
-        // The grant lands on the INSTANCE (`applySourceStaticEffects`,
+        // The grant lands on the INSTANCE (`beginApplyingStaticEffects`,
         // replayed once per source by `buildStateFromScenario`) — confirm the
         // fixture actually exercises the granted path, not a coincidental
         // native one.
@@ -574,7 +574,7 @@ describe("blade setup — `activate` resolves post-layer abilities (issue #1522)
         )!;
         // Simulate a "loses all abilities" continuous effect (Titania's Song
         // shape) already applied to this permanent — the same field
-        // `applySourceStaticEffects` writes for a live suppression source.
+        // `beginApplyingStaticEffects` writes for a live suppression source.
         delta.abilitiesSuppressedBy = [
             { sourceId: "some-suppressing-source-id", seq: 1 },
         ];

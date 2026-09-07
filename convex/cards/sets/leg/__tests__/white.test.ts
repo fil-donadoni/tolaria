@@ -50,7 +50,7 @@ import {
     NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     destroyWithReplacements,
     emitPermanentEntered,
     emitSpellCastEvent,
@@ -147,6 +147,7 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+import { grantedKeywordRows } from "../../../__tests__/setup";
 
 // ---------------------------------------------------------------------------
 // White free tranche (#371)
@@ -1546,7 +1547,7 @@ describe("Rapid Fire (CR 117.1b cast timing + CR 702.23 conditional rampage)", (
             t.staticAbilities.filter((a) => a.startsWith("rampage"))
         ).toEqual(["rampage 2"]);
         expect(
-            t.grantedStaticAbilities?.some((g) =>
+            grantedKeywordRows(state, t).some((g) =>
                 g.ability.startsWith("rampage")
             )
         ).not.toBe(true);
@@ -2969,7 +2970,7 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         });
         // The activated-grant is applied imperatively on enter — apply the
         // Aura's static effects so the enchanted land picks up the grant.
-        applySourceStaticEffects(state, equinoxAura);
+        beginApplyingStaticEffects(state, equinoxAura);
         return { state, myLand, equinoxAura, oppLand };
     }
 
