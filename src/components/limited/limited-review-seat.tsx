@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createColumnLayout, type GroupingKind } from "@convex/deckLayout";
 import type {
     LimitedEventSeatView,
@@ -68,6 +68,19 @@ export default function LimitedReviewSeat({
     // per BLOCK, so switching a Sealed Pool's grouping leaves the deck alone.
     const [deckGrouping, setDeckGrouping] = useState<GroupingKind>("mv");
     const [poolGrouping, setPoolGrouping] = useState<GroupingKind>("mv");
+    // Memoized because `DeckZoneSurface` keys its Column bucketing off the
+    // Layout's IDENTITY (`rawColumns`/`columns`/`rendered`), and every other
+    // caller hands it a Layout held in state. A fresh literal per render would
+    // re-bucket every seat's Columns — collapsed disclosures included — on any
+    // unrelated re-render of the event query (PR #3173 review, note 2).
+    const deckLayout = useMemo(
+        () => createColumnLayout({ grouping: deckGrouping }),
+        [deckGrouping]
+    );
+    const poolLayout = useMemo(
+        () => createColumnLayout({ grouping: poolGrouping }),
+        [poolGrouping]
+    );
 
     const label = seat.isBot
         ? (seat.nickname ?? "Bot Drafter")
@@ -136,9 +149,7 @@ export default function LimitedReviewSeat({
                                 zone="maindeck"
                                 title="Built Deck"
                                 cards={deck.cards}
-                                layout={createColumnLayout({
-                                    grouping: deckGrouping,
-                                })}
+                                layout={deckLayout}
                                 onGroupingChange={setDeckGrouping}
                                 /* `"pane"` on BOTH blocks, though this one is
                                    a Maindeck: the model decides whether empty
@@ -209,9 +220,7 @@ export default function LimitedReviewSeat({
                                want: a Sealed Pool holding three Mountains
                                draws three faces. */
                             cards={pool}
-                            layout={createColumnLayout({
-                                grouping: poolGrouping,
-                            })}
+                            layout={poolLayout}
                             onGroupingChange={setPoolGrouping}
                             dropModel="pane"
                             filterable={false}
