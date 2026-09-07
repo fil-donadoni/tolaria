@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
+import { useSearchIndex } from "~/lib/searchIndex";
 import MatchModePills from "./match-mode-pills";
 import MultiCombobox, {
     type ComboboxGroup,
@@ -36,15 +35,13 @@ export default function TypeFilter({
     mode,
     onChangeMode,
 }: TypeFilterProps) {
-    const all = useQuery(api.cardIndex.list, {});
+    const all = useSearchIndex();
 
     const groups = useMemo<ComboboxGroup[]>(() => {
         const set = new Set<string>();
-        if (all) {
-            for (const row of all) {
-                for (const s of row.subtypes) set.add(s);
-                for (const s of row.supertypes) set.add(s);
-            }
+        for (const row of all) {
+            for (const s of row.subtypes) set.add(s);
+            for (const s of row.supertypes) set.add(s);
         }
         // Drop any subtype that collides with a card type name (none today,
         // but keeps the two groups disjoint if the catalogue grows).

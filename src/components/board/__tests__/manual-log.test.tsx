@@ -53,7 +53,7 @@ vi.mock("convex/react", () => ({
     }),
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { manualLog: { getManualLog: {} }, cardIndex: {} },
+    api: { manualLog: { getManualLog: {} } },
 }));
 vi.mock("~/lib/fullCatalogue", () => ({
     useFullCatalogue: () => ({ rows: CATALOGUE_ROWS, error: null }),

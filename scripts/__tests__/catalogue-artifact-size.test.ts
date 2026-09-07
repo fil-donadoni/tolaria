@@ -49,6 +49,27 @@ const REPO_ROOT = resolve(__dirname, "..", "..");
  *  of rows. */
 const RAW_BUDGET_BYTES = 4_000_000;
 
+/**
+ * How long the Brotli assertion below may take.
+ *
+ * NOT a slow test tolerated — a measurement whose cost is the point.
+ * `brotliCompressSync` at its default quality 11 is what a CDN serves this
+ * with, and it is the setting ADR 0113's 12.7x ratio was measured at, so
+ * dropping the quality would make the number stop describing the download.
+ * Measured 2026-09-07 on the committed 1,461,663 B artifact, machine idle:
+ * **1,826 / 1,833 / 1,851 ms**. Vitest's 5,000 ms default leaves under 3x
+ * headroom, which `check:all` spends immediately — it runs the heavy tier at
+ * `ncpu - 1` workers, and this file then loses its core for most of the
+ * compression. That is not hypothetical: it reds `health:main` while passing
+ * in an isolated light run, which is the worst shape a gate can take
+ * (2026-09-07, run 017afb33 — `Error: Test timed out in 5000ms`, 1 failed /
+ * 19,959 passed; hit again the same day in a `check:lane`).
+ *
+ * So the ceiling is set from the measurement plus contention headroom, not
+ * from a default nobody chose. A run that exceeds THIS is a real signal.
+ */
+const BROTLI_TIMEOUT_MS = 60_000;
+
 /** ~2.7x today's 181,211 B. The wire cost, once per content hash — a CDN
  *  serves JSON Brotli-compressed, so this is the number a cold load actually
  *  downloads, not the raw one above. */
@@ -94,15 +115,19 @@ describe("Catalogue artifact size budget (issue #3053, ADR 0113 §3)", () => {
         expect(size).toBeLessThanOrEqual(RAW_BUDGET_BYTES);
     });
 
-    it(`is at most ${(BROTLI_BUDGET_BYTES / 1024).toFixed(0)} KB Brotli — the bytes a cold load really fetches`, () => {
-        const compressed = brotliCompressSync(readFileSync(artifactPath()));
-        console.log(
-            `catalogue artifact: ${(compressed.length / 1024).toFixed(1)} KB Brotli (budget: ${(
-                BROTLI_BUDGET_BYTES / 1024
-            ).toFixed(0)} KB)`
-        );
-        expect(compressed.length).toBeLessThanOrEqual(BROTLI_BUDGET_BYTES);
-    });
+    it(
+        `is at most ${(BROTLI_BUDGET_BYTES / 1024).toFixed(0)} KB Brotli — the bytes a cold load really fetches`,
+        () => {
+            const compressed = brotliCompressSync(readFileSync(artifactPath()));
+            console.log(
+                `catalogue artifact: ${(compressed.length / 1024).toFixed(1)} KB Brotli (budget: ${(
+                    BROTLI_BUDGET_BYTES / 1024
+                ).toFixed(0)} KB)`
+            );
+            expect(compressed.length).toBeLessThanOrEqual(BROTLI_BUDGET_BYTES);
+        },
+        BROTLI_TIMEOUT_MS
+    );
 
     it("is a non-empty array of CardDefinition-shaped rows", () => {
         const rows = JSON.parse(readFileSync(artifactPath(), "utf8")) as Array<{

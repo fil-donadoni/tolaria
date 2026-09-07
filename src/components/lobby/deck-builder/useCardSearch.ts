@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards/catalogue";
+import { useSearchIndex } from "~/lib/searchIndex";
 import { foldAccents } from "@convex/cards/textNormalize";
 import {
     FORMAT_RULES,
@@ -354,13 +355,18 @@ export function useCardSearch(
     // not yet loaded), the hook falls back to index-only search (today's behavior).
     fullCatalogue?: FullCatalogueResult
 ): {
-    entries: CardIndexEntry[] | undefined;
+    /** Never `undefined`: the index is derived, not fetched (issue #3054), so
+     *  the search has no loading state and the caller needs no branch for one. */
+    entries: CardIndexEntry[];
     total: number;
     /** True when no filter is set - caller should suppress result rendering
      *  (and the associated image fetches) until the user narrows the set. */
     idle: boolean;
 } {
-    const all = useQuery(api.cardIndex.list, {});
+    // The pool of implemented cards. Derived from the hydrated registry, not
+    // fetched (issue #3054) — so it is never `undefined` and the search has no
+    // loading state of its own.
+    const all = useSearchIndex();
     const catalogueRows = fullCatalogue?.rows;
     const isManual = format === "manual";
 
@@ -404,7 +410,6 @@ export function useCardSearch(
     );
 
     const entries = useMemo(() => {
-        if (!all) return undefined;
         if (idle) return [];
 
         const parts: CardIndexEntry[] = [];
@@ -536,5 +541,5 @@ export function useCardSearch(
         scryfallText.names,
     ]);
 
-    return { entries, total: all?.length ?? 0, idle };
+    return { entries, total: all.length, idle };
 }

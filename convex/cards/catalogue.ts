@@ -413,6 +413,19 @@ const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
 
+// The compiled rows this graph actually registered, kept because the runtime
+// registry is NOT a usable stand-in for "the catalogue's cards": it is a LIVE
+// map that grows during play. `maybeSynthesizeToken` and
+// `registerTokenDefinition` write synthesized token definitions (CR 111.1)
+// into it on any main-thread engine run or board render, and a consumer that
+// enumerated the registry would pick those up as if they were printed cards —
+// issue #3054's search index did exactly that, and the deck builder would then
+// offer `token:Soldier|Creature|…` as an addable card, non-deterministically by
+// navigation order. So the catalogue population is stated POSITIVELY here and
+// never inferred from the map.
+const compiledRegistered: CardDefinition[] = [];
+let expandedCatalogueCards: CardDefinition[] | null = null;
+
 /**
  * Register compiled definitions into the runtime registry — the ONE seam
  * both halves of ADR 0113 §2's asymmetric delivery go through.
@@ -436,6 +449,10 @@ export function registerCompiledDefinitions(
         const key = card.name.toLowerCase();
         if (!nameRegistry.has(key)) nameRegistry.set(key, card);
     }
+    compiledRegistered.push(...fresh);
+    // The CLIENT calls this after module load (from the loading gate), so a
+    // population memo taken earlier would be missing every compiled row.
+    expandedCatalogueCards = null;
     return fresh.length;
 }
 
@@ -468,6 +485,28 @@ export const getAllCards = (): CardDefinition[] => {
     if (!expandedAllCards)
         expandedAllCards = allCards.map((c) => getDefinition(c.id));
     return expandedAllCards;
+};
+
+/** Every card in the CATALOGUE — hand-written and compiled alike — expanded,
+ *  and nothing else.
+ *
+ *  This is the population a catalogue-wide sweep wants, and the reason it is
+ *  not `[...registeredDefinitions()]` is the comment on `compiledRegistered`
+ *  above: the registry also holds runtime-synthesized tokens and the face-down
+ *  sentinel (CR 708.2), neither of which is a printed card. It is not
+ *  `getAllCards()` either — that is the HAND-WRITTEN half only (ADR 0108 §3),
+ *  which is what made every compiled card read as *Unavailable* in the deck
+ *  builder (issue #3054).
+ *
+ *  Memoised, and the memo is dropped by `registerCompiledDefinitions` because
+ *  the client registers its rows after module load. */
+export const getAllCatalogueCards = (): CardDefinition[] => {
+    if (!expandedCatalogueCards)
+        expandedCatalogueCards = [
+            ...getAllCards(),
+            ...compiledRegistered.map((c) => getDefinition(c.id)),
+        ];
+    return expandedCatalogueCards;
 };
 
 /** The hand-written definitions exactly as their set modules declare them —

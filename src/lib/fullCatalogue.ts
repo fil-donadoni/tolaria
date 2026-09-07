@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
 import { foldAccents } from "@convex/cards/textNormalize";
+import { searchIndex } from "./searchIndex";
 import { toDashedUuid } from "./scryfallId";
 
 /** A single rehydrated row from the Full Catalogue columnar arrays. */
@@ -19,7 +18,8 @@ export interface FullCatalogueRow {
     rarity: string;
     /** `foldAccents(name.toLowerCase())` — drives accent-insensitive match. */
     nameFold: string;
-    /** True when this row has a matching `nameFold` in `api.cardIndex.list`. */
+    /** True when the engine has a definition for this card — a matching
+     *  `nameFold` in the search index (`~/lib/searchIndex`). */
     available: boolean;
 }
 
@@ -121,8 +121,8 @@ export function loadFullCatalogue(): Promise<FullCatalogueRow[]> {
 }
 
 export interface FullCatalogueResult {
-    /** All catalogue rows with `.available` patched from `cardIndex.list`.
-     *  `undefined` while the catalogue + index are loading. */
+    /** All catalogue rows with `.available` patched from the search index.
+     *  `undefined` while the catalogue asset is loading, or when disabled. */
     rows: FullCatalogueRow[] | undefined;
     /** Non-null when `loadFullCatalogue` failed (network error, HTTP 4xx/5xx).
      *  Callers should show a degraded state — branded grey, no catalogue
@@ -132,17 +132,25 @@ export interface FullCatalogueResult {
 
 /**
  * Lazy-loads the Full Catalogue and derives per-row availability by folded-name
- * match against `api.cardIndex.list`. Nothing is fetched until this hook mounts.
+ * match against the search index. Nothing is fetched until this hook mounts.
  *
- * `enabled` (default `true`) gates BOTH the asset fetch and the index query, so
- * a surface that only sometimes needs the catalogue — a deck view that needs it
- * for a Tabletop deck and not otherwise (`useDeckCardShapeResolver`) — can call
- * the hook unconditionally (hook order stays stable) without paying for the
- * ~34k-row download. Disabled, `rows` stays `undefined`, exactly as it reads
- * while loading.
+ * AVAILABILITY MEANS "THE ENGINE HAS THIS CARD" (issue #3054). It used to mean
+ * membership in `api.cardIndex.list`, which read `getAllCards()` — the
+ * HAND-WRITTEN population only — so every compiled card rendered as
+ * *Unavailable* in the deck builder however well the engine could play it. The
+ * search index is derived from the runtime registry, which does not make that
+ * distinction, so the two now agree by construction rather than by upkeep.
+ *
+ * `enabled` (default `true`) gates the asset fetch, so a surface that only
+ * sometimes needs the catalogue — a deck view that needs it for a Tabletop deck
+ * and not otherwise (`useDeckCardShapeResolver`) — can call the hook
+ * unconditionally (hook order stays stable) without paying for the ~34k-row
+ * download. Disabled, `rows` stays `undefined`, exactly as it reads while
+ * loading. It gates the INDEX too — deriving it walks ~4,300 definitions
+ * (measured 57 ms), and a surface that will not render a card pool should not
+ * pay that any more than it should pay the download.
  */
 export function useFullCatalogue(enabled = true): FullCatalogueResult {
-    const index = useQuery(api.cardIndex.list, enabled ? {} : "skip");
     const [catalogue, setCatalogue] = useState<FullCatalogueRow[] | undefined>(
         undefined
     );
@@ -179,17 +187,24 @@ export function useFullCatalogue(enabled = true): FullCatalogueResult {
         };
     }, [enabled]);
 
-    const availableFolds = useMemo<Set<string> | null>(() => {
-        if (!index) return null;
+    // `searchIndex()`, not `useSearchIndex()`: the call has to sit INSIDE the
+    // memo so a disabled caller never triggers the derivation. It is the same
+    // memoised value either way — the index is module-level, not per-hook.
+    const availableFolds = useMemo<Set<string>>(() => {
         const set = new Set<string>();
-        for (const row of index) set.add(row.nameFold);
+        if (!enabled) return set;
+        for (const row of searchIndex()) set.add(row.nameFold);
         return set;
-    }, [index]);
+    }, [enabled]);
 
     const rows = useMemo(() => {
-        if (!catalogue || !availableFolds) return undefined;
+        // `enabled` too, not just `catalogue`: the fetched rows are never
+        // cleared, so a true→false flip would otherwise hand a disabled caller
+        // the full row set with every `available` false — a shape it has never
+        // had to handle. Disabled means `undefined`, in both directions.
+        if (!enabled || !catalogue) return undefined;
         return patchAvailability(catalogue, availableFolds);
-    }, [catalogue, availableFolds]);
+    }, [enabled, catalogue, availableFolds]);
 
     return { rows, error };
 }

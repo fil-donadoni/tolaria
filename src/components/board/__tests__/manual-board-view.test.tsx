@@ -61,7 +61,7 @@ vi.mock("convex/react", () => ({
 vi.mock("@convex/_generated/api", () => {
     const game: Record<string, { _name: string }> = {};
     for (const n of MANUAL_MUTATION_NAMES) game[n] = { _name: n };
-    return { api: { game, cardIndex: {}, manualLog: {} } };
+    return { api: { game, manualLog: {} } };
 });
 import {
     mockInstanceManaCost,
