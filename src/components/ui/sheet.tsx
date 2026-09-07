@@ -41,14 +41,25 @@ function SheetContent({
     children,
     side = "right",
     showCloseButton = true,
+    showOverlay = true,
     ...props
 }: SheetPrimitive.Popup.Props & {
     side?: "top" | "right" | "bottom" | "left";
     showCloseButton?: boolean;
+    /**
+     * Whether to paint the backdrop. `false` is for a NON-MODAL sheet
+     * (`<Sheet modal={false}>`): base-ui's `Backdrop` is a `fixed inset-0`
+     * element with no `pointer-events: none` of its own, so a non-modal sheet
+     * that still rendered one would swallow every click on the page behind it
+     * — which is the whole thing "non-modal" promises not to do. Dismissal is
+     * unaffected: `useDismiss` binds outside-press and `Escape` on the
+     * document, not on the backdrop.
+     */
+    showOverlay?: boolean;
 }) {
     return (
         <SheetPortal>
-            <SheetOverlay />
+            {showOverlay && <SheetOverlay />}
             <SheetPrimitive.Popup
                 data-slot="sheet-content"
                 data-side={side}

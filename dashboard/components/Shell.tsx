@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CONTROL_CLASS } from "../lib/controls";
+import { toggleSheet } from "../lib/shortcuts";
 import type { View } from "../lib/view";
 import { ThemeToggle } from "./ThemeToggle";
 import { ViewTabs } from "./ViewTabs";
@@ -14,9 +15,13 @@ import { ViewTabs } from "./ViewTabs";
  * import time, and an unmounted History would take every one of those handles
  * with it. S3 makes that a real choice again.
  *
- * `#shortcuts-btn` keeps its id because `scripts/dashboard/shortcuts.js`
- * (#2635) binds the sheet to it — that button is the only affordance making
- * the keyboard layer discoverable without already knowing `?` opens it.
+ * The shortcuts button is the only affordance making the keyboard layer
+ * discoverable without already knowing `?` opens it (#2635 AC). S2 wires it
+ * straight to the sheet's own store rather than to an id a vanilla module
+ * looked up, and drops `<Button>` with it: that primitive's whole appearance
+ * is `btn-base` / `btn-tone-*`, custom utilities declared in `src/index.css`,
+ * which the dashboard deliberately does not import (ADR 0117) — so it rendered
+ * here as unskinned text. Dashboard controls wear `controls.ts`.
  */
 export function Shell({
     now,
@@ -41,15 +46,15 @@ export function Shell({
                         loading…
                     </span>
                     <div className="ml-auto flex items-center gap-2">
-                        <Button
+                        <button
                             id="shortcuts-btn"
                             type="button"
-                            variant="secondary"
-                            size="sm"
+                            className={CONTROL_CLASS}
                             aria-haspopup="dialog"
+                            onClick={toggleSheet}
                         >
                             Keyboard shortcuts
-                        </Button>
+                        </button>
                         <ThemeToggle />
                     </div>
                 </header>

@@ -190,6 +190,19 @@
     --color-input: var(--input);
     --color-ring: var(--ring);
 
+    /* The chart slots as UTILITIES too (`bg-chart-2`). Declared for the same
+       reason as the state roles below: without a `--color-*` entry the token
+       exists as a CSS variable but `bg-chart-2` is not a class Tailwind emits,
+       so an element wearing it renders with NO background at all — invisible
+       rather than wrong. That is exactly how the Now timeline's merge ticks
+       disappeared while the chart drawn from `var(--chart-2)` looked fine
+       (PRD #3148 S2, caught in the browser). */
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
     /* The state roles as UTILITIES (`bg-state-good`, `text-state-bad`), which
        is what lets `dashboard/lib/tones.ts` be ONE table of class names rather
        than a table of inline styles. */
