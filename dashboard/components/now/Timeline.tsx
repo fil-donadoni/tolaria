@@ -2,6 +2,7 @@ import { NowSection } from "./NowSection";
 import { TimelineTrack } from "./TimelineTrack";
 import { PassBlock } from "./PassBlock";
 import { ClaimPin } from "./ClaimPin";
+import { ClaimTail } from "./ClaimTail";
 import { MergeTick } from "./MergeTick";
 import { Unavailable } from "../Unavailable";
 import { EmptyNote } from "../EmptyNote";
@@ -84,6 +85,13 @@ export function Timeline({ data, nowMs }: { data: NowPayload; nowMs: number }) {
                             ))}
                         </TimelineTrack>
                         <TimelineTrack label="Claims">
+                            {/* Every tail, THEN every pin. Interleaved, a
+                                later claim's 1px tail paints over an earlier
+                                claim's pin and takes its clicks — measured in
+                                the browser. */}
+                            {claims.map((c) => (
+                                <ClaimTail key={`tail-${c.issue}`} item={c} />
+                            ))}
                             {claims.map((c) => (
                                 <ClaimPin key={c.issue} item={c} />
                             ))}

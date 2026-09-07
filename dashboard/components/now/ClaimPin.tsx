@@ -19,52 +19,43 @@ import type { ClaimItem } from "../../lib/nowTimeline";
  * nothing here to draw with a closed tail — many long, unclosed tails is
  * exactly what "held and never released" looks like, which is the picture the
  * 2026-08-19 outage had no way to show.
+ *
+ * The tail is `ClaimTail`, drawn as a whole layer UNDER every pin — see that
+ * file for why the two are separate, and why a 1px line was enough to make a
+ * pin unclickable when they were interleaved.
  */
 export function ClaimPin({ item }: { item: ClaimItem }) {
     const tip = lookupTerm(item.term)?.tip ?? "";
+    const left = `${item.left.toFixed(2)}%`;
     return (
-        <div
-            className="absolute inset-y-0 flex items-center"
-            style={{ left: `${item.left.toFixed(2)}%` }}
-        >
-            <span
-                aria-hidden="true"
-                className={cn(
-                    "absolute h-px opacity-40",
-                    toneFillClass(item.tone)
-                )}
-                style={{ width: `${item.tailWidth.toFixed(2)}%` }}
-            />
-            <Tooltip>
-                <TooltipTrigger
-                    render={
-                        <button
-                            type="button"
-                            data-issue={item.issue}
-                            className={cn(
-                                "relative flex size-3.5 -translate-x-1/2 items-center justify-center rounded-full text-[9px] text-white",
-                                toneFillClass(item.tone),
-                                FOCUS_RING
-                            )}
-                        />
-                    }
-                    aria-label={`issue #${item.issue} ${item.title}, ${item.state}, claimed and still held`}
-                >
-                    <span aria-hidden="true">{item.mark}</span>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <span>
-                        #{item.issue} {item.title}
-                        {tip ? " — " : ""}
-                        {tip ? (
-                            <DynamicTerm term={item.term}>
-                                {item.state}
-                            </DynamicTerm>
-                        ) : null}
-                        {item.reason ? ` (${item.reason})` : ""}
-                    </span>
-                </TooltipContent>
-            </Tooltip>
-        </div>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <button
+                        type="button"
+                        data-issue={item.issue}
+                        style={{ left }}
+                        className={cn(
+                            "absolute top-1/2 flex size-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[9px] text-white",
+                            toneFillClass(item.tone),
+                            FOCUS_RING
+                        )}
+                    />
+                }
+                aria-label={`issue #${item.issue} ${item.title}, ${item.state}, claimed and still held`}
+            >
+                <span aria-hidden="true">{item.mark}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+                <span>
+                    #{item.issue} {item.title}
+                    {tip ? " — " : ""}
+                    {tip ? (
+                        <DynamicTerm term={item.term}>{item.state}</DynamicTerm>
+                    ) : null}
+                    {item.reason ? ` (${item.reason})` : ""}
+                </span>
+            </TooltipContent>
+        </Tooltip>
     );
 }

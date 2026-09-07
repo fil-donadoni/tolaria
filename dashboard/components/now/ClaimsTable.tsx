@@ -175,7 +175,17 @@ export function ClaimsTable({
                                                 nowMs={nowMs}
                                             />
                                         </TableCell>
-                                        <TableCell className="max-w-md">
+                                        {/*
+                                            The title WRAPS — shadcn's cell is
+                                            `whitespace-nowrap`, and the
+                                            vanilla table gave this column its
+                                            own `prose` rule for the same
+                                            reason: one long issue title
+                                            otherwise widens the whole table
+                                            and pushes every column after it
+                                            out of view.
+                                        */}
+                                        <TableCell className="max-w-md whitespace-normal">
                                             {c.title}
                                             {typeof c.dependents === "number" &&
                                             c.dependents > 0 ? (

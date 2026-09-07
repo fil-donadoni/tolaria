@@ -405,3 +405,27 @@ describe("NowView — a light jumps to the section it points at (#2630)", () => 
         ).not.toContain("ring-2");
     });
 });
+
+describe("NowView — the timeline's layers (measured in the browser, guarded here)", () => {
+    it("draws every claim tail as a sibling of every pin, in one lane, tails first", async () => {
+        await mountWith(goldenPayload());
+        const timeline = document.getElementById("ls-section-timeline")!;
+        const pins = [...timeline.querySelectorAll("button[data-issue]")];
+        expect(pins.length).toBe(3);
+        const lane = pins[0].parentElement!;
+        // SIBLINGS OF THE LANE, not children of a per-claim wrapper: `left`
+        // and `width` are percentages of the LANE, and a wrapper re-bases the
+        // tail's width on its own content — a 90%-of-the-window tail rendering
+        // as 90% of a 14px pin.
+        const children = [...lane.children];
+        const tails = children.filter((c) => c.tagName === "SPAN");
+        expect(tails.length).toBe(pins.length);
+        for (const pin of pins) expect(pin.parentElement).toBe(lane);
+        // Tails FIRST, so no tail can paint over — and steal the click from —
+        // a pin drawn earlier. `elementFromPoint` at one pin's own centre
+        // returned its neighbour's tail before this ordering.
+        const lastTail = children.lastIndexOf(tails[tails.length - 1]);
+        const firstPin = children.indexOf(pins[0]);
+        expect(lastTail).toBeLessThan(firstPin);
+    });
+});
