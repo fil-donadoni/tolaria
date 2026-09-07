@@ -548,17 +548,17 @@ export type CardInstanceState = {
      *  is set per entry. */
     grantedStaticAbilities?: {
         ability: string;
-        duration?: Duration;
         /** Instance id of the aura that produced this grant (CR 303.4e).
-         *  The entry is removed when the aura unattaches or leaves play. */
+         *  The entry is removed when the aura unattaches or leaves play.
+         *
+         *  Since PRD #2064 S6b the ONLY provenance this array carries, which
+         *  makes the whole field pure DERIVED OUTPUT of `layer6DerivedFields`.
+         *  The three INPUT provenances that used to share it — `duration`
+         *  (CR 611.2a), `counterType` (CR 122.1b) and the bare indefinite row
+         *  (CR 611.2c) — are registry entries written by their producers, and
+         *  a state persisted before that slice has them migrated across by
+         *  `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`). */
         auraId?: string;
-        /** CR 122.1c / 613.4d (issue #1194) — the counter TYPE that granted
-         *  this keyword (a "flying" counter granting flying). Neither
-         *  duration-bounded nor tied to a live source: it persists for as
-         *  long as at least one counter of this type remains on the
-         *  permanent, and is spliced back out by `SpellContext.removeCounter`
-         *  the moment the counter type's count reaches zero. */
-        counterType?: string;
         /** CR 613.7 layer timestamp of the granting SOURCE (issue #1715).
          *  Copied from the source's `staticSeq` when a continuous static
          *  effect materializes this grant, so layer 6 can order this grant
@@ -632,25 +632,6 @@ export type CardInstanceState = {
          *  LOWER loses to this removal and is recorded `suppressed`; a grant
          *  with a HIGHER seq applies on top and keeps the keyword (CR 613.1f
          *  — Gravity Sphere then Flight: the creature flies). */
-        seq?: number;
-    }[];
-    /** Keywords removed for a limited duration by a one-shot effect (CR 611.2a
-     *  layer 6 — Shelkin Brownie / Tolaria stripping banding and "bands with
-     *  other" abilities until end of turn). Each entry records the keyword
-     *  spliced out of `staticAbilities` and the `duration` after which it is
-     *  restored. Purged at the same phase boundary as `grantedStaticAbilities`;
-     *  on expiry one occurrence of the keyword is pushed back so a native
-     *  duplicate isn't double-restored (CR 113.1). Distinct from
-     *  `removedKeywords`, which is source-keyed and tied to a continuous static
-     *  effect's lifetime rather than a fixed duration. */
-    temporaryRemovedKeywords?: {
-        keyword: string;
-        duration: Duration;
-        /** CR 613.7 layer timestamp minted when the removal resolved. Layer 6
-         *  orders this removal against a grant exactly as it orders a
-         *  source-keyed one (`gre/layer6.ts`) — a grant that lands AFTER an
-         *  until-end-of-turn strip keeps its keyword. Absent on rows written
-         *  before PRD #2064 S3, which read as 0. */
         seq?: number;
     }[];
     /** `ability-loss` static-effect sources that have stripped this permanent
@@ -8005,7 +7986,6 @@ export function allocStaticTimestamp(state: GameState): number {
             // "target loses forestwalk" silently lost to the forestwalk it was
             // meant to take off.
             for (const g of card.grantedStaticAbilities ?? []) bump(g.seq);
-            for (const r of card.temporaryRemovedKeywords ?? []) bump(r.seq);
             for (const g of card.grantedSubtypesAdd ?? []) bump(g.seq);
             for (const g of card.grantedSubtypes ?? []) bump(g.seq);
         }
@@ -11673,7 +11653,6 @@ export function resetBattlefieldTransientState(
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
     delete card.removedKeywords;
-    delete card.temporaryRemovedKeywords;
     delete card.abilitiesSuppressedBy;
     delete card.abilityLossHolds;
     delete card.chosenMana;

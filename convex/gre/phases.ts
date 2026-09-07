@@ -3003,27 +3003,13 @@ function tickAllDurations(state: GameState): void {
         p.grantedAbilities = kept.length > 0 ? kept : undefined;
     }
 
-    // Granted static keywords (e.g. Berserk's trample). The duration expiring
-    // simply drops the registry entry's row: layer 6 is derived per read (PRD
-    // #2064 S3, `gre/layer6.ts`), so an expired grant stops being composed and
-    // there is no occurrence to hand back to anyone. Counter-keyed rows have no
-    // duration and pass through unchanged (their gate is the counter);
-    // `auraId`-keyed rows are legacy and are ignored by the derivation.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
-            if (!card.grantedStaticAbilities?.length) continue;
-            const kept: typeof card.grantedStaticAbilities = [];
-            for (const grant of card.grantedStaticAbilities) {
-                if (!grant.duration) {
-                    kept.push(grant);
-                    continue;
-                }
-                const next = tickDuration(grant.duration, view);
-                if (next !== null) kept.push({ ...grant, duration: next });
-            }
-            card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
-        }
-    }
+    // PRD #2064 S6b — the granted-static-keyword purge (Berserk's trample) and
+    // the temporarily-removed-keyword purge (Shelkin Brownie's until-end-of-turn
+    // strip) both stood here, each ticking a `duration` on an instance ledger.
+    // Both are registry entries now, so `tickContinuousEffectDurations` above
+    // counts their boundary — the same CR 611.2a countdown, in one place
+    // instead of three. `grantedStaticAbilities` keeps only `auraId` rows,
+    // which never carried a duration and were passed through unchanged.
 
     // Granted triggered abilities with a duration (CR 611.2a — Rapid Fire's
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
@@ -3067,22 +3053,6 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
-    // Temporarily removed keywords (CR 611.2a layer 6 — Shelkin Brownie /
-    // Tolaria "loses banding / 'bands with other' until end of turn"). Same
-    // shape as the grant purge above and for the same reason: dropping the row
-    // is the whole restore, because the keyword was never taken off anything —
-    // the derivation simply stops composing the removal.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
-            if (!card.temporaryRemovedKeywords?.length) continue;
-            const kept: typeof card.temporaryRemovedKeywords = [];
-            for (const entry of card.temporaryRemovedKeywords) {
-                const next = tickDuration(entry.duration, view);
-                if (next !== null) kept.push({ ...entry, duration: next });
-            }
-            card.temporaryRemovedKeywords = kept.length > 0 ? kept : undefined;
-        }
-    }
     // CR 613.1f (PRD #2064 S3) — recompose layer 6 now that the expired rows
     // are gone, so the boundary's effect is visible before the next read rather
     // than at the next SBA pass.

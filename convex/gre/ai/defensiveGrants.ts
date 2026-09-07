@@ -42,6 +42,7 @@
 import type { CardInstanceState, GameState } from "../state";
 import { castableHeldInteraction } from "../heldInteraction";
 import { isProtectionAbility } from "../protection";
+import { renderKeyword } from "../continuousEffects";
 
 /** Whether `keyword`'s worth is purely PROTECTIVE — it does nothing except
  *  answer something the opponent is doing.
@@ -89,9 +90,26 @@ export function isDefensiveKeyword(keyword: string): boolean {
  *
  *  Returns one entry per live occurrence, so two activations that each pushed
  *  their own occurrence are both accounted for. */
-export function temporaryDefensiveKeywords(card: CardInstanceState): string[] {
-    const granted = card.grantedStaticAbilities;
-    if (!granted || granted.length === 0) return [];
+export function temporaryDefensiveKeywords(
+    state: GameState,
+    card: CardInstanceState
+): string[] {
+    // PRD #2064 S6b — a duration-scoped grant is a REGISTRY entry now, not a
+    // `duration`-keyed row on the card, so the Bot's "this bonus expires" test
+    // reads the registry. Same question, same answer, different home: an entry
+    // still in the list is one whose boundary has not come
+    // (`tickContinuousEffectDurations` splices expired ones), which is exactly
+    // what `g.duration !== undefined` used to mean.
+    const expiring: string[] = [];
+    for (const entry of state.continuousEffects ?? []) {
+        if (entry.layer !== 6) continue;
+        if (entry.expiry.kind !== "duration") continue;
+        if (entry.affected.kind !== "instances") continue;
+        if (!entry.affected.instanceIds.includes(card.id)) continue;
+        if (entry.payload.kind !== "keyword-grant") continue;
+        expiring.push(renderKeyword(entry.payload));
+    }
+    if (expiring.length === 0) return [];
     // One occurrence of each keyword may be consumed per grant record; count
     // what `staticAbilities` actually holds so a stripped occurrence is not
     // claimed twice.
@@ -102,12 +120,11 @@ export function temporaryDefensiveKeywords(card: CardInstanceState): string[] {
     }
     if (available.size === 0) return [];
     const out: string[] = [];
-    for (const g of granted) {
-        if (g.duration === undefined) continue;
-        const left = available.get(g.ability);
+    for (const ability of expiring) {
+        const left = available.get(ability);
         if (!left) continue;
-        available.set(g.ability, left - 1);
-        out.push(g.ability);
+        available.set(ability, left - 1);
+        out.push(ability);
     }
     return out;
 }
