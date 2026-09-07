@@ -1,0 +1,4 @@
+{
+    "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Hand-maintained: the whole point is that a human wrote the reason.",
+    "acknowledged": []
+}

@@ -1,0 +1,213 @@
+{
+    "source": {
+        "supplier": "maintainer",
+        "suppliedOn": "2026-08-23",
+        "note": "The six Premodern Tier 1 lists as supplied, verbatim and unedited (60 maindeck + 15 sideboard each). Hand-maintained canonical data, NOT generated: the compiler is measured against these lists, so a change here is a change of target and belongs in review."
+    },
+    "shippedPresets": [
+        { "slug": "deck-1", "name": "Stiflenought" },
+        { "slug": "burn", "name": "Burn" },
+        { "slug": "enchantress", "name": "Enchantress" }
+    ],
+    "decks": [
+        {
+            "slug": "goblin",
+            "name": "Goblin",
+            "main": [
+                { "count": 3, "name": "Gempalm Incinerator" },
+                { "count": 4, "name": "Goblin Lackey" },
+                { "count": 4, "name": "Goblin Matron" },
+                { "count": 3, "name": "Goblin Piledriver" },
+                { "count": 1, "name": "Goblin Pyromancer" },
+                { "count": 4, "name": "Goblin Ringleader" },
+                { "count": 1, "name": "Goblin Sharpshooter" },
+                { "count": 2, "name": "Goblin Tinkerer" },
+                { "count": 4, "name": "Goblin Warchief" },
+                { "count": 4, "name": "Mogg Fanatic" },
+                { "count": 3, "name": "Siege-Gang Commander" },
+                { "count": 1, "name": "Skirk Prospector" },
+                { "count": 2, "name": "Terminate" },
+                { "count": 4, "name": "Bloodstained Mire" },
+                { "count": 8, "name": "Mountain" },
+                { "count": 3, "name": "Rishadan Port" },
+                { "count": 2, "name": "Shadowblood Ridge" },
+                { "count": 4, "name": "Sulfurous Springs" },
+                { "count": 1, "name": "Swamp" },
+                { "count": 1, "name": "Volrath's Stronghold" },
+                { "count": 1, "name": "Wasteland" }
+            ],
+            "sideboard": [
+                { "count": 3, "name": "Cabal Therapy" },
+                { "count": 4, "name": "Dralnu's Crusade" },
+                { "count": 2, "name": "Perish" },
+                { "count": 1, "name": "Pyroblast" },
+                { "count": 2, "name": "Pyrokinesis" },
+                { "count": 1, "name": "Red Elemental Blast" },
+                { "count": 2, "name": "Tormod's Crypt" }
+            ]
+        },
+        {
+            "slug": "psychatog",
+            "name": "Psychatog",
+            "main": [
+                { "count": 4, "name": "Psychatog" },
+                { "count": 2, "name": "Powder Keg" },
+                { "count": 4, "name": "Accumulated Knowledge" },
+                { "count": 4, "name": "Counterspell" },
+                { "count": 4, "name": "Gush" },
+                { "count": 4, "name": "Impulse" },
+                { "count": 3, "name": "Opt" },
+                { "count": 3, "name": "Smother" },
+                { "count": 2, "name": "Circular Logic" },
+                { "count": 2, "name": "Foil" },
+                { "count": 4, "name": "Duress" },
+                { "count": 4, "name": "Portent" },
+                { "count": 9, "name": "Island" },
+                { "count": 4, "name": "Polluted Delta" },
+                { "count": 4, "name": "Underground River" },
+                { "count": 2, "name": "Swamp" },
+                { "count": 1, "name": "Cephalid Coliseum" }
+            ],
+            "sideboard": [
+                { "count": 4, "name": "Annul" },
+                { "count": 3, "name": "Engineered Plague" },
+                { "count": 2, "name": "Blue Elemental Blast" },
+                { "count": 2, "name": "Hydroblast" },
+                { "count": 1, "name": "Haunting Echoes" },
+                { "count": 1, "name": "Sickening Dreams" },
+                { "count": 1, "name": "Tsabo's Web" },
+                { "count": 1, "name": "Zombie Infestation" }
+            ]
+        },
+        {
+            "slug": "parallax-replenish",
+            "name": "Parallax Replenish",
+            "main": [
+                { "count": 3, "name": "Abeyance" },
+                { "count": 3, "name": "Frantic Search" },
+                { "count": 3, "name": "Intuition" },
+                { "count": 4, "name": "Swords to Plowshares" },
+                { "count": 4, "name": "Replenish" },
+                { "count": 4, "name": "Attunement" },
+                { "count": 3, "name": "Decree of Silence" },
+                { "count": 4, "name": "Opalescence" },
+                { "count": 4, "name": "Parallax Wave" },
+                { "count": 2, "name": "Seal of Cleansing" },
+                { "count": 4, "name": "Adarkar Wastes" },
+                { "count": 4, "name": "Ancient Tomb" },
+                { "count": 4, "name": "Flooded Strand" },
+                { "count": 4, "name": "Island" },
+                { "count": 6, "name": "Plains" },
+                { "count": 4, "name": "Skycloud Expanse" }
+            ],
+            "sideboard": [
+                { "count": 3, "name": "Exalted Angel" },
+                { "count": 2, "name": "Hydroblast" },
+                { "count": 4, "name": "Meddling Mage" },
+                { "count": 2, "name": "Seal of Cleansing" },
+                { "count": 2, "name": "Tsabo's Web" },
+                { "count": 2, "name": "Wrath of God" }
+            ]
+        },
+        {
+            "slug": "landstill",
+            "name": "Landstill",
+            "main": [
+                { "count": 2, "name": "Phyrexian Furnace" },
+                { "count": 1, "name": "Powder Keg" },
+                { "count": 4, "name": "Counterspell" },
+                { "count": 4, "name": "Swords to Plowshares" },
+                { "count": 3, "name": "Fact or Fiction" },
+                { "count": 2, "name": "Disenchant" },
+                { "count": 2, "name": "Mana Leak" },
+                { "count": 2, "name": "Prohibit" },
+                { "count": 1, "name": "Flash of Insight" },
+                { "count": 3, "name": "Decree of Justice" },
+                { "count": 3, "name": "Portent" },
+                { "count": 3, "name": "Wrath of God" },
+                { "count": 3, "name": "Standstill" },
+                { "count": 1, "name": "Humility" },
+                { "count": 5, "name": "Island" },
+                { "count": 4, "name": "Adarkar Wastes" },
+                { "count": 4, "name": "Flooded Strand" },
+                { "count": 4, "name": "Mishra's Factory" },
+                { "count": 4, "name": "Plains" },
+                { "count": 2, "name": "Dust Bowl" },
+                { "count": 2, "name": "Faerie Conclave" },
+                { "count": 1, "name": "Coastal Tower" }
+            ],
+            "sideboard": [
+                { "count": 4, "name": "Meddling Mage" },
+                { "count": 2, "name": "Blue Elemental Blast" },
+                { "count": 2, "name": "Circle of Protection: Red" },
+                { "count": 2, "name": "Exalted Angel" },
+                { "count": 2, "name": "Hydroblast" },
+                { "count": 2, "name": "Teferi's Response" },
+                { "count": 1, "name": "Disenchant" }
+            ]
+        },
+        {
+            "slug": "oath-ponza",
+            "name": "Oath Ponza",
+            "main": [
+                { "count": 4, "name": "Terravore" },
+                { "count": 4, "name": "Mox Diamond" },
+                { "count": 4, "name": "Sphere of Resistance" },
+                { "count": 2, "name": "Naturalize" },
+                { "count": 1, "name": "Pyroclasm" },
+                { "count": 4, "name": "Winter's Grasp" },
+                { "count": 4, "name": "Thermokarst" },
+                { "count": 1, "name": "Earthquake" },
+                { "count": 4, "name": "Sylvan Library" },
+                { "count": 4, "name": "Oath of Druids" },
+                { "count": 4, "name": "Mishra's Factory" },
+                { "count": 3, "name": "Snow-Covered Forest" },
+                { "count": 1, "name": "Snow-Covered Mountain" },
+                { "count": 4, "name": "Treetop Village" },
+                { "count": 4, "name": "Rishadan Port" },
+                { "count": 4, "name": "Wooded Foothills" },
+                { "count": 4, "name": "Karplusan Forest" },
+                { "count": 4, "name": "Wasteland" }
+            ],
+            "sideboard": [
+                { "count": 2, "name": "Naturalize" },
+                { "count": 1, "name": "Tormod's Crypt" },
+                { "count": 2, "name": "Pyroblast" },
+                { "count": 2, "name": "Pyroclasm" },
+                { "count": 2, "name": "Red Elemental Blast" },
+                { "count": 2, "name": "Zuran Orb" },
+                { "count": 1, "name": "Phyrexian Furnace" },
+                { "count": 3, "name": "Call of the Herd" }
+            ]
+        },
+        {
+            "slug": "aluren",
+            "name": "Aluren",
+            "main": [
+                { "count": 4, "name": "Cavern Harpy" },
+                { "count": 2, "name": "Cloud of Faeries" },
+                { "count": 4, "name": "Man-o'-War" },
+                { "count": 4, "name": "Raven Familiar" },
+                { "count": 1, "name": "Rishadan Cutpurse" },
+                { "count": 4, "name": "Soul Warden" },
+                { "count": 4, "name": "Chain of Vapor" },
+                { "count": 3, "name": "Flash of Insight" },
+                { "count": 4, "name": "Impulse" },
+                { "count": 2, "name": "Intuition" },
+                { "count": 4, "name": "Aluren" },
+                { "count": 4, "name": "City of Brass" },
+                { "count": 2, "name": "City of Traitors" },
+                { "count": 4, "name": "Havenwood Battleground" },
+                { "count": 4, "name": "Hickory Woodlot" },
+                { "count": 10, "name": "Island" }
+            ],
+            "sideboard": [
+                { "count": 3, "name": "Compost" },
+                { "count": 3, "name": "Red Elemental Blast" },
+                { "count": 3, "name": "Show and Tell" },
+                { "count": 2, "name": "Teferi's Response" },
+                { "count": 4, "name": "Xantid Swarm" }
+            ]
+        }
+    ]
+}

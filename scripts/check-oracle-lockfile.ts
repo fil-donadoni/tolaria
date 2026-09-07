@@ -68,6 +68,7 @@
  * keeps the gate surface from growing per artifact.
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildLockfile, poolOracleIds } from "./oracle-compile";
@@ -89,6 +90,17 @@ import {
     type HeaderHashes,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import { ORIGIN_BASE } from "./lib/branches";
+import {
+    emptyRegressionLedger,
+    parseRegressionLedger,
+    readyRegressions,
+    regressionMessage,
+    staleAcknowledgements,
+    unacknowledgedRegressions,
+    REGRESSION_LEDGER_PATH,
+    type RegressionLedger,
+} from "./lib/oracle-state-regressions";
 import {
     emptyRetirementLedger,
     parseRetirementLedger,
@@ -101,6 +113,7 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 const RETIREMENTS_PATH = join(ROOT, RETIREMENT_LEDGER_PATH);
+const REGRESSIONS_PATH = join(ROOT, REGRESSION_LEDGER_PATH);
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -434,9 +447,100 @@ function checkRetirements(): void {
     );
 }
 
+function readRegressionLedger(): RegressionLedger {
+    if (!existsSync(REGRESSIONS_PATH)) return emptyRegressionLedger();
+    try {
+        return parseRegressionLedger(readFileSync(REGRESSIONS_PATH, "utf8"));
+    } catch (err) {
+        fail(
+            "oracle state regressions",
+            (err as Error).message,
+            `edit ${REGRESSION_LEDGER_PATH}`
+        );
+    }
+}
+
+/**
+ * The lockfile as the BASE BRANCH has it — the only honest baseline for "did
+ * this change shrink the pool".
+ *
+ * Read through git rather than kept as a committed second copy of the same
+ * rows: a checked-in baseline would have to be regenerated alongside the
+ * lockfile, and a baseline you refresh in the same commit as the thing it
+ * guards guards nothing.
+ *
+ * Returns `null` when the comparison cannot be made — no git, no
+ * `${ORIGIN_BASE}` ref (a clone that has never fetched), no lockfile at that
+ * commit. The guard then says so and passes: unlike the header hashes, this
+ * tier is a comparison against ANOTHER commit, so an environment that has no
+ * other commit is not a failure to report.
+ */
+function baselineLockfile(): Lockfile | null {
+    try {
+        const mergeBase = execFileSync(
+            "git",
+            ["merge-base", "HEAD", ORIGIN_BASE],
+            { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+        ).trim();
+        const text = execFileSync(
+            "git",
+            ["show", `${mergeBase}:data/oracle-compiled.json`],
+            {
+                cwd: ROOT,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+                maxBuffer: 256 * 1024 * 1024,
+            }
+        );
+        return parseLockfile(text);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Offline, and the one tier that asks a question about CHANGE rather than
+ * about staleness: the committed lockfile may match the tree perfectly and
+ * still have dropped 40 cards out of the pool since the base branch.
+ */
+function checkStateRegressions(): void {
+    const baseline = baselineLockfile();
+    if (baseline === null) {
+        process.stdout.write(
+            `${GREEN}✓ oracle state regressions${RESET} ${DIM}(skipped — no ` +
+                `${ORIGIN_BASE} lockfile to compare against; fetch the base branch to enable it)${RESET}\n`
+        );
+        return;
+    }
+    const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
+    const ledger = readRegressionLedger();
+    const regressions = readyRegressions(baseline.cards, lock.cards);
+    const unacknowledged = unacknowledgedRegressions(regressions, ledger);
+    if (unacknowledged.length > 0) {
+        fail(
+            "oracle state regressions",
+            regressionMessage(unacknowledged),
+            `edit ${REGRESSION_LEDGER_PATH}`
+        );
+    }
+    const stale = staleAcknowledgements(regressions, ledger);
+    process.stdout.write(
+        `${GREEN}✓ oracle state regressions${RESET} ${DIM}(${regressions.length} ` +
+            `ready-state loss(es) vs ${ORIGIN_BASE}, all acknowledged)${RESET}\n`
+    );
+    if (stale.length > 0) {
+        process.stdout.write(
+            `${DIM}  ${stale.length} stale acknowledgement(s) in ${REGRESSION_LEDGER_PATH} ` +
+                `matching no current regression — safe to delete: ` +
+                `${stale.map((a) => a.name).join(", ")}${RESET}\n`
+        );
+    }
+}
+
 function main(): void {
     checkLockfile();
     checkRetirements();
+    checkStateRegressions();
     checkLegality();
 }
 
