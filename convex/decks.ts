@@ -462,8 +462,23 @@ export function presetSeedDecision(
           patch: Omit<PresetInsert, "slug">;
       } {
     if (!existing) return { action: "insert", row };
-    const { slug: _slug, ...patch } = row;
-    return { action: "patch", id: existing._id, patch };
+    // Listed field by field rather than spread-minus-slug: `tsc` then reds on
+    // a new column nobody threaded through here, where a rest-spread would
+    // have carried it silently — and the slug's absence is a compile-time
+    // fact, not a runtime one.
+    return {
+        action: "patch",
+        id: existing._id,
+        patch: {
+            name: row.name,
+            format: row.format,
+            description: row.description,
+            colors: row.colors,
+            cards: row.cards,
+            sideboard: row.sideboard,
+            featuredCardId: row.featuredCardId,
+        },
+    };
 }
 
 /**
