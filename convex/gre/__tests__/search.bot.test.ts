@@ -2660,7 +2660,8 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
     /** An attack decision for p1, with the given boards. */
     function attackWith(
         mine: ReturnType<typeof creature>[],
-        theirs: ReturnType<typeof creature>[]
+        theirs: ReturnType<typeof creature>[],
+        defenderLife = 20
     ): GameState {
         return makeState({
             phase: "DECLARE_ATTACKERS",
@@ -2668,7 +2669,7 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
             priorityPlayerId: "p1",
             players: [
                 makePlayer("p1", { battlefield: mine }),
-                makePlayer("p2", { battlefield: theirs }),
+                makePlayer("p2", { battlefield: theirs, life: defenderLife }),
             ],
             combat: {
                 attackerIds: [],
@@ -2704,10 +2705,16 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
     });
 
     it("does NOT fire when the swing kills a blocker", () => {
-        // 3/3 into a lone 2/2: blocked, the 2/2 dies; unblocked, 3 to the face.
+        // 3/3 into a lone 2/2 with the defender at 3 life: the predictor has it
+        // CHUMP (taking 3 is lethal, CR 704.5a), so the swing eats a creature
+        // and pushes no damage. That is productive, not wasteful — and it is the
+        // only shape in this block that exercises the `deadBlockerIds` clause,
+        // since a defender at a healthy life total simply declines the losing
+        // block and the swing is ruled in by its face damage instead.
         const state = attackWith(
             [creature(GIANT, "p1", "g")],
-            [creature(BEARS, "p2", "wall")]
+            [creature(BEARS, "p2", "wall")],
+            3
         );
         expect(isWastefulAttack(state, swing("g"))).toBe(false);
     });
