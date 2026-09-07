@@ -27,6 +27,16 @@ tool=$(printf '%s' "$payload" | jq -r '.tool_name // ""')
 cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
 
+# Branch names come from tolaria.config.json (ADR 0116) — the same file
+# scripts/lib/branches.ts reads — never from a literal in this hook. The
+# fallback keeps the rules meaningful when the hook runs against a fixture
+# tree that has no config (scripts/__tests__/hook-policy.test.ts).
+branch_cfg="${CLAUDE_PROJECT_DIR:-$cwd}/tolaria.config.json"
+base_branch=$(jq -r '.branches.base // empty' "$branch_cfg" 2>/dev/null)
+release_branch=$(jq -r '.branches.release // empty' "$branch_cfg" 2>/dev/null)
+[ -n "$base_branch" ] || base_branch=main
+[ -n "$release_branch" ] || release_branch=main
+
 deny() {
     printf '%s\n' "$1" >&2
     exit 2
@@ -100,11 +110,11 @@ adr-index, resident-context-budget, findings, project-skills), so an unfinished
 ADR or a reformatted doc here reds check:all for everybody else — 'it is only a
 document' is exactly how ~40 such commits reached main. Work in a worktree:
 
-  git worktree add ../tolaria-wt-<task> -b <branch> origin/main
+  bun run wt:new <issue#>     # issue worktree, branched from origin/$base_branch
   cd ../tolaria-wt-<task>
 
 For a documentation-only change there is a one-command lane:
-  bun run wt:docs <task>      # worktree + branch, from origin/main
+  bun run wt:docs <task>      # docs worktree + branch, from origin/$base_branch
   bun run docs:ship           # doc gate, PR, merge
 
 (Gitignored paths — .claude/telemetry, .claude/receipts — stay writable here.
@@ -304,7 +314,7 @@ segment_reaches_gate() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. A merge to `main` goes through `bun run land`. Nothing else merges.
+# 1. A merge to the base branch goes through `bun run land`. Nothing else merges.
 #
 # Merging is the orchestrator's job, behind the serial merge lock: the train
 # rebases onto the current tip and re-gates the tree that actually lands. A
@@ -378,12 +388,12 @@ fi
 # guard that reads it is a guard that blocks legitimate work at random, which is
 # how guards get switched off.
 if seg_has '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)' \
-    '(--force([[:space:]=]|$)|--force-with-lease|[[:space:]]-f([[:space:]]|$)|[[:space:]]\+[^[:space:]]*(main|master)([[:space:]]|$))' \
-    '([[:space:]:+])(main|master)([[:space:]]|$)'; then
-    deny "BLOCKED: force-push targeting the default branch.
+    "(--force([[:space:]=]|\$)|--force-with-lease|[[:space:]]-f([[:space:]]|\$)|[[:space:]]\\+[^[:space:]]*($base_branch|$release_branch|master)([[:space:]]|\$))" \
+    "([[:space:]:+])($base_branch|$release_branch|master)([[:space:]]|\$)"; then
+    deny "BLOCKED: force-push targeting \`$base_branch\` or \`$release_branch\`.
 No step in this workflow needs it, and it can destroy another session's merged
 work with no recovery. If a branch has diverged, rebase it and force-push the
-FEATURE branch (allowed) — never main."
+FEATURE branch (allowed) — never the base or release branch."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

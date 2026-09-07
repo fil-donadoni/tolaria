@@ -210,6 +210,41 @@ unattributed failure — see `references/merge-train.md` (§ "Batch-level
 `check:ui`") for the procedure, including the lane re-derivation from the
 integration's real diff.
 
+## The base branch and `release` — where the full gate went (ADR 0116)
+
+Under ADR 0110 every landing detached `health:main` after the merge: the full
+offline gate, ~13 min with 7 workers, queued on the same machine mutex as the
+lane gate. Measured over the 14 days to 2026-09-07: 16.4 landings a day,
+~213 min of mutex on health alone, 122 health runs of which 23 were RED and
+at least 10 of those were pure timeouts (`Test timed out in 5000ms` on
+tree-scanning or subprocess-spawning tests at load 21 on 8 cores — GREEN on
+the same sha at load 3). The gate's own contention manufactured ~1.4 false
+REDs a day, each one a rerun plus a fix-forward session plus every landing
+queued behind it.
+
+So the full gate moved. `tolaria.config.json` names a **base** branch
+(`staging`) and a **release** branch (`main`):
+
+| Step                 | Runs                                                              | Mutex         |
+| -------------------- | ----------------------------------------------------------------- | ------------- |
+| `bun run land <PR#>` | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min       |
+| `bun run release`    | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once |
+| `bun run health`     | the same full gate, by hand, on the base tip                      | ~13 min       |
+
+`land` refuses a PR whose base is not the base branch (the API merge lands
+wherever the PR points). `release` moves the release branch only on a GREEN
+record about exactly the tip it gated, by plain-refspec push. A RED blocks the
+release, not development: the base branch bisects its batch at release time
+(⌈log₂ N⌉ health runs for N landings, worst case).
+
+**Branch names are not literals.** `scripts/lib/branches.ts` is the one
+reader; `deny-guard.sh` reads the same JSON with `jq`;
+`scripts/__tests__/branches.test.ts` reds on `origin/<name>` written anywhere
+else under `scripts/` or `.claude/hooks/`. Worktrees come from
+`bun run wt:new <N>`, which branches from `origin/<base>` — the primary
+checkout keeps the release branch checked out, so branching from its HEAD
+would start every issue a release behind.
+
 ## Why `check:all` verifies formatting instead of repairing it
 
 `format:check`, not `format`. #1807: a gate that repairs what it checks can

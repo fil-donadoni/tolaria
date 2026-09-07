@@ -304,7 +304,42 @@ describe("deny-guard — heredoc bodies are data, not commands (#2537)", () => {
     });
 });
 
-describe("deny-guard — nothing force-pushes the default branch", () => {
+describe("deny-guard — nothing force-pushes the base or release branch", () => {
+    it("reads the branch names from tolaria.config.json, not from a literal (ADR 0116)", () => {
+        // A fixture project whose base branch is a name this hook has never
+        // heard of: the only way the deny can fire is by reading the config.
+        const projectDir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "hook-branches-")
+        );
+        fs.writeFileSync(
+            path.join(projectDir, "tolaria.config.json"),
+            JSON.stringify({
+                branches: { base: "integration", release: "prod" },
+            })
+        );
+        const env = { CLAUDE_PROJECT_DIR: projectDir };
+        for (const cmd of [
+            "git push --force origin integration",
+            "git push origin +integration",
+            "git push -f origin prod",
+            "git push --force origin HEAD:prod",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env);
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toContain("integration");
+        }
+        // And a name that is NOT in that config is a feature branch there.
+        const ok = runHook(
+            DENY_GUARD,
+            bash("git push --force origin main", mainCheckout),
+            env
+        );
+        expect(denied(ok), "main is a feature branch under this config").toBe(
+            false
+        );
+        fs.rmSync(projectDir, { recursive: true, force: true });
+    });
+
     it("denies a force-push naming main", () => {
         for (const cmd of [
             "git push --force origin main",

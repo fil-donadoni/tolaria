@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classify, parseWorktreeList } from "../worktree-gc";
+import { ORIGIN_BASE } from "../lib/branches";
 
 /**
  * Worktree GC. The decision is destructive and the asymmetry is total: keeping
@@ -31,7 +32,7 @@ describe("worktree-gc — classify", () => {
     it("keeps a branch carrying commits origin/main does not have", () => {
         const v = classify({ ...base, unmerged: 3 });
         expect(v.action).toBe("keep");
-        expect(v.reason).toMatch(/not in origin\/main/);
+        expect(v.reason).toContain(`not in ${ORIGIN_BASE}`);
     });
 
     it("removes a branch whose PR MERGED, even though ancestry still calls it unmerged", () => {

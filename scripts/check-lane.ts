@@ -55,6 +55,7 @@
 
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import { ORIGIN_BASE } from "./lib/branches";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -681,7 +682,7 @@ a flag is a hand-maintained list in disguise, and the first agent that passes
 \`--skin\` out of habit on a diff touching convex/ gets a lying green.`);
     }
     return {
-        base: baseArg ? baseArg.slice("--base=".length) : "origin/main",
+        base: baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE,
         json: argv.includes("--json"),
     };
 }

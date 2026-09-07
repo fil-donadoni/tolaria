@@ -11,6 +11,7 @@ import {
     DOC_GATE_TESTS_EXCLUDED,
     buildShipMergeCommand,
 } from "../docs-lane";
+import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches";
 import { remoteBranchDeleteStep } from "../land";
 
 /**
@@ -177,11 +178,11 @@ describe("docs-lane — the landing runs under the merge lock (#2537)", () => {
             expect(i, `missing "${needle}" in: ${cmd}`).toBeGreaterThan(-1);
             return i;
         };
-        expect(at("git rebase origin/main")).toBeGreaterThan(
-            at("git fetch origin main")
+        expect(at(`git rebase ${ORIGIN_BASE}`)).toBeGreaterThan(
+            at(`git fetch origin ${BASE_BRANCH}`)
         );
         expect(at("bun run check:docs")).toBeGreaterThan(
-            at("git rebase origin/main")
+            at(`git rebase ${ORIGIN_BASE}`)
         );
         expect(at("git push --force-with-lease")).toBeGreaterThan(
             at("bun run check:docs")

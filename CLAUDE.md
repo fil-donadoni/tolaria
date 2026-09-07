@@ -273,12 +273,12 @@ silently loads as `"me"`). Sweep: `bun run seed:backlog`.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When       | Run                                                                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Iterating  | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                                                      |
-| Pre-PR     | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim)                                                        |
-| Merge      | `bun run land <PR#>` — rebase + **`check:lane`** under the machine mutex (ADR 0110)                                                                     |
-| Post-merge | **`bun run health:main`** (detached by `land` automatically) — `check:all` + full 3-suite `test` on the merged tip; verdict via `bun run health:status` |
+| When      | Run                                                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                           |
+| Pre-PR    | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim)                             |
+| Merge     | `bun run land <PR#>` — rebase onto the base branch + **`check:lane`** under the machine mutex, merge into it (ADR 0110/0116) |
+| Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116)  |
 
 - **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
   classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
@@ -302,8 +302,9 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
 - **There is no CI: the local gates are the only gates.** Nothing may be left
-  to CI. The full offline gate runs post-merge (`health:main`, ADR 0110) —
-  running it by hand before a merge is never wrong, just not owed.
+  to CI. The full offline gate runs at release (`bun run release`, ADR 0116;
+  by hand: `bun run health`) — running it before a merge is never wrong,
+  just not owed.
 
 **CPU admission control** (`scripts/gate.ts`) — sessions share this machine:
 
@@ -327,13 +328,17 @@ lane — `bun run wt:docs <slug>` → write → `bun run docs:ship` (`check:docs
 seconds, no lock). Anything else: own worktree + full gate. Rationale and
 measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 
+**Branches are configuration** (ADR 0116): `tolaria.config.json` names the
+**base** branch (PRs target it, `land` merges into it) and the **release**
+branch (production). Only `scripts/lib/branches.ts` and `deny-guard.sh` read
+it; an `origin/<name>` literal anywhere else reds `branches.test.ts`.
+
 **Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
 mutex serialises gating; `land` extends it across rebase → `check:lane` →
-push → merge, so the tree that lands is the tree that was gated, then detaches
-the post-merge health gate (ADR 0110). It also fast-forwards the primary
-checkout's local `main` onto the merged tip — the API merge moves only
-`origin/main`, and the next worktree must not branch from a stale one. Never
-do that catch-up by hand. `deny-guard.sh` § 1 denies a
+push → merge, so the tree that lands is the tree that was gated. No health
+per landing: the full gate runs once, at `release`. It refuses a PR whose
+base is not the base branch. Worktrees come from `bun run wt:new <N>`
+(branches from `origin/<base>`). `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
 `bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
 gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
@@ -344,13 +349,11 @@ test-only `src/**` diff is exempt (ADR 0110 §4).
 bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
 baseline).
 
-**Green-main invariant (ADR 0110): `main` is green within one health cycle.**
-`land` proves the lane; `health:main` proves the rest on the merged tip and
-leaves a durable `RED` marker on failure (`bun run health:status`). A RED
-marker means fix-forward FIRST — never stack unrelated work on a red tip,
-never silence a test, "not my test" is not an exemption. (The old per-PR
-full gate did not actually keep `main` green under concurrency — see ADR
-0110 §3 for the incident.)
+**Green-at-release (ADR 0116): the release branch only moves to a
+health-proven base tip.** `land` proves the lane; `release` proves the rest
+and leaves a durable `RED` marker on failure (`bun run health:status`). RED
+means fix-forward FIRST — never stack unrelated work on a red tip, never
+silence a test, "not my test" is not an exemption.
 
 **Browser verification is a gate for UI-affecting diffs** — `bun run check:ui`,
 five viewports, `.claude/rules/chrome-debug.md`. It stays outside `check:all`

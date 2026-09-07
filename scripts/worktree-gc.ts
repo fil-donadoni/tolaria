@@ -26,6 +26,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
+import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 
 export type WorktreeFacts = {
     path: string;
@@ -75,7 +76,7 @@ export function classify(w: WorktreeFacts): Verdict {
     if (w.unmerged > 0) {
         return {
             action: "keep",
-            reason: `${w.unmerged} commit(s) not in origin/main`,
+            reason: `${w.unmerged} commit(s) not in ${ORIGIN_BASE}`,
         };
     }
     if (w.branch === null) {
@@ -133,7 +134,7 @@ if (import.meta.main) {
     const common = git(["rev-parse", "--git-common-dir"], cwd);
     const primary = common.startsWith("/") ? dirname(resolve(common)) : cwd;
 
-    git(["fetch", "origin", "main", "-q"], primary);
+    git(["fetch", "origin", BASE_BRANCH, "-q"], primary);
     const entries = parseWorktreeList(
         git(["worktree", "list", "--porcelain"], primary)
     ).filter((w) => resolve(w.path) !== resolve(primary));
@@ -178,7 +179,7 @@ if (import.meta.main) {
     for (const e of entries) {
         const dirty = git(["status", "--porcelain"], e.path) !== "";
         const unmergedOut = git(
-            ["rev-list", "--count", "origin/main..HEAD"],
+            ["rev-list", "--count", `${ORIGIN_BASE}..HEAD`],
             e.path
         );
         const facts: WorktreeFacts = {

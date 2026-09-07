@@ -14,7 +14,7 @@ import {
     buildLockedCommand,
     rebaseStep,
     remoteBranchDeleteStep,
-    primaryMainFastForwardStep,
+    primaryBranchFastForwardStep,
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
@@ -22,6 +22,7 @@ import {
     type LandFacts,
     type LockedCommandOptions,
 } from "../land";
+import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import {
     evaluateRun,
     formatResultRow,
@@ -56,6 +57,7 @@ describe("land.ts — refusal matrix", () => {
         dirty: false,
         prState: "OPEN",
         prHeadRefName: "fix/issue-2517",
+        prBaseRefName: BASE_BRANCH,
         skinReceiptInvalid: false,
         scenarioRefusal: null,
     };
@@ -64,8 +66,22 @@ describe("land.ts — refusal matrix", () => {
         expect(refusalReason(clean)).toBeNull();
     });
 
-    it("refuses on main", () => {
-        expect(refusalReason({ ...clean, branch: "main" })).toMatch(/main/);
+    it("refuses on the base branch and on the release branch", () => {
+        expect(refusalReason({ ...clean, branch: BASE_BRANCH })).toContain(
+            BASE_BRANCH
+        );
+        expect(refusalReason({ ...clean, branch: RELEASE_BRANCH })).toContain(
+            RELEASE_BRANCH
+        );
+    });
+
+    it("refuses a PR whose base is not the base branch — the API merge lands wherever the PR points (ADR 0116)", () => {
+        const r = refusalReason({ ...clean, prBaseRefName: RELEASE_BRANCH });
+        expect(r).toContain(`PR targets \`${RELEASE_BRANCH}\``);
+        expect(r).toContain(`--base ${BASE_BRANCH}`);
+        expect(
+            refusalReason({ ...clean, prBaseRefName: "feat/other" })
+        ).toContain("PR targets");
     });
 
     it("refuses a dirty tree", () => {
@@ -95,7 +111,7 @@ describe("land.ts — refusal matrix", () => {
 
     it("checks main before dirty — a session on main never needs the dirty check to fire", () => {
         expect(
-            refusalReason({ ...clean, branch: "main", dirty: true })
+            refusalReason({ ...clean, branch: BASE_BRANCH, dirty: true })
         ).toMatch(/main/);
     });
 
@@ -190,10 +206,10 @@ describe("land.ts — the locked command", () => {
 
     it("wraps fetch, rebase, the lane gate, the push and the merge in ONE string", () => {
         const cmd = buildLockedCommand(base);
-        expect(cmd).toContain("git fetch origin main");
-        expect(cmd).toContain("git rebase origin/main");
-        // The LANE gate, not the full gate (ADR 0110 §3): the full gate is
-        // the post-merge health detach asserted below.
+        expect(cmd).toContain(`git fetch origin ${BASE_BRANCH}`);
+        expect(cmd).toContain(`git rebase ${ORIGIN_BASE}`);
+        // The LANE gate, not the full gate (ADR 0110 §3, ADR 0116): the full
+        // gate runs once, at `bun run release`, never per landing.
         expect(cmd).toContain("bun run check:lane");
         expect(cmd).not.toContain("bun run check:all");
         expect(cmd).toContain("git push --force-with-lease origin");
@@ -215,9 +231,9 @@ describe("land.ts — the locked command", () => {
         const mergeIdx = cmd.indexOf("pr-merge.ts");
         const seedIdx = cmd.indexOf("seed-scenario.ts");
         expect(seedIdx).toBeGreaterThan(mergeIdx);
-        // And past the green-sha write, like the rest of the housekeeping.
+        // And past the merged-tip verification, like the rest of the housekeeping.
         expect(seedIdx).toBeGreaterThan(
-            cmd.indexOf("git rev-parse origin/main >")
+            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`)
         );
     });
 
@@ -244,15 +260,16 @@ describe("land.ts — the locked command", () => {
         expect(cmd).not.toContain("--delete-branch");
     });
 
-    it("deletes the remote and local branch refs explicitly, past the green-sha write", () => {
+    it("deletes the remote and local branch refs explicitly, past the merge and its tip verification", () => {
         const cmd = buildLockedCommand(base);
         expect(cmd).toContain("git push origin --delete 'fix/issue-2517'");
         expect(cmd).toContain("git -C '/repo' branch -D 'fix/issue-2517'");
-        const greenShaIdx = cmd.indexOf("git rev-parse origin/main >");
+        const verifyIdx = cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`);
+        expect(verifyIdx).toBeGreaterThan(cmd.indexOf("pr-merge.ts"));
         const remoteDeleteIdx = cmd.indexOf("git push origin --delete");
         const localDeleteIdx = cmd.indexOf("branch -D");
-        expect(remoteDeleteIdx).toBeGreaterThan(greenShaIdx);
-        expect(localDeleteIdx).toBeGreaterThan(greenShaIdx);
+        expect(remoteDeleteIdx).toBeGreaterThan(verifyIdx);
+        expect(localDeleteIdx).toBeGreaterThan(verifyIdx);
     });
 
     it("wraps ref cleanup so it can never gate land's exit status on a merged PR", () => {
@@ -276,7 +293,7 @@ describe("land.ts — the locked command", () => {
         );
     });
 
-    it("orders fetch/rebase < lane gate < push < merge < health detach", () => {
+    it("orders fetch/rebase < lane gate < push < merge < housekeeping", () => {
         const cmd = buildLockedCommand(base);
         const at = (needle: string) => {
             const i = cmd.indexOf(needle);
@@ -286,11 +303,11 @@ describe("land.ts — the locked command", () => {
             ).toBeGreaterThan(-1);
             return i;
         };
-        expect(at("git rebase origin/main")).toBeGreaterThan(
-            at("git fetch origin main")
+        expect(at(`git rebase ${ORIGIN_BASE}`)).toBeGreaterThan(
+            at(`git fetch origin ${BASE_BRANCH}`)
         );
         expect(at("bun run check:lane")).toBeGreaterThan(
-            at("git rebase origin/main")
+            at(`git rebase ${ORIGIN_BASE}`)
         );
         expect(at("git push --force-with-lease")).toBeGreaterThan(
             at("bun run check:lane")
@@ -298,20 +315,19 @@ describe("land.ts — the locked command", () => {
         expect(at("pr-merge.ts")).toBeGreaterThan(
             at("git push --force-with-lease")
         );
-        expect(at("health-main.ts")).toBeGreaterThan(at("pr-merge.ts"));
+        expect(at("merge --ff-only")).toBeGreaterThan(at("pr-merge.ts"));
     });
 
-    it("detaches the post-merge health gate, non-gating, with the lock hold scrubbed (ADR 0110)", () => {
+    it("never detaches the health gate and never writes green-sha — the full gate is `release`'s (ADR 0116)", () => {
+        // ADR 0110 detached `health-main.ts` after every merge: ~13 min of
+        // the heavy mutex per landing, 1.4 contention false-REDs a day. The
+        // full gate now runs once per release, on the base tip, and the
+        // health directory is written there. A landing that re-grew either
+        // step would put the per-PR cost straight back.
         const cmd = buildLockedCommand(base);
-        // After the green-sha write, in the primary checkout, backgrounded
-        // with nohup and wrapped so it can never fail the landing.
-        const healthIdx = cmd.indexOf("health-main.ts");
-        expect(healthIdx).toBeGreaterThan(
-            cmd.indexOf("git rev-parse origin/main >")
-        );
-        expect(cmd).toMatch(
-            /\(cd '\/repo' && nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun '[^']*health-main\.ts' >> '[^']*detach\.log' 2>&1 &\) \|\| true/
-        );
+        expect(cmd).not.toContain("health-main.ts");
+        expect(cmd).not.toContain("green-sha");
+        expect(cmd).not.toContain("nohup");
     });
 
     it("--no-merge gates and pushes but omits the merge and the health detach", () => {
@@ -320,14 +336,13 @@ describe("land.ts — the locked command", () => {
         expect(cmd).toContain("git push --force-with-lease");
         expect(cmd).not.toContain("pr-merge.ts");
         expect(cmd).not.toContain("worktree remove");
-        expect(cmd).not.toContain("green-sha");
-        expect(cmd).not.toContain("health-main.ts");
+        expect(cmd).not.toContain("merge --ff-only");
     });
 
     it("--keep merges but skips worktree teardown", () => {
         const cmd = buildLockedCommand({ ...base, teardown: false });
         expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2517/);
-        expect(cmd).toContain("green-sha");
+        expect(cmd).toContain(`$OLD_TIP..${ORIGIN_BASE}`);
         expect(cmd).not.toContain("worktree remove");
     });
 
@@ -336,9 +351,9 @@ describe("land.ts — the locked command", () => {
         // checkout every session branches from sits one commit behind after a
         // green land, and the next `git worktree add` starts from a stale tip.
         const cmd = buildLockedCommand(base);
-        expect(cmd).toContain(primaryMainFastForwardStep("/repo"));
+        expect(cmd).toContain(primaryBranchFastForwardStep("/repo"));
         expect(cmd.indexOf("merge --ff-only")).toBeGreaterThan(
-            cmd.indexOf("git rev-parse origin/main >")
+            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`)
         );
     });
 
@@ -346,11 +361,17 @@ describe("land.ts — the locked command", () => {
         // Unguarded, `merge --ff-only origin/main` would fast-forward whatever
         // OTHER branch is checked out there — silently moving a user's
         // work-in-progress branch. The guard is the whole safety of the step.
-        const step = primaryMainFastForwardStep("/repo");
+        const step = primaryBranchFastForwardStep("/repo");
         expect(step).toContain(
-            `[ "$(git -C '/repo' symbolic-ref --quiet --short HEAD)" = "main" ]`
+            `[ "$(git -C '/repo' symbolic-ref --quiet --short HEAD)" = "${BASE_BRANCH}" ]`
         );
-        expect(step).toContain("git -C '/repo' merge --ff-only -q origin/main");
+        expect(step).toContain(
+            `git -C '/repo' merge --ff-only -q ${ORIGIN_BASE}`
+        );
+        // The same step serves `release` for the release branch.
+        expect(primaryBranchFastForwardStep("/repo", RELEASE_BRANCH)).toContain(
+            `merge --ff-only -q origin/${RELEASE_BRANCH}`
+        );
         // Non-gating: a dirty tree in the primary checkout must not turn a
         // MERGED PR into a reported failure.
         expect(step.endsWith("; true)")).toBe(true);
@@ -374,44 +395,43 @@ describe("land.ts — the locked command", () => {
         expect(cmd).not.toContain("git push origin --delete");
     });
 
-    it("writes green-sha under the PRIMARY checkout, never the worktree", () => {
+    it("runs the post-merge housekeeping in the PRIMARY checkout, never the worktree", () => {
         const cmd = buildLockedCommand(base);
-        expect(cmd).toContain("/repo/.claude/telemetry/green-sha");
-        expect(cmd).not.toContain(
-            "/repo-issue-2517/.claude/telemetry/green-sha"
-        );
+        expect(cmd).toContain("cd '/repo' && bun");
+        expect(cmd).not.toContain("cd '/repo-issue-2517'");
     });
 
-    it("re-fetches origin/main AFTER the merge, before reading the tip for green-sha", () => {
+    it("re-fetches the base branch AFTER the merge, before verifying the tip", () => {
         const cmd = buildLockedCommand(base);
         const mergeIdx = cmd.indexOf("pr-merge.ts");
-        const refetchIdx = cmd.indexOf("git fetch origin main -q");
-        const revParseIdx = cmd.indexOf("git rev-parse origin/main >");
+        const refetchIdx = cmd.indexOf(`git fetch origin ${BASE_BRANCH} -q`);
+        const verifyIdx = cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`);
         expect(refetchIdx).toBeGreaterThan(mergeIdx);
-        expect(revParseIdx).toBeGreaterThan(refetchIdx);
+        expect(verifyIdx).toBeGreaterThan(refetchIdx);
     });
 
-    it("captures the pre-merge tip and verifies the merged tip before writing green-sha (review round 2, F5)", () => {
+    it("captures the pre-merge tip and verifies the merged tip before any housekeeping (review round 2, F5)", () => {
         // The gate mutex is machine-wide only — it says nothing about a push
         // landing from elsewhere while this session held it. `land` must
-        // prove `origin/main` advanced by exactly its own squash before it
-        // trusts the tip enough to record it as verified-green.
+        // prove the base tip advanced by exactly its own squash before it
+        // runs the post-merge housekeeping on it.
         const cmd = buildLockedCommand(base);
-        const oldTipIdx = cmd.indexOf("OLD_TIP=$(git rev-parse origin/main)");
+        const oldTipIdx = cmd.indexOf(
+            `OLD_TIP=$(git rev-parse ${ORIGIN_BASE})`
+        );
         const mergeIdx = cmd.indexOf("pr-merge.ts");
-        const refetchIdx = cmd.indexOf("git fetch origin main -q");
-        const verifyIdx = cmd.indexOf('$OLD_TIP..origin/main" | wc -l');
-        const revParseIdx = cmd.indexOf("git rev-parse origin/main >");
+        const refetchIdx = cmd.indexOf(`git fetch origin ${BASE_BRANCH} -q`);
+        const verifyIdx = cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}" | wc -l`);
+        const ffIdx = cmd.indexOf("merge --ff-only");
 
         expect(oldTipIdx).toBeGreaterThan(-1);
         expect(mergeIdx).toBeGreaterThan(oldTipIdx);
         expect(refetchIdx).toBeGreaterThan(mergeIdx);
         expect(verifyIdx).toBeGreaterThan(refetchIdx);
-        expect(revParseIdx).toBeGreaterThan(verifyIdx);
+        expect(ffIdx).toBeGreaterThan(verifyIdx);
 
-        // A failed verification must exit before the green-sha write is
-        // reached, and must never write it.
-        expect(cmd).toContain("refusing to record green-sha");
+        // A failed verification must exit before any housekeeping runs.
+        expect(cmd).toContain("refusing post-merge housekeeping");
     });
 
     it("unsets GITHUB_TOKEN as the very first thing the locked shell does (review round 3, B1)", () => {
@@ -647,7 +667,7 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
         origin = join(dir, "origin.git");
         clone = join(dir, "clone");
 
-        run(["init", "--bare", "-b", "main", origin], dir);
+        run(["init", "--bare", "-b", BASE_BRANCH, origin], dir);
         run(["clone", origin, clone], dir);
         run(["config", "user.email", "test@example.com"], clone);
         run(["config", "user.name", "Test"], clone);
@@ -655,7 +675,7 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
         writeFileSync(join(clone, "shared.txt"), "base\n");
         run(["add", "shared.txt"], clone);
         run(["commit", "-m", "base"], clone);
-        run(["push", "origin", "main"], clone);
+        run(["push", "origin", BASE_BRANCH], clone);
 
         // Feature branch diverges from main...
         run(["checkout", "-b", "feature"], clone);
@@ -663,10 +683,10 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
         run(["commit", "-am", "feature edit"], clone);
 
         // ...and main moves under it, touching the same line.
-        run(["checkout", "main"], clone);
+        run(["checkout", BASE_BRANCH], clone);
         writeFileSync(join(clone, "shared.txt"), "main change\n");
         run(["commit", "-am", "main edit"], clone);
-        run(["push", "origin", "main"], clone);
+        run(["push", "origin", BASE_BRANCH], clone);
         run(["checkout", "feature"], clone);
     });
 
@@ -701,16 +721,16 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
         // A branch that never touches shared.txt rebases cleanly even though
         // main has moved — this is the common case `land` runs through on
         // every landing, and it must not be treated as a conflict.
-        run(["checkout", "-b", "peaceful", "main"], clone);
+        run(["checkout", "-b", "peaceful", BASE_BRANCH], clone);
         writeFileSync(join(clone, "peaceful.txt"), "peaceful change\n");
         run(["add", "peaceful.txt"], clone);
         run(["commit", "-m", "peaceful edit"], clone);
 
-        run(["checkout", "main"], clone);
+        run(["checkout", BASE_BRANCH], clone);
         writeFileSync(join(clone, "unrelated.txt"), "new file\n");
         run(["add", "unrelated.txt"], clone);
         run(["commit", "-m", "unrelated"], clone);
-        run(["push", "origin", "main"], clone);
+        run(["push", "origin", BASE_BRANCH], clone);
         run(["checkout", "peaceful"], clone);
 
         const r = spawnSync("sh", ["-c", rebaseStep()], {
@@ -750,7 +770,7 @@ describe("land.ts — remoteBranchDeleteStep (issue #2877: no error: noise on an
         origin = join(dir, "origin.git");
         clone = join(dir, "clone");
 
-        run(["init", "--bare", "-b", "main", origin], dir);
+        run(["init", "--bare", "-b", BASE_BRANCH, origin], dir);
         run(["clone", origin, clone], dir);
         run(["config", "user.email", "test@example.com"], clone);
         run(["config", "user.name", "Test"], clone);
@@ -758,7 +778,7 @@ describe("land.ts — remoteBranchDeleteStep (issue #2877: no error: noise on an
         writeFileSync(join(clone, "base.txt"), "base\n");
         run(["add", "base.txt"], clone);
         run(["commit", "-m", "base"], clone);
-        run(["push", "origin", "main"], clone);
+        run(["push", "origin", BASE_BRANCH], clone);
 
         run(["checkout", "-b", "feature"], clone);
         writeFileSync(join(clone, "feature.txt"), "feature\n");

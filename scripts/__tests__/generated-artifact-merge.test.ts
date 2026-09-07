@@ -23,6 +23,7 @@ import {
     rebaseStep,
     resolveGeneratedArtifactsStep,
 } from "../land";
+import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches";
 
 /**
  * Guards for issue #3069 — "a generated artifact is regenerated, not merged".
@@ -121,7 +122,7 @@ describe("generated-artifact class — wiring", () => {
             step.indexOf("git rebase --abort")
         );
         expect(step.indexOf(clear)).toBeGreaterThan(
-            step.indexOf("git rebase origin/main")
+            step.indexOf(`git rebase ${ORIGIN_BASE}`)
         );
     });
 });
@@ -338,10 +339,10 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         mkdirSync(join(repo, "input"), { recursive: true });
         mkdirSync(join(repo, "data"), { recursive: true });
 
-        spawnSync("git", ["init", "-b", "main", repo], { cwd: dir });
+        spawnSync("git", ["init", "-b", BASE_BRANCH, repo], { cwd: dir });
         git(["config", "user.email", "test@example.com"]);
         git(["config", "user.name", "Test"]);
-        // `origin/main` is what `rebaseStep()` fetches; a self-remote keeps
+        // `origin/<base>` is what `rebaseStep()` fetches; a self-remote keeps
         // the test offline while exercising the real command.
         git(["config", "remote.origin.url", repo]);
         git([
@@ -387,7 +388,7 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
     ): { status: number | null; output: string } {
         git(["checkout", "-q", "-b", "branch"]);
         move(branchInput, "branch", "branch-value", "branch moves a field");
-        git(["checkout", "-q", "main"]);
+        git(["checkout", "-q", BASE_BRANCH]);
         move(mainInput, "main", "main-value", "main moves a field");
         git(["checkout", "-q", "branch"]);
         return rebaseOntoMain();
@@ -529,9 +530,9 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         useDriver();
         git(["checkout", "-q", "-b", "branch"]);
         move("registry", "branch", "branch-value", "branch moves a field");
-        git(["checkout", "-q", "main"]);
+        git(["checkout", "-q", BASE_BRANCH]);
         move("compiler", "main", "main-value", "main moves a field");
-        git(["checkout", "-q", "main"]);
+        git(["checkout", "-q", BASE_BRANCH]);
 
         const wt = join(dir, "linked");
         git(["worktree", "add", "-q", wt, "branch"]);
@@ -586,7 +587,7 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         writeFileSync(join(repo, "unrelated.txt"), "branch\n");
         git(["add", "-A"]);
         git(["commit", "-m", "branch touches nothing generated"]);
-        git(["checkout", "-q", "main"]);
+        git(["checkout", "-q", BASE_BRANCH]);
         move("compiler", "main", "main-value", "main moves a field");
         git(["checkout", "-q", "branch"]);
 
