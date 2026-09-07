@@ -31,9 +31,9 @@ import {
     type GameState,
     type StackItem,
     applyExistingGrantsTo,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     resolveTopOfStack,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
@@ -86,7 +86,7 @@ function withBloodMoon(landCardId: string = tropicalIsland.id): {
     });
     state.players[0].battlefield.push(moon);
     state.players[1].battlefield.push(land);
-    applySourceStaticEffects(state, moon);
+    beginApplyingStaticEffects(state, moon);
     return { state, moon, land };
 }
 
@@ -149,7 +149,7 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         });
         state.players[0].battlefield.push(moon);
         state.players[1].battlefield.push(island);
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, moon);
         expect(island.subtypes).toEqual(["Island"]);
         expect(getBasicLandMana(island)).toBe("U");
     });
@@ -170,9 +170,9 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         expect(getBasicLandMana(newLand)).toBe("R");
     });
 
-    it("reverts the land cleanly when Blood Moon leaves play (unapplySourceStaticEffects)", () => {
+    it("reverts the land cleanly when Blood Moon leaves play (stopApplyingStaticEffects)", () => {
         const { state, moon, land } = withBloodMoon();
-        unapplySourceStaticEffects(state, moon);
+        stopApplyingStaticEffects(state, moon);
         // Printed subtypes restored; original mana ability functions again.
         expect(land.subtypes).toEqual(["Forest", "Island"]);
         expect(abilitiesSuppressed(land)).toBe(false);
@@ -222,7 +222,7 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         });
         state.players[0].battlefield.push(moon);
         state.players[1].battlefield.push(sagaLand);
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, moon);
         // Urza's (a land type, CR 205.3i) is gone, replaced by Mountain.
         expect(sagaLand.subtypes).toContain("Mountain");
         expect(sagaLand.subtypes).not.toContain("Urza's");
@@ -248,7 +248,7 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
     // `"Urza's Mine"` string this PR's predecessor shipped, which never
     // matched `LAND_TYPES` and let the Urza subtype (and its now-invalid
     // mana ability) survive underneath the new Mountain type. Exercises the
-    // production path end to end: `applySourceStaticEffects` + Blood Moon on
+    // production path end to end: `beginApplyingStaticEffects` + Blood Moon on
     // an actual `CardDefinition`, not a synthetic fixture.
     it("strips a REAL Urza land's subtype down to just Mountain (issue #1883 regression)", () => {
         const { land } = withBloodMoon(urzasMine.id);

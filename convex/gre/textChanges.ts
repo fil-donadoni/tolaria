@@ -7,10 +7,13 @@
  * read-time transform, `applySubstitution`, rather than scattered across every
  * consumer.
  *
- * A substitution rides the instance as `CardInstanceState.textChanges` (see
- * `state.ts`), which gives the CR 612.6/612.7 duration for free: the field
+ * A substitution rides the instance as `CardInstanceState.textChangeHolds` (see
+ * `state.ts`), which gives the CR 612.6/612.7 duration for free: the ledger
  * lives on the instance, a zone change produces a new instance, so the effect
- * ends on a zone change with no bookkeeping.
+ * ends on a zone change with no bookkeeping. The materialised `textChanges`
+ * output this module used to read went with PRD #2064 S6b-part-2; `textChangesOf`
+ * is the derivation that replaced it, and for this layer the derivation is a
+ * sort of that one ledger.
  *
  * Enforcement (ADR 0011): the `switch` below is exhaustive over the
  * `TextChange["kind"]` union with an `assertNever` default — adding a new
@@ -31,7 +34,7 @@
  */
 
 import type { CardInstanceState } from "./state";
-import type { Color } from "../cards/types";
+import type { Color, TextChange } from "../cards/types";
 import { LANDWALK_KEYWORDS } from "./constants";
 
 function assertNever(x: never): never {
@@ -102,13 +105,59 @@ export type SubstitutedText = {
     staticAbilities: string[];
 };
 
+/** Whatever an object carries its CR 612 text changes in.
+ *
+ *  Two shapes, one per side of the wire (ADR 0082 decision 4): the ENGINE
+ *  carries the `textChangeHolds` LEDGER and derives, the CLIENT receives the
+ *  materialised `textChanges` snapshot and does not. Every consult site in this
+ *  module takes both so it can be shared across the boundary unchanged —
+ *  `gre/protection.ts` and `gre/rules.ts` are read by the click gate and by the
+ *  server's targeting alike. */
+export type TextChangeCarrier = {
+    textChangeHolds?: CardInstanceState["textChangeHolds"];
+    /** The wire's snapshot. Never present on a server-side instance. */
+    textChanges?: readonly TextChange[];
+};
+
+/** CR 612 / 613.1c — the text changes applying to an object, in CR 612.6
+ *  timestamp order.
+ *
+ *  Layer 3's whole input is the instance's own `textChangeHolds` ledger: no
+ *  `StaticEffect` kind produces a text change (`LAYER_2_5_STATIC_EFFECT_KINDS`,
+ *  `gre/layers2to5.ts`, lists none) and no producer writes a layer-3 registry
+ *  entry, so there is no source-provenance arm to walk a board for. That is why
+ *  PRD #2064 S6b-part-2 could delete the materialised `textChanges` field
+ *  without turning any of these consult sites into a board sweep: the
+ *  derivation for this layer is a sort of one array.
+ *
+ *  `deriveLayers2to5` composes the same rows into the same order and hands its
+ *  running answer to `applySubstitution` explicitly — mid-walk it must see only
+ *  the changes with an EARLIER timestamp (CR 613.7), which is the one thing
+ *  this accessor cannot say. */
+export function textChangesOf(
+    instance: TextChangeCarrier
+): readonly TextChange[] {
+    // ADR 0082 decision 4 — the WIRE keeps a materialised snapshot and the
+    // client does not re-derive, so a wire card arrives with `textChanges`
+    // already composed and no engine of its own to re-run. It is preferred when
+    // present for exactly that reason, and it is never present server-side:
+    // PRD #2064 S6b-part-2 deleted the field from `CardInstanceState`, so
+    // `expandCard` drops it and no sync writes it.
+    if (instance.textChanges) return instance.textChanges;
+    const holds = instance.textChangeHolds;
+    if (!holds || holds.length === 0) return [];
+    return [...holds].sort((a, b) => a.seq - b.seq).map((h) => h.change);
+}
+
 export function applySubstitution(
-    instance: Pick<
-        CardInstanceState,
-        "subtypes" | "staticAbilities" | "textChanges"
-    >
+    instance: Pick<CardInstanceState, "subtypes" | "staticAbilities"> &
+        TextChangeCarrier,
+    /** The CR 613.7-ordered changes, when the caller has already derived them
+     *  (`deriveLayers2to5`'s running answer). Defaults to the instance's own
+     *  ledger, which is the same list for every caller outside that walk. */
+    override?: readonly TextChange[]
 ): SubstitutedText {
-    const changes = instance.textChanges;
+    const changes = override ?? textChangesOf(instance);
     if (!changes || changes.length === 0) {
         return {
             subtypes: instance.subtypes,
@@ -167,10 +216,8 @@ export function applySubstitution(
  *  it is a land subtype on the object OR is referenced by one of its landwalk
  *  keywords (so a `forestwalk` creature offers `Forest`). */
 export function landTypesPresent(
-    instance: Pick<
-        CardInstanceState,
-        "subtypes" | "staticAbilities" | "textChanges"
-    >
+    instance: Pick<CardInstanceState, "subtypes" | "staticAbilities"> &
+        TextChangeCarrier
 ): string[] {
     const view = applySubstitution(instance);
     const present = new Set<string>();
@@ -190,11 +237,11 @@ export function landTypesPresent(
  *  Blue whose blue→red word change is active filters targets to red sources.
  *  Colorless (`"C"`) and any color with no word pass through unchanged. */
 export function substituteColorFilter(
-    instance: Pick<CardInstanceState, "textChanges">,
+    instance: TextChangeCarrier,
     color: Color
 ): Color {
-    const changes = instance.textChanges;
-    if (!changes || changes.length === 0) return color;
+    const changes = textChangesOf(instance);
+    if (changes.length === 0) return color;
     let word = COLOR_CODE_TO_WORD[color];
     if (!word) return color; // colorless source — no color word to change
     // CR 612.6 — chained changes apply in timestamp (array) order.
@@ -216,10 +263,8 @@ export function substituteColorFilter(
  *     mapped through the active changes so a second Sleight chains off the
  *     first. */
 export function colorWordsPresent(
-    instance: Pick<
-        CardInstanceState,
-        "subtypes" | "staticAbilities" | "textChanges"
-    >,
+    instance: Pick<CardInstanceState, "subtypes" | "staticAbilities"> &
+        TextChangeCarrier,
     extraColorCodes: readonly Color[] = []
 ): string[] {
     const view = applySubstitution(instance);

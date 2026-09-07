@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { getManaTapOptions, getManaTapOptionsDetailed } from "../constants";
 import { tapSourceIntoPayment } from "../../game";
-import { applySourceStaticEffects, type GameState } from "../state";
+import { beginApplyingStaticEffects, type GameState } from "../state";
 import {
     makeInstance,
     makePlayer,
@@ -33,7 +33,7 @@ function withUrborg(lands: ReturnType<typeof makeInstance>[]): {
     });
     const player = makePlayer("p1", { battlefield: [urborg, ...lands] });
     const state = makeState({ players: [player, makePlayer("p2")] });
-    applySourceStaticEffects(state, urborg);
+    beginApplyingStaticEffects(state, urborg);
     return { state, lands };
 }
 

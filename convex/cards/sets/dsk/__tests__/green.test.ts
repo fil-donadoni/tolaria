@@ -17,7 +17,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getActivatedManaAbility } from "../../../../gre/constants";
 import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     processPendingActionTriggers,
     removePermanentTo,
     resolveTopOfStack,
@@ -34,7 +34,7 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 /** p1 controls Enduring Vitality and a Grizzly Bears; p2 controls a Bears of
  *  their own (the "creatures you control" negative half).
  *
- *  The board is brought up through `applySourceStaticEffects` — the production
+ *  The board is brought up through `beginApplyingStaticEffects` — the production
  *  entry path — rather than a bare `syncLayer6`: CR 613.7a says a continuous
  *  effect from a static ability takes the timestamp of the object it is on,
  *  and layer 6 SKIPS an unstamped source outright, so a hand-planted instance
@@ -73,7 +73,7 @@ function board(): { state: GameState } {
             makePlayer("p2", { battlefield: [theirs] }),
         ],
     });
-    applySourceStaticEffects(state, vitality);
+    beginApplyingStaticEffects(state, vitality);
     return { state };
 }
 

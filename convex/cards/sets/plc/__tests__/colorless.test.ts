@@ -10,7 +10,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { getBasicLandMana } from "../../../../gre/constants";
 import {
     type GameState,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     removePermanentTo,
 } from "../../../../gre/state";
 import { applyPlayLand } from "../../../../gre/playLand";
@@ -62,7 +62,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         state.players[0].battlefield.push(urborg);
         state.players[1].battlefield.push(dual);
 
-        applySourceStaticEffects(state, urborg);
+        beginApplyingStaticEffects(state, urborg);
 
         // Printed types (Forest, Island) survive — only Swamp is appended.
         expect(dual.subtypes).toContain("Forest");
@@ -82,7 +82,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         const state: GameState = makeState({
             players: [makePlayer("p1", { battlefield: [urborg] }), player],
         });
-        applySourceStaticEffects(state, urborg);
+        beginApplyingStaticEffects(state, urborg);
 
         const played = applyPlayLand(state, player, newForest.id)!;
 
@@ -108,7 +108,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         });
         state.players[0].battlefield.push(urborg);
         state.players[1].battlefield.push(dual);
-        applySourceStaticEffects(state, urborg);
+        beginApplyingStaticEffects(state, urborg);
 
         const projected = projectPublicState(state, 1, "p2");
         const slimDual = projected.players[1].battlefield.find(
@@ -135,11 +135,11 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         });
         state.players[0].battlefield.push(urborg);
         state.players[1].battlefield.push(dual);
-        applySourceStaticEffects(state, urborg);
+        beginApplyingStaticEffects(state, urborg);
         expect(dual.subtypes).toContain("Swamp");
 
         // CR 701.21 — sacrifice is one of the "leaves the battlefield" paths
-        // that must unwind subtype-add grants (unapplySourceStaticEffects).
+        // that must unwind subtype-add grants (stopApplyingStaticEffects).
         removePermanentTo(state, urborg.id, "graveyard", "sacrifice");
 
         expect(dual.subtypes).toEqual(["Forest", "Island"]);

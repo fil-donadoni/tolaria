@@ -30,11 +30,11 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     processPendingActionTriggers,
     resolveTopOfStack,
     runDamageReplacement,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type GameState,
 } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -1709,8 +1709,8 @@ describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 1
         )!;
         expect(squadron.staticAbilities).not.toContain("flying");
         squadron.counters = { "+1/+1": 2 };
-        unapplySourceStaticEffects(state, squadron);
-        applySourceStaticEffects(state, squadron);
+        stopApplyingStaticEffects(state, squadron);
+        beginApplyingStaticEffects(state, squadron);
         expect(squadron.staticAbilities).not.toContain("flying");
     });
 

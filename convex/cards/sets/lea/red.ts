@@ -479,7 +479,7 @@ export const goblinBalloonBrigade: CardDefinition = {
 // layer 7c, 702.13c landwalk). Both halves wired via lord-style static
 // effects: pt-buff applied at stat-read time, keyword-grant applied
 // imperatively at battlefield entry/exit (see `applyExistingGrantsTo` /
-// `applySourceStaticEffects` in gre/state.ts).
+// `beginApplyingStaticEffects` in gre/state.ts).
 export const goblinKing: CardDefinition = {
     id: "5873672d-37ea-4c0f-97f3-12b74fde112d",
     rarity: "rare",

@@ -79,9 +79,9 @@ export const STATIC_FILTER_FIELDS: ReadonlySet<string> = new Set([
  *
  * `pt-buff` is recomputed at every stat read, so a filter over a permanent's
  * MUTABLE combat/tap state answers freshly each time. `keyword-grant` is not:
- * `applySourceStaticEffects` (`gre/state.ts`) writes the keyword into the
+ * `beginApplyingStaticEffects` (`gre/state.ts`) writes the keyword into the
  * target's `staticAbilities` ONCE, when the source or the target enters the
- * battlefield, and the only later sweep (`refreshCounterGatedStatics`) re-runs
+ * battlefield, and the only later sweep (`recomputeContinuousEffects`) re-runs
  * an effect solely when it declares `dependsOnCounters` or is a
  * `keyword-grant` carrying a `condition` — neither of which a compiled
  * descriptor sets.

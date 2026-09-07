@@ -9,8 +9,8 @@ import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     canPayMayPayCost,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     applyExistingGrantsTo,
     addRestrictedManaToPool,
     removePermanentTo,
@@ -85,6 +85,7 @@ import {
 } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
+import { grantedKeywordRows } from "../../../__tests__/setup";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const hallowedGround = getDefinition("4b35c0f4-5633-4ea9-9bda-daaf787aebdd");
@@ -373,7 +374,7 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
                 makePlayer("p2", { battlefield: [host] }),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         return { state, host };
     }
 
@@ -420,17 +421,17 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
                 makePlayer("p2", { battlefield: [host] }), // no snow land here
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(host.staticAbilities).toContain("first strike");
     });
 
     // `keyword-grant` is MATERIALIZED at apply time (not recomputed at every
     // read like `pt-buff`), so the "as long as" gate only stays live because
     // the real production SBA path (`checkStateBasedActions` →
-    // `refreshCounterGatedStatics`) re-runs `condition` every SBA pass —
+    // `recomputeContinuousEffects`) re-runs `condition` every SBA pass —
     // mirrors Kavu Runner's own coverage (inv/red.ts /
     // __tests__/red.test.ts). Exercised via `checkStateBasedActions` (not a
-    // direct `refreshCounterGatedStatics` call) so this test would go red if
+    // direct `recomputeContinuousEffects` call) so this test would go red if
     // that wiring were ever dropped.
     it("first strike appears when blockers are declared and disappears when combat ends (checkStateBasedActions)", () => {
         const { state, host } = setup({
@@ -494,7 +495,7 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
                 }),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         // Simulates the priority-window SBA pass CR 704.3 requires before
         // DECLARE_BLOCKERS can advance — the real path re-evaluates the
         // condition here, not just at aura-attach time.
@@ -890,7 +891,7 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
         });
         state.players[0].battlefield.push(breath, myBear);
         state.players[1].battlefield.push(oppBear);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         for (const bear of [myBear, oppBear]) {
             expect(
                 bear.grantedTriggeredAbilities?.some(
@@ -926,11 +927,11 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(breath, erne, bear);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         expect(erne.grantedTriggeredAbilities).toBeUndefined();
         expect(bear.grantedTriggeredAbilities?.length).toBe(1);
         // CR 611.2 — Breath leaving play strips the grant.
-        unapplySourceStaticEffects(state, breath);
+        stopApplyingStaticEffects(state, breath);
         expect(
             effectiveTriggeredAbilities(bear).some(
                 (a) => a.id === "breath-of-dreams-granted-cu"
@@ -952,7 +953,7 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
         });
         state.players[0].battlefield.push(breath);
         state.players[1].battlefield.push(oppBear);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         // The opponent's green creature fires the granted CU at p2's upkeep.
         const triggers = collectTriggers(state, [UPKEEP_P2_EVENT]);
         expect(
@@ -988,7 +989,7 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(breath, myBear);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         state.players[0].manaPool = { C: 1 };
         fireCU(state, myBear, "breath-of-dreams-granted-cu");
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
@@ -1013,7 +1014,7 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(breath, bear);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         // GRE: the grant is on the host and unioned into its effective triggers.
         expect(
             effectiveTriggeredAbilities(bear).some(
@@ -1046,7 +1047,7 @@ describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
             zone: "battlefield",
         });
         state.players[0].battlefield.push(breath);
-        applySourceStaticEffects(state, breath);
+        beginApplyingStaticEffects(state, breath);
         const newBear = makeInstance(balduvianBears.id, {
             id: "bear-new",
             controllerId: "p2",
@@ -1849,7 +1850,7 @@ describe("Illusionary Presence (CR 603.6a upkeep + 702.14 chosen-type landwalk)"
         advancePhase(state);
         after = state.players[0].battlefield.find((c) => c.id === "ip")!;
         expect(after.staticAbilities).not.toContain("swampwalk");
-        expect(after.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state, after)).toEqual([]);
 
         // Next upkeep: re-choose a DIFFERENT type → forestwalk, not swampwalk.
         state.activePlayerId = "p1";
@@ -1920,7 +1921,7 @@ function withTerrain(
     });
     state.players[0].battlefield.push(terrain);
     state.players[1].battlefield.push(land);
-    applySourceStaticEffects(state, terrain);
+    beginApplyingStaticEffects(state, terrain);
     return { state, terrain, land };
 }
 
@@ -1997,12 +1998,12 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
         expect(getBasicLandMana(late)).toBe("U");
     });
 
-    it("reverts the land cleanly when the terrain leaves play (unapplySourceStaticEffects)", () => {
+    it("reverts the land cleanly when the terrain leaves play (stopApplyingStaticEffects)", () => {
         const { state, terrain, land } = withTerrain(forest.id, [
             "Forest",
             "Island",
         ]);
-        unapplySourceStaticEffects(state, terrain);
+        stopApplyingStaticEffects(state, terrain);
         expect(land.subtypes).toEqual(["Forest"]);
         expect(getBasicLandMana(land)).toBe("G");
     });
@@ -2029,8 +2030,8 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
         state.players[0].battlefield.push(t1, t2);
         state.players[1].battlefield.push(land);
         // Apply in timestamp order: Forest→Island first, then Island→Swamp.
-        applySourceStaticEffects(state, t1);
-        applySourceStaticEffects(state, t2);
+        beginApplyingStaticEffects(state, t1);
+        beginApplyingStaticEffects(state, t2);
         expect(land.subtypes).toEqual(["Swamp"]);
         expect(getBasicLandMana(land)).toBe("B");
     });

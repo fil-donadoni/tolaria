@@ -777,7 +777,7 @@ export const cocoon: CardDefinition = {
             // holds a pupa counter. Predicate reads the source's counters.
             kind: "keyword-grant",
             // CR 613.5 (issue #1711) — same materialization gap as Venarian
-            // Gold, with the counters on the SOURCE: `refreshCounterGatedStatics`
+            // Gold, with the counters on the SOURCE: `recomputeContinuousEffects`
             // re-runs the whole predicate, so either side is covered.
             dependsOnCounters: true,
             applies: (target, source) =>

@@ -20,7 +20,7 @@
 // must keep working untouched.
 import { describe, expect, it } from "vitest";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
     putReanimatedSetOnBattlefield,
     resolveTopOfStack,
@@ -369,7 +369,7 @@ describe("CR 611/613 — the readers of chosenModeId are untouched", () => {
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [voice] })],
         });
-        applySourceStaticEffects(state, voice);
+        beginApplyingStaticEffects(state, voice);
         expect(voice.staticAbilities).toContain("protection from red");
         for (const other of ["white", "blue", "black", "green"]) {
             expect(voice.staticAbilities).not.toContain(

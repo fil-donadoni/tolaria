@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     getPlayer,
     type GameState,
 } from "../../../../gre/state";
@@ -45,7 +45,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, passage);
+        beginApplyingStaticEffects(state, passage);
         expect(passage.subtypes).toEqual(["Island"]);
         expect(getBasicLandMana(passage)).toBe("U");
         // The other land on the board is untouched — this is a SELF-only
@@ -65,7 +65,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, passage);
+        beginApplyingStaticEffects(state, passage);
         expect(passage.subtypes).toEqual([]);
         expect(getBasicLandMana(passage)).toBeNull();
     });
@@ -112,7 +112,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
             (c) => c.id === "passage-1"
         )!;
         expect(after.chosenSubtypes).toEqual(["Mountain"]);
-        applySourceStaticEffects(state, after);
+        beginApplyingStaticEffects(state, after);
         expect(after.subtypes).toEqual(["Mountain"]);
         expect(getBasicLandMana(after)).toBe("R");
     });
@@ -152,7 +152,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
         });
 
         expect(land.chosenSubtypes).toEqual(["Swamp"]);
-        applySourceStaticEffects(state, land);
+        beginApplyingStaticEffects(state, land);
         expect(land.subtypes).toEqual(["Swamp"]);
         expect(getBasicLandMana(land)).toBe("B");
     });
@@ -160,7 +160,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
     // Regression (#727 QA, relocated here by #2467). `setChosenSubtypes`
     // (`convex/gre/state.ts`) does two things: it writes `chosenSubtypes`, and
     // it then RE-MATERIALISES the source's continuous statics
-    // (`applySourceStaticEffects`). The second half is load-bearing because
+    // (`beginApplyingStaticEffects`). The second half is load-bearing because
     // the `subtype-set` static was already materialised when the land entered
     // — with no type chosen yet, `subtypesFor` returned null, a no-op — and
     // NOTHING runs between the submission and the next board read.
@@ -171,7 +171,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
     // Multiversal Passage is still a POST-entry `enteredTrigger`, so it is now
     // the only card the re-materialisation is load-bearing for.
     //
-    // Deliberately does NOT call `applySourceStaticEffects` itself: that call
+    // Deliberately does NOT call `beginApplyingStaticEffects` itself: that call
     // is what the cases above use, and it is exactly what masks the bug.
     it("the chosen type is live on the board immediately after the submission, with no extra materialisation pass (CR 611.2c)", () => {
         const passage = makeInstance(multiversalPassage.id, {

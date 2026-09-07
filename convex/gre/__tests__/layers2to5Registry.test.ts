@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
     removePermanentTo,
     type CardInstanceState,
@@ -29,6 +29,9 @@ import {
     LAYER_2_5_STATIC_EFFECT_KINDS,
 } from "../layers2to5";
 import { checkStateBasedActions } from "../sba";
+import { compactState, expandState } from "../serialize";
+import { deriveWireCharacteristics } from "../wireCharacteristics";
+import { textChangesOf } from "../textChanges";
 import { applyIndefiniteSupertypeMutation, hasSupertypeLive } from "../snow";
 import { evilPresence } from "../../cards/sets/lea/black";
 import type {
@@ -100,7 +103,7 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
                     makePlayer("p2", { battlefield: [bears] }),
                 ],
             });
-            applySourceStaticEffects(state, adder);
+            beginApplyingStaticEffects(state, adder);
             // p2 controls the bears, so the p1-scoped adder does not reach it.
             expect(bears.types).not.toContain("Enchantment");
 
@@ -188,7 +191,7 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
                     makePlayer("p2", { battlefield: [bears] }),
                 ],
             });
-            applySourceStaticEffects(state, adder);
+            beginApplyingStaticEffects(state, adder);
             expect(adder.staticSeq).toBeLessThan(9_999);
 
             state.continuousEffects = [
@@ -245,11 +248,14 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
         syncLayers2to5(state);
         expect(lotus.types).toEqual(["Enchantment"]);
         // The provenance rows the pre-migration primitive wrote by hand are the
-        // derivation's OUTPUT now, in the same shape.
-        expect(lotus.grantedTypes).toEqual([
+        // derivation's OUTPUT now, in the same shape — and since PRD #2064
+        // S6b-part-2 they live on the WIRE alone (ADR 0082 decision 4), so the
+        // assertion goes through the projection that produces them.
+        const wire = deriveWireCharacteristics(state).get("lotus")!;
+        expect(wire.grantedTypes).toEqual([
             { type: "Enchantment", auraId: "indefinite" },
         ]);
-        expect(lotus.suppressedTypes).toEqual([
+        expect(wire.suppressedTypes).toEqual([
             { type: "Artifact", sourceId: "indefinite" },
         ]);
     });
@@ -275,8 +281,9 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
         const bounced = state.players[0].hand.find((c) => c?.id === "lotus")!;
         expect(bounced.types).toEqual(["Artifact"]);
         expect(bounced.typeLineHolds).toBeUndefined();
-        expect(bounced.grantedTypes).toBeUndefined();
-        expect(bounced.suppressedTypes).toBeUndefined();
+        // CR 400.7 — the bases go with the object that left, so the next
+        // derivation re-captures from the freshly printed line.
+        expect(bounced.baseTypes).toBeUndefined();
     });
 });
 
@@ -339,8 +346,8 @@ describe("wire format — the derived layer-4/5 answer survives projectPublicSta
 
 describe("ADR 0082 — no CR 613 layer is derived outside the registry (PRD #2064 S4)", () => {
     it("gre/state.ts reads no `StaticEffect` kind at all: the three materialising walks are gone", () => {
-        // The bound this slice completes. `applySourceStaticEffects`,
-        // `applyExistingGrantsTo` and `unapplySourceStaticEffects` each used to
+        // The bound this slice completes. `beginApplyingStaticEffects`,
+        // `applyExistingGrantsTo` and `stopApplyingStaticEffects` each used to
         // branch on `effect.kind` and write layer-2-to-6 records onto the
         // affected permanent; every one of those branches is now a registry
         // entry read by `gre/layers2to5.ts` or `gre/layer6.ts`. A new branch
@@ -437,7 +444,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(land.subtypes).toEqual(["Swamp"]);
 
         const item = pushSpell(state, grizzlyBears.id, "p1");
@@ -478,48 +485,55 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         expect(hasSupertypeLive(land, "Snow")).toBe(false);
     });
 
-    it("B3 CR 400.7 — a pre-S4 snapshot's ledgerless effects are promoted, not deleted, by the first derivation", () => {
+    it("B3 CR 400.7 — a pre-S4 snapshot's ledgerless effects are promoted, not deleted, on LOAD", () => {
         // `gameStates` is a live per-game snapshot, so a deploy lands mid-game.
         // Every derived-output field is overwritten at the first sync; without
         // the promotion that overwrite is a DELETION.
+        //
+        // PRD #2064 S6b-part-2 moved the promotion from the first derivation to
+        // `expandState` (`gre/serialize.ts`), because the fields it reads no
+        // longer exist on `CardInstanceState` at all — the COMPACT row is the
+        // only place a pre-S4 record survives, which is also what makes the pass
+        // idempotent by construction: `compactCard` can never write one back.
         const lotus = makeInstance(blackLotus.id, {
             id: "lotus",
             controllerId: "p1",
             ownerId: "p1",
         });
-        // Exactly what the pre-S4 engine wrote for an Oko `+1`-style one-shot
-        // SET, a Magical Hack rewrite and an Arcum's Weathervane toggle.
-        lotus.types = ["Enchantment"];
-        lotus.grantedTypes = [{ type: "Enchantment", auraId: "indefinite" }];
-        lotus.suppressedTypes = [{ type: "Artifact", sourceId: "indefinite" }];
-        lotus.textChanges = [
-            { kind: "land-type", from: "Island", to: "Swamp" },
-        ];
-        lotus.grantedSupertypes = [
-            { supertype: "Snow", sourceId: "indefinite" },
-        ];
-        const state = makeState({
+        const fresh = makeState({
             players: [
                 makePlayer("p1", { battlefield: [lotus] }),
                 makePlayer("p2"),
             ],
         });
+        const compact = compactState(fresh) as {
+            players: { battlefield: Record<string, unknown>[] }[];
+        };
+        // Exactly what the pre-S4 engine wrote for an Oko `+1`-style one-shot
+        // SET, a Magical Hack rewrite and an Arcum's Weathervane toggle.
+        const row = compact.players[0].battlefield[0];
+        row.types = ["Enchantment"];
+        row.grantedTypes = [{ type: "Enchantment", auraId: "indefinite" }];
+        row.suppressedTypes = [{ type: "Artifact", sourceId: "indefinite" }];
+        row.textChanges = [{ kind: "land-type", from: "Island", to: "Swamp" }];
+        row.grantedSupertypes = [{ supertype: "Snow", sourceId: "indefinite" }];
 
+        const state = expandState(
+            compact as unknown as Record<string, unknown>
+        );
+        const loaded = state.players[0].battlefield[0];
         syncLayers2to5(state);
 
-        expect(lotus.types).toEqual(["Enchantment"]);
-        expect(lotus.textChanges).toEqual([
+        expect(loaded.types).toEqual(["Enchantment"]);
+        expect(textChangesOf(loaded)).toEqual([
             { kind: "land-type", from: "Island", to: "Swamp" },
         ]);
-        expect(hasSupertypeLive(lotus, "Snow")).toBe(true);
+        expect(hasSupertypeLive(loaded, "Snow")).toBe(true);
 
         // …and the promotion runs ONCE. The discriminating case is a CR 400.7
-        // departure: it deletes all three bases and every ledger, but leaves
-        // this engine's own derived-output rows on the instance. A migration
-        // gated on "the bases are missing" would read those rows as a pre-S4
-        // snapshot and promote them into permanent ledgers — the effect would
-        // come back from the graveyard with the card it is supposed to have
-        // died with.
+        // departure: it drops every ledger with the object that left, and a
+        // second load cannot resurrect them because the fields the promotion
+        // reads were never written back out.
         removePermanentTo(state, "lotus", "hand");
         const bounced = state.players[0].hand.find((c) => c?.id === "lotus")!;
         expect(bounced.typeLineHolds).toBeUndefined();
@@ -530,26 +544,35 @@ describe("review findings — the shapes a materialise-to-derive migration loses
             (c) => c?.id !== "lotus"
         );
         state.players[0].battlefield.push(bounced);
-        syncLayers2to5(state);
-        expect(bounced.typeLineHolds).toBeUndefined();
-        expect(bounced.supertypeHolds).toBeUndefined();
-        expect(bounced.types).toEqual(["Artifact"]);
-        expect(hasSupertypeLive(bounced, "Snow")).toBe(false);
+        const reloaded = expandState(
+            compactState(state) as unknown as Record<string, unknown>
+        );
+        const again = reloaded.players[0].battlefield.find(
+            (c) => c.id === "lotus"
+        )!;
+        syncLayers2to5(reloaded);
+        expect(again.typeLineHolds).toBeUndefined();
+        expect(again.supertypeHolds).toBeUndefined();
+        expect(again.types).toEqual(["Artifact"]);
+        expect(hasSupertypeLive(again, "Snow")).toBe(false);
     });
 
     it("B4 CR 613.7 — the layer-4 subtype base excludes a subtype a live ADD put there (issue #1715)", () => {
         // A base that contained the add would make it IMMORTAL: it would
         // survive its own source leaving play, because the derivation replays
         // the add from its own record on top of a base that already has it.
+        //
+        // Two provenances, one rule. The LEDGER one is what a live engine
+        // writes (`subtypeAddHolds`); the pre-S4 `grantedSubtypesAdd` row is
+        // reconstructed on LOAD (PRD #2064 S6b-part-2), which is the only moment
+        // it exists.
         const land = makeInstance(mountain.id, {
             id: "land",
             controllerId: "p1",
             ownerId: "p1",
         });
         land.subtypes = ["Mountain", "Swamp"];
-        land.grantedSubtypesAdd = [
-            { subtype: "Swamp", auraId: "indefinite", seq: 5 },
-        ];
+        land.subtypeAddHolds = [{ subtype: "Swamp", seq: 5 }];
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [land] }),
@@ -558,12 +581,38 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         });
         syncLayers2to5(state);
         expect(land.baseSubtypes).toEqual(["Mountain"]);
+
+        const legacy = makeInstance(mountain.id, {
+            id: "legacy",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const compact = compactState(
+            makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [legacy] }),
+                    makePlayer("p2"),
+                ],
+            })
+        ) as { players: { battlefield: Record<string, unknown>[] }[] };
+        const row = compact.players[0].battlefield[0];
+        row.subtypes = ["Mountain", "Swamp"];
+        row.grantedSubtypesAdd = [
+            { subtype: "Swamp", auraId: "indefinite", seq: 5 },
+        ];
+        const loadedState = expandState(
+            compact as unknown as Record<string, unknown>
+        );
+        const loaded = loadedState.players[0].battlefield[0];
+        syncLayers2to5(loadedState);
+        expect(loaded.baseSubtypes).toEqual(["Mountain"]);
+        expect(loaded.subtypes).toEqual(["Mountain", "Swamp"]);
     });
 
     it("B5 — clearing the layer-4 base clears the field that outranks it", () => {
-        // `layer4SubtypeBase` falls back to `printedSubtypes` BEFORE `subtypes`,
-        // so a stale one left behind would silently undo the very rewrite
-        // `clearLayers2to5Base` exists to admit.
+        // `layer4SubtypeBase` falls back to `subtypes` — the derivation's own
+        // answer — when no base is captured, so a stale base left behind would
+        // silently undo the very rewrite `clearLayers2to5Base` exists to admit.
         const land = makeInstance(mountain.id, {
             id: "land",
             controllerId: "p1",
@@ -590,7 +639,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
             },
         ];
         syncLayers2to5(state);
-        expect(land.printedSubtypes).toEqual(["Mountain"]);
+        expect(land.baseSubtypes).toEqual(["Mountain"]);
 
         // A CR 614.12c body choice rewriting the object's OWN subtype line.
         land.subtypes = [...land.subtypes, "Shapeshifter"];

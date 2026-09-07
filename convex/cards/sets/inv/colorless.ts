@@ -457,7 +457,7 @@ export const sparringGolem: CardDefinition = {
 // field (issue #1095, generalize-don't-add; shipped on Kavu Runner,
 // `inv/red.ts`) is exactly this shape: a board-state gate evaluated once per
 // source against the whole board, re-evaluated every SBA pass by
-// `refreshCounterGatedStatics` (`gre/state.ts`) so the keyword appears/
+// `recomputeContinuousEffects` (`gre/state.ts`) so the keyword appears/
 // disappears as the controller's basics come and go. Each of the three
 // clauses is its own `keyword-grant` entry gated on `controlsBasicLandType`,
 // the same "as long as you control a <land type>" predicate the two P/T

@@ -36,7 +36,7 @@ import {
 import {
     getManaSubstitutions,
     isManaCostCovered,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type GameState,
     type PlayerState,
     type PendingCast,
@@ -245,7 +245,7 @@ describe("autoTapForPayment under Blood Moon (#419)", () => {
             pendingCast,
         });
         // Apply Blood Moon's continuous effects to the board.
-        applySourceStaticEffects(state, state.players[1].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[1].battlefield[0]);
         return { state, player: state.players[0] };
     }
 
@@ -314,7 +314,7 @@ describe("autoTapForPayment under Urborg (multi-subtype lands)", () => {
             pendingCast,
         });
         // Apply Urborg's continuous effects: every land also becomes a Swamp.
-        applySourceStaticEffects(state, state.players[1].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[1].battlefield[0]);
         return { state, player: state.players[0] };
     }
 

@@ -1055,7 +1055,7 @@ export const breathOfDarigaaz: CardDefinition = {
 // which Skittish Kavu above already uses for the IDENTICAL "as long as no
 // opponent controls a white or blue creature" gate, just granting `haste`
 // here instead of a +1/+1 buff. Re-evaluated every SBA pass by
-// `refreshCounterGatedStatics` (`gre/state.ts`) so haste appears/disappears
+// `recomputeContinuousEffects` (`gre/state.ts`) so haste appears/disappears
 // as the opponent's board changes, not just once at ETB.)
 export const kavuRunner: CardDefinition = {
     id: "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",

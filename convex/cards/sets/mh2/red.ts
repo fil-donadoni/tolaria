@@ -298,7 +298,7 @@ export const ragavanNimblePilferer: CardDefinition = {
 //   - +2/+2 is `pt-buff` with `condition: hasDelirium` (CR 611.2c, the
 //     Carnage Interpreter shape, `clu/multicolor.ts`).
 //   - flying is `keyword-grant` with `condition: hasDelirium` — a MATERIALIZED
-//     kind re-run by `refreshCounterGatedStatics` on every stable transition
+//     kind re-run by `recomputeContinuousEffects` on every stable transition
 //     (issue #1095), so the keyword appears/disappears live as the graveyard
 //     crosses the four-type threshold.
 //   - "attacks each combat if able" is `attack-requirement` with the NEW

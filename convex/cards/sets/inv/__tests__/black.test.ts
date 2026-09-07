@@ -34,8 +34,8 @@ import {
 import {
     resolveTopOfStack,
     getCostModifiers,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
 } from "../../../../gre/state";
 import {
     applyNameCardSubmit,
@@ -817,8 +817,8 @@ describe("Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 
     // Revert-sensitive regressions (issue #1716): before the fix, the
     // `keyword-grant` gated on `(target.counters?.["+1/+1"] ?? 0) >= 2` — an
     // exact proxy for "was kicked" ONLY at the instant `entersWith` placed the
-    // counters. Forcing a re-materialization (`unapplySourceStaticEffects` +
-    // `applySourceStaticEffects`, what `refreshCounterGatedStatics` does
+    // counters. Forcing a re-materialization (`stopApplyingStaticEffects` +
+    // `beginApplyingStaticEffects`, what `recomputeContinuousEffects` does
     // internally for any counter-dependent grant) exposes the proxy's two
     // failure modes directly against the real production apply path — these
     // fail if the `applies` predicate is reverted to read `target.counters`.
@@ -831,8 +831,8 @@ describe("Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 
         // Simulate an unrelated pump spell (one of 40+ catalogue "+1/+1"
         // sources) landing 2 counters on the never-kicked Duskwalker post-ETB.
         dw.counters = { "+1/+1": 2 };
-        unapplySourceStaticEffects(state, dw);
-        applySourceStaticEffects(state, dw);
+        stopApplyingStaticEffects(state, dw);
+        beginApplyingStaticEffects(state, dw);
         expect(dw.staticAbilities).not.toContain("fear");
     });
 
@@ -844,8 +844,8 @@ describe("Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 
         expect(dw.staticAbilities).toContain("fear");
         // Simulate -1/-1 counter annihilation wiping the +1/+1 counters.
         delete dw.counters?.["+1/+1"];
-        unapplySourceStaticEffects(state, dw);
-        applySourceStaticEffects(state, dw);
+        stopApplyingStaticEffects(state, dw);
+        beginApplyingStaticEffects(state, dw);
         expect(dw.staticAbilities).toContain("fear");
     });
 
@@ -1050,7 +1050,7 @@ describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 
             ],
         });
 
-        applySourceStaticEffects(state, well);
+        beginApplyingStaticEffects(state, well);
 
         expect(land.subtypes).toContain("Plains");
         expect(land.subtypes).toContain("Swamp");
@@ -1074,7 +1074,7 @@ describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, well);
+        beginApplyingStaticEffects(state, well);
 
         const projected = projectPublicState(state, 1, "p1");
         const slimLand = projected.players[0].battlefield.find(
@@ -1102,10 +1102,10 @@ describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, well);
+        beginApplyingStaticEffects(state, well);
         expect(land.subtypes).toContain("Swamp");
 
-        unapplySourceStaticEffects(state, well);
+        stopApplyingStaticEffects(state, well);
 
         expect(land.subtypes).toEqual(["Plains"]);
         expect(land.subtypes).not.toContain("Swamp");

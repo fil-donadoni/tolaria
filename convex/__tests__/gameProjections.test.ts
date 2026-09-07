@@ -630,7 +630,10 @@ describe("projection forwards every transient battlefield field", () => {
             // below). The residue-borne rows kept here are the half that stays
             // on the instance until S6, so the spread-not-enumeration invariant
             // this suite guards is still what is being asserted.
-            grantedStaticAbilities: [{ ability: "flying" }],
+            //
+            // PRD #2064 S6b-part-2 deleted `grantedStaticAbilities` from
+            // `CardInstanceState` outright — it is WIRE output now — so only its
+            // activated twin is enriched here.
             grantedActivatedAbilities: [
                 {
                     sourceCardId: "src",
@@ -699,7 +702,6 @@ describe("projection forwards every transient battlefield field", () => {
         expect(card.attachedTo).toBe("host-id");
         expect(card.temporaryPTMods).toEqual([{ power: 1, toughness: 0 }]);
         expect(card.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
-        expect(card.grantedStaticAbilities).toEqual([{ ability: "flying" }]);
         expect(card.grantedActivatedAbilities).toEqual([
             { sourceCardId: "src", abilityId: "ability" },
         ]);

@@ -31,7 +31,7 @@ import {
     type PublicGameState,
 } from "../../gameProjections";
 import type { GameState } from "../state";
-import { applySourceStaticEffects } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import {
     validateMinimumBlockers,
     getRequiredBlockerAssignments,
@@ -299,7 +299,7 @@ describe("menace — Goblin War Drums grant through the confirm-blockers seam", 
         // ETB-time grant: War Drums pushes "menace" onto the controller's
         // creatures (replicated here for a hand-built board, as game.ts does on
         // PERMANENT_ENTERED).
-        applySourceStaticEffects(state, drums);
+        beginApplyingStaticEffects(state, drums);
         return { state };
     }
 

@@ -22,7 +22,7 @@ import {
 } from "../../../__tests__/setup";
 import {
     applyControlChange,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     emitCardDrawn,
     processPendingActionTriggers,
     putReanimatedSetOnBattlefield,
@@ -755,7 +755,7 @@ describe("Natural Emergence ({2}{R}{G} — lands you control are 2/2 first strik
                 }),
             ],
         });
-        applySourceStaticEffects(state, ne);
+        beginApplyingStaticEffects(state, ne);
         return { state, land };
     }
 
@@ -824,7 +824,7 @@ describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and a
                 }),
             ],
         });
-        applySourceStaticEffects(state, crusade);
+        beginApplyingStaticEffects(state, crusade);
         return { state, goblin };
     }
 
@@ -863,7 +863,7 @@ describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and a
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, crusade);
+        beginApplyingStaticEffects(state, crusade);
         expect(getEffectivePower(state, bear)).toBe(2); // printed 2/2, unbuffed
         expect(bear.subtypes).not.toContain("Zombie");
     });

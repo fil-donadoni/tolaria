@@ -23,7 +23,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
  *  fabricated `0`, which is ≤ N for every N ≥ 0 and would silently read as
  *  SATISFIED. Freshness across the whole window a spell sits on the stack is
  *  an invariant of persistence itself: `saveGameState` (`convex/game.ts`)
- *  re-runs `refreshCounterGatedStatics` immediately before every write
+ *  re-runs `recomputeContinuousEffects` immediately before every write
  *  (issue #1379), so a hand shrinking via `announceCast` re-materializes this
  *  gate before either client sees the position. Proof:
  *  `gre/__tests__/keywordGrantHandSizeCondition.test.ts`. */

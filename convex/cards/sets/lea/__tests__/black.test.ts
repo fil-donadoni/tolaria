@@ -11,8 +11,8 @@ import {
     removePermanentTo,
     resolveTopOfStack,
     processPendingActionTriggers,
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
     normalizeManaCost,
     getCostModifiers,
     applyCostModifiers,
@@ -1423,10 +1423,10 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
         });
         // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
         // and a source's continuous effects begin applying when the engine
-        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // stamps it (`beginApplyingStaticEffects`, run on every battlefield entry
         // path). A fixture that places the source directly has to run that step
         // itself, exactly as an ETB would.
-        applySourceStaticEffects(state, master);
+        beginApplyingStaticEffects(state, master);
         pushSpell(state, scatheZombies.id, "p1");
         resolveTopOfStack(state);
         const newZ = state.players[0].battlefield.find(
@@ -1448,10 +1448,10 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
         });
         // CR 613.7a (PRD #2064 S3) — layer 6 is derived from the live board,
         // and a source's continuous effects begin applying when the engine
-        // stamps it (`applySourceStaticEffects`, run on every battlefield entry
+        // stamps it (`beginApplyingStaticEffects`, run on every battlefield entry
         // path). A fixture that places the source directly has to run that step
         // itself, exactly as an ETB would.
-        applySourceStaticEffects(state, master);
+        beginApplyingStaticEffects(state, master);
         expect(zombie.staticAbilities).toContain("swampwalk");
         expect(zombie.grantedActivatedAbilities).toHaveLength(1);
         removePermanentTo(state, "master", "graveyard");
@@ -2912,10 +2912,10 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
         });
         aura.attachedTo = mtn.id;
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(mtn.subtypes).toEqual(["Swamp"]);
-        expect(mtn.printedSubtypes).toEqual(["Mountain"]);
+        expect(mtn.baseSubtypes).toEqual(["Mountain"]);
     });
 
     it("host produces {B} after subtype change (mana sync)", () => {
@@ -2933,7 +2933,7 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
         });
         aura.attachedTo = mtn.id;
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         expect(getBasicLandMana(mtn)).toBe("B");
     });
@@ -2952,16 +2952,16 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
         });
         aura.attachedTo = mtn.id;
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Swamp"]);
 
-        unapplySourceStaticEffects(state, aura);
+        stopApplyingStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Mountain"]);
         // PRD #2064 S4 — `printedSubtypes` is no longer a LAZY snapshot taken
         // when a `subtype-set` first fires and dropped when the last one
         // leaves: it is the layer-4 BASE (`baseSubtypes`), captured at the
         // first derivation and true whether or not anything is applying.
-        expect(mtn.printedSubtypes).toEqual(["Mountain"]);
+        expect(mtn.baseSubtypes).toEqual(["Mountain"]);
         expect(mtn.baseSubtypes).toEqual(["Mountain"]);
         expect(getBasicLandMana(mtn)).toBe("R");
     });
@@ -2982,7 +2982,7 @@ describe("Evil Presence ({B} — aura: enchanted land is a Swamp)", () => {
         });
         aura.attachedTo = mtn.id;
         state.players[1].battlefield.push(aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         const projected = projectPublicState(state, 1, "p1");
         const projMtn = projected.players[0].battlefield.find(

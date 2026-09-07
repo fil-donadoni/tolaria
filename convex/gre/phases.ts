@@ -3014,7 +3014,7 @@ function tickAllDurations(state: GameState): void {
     // Granted triggered abilities with a duration (CR 611.2a — Rapid Fire's
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
     // `auraId` and no `duration`; they're managed by the aura's lifetime
-    // (unapplySourceStaticEffects) and pass through this purge unchanged.
+    // (stopApplyingStaticEffects) and pass through this purge unchanged.
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.grantedTriggeredAbilities?.length) continue;
@@ -3034,7 +3034,7 @@ function tickAllDurations(state: GameState): void {
     // Granted activated abilities with a duration (CR 611.2a — Touch of Vitae's
     // "gains '{0}: Untap this creature. Activate only once.' until end of
     // turn"). Aura-sourced grants carry an `auraId` and no `duration`; they're
-    // managed by the aura's lifetime (unapplySourceStaticEffects) and pass
+    // managed by the aura's lifetime (stopApplyingStaticEffects) and pass
     // through this purge unchanged. Nothing to splice out of `staticAbilities`
     // — a granted activated ability lives only in `grantedActivatedAbilities`.
     for (const p of state.players) {

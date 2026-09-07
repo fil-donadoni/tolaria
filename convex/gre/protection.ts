@@ -82,7 +82,8 @@ import type { CardInstanceState } from "./state";
 import type { CardSupertype, CardType, Color } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { hasSupertypeLive } from "../cards/snowReads";
-import { applySubstitution } from "./textChanges";
+import { applySubstitution, textChangesOf } from "./textChanges";
+import type { TextChangeCarrier } from "./textChanges";
 
 const PROTECTION_PREFIX = "protection from ";
 
@@ -228,27 +229,30 @@ export function isProtectionAbility(ability: string): boolean {
  *  text changes (CR 612.6 — Sleight of Mind). Shared by every quality family
  *  so all of them see the same rewritten text. */
 function liveProtectionAbilities(
-    card: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+    card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
+        TextChangeCarrier
 ): readonly string[] {
     // Fast path: no text changes → the raw abilities (zero-copy). The `?? []`
     // is load-bearing on the CLIENT: `CardInstance` (`src/types/game.ts`)
     // types `staticAbilities` as OPTIONAL, and the wire projection omits it
     // entirely for a permanent that has none — an unguarded read crashes the
     // click gate on every vanilla creature.
-    return card.textChanges?.length
-        ? applySubstitution({
-              subtypes: card.subtypes ?? [],
-              staticAbilities: card.staticAbilities ?? [],
-              textChanges: card.textChanges,
-          }).staticAbilities
+    const changes = textChangesOf(card);
+    return changes.length
+        ? applySubstitution(
+              {
+                  subtypes: card.subtypes ?? [],
+                  staticAbilities: card.staticAbilities ?? [],
+              },
+              changes
+          ).staticAbilities
         : (card.staticAbilities ?? []);
 }
 
 /** True if `card` carries the CR 702.16k player-quality protection ability. */
 export function hasProtectionFromEachOpponent(
-    card: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+    card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
+        TextChangeCarrier
 ): boolean {
     return liveProtectionAbilities(card).includes(
         PROTECTION_FROM_EACH_OPPONENT
@@ -264,10 +268,10 @@ export function hasProtectionFromEachOpponent(
  *  sources are never barred — the protection is from OPPONENTS, so the
  *  controller's own Auras, blockers, damage and targeting all still work. */
 export function isProtectedFromController(
-    target: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<
-            Pick<CardInstanceState, "subtypes" | "textChanges" | "controllerId">
-        >,
+    target: Partial<
+        Pick<CardInstanceState, "staticAbilities" | "subtypes" | "controllerId">
+    > &
+        TextChangeCarrier,
     sourceControllerId: string | undefined
 ): boolean {
     if (!sourceControllerId || !target.controllerId) return false;
@@ -344,8 +348,8 @@ export function parseProtectionQuality(
  *  from blue"). Unparseable protection strings are dropped here — the
  *  catalogue guard is what stops one ever reaching the battlefield. */
 export function getProtectionQualities(
-    card: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+    card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
+        TextChangeCarrier
 ): ProtectionQuality[] {
     const result: ProtectionQuality[] = [];
     for (const ability of liveProtectionAbilities(card)) {
@@ -379,8 +383,8 @@ function sameQuality(a: ProtectionQuality, b: ProtectionQuality): boolean {
  *  colour-only read for the text-change machinery and for card tests; the
  *  quality-agnostic predicate every consult site uses is `isProtectedFrom`. */
 export function getProtectedColors(
-    card: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<Pick<CardInstanceState, "subtypes" | "textChanges">>
+    card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
+        TextChangeCarrier
 ): Color[] {
     const result: Color[] = [];
     for (const quality of getProtectionQualities(card)) {
@@ -399,10 +403,10 @@ export function getProtectedColors(
  *  `source` is a REQUIRED, fully-populated `ProtectionSourceView` — see that
  *  type's doc for why nothing on it is optional. */
 export function isProtectedFrom(
-    target: Pick<CardInstanceState, "staticAbilities"> &
-        Partial<
-            Pick<CardInstanceState, "subtypes" | "textChanges" | "controllerId">
-        >,
+    target: Partial<
+        Pick<CardInstanceState, "staticAbilities" | "subtypes" | "controllerId">
+    > &
+        TextChangeCarrier,
     source: ProtectionSourceView
 ): boolean {
     for (const quality of getProtectionQualities(target)) {

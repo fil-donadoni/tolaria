@@ -2029,7 +2029,7 @@ export const sleightOfMindIce: CardPrint = {
 // `countSnowLands` (`cards/snowReads.ts`, the read `arcticFoxes` already uses
 // for the identical "controls a snow land" clause) reads the aura
 // controller's OWN battlefield for "you control a snow land" (CR 205.4a).
-// `refreshCounterGatedStatics` re-runs this every SBA pass (`gre/sba.ts`,
+// `recomputeContinuousEffects` re-runs this every SBA pass (`gre/sba.ts`,
 // `gre/state.ts`), so first strike is materialized into the host's
 // `staticAbilities` the moment blockers are declared and stripped back out
 // once combat ends — combat damage ordering (`dealsDamageIn`,

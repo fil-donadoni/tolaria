@@ -68,7 +68,7 @@ const DOES_NOT_UNTAP_MARKER = "does-not-untap";
  * instance-level `staticAbilities` read?
  *
  * A `keyword-grant` writes its keyword onto the TARGET INSTANCE's
- * `staticAbilities` (`applySourceStaticEffects`, `gre/state.ts`). That is
+ * `staticAbilities` (`beginApplyingStaticEffects`, `gre/state.ts`). That is
  * enough for a keyword the engine honours by reading that array —
  * `haste`, `flying`, `lifelink`. It is NOT enough for one whose implementation
  * is an ADR 0054 expander: `expandKeywordTriggers` reads

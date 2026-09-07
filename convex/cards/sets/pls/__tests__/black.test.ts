@@ -35,7 +35,7 @@ import {
     emitCardDrawn,
     getPlayer,
     getCostModifiers,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -722,10 +722,10 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-gra
         expect(getEffectivePower(state, host)).toBe(5);
         expect(getEffectiveToughness(state, host)).toBe(2);
         // color-grant is a materialized (`grantedColors`) effect, applied via
-        // `applySourceStaticEffects` (Kormus Bell's own precedent) rather than
+        // `beginApplyingStaticEffects` (Kormus Bell's own precedent) rather than
         // read live. Additive (tracked-by #2009): the host is BOTH white
         // (printed) and black (granted), not black-only.
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(
             expect.arrayContaining(["W", "B"])
         );

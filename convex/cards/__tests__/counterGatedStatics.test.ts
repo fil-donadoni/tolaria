@@ -9,7 +9,7 @@
 //   - MATERIALIZED kinds (`keyword-grant`, `activated-grant`,
 //     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
 //     `supertype-set`, `color-grant`, `keyword-remove`, `ability-loss`) are
-//     WRITTEN ONTO the target instance once, by `applySourceStaticEffects`,
+//     WRITTEN ONTO the target instance once, by `beginApplyingStaticEffects`,
 //     when the source or the target enters the battlefield. Nothing re-runs
 //     them afterwards.
 //
@@ -23,7 +23,7 @@
 // The one legitimate exception is a predicate whose counter read is a PROXY
 // for a fact that is itself one-shot — see `KICKER_PROXY_ALLOWLIST` below.
 //
-// The fix is `refreshCounterGatedStatics` (`gre/state.ts`), which re-runs the
+// The fix is `recomputeContinuousEffects` (`gre/state.ts`), which re-runs the
 // materialization for every battlefield source whose static effects DECLARE
 // `dependsOnCounters: true` (`CounterGatedStatic`, `cards/types.ts`). The
 // declaration is the only thing an author must remember — this guard is what
@@ -48,14 +48,14 @@ import type { CardDefinition, StaticEffect } from "../types";
  *     restriction/requirement/guard checks, cost modifiers). A counter-gated
  *     predicate is live for free; no declaration needed.
  *   - `materialized` — WRITTEN ONTO the target instance by
- *     `applySourceStaticEffects` and spliced back out by
- *     `unapplySourceStaticEffects` (`gre/state.ts`). These are exactly the
- *     kinds `refreshCounterGatedStatics` can re-run, so a counter-gated
+ *     `beginApplyingStaticEffects` and spliced back out by
+ *     `stopApplyingStaticEffects` (`gre/state.ts`). These are exactly the
+ *     kinds `recomputeContinuousEffects` can re-run, so a counter-gated
  *     predicate MUST declare `dependsOnCounters: true`.
  *   - `materialized-unrefreshable` — written onto state by a DIFFERENT path
- *     that `refreshCounterGatedStatics` does not re-run (`control-change` is
+ *     that `recomputeContinuousEffects` does not re-run (`control-change` is
  *     materialized by `applyAuraControlChange`, which pushes onto the host's
- *     `controlChanges` stack; `applySourceStaticEffects` has no branch for
+ *     `controlChanges` stack; `beginApplyingStaticEffects` has no branch for
  *     it). Declaring `dependsOnCounters` on one of these would be a no-op, so
  *     a counter-gated instance is an engine gap, not an authoring slip — see
  *     the dedicated test below. */
@@ -89,7 +89,7 @@ const KIND_MATERIALIZATION: Record<
     "combat-damage-unpreventable": "recomputed",
     "cast-restriction": "recomputed",
     "cast-timing-lock": "recomputed",
-    // --- materialized by applySourceStaticEffects -----------------------
+    // --- materialized by beginApplyingStaticEffects -----------------------
     "keyword-grant": "materialized",
     "activated-grant": "materialized",
     "triggered-grant": "materialized",
@@ -105,7 +105,7 @@ const KIND_MATERIALIZATION: Record<
     "control-change": "materialized-unrefreshable",
 };
 
-/** The kinds `refreshCounterGatedStatics` can actually re-run. Derived from
+/** The kinds `recomputeContinuousEffects` can actually re-run. Derived from
  *  the exhaustive census above — never hand-listed. */
 const MATERIALIZED_KINDS: ReadonlySet<string> = new Set(
     Object.entries(KIND_MATERIALIZATION)
@@ -195,7 +195,7 @@ function findUndeclaredOffenders(
             offenders.push(
                 `${card.name} (${card.id}) — "${effect.kind}" predicate reads counters ` +
                     `but does not declare \`dependsOnCounters: true\`. Without it ` +
-                    `\`refreshCounterGatedStatics\` never re-evaluates the grant and the ` +
+                    `\`recomputeContinuousEffects\` never re-evaluates the grant and the ` +
                     `clause ships inert.`
             );
         }
@@ -222,7 +222,7 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
         // `color-grant`, not `color` — the kind string the guard originally
         // listed did not exist, so every counter-gated colour grant walked
         // straight through. Materialized via `grantedColors` in
-        // `applySourceStaticEffects` / `unapplySourceStaticEffects`.
+        // `beginApplyingStaticEffects` / `stopApplyingStaticEffects`.
         const card = fakeCard("Chromatic Chrysalis", {
             kind: "color-grant",
             colors: ["blue"],
@@ -355,7 +355,7 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
 
     it("no card counter-gates a `control-change` (the refresh cannot reach it)", () => {
         // `control-change` is materialized by `applyAuraControlChange`, NOT by
-        // `applySourceStaticEffects` — so `refreshCounterGatedStatics`
+        // `beginApplyingStaticEffects` — so `recomputeContinuousEffects`
         // (unapply + re-apply) has no branch that would re-evaluate it and
         // `dependsOnCounters` on one would be a silent no-op. Nothing in the
         // catalogue does this today; if a card ever needs it, the refresh has

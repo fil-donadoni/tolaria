@@ -26,7 +26,7 @@ import { describe, it, expect } from "vitest";
 import { applyMoveInSearch } from "../search";
 import { applyMoveForSearch } from "../applyMove";
 import type { Move } from "../moves";
-import { applySourceStaticEffects } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 import {
     makeInstance,
@@ -97,7 +97,7 @@ function makeCombatState(): {
             }),
         ],
     });
-    applySourceStaticEffects(state, aura);
+    beginApplyingStaticEffects(state, aura);
     expect(blocker.staticAbilities).not.toContain("first strike");
     return { state, blocker };
 }

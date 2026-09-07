@@ -7,7 +7,7 @@ import {
     TRANSIENT_KEYS,
 } from "../serialize";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     resetBattlefieldTransientState,
 } from "../state";
 import type { GameState, StackItem } from "../state";
@@ -330,6 +330,11 @@ describe("gameStates serialize round-trip", () => {
             subtypes: ["Swamp"],
             restoreSubtypes: ["Forest"],
             duration: { phase: "untap", playerId: "p2" },
+            // CR 613.7 — every layer-2-to-5 ledger row carries the stamp its
+            // producer minted (`setSubtypesUntil`). An undated row is a pre-slice
+            // one, and `expandState` stamps it on load (PRD #2064 S6b-part-2),
+            // so an undated fixture would not round-trip to itself.
+            seq: 7,
         };
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -337,6 +342,7 @@ describe("gameStates serialize round-trip", () => {
         expect(got.temporarySubtypeChange).toEqual({
             subtypes: ["Swamp"],
             restoreSubtypes: ["Forest"],
+            seq: 7,
             duration: { phase: "untap", playerId: "p2" },
         });
         // Absent when no timed change is active.
@@ -360,6 +366,7 @@ describe("gameStates serialize round-trip", () => {
         permanent.indefiniteSubtypeSet = {
             restoreSubtypes: ["Plains"],
             subtypes: ["Forest"],
+            seq: 7,
         };
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -367,6 +374,7 @@ describe("gameStates serialize round-trip", () => {
         expect(got.indefiniteSubtypeSet).toEqual({
             restoreSubtypes: ["Plains"],
             subtypes: ["Forest"],
+            seq: 7,
         });
         // Absent when no indefinite set is active.
         const empty = expandState(compactState(freshState()));
@@ -1070,32 +1078,17 @@ describe("gameStates serialize round-trip", () => {
         lion.canAttackDespiteDefenderThisTurn = true;
         lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
-        // PRD #2064 S6b — only `auraId` rows survive here: this array is pure
-        // layer-6 DERIVED OUTPUT now. The duration-scoped grant that used to sit
-        // beside them (Wall of Caltrops' EOT banding, #495) is a registry entry,
-        // and a state persisted with the old shape is migrated — see
-        // "migrates a pre-S6b layer-6 ledger into the registry" below.
-        lion.grantedStaticAbilities = [
-            { ability: "flying", auraId: "aura-1", seq: 3 },
-            // CR 613.1f (issue #1715) — a grant a strictly-later stripper
-            // outranked: recorded but never materialized. The flag has to
-            // survive the round trip or the next unapply eats an occurrence
-            // that belongs to another source.
-            {
-                ability: "trample",
-                auraId: "aura-2",
-                seq: 1,
-                suppressed: true,
-            },
-        ];
+        // PRD #2064 S6b-part-2 — `grantedStaticAbilities` and
+        // `grantedSubtypesAdd` are gone from `CardInstanceState` entirely: both
+        // were derived output, and the round trip they used to be asserted
+        // through is now their ABSENCE (see "a pre-slice removedKeywords row is
+        // MIGRATED, not round-tripped", `sets/lea/__tests__/white.test.ts`).
+        // The LEDGER that replaced the layer-4 add is asserted instead.
+        //
         // CR 613.7 layer timestamp (issue #1715) — the source stamp every
-        // layer-4/6 record above copies.
+        // layer-4/6 record copies.
         lion.staticSeq = 4;
-        // Layer-4 ADD grants (CR 305.7 — Yavimaya) carry the same stamp, and
-        // are load-bearing for `composeMaterializedSubtypes` after a reload.
-        lion.grantedSubtypesAdd = [
-            { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
-        ];
+        lion.subtypeAddHolds = [{ subtype: "Forest", seq: 2 }];
         lion.grantedActivatedAbilities = [
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
         ];
@@ -1109,10 +1102,14 @@ describe("gameStates serialize round-trip", () => {
         ];
         lion.damagedBySources = ["bolt-1", "bolt-2"];
         lion.controlChanges = [
-            { auraId: "aura-1", previousControllerId: "p1" },
+            // CR 613.7 — `seq` is minted by `applyControlChange`; an undated row
+            // is a pre-S4 one and `expandState` stamps it on load, so an undated
+            // fixture would not round-trip to itself.
+            { auraId: "aura-1", previousControllerId: "p1", seq: 8 },
             {
                 auraId: "aladdin-1",
                 previousControllerId: "p2",
+                seq: 9,
                 condition: {
                     kind: "controller-controls-source",
                     controllerId: "p1",
@@ -1125,8 +1122,11 @@ describe("gameStates serialize round-trip", () => {
         lion.cantBeRegeneratedThisTurn = true;
         lion.mustAttackThisTurn = true;
         lion.colorOverride = ["R"];
-        lion.textChanges = [
-            { kind: "land-type", from: "Forest", to: "Island" },
+        lion.textChangeHolds = [
+            {
+                change: { kind: "land-type", from: "Forest", to: "Island" },
+                seq: 6,
+            },
         ];
         lion.pileLabel = "left";
         lion.mustBlockAllThisTurn = true;
@@ -1232,19 +1232,8 @@ describe("gameStates serialize round-trip", () => {
         expect(got.canAttackDespiteDefenderThisTurn).toBe(true);
         expect(got.cantBeBlockedBySubtypesThisTurn).toEqual(["Wall"]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
-        expect(got.grantedStaticAbilities).toEqual([
-            { ability: "flying", auraId: "aura-1", seq: 3 },
-            {
-                ability: "trample",
-                auraId: "aura-2",
-                seq: 1,
-                suppressed: true,
-            },
-        ]);
         expect(got.staticSeq).toBe(4);
-        expect(got.grantedSubtypesAdd).toEqual([
-            { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
-        ]);
+        expect(got.subtypeAddHolds).toEqual([{ subtype: "Forest", seq: 2 }]);
         expect(got.grantedActivatedAbilities).toEqual([
             { sourceCardId: "src", abilityId: "ability", auraId: "aura-1" },
         ]);
@@ -1257,10 +1246,11 @@ describe("gameStates serialize round-trip", () => {
         ]);
         expect(got.damagedBySources).toEqual(["bolt-1", "bolt-2"]);
         expect(got.controlChanges).toEqual([
-            { auraId: "aura-1", previousControllerId: "p1" },
+            { auraId: "aura-1", previousControllerId: "p1", seq: 8 },
             {
                 auraId: "aladdin-1",
                 previousControllerId: "p2",
+                seq: 9,
                 condition: {
                     kind: "controller-controls-source",
                     controllerId: "p1",
@@ -1271,8 +1261,11 @@ describe("gameStates serialize round-trip", () => {
         expect(got.damageLockThisTurn).toBe(true);
         expect(got.mustAttackThisTurn).toBe(true);
         expect(got.colorOverride).toEqual(["R"]);
-        expect(got.textChanges).toEqual([
-            { kind: "land-type", from: "Forest", to: "Island" },
+        expect(got.textChangeHolds).toEqual([
+            {
+                change: { kind: "land-type", from: "Forest", to: "Island" },
+                seq: 6,
+            },
         ]);
         expect(got.pileLabel).toBe("left");
         expect(got.mustBlockAllThisTurn).toBe(true);
@@ -2790,7 +2783,7 @@ describe("backward compatibility", () => {
         // (unconditional subtype-set) both materializing "Mountain"/"Swamp"
         // onto the SAME mired nonbasic land is the exact scenario the issue
         // probed by hand: loads as ["Mountain"], then (without this fix)
-        // flips to ["Swamp"] the first time `refreshCounterGatedStatics`
+        // flips to ["Swamp"] the first time `recomputeContinuousEffects`
         // re-stamps Tomb with a brand-new LATEST timestamp instead of its
         // (missing) original one.
         const land = makeInstance(tundra.id, {
@@ -2809,8 +2802,8 @@ describe("backward compatibility", () => {
         // Materialize both sources for real — Tomb first, then Moon (Moon's
         // later set wins the tie), mirroring the narrative a legacy save
         // would have recorded before #1715/#1730 ever stamped a seq.
-        applySourceStaticEffects(state, tomb);
-        applySourceStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, tomb);
+        beginApplyingStaticEffects(state, moon);
         expect(land.subtypes).toEqual(["Mountain"]);
 
         // Round-trip through the REAL compact path, then strip every
@@ -2886,8 +2879,8 @@ describe("backward compatibility", () => {
             ],
         });
 
-        applySourceStaticEffects(state, moon);
-        applySourceStaticEffects(state, tomb);
+        beginApplyingStaticEffects(state, moon);
+        beginApplyingStaticEffects(state, tomb);
         expect(land.subtypes).toEqual(["Swamp"]);
 
         const compact = compactState(state) as {
@@ -2896,12 +2889,22 @@ describe("backward compatibility", () => {
         for (const player of compact.players) {
             for (const card of player.battlefield) {
                 delete card.staticSeq;
-                const grants = card.grantedSubtypes as
-                    | { seq?: number }[]
-                    | undefined;
-                for (const g of grants ?? []) delete g.seq;
             }
         }
+        // The surviving RECORD evidence, as a document written before PRD #2064
+        // S6b-part-2 holds it: `grantedSubtypes` was layer 4's materialised
+        // provenance, pushed onto the TARGET in true application order — Moon
+        // first, Tomb second. The field is gone from `CardInstanceState`, so
+        // `compactCard` no longer emits it and only a genuinely pre-slice blob
+        // carries it; `backfillLegacyStaticSeq` reads it off the COMPACT row for
+        // exactly that reason.
+        const landRow = compact.players[0].battlefield.find(
+            (c) => c.id === "land-legacy-2"
+        )!;
+        landRow.grantedSubtypes = [
+            { subtypes: ["Mountain"], sourceId: "moon-legacy-2" },
+            { subtypes: ["Swamp"], sourceId: "tomb-legacy-2" },
+        ];
         expect(JSON.stringify(compact)).not.toContain("staticSeq");
 
         const loaded = expandState(
@@ -3015,9 +3018,19 @@ describe("migrates a pre-S6b layer-6 ledger into the registry (PRD #2064 S6b)", 
             })
         );
         expect(layer6Of(state)).toEqual([]);
-        expect(state.players[0].battlefield[0].grantedStaticAbilities).toEqual([
-            { ability: "flying", auraId: "aura-1", seq: 3 },
-        ]);
+        // PRD #2064 S6b-part-2 — and the row itself is DROPPED rather than
+        // carried: `grantedStaticAbilities` no longer exists on
+        // `CardInstanceState`, so `expandCard` never copies it and the aura's
+        // grant comes back from the live board at the next `syncLayer6`. That
+        // is what makes every migration here idempotent by construction.
+        expect(
+            (
+                state.players[0].battlefield[0] as unknown as Record<
+                    string,
+                    unknown
+                >
+            ).grantedStaticAbilities
+        ).toBeUndefined();
     });
 
     it("is IDEMPOTENT across repeated save/load — the migrated rows are struck", () => {

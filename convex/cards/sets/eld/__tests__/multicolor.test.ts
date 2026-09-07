@@ -37,6 +37,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
 const oko = getDefinition("3462a3d0-5552-49fa-9eb7-100960c55891");
+import { removedKeywordRows } from "../../../__tests__/setup";
 
 const PLUS2 = "oko-thief-of-crowns-plus2";
 const PLUS1 = "oko-thief-of-crowns-plus1";
@@ -219,7 +220,7 @@ describe("Oko, Thief of Crowns — +1 elk-ification (CR 611.2c, layers 4/5/6/7b)
 
         // CR 400.7 — the object that leaves is a new object with no memory of
         // its previous existence. The one-shot arm's holds are keyed to the
-        // `"indefinite"` sentinel, which no `unapplySourceStaticEffects` call
+        // `"indefinite"` sentinel, which no `stopApplyingStaticEffects` call
         // can ever match, so `resetBattlefieldTransientState` is the ONLY
         // release path there is.
         removePermanentTo(state, "victim", "hand");
@@ -228,7 +229,7 @@ describe("Oko, Thief of Crowns — +1 elk-ification (CR 611.2c, layers 4/5/6/7b)
             expect.arrayContaining(["flying", "vigilance"])
         );
         expect(bounced.abilitiesSuppressedBy).toBeUndefined();
-        expect(bounced.removedKeywords).toBeUndefined();
+        expect(removedKeywordRows(state, bounced)).toEqual([]);
         // The type half (already covered for `setCardTypes`) restores in the
         // same pass — asserted here so the whole printed object comes back.
         expect(bounced.types).toEqual(["Creature"]);

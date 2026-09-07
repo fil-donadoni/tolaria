@@ -1,8 +1,8 @@
 // Round-trip semantics of the materialized-static pair (issue #1715).
 //
-// `applySourceStaticEffects` / `unapplySourceStaticEffects` (`gre/state.ts`)
+// `beginApplyingStaticEffects` / `stopApplyingStaticEffects` (`gre/state.ts`)
 // MATERIALIZE a source's layer-4/6 contributions onto every target instance.
-// `refreshCounterGatedStatics` re-runs the pair for every `dependsOnCounters`
+// `recomputeContinuousEffects` re-runs the pair for every `dependsOnCounters`
 // source on EVERY SBA pass (issue #1711), so the pair must be idempotent and
 // composition-preserving: round-tripping a source may not change any OTHER
 // source's contribution, nor the source's own CR 613.7 timestamp position.
@@ -25,9 +25,9 @@
 // idempotent instead of "whoever was re-applied last wins".
 import { describe, it, expect } from "vitest";
 import {
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
-    refreshCounterGatedStatics,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
+    recomputeContinuousEffects,
 } from "../state";
 import type { GameState, CardInstanceState } from "../state";
 import {
@@ -88,16 +88,16 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             ]);
             const [wight, moon] = sources;
 
-            applySourceStaticEffects(state, wight);
+            beginApplyingStaticEffects(state, wight);
             expect(land.staticAbilities).toContain("does-not-untap");
-            applySourceStaticEffects(state, moon);
+            beginApplyingStaticEffects(state, moon);
             expect(land.staticAbilities).not.toContain("does-not-untap");
 
-            for (let i = 0; i < 3; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 3; i++) recomputeContinuousEffects(state);
             expect(land.staticAbilities).not.toContain("does-not-untap");
 
             // …and the grant is restored exactly ONCE when the stripper leaves.
-            unapplySourceStaticEffects(state, moon);
+            stopApplyingStaticEffects(state, moon);
             expect(
                 land.staticAbilities.filter((k) => k === "does-not-untap")
             ).toHaveLength(1);
@@ -112,8 +112,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 },
             ]);
             const [wight] = sources;
-            applySourceStaticEffects(state, wight);
-            for (let i = 0; i < 3; i++) refreshCounterGatedStatics(state);
+            beginApplyingStaticEffects(state, wight);
+            for (let i = 0; i < 3; i++) recomputeContinuousEffects(state);
             expect(
                 land.staticAbilities.filter((k) => k === "does-not-untap")
             ).toHaveLength(1);
@@ -130,14 +130,14 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             ]);
             const [tomb, moon] = sources;
 
-            applySourceStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, tomb);
             expect(land.subtypes).toEqual(["Swamp"]);
-            applySourceStaticEffects(state, moon);
+            beginApplyingStaticEffects(state, moon);
             expect(land.subtypes).toEqual(["Mountain"]);
 
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             const afterOne = [...land.subtypes];
-            for (let i = 0; i < 3; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 3; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(["Mountain"]);
             // …and the answer does not depend on how many SBA passes have run.
             expect(land.subtypes).toEqual(afterOne);
@@ -154,11 +154,11 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             ]);
             const [tomb, yavimaya] = sources;
 
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
-            for (let i = 0; i < 3; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 3; i++) recomputeContinuousEffects(state);
             expect([...land.subtypes].sort()).toEqual(["Forest", "Swamp"]);
         });
     });
@@ -176,10 +176,10 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
             ]);
             const [wight, tomb, moon, yavimaya] = sources;
-            applySourceStaticEffects(state, wight);
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, moon);
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, wight);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, moon);
+            beginApplyingStaticEffects(state, yavimaya);
 
             const baseline = {
                 subtypes: [...land.subtypes],
@@ -190,14 +190,14 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             expect(baseline.subtypes).toEqual(["Mountain", "Forest"]);
             expect(baseline.staticAbilities).not.toContain("does-not-untap");
 
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             const afterOne = {
                 subtypes: [...land.subtypes],
                 staticAbilities: [...land.staticAbilities],
             };
             expect(afterOne).toEqual(baseline);
 
-            for (let i = 0; i < 5; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 5; i++) recomputeContinuousEffects(state);
             expect({
                 subtypes: [...land.subtypes],
                 staticAbilities: [...land.staticAbilities],
@@ -253,10 +253,10 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             expect(elemental.staticAbilities).toEqual(["flying"]);
 
             // Gravity Sphere lands FIRST and strips the native flying…
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(elemental.staticAbilities).toEqual([]);
             // …then Flight resolves with the LATER timestamp and wins.
-            applySourceStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, aura);
             expect(elemental.staticAbilities).toEqual(["flying"]);
         });
 
@@ -281,18 +281,18 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 ],
             });
 
-            applySourceStaticEffects(state, aura1);
-            applySourceStaticEffects(state, sphere);
-            applySourceStaticEffects(state, aura2);
+            beginApplyingStaticEffects(state, aura1);
+            beginApplyingStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, aura2);
             expect(grizzly.staticAbilities).toContain("flying");
         });
 
         it("Flight then Gravity Sphere: the LATER stripper wins", () => {
             const { state, elemental, aura, sphere } = makeFlyingBoard();
-            applySourceStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, aura);
             // native + granted
             expect(elemental.staticAbilities).toEqual(["flying", "flying"]);
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(elemental.staticAbilities).toEqual(["flying"]);
         });
 
@@ -300,27 +300,27 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // Reachable in production via `reattachAura`, reanimation and the
             // counter-gated refresh: the pair must not EAT an occurrence.
             const { state, elemental, aura, sphere } = makeFlyingBoard();
-            applySourceStaticEffects(state, aura);
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, sphere);
             const before = [...elemental.staticAbilities];
             expect(before).toEqual(["flying"]);
 
             for (let i = 0; i < 3; i++) {
-                unapplySourceStaticEffects(state, aura);
-                applySourceStaticEffects(state, aura);
+                stopApplyingStaticEffects(state, aura);
+                beginApplyingStaticEffects(state, aura);
             }
             expect(elemental.staticAbilities).toEqual(before);
         });
 
         it("a round trip of the STRIPPER is a no-op too", () => {
             const { state, elemental, aura, sphere } = makeFlyingBoard();
-            applySourceStaticEffects(state, aura);
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, sphere);
             const before = [...elemental.staticAbilities];
 
             for (let i = 0; i < 3; i++) {
-                unapplySourceStaticEffects(state, sphere);
-                applySourceStaticEffects(state, sphere);
+                stopApplyingStaticEffects(state, sphere);
+                beginApplyingStaticEffects(state, sphere);
             }
             expect(elemental.staticAbilities).toEqual(before);
         });
@@ -333,12 +333,12 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
             ]);
             const [tomb, yavimaya] = sources;
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
             const afterZero = [...land.subtypes];
-            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 7; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(afterZero);
         });
 
@@ -353,21 +353,21 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             const [yavimaya, tomb] = sources;
             // PRD #2064 S4 — layer 4 is DERIVED from the BOARD, so a source is
             // applying from the moment it is on the battlefield, not from the
-            // moment `applySourceStaticEffects` is called on it. To make the
+            // moment `beginApplyingStaticEffects` is called on it. To make the
             // Tomb's set genuinely LATER than the Yavimaya add, the Tomb has to
             // arrive later — which is what production does anyway (a permanent
             // is pushed and stamped in one entry).
             state.players[0].battlefield = state.players[0].battlefield.filter(
                 (c) => c.id !== tomb.id
             );
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Forest"]);
             state.players[0].battlefield.push(tomb);
-            applySourceStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, tomb);
             expect(land.subtypes).toEqual(["Swamp"]);
 
             const afterZero = [...land.subtypes];
-            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 7; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(afterZero);
             expect(land.subtypes).toEqual(["Swamp"]);
         });
@@ -379,15 +379,15 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: bloodMoon.id, instanceId: "moon-1" },
             ]);
             const [yavimaya, tomb, moon] = sources;
-            applySourceStaticEffects(state, yavimaya);
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, moon);
+            beginApplyingStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, moon);
             // Forest (add) → Swamp (set) → Mountain (set): the newest set wins
             // outright and the earlier add does NOT come back.
             expect(land.subtypes).toEqual(["Mountain"]);
 
             const afterZero = [...land.subtypes];
-            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 7; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(afterZero);
         });
     });
@@ -405,16 +405,16 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
             ]);
             const [tomb, yavimaya] = sources;
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Forest"]);
 
             land.counters = { ...(land.counters ?? {}), mire: 1 };
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
             const afterOne = [...land.subtypes];
-            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 7; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(afterOne);
         });
 
@@ -424,16 +424,16 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
-            applySourceStaticEffects(state, yavimaya);
-            applySourceStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
             expect(land.subtypes).toEqual(["Forest"]);
 
             land.counters = { ...(land.counters ?? {}), mire: 1 };
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(["Swamp"]);
 
             const afterOne = [...land.subtypes];
-            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 7; i++) recomputeContinuousEffects(state);
             expect(land.subtypes).toEqual(afterOne);
         });
 
@@ -445,23 +445,23 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 { id: cyclopeanTomb.id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
-            applySourceStaticEffects(state, tomb);
-            applySourceStaticEffects(state, yavimaya);
+            beginApplyingStaticEffects(state, tomb);
+            beginApplyingStaticEffects(state, yavimaya);
             expect(land.subtypes).toEqual(["Swamp", "Forest"]);
 
             // PRD #2064 S4 — layer 4 is DERIVED from the board, so a source
-            // "leaving play" has to actually leave: `unapplySourceStaticEffects`
+            // "leaving play" has to actually leave: `stopApplyingStaticEffects`
             // runs BEFORE the permanent is spliced out (that is what its
             // `stoppedSourceIds` contract is for), and the splice is what
             // production always does next. Leaving the permanent on the
             // battlefield would leave its effect applying, correctly.
             const leave = (source: (typeof sources)[number]) => {
-                // `unapplySourceStaticEffects` is the moment the source STOPS
+                // `stopApplyingStaticEffects` is the moment the source STOPS
                 // applying, and it syncs with `stoppedSourceIds` — the assertion
                 // below runs against THAT answer, in the window before the array
                 // catches up, which is the contract's whole point. The splice
                 // then makes the departure real for the NEXT source's sync.
-                unapplySourceStaticEffects(state, source);
+                stopApplyingStaticEffects(state, source);
                 expect(state.players[0].battlefield).toContainEqual(source);
                 for (const player of state.players) {
                     player.battlefield = player.battlefield.filter(

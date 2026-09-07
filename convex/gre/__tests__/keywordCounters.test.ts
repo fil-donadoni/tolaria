@@ -16,6 +16,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { projectPublicState } from "../../gameProjections";
 import { grizzlyBears } from "../../cards/sets/lea/green";
+import { grantedKeywordRows } from "../../cards/__tests__/setup";
 
 function pushItem(state: ReturnType<typeof makeState>): StackItem {
     return pushSpell(state, grizzlyBears.id, "p1");
@@ -143,7 +144,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
         const ctx = buildSpellContext(state, item);
         ctx.addCounter({ type: "permanent", id: "bear5" }, "+1/+1", 1);
         expect(bear.staticAbilities).toEqual([]);
-        expect(bear.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state, bear)).toEqual([]);
     });
 
     it("a counter naming a planned/out-of-scope keyword grants nothing (Guard-A-style gate)", () => {

@@ -4,7 +4,7 @@ import {
     continuousEffectsInLayer,
     type ContinuousEffect,
 } from "../continuousEffects";
-import { applySourceStaticEffects } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import type { GameState } from "../state";
 import {
     makeInstance,
@@ -222,7 +222,7 @@ describe("registry timestamps share the CR 613.7 sequence", () => {
             ],
             continuousEffects: [entry("ce-live", 50)],
         });
-        applySourceStaticEffects(state, source);
+        beginApplyingStaticEffects(state, source);
         // CR 613.7 — a source applying now sorts strictly AFTER every effect
         // already applying, registry entries included. A tie would let the two
         // order arbitrarily (issue #1715's bug class, one layer over).

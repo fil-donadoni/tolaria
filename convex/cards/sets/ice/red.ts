@@ -555,7 +555,7 @@ export const brandOfIllOmen: CardDefinition = {
 // #1095), NOT as an unconditional `staticAbilities` entry. The grant is
 // materialized into the instance's `staticAbilities`, which is exactly what
 // `validateAttackerEligibility` (`gre/combat.ts`, CR 702.10b) reads, and
-// `refreshCounterGatedStatics` re-evaluates the condition on every stable
+// `recomputeContinuousEffects` re-evaluates the condition on every stable
 // transition — so haste appears the turn AFTER the Lord arrives, with no
 // per-reader layer hop. (Granting the `haste` keyword rather than an
 // attack-only permission is the project's established reading of "can attack

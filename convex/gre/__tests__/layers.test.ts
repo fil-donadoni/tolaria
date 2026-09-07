@@ -9,7 +9,7 @@ import type { StaticKeywordGrant } from "../../cards/types";
 import {
     getPlayer,
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type PlayerState,
@@ -746,7 +746,7 @@ describe("multiple pt-cda sources on the same target (CR 613.4b — overwrite, n
                 makePlayer({ id: "p2" }),
             ],
         });
-        applySourceStaticEffects(singleState, opal1);
+        beginApplyingStaticEffects(singleState, opal1);
 
         const doubleCrusade = makeCrusade("crusade-double");
         const opal2 = makeOpal("opal-2");
@@ -760,8 +760,8 @@ describe("multiple pt-cda sources on the same target (CR 613.4b — overwrite, n
                 makePlayer({ id: "p2" }),
             ],
         });
-        applySourceStaticEffects(doubleState, opal2);
-        applySourceStaticEffects(doubleState, opal3);
+        beginApplyingStaticEffects(doubleState, opal2);
+        beginApplyingStaticEffects(doubleState, opal3);
 
         // Crusade (mana value 2) is animated to base 2/2, then its own
         // "White creatures get +1/+1" self-applies (it's now a white

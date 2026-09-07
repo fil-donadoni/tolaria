@@ -12,7 +12,7 @@ import type {
 } from "../../../../gre/state";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -405,7 +405,7 @@ describe("Dragon's Rage Channeler (delirium +2/+2, flying, must-attack — CR 50
         expect(getEffectivePower(state, drc)).toBe(1);
         expect(getEffectiveToughness(state, drc)).toBe(1);
         expect(mustAttack(drc, state)).toBe(false);
-        applySourceStaticEffects(state, drc);
+        beginApplyingStaticEffects(state, drc);
         expect(drc.staticAbilities).not.toContain("flying");
     });
 
@@ -419,7 +419,7 @@ describe("Dragon's Rage Channeler (delirium +2/+2, flying, must-attack — CR 50
         expect(getEffectivePower(state, drc)).toBe(3);
         expect(getEffectiveToughness(state, drc)).toBe(3);
         expect(mustAttack(drc, state)).toBe(true);
-        applySourceStaticEffects(state, drc);
+        beginApplyingStaticEffects(state, drc);
         expect(drc.staticAbilities).toContain("flying");
     });
 

@@ -75,7 +75,7 @@ export const goblinHero: CardDefinition = {
 //     original colors and falls through to the intrinsic Mountain {R}.
 //   • `subtype-set` (CR 305.7 layer 4) — replaces the land's subtypes with
 //     `["Mountain"]`, which makes `getBasicLandMana` return {R}.
-// The layer system recomputes both live and `unapplySourceStaticEffects`
+// The layer system recomputes both live and `stopApplyingStaticEffects`
 // reverts them cleanly when Blood Moon leaves the battlefield.
 const IS_NONBASIC_LAND: (
     target: PermanentView,

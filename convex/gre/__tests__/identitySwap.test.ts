@@ -28,9 +28,9 @@ import { continuousEffectsInLayer } from "../continuousEffects";
 import type { LayerStateView } from "../layers";
 import { syncLayers2to5 } from "../layers2to5";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -50,6 +50,10 @@ import { grizzlyBears } from "../../cards/sets/lea/green";
 import { airElemental, flight, mahamotiDjinn } from "../../cards/sets/lea/blue";
 import { gravitySphere } from "../../cards/sets/leg/red";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
+import {
+    grantedKeywordRows,
+    removedKeywordRows,
+} from "../../cards/__tests__/setup";
 
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 
@@ -151,12 +155,12 @@ function ctxFor(state: GameState) {
 /** Occurrences of `keyword` — the only quantity the multiset model cares
  *  about (CR 113.1, #1706). */
 /** CR 400.7 / 613.1f — a source STOPS applying by leaving the battlefield, not
- *  by having `unapplySourceStaticEffects` called on it: layer 6 is derived from
+ *  by having `stopApplyingStaticEffects` called on it: layer 6 is derived from
  *  the live board (PRD #2064 S3), so a permanent left in the battlefield array
  *  keeps applying however many times its teardown ran. Production splices it
  *  out immediately after (`removePermanentTo`); these tests do the same. */
 function leaveBattlefield(state: GameState, card: CardInstanceState): void {
-    unapplySourceStaticEffects(state, card);
+    stopApplyingStaticEffects(state, card);
     for (const player of state.players) {
         player.battlefield = player.battlefield.filter((c) => c.id !== card.id);
     }
@@ -286,7 +290,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -311,7 +315,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
         // CR 708.2 — face down it is a 2/2 vanilla, but the layer-6 grant is
@@ -324,7 +328,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
         expect(count(card, "flying")).toBe(1);
@@ -359,7 +363,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
         // Back face prints flying + trample; the grant adds a second flying.
@@ -372,7 +376,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
         // stays, and trample is untouched.
         expect(count(card, "flying")).toBe(1);
         expect(count(card, "trample")).toBe(1);
-        expect(card.grantedStaticAbilities).toBeUndefined();
+        expect(grantedKeywordRows(state, card)).toEqual([]);
     });
 });
 
@@ -387,14 +391,14 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
         const state = makeBoard(elemental, djinn, sphere);
 
-        applySourceStaticEffects(state, sphere);
+        beginApplyingStaticEffects(state, sphere);
         expect(count(elemental, "flying")).toBe(0);
 
         applyCopy(state, elemental, djinn);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -405,7 +409,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         );
         // …and the Sphere leaving restores exactly one occurrence, on the new
         // identity, not two.
-        unapplySourceStaticEffects(state, sphere);
+        stopApplyingStaticEffects(state, sphere);
         expect(count(elemental, "flying")).toBe(1);
     });
 
@@ -414,14 +418,14 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const sphere = makeInstance(gravitySphere.id, { id: "sphere-2" });
         const state = makeBoard(card, sphere);
 
-        applySourceStaticEffects(state, sphere);
+        beginApplyingStaticEffects(state, sphere);
         expect(count(card, "flying")).toBe(0);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -438,7 +442,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const sphere = makeInstance(gravitySphere.id, { id: "sphere-3" });
         const state = makeBoard(elemental, bear, sphere);
 
-        applySourceStaticEffects(state, sphere);
+        beginApplyingStaticEffects(state, sphere);
         expect(count(elemental, "flying")).toBe(0);
 
         // Becomes a Grizzly Bear — which prints no flying at all.
@@ -446,14 +450,14 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
         expect(count(elemental, "flying")).toBe(0);
 
         // The Sphere's hold had nothing to take on the new face, so its
         // restore must not conjure an occurrence out of nothing.
-        unapplySourceStaticEffects(state, sphere);
+        stopApplyingStaticEffects(state, sphere);
         expect(count(elemental, "flying")).toBe(0);
     });
 
@@ -462,14 +466,14 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-1" });
         const state = makeBoard(card, nullifier);
 
-        applySourceStaticEffects(state, nullifier);
+        beginApplyingStaticEffects(state, nullifier);
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -484,19 +488,23 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-2" });
         const state = makeBoard(card, nullifier);
 
-        applySourceStaticEffects(state, nullifier);
+        beginApplyingStaticEffects(state, nullifier);
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
-        unapplySourceStaticEffects(state, nullifier);
+        stopApplyingStaticEffects(state, nullifier);
 
-        // Back face's line, not the front's ["flying"].
+        // Back face's line, not the front's ["flying"]. The multiset IS the
+        // assertion since PRD #2064 S6b-part-2 — the provenance row that used
+        // to be checked beside it is derived output with no field behind it,
+        // and `stopApplyingStaticEffects` runs while the stripper is still in
+        // the battlefield array, so a fresh derivation over that board still
+        // reports it.
         expect([...card.staticAbilities].sort()).toEqual(["flying", "trample"]);
-        expect(card.removedKeywords).toBeUndefined();
     });
 
     it("CR 613.7 — a grant with a LATER timestamp than the stripper survives the swap (Humility, then Fire Whip)", () => {
@@ -508,15 +516,15 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         });
         const state = makeBoard(card, nullifier, aura);
 
-        applySourceStaticEffects(state, nullifier); // earlier timestamp
-        applySourceStaticEffects(state, aura); // later — wins
+        beginApplyingStaticEffects(state, nullifier); // earlier timestamp
+        beginApplyingStaticEffects(state, aura); // later — wins
         expect(count(card, "flying")).toBe(1);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -535,15 +543,15 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-5" });
         const state = makeBoard(card, aura, nullifier);
 
-        applySourceStaticEffects(state, aura); // earlier — loses
-        applySourceStaticEffects(state, nullifier); // later — strips it
+        beginApplyingStaticEffects(state, aura); // earlier — loses
+        beginApplyingStaticEffects(state, nullifier); // later — strips it
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -556,7 +564,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // …and the stripper is still holding that grant's occurrence, so its
         // release hands back three: the back face's flying + trample, plus the
         // aura's flying.
-        unapplySourceStaticEffects(state, nullifier);
+        stopApplyingStaticEffects(state, nullifier);
         expect(count(card, "flying")).toBe(2);
         expect(count(card, "trample")).toBe(1);
     });
@@ -567,15 +575,15 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-6" });
         const state = makeBoard(card, sphere, nullifier);
 
-        applySourceStaticEffects(state, sphere); // earlier — takes flying
-        applySourceStaticEffects(state, nullifier); // later — takes the rest
+        beginApplyingStaticEffects(state, sphere); // earlier — takes flying
+        beginApplyingStaticEffects(state, nullifier); // later — takes the rest
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -589,7 +597,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // at 1): pin the VALUE, not just presence, so a future regression that
         // drops or garbles `seq` at this write site is caught here rather than
         // only by an equally-broken `?? 0` reader downstream.
-        expect(card.removedKeywords).toEqual([
+        expect(removedKeywordRows(state, card)).toEqual([
             expect.objectContaining({
                 keyword: "flying",
                 sourceId: "sphere-5",
@@ -623,16 +631,16 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         const second = makeInstance(NULLIFIER_ID, { id: "null-8" });
         const state = makeBoard(card, first, aura, second);
 
-        applySourceStaticEffects(state, first); // seq 1 — eats printed flying
-        applySourceStaticEffects(state, aura); // seq 2 — grants flying back
-        applySourceStaticEffects(state, second); // seq 3 — eats the grant
+        beginApplyingStaticEffects(state, first); // seq 1 — eats printed flying
+        beginApplyingStaticEffects(state, aura); // seq 2 — grants flying back
+        beginApplyingStaticEffects(state, second); // seq 3 — eats the grant
         expect(card.staticAbilities).toEqual([]);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -668,8 +676,13 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // source's, which is what lets it be stamped by hand at all. PRD #2064
         // S6b: that record is a REGISTRY entry, so the tie is built there and
         // the view is the one the swap has to be handed.
+        // The hold's source must be a LIVE permanent: CR 611.2b ends the effect
+        // when it leaves, and since PRD #2064 S6b-part-2 the recompose derives
+        // against the REAL board rather than trusting the ledger, so a hold
+        // naming nothing on the battlefield is an effect that has ended.
+        const holder = makeInstance(SWAP_FRONT_ID, { id: "null-tie" });
         const view: LayerStateView = {
-            players: [{ id: "p1", battlefield: [card] }] as never,
+            players: [{ id: "p1", battlefield: [card, holder] }] as never,
             continuousEffects: [
                 {
                     id: "ce-tie",
@@ -689,7 +702,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // The back face's printed flying + trample are both eaten by the
         // equal-timestamp stripper (it applies first at a tie), and the grant
         // that shares its timestamp is applied after it and survives.
-        expect(card.removedKeywords).toEqual([
+        expect(removedKeywordRows(view as unknown as GameState, card)).toEqual([
             { keyword: "flying", sourceId: "null-tie", seq: 5 },
             { keyword: "trample", sourceId: "null-tie", seq: 5 },
         ]);
@@ -704,15 +717,15 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         });
         const state = makeBoard(card, sphere, aura);
 
-        applySourceStaticEffects(state, sphere); // strips the printed flying
-        applySourceStaticEffects(state, aura); // later grant wins
+        beginApplyingStaticEffects(state, sphere); // strips the printed flying
+        beginApplyingStaticEffects(state, aura); // later grant wins
         expect(count(card, "flying")).toBe(1);
 
         transformPermanent(state, card);
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -750,7 +763,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -792,7 +805,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -821,7 +834,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -848,7 +861,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 
@@ -865,14 +878,14 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         const adder = makeInstance(TYPE_ADDER_ID, { id: "adder-1" });
         const state = makeBoard(card, adder);
 
-        applySourceStaticEffects(state, adder);
+        beginApplyingStaticEffects(state, adder);
         expect(card.types).toEqual(["Creature", "Artifact"]);
 
         transformPermanent(state, card);
         // CR 613.1d/f (PRD #2064 S3/S4) — every layer is DERIVED, so an
         // identity swap recomposes only what the INSTANCE bears; the board's
         // own continuous effects come back at the engine's recompute tick,
-        // which every production path reaches (`refreshCounterGatedStatics`,
+        // which every production path reaches (`recomputeContinuousEffects`,
         // run at the top of every SBA pass and before every write).
         syncLayers2to5(state);
         syncLayer6(state);
@@ -884,11 +897,11 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // The source leaving still removes exactly what it added — the type
         // was not printed on either face. Under a derivation "leaving" means
         // actually leaving the battlefield array, which is what production does
-        // immediately after `unapplySourceStaticEffects` announces the stop.
-        // `unapplySourceStaticEffects` syncs with `stoppedSourceIds`, so the
+        // immediately after `stopApplyingStaticEffects` announces the stop.
+        // `stopApplyingStaticEffects` syncs with `stoppedSourceIds`, so the
         // effect is gone from that instant — while the source is still IN the
         // battlefield array, which is the window the contract exists for.
-        unapplySourceStaticEffects(state, adder);
+        stopApplyingStaticEffects(state, adder);
         expect(state.players[0].battlefield).toContainEqual(adder);
         expect(card.types).not.toContain("Artifact");
     });
@@ -904,7 +917,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
         // CR 613.1f (PRD #2064 S3) — layer 6 is DERIVED, so an identity swap
         // recomposes only what the INSTANCE bears; the board's own continuous
         // effects come back at the engine's recompute tick, which every
-        // production path reaches (`refreshCounterGatedStatics`, run at the top
+        // production path reaches (`recomputeContinuousEffects`, run at the top
         // of every SBA pass and before every write).
         syncLayer6(state);
 

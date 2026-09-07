@@ -14,18 +14,19 @@
 // `staticEffectRefresh.test.ts` and `identitySwap.test.ts`.
 import { describe, it, expect } from "vitest";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
-    refreshCounterGatedStatics,
+    recomputeContinuousEffects,
     payRemoveCounterCost,
     removePermanentTo,
-    unapplySourceStaticEffects,
+    stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
 } from "../state";
 import {
     LAYER_6_STATIC_EFFECT_KINDS,
     deriveLayer6,
+    ensureLayer6Base,
     deriveLayer6Board,
     recomposeLayer6ForInstance,
     syncLayer6,
@@ -117,11 +118,11 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 attachedTo: "bear",
             });
             const state = boardOf(bear, aura);
-            applySourceStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, aura);
             expect(count(bear, "flying")).toBe(1);
 
             removePermanentTo(state, "aura", "graveyard");
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(count(bear, "flying")).toBe(0);
         });
 
@@ -141,7 +142,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // PRD #2064 S6b: that provenance IS the entry now, not a row the
             // derivation had to synthesise an entry around at every read.
             expect(expiriesOn(state, bear)).toEqual(["duration"]);
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(count(bear, "flying")).toBe(1);
         });
 
@@ -156,7 +157,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // gate is the counter, so the derivation simply stops producing
             // the entry (CR 122.1b). "Revocation is not an operation."
             bear.counters = undefined;
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(count(bear, "flying")).toBe(0);
         });
 
@@ -166,10 +167,10 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             const state = boardOf(elemental, sphere);
 
             // Source-keyed: Gravity Sphere, live on the battlefield.
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(0);
             removePermanentTo(state, "sphere", "graveyard");
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(count(elemental, "flying")).toBe(1);
 
             // Duration-keyed: the same removal from a resolved spell.
@@ -308,7 +309,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             withTemporaryDefinition(ADAPTIVE, () => {
                 const bear = makeInstance(ADAPTIVE.id, { id: "bear" });
                 const state = boardOf(bear);
-                applySourceStaticEffects(state, bear);
+                beginApplyingStaticEffects(state, bear);
                 expect(bear.staticAbilities).toContain("protection from red");
 
                 // A layer-4 subtype change flips what the parameter computes
@@ -322,7 +323,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 // `baseStaticAbilities` half S3 introduced.
                 bear.subtypes = [...bear.subtypes, "Wizard"];
                 bear.baseSubtypes = [...bear.subtypes];
-                refreshCounterGatedStatics(state);
+                recomputeContinuousEffects(state);
 
                 expect(bear.staticAbilities).toContain("protection from blue");
                 expect(bear.staticAbilities).not.toContain(
@@ -399,7 +400,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                     blockersConfirmed: true,
                 },
             });
-            applySourceStaticEffects(state, wight);
+            beginApplyingStaticEffects(state, wight);
             // The REAL trigger path (`resolveTrigger` pushes the ability onto
             // the stack with its firing event and resolves it), not a hand call
             // into `resolve`: the entries this slice adds are created by the
@@ -410,7 +411,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 "dread-wight-end-of-combat",
                 PHASE_EVENT_EOC("p1")
             );
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             return { state, wight, victim };
         }
 
@@ -427,7 +428,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             const { state, victim } = paralyzed();
 
             removePermanentTo(state, "wight", "graveyard");
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
 
             // The clause the DIVERGENCE marker confessed: the effects were
             // sourced from Dread Wight's own `staticEffects[]`, so both ended
@@ -451,7 +452,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         it("BOTH stop the moment the last counter is removed, with Dread Wight gone", () => {
             const { state, victim } = paralyzed();
             removePermanentTo(state, "wight", "graveyard");
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
 
             const ctx = ctxFor(state);
             ctx.removeCounter(
@@ -484,7 +485,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // `staticAbilities` must still carry the answer.
             const { state, victim } = paralyzed();
             removePermanentTo(state, "wight", "graveyard");
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
 
             const projected = projectPublicState(state, 1, "p2");
             const slim = projected.players[1].battlefield.find(
@@ -506,36 +507,36 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // recompute, so no consumer can be reading an authority.
             const bear = makeInstance(grizzlyBears.id, { id: "bear" });
             const state = boardOf(bear);
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             bear.staticAbilities = [...bear.staticAbilities, "flying"];
 
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(bear.staticAbilities).not.toContain("flying");
         });
 
         it("the derivation reads the BASE, never its own previous output", () => {
             const elemental = makeInstance(airElemental.id, { id: "ae" });
             const state = boardOf(elemental);
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
             expect(elemental.baseStaticAbilities).toEqual(["flying"]);
 
             // Idempotent over any number of recomputes — a derivation that fed
             // its own output back in would accumulate.
-            for (let i = 0; i < 5; i++) refreshCounterGatedStatics(state);
+            for (let i = 0; i < 5; i++) recomputeContinuousEffects(state);
             expect(count(elemental, "flying")).toBe(1);
         });
 
         it("unapplying a source is visible immediately, before the array catches up", () => {
-            // `unapplySourceStaticEffects` runs BEFORE the permanent is spliced
+            // `stopApplyingStaticEffects` runs BEFORE the permanent is spliced
             // out of the battlefield, so board presence and "is applying"
             // disagree for exactly that instant.
             const elemental = makeInstance(airElemental.id, { id: "ae" });
             const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
             const state = boardOf(elemental, sphere);
-            applySourceStaticEffects(state, sphere);
+            beginApplyingStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(0);
 
-            unapplySourceStaticEffects(state, sphere);
+            stopApplyingStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(1);
         });
     });
@@ -543,37 +544,172 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
 
 describe("review round 1 — the holes the derivation opened (PR #3032)", () => {
     describe("the base capture is layer 6's INVERSE, not half of it", () => {
-        /** A permanent as a state PERSISTED BEFORE this slice holds it: the
-         *  strip already materialised onto `staticAbilities`, its record on the
-         *  instance, and no `baseStaticAbilities` — the tell for the migration
-         *  window. */
-        function legacyStrippedElemental(
-            record: Partial<CardInstanceState>
-        ): CardInstanceState {
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            elemental.staticAbilities = [];
-            Object.assign(elemental, record);
-            return elemental;
-        }
-
-        it("gives back a keyword a source-keyed removal had taken", () => {
+        it("gives back a keyword a SOURCE-derived strip had taken (pre-S3 load)", () => {
             // base = staticAbilities + removals - grants. Subtracting the
             // grants alone captured this Elemental's base as [] and it never
             // flew again, however long after the Sphere died.
-            const elemental = legacyStrippedElemental({
-                removedKeywords: [
-                    { keyword: "flying", sourceId: "sphere", seq: 1 },
-                ],
-            });
+            //
+            // PRD #2064 S6b-part-2 — the ADDED-BACK term left `captureLayer6Base`
+            // with the field it read. It could not be re-derived there: a strip
+            // from a LIVE SOURCE is a `predicate`-affected template entry, which
+            // no instance-keyed registry read can see, and adding a registry
+            // removal back before its composition has run invents a second
+            // occurrence. So the term moved to the one moment its precondition
+            // provably holds — `expandState`, where the row was written by the
+            // old engine at the instant it spliced the keyword.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            elemental.staticAbilities = [];
             const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
-            const state = boardOf(elemental, sphere);
-            applySourceStaticEffects(state, sphere);
+            const compact = compactState(boardOf(elemental, sphere)) as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            };
+            compact.players[0].battlefield[0].removedKeywords = [
+                { keyword: "flying", sourceId: "sphere", seq: 1 },
+            ];
+            const state = expandState(
+                compact as unknown as Record<string, unknown>
+            );
+            const loaded = state.players[0].battlefield[0];
+
+            expect(loaded.baseStaticAbilities).toEqual(["flying"]);
+            recomputeContinuousEffects(state);
+            expect(count(loaded, "flying")).toBe(0);
+            removePermanentTo(state, "sphere", "graveyard");
+            recomputeContinuousEffects(state);
+            expect(count(loaded, "flying")).toBe(1);
+        });
+
+        it("gives back a keyword a continuous ABILITY-LOSS had cleared (pre-S3 load)", () => {
+            // The other shape no registry read can reconstruct: an
+            // `ability-loss` clears the whole multiset and records no
+            // per-keyword removal of its own, so `removedKeywords` was the only
+            // account of what it took. Titania's Song strips NONCREATURE
+            // ARTIFACTS (CR 613.1f), so the subject is one that prints a
+            // keyword.
+            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+            gear.staticAbilities = [];
+            const song = makeInstance(titaniasSong.id, { id: "song" });
+            const compact = compactState(boardOf(gear, song)) as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            };
+            compact.players[0].battlefield[0].removedKeywords = [
+                {
+                    keyword: "may-choose-not-to-untap",
+                    sourceId: "song",
+                    seq: 1,
+                },
+            ];
+            compact.players[0].battlefield[0].abilitiesSuppressedBy = [
+                { sourceId: "song", seq: 1 },
+            ];
+            const state = expandState(
+                compact as unknown as Record<string, unknown>
+            );
+            const loaded = state.players[0].battlefield[0];
+
+            expect(loaded.baseStaticAbilities).toEqual([
+                "may-choose-not-to-untap",
+            ]);
+            // Titania's Song is LIVE and declares the `ability-loss`, so the
+            // derivation reproduces the strip on its own — the legacy ledger
+            // must NOT be seeded, or the strip would outlive its own predicate
+            // (the Song makes the Gear a CREATURE, at which point its own
+            // `applies` stops matching).
+            expect(loaded.abilityLossHolds).toBeUndefined();
+            recomputeContinuousEffects(state);
+            expect(count(loaded, "may-choose-not-to-untap")).toBe(0);
+
+            removePermanentTo(state, "song", "graveyard");
+            recomputeContinuousEffects(state);
+            expect(count(loaded, "may-choose-not-to-untap")).toBe(1);
+        });
+
+        it("is a COPY: a base captured with entries live equals the multiset", () => {
+            // PRD #2064 S6b-part-2 — `captureLayer6Base` is `[...staticAbilities]`
+            // and nothing else, because every arrival without a base leaves an
+            // UNCOMPOSED one there. The two shapes an inverse got wrong are both
+            // here: a live `keyword-remove` whose composition has not run must
+            // not give an occurrence back (a base holding flying twice, so the
+            // strip takes one and the Elemental keeps flying), and a live
+            // grant-and-strip pair must not eat the PRINTED occurrence.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const state = boardOf(elemental);
+            state.continuousEffects = [
+                {
+                    id: "ce-strip",
+                    layer: 6,
+                    timestamp: 1,
+                    characteristicDefining: false,
+                    expiry: { kind: "indefinite", controllerId: "p1" },
+                    affected: { kind: "instances", instanceIds: ["ae"] },
+                    payload: { kind: "keyword-remove", keyword: "flying" },
+                } as ContinuousEffect,
+            ];
+
+            ensureLayer6Base(elemental);
 
             expect(elemental.baseStaticAbilities).toEqual(["flying"]);
+            recomputeContinuousEffects(state);
             expect(count(elemental, "flying")).toBe(0);
-            removePermanentTo(state, "sphere", "graveyard");
-            refreshCounterGatedStatics(state);
-            expect(count(elemental, "flying")).toBe(1);
+        });
+
+        it("the CR 400.7 departure reset RE-SEATS the base, never clears it", () => {
+            // The invariant the formula's precondition rests on (PRD #2064
+            // S6b-part-2): a capture is only ever reached with a COMPOSED
+            // `staticAbilities`, because every site that rewrites layer 6's
+            // input from BELOW sets the base to what it just wrote. Leaving one
+            // of them DELETED is how a live continuous strip (Titania's Song,
+            // Gravity Sphere) eats a printed keyword permanently: those two are
+            // source-provenance, so no registry entry names the permanent and
+            // the inverse has nothing to add back.
+            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+            const song = makeInstance(titaniasSong.id, { id: "song" });
+            const state = boardOf(gear, song);
+            beginApplyingStaticEffects(state, song);
+            expect(gear.staticAbilities).toEqual([]);
+
+            removePermanentTo(state, "gear", "hand");
+            const bounced = state.players[0].hand.find(
+                (c) => c?.id === "gear"
+            )!;
+            expect(bounced.baseStaticAbilities).toEqual([
+                "may-choose-not-to-untap",
+            ]);
+            expect(bounced.staticAbilities).toEqual([
+                "may-choose-not-to-untap",
+            ]);
+        });
+
+        it("SEEDS the ledger for a hold no live source reproduces", () => {
+            // The resolving arm (CR 611.2b — Tishana's Tidebinder keys its hold
+            // to a permanent that declares no `ability-loss` static ability).
+            // Nothing re-derives it, so the legacy row is the only record and
+            // must survive the migration.
+            //
+            // PRD #2064 S6b-part-2 moved that migration to LOAD time
+            // (`gre/serialize.ts`), which is the only moment a pre-S3
+            // `abilitiesSuppressedBy` ledger row is distinguishable from this
+            // module's own derived output — so the case arrives through a
+            // compact document, exactly as it does in production.
+            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            elemental.staticAbilities = [];
+            const binder = makeInstance(grizzlyBears.id, { id: "binder" });
+            const compact = compactState(boardOf(elemental, binder)) as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            };
+            compact.players[0].battlefield[0].abilitiesSuppressedBy = [
+                { sourceId: "binder", seq: 1 },
+            ];
+            const state = expandState(
+                compact as unknown as Record<string, unknown>
+            );
+            const loaded = state.players[0].battlefield[0];
+
+            expect(loaded.abilityLossHolds).toEqual([
+                { sourceId: "binder", seq: 1 },
+            ]);
+            recomputeContinuousEffects(state);
+            expect(count(loaded, "flying")).toBe(0);
         });
 
         it("gives back a keyword a DURATION-scoped removal had taken", () => {
@@ -596,7 +732,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
                 compact as unknown as Record<string, unknown>
             );
             const loaded = state.players[0].battlefield[0];
-            refreshCounterGatedStatics(state);
+            recomputeContinuousEffects(state);
 
             expect(loaded.baseStaticAbilities).toEqual(["flying"]);
             expect(count(loaded, "flying")).toBe(0);
@@ -604,163 +740,40 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             finalizeCleanup(state);
             expect(count(loaded, "flying")).toBe(1);
         });
-
-        it("gives back a keyword a continuous ABILITY-LOSS had cleared", () => {
-            // Titania's Song strips NONCREATURE ARTIFACTS (CR 613.1f), so the
-            // subject is one that prints a keyword.
-            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
-            gear.staticAbilities = [];
-            gear.removedKeywords = [
-                {
-                    keyword: "may-choose-not-to-untap",
-                    sourceId: "song",
-                    seq: 1,
-                },
-            ];
-            gear.abilitiesSuppressedBy = [{ sourceId: "song", seq: 1 }];
-            const song = makeInstance(titaniasSong.id, { id: "song" });
-            const state = boardOf(gear, song);
-            applySourceStaticEffects(state, song);
-
-            expect(gear.baseStaticAbilities).toEqual([
-                "may-choose-not-to-untap",
-            ]);
-            // Titania's Song is LIVE and declares the `ability-loss`, so the
-            // derivation reproduces the strip on its own — the legacy ledger
-            // must NOT be seeded, or the strip would outlive its own predicate
-            // (the Song makes the Gear a CREATURE, at which point its own
-            // `applies` stops matching).
-            expect(gear.abilityLossHolds).toBeUndefined();
-            expect(count(gear, "may-choose-not-to-untap")).toBe(0);
-
-            removePermanentTo(state, "song", "graveyard");
-            refreshCounterGatedStatics(state);
-            expect(count(gear, "may-choose-not-to-untap")).toBe(1);
-        });
-
-        it("SEEDS the ledger for a hold no live source reproduces", () => {
-            // The resolving arm (CR 611.2b — Tishana's Tidebinder keys its hold
-            // to a permanent that declares no `ability-loss` static ability).
-            // Nothing re-derives it, so the legacy row is the only record and
-            // must survive the migration.
-            const elemental = legacyStrippedElemental({
-                removedKeywords: [
-                    { keyword: "flying", sourceId: "binder", seq: 1 },
-                ],
-                abilitiesSuppressedBy: [{ sourceId: "binder", seq: 1 }],
-            });
-            const binder = makeInstance(grizzlyBears.id, { id: "binder" });
-            const state = boardOf(elemental, binder);
-            applySourceStaticEffects(state, binder);
-            refreshCounterGatedStatics(state);
-
-            expect(elemental.abilityLossHolds).toEqual([
-                { sourceId: "binder", seq: 1 },
-            ]);
-            expect(count(elemental, "flying")).toBe(0);
-        });
-
-        it("does not eat a PRINTED keyword a grant of the same name never got to add", () => {
-            // The invariant "a suppressed grant owns nothing and releases
-            // nothing" (CR 613.1f), which used to live on the instance's
-            // `grant.suppressed` flag and moved here when PRD #2064 S6b made
-            // the grant a registry ENTRY.
-            //
-            // Air Elemental PRINTS flying. Grant it flying again, then strip
-            // all abilities at a strictly LATER timestamp so the grant never
-            // reaches the multiset (CR 613.7). The capture's registry loop
-            // subtracts applying grants — and this one applies to nothing, so
-            // subtracting it would take the PRINTED occurrence and the
-            // Elemental would never fly again, however long after the strip.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            const state = boardOf(elemental);
-            const ctx = ctxFor(state);
-            ctx.grantStaticAbilityPermanent(
-                { type: "permanent", id: "ae" },
-                "flying"
-            );
-            ctx.loseAllAbilities({ type: "permanent", id: "ae" });
-            expect(elemental.staticAbilities).toEqual([]);
-
-            delete elemental.baseStaticAbilities;
-            refreshCounterGatedStatics(state);
-
-            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
-        });
-
-        it("does not subtract a grant whose counter has already gone", () => {
-            // The other filter: an entry that is no longer LIVE contributed no
-            // occurrence either. A `counter`-expiry grant reads false the
-            // moment the last counter comes off (CR 122.1b), and the entry can
-            // outlive that by a beat — `unapplyKeywordCounterGrant` is hygiene,
-            // not the gate.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            const state = boardOf(elemental);
-            state.continuousEffects = [
-                {
-                    id: "ce-stale",
-                    layer: 6,
-                    timestamp: 1,
-                    characteristicDefining: false,
-                    expiry: {
-                        kind: "counter",
-                        permanentId: "ae",
-                        counterType: "flying",
-                    },
-                    affected: { kind: "instances", instanceIds: ["ae"] },
-                    payload: { kind: "keyword-grant", keyword: "flying" },
-                } as ContinuousEffect,
-            ];
-
-            delete elemental.baseStaticAbilities;
-            refreshCounterGatedStatics(state);
-
-            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
-            expect(count(elemental, "flying")).toBe(1);
-        });
-
-        it("survives a base CLEAR while a grant and a strip are both live", () => {
-            // The same arithmetic on a FRESH state: an identity swap or a
-            // CR 614.12c body choice drops the base, and the re-capture reads
-            // this module's own output back the other way.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            const state = boardOf(elemental);
-            const ctx = ctxFor(state);
-            ctx.grantStaticAbilityPermanent(
-                { type: "permanent", id: "ae" },
-                "trample"
-            );
-            ctx.loseAllAbilities({ type: "permanent", id: "ae" });
-            expect(elemental.staticAbilities).toEqual([]);
-
-            delete elemental.baseStaticAbilities;
-            refreshCounterGatedStatics(state);
-
-            expect(elemental.baseStaticAbilities).toEqual(["flying"]);
-        });
     });
 
     it("an identity swap keeps the board's grants and its ability-loss", () => {
-        // `recomposeLayer6ForInstance` runs on a SYNTHETIC one-card board (the
-        // swap sites carry no GameState), so it cannot re-walk to a live
-        // source. It must therefore PRESERVE what it cannot re-derive rather
-        // than clearing it: the window between the swap and the next sync is
-        // one the search's `turn-face-up` leaf and a mana ability's
-        // `payRemoveCounterCost` both read in.
+        // `recomposeLayer6ForInstance` derives against the REAL board since PRD
+        // #2064 S6b-part-2, so a live source's grant is re-walked rather than
+        // preserved from the last sync's derived output — which is what the
+        // deleted `grantedStaticAbilities` field used to carry. The window
+        // between the swap and the next sync is one the search's
+        // `turn-face-up` leaf and a mana ability's `payRemoveCounterCost` both
+        // read in, so the answer has to be right inside it.
         const bear = makeInstance(grizzlyBears.id, { id: "bear" });
         const aura = makeInstance(flight.id, {
             id: "aura",
             attachedTo: "bear",
         });
         const state = boardOf(bear, aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(count(bear, "flying")).toBe(1);
 
         recomposeLayer6ForInstance(state, bear);
         expect(count(bear, "flying")).toBe(1);
-        expect(bear.grantedStaticAbilities).toEqual([
-            expect.objectContaining({ ability: "flying", auraId: "aura" }),
-        ]);
+        // The provenance record is WIRE output now (ADR 0082 decision 4), so
+        // the assertion goes through the projection rather than the instance.
+        const projected = projectPublicState(state, 1, "p1");
+        const wireBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(
+            (
+                wireBear as unknown as {
+                    grantedStaticAbilities?: { ability: string }[];
+                }
+            ).grantedStaticAbilities
+        ).toEqual([expect.objectContaining({ ability: "flying" })]);
     });
 
     it("an identity swap keeps a live ability-loss it cannot re-walk to", () => {
@@ -770,7 +783,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
         const song = makeInstance(titaniasSong.id, { id: "song" });
         const state = boardOf(gear, song);
-        applySourceStaticEffects(state, song);
+        beginApplyingStaticEffects(state, song);
         expect(gear.staticAbilities).toEqual([]);
         expect(gear.abilitiesSuppressedBy).toEqual([
             expect.objectContaining({ sourceId: "song" }),
@@ -796,17 +809,19 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             attachedTo: "bear",
         });
         const state = boardOf(bear, aura);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         payRemoveCounterCost(state, bear, { type: "fade", count: 1 });
         expect(count(bear, "flying")).toBe(1);
     });
 
     it("a command-zone emblem's keyword grant applies (CR 114.3)", () => {
-        // An emblem is not a permanent and is minted no `staticSeq`, so the
-        // unstamped-source gate skipped it and every emblem-granted keyword
-        // would have shipped inert with no test red. No catalogue emblem
-        // declares one today, so the guard is a probe definition.
+        // An emblem is not a permanent, so the unstamped-source gate skipped it
+        // and every emblem-granted keyword would have shipped inert with no test
+        // red. No catalogue emblem declares one today, so the guard is a probe
+        // definition. Since PRD #2064 S6b-part-2 an emblem carries a minted
+        // `staticSeq` (CR 613.7d); one persisted without it derives at 0 rather
+        // than vanishing, which is what this fixture exercises.
         const EMBLEM_ID = "layer6-registry-test-emblem";
         withTemporaryEmblemDefinition(
             {
@@ -838,9 +853,55 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
                         text: "Creatures you control have flying.",
                     },
                 ];
-                refreshCounterGatedStatics(state);
+                recomputeContinuousEffects(state);
 
                 expect(count(bear, "flying")).toBe(1);
+            }
+        );
+    });
+
+    it("an emblem created AFTER a stripper outranks it (CR 613.7a/d)", () => {
+        // The ordering the minted stamp exists for. `collectLayer6Sources` used
+        // to stand an emblem's creation ORDER in for a timestamp, at a floor far
+        // below every minted stamp, so an emblem could never outrank a permanent
+        // however much later it was created — a Titania's Song already on the
+        // battlefield would clear a grant CR 613.7d makes strictly later.
+        const EMBLEM_ID = "layer6-registry-late-emblem";
+        withTemporaryEmblemDefinition(
+            {
+                id: EMBLEM_ID,
+                name: "Late Probe Emblem",
+                text: "Artifacts you control have flying.",
+                staticEffects: [
+                    {
+                        kind: "keyword-grant",
+                        applies: (
+                            target: PermanentView,
+                            source: PermanentView
+                        ) =>
+                            target.controllerId === source.controllerId &&
+                            target.types.includes("Artifact"),
+                        keyword: "flying",
+                    },
+                ],
+            },
+            () => {
+                const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+                const song = makeInstance(titaniasSong.id, { id: "song" });
+                const state = boardOf(gear, song);
+                // The Song begins applying FIRST and strips every ability.
+                beginApplyingStaticEffects(state, song);
+                expect(gear.staticAbilities).toEqual([]);
+
+                // The emblem enters the command zone afterwards, so CR 613.7d
+                // gives it the later timestamp and its grant survives the strip
+                // (CR 613.1f — an ability-loss clears only what applied before
+                // it).
+                const ctx = ctxFor(state);
+                ctx.createEmblem(EMBLEM_ID, "p1");
+                recomputeContinuousEffects(state);
+
+                expect(count(gear, "flying")).toBe(1);
             }
         );
     });
@@ -861,7 +922,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         withTemporaryDefinition(DECLINING, () => {
             const bear = makeInstance(DECLINING.id, { id: "bear" });
             const state = boardOf(bear);
-            applySourceStaticEffects(state, bear);
+            beginApplyingStaticEffects(state, bear);
             // The WHOLE multiset, not just the absence of "flying": a
             // fall-through that grants `null` leaves no "flying" either, and
             // would push a junk occurrence every consult site then reads.
@@ -925,7 +986,7 @@ describe("deriveLayer6 is the single layer-6 authority", () => {
     it("returns the composed multiset for one permanent", () => {
         const elemental = makeInstance(airElemental.id, { id: "ae" });
         const state = boardOf(elemental);
-        refreshCounterGatedStatics(state);
+        recomputeContinuousEffects(state);
         const derived = deriveLayer6(
             state as never,
             elemental as unknown as PermanentView
@@ -1027,7 +1088,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
             const a = makeInstance(grizzlyBears.id, { id: "a" });
             const b = makeInstance(grizzlyBears.id, { id: "b" });
             const state = boardOf(source, a, b);
-            applySourceStaticEffects(state, source);
+            beginApplyingStaticEffects(state, source);
 
             conditionCalls = 0;
             appliesCalls = 0;

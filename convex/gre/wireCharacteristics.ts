@@ -27,10 +27,15 @@
 // and per battlefield permanent, everything below shared. Nothing in the
 // derivation writes below the permanent.
 
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, Duration, GameState } from "./state";
+import type { TextChange } from "../cards/types";
 import { continuousEffectsInLayer, renderKeyword } from "./continuousEffects";
-import { deriveLayer6Board, layer6DerivedFields } from "./layer6";
-import { deriveLayers2to5Board, layers2to5DerivedFields } from "./layers2to5";
+import {
+    deriveLayer6Board,
+    layer6DerivedFields,
+    layer6WireFields,
+} from "./layer6";
+import { deriveLayers2to5Board, layers2to5WireFields } from "./layers2to5";
 
 /** The derived characteristics of one permanent, as the exact instance fields
  *  the wire has always carried. Shapes and names are unchanged — only the
@@ -44,9 +49,35 @@ import { deriveLayers2to5Board, layers2to5DerivedFields } from "./layers2to5";
  *  pumped?" without wanting a layer walk: `isAltered`
  *  (`src/lib/battlefield-stacks.ts`, whether the card may collapse into a
  *  stack) and the preview's cache signature (`src/lib/card-image-signature.ts`).
- *  It is DERIVED OUTPUT here, exactly like every other field in this type. */
+ *  It is DERIVED OUTPUT here, exactly like every other field in this type.
+ *
+ *  PRD #2064 S6b-part-2 made that the RULE rather than the exception: twelve
+ *  more fields — `textChanges`, `grantedTypes`, `suppressedTypes`,
+ *  `grantedSubtypes`, `grantedSubtypesAdd`, `grantedSupertypes`,
+ *  `removedSupertypes`, `grantedColors`, `printedSubtypes`,
+ *  `grantedStaticAbilities`, `removedKeywords` and the `layers2to5Derived`
+ *  marker — left `CardInstanceState` and survive here alone, in the exact
+ *  shapes the client's 53 call sites read (ADR 0082 decision 4). This type is
+ *  therefore no longer a `Partial<CardInstanceState>`: it is the wire's own
+ *  shape, and the fields the engine no longer has are named explicitly. */
 export type WireCharacteristics = Partial<CardInstanceState> & {
     temporaryPTMods?: { power: number; toughness: number }[];
+    textChanges?: TextChange[];
+    grantedTypes?: { type: string; auraId: string }[];
+    suppressedTypes?: { type: string; sourceId: string }[];
+    grantedSubtypes?: { subtypes: string[]; sourceId: string; seq?: number }[];
+    grantedSubtypesAdd?: { subtype: string; auraId: string; seq?: number }[];
+    grantedSupertypes?: { supertype: string; sourceId: string }[];
+    removedSupertypes?: { supertype: string; sourceId: string }[];
+    grantedColors?: { color: string; sourceId: string }[];
+    printedSubtypes?: string[];
+    grantedStaticAbilities?: {
+        ability: string;
+        auraId?: string;
+        seq?: number;
+        duration?: Duration;
+    }[];
+    removedKeywords?: { keyword: string; sourceId: string; seq?: number }[];
 };
 
 /** CR 611.2a / 611.2c / 122.1b (PRD #2064 S6b) — the layer-6 keyword grants
@@ -72,7 +103,7 @@ export type WireCharacteristics = Partial<CardInstanceState> & {
 function registryKeywordGrantsFor(
     state: GameState,
     instanceId: string
-): NonNullable<CardInstanceState["grantedStaticAbilities"]> {
+): NonNullable<WireCharacteristics["grantedStaticAbilities"]> {
     const rows: { ability: string; seq?: number }[] = [];
     for (const entry of continuousEffectsInLayer(state, 6)) {
         if (entry.expiry.kind === "source") continue;
@@ -157,23 +188,16 @@ export function deriveWireCharacteristics(
     for (const { card, result } of deriveLayers2to5Board(board, {
         deriveAll: true,
     })) {
-        const fields = layers2to5DerivedFields(card, result);
-        // Two of the sync's writes are NOT characteristics and are dropped
-        // before the patch reaches the wire, because `deriveAll` would
-        // otherwise put them on every permanent the sync's fast path skips —
-        // measured at 884 bytes on a 16-permanent, 6.5 KB projection (13.5%) on
-        // the hottest row in the system (#1780, #3051).
-        //
-        //  * `layers2to5Derived` is an ENGINE marker gating a one-shot pre-S4
-        //    migration, not something any client renders. A skipped permanent
-        //    ships without it today and is unharmed: the migration reads only
-        //    ledger fields, and "skipped" means it carries none.
-        //  * `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which
-        //    rides the wire already — `layer4SubtypeBase` reads the alias only
-        //    when `baseSubtypes` is absent, and it never is. Paying for the
-        //    same array twice per permanent is the read-amplification class
-        //    #1780 interned card ids to fix.
-        delete fields.layers2to5Derived;
+        const fields = layers2to5WireFields(card, result);
+        // `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which
+        // rides the wire already — the client's `layer4SubtypeBase` reads the
+        // alias only when `baseSubtypes` is absent, and it never is. Paying for
+        // the same array twice per permanent is the read-amplification class
+        // #1780 interned card ids to fix, and `deriveAll` would otherwise put it
+        // on every permanent the sync's fast path skips — measured at 884 bytes
+        // on a 16-permanent, 6.5 KB projection (13.5%) on the hottest row in the
+        // system (#1780, #3051). The pre-S4 engine marker that used to be
+        // dropped beside it (`layers2to5Derived`) no longer exists at all.
         delete fields.printedSubtypes;
         const patch: WireCharacteristics = {
             ...fields,
@@ -213,16 +237,14 @@ export function deriveWireCharacteristics(
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
-            // PRD #2064 S6b — the aura-derived rows `layer6DerivedFields`
+            ...layer6WireFields(result),
+            // PRD #2064 S6b — the aura-derived rows `layer6WireFields`
             // produces, PLUS the resolving-ability and counter grants that
             // moved into the registry. See `registryKeywordGrantsFor`: two
             // client reducers read this array as "is it altered?", and the
             // three provenances S6b moved out would otherwise vanish from it.
             grantedStaticAbilities: (() => {
-                const derived = layer6DerivedFields(
-                    card,
-                    result
-                ).grantedStaticAbilities;
+                const derived = layer6WireFields(result).grantedStaticAbilities;
                 const fromRegistry = registryKeywordGrantsFor(state, card.id);
                 const all = [...(derived ?? []), ...fromRegistry];
                 return all.length > 0 ? all : undefined;
@@ -239,11 +261,11 @@ export function deriveWireCharacteristics(
             // own `deriveLayer6` grant every keyword a second time and remove
             // printed ones that are no longer in what it reads as the base.
             baseStaticAbilities: card.baseStaticAbilities,
-            // CR 611.2b — and the migration's OUTPUT with it. Supplying the
-            // base above DISARMS the client's own legacy pass:
-            // `deriveLayer6Board` reads `legacy = baseStaticAbilities ===
-            // undefined`, so a client handed the base can never run
-            // `migrateLegacyAbilityLossHolds` for itself. On a `gameStates`
+            // CR 611.2b — and the migration's OUTPUT with it. The client can
+            // never run `migrateLegacyAbilityLossHolds` for itself at all since
+            // PRD #2064 S6b-part-2: the pass moved to `expandState`
+            // (`gre/serialize.ts`), which only the SERVER reaches, so the wire
+            // is the only way its result travels. On a `gameStates`
             // persisted before PRD #2064 S3 (#3004) that carries a
             // resolution-armed "loses all abilities" hold in
             // `abilitiesSuppressedBy` and no `abilityLossHolds`, the server
@@ -251,8 +273,13 @@ export function deriveWireCharacteristics(
             // re-derive the permanent WITH the abilities the resolution took
             // away and enumerate moves for a board that does not exist. The
             // ledger is the migration's product, and it costs nothing on every
-            // state that already has one (absent → absent). Dies with S6,
-            // alongside the migration itself.
+            // state that already has one (absent → absent).
+            //
+            // PRD #2064 S6b-part-2 moved the migration itself to load time
+            // (`gre/serialize.ts`), so the SERVER runs it exactly once per
+            // document instead of on every board sync; shipping the ledger is
+            // what keeps the client's own derivation in step, and it is now the
+            // only way the client can see the migration's result at all.
             abilityLossHolds: card.abilityLossHolds,
         });
     }

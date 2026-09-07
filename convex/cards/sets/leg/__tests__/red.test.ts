@@ -27,7 +27,7 @@ import {
 } from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
@@ -130,7 +130,7 @@ describe("Kobold Drill Sergeant (other Kobolds +0/+1 and trample, CR 611)", () =
         });
         // Keyword grants are pushed onto matching permanents at ETB; replicate
         // that here for a hand-built board.
-        applySourceStaticEffects(state, sergeant);
+        beginApplyingStaticEffects(state, sergeant);
         expect(getEffectiveToughness(state, buddy)).toBe(2); // 1 + 1
         const live = state.players[0].battlefield.find(
             (c) => c.id === "buddy"
@@ -163,7 +163,7 @@ describe("Kobold Overlord (other Kobolds have first strike, CR 611/702.7)", () =
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, lord);
+        beginApplyingStaticEffects(state, lord);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "buddy"
         )!;
@@ -339,7 +339,7 @@ describe("Giant Strength / Immolation / Eternal Warrior auras (CR 303.4)", () =>
             ],
         });
         // Push the aura's keyword grants onto the host (ETB replication).
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         return { state, host };
     }
     it("Giant Strength grants +2/+2 (GRE + wire)", () => {
@@ -739,7 +739,7 @@ describe("Gravity Sphere (World — all creatures lose flying, CR 702.9)", () =>
                 makePlayer("p2", { battlefield: [theirs] }),
             ],
         });
-        applySourceStaticEffects(state, gs);
+        beginApplyingStaticEffects(state, gs);
 
         expect(
             state.players[0].battlefield.find((c) => c.id === "mine")!

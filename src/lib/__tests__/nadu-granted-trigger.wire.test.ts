@@ -20,7 +20,7 @@ import {
     makeState,
 } from "../../../convex/cards/__tests__/setup";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type StackItem,
 } from "../../../convex/gre/state";
 import { projectPublicState } from "../../../convex/gameProjections";
@@ -41,7 +41,7 @@ describe("Nadu's granted trigger renders on the stack (frontend wiring)", () => 
             zone: "battlefield",
         });
         state.players[0].battlefield.push(nadu, bear);
-        applySourceStaticEffects(state, nadu);
+        beginApplyingStaticEffects(state, nadu);
         // The recipient now carries the grant provenance the client needs.
         expect(bear.grantedTriggeredAbilities).toBeDefined();
 

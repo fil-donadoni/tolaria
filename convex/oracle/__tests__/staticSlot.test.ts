@@ -211,7 +211,7 @@ describe("keyword grant (CR 613.1f)", () => {
 
     it("REFUSES a combat-scoped grant — materialised once, never re-read", () => {
         // Blade Historian: "Attacking creatures you control have double
-        // strike." `applySourceStaticEffects` writes a `keyword-grant` onto
+        // strike." `beginApplyingStaticEffects` writes a `keyword-grant` onto
         // the target ONCE, when either permanent enters; nothing re-runs it at
         // DECLARE_ATTACKERS. Nothing was attacking at apply time, so the grant
         // is inert — a `ready` card that does nothing.

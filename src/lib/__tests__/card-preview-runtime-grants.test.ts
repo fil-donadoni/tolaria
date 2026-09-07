@@ -4,8 +4,8 @@ import { cardImageSignature } from "../card-image-signature";
 import type { CardInstance } from "~/types/game";
 import { projectPublicState } from "@convex/gameProjections";
 import {
-    applySourceStaticEffects,
-    unapplySourceStaticEffects,
+    beginApplyingStaticEffects,
+    stopApplyingStaticEffects,
 } from "@convex/gre/state";
 import {
     makeInstance,
@@ -68,7 +68,7 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
         ).toBeUndefined();
 
         // Apply the aura's keyword-grant static effect (CR 611.2).
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         const after = projectedCard(state, "creature-1");
         const sigAfter = cardImageSignature(after);
@@ -97,7 +97,7 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
             ],
         });
 
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         const granted = projectedCard(state, "creature-1");
         const disp = getDisplayAbilities(BEAR_ID, granted);
         expect(disp.keywords).toContainEqual({
@@ -119,13 +119,13 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
             ],
         });
 
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         const sigGranted = cardImageSignature(
             projectedCard(state, "creature-1")
         );
 
         // The aura leaves play → grant is spliced back out (CR 704.5q / 611).
-        // BOTH halves, in the engine's own order: `unapplySourceStaticEffects`
+        // BOTH halves, in the engine's own order: `stopApplyingStaticEffects`
         // runs while the permanent is still in the array (it tells the two
         // syncs to skip it via `stoppedSourceIds`), and the caller splices it
         // out immediately afterwards. The splice is not decoration here. Since
@@ -135,7 +135,7 @@ describe("card preview reflects runtime grants end-to-end (#447)", () => {
         // straight back — correctly. The stopped-but-still-present window is
         // real inside a mutation and is never persisted: every save point is
         // downstream of the splice, which is what this fixture now models.
-        unapplySourceStaticEffects(state, aura);
+        stopApplyingStaticEffects(state, aura);
         state.players[0].battlefield = state.players[0].battlefield.filter(
             (c) => c.id !== aura.id
         );
@@ -219,7 +219,7 @@ describe("granted keyword rows are not duplicated by their rules-text ability", 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, boots);
+        beginApplyingStaticEffects(state, boots);
 
         const display = getDisplayAbilities(
             BEAR_ID,

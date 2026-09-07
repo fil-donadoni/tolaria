@@ -1029,7 +1029,7 @@ export const dralnusCrusade: CardDefinition = {
 //
 // The animation is three stacked continuous static effects (CR 613), all DATA:
 //   * layer 4 (type) — `type-add` grants the Creature card type. The engine
-//     APPENDS to `types[]` (`applySourceStaticEffects`, `gre/state.ts`) and
+//     APPENDS to `types[]` (`beginApplyingStaticEffects`, `gre/state.ts`) and
 //     tracks the grant's origin, so "Land" is never removed. That append is
 //     literally the "They're still lands" clause — a naive type-SET would break
 //     it, which is why `type-add` (not `subtype-set`/a type replacement) is the

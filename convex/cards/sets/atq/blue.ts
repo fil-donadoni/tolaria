@@ -258,8 +258,8 @@ export const powerArtifact: CardDefinition = {
 // `triggered-grant` static effect — the lord-style analogue of
 // `activated-grant` for triggers. The granted trigger's template lives on the
 // granting card's `triggeredGrantTemplates[]`; the grant is applied to current
-// and future matching permanents via `applySourceStaticEffects` /
-// `applyExistingGrantsTo` and reversed via `unapplySourceStaticEffects`, exactly
+// and future matching permanents via `beginApplyingStaticEffects` /
+// `applyExistingGrantsTo` and reversed via `stopApplyingStaticEffects`, exactly
 // like the keyword/activated grants. `effectiveTriggeredAbilities` unions the
 // granted triggers into each recipient so the existing trigger collector and
 // resolution lookup observe them as if printed on the recipient — no change to

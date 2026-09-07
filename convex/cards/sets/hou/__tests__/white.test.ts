@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import type { GameState, StackItem } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     gainLifeEmitting,
     resolveTopOfStack,
 } from "../../../../gre/state";
@@ -83,7 +83,7 @@ describe("Crested Sunmare — 'Other Horses you control have indestructible' (CR
             ownerId: "p1",
         });
         const { state, sunmare } = setup({ battlefield: [otherHorse] });
-        applySourceStaticEffects(state, sunmare);
+        beginApplyingStaticEffects(state, sunmare);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "other-horse"
         )!;
@@ -114,7 +114,7 @@ describe("Crested Sunmare — 'Other Horses you control have indestructible' (CR
         });
         const { state, sunmare } = setup({ battlefield: [bears] });
         state.players[1].battlefield.push(oppHorse);
-        applySourceStaticEffects(state, sunmare);
+        beginApplyingStaticEffects(state, sunmare);
         expect(bears.staticAbilities ?? []).not.toContain("indestructible");
         expect(oppHorse.staticAbilities ?? []).not.toContain("indestructible");
     });

@@ -1888,7 +1888,7 @@ export const wildGrowthIce: CardPrint = {
 // `staticAbilities: ["trample"]` that was a strict superset of the printed
 // behaviour.) A `keyword-grant` static effect with a `condition` (CR 611.2c
 // "as long as ...") re-evaluates every stable transition via
-// `refreshCounterGatedStatics`, so gaining/losing snow lands mid-game keeps
+// `recomputeContinuousEffects`, so gaining/losing snow lands mid-game keeps
 // the grant current — mirrors Kavu Runner (`inv/red.ts`) and Magnigoth
 // Treefolk (`pls/green.ts`). "You" is this creature's CONTROLLER at read
 // time (`source.controllerId`), read live via `countSnowLands` so a

@@ -81,6 +81,7 @@ import {
 } from "./escape";
 import { canPayRetraceDiscard, hasRetrace } from "./retrace";
 import { substituteColorFilter } from "./textChanges";
+import type { TextChangeCarrier } from "./textChanges";
 import {
     convokeEligibleCreatures,
     coverColoredAndHybridPips,
@@ -3440,7 +3441,7 @@ export function applySelfExclusion(
  *  active `textChanges` colour-word entry takes the same path. */
 export function effectiveRequirementForSource(
     req: TargetRequirement,
-    source: Pick<CardInstanceState, "textChanges">,
+    source: TextChangeCarrier,
     sourceInstanceId: string
 ): TargetRequirement {
     return applySelfExclusion(

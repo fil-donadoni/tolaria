@@ -68,7 +68,7 @@ import {
     tapPermanent,
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
-    refreshCounterGatedStatics,
+    recomputeContinuousEffects,
     PENDING_TARGET_FILTER_KEYS,
     resolveTargetRequirementCount,
 } from "./gre/state";
@@ -714,13 +714,13 @@ async function saveGameState(
     // re-materialization it already runs unconditionally on every pass —
     // makes "a persisted state always has freshly-materialized conditional
     // statics" an invariant of persistence itself, not of any particular
-    // caller remembering to call SBAs first. `refreshCounterGatedStatics`
+    // caller remembering to call SBAs first. `recomputeContinuousEffects`
     // performs no state-based actions, moves no cards, and is idempotent
     // (documented at its definition, `gre/state.ts`) — a no-op sweep of the
     // battlefield for every board where no source declares
     // `dependsOnCounters` or a conditioned `keyword-grant`, so this adds no
     // duplicate/skipped SBA behavior and is cheap on the common case.
-    refreshCounterGatedStatics(state as GameState);
+    recomputeContinuousEffects(state as GameState);
     // ADR 0047 — maintain the authoritative Expected Input at the persistence
     // seam. Every stable point flows through `saveGameState`, so recomputing
     // here keeps the persisted + projected field coherent with the settled

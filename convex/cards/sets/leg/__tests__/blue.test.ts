@@ -35,7 +35,7 @@ import {
 } from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     normalizeManaCost,
     resolveTopOfStack,
     type StackItem,
@@ -821,13 +821,13 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
         const { state, host, aura } = setup(2);
         // Layer-6 keyword grant is pushed onto the host when the aura's static
         // effects are applied (the `applies` predicate reads host.counters.sleep).
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(host.staticAbilities).toContain("does-not-untap");
     });
 
     it("does NOT grant does-not-untap when the host has no sleep counter", () => {
         const { state, host, aura } = setup(0);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(host.staticAbilities).not.toContain("does-not-untap");
     });
 
@@ -848,13 +848,13 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
 
     // REAL SEQUENCE (issue #1711). The three tests above materialize the
     // aura's statics AFTER hand-seeding `counters`, an ordering that never
-    // occurs in play: in a real game `applySourceStaticEffects` runs once, when
+    // occurs in play: in a real game `beginApplyingStaticEffects` runs once, when
     // the Aura enters, and nothing re-runs it when the upkeep trigger strips
-    // the last sleep counter. Before `refreshCounterGatedStatics` the host
+    // the last sleep counter. Before `recomputeContinuousEffects` the host
     // stayed locked forever. These drive the assertions from the trigger.
     it("the upkeep trigger lifts the lock when the last sleep counter goes (CR 502.1 / 613.5)", () => {
         const { state, host, aura } = setup(1);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         expect(host.staticAbilities).toContain("does-not-untap");
 
         resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
@@ -867,7 +867,7 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
     it("a tapped host actually untaps once its last sleep counter is removed", () => {
         const { state, host, aura } = setup(1);
         host.isTapped = true;
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
 
         state.activePlayerId = "p2";
         state.priorityPlayerId = "p2";
@@ -885,7 +885,7 @@ describe("Venarian Gold (sleep counters: ETB tap + counter-gated does-not-untap 
 
     it("the lock still holds while sleep counters remain", () => {
         const { state, host, aura } = setup(2);
-        applySourceStaticEffects(state, aura);
+        beginApplyingStaticEffects(state, aura);
         resolveTrigger(state, aura, "venarian-gold-upkeep", UPKEEP_C5("p2"));
         expect(host.counters?.sleep).toBe(1);
         expect(host.staticAbilities).toContain("does-not-untap");

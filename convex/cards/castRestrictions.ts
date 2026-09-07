@@ -11,7 +11,7 @@
 // Mirrors `attackRestrictions.ts`: the same shared, state-free
 // `StaticEffectContext` and the same "scan every battlefield, return the first
 // matching source's oracle text" shape. Read-time only: a `cast-restriction`
-// never mutates a permanent (`applySourceStaticEffects` ignores the kind), so
+// never mutates a permanent (`beginApplyingStaticEffects` ignores the kind), so
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
 import { getInstanceManaCost, tryGetDefinition } from ".";

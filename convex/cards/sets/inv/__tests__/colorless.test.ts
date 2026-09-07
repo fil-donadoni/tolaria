@@ -17,7 +17,7 @@ import {
 } from "../../../../gre/layers";
 import {
     applyCostModifiers,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     getCostModifiers,
     normalizeManaCost,
     processPendingActionTriggers,
@@ -623,7 +623,7 @@ describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () 
     // `keyword-grant` is MATERIALIZED into `staticAbilities` at apply time
     // (not recomputed at every read like `pt-buff`/`pt-cda`), so each "as long
     // as you control a <land type>" gate only stays live because the real
-    // production SBA path (`checkStateBasedActions` → `refreshCounterGatedStatics`)
+    // production SBA path (`checkStateBasedActions` → `recomputeContinuousEffects`)
     // re-runs `condition` every SBA pass — mirrors Kavu Runner's shipped test
     // shape (`inv/red.ts`/`__tests__/red.test.ts`, issue #1095).
     function makeTekState() {
@@ -638,7 +638,7 @@ describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () 
                 makePlayer("p2"),
             ],
         });
-        applySourceStaticEffects(state, dragon);
+        beginApplyingStaticEffects(state, dragon);
         return { state, dragon };
     }
 

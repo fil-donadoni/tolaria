@@ -16,7 +16,7 @@ import {
     hasManaAbility,
 } from "../../../../gre/constants";
 import {
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     manaCostForCardFilter,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -81,7 +81,7 @@ describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — 
         state.players[0].battlefield.push(yavimaya);
         state.players[1].battlefield.push(otherSwamp);
 
-        applySourceStaticEffects(state, yavimaya);
+        beginApplyingStaticEffects(state, yavimaya);
 
         expect(otherSwamp.subtypes).toContain("Swamp");
         expect(otherSwamp.subtypes).toContain("Forest");
@@ -97,7 +97,7 @@ describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — 
         });
         state.players[0].battlefield.push(yavimaya);
 
-        applySourceStaticEffects(state, yavimaya);
+        beginApplyingStaticEffects(state, yavimaya);
 
         expect(yavimaya.subtypes).toContain("Forest");
         expect(getBasicLandMana(yavimaya)).toBe("G");
@@ -514,7 +514,7 @@ describe("under Blood Moon (CR 305.7 + the 2026 CR 714 gates, #1882)", () => {
             lore: 5,
             opponentBattlefield: [moon()],
         });
-        applySourceStaticEffects(state, state.players[1].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[1].battlefield[0]);
         expect(effectiveChapterAbilities(saga)).toEqual([]);
         expect(finalChapter(saga)).toBe(0);
 
@@ -539,7 +539,7 @@ describe("under Blood Moon (CR 305.7 + the 2026 CR 714 gates, #1882)", () => {
 
         const bloodMoonInstance = moon();
         state.players[1].battlefield.push(bloodMoonInstance);
-        applySourceStaticEffects(state, bloodMoonInstance);
+        beginApplyingStaticEffects(state, bloodMoonInstance);
 
         expect(getEffectiveActivatedAbilities(saga)).toEqual([]);
         // The grant is still RECORDED — it is removed by a continuous effect,
@@ -552,7 +552,7 @@ describe("under Blood Moon (CR 305.7 + the 2026 CR 714 gates, #1882)", () => {
         const { state, saga } = sagaBoard({ lore: 0 });
         const bloodMoonInstance = moon();
         state.players[1].battlefield.push(bloodMoonInstance);
-        applySourceStaticEffects(state, bloodMoonInstance);
+        beginApplyingStaticEffects(state, bloodMoonInstance);
         // A grant stamped after the Moon's own timestamp survives it — the
         // Humility-then-Fire-Whip shape, asserted here on the same board so the
         // two directions can't drift apart.
@@ -573,7 +573,7 @@ describe("under Blood Moon (CR 305.7 + the 2026 CR 714 gates, #1882)", () => {
             lore: 1,
             opponentBattlefield: [moon()],
         });
-        applySourceStaticEffects(state, state.players[1].battlefield[0]);
+        beginApplyingStaticEffects(state, state.players[1].battlefield[0]);
         expect(isSaga(saga)).toBe(true); // "Saga" is an enchantment subtype
         expect(saga.subtypes).toContain("Mountain");
         expect(saga.subtypes).not.toContain("Urza's");

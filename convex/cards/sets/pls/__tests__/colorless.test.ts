@@ -27,7 +27,7 @@ import {
 import type { CardDefinition } from "../../../types";
 import {
     applyCostModifiers,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     buildSpellContext,
     canPayMayPayCost,
     getCostModifiers,
@@ -1269,7 +1269,7 @@ describe("Domain-driven self cost-reduction (CR 601.2f / 702 preamble, issue #19
         expect(effectiveCastCost(state, draco)).toEqual({ X: 14 });
         // "Each land is a Forest in addition to its other types" — the real
         // layer-4 apply pass, not a hand-edited `subtypes` array.
-        applySourceStaticEffects(state, yavimaya);
+        beginApplyingStaticEffects(state, yavimaya);
         expect(islandLand.subtypes).toContain("Forest");
         // Island + Forest = Domain 2 → {4} off Draco.
         expect(effectiveCastCost(state, draco)).toEqual({ X: 12 });

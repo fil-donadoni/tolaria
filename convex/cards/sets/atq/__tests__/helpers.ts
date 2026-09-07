@@ -8,7 +8,7 @@ import { expect } from "vitest";
 import { makeInstance, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
-    applySourceStaticEffects,
+    beginApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -218,7 +218,7 @@ export function withTitaniasSong(controller: "p1" | "p2" = "p1"): {
     });
     state.players[0].battlefield.push(song);
     state.players[controller === "p1" ? 0 : 1].battlefield.push(ring);
-    applySourceStaticEffects(state, song);
+    beginApplyingStaticEffects(state, song);
     return { state, song, ring };
 }
 
@@ -265,7 +265,7 @@ export function withEnergyFlux(controller: "p1" | "p2" = "p1"): {
     });
     state.players[0].battlefield.push(flux);
     state.players[controller === "p1" ? 0 : 1].battlefield.push(ring);
-    applySourceStaticEffects(state, flux);
+    beginApplyingStaticEffects(state, flux);
     return { state, flux, ring };
 }
 
