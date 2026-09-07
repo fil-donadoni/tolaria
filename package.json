@@ -52,7 +52,7 @@
         "oracle:corpus": "bun scripts/oracle-corpus.ts",
         "oracle:index": "bun scripts/oracle-index-backfill.ts",
         "oracle:legality": "bun scripts/oracle-legality.ts",
-        "oracle:pool": "bun scripts/oracle-pool.ts",
+        "oracle:pool": "bun scripts/catalogue-artifact.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
         "oracle:retire": "bun scripts/oracle-retire.ts",
         "oracle:triage": "bun scripts/oracle-baseline-triage.ts",

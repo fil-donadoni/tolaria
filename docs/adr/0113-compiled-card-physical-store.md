@@ -159,6 +159,17 @@ view, but the Brain decides moves). It is paid with a mechanical guard — one
 generator, one hash, and a gate check asserting the two are byte-identical —
 in the same spirit as `check-card-index.ts` and `check-oracle-lockfile.ts`.
 
+> **Shipped by issue #3055 (2026-09-07), as written.** `scripts/oracle-pool.ts`
+> — the second generator, which joined the same lockfile and card index by
+> slightly different rules — is retired into `scripts/catalogue-artifact.ts`,
+> which writes both renderings from one merge: the client asset, the server's
+> `data/oracle-compiled-pool.json` as a FILTER of the same rows, and
+> `data/catalogue/source-hash.json` carrying the hash the artifact's file name
+> already carries. `scripts/__tests__/catalogue-artifact.test.ts` compares the
+> two byte for byte and names the first differing card; `bun run
+catalogue:check` is the same assertion at the CLI. The move shifted no
+> committed byte of the pool.
+
 ### 3. The client loads the WHOLE corpus, not a per-game slice
 
 At ~1 MB and ~100 ms, a slice buys nothing and costs a second state. A

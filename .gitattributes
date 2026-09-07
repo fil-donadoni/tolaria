@@ -17,3 +17,4 @@
 # class.
 data/oracle-compiled.json merge=regenerated
 data/oracle-legality.json merge=regenerated
+data/catalogue/source-hash.json merge=regenerated

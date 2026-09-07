@@ -19,10 +19,17 @@
 import type { CardDefinition } from "./types";
 import compiledPool from "../../data/oracle-compiled-pool.json";
 
-/** The compiled-ready pool, exactly as `scripts/oracle-pool.ts` wrote it:
- *  full `CardDefinition[]` shape (the join already resolved `id` + `rarity`
- *  from `data/card-index.json`; `scripts/oracle-pool.ts`'s own header
- *  explains why those two fields — and no others — are added on top of the
- *  compiler's `CompiledDefinition`). */
+/** The compiled-ready pool, exactly as `scripts/catalogue-artifact.ts` wrote
+ *  it: full `CardDefinition[]` shape (the join already resolved `id` +
+ *  `rarity` from `data/card-index.json`; that script's own header explains why
+ *  those two fields — and no others — are added on top of the compiler's
+ *  `CompiledDefinition`).
+ *
+ *  These rows are the client artifact's compiled rows, FILTERED — the same
+ *  objects from the same merge, not a second derivation (issue #3055). The
+ *  source hash they were generated from is
+ *  `CATALOGUE_SOURCE_HASH` in `./compiledCatalogue`, and
+ *  `scripts/__tests__/catalogue-artifact.test.ts` compares the two renderings
+ *  byte for byte in the gate. */
 export const compiledReadyDefinitions: CardDefinition[] =
     compiledPool as unknown as CardDefinition[];

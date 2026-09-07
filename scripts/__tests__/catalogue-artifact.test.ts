@@ -23,6 +23,14 @@
 //     than an assertion.
 //  3. THE DIVERGENCE GATE IS ARMED AND ITS BASELINE ONLY SHRINKS — the three
 //     mechanisms named in `catalogue-divergence-baseline.ts`.
+//  4. IDENTITY (issue #3055). ADR 0113 §2 delivers the same definitions two
+//     ways and names the price: "the server module and the client asset could
+//     disagree, which is the worst bug class available here (the client is
+//     only a view, but the Brain decides moves)". Since #3055 both renderings
+//     come out of ONE generator carrying ONE source hash, and the assertions
+//     below compare the BYTES the two sides actually hold — the server's
+//     bundled `compiledReadyDefinitions`, imported through the real module
+//     seam, against the committed artifact minus its hand-written rows.
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each assertion below was driven red by breaking the thing it guards, and
@@ -31,14 +39,20 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+    POOL_PATH,
     buildCatalogue,
     committedArtifacts,
+    committedIdentityDrift,
+    sharedClientRows,
     unbaselinedDivergences,
 } from "../catalogue-artifact";
 import {
     CATALOGUE_DIR,
+    SOURCE_HASH_FILE,
     artifactFileName,
     contentHash,
+    describeIdentityDrift,
+    firstIdentityDrift,
     isPlainData,
     mergeCatalogue,
     relocationLoss,
@@ -52,7 +66,10 @@ import {
     baselineKey,
 } from "../lib/catalogue-divergence-baseline";
 import { getAllCards, getAllRawCards } from "../../convex/cards/catalogue";
-import { excludeHandWritten } from "../../convex/cards/compiledCatalogue";
+import {
+    CATALOGUE_SOURCE_HASH,
+    excludeHandWritten,
+} from "../../convex/cards/compiledCatalogue";
 import { compiledReadyDefinitions } from "../../convex/cards/compiledPool";
 import type { CardDefinition } from "../../convex/cards/types";
 
@@ -77,6 +94,21 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
 
     it("the file name IS the content hash", () => {
         expect(BUILD.fileName).toBe(artifactFileName(contentHash(BUILD.bytes)));
+    });
+
+    it("the OTHER two renderings are current too (issue #3055)", () => {
+        // One generator writes three files; freshness that covered only one of
+        // them would let a regeneration reach the client and not the server,
+        // which is the exact drift ADR 0113 §2 prices.
+        expect(readFileSync(join(REPO_ROOT, POOL_PATH), "utf-8")).toBe(
+            BUILD.poolBytes
+        );
+        expect(
+            readFileSync(
+                join(REPO_ROOT, CATALOGUE_DIR, SOURCE_HASH_FILE),
+                "utf-8"
+            )
+        ).toBe(BUILD.sourceHashBytes);
     });
 
     it("is minified — the committed shape is not the prettified one", () => {
@@ -112,7 +144,8 @@ describe("catalogue artifact — relocation is a MOVE, not a recompile", () => {
     it("no compiled `ready` row is dropped by an incomplete join", () => {
         // A row the join cannot complete is a card missing from the artifact
         // AND a twin nobody checked, so it is pinned at zero rather than
-        // reported as a tally the way `scripts/oracle-pool.ts` reports its own.
+        // reported as a tally the way the retired `scripts/oracle-pool.ts`
+        // reported its own.
         expect(BUILD.unjoinable).toBe(0);
     });
 
@@ -310,24 +343,96 @@ describe("catalogue artifact — the runtime backstop never fires", () => {
     });
 });
 
-describe("catalogue artifact — the client registers what the server does (issue #3053)", () => {
+describe("catalogue artifact — the two renderings are byte-identical (issue #3055)", () => {
     // ADR 0113 §2's asymmetry has ONE price: the server reads the compiled
     // rows from the module graph (`data/oracle-compiled-pool.json`) and the
-    // client fetches the artifact and drops its hand-written rows. Those two
-    // populations agree today, and nothing else asserts it — a change to
-    // `scripts/oracle-pool.ts` or to `mergeCatalogue`'s withheld/unrelocatable
-    // rules would hand the browser a DIFFERENT card set from the one every
-    // Convex mutation and every test sees, with no red anywhere. The client is
-    // only a view, but the Brain decides moves off this registry.
+    // client fetches the artifact and drops its hand-written rows. Until
+    // issue #3055 those two populations had two GENERATORS joining the same
+    // sources by slightly different rules, and only their `id` sequence was
+    // asserted — so a compiled row could carry different EFFECTS on the two
+    // sides with no red anywhere. The client is only a view, but the Brain
+    // decides moves off this registry.
+    //
+    // `compiledReadyDefinitions` is imported through the real module seam, so
+    // this is what a Convex mutation actually holds, not a rebuild of it.
     const clientRows = () => {
         const handWrittenIds = new Set(getAllRawCards().map((c) => c.id));
         return excludeHandWritten(BUILD.merge.rows, handWrittenIds);
     };
 
-    it("the artifact minus the hand-written rows IS the bundled pool, in order", () => {
-        expect(clientRows().map((c) => c.id)).toEqual(
-            compiledReadyDefinitions.map((c) => c.id)
+    it("every shared definition agrees BYTE for byte, and the check names the card", () => {
+        const drift = firstIdentityDrift(
+            compiledReadyDefinitions,
+            clientRows()
         );
+        expect(drift === null ? null : describeIdentityDrift(drift)).toBeNull();
+    });
+
+    it("the COMMITTED files agree too, not just a regeneration of them", () => {
+        // Freshness already proves each committed file equals a rebuild, which
+        // implies this. Asked directly anyway, because it is the question
+        // ADR 0113 §2 poses — "the bytes agree NOW" — and it survives a future
+        // generator change that made one rendering a second derivation again.
+        const drift = committedIdentityDrift(REPO_ROOT);
+        expect(drift === null ? null : describeIdentityDrift(drift)).toBeNull();
+    });
+
+    it("both renderings carry the SAME source hash", () => {
+        // The server's copy is bundled through `compiledCatalogue.ts`; the
+        // client's is the artifact's file NAME. Two independently written
+        // records of one generation, so a merge or an edit that takes one side
+        // reds here before any row has to be compared.
+        expect(CATALOGUE_SOURCE_HASH).toBe(BUILD.hash);
+        expect(BUILD.fileName).toBe(artifactFileName(CATALOGUE_SOURCE_HASH));
+    });
+
+    it("`firstIdentityDrift` actually compares — a changed field is a drift", () => {
+        // Vacuity guard: a comparator returning `null` unconditionally would
+        // make all three assertions above pass on a fully drifted tree. Same
+        // role `twinDivergence`'s unit plays for the divergence gate.
+        const server = [
+            { id: "a", name: "A", effects: [{ op: "draw", count: 1 }] },
+            { id: "b", name: "B" },
+        ] as unknown as CardDefinition[];
+        const bytes = [
+            { id: "a", name: "A", effects: [{ op: "draw", count: 2 }] },
+            { id: "b", name: "B" },
+        ] as unknown as CardDefinition[];
+        expect(firstIdentityDrift(server, server)).toBeNull();
+        expect(firstIdentityDrift(server, bytes)).toMatchObject({
+            kind: "bytes",
+            at: 0,
+            card: "A (a)",
+        });
+        // Key ORDER is a difference the wire sees and `toEqual` does not.
+        const reordered = [
+            { name: "A", id: "a", effects: [{ op: "draw", count: 1 }] },
+            { id: "b", name: "B" },
+        ] as unknown as CardDefinition[];
+        expect(firstIdentityDrift(server, reordered)?.kind).toBe("bytes");
+        // Membership and length, reported on the FIRST row that differs.
+        const swapped = [server[1]!, server[0]!];
+        expect(firstIdentityDrift(server, swapped)).toMatchObject({
+            kind: "id",
+            at: 0,
+        });
+        expect(firstIdentityDrift(server, [server[0]!])).toMatchObject({
+            kind: "count",
+            at: 1,
+            card: "B (b)",
+        });
+    });
+
+    it("`sharedClientRows` drops the relocated rows and nothing else", () => {
+        // What the browser does at hydration, and the only reason the two
+        // populations are comparable at all. A filter that dropped everything
+        // would make the comparison vacuous in the safe direction.
+        const shared = sharedClientRows(BUILD.merge.rows);
+        expect(shared.length).toBe(BUILD.merge.compiledOnly);
+        expect(shared.length).toBe(
+            BUILD.merge.rows.length - BUILD.merge.relocated
+        );
+        expect(shared.length).toBeGreaterThan(RELOCATION_FLOOR);
     });
 
     it("compiled names are unique, which is what makes first-write-wins safe", () => {

@@ -27,7 +27,7 @@
  *
  * An oracle id already present (hand-written OR previously compiled) is
  * left untouched — a card compiled AND hand-written keeps the hand-written
- * entry, so the pool loader (`scripts/oracle-pool.ts`) can exclude it and
+ * entry, so the catalogue merge (`scripts/catalogue-artifact.ts`) can exclude it and
  * the hand-written definition stays sole authority (PRD #2693 "gold as
  * oracle"; retiring a hand-written card in favour of its compiled twin is
  * its own future PR, not a side effect of this backfill).
