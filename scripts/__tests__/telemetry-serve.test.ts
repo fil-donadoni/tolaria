@@ -499,7 +499,15 @@ const STATIC_IMPORT_RE = /(?:import|export)\s[^;]*["']\.\/([^"']+)["']/g;
 
 /**
  * Everything reachable from `main.js` over static import edges — the
- * transitive closure, CRAWLED, never listed. A hand-maintained list sees only
+ * transitive closure, CRAWLED, never listed.
+ *
+ * SINCE S2 (PRD #3148) this entry is HISTORY ONLY: the Now view is React and
+ * owns its own transport, so `main.js` no longer imports `now-loop-status.js`
+ * or the keyboard layer. What this crawl still guards is the half that has not
+ * moved — that History arrives through a DYNAMIC import and drags nothing
+ * store-backed into the page load. The Now half is guarded one layer up, over
+ * the React graph (see the second boundary suite below), which is where the
+ * code now lives. A hand-maintained list sees only
  * the edges its author remembered: with one, `tabs.js -> svg.js ->
  * history-state.js` reintroduces both the eager History load and the DB read
  * #2519 forbids while every assertion below stays green (measured — see the
@@ -527,16 +535,16 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
     /** Everything reachable from `main.js` WITHOUT loading History. */
     const NOW_MODULES = nowClosure();
 
-    it("the Now closure is crawled from main.js, transitively — a one-hop crawl would pass the guards below vacuously", () => {
-        // `format.js` is reachable only at depth 2 (main.js ->
-        // now-loop-status.js -> format.js): it is here iff the crawl really
-        // followed an edge out of a module main.js does not import itself.
+    it("the closure is crawled from main.js, transitively — a one-hop crawl would pass the guards below vacuously", () => {
+        // `format.js` is reachable only at depth 2 (main.js -> tooltip.js ->
+        // format.js): it is here iff the crawl really followed an edge out of
+        // a module main.js does not import itself.
         expect(NOW_MODULES).toContain("main.js");
-        expect(NOW_MODULES).toContain("now-loop-status.js");
+        expect(NOW_MODULES).toContain("tooltip.js");
         expect(NOW_MODULES).toContain("format.js");
     });
 
-    it("Now reads /api/loop-status and the three transcript routes and posts to /api/action, and nothing else — no database route, direct or transitive", () => {
+    it("the legacy entry reaches no database route, direct or transitive", () => {
         // `/api/action` (#2628) joined the allow-list in #2636: the Now
         // view's action buttons (`actions.js`, reached from `main.js` via
         // `now-loop-status.js`) POST the three reversible driver operations
@@ -565,27 +573,30 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         }
     });
 
-    it("no module in the Now closure is a History module — a static edge, at any depth, would drag the store-backed graph into the Now load", () => {
+    it("no module in the legacy entry's closure is a History module — a static edge, at any depth, would drag the store-backed graph into the page load", () => {
         expect(
             NOW_MODULES.filter((name) => name.startsWith("history-")),
             "reachable from main.js without a dynamic import"
         ).toEqual([]);
     });
 
-    it("History is reached only through a dynamic import inside main.js's try/catch — #2519's guarantee, preserved across the module split", () => {
+    it("History is reached only through a dynamic import inside main.js's try/catch — #2519's guarantee, preserved across the module split and across the S2 port", () => {
         const main = stripComments(
             readFileSync(join(REPO_DASHBOARD_DIR, "main.js"), "utf8")
         );
-        // Now is started before History is even fetched…
-        const pollAt = main.indexOf("startLoopStatusPolling()");
         const historyAt = main.indexOf('import("./history-boot.js")');
-        expect(pollAt).toBeGreaterThan(-1);
-        expect(historyAt).toBeGreaterThan(pollAt);
-        // …and History's whole load+bootstrap sits inside a catch.
+        expect(historyAt).toBeGreaterThan(-1);
+        // History's whole load+bootstrap sits inside a catch, so a missing or
+        // stale telemetry.db leaves the page standing.
         expect(main.slice(historyAt)).toMatch(/}\s*catch/);
-        // A static import of history-boot would defeat all of the above:
-        // statically imported modules evaluate before main.js's first line.
+        // A static import of history-boot would defeat that: statically
+        // imported modules evaluate before main.js's first line.
         expect(main).not.toMatch(/^import\s[^;]*history-/m);
+        // And since S2 this entry must not reach the Now view at all — the
+        // React tree owns it, and an edge back here would resurrect the
+        // duplicate composition the port exists to remove.
+        expect(NOW_MODULES).not.toContain("now-loop-status.js");
+        expect(NOW_MODULES).not.toContain("now.js");
     });
 });
 
