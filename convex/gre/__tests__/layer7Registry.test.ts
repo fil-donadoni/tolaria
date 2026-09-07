@@ -17,7 +17,11 @@ import {
     getPermanentEffectiveToughness,
 } from "../layers";
 import { declaresLayer7StaticEffect } from "../../cards/registry";
-import { getDefinition, withTemporaryDefinition } from "../../cards";
+import {
+    getDefinition,
+    tokenDefinitionId,
+    withTemporaryDefinition,
+} from "../../cards";
 import type { CardDefinition, StaticEffect } from "../../cards/types";
 import type { ContinuousEffect } from "../continuousEffects";
 import type { CardInstanceState, GameState } from "../state";
@@ -607,6 +611,40 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
                 expect(declaresLayer7StaticEffect(id)).toBe(true);
             });
         }
+    });
+
+    it("a token id the registry has never seen still contributes its CDA (CR 604.3)", () => {
+        // A TOKEN has no printed card: its identity IS the content-derived id,
+        // and `tryGetDefinition` decodes it back into a definition on a registry
+        // MISS — which is also what indexes it. A precheck standing ahead of
+        // that call must resolve the id itself, or it answers from the absence
+        // of a definition and the walk skips the source forever.
+        //
+        // Urza's Saga's Construct is the card this kills: printed 0/0, its whole
+        // P/T a `pt-cda` (CR 604.3), so on a client whose registry was filled by
+        // `preloadDefinitions` alone it would render 0/0 and die to the
+        // CR 704.5f SBA. `cards/tokenStaticEffects.ts`'s header records the last
+        // time this class of bug killed it. The name is unique so no other test
+        // in this worker can have registered the id first — the point is a COLD
+        // registry.
+        const id = tokenDefinitionId({
+            name: "S7 Cold Construct",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+            power: 0,
+            toughness: 0,
+            staticEffectKeys: ["pt-cda-artifacts-you-control"],
+        });
+        const token = creature("cold-construct", 0, 0, {
+            card: { id },
+            types: ["Artifact", "Creature"],
+            subtypes: ["Construct"],
+        });
+        const state = stateWith([token], []);
+
+        // One artifact on the board — itself.
+        expect(getEffectivePower(state, token)).toBe(1);
+        expect(getEffectiveToughness(state, token)).toBe(1);
     });
 
     it("indexes a COMPILED anthem, which has no `staticEffects[]` at index time", () => {

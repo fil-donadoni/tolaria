@@ -366,7 +366,7 @@ export type Layer6SourcePlan = readonly Layer6SourceCandidate[];
  *
  *  What is deliberately NOT hoisted is `applies(target, source, ctx)`: it reads
  *  the target, so it is genuinely per-pair and stays in `layer6EffectsFor`. */
-export function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
+function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
     const candidates: Layer6SourceCandidate[] = [];
 
     const push = (
@@ -466,8 +466,10 @@ export function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
  *  - `duration` / `indefinite` — residue of a resolved spell or ability
  *    (`SpellContext.grantStaticAbility`, `grantStaticAbilityPermanent`,
  *    `removeStaticAbilities`, `loseAllAbilities`). The spell has LEFT; there is
- *    nothing to walk, which is exactly why the registry exists. Still borne by
- *    the instance until PRD #2064 S6 moves the countdown in here.
+ *    nothing to walk, which is exactly why the registry exists. STORED entries
+ *    since PRD #2064 S6b — their producers write them through
+ *    `pushContinuousEffect` and the instance ledgers they used to ride are
+ *    gone, so they arrive through the stored-entry walk below.
  *  - `counter` — CR 122.1b keyword counters, gated on the counter still being
  *    there. Neither duration-bounded nor tied to a live source.
  *  - stored `state.continuousEffects` — the channel that is simultaneously

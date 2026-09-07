@@ -155,6 +155,39 @@ const LAYER_6_STATIC_KINDS = new Set<string>([
  *  `LAYER_2_5_STATIC_KINDS` above is; `layers.test.ts` asserts the two agree. */
 const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda"]);
 
+/** Membership in one of the three derived sets above, for an id that may never
+ *  have been REGISTERED.
+ *
+ *  A registry miss is not the same answer as "declares nothing". A TOKEN has no
+ *  printed card: its whole identity is the content-derived id
+ *  `tokenDefinitionId` builds, and `tryGetDefinition` decodes it back into a
+ *  definition on a MISS (`maybeSynthesizeToken`) and registers the result —
+ *  which is what fills these sets. So the walk's own `tryGetDefinition` used to
+ *  be the call that indexed a token, and a precheck standing AHEAD of it has to
+ *  do that resolution itself, or its answer comes from the absence of a
+ *  definition rather than from one.
+ *
+ *  Getting this wrong is not a wasted lookup, it is the stale FALSE these sets
+ *  are documented not to have. Urza's Saga's Construct is printed 0/0 and its
+ *  entire P/T is a `pt-cda` (`cards/tokenStaticEffects.ts`, whose own header
+ *  records the last time this class of bug killed it): on any process whose
+ *  registry was filled by `preloadDefinitions` alone — a browser client running
+ *  the Brain, a cold isolate — the layer-7 walk would skip it forever and the
+ *  CR 704.5f zero-toughness SBA would eat it.
+ *
+ *  Cheap on both hot paths: a registered id answers from a `Set` plus a `Map`,
+ *  and an unregistered NON-token id is refused by `maybeSynthesizeToken`'s
+ *  `startsWith("token:")` before anything is parsed. */
+const declaresIndexedStatic = (
+    cardId: string,
+    indexed: ReadonlySet<string>
+): boolean => {
+    if (indexed.has(cardId)) return true;
+    if (registry.has(cardId)) return false;
+    tryGetDefinition(cardId);
+    return indexed.has(cardId);
+};
+
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
  *  `gre/zoneCharacteristics.ts`; see {@link zoneConditionalIds}. `false` for
@@ -181,7 +214,7 @@ export const declaresOffBattlefieldCharacteristics = (
  *  answer — the scan still reads the live definition before deriving anything.
  *  A stale FALSE is impossible: every write goes through `setRegistryEntry`. */
 export const declaresLayer2to5StaticEffect = (cardId: string): boolean =>
-    layer2to5StaticIds.has(cardId);
+    declaresIndexedStatic(cardId, layer2to5StaticIds);
 
 /** CR 613.1f (PRD #2064 S7) — does `cardId`'s definition declare any layer-6
  *  static effect? The exact twin of `declaresLayer2to5StaticEffect` above, one
@@ -198,7 +231,7 @@ export const declaresLayer2to5StaticEffect = (cardId: string): boolean =>
  *  deriving anything; a stale FALSE is impossible, because every write goes
  *  through `setRegistryEntry`. */
 export const declaresLayer6StaticEffect = (cardId: string): boolean =>
-    layer6StaticIds.has(cardId);
+    declaresIndexedStatic(cardId, layer6StaticIds);
 
 /** CR 613.4 (PRD #2064 S7) — does `cardId`'s definition declare any layer-7
  *  static effect? The third of these prechecks, and the one with the widest
@@ -208,7 +241,7 @@ export const declaresLayer6StaticEffect = (cardId: string): boolean =>
  *  creature. Same derived-membership discipline and same fail-slow trade as its
  *  two twins above. */
 export const declaresLayer7StaticEffect = (cardId: string): boolean =>
-    layer7StaticIds.has(cardId);
+    declaresIndexedStatic(cardId, layer7StaticIds);
 
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */

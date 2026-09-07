@@ -353,9 +353,8 @@ function layer7EffectsFor(
     ): void => {
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
-            // The two kinds `LAYER_7_STATIC_EFFECT_KINDS` names.
+            if (!isLayer7StaticEffect(effect)) continue;
             const cda = effect.kind === "pt-cda";
-            if (!cda && effect.kind !== "pt-buff") continue;
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
             // CR 611.2c source-level gate ("as long as ..."): evaluated once
             // per source against the whole board (Jihad). Only `pt-buff`
@@ -635,16 +634,31 @@ function resolveLayer7Payload(
 /** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
  *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`.
  *
- *  The NAMING AUTHORITY the registry-derived precheck is pinned against
- *  (`declaresLayer7StaticEffect` in `cards/registry.ts`, asserted in
- *  `layer7Registry.test.ts`), so a kind added to the derivation and not to the
- *  precheck cannot ship silently skipped. The walk itself spells the two kinds
- *  out rather than probing this table: a `Record` lookup does not narrow the
- *  discriminated union, and every read below the check needs the narrowing. */
-export const LAYER_7_STATIC_EFFECT_KINDS: Record<string, true> = {
+ *  The single naming authority, and it is the WALK's own gate (through
+ *  {@link isLayer7StaticEffect}) rather than a table beside it: a list the
+ *  derivation does not read is a list that can disagree with the derivation.
+ *  `declaresLayer7StaticEffect` (`cards/registry.ts`) is pinned against this
+ *  one in `layer7Registry.test.ts`, so a kind added here and not there cannot
+ *  ship silently skipped by the precheck — and a kind added to the walk without
+ *  passing through here is not expressible. */
+export const LAYER_7_STATIC_EFFECT_KINDS = {
     "pt-buff": true,
     "pt-cda": true,
-};
+} as const;
+
+/** Narrows a `StaticEffect` to the two layer 7 owns, reading
+ *  {@link LAYER_7_STATIC_EFFECT_KINDS} for the membership and deriving the
+ *  narrowed type from the SAME table's keys — so adding a row widens the
+ *  narrowed union with it, and every read below the gate that the new kind
+ *  cannot answer reds in `tsc` instead of being silently mis-handled. */
+function isLayer7StaticEffect(
+    effect: StaticEffect
+): effect is Extract<
+    StaticEffect,
+    { kind: keyof typeof LAYER_7_STATIC_EFFECT_KINDS }
+> {
+    return effect.kind in LAYER_7_STATIC_EFFECT_KINDS;
+}
 
 /** The battlefield permanent with `id`, if any. */
 function findPermanent(
