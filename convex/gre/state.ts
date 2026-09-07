@@ -16999,20 +16999,34 @@ export function buildSpellContext(
                     );
                 }
             }
-            // CR 611.2c — keyword abilities an animate effect grants as part of
-            // "becomes a creature with [keyword]" (Earthbend N's haste) persist
-            // independent of the animation's own duration, mirroring
-            // `grantStaticAbilityPermanent`: idempotent, cleared only when the
-            // permanent leaves the battlefield. Applied unconditionally (even
-            // when `card.animation` was already set above) so a second
+            // Keyword abilities an animate effect grants as part of "becomes a
+            // creature with [keyword]" share the ANIMATION'S OWN duration
+            // (CR 611.2a — a continuous effect from a resolving ability "lasts
+            // as long as stated by the spell or ability creating it", and the
+            // "until end of turn" in "becomes a 3/3 green Ape creature with
+            // trample until end of turn" governs the whole clause, keyword
+            // included). An INDEFINITE animation (Earthbend N's haste, no
+            // stated duration) still grants indefinitely — CR 611.2a's "until
+            // the end of the game" default — cleared only when the permanent
+            // leaves the battlefield. Applied unconditionally (even when
+            // `card.animation` was already set above) so a second
             // earthbend-style application still (re)grants the keyword.
             if (spec.grantedAbilities) {
+                // The record's OWN resolved duration, so a re-application onto
+                // an already-animated permanent inherits the live animation's
+                // boundary rather than re-resolving the spec.
+                const grantDuration = card.animation?.duration;
                 for (const ability of spec.grantedAbilities) {
                     // CR 113.1 (issue #1706) — same own-record idempotence
                     // gate as `grantStaticAbilityPermanent`: an `includes`
                     // gate would silently share another source's occurrence
-                    // and own none of its own.
-                    if (hasIndefiniteKeywordGrant(state, card.id, ability))
+                    // and own none of its own. A BOUNDED grant is not gated by
+                    // it: an indefinite grant from some other source must not
+                    // swallow this animation's own until-end-of-turn record.
+                    if (
+                        !grantDuration &&
+                        hasIndefiniteKeywordGrant(state, card.id, ability)
+                    )
                         continue;
                     ensureLayer6Base(card);
                     pushContinuousEffect(state, {
@@ -17021,12 +17035,23 @@ export function buildSpellContext(
                             kind: "instances",
                             instanceIds: [card.id],
                         },
-                        expiry: {
-                            kind: "indefinite",
-                            // CR 611.2c — the ability's controller, not the
-                            // animated permanent's. See `grantStaticAbility`.
-                            controllerId: item.castById,
-                        },
+                        expiry: grantDuration
+                            ? {
+                                  kind: "duration",
+                                  duration: grantDuration,
+                                  // CR 611.2c — the controller of an effect
+                                  // from a resolving ability is fixed when the
+                                  // effect is created; the ability is gone by
+                                  // the time the boundary is counted.
+                                  controllerId: item.castById,
+                              }
+                            : {
+                                  kind: "indefinite",
+                                  // CR 611.2c — the ability's controller, not
+                                  // the animated permanent's. See
+                                  // `grantStaticAbility`.
+                                  controllerId: item.castById,
+                              },
                         payload: { kind: "keyword-grant", keyword: ability },
                         characteristicDefining: false,
                     });

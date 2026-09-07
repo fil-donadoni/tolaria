@@ -2,7 +2,12 @@
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { resolveTopOfStack, type StackItem } from "../../../../gre/state";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { getEffectiveColors } from "../../../effectiveColors";
 import { tapSourceIntoPayment } from "../../../../game";
 import { advancePhase, fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -255,5 +260,88 @@ describe("Memory Jar ({T}, Sacrifice: each player exiles hand face down + draws 
         // Symmetric check: p1 must not see p2's returned hand either.
         const asP1 = projectPublicState(state, 1, "p1");
         expect(asP1.players[1].hand).toEqual([null, null]);
+    });
+});
+
+const treetopVillage = getDefinition("02212bd8-0c0f-4e8e-99f1-a8477476c03a");
+
+describe("Treetop Village (manland animate, CR 611.1 / 613.1e / 702.19a)", () => {
+    function animatedVillage() {
+        const village = makeInstance(treetopVillage.id, {
+            id: "village",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [village] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...village,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "treetop-village-animate",
+        } as StackItem);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("enters tapped and taps for {G} without using the stack (CR 605.1a)", () => {
+        expect(treetopVillage.entersTapped).toBe(true);
+        const mana = treetopVillage.activatedAbilities!.find(
+            (a) => a.id === "treetop-village-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.manaProduced).toEqual({ G: 1 });
+    });
+
+    it("becomes a 3/3 green Ape with trample and stays a land", () => {
+        const state = animatedVillage();
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "village"
+        )!;
+        // CR 611.1 — the Creature type is ADDED: "It's still a land."
+        expect(live.types).toEqual(
+            expect.arrayContaining(["Land", "Creature"])
+        );
+        expect(live.subtypes).toContain("Ape");
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        // CR 702.19a — trample is granted for the animation's duration.
+        expect(live.staticAbilities).toContain("trample");
+        // CR 613.1e / 105.3 — the layer-5 set makes the colourless land green.
+        expect(getEffectiveColors(live)).toEqual(["G"]);
+    });
+
+    it("MANDATORY wire format: the animated body survives projectPublicState", () => {
+        const state = animatedVillage();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "village"
+        )!;
+        expect(slim.types).toEqual(
+            expect.arrayContaining(["Land", "Creature"])
+        );
+        expect(slim.subtypes).toContain("Ape");
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+        expect(slim.staticAbilities).toContain("trample");
+        expect(getEffectiveColors(slim)).toEqual(["G"]);
+    });
+
+    it("the animation ends at cleanup — back to a plain untapped land", () => {
+        const state = animatedVillage();
+        state.activePlayerId = "p1";
+        state.phase = "END_STEP";
+        advancePhase(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "village"
+        )!;
+        // CR 514.2 — the end-of-turn duration expires in the cleanup step.
+        expect(live.types).not.toContain("Creature");
+        expect(live.staticAbilities).not.toContain("trample");
+        expect(getEffectiveColors(live)).toEqual([]);
     });
 });
