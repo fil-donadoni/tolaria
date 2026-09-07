@@ -320,9 +320,12 @@ tbody tr:hover {
 }
 
 /* Loop status panel (#2519). */
+/* 300px, not 220px (issue #3135): the Driver section now holds a six-column
+   table, and at 820-844px three 240px columns squeezed it into a 208px
+   scroller. Two columns there, three from ~960px, one on a phone. */
 .ls-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 16px;
 }
 .ls-driver {
