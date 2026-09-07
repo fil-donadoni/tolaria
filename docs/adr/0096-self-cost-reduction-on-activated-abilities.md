@@ -21,7 +21,9 @@ self-reduce"_.
 
 The Kamigawa: Neon Dynasty channel lands break that assumption. Boseiju, Who
 Endures and Otawara, Soaring City each carry a **Hand-Activated Ability**
-(CR 113.6c — its cost discards the card, so it functions only from hand) whose
+(CR 113.6j — its cost can't be paid on the battlefield, so the ability functions
+from the hand instead; the ADR originally miscited this as 113.6c, which is the
+"states which zones it doesn't function in" rule) whose
 last clause is _"This ability costs {1} less to activate for each legendary
 creature you control."_
 

@@ -6588,7 +6588,10 @@ export function finalizeTargetSelection(
         if (manaCost) {
             applyCostModifiers(
                 manaCost,
-                getCostModifiers(state, card, "ability")
+                // ADR 0096 — the announced ABILITY is handed to the collector
+                // so its own `cost.selfReduction` (CR 601.2f, the self-host
+                // arm's ability twin) is folded alongside the battlefield scan.
+                getCostModifiers(state, card, "ability", ability)
             );
         }
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
@@ -9968,7 +9971,7 @@ export const autoTapForPayment = mutation({
                 pending.cardInstanceId,
                 sorceryTiming
             ),
-            ...buildBoardAbilityDemands(player.battlefield, {
+            ...buildBoardAbilityDemands(state, player.battlefield, {
                 phase: state.phase,
                 isControllersTurn: state.activePlayerId === player.id,
             }),
@@ -14377,7 +14380,13 @@ export function activateAbilityOnState(
         chosenX,
     });
     if (manaCost) {
-        applyCostModifiers(manaCost, getCostModifiers(state, card, "ability"));
+        // ADR 0096 — same collector, same ability argument as the
+        // `finalizeTargetSelection` commit path: the two must charge the same
+        // reduced total for the same activation.
+        applyCostModifiers(
+            manaCost,
+            getCostModifiers(state, card, "ability", ability)
+        );
     }
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
     // (Drought). Gate on affordability at announcement; pip count comes from

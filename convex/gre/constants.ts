@@ -1253,6 +1253,15 @@ const NEVER_AUTO_PAYABLE_COST_LEGS = [
     "xFromTargetSpellMv",
     "manaEqualToEnchantedCreatureCost",
     "manaEqualToCounterCount",
+    // CR 601.2f (ADR 0096, issue #2288) — a self cost REDUCTION, not a
+    // payment leg, and the same class as the two cost-shaping fields above:
+    // the automatic mana-ability planner funds `cost.mana` RAW, so an ability
+    // declaring a reduction would be funded at its printed price. ADR 0096
+    // keeps the mana-ability payment path (`applyManaAbilityManaCost` /
+    // `autoTapForManaAbilityCost`) deliberately unreduced — excluding the leg
+    // here makes that fail CLOSED (such an ability is simply not auto-funded)
+    // rather than silently mis-funding it.
+    "selfReduction",
 ] as const satisfies readonly (keyof ActivatedAbility["cost"])[];
 
 /** CR 602.1 (issue #2420) — the fixed generic amount a `cost.mana` leg

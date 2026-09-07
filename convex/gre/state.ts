@@ -1,4 +1,5 @@
 import {
+    type ActivatedAbility,
     type AnimateSpec,
     type AsEntersChoice,
     type CardDefinition,
@@ -22294,6 +22295,16 @@ function resolveCostReductionGeneric(
         const n = player.battlefield.filter((c) =>
             matchesPermanentFilter(c, reduction.countFilter, {
                 selfControllerId: player.id,
+                // CR 205.4a — a `countFilter` may name a SUPERTYPE ("for each
+                // LEGENDARY creature you control", ADR 0096's own example),
+                // and `matchesPermanentFilter` fails CLOSED when neither the
+                // permanent carries live supertypes nor a resolver is handed
+                // in. Same snow-aware resolver every other filter site injects
+                // (`STATIC_EFFECT_CTX`, `activationCostPicks`,
+                // `alternativeCost`), so a supertype clause counts here
+                // exactly as it does everywhere else instead of silently
+                // resolving to zero matches.
+                supertypesOf: liveSupertypesOf,
             })
         ).length;
         return per * n;
@@ -22322,12 +22333,23 @@ function resolveCostReductionGeneric(
  *  (Emry, Lurker of the Loch). Unlike every other `costReduction` consumer,
  *  Emry isn't a permanent when she's announced, so no battlefield scan can
  *  discover her reducer; it's read directly off the cast card's own
- *  definition instead, right here at the same 601.2f apply site. */
+ *  definition instead, right here at the same 601.2f apply site.
+ *
+ *  Self-host, ABILITY arm (ADR 0096): the announced `ability`'s own
+ *  `cost.selfReduction`. Same hole, one zone over — a Hand-Activated Ability
+ *  (CR 113.6j — its cost discards its own card, a cost that can't be paid on
+ *  the battlefield, so the ability functions from the HAND) has no permanent
+ *  carrying it either, and the scan above cannot reach its reducer. Declared
+ *  per ABILITY, not per card, because the Oracle scopes it to "this ability"
+ *  and the motivating cards carry a second, unreduced ability.
+ *  `ability` is therefore REQUIRED of every `kind: "ability"` caller that has
+ *  one to hand; omitting it yields the battlefield-scan modifiers alone. */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView &
         Pick<Partial<CardInstanceState>, "castFromExileCostIncrease">,
-    kind: "spell" | "ability"
+    kind: "spell" | "ability",
+    ability?: ActivatedAbility
 ): CostModifiers {
     const increase: Record<string, number> = {};
     // CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase stamped on the
@@ -22408,6 +22430,26 @@ export function getCostModifiers(
                     minTotalMana = selfReduction.minTotalMana;
                 }
             }
+        }
+    }
+    // CR 601.2f — the ABILITY arm of the self-host reduction (ADR 0096). Read
+    // off the ANNOUNCED ability rather than off a battlefield carrier, for the
+    // same reason the spell arm above exists: the reducing object may not be a
+    // permanent at all (a Hand-Activated Ability's card is in hand, CR 113.6j).
+    // Routed through the SAME `resolveCostReductionGeneric`, so an ability
+    // reduction and a spell reduction cannot disagree about what a reduction
+    // may touch — generic-only, floored at zero by `applyCostModifiers`.
+    // No `minTotalMana` twin: the floor belongs to the reducing EFFECT and the
+    // per-ability declaration carries a bare `CostReductionAmount`; a static
+    // that declares a floor still contributes it through the scan above.
+    if (kind === "ability" && ability?.cost.selfReduction) {
+        const announcer = state.players.find((p) => p.id === card.controllerId);
+        if (announcer) {
+            reductionGeneric += resolveCostReductionGeneric(
+                ability.cost.selfReduction,
+                announcer,
+                state
+            );
         }
     }
     return { increase, reductionGeneric, minTotalMana };
