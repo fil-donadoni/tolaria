@@ -93,6 +93,56 @@ describe("wire projection derives layer 6 from the registry (CR 613.1f)", () => 
         expect(mammoth.staticAbilities).toEqual(["trample"]);
     });
 
+    it("ships a resolved-ability grant as a `grantedStaticAbilities` ROW, so the client can tell the permanent is altered (PRD #2064 S6b)", () => {
+        // The client never re-derives layer 6 to answer "is this permanent
+        // altered?" — two reducers read the flat array instead: `isAltered`
+        // (`src/lib/battlefield-stacks.ts`, whether the card may collapse into
+        // a stack of identical creatures) and `src/lib/preview-body.ts`.
+        //
+        // S6b moved the three non-aura provenances OUT of that array and into
+        // the registry, so without the wire rebuilding them a creature whose
+        // only alteration is "gains flying until end of turn" stacks back in
+        // with plain copies of itself and the player cannot see which one
+        // flies. Nothing in the client suite can catch that: its fixtures
+        // hand-build the row the projection stopped producing.
+        const mammoth = makeInstance(WAR_MAMMOTH, { id: "m1" });
+        const state = stateWith(mammoth, [
+            indefiniteEntry(
+                "ce-1",
+                10,
+                "m1",
+                { layer: 6 },
+                { kind: "keyword-grant", keyword: "flying" }
+            ),
+        ]);
+
+        const wire = projectedCard(state);
+        expect(wire.staticAbilities).toEqual(["trample", "flying"]);
+        expect(wire.grantedStaticAbilities).toEqual([
+            { ability: "flying", seq: 10 },
+        ]);
+    });
+
+    it("does NOT ship an aura-sourced grant twice", () => {
+        // The aura half is layer 6's own derived output and already reaches the
+        // wire through `layer6DerivedFields`; a `source`-expiry entry must not
+        // be rebuilt on top of it.
+        const mammoth = makeInstance(WAR_MAMMOTH, { id: "m1" });
+        const state = stateWith(mammoth, [
+            {
+                id: "ce-src",
+                layer: 6,
+                timestamp: 4,
+                characteristicDefining: false,
+                expiry: { kind: "source", sourceId: "nobody" },
+                affected: { kind: "instances", instanceIds: ["m1"] },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+            } as ContinuousEffect,
+        ]);
+
+        expect(projectedCard(state).grantedStaticAbilities).toBeUndefined();
+    });
+
     it("ships a printed keyword the registry removes", () => {
         const mammoth = makeInstance(WAR_MAMMOTH, { id: "m1" });
         const state = stateWith(mammoth, [
