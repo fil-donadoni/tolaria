@@ -14,7 +14,7 @@ import { getDefinition } from "../../../index";
 
 const terravore = getDefinition("c39c412b-2f21-483a-b744-5d55bc007c0d");
 
-// --- Terravore — land-counting CDA P/T (CR 604.3 / 613.4b, layer 7a) --------
+// --- Terravore — land-counting CDA P/T (CR 604.3 / 613.4a, layer 7a) --------
 
 describe("Terravore (CR 604.3 land-counting CDA P/T)", () => {
     /** A card sitting in a graveyard with the given types; the CDA reads the
@@ -72,7 +72,7 @@ describe("Terravore (CR 604.3 land-counting CDA P/T)", () => {
         expect(getEffectiveToughness(state, live)).toBe(3);
     });
 
-    it("empty graveyards leave it 0/0 (SBA fodder, CR 704.5a)", () => {
+    it("empty graveyards leave it 0/0 (SBA fodder, CR 704.5f)", () => {
         const state = stateWithGraveyards([], []);
         const live = state.players[0].battlefield[0];
         expect(getEffectivePower(state, live)).toBe(0);

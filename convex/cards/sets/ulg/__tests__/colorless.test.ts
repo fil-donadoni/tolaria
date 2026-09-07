@@ -9,6 +9,7 @@ import {
 } from "../../../../gre/layers";
 import { getEffectiveColors } from "../../../effectiveColors";
 import { tapSourceIntoPayment } from "../../../../game";
+import { applyPlayLand } from "../../../../gre/playLand";
 import { advancePhase, fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
@@ -288,13 +289,42 @@ describe("Treetop Village (manland animate, CR 611.1 / 613.1e / 702.19a)", () =>
         return state;
     }
 
-    it("enters tapped and taps for {G} without using the stack (CR 605.1a)", () => {
-        expect(treetopVillage.entersTapped).toBe(true);
-        const mana = treetopVillage.activatedAbilities!.find(
-            (a) => a.id === "treetop-village-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ G: 1 });
+    // Full path through the real tap-for-mana entry point, like Grim
+    // Monolith's above — reading `manaProduced` off the definition would go
+    // green on a land that is inert in the engine.
+    it("taps for {G} through the engine (CR 605.1a mana ability, no stack)", () => {
+        const village = makeInstance(treetopVillage.id, {
+            id: "village",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [village] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, village, undefined, []);
+        expect(player.manaPool.G).toBe(1);
+        expect(village.isTapped).toBe(true);
+        // CR 605.1a — a mana ability never uses the stack, so nothing waited.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // CR 305.2 — the printed "This land enters tapped" clause, driven through
+    // the real land-drop path rather than read off the definition.
+    it("enters the battlefield tapped when played from hand", () => {
+        const village = makeInstance(treetopVillage.id, {
+            id: "village-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [village] }), makePlayer("p2")],
+        });
+        state.activePlayerId = "p1";
+        state.phase = "PRECOMBAT_MAIN";
+        const played = applyPlayLand(state, state.players[0], "village-hand")!;
+        expect(played.zone).toBe("battlefield");
+        expect(played.isTapped).toBe(true);
     });
 
     it("becomes a 3/3 green Ape with trample and stays a land", () => {

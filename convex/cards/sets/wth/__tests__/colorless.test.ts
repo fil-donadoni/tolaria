@@ -95,7 +95,7 @@ function resolveActivatedWithTargets(
     resolveTopOfStack(state);
 }
 
-/** A card in a graveyard. Graveyards are ordered OLDEST-first (CR 404.3; every
+/** A card in a graveyard. Graveyards are ordered OLDEST-first (CR 404.2; every
  *  insertion site pushes), so index 0 is the BOTTOM of the pile. */
 function gyCard(id: string, owner: string): CardInstanceState {
     return makeInstance(FOREST, {
@@ -106,7 +106,7 @@ function gyCard(id: string, owner: string): CardInstanceState {
     });
 }
 
-describe("Phyrexian Furnace (graveyard hate, CR 404.3 / 603.3d / 605)", () => {
+describe("Phyrexian Furnace (graveyard hate, CR 404.2 / 601.2c / 605)", () => {
     function furnaceState(p2Graveyard: CardInstanceState[]) {
         const furnace = makeInstance(phyrexianFurnace.id, {
             id: "furnace",
@@ -138,7 +138,7 @@ describe("Phyrexian Furnace (graveyard hate, CR 404.3 / 603.3d / 605)", () => {
             "phyrexian-furnace-exile-bottom",
             [{ type: "player", id: "p2" }]
         );
-        // CR 404.3 — the pile is ordered; the BOTTOM is the oldest entry, not
+        // CR 404.2 — the pile is ordered; the BOTTOM is the oldest entry, not
         // the most recent one.
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["oldest"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
@@ -149,7 +149,7 @@ describe("Phyrexian Furnace (graveyard hate, CR 404.3 / 603.3d / 605)", () => {
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["mine"]);
     });
 
-    it("an empty target graveyard is a clean CR 608.2b no-op", () => {
+    it("an empty target graveyard is a clean CR 609.3 no-op", () => {
         const { state, furnace } = furnaceState([]);
         resolveActivatedWithTargets(
             state,
@@ -172,7 +172,7 @@ describe("Phyrexian Furnace (graveyard hate, CR 404.3 / 603.3d / 605)", () => {
             "phyrexian-furnace-exile-draw",
             [{ type: "graveyard-card", id: "b", playerId: "p2" }]
         );
-        // CR 603.3d — the announced card leaves, and only that one.
+        // CR 601.2c — the announced card leaves, and only that one.
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["b"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["a"]);
         expect(state.players[0].hand).toHaveLength(1);

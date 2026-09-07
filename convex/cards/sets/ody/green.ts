@@ -103,7 +103,7 @@ export const callOfTheHerd: CardDefinition = {
 // Terravore — {1}{G}{G} Creature — Lhurgoyf with trample (CR 702.19a) whose
 // power AND toughness are each the number of land cards in ALL graveyards
 // (CR 604.3 characteristic-defining ability, applied in layer 7a per
-// CR 613.4b). Same `pt-cda` shape as its ICE ancestor Lhurgoyf
+// CR 613.4a). Same `pt-cda` shape as its ICE ancestor Lhurgoyf
 // (`ice/green.ts`), counting `Land`-typed cards instead of `Creature`-typed
 // ones and with power === toughness (no +1 rider). The printed `*/*` is a 0/0
 // base so the CDA yields exactly `{ n, n }`; `.types` survives

@@ -37,16 +37,18 @@ export const mindStone: CardDefinition = {
 // Phyrexian Furnace — {1} Artifact, a two-ability graveyard-hate rock:
 //  • "{T}: Exile the bottom card of target player's graveyard." The target is
 //    the PLAYER (CR 115.1); WHICH card leaves is not a choice at all but the
-//    deterministic bottom of that player's ordered graveyard (CR 404.3) — the
+//    deterministic bottom of that player's ordered graveyard (CR 404.2) — the
 //    `moveZone` positional shape (`EffectZonePositionSelector`, the Shallow
 //    Grave / Corpse Dance selector) with `position: "bottom"` and its
 //    `player` ref pointed at the announced target slot. An empty graveyard is
-//    a clean CR 608.2b no-op.
+//    a clean CR 609.3 no-op.
 //  • "{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw
-//    a card." A real announced target across either bin (CR 603.3d target
-//    grammar; `type: "card"` + `zone: "graveyard"` + `controller: "any"` is
-//    the Soul-Guide Lantern shape, `thb/colorless.ts`), exiled through
-//    `moveZone` and followed by the plain `draw` Op.
+//    a card." A real target announced as the ability is ACTIVATED, not picked
+//    at resolution (CR 602.2b routes an activated ability through the same
+//    CR 601.2c target grammar a spell uses). `type: "card"` + `zone:
+//    "graveyard"` + `controller: "any"` — either bin — is the Soul-Guide
+//    Lantern shape (`thb/colorless.ts`), exiled through `moveZone` and
+//    followed by the plain `draw` Op.
 //
 // compiler-gap: {T}: Exile the bottom card of target player's graveyard. (#2693)
 export const phyrexianFurnace: CardDefinition = {
