@@ -479,7 +479,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
     });
 
     it("B3 CR 400.7 — a pre-S4 snapshot's ledgerless effects are promoted, not deleted, by the first derivation", () => {
-        // `game_state` is a live per-game snapshot, so a deploy lands mid-game.
+        // `gameStates` is a live per-game snapshot, so a deploy lands mid-game.
         // Every derived-output field is overwritten at the first sync; without
         // the promotion that overwrite is a DELETION.
         const lotus = makeInstance(blackLotus.id, {

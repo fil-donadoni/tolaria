@@ -144,8 +144,8 @@ What the bot owes instead: not stalling in the second attack step, proven by a
   two combats: the turn counter is unchanged, the phase tab renders an
   identical `T6·COM` + `ATTACK` under a documented 7-character budget
   (controller-phase-tab.tsx:67-70), and there is no player-visible event log
-  (`manual-log.tsx` is Manual Play only, ADR 0080; nothing in `src/` reads
-  `game_events`).
+  (`manual-log.tsx` is Manual Play only, ADR 0080; no event-log table exists
+  anywhere — see `docs/PROJECT.md` § Data model).
 - `extraPhases` reaches the client with no projection work —
   `projectPublicState` returns `{ ...state, … }` and `getPublicState` declares
   no `returns` validator.

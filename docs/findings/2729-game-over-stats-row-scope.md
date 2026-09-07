@@ -17,8 +17,8 @@ carries on `allPlayers` at game-over time.
 **Evidence.** `GameOver` (`src/types/game.ts:583-591`) carries only
 `winnerId`/`loserId`/`reason`/`isDraw` — no running counters. Building the
 prototype's damage/countered-spells/cards-drawn stats would mean the engine
-tracking per-game counters through `game_events` (or a new derived
-aggregate) and threading them onto `GameOver` or a sibling summary object —
+tracking per-game counters on the snapshot itself — there is no event log to
+derive them from — and threading them onto `GameOver` or a sibling object —
 real GRE + wire-projection work, not a skin edit, and CLAUDE.md's own
 collaboration norm is to never fabricate data the engine doesn't have.
 

@@ -15,7 +15,8 @@ function sample(seed: number, counter: number): number {
 }
 
 /** Generates a seed for a new game from the environment.
- *  Stored on GameState.rngSeed and logged on GAME_INITIALIZED for replay. */
+ *  Stored on GameState.rngSeed. Nothing logs it anywhere else: the snapshot
+ *  is the only persistence there is (`docs/PROJECT.md` § Data model). */
 export function freshSeed(): number {
     return (Math.random() * 0x100000000) | 0;
 }

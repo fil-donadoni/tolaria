@@ -172,7 +172,7 @@ describe("a pre-S3 legacy state stays reproducible on the client", () => {
     // Supplying `baseStaticAbilities` on the wire DISARMS the client's own
     // legacy pass — `deriveLayer6Board` reads `legacy = baseStaticAbilities
     // === undefined` — so the wire must also carry that pass's OUTPUT. A
-    // `game_state` persisted before PRD #2064 S3 (#3004) carries a
+    // `gameStates` persisted before PRD #2064 S3 (#3004) carries a
     // resolution-armed "loses all abilities" hold in `abilitiesSuppressedBy`
     // and no `abilityLossHolds`; without the migrated ledger the Brain
     // re-derives the permanent WITH the abilities the resolution took away.

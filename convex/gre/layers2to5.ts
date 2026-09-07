@@ -249,11 +249,11 @@ export function ensureLayers2to5Base(card: CardInstanceState): void {
     if (legacy) migrateLegacyLayer3To5Ledgers(card);
 }
 
-/** One-shot migration for a `game_state` snapshot persisted BEFORE PRD #2064
+/** One-shot migration for a `gameStates` snapshot persisted BEFORE PRD #2064
  *  S4, where three of the four layer-2-to-5 ledgers did not exist and their
  *  effects lived in what are now DERIVED OUTPUT fields.
  *
- *  `game_state` is a live per-game snapshot, so a deploy lands mid-game. Every
+ *  `gameStates` is a live per-game snapshot, so a deploy lands mid-game. Every
  *  output field is overwritten at the first `syncLayers2to5`; without this the
  *  overwrite is not a no-op, it is a DELETION — a Magical Hack rewrite, an Oko
  *  `+1` type line and an Arcum's Weathervane snow toggle would each simply

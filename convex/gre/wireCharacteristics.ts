@@ -243,7 +243,7 @@ export function deriveWireCharacteristics(
             // base above DISARMS the client's own legacy pass:
             // `deriveLayer6Board` reads `legacy = baseStaticAbilities ===
             // undefined`, so a client handed the base can never run
-            // `migrateLegacyAbilityLossHolds` for itself. On a `game_state`
+            // `migrateLegacyAbilityLossHolds` for itself. On a `gameStates`
             // persisted before PRD #2064 S3 (#3004) that carries a
             // resolution-armed "loses all abilities" hold in
             // `abilitiesSuppressedBy` and no `abilityLossHolds`, the server

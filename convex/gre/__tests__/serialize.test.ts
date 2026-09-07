@@ -68,7 +68,7 @@ function freshState(): GameState {
     return makeState({ players: [p1, p2] });
 }
 
-describe("game_state serialize round-trip", () => {
+describe("gameStates serialize round-trip", () => {
     // CR 701.21a — a parked SacrificeSelection nests under the already-persisted
     // pendingCast key, so it must survive the compact/expand round trip intact.
     it("preserves a parked sacrificeSelection on pendingCast", () => {
@@ -3021,7 +3021,7 @@ describe("migrates a pre-S6b layer-6 ledger into the registry (PRD #2064 S6b)", 
     });
 
     it("is IDEMPOTENT across repeated save/load — the migrated rows are struck", () => {
-        // `game_state` is expanded and compacted on EVERY mutation, so a
+        // `gameStates` is expanded and compacted on EVERY mutation, so a
         // migration that leaves its source rows behind mints one extra entry
         // and one extra keyword occurrence per ACTION. `grantedStaticAbilities`
         // survives this slice as derived output and `layer6DerivedFields`
