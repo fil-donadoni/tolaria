@@ -136,10 +136,21 @@ const RESET = "\x1b[0m";
  * `catalogue:ensure` can run its generator itself, and this one must not — the
  * gate is offline by contract (CLAUDE.md), so a check may TELL you to hit the
  * network and may never do it for you.
+ *
+ * `needsCorpus: false` suppresses that preamble for a failure whose remedy is
+ * editing a committed LEDGER rather than regenerating an artefact. Telling a
+ * reader to spend a 24 MB download before hand-writing one line of JSON sends
+ * them down a bootstrap they do not need, and a fix line that is wrong once is
+ * a fix line nobody reads again (issue #2696).
  */
-function fail(label: string, message: string, fixCommand: string): never {
+function fail(
+    label: string,
+    message: string,
+    fixCommand: string,
+    needsCorpus = true
+): never {
     process.stderr.write(`${RED}✗ ${label} — ${message}${RESET}\n`);
-    if (corpusIsCached()) {
+    if (!needsCorpus || corpusIsCached()) {
         process.stderr.write(`${DIM}  fix: ${fixCommand}${RESET}\n`);
     } else {
         process.stderr.write(
@@ -455,7 +466,8 @@ function readRegressionLedger(): RegressionLedger {
         fail(
             "oracle state regressions",
             (err as Error).message,
-            `edit ${REGRESSION_LEDGER_PATH}`
+            `edit ${REGRESSION_LEDGER_PATH}`,
+            false
         );
     }
 }
@@ -520,7 +532,8 @@ function checkStateRegressions(): void {
         fail(
             "oracle state regressions",
             regressionMessage(unacknowledged),
-            `edit ${REGRESSION_LEDGER_PATH}`
+            `edit ${REGRESSION_LEDGER_PATH}, or restore the rule that made those cards ready`,
+            false
         );
     }
     const stale = staleAcknowledgements(regressions, ledger);
