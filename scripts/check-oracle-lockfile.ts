@@ -475,7 +475,21 @@ function readRegressionLedger(): RegressionLedger {
 /** One git invocation's outcome, so a failure is a value rather than a throw. */
 export type GitResult =
     | { readonly ok: true; readonly out: string }
-    | { readonly ok: false; readonly error: string };
+    | {
+          readonly ok: false;
+          readonly error: string;
+          /**
+           * The git BINARY could not be spawned at all (ENOENT), as opposed to
+           * git running and answering "no".
+           *
+           * The difference decides skip vs red on the very first probe: a
+           * tarball export with no `.git` is a legitimate skip, while git
+           * missing from `PATH` is broken tooling on a tree that IS a
+           * repository — and collapsing the two is how the guard came to
+           * print green with no git at all (review of PR #3150, finding 1).
+           */
+          readonly missing?: boolean;
+      };
 
 /** Runs `git <args>` in the repo root. Injected so the decision below is testable. */
 export type GitRunner = (args: readonly string[]) => GitResult;
@@ -513,10 +527,15 @@ const BASELINE_LOCKFILE_REL = "data/oracle-compiled.json";
  */
 export function baselineOutcome(git: GitRunner): BaselineOutcome {
     const repo = git(["rev-parse", "--is-inside-work-tree"]);
+    if (!repo.ok && repo.missing === true)
+        return {
+            kind: "broken",
+            detail: `git is not on PATH (${repo.error}) — this tree is a git repository, so the baseline is readable and something is wrong with the environment, not with the repo`,
+        };
     if (!repo.ok)
         return {
             kind: "unavailable",
-            why: `not a usable git work tree here (${repo.error})`,
+            why: `not a git work tree here (${repo.error})`,
         };
     const ref = git([
         "rev-parse",
@@ -577,10 +596,11 @@ const runGit: GitRunner = (args) => {
             }),
         };
     } catch (err) {
-        const e = err as { stderr?: string; message?: string };
+        const e = err as { stderr?: string; message?: string; code?: string };
         return {
             ok: false,
             error: (e.stderr || e.message || "unknown error").trim(),
+            ...(e.code === "ENOENT" ? { missing: true } : {}),
         };
     }
 };

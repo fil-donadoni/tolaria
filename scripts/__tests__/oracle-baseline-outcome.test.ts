@@ -150,3 +150,27 @@ describe("baselineOutcome — the comparison BROKE (red, never a skip)", () => {
         }
     });
 });
+
+describe("baselineOutcome — git itself missing", () => {
+    it("is `broken`, not a skip, when the git BINARY cannot be spawned", () => {
+        // The reviewer's repro (PR #3150, finding 1): `git` removed from
+        // `PATH`. The tree IS a git repository, so the baseline is readable and
+        // the fault is the environment — reporting it as "nothing to compare"
+        // is the guard quietly switching itself off.
+        const outcome = baselineOutcome(() => ({
+            ok: false,
+            error: "spawnSync git ENOENT",
+            missing: true,
+        }));
+        expect(outcome.kind).toBe("broken");
+        if (outcome.kind !== "broken") return;
+        expect(outcome.detail).toContain("git is not on PATH");
+    });
+
+    it("is still `unavailable` when git RUNS and says this is no repository", () => {
+        const outcome = baselineOutcome(() =>
+            no("fatal: not a git repository (or any of the parent directories)")
+        );
+        expect(outcome.kind).toBe("unavailable");
+    });
+});
