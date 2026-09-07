@@ -212,8 +212,12 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.2a)", () => 
         resolveActivated(state, dragonfly, "emerald-dragonfly-first-strike");
         const live = state.players[0].battlefield.find((c) => c.id === "df")!;
         expect(
-            live.grantedStaticAbilities?.some(
-                (g) => g.ability === "first strike"
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "first strike" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
             )
         ).toBe(true);
     });
@@ -260,7 +264,13 @@ describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () 
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "apes")!;
         expect(
-            live.grantedStaticAbilities?.some((g) => g.ability === "flying")
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "flying" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(live.id)
+            )
         ).toBe(true);
     });
 });

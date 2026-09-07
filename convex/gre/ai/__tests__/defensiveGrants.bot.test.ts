@@ -20,6 +20,7 @@ import { evaluateCreature } from "../../evaluate";
 import { isQuietFor, temporaryDefensiveKeywords } from "../defensiveGrants";
 import type { BladeScenario } from "../blade/types";
 import type { CardInstanceState, GameState } from "../../state";
+import { continuousEffectsInLayer } from "../../continuousEffects";
 
 const ELF = "Iron-Shield Elf";
 const RAIDERS = "Mons's Goblin Raiders";
@@ -168,7 +169,10 @@ describe("indestructible granted in a quiet position (#2937, CR 702.12b)", () =>
         elf.staticAbilities = elf.staticAbilities.filter(
             (k) => k !== "indestructible"
         );
-        expect(elf.grantedStaticAbilities?.length).toBeGreaterThan(0);
+        // PRD #2064 S6b — the grant record is a registry ENTRY; the point of
+        // the case is that the entry is still there while the keyword's
+        // occurrence has been stripped, so the Bot must claim nothing.
+        expect(continuousEffectsInLayer(state, 6).length).toBeGreaterThan(0);
         expect(temporaryDefensiveKeywords(state, elf)).toEqual([]);
         expect(evaluateCreature(state, elf)).toBe(withGrant);
     });

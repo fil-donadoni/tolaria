@@ -2403,6 +2403,28 @@ function migrateLegacyInstanceKeywordLedgers(
             );
             const removals = legacy.temporaryRemovedKeywords ?? [];
             if (grants.length === 0 && removals.length === 0) continue;
+            // CR 613 layer-6 base = staticAbilities + removals - grants.
+            //
+            // Seeded HERE and not by `captureLayer6Base` (`gre/layer6.ts`),
+            // because this is the one moment the formula's precondition holds:
+            // the rows being migrated were written by the old engine at the
+            // instant it spliced the keyword, so every one of them IS already
+            // reflected in the `staticAbilities` this state was persisted with.
+            // A registry entry carries no such guarantee — it can exist before
+            // any composition has run — which is why the capture reads only the
+            // instance-borne records and this runs before the entries exist.
+            //
+            // A state persisted after PRD #2064 S3 already carries
+            // `baseStaticAbilities` and is left alone.
+            if (card.baseStaticAbilities === undefined) {
+                const base = [...card.staticAbilities];
+                for (const removal of removals) base.push(removal.keyword);
+                for (const grant of grants) {
+                    const at = base.indexOf(grant.ability);
+                    if (at !== -1) base.splice(at, 1);
+                }
+                card.baseStaticAbilities = base;
+            }
             for (const grant of grants) {
                 if (!grant.counterType) continue;
                 appendMigratedEffect(state, {

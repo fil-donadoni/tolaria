@@ -188,6 +188,20 @@ export function ensureLayer6Base(
  *    the records are this module's own derived output, which is the same
  *    arithmetic read the other way.
  *
+ *  The REGISTRY is deliberately not read here, though layer 6's grants and
+ *  removals live there since PRD #2064 S6b. The terms this formula subtracts
+ *  are the ones ALREADY MATERIALISED into `staticAbilities`, and an instance
+ *  record was exactly that by construction — it was written at the moment the
+ *  keyword was spliced. A registry ENTRY carries no such guarantee: it can be
+ *  created before any composition has run, and adding its keyword back would
+ *  invent an occurrence (a `keyword-remove` entry on a permanent whose printed
+ *  keyword is still in `staticAbilities` produced a base with the keyword
+ *  TWICE, so the removal took one and the wire still shipped the other). The
+ *  legacy state that does need the registry terms is reconstructed where the
+ *  guarantee holds: `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`)
+ *  seeds `baseStaticAbilities` from the rows it is migrating, before the
+ *  entries exist.
+ *
  *  A `suppressed` grant — a pre-slice row that never reached the multiset — took
  *  no occurrence and gives none back. Layer 4 has the same shape and the same
  *  reason: `capturePrintedSubtypes` (`gre/state.ts`) filters out subtypes a live
@@ -204,61 +218,45 @@ function captureLayer6Base(
     for (const removal of card.removedKeywords ?? []) {
         base.push(removal.keyword);
     }
-    // PRD #2064 S6b — the registry half of the same two terms. A
-    // duration-scoped strip (Shelkin Brownie) and every non-aura grant are
-    // entries now, so the inverse has to read them where they live; before
-    // this slice they were `temporaryRemovedKeywords` and the non-`auraId`
-    // rows of `grantedStaticAbilities`, and the arithmetic is unchanged.
-    // Liveness is deliberately NOT re-checked here: an entry the walk can see
-    // is one the last composition applied, which is exactly the term to
-    // subtract, and re-deriving it would be the second CR 611.2a countdown the
-    // registry exists to end.
-    for (const entry of registryKeywordTermsFor(state, card.id)) {
-        if (entry.kind === "keyword-remove") base.push(entry.keyword);
-    }
     for (const grant of card.grantedStaticAbilities ?? []) {
         if (grant.suppressed) continue;
         const index = base.indexOf(grant.ability);
         if (index !== -1) base.splice(index, 1);
     }
-    for (const entry of registryKeywordTermsFor(state, card.id)) {
-        if (entry.kind !== "keyword-grant") continue;
-        const index = base.indexOf(entry.keyword);
+    // PRD #2064 S6b — the registry half of the SUBTRACTED term only. A layer-6
+    // `keyword-grant` entry that applies to this permanent put an occurrence
+    // into the composition the line above is inverting, so it comes back off,
+    // exactly as its `grantedStaticAbilities` row used to.
+    //
+    // Its mirror — adding a `keyword-remove` entry's keyword BACK — is
+    // deliberately absent; see the note above for the occurrence it invented.
+    for (const keyword of registryGrantedKeywordsFor(state, card.id)) {
+        const index = base.indexOf(keyword);
         if (index !== -1) base.splice(index, 1);
     }
     return base;
 }
 
-/** The layer-6 keyword terms the REGISTRY contributes to `permanentId`, in the
- *  inline-payload form `captureLayer6Base` can invert.
+/** The keywords layer-6 registry `keyword-grant` entries contribute to
+ *  `permanentId` (PRD #2064 S6b).
  *
  *  Template payloads are skipped: resolving one needs the live board and the
  *  card definition (`resolveLayer6Action`), and a template is always
  *  source-provenance — re-walked from the board at the next derivation, so it
- *  is not part of the base the capture is reconstructing. */
-function registryKeywordTermsFor(
+ *  is never part of the base this capture reconstructs. */
+function registryGrantedKeywordsFor(
     state: LayerStateView,
     permanentId: string
-): { kind: "keyword-grant" | "keyword-remove"; keyword: string }[] {
-    const terms: {
-        kind: "keyword-grant" | "keyword-remove";
-        keyword: string;
-    }[] = [];
+): string[] {
+    const out: string[] = [];
     for (const entry of state.continuousEffects ?? []) {
         if (entry.layer !== 6) continue;
         if (entry.affected.kind !== "instances") continue;
         if (!entry.affected.instanceIds.includes(permanentId)) continue;
-        const payload = entry.payload;
-        if (
-            payload.kind !== "keyword-grant" &&
-            payload.kind !== "keyword-remove"
-        ) {
-            continue;
-        }
-        const keyword = renderKeyword(payload);
-        if (keyword) terms.push({ kind: payload.kind, keyword });
+        if (entry.payload.kind !== "keyword-grant") continue;
+        out.push(renderKeyword(entry.payload));
     }
-    return terms;
+    return out;
 }
 
 /** The static effects a source contributes, resolved through the card registry

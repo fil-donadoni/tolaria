@@ -24,6 +24,8 @@ import { applyCopy, revertCopy } from "../copy";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { transformPermanent } from "../transform";
 import { syncLayer6 } from "../layer6";
+import { continuousEffectsInLayer } from "../continuousEffects";
+import type { LayerStateView } from "../layers";
 import { syncLayers2to5 } from "../layers2to5";
 import {
     applySourceStaticEffects,
@@ -247,17 +249,23 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
             site.run(state, card, source);
 
             expect(count(card, "haste")).toBe(1);
-            // The provenance record is untouched, so the CLEANUP purge can
-            // still find and release exactly its own occurrence.
-            expect(card.grantedStaticAbilities).toEqual([
-                {
-                    ability: "haste",
-                    duration: { phase: "end-of-turn" },
-                    // CR 613.7 (PRD #2064 S3) — a resolving ability's
-                    // continuous effect carries its own layer timestamp now,
-                    // so a grant that lands after a strip survives it.
-                    seq: expect.any(Number),
-                },
+            // The provenance is untouched, so the CLEANUP tick can still find
+            // and expire exactly its own entry. PRD #2064 S6b: that provenance
+            // is a REGISTRY entry, which is the whole reason the swap sites had
+            // to be handed the state — a boardless recompose composes over an
+            // empty registry and drops the grant.
+            expect(continuousEffectsInLayer(state, 6)).toEqual([
+                expect.objectContaining({
+                    expiry: expect.objectContaining({
+                        kind: "duration",
+                        duration: { phase: "end-of-turn" },
+                    }),
+                    payload: { kind: "keyword-grant", keyword: "haste" },
+                    // CR 613.7 — a resolving ability's continuous effect
+                    // carries its own layer timestamp, so a grant that lands
+                    // after a strip survives it.
+                    timestamp: expect.any(Number),
+                }),
             ]);
             // Board-visible: the grant must survive the wire too.
             expect(projected(state, "swap-1").staticAbilities).toContain(
@@ -650,17 +658,32 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // the replay must not disagree with it.
         expect(grantOutrankedByAbilityLoss(5, 5)).toBe(false);
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b9" });
-        // An INDEFINITE grant from a resolving ability (CR 611.2c) — the
-        // residue channel, so it is the permanent's own record rather than a
-        // source's, which is what lets it be stamped by hand at all.
-        card.grantedStaticAbilities = [{ ability: "haste", seq: 5 }];
         card.baseStaticAbilities = [];
         card.staticAbilities = ["haste"];
         // PRD #2064 S3 — the resolving arm's LEDGER; `abilitiesSuppressedBy`
         // is the derived output the swap recomputes.
         card.abilityLossHolds = [{ sourceId: "null-tie", seq: 5 }];
+        // An INDEFINITE grant from a resolving ability (CR 611.2c) — the
+        // residue channel, so it is the permanent's own record rather than a
+        // source's, which is what lets it be stamped by hand at all. PRD #2064
+        // S6b: that record is a REGISTRY entry, so the tie is built there and
+        // the view is the one the swap has to be handed.
+        const view: LayerStateView = {
+            players: [{ id: "p1", battlefield: [card] }] as never,
+            continuousEffects: [
+                {
+                    id: "ce-tie",
+                    layer: 6,
+                    timestamp: 5,
+                    affected: { kind: "instances", instanceIds: [card.id] },
+                    expiry: { kind: "indefinite", controllerId: "p1" },
+                    payload: { kind: "keyword-grant", keyword: "haste" },
+                    characteristicDefining: false,
+                },
+            ],
+        };
 
-        transformPermanent(NO_BOARD_LAYER_VIEW, card);
+        transformPermanent(view, card);
 
         expect(card.staticAbilities).toEqual(["haste"]);
         // The back face's printed flying + trample are both eaten by the

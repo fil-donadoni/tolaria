@@ -19,6 +19,7 @@ import {
 } from "../../../__tests__/setup";
 import { arwenMortalQueen } from "../multicolor";
 import { grizzlyBears } from "../../lea/green";
+import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 
 // Mirrors the per-set `resolveActivated` shim (arn/__tests__/helpers.ts and
 // every other set's local copy) — pushes an already-targeted activated
@@ -50,10 +51,16 @@ describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #
         )!;
         expect(arwen.counters).toEqual({ indestructible: 1 });
         expect(arwen.staticAbilities).toContain("indestructible");
-        expect(arwen.grantedStaticAbilities).toContainEqual(
+        expect(counterEntries(state)).toContainEqual(
             expect.objectContaining({
-                ability: "indestructible",
-                counterType: "indestructible",
+                expiry: expect.objectContaining({
+                    kind: "counter",
+                    counterType: "indestructible",
+                }),
+                payload: expect.objectContaining({
+                    kind: "keyword-grant",
+                    keyword: "indestructible",
+                }),
             })
         );
 
@@ -105,9 +112,15 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.2a la
 
         // "Another target creature gains indestructible until end of turn."
         expect(afterBear.staticAbilities).toContain("indestructible");
-        expect(afterBear.grantedStaticAbilities).toContainEqual(
-            expect.objectContaining({ ability: "indestructible" })
-        );
+        expect(
+            continuousEffectsInLayer(state, 6).some(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "indestructible" &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(afterBear.id)
+            )
+        ).toBe(true);
 
         // "Put a +1/+1 counter and a lifelink counter on that creature" —
         // CR 122.1c: the lifelink counter grants lifelink the instant it
