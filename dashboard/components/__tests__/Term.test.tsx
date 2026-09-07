@@ -1,3 +1,8 @@
+// Assertions read the DOM directly rather than through jest-dom's
+// `toBeInTheDocument` — the `types` array in this project's tsconfig doesn't
+// pick up jest-dom's type augmentation, so those matchers type-check as
+// missing under `tsc -b` even though they run fine (same workaround as
+// `src/components/ui/__tests__/segmented-control.test.tsx`).
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,13 +30,13 @@ const renderTerm = (id: TermId, children?: string) =>
 describe("Term — the glossary's typed door", () => {
     it("renders the label, not the key — the page prints words, never column names", () => {
         renderTerm("spans");
-        expect(screen.getByText(GLOSSARY.spans.label)).toBeInTheDocument();
-        expect(screen.queryByText("spans")).not.toBeInTheDocument();
+        expect(screen.getByText(GLOSSARY.spans.label)).not.toBeNull();
+        expect(screen.queryByText("spans")).toBeNull();
     });
 
     it("children override the rendered text, for a surface showing a glyph or an already-formatted value", () => {
         renderTerm("spans", "×");
-        expect(screen.getByText("×")).toBeInTheDocument();
+        expect(screen.getByText("×")).not.toBeNull();
     });
 
     it("marks itself as explainable — an underlined, help-cursor trigger, so the tooltip is discoverable rather than a hidden affordance", () => {
