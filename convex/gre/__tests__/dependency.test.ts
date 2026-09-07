@@ -45,6 +45,7 @@ import { lifeAndLimb } from "../../cards/sets/plc/green";
 import { humility } from "../../cards/sets/tmp/white";
 import { opalescence } from "../../cards/sets/uds/white";
 import { grizzlyBears } from "../../cards/sets/lea/green";
+import { lordOfAtlantis } from "../../cards/sets/lea/blue";
 import { tropicalIsland } from "../../cards/sets/lea/colorless";
 
 const view = (state: GameState): LayerStateView =>
@@ -269,6 +270,38 @@ describe("CR 613.8a/b — the dependency cases", () => {
                 // either; Conspiracy then replaces the line.
                 expect(subtypes).toEqual(["Zombie"]);
             }
+        });
+    }
+
+    // CR 613.8a clause (b), the EXISTENCE limb in layer 6 (CR 613.1f). Applying
+    // Humility takes every ability away from Lord of Atlantis, and the islandwalk
+    // grant is one of that ability's continuous effects — so the grant DEPENDS on
+    // Humility, waits for it, and by then does not exist. Before CR 613.8 a Lord
+    // that entered after Humility kept handing out islandwalk.
+    for (const humilityFirst of [true, false]) {
+        it(`Humility destroys Lord of Atlantis's islandwalk grant at either timestamp (Humility ${humilityFirst ? "first" : "second"})`, () => {
+            const hum = makeInstance(humility.id, {
+                id: "humility",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const lord = makeInstance(lordOfAtlantis.id, {
+                id: "lord",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const merfolk = makeInstance(lordOfAtlantis.id, {
+                id: "merfolk",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = boardWith(
+                [hum, lord, merfolk],
+                humilityFirst ? [hum, lord, merfolk] : [lord, merfolk, hum]
+            );
+            expect(
+                deriveLayer6(view(state), asView(merfolk)).staticAbilities
+            ).toEqual([]);
         });
     }
 

@@ -58,10 +58,11 @@
 // Within each layer, entries apply in CR 613.7 timestamp order through the S1
 // ordering comparator — never an inline `staticSeq` comparison (#1715).
 //
-// CR 613.8 DEPENDENCY ORDERING IS NOT HERE. Layer 4 is where the classic
-// dependency cases live (Blood Moon + Urborg, Humility + Opalescence). This
-// slice ships TIMESTAMP order for them, which is what the pre-migration engine
-// shipped too; dependency detection is tracked by #2068.
+// CR 613.8 dependency ordering runs over each layer's entries before this walk
+// consumes them (`gre/dependency.ts`, ADR 0115, issue #2068). Layer 4 is where
+// the classic cases live — Blood Moon + Urborg, Conspiracy + Life and Limb — and
+// the reordering happens inside one layer's run of the sorted array, never
+// across the 2 -> 3 -> 4 -> 5 boundary.
 
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";

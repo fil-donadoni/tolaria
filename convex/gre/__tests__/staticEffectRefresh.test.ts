@@ -185,9 +185,16 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
                 subtypes: [...land.subtypes],
                 staticAbilities: [...land.staticAbilities],
             };
-            // Blood Moon (later timestamp) wins the subtype-set race; Yavimaya
-            // adds Forest on top; the ability-loss keeps the lock stripped.
-            expect(baseline.subtypes).toEqual(["Mountain", "Forest"]);
+            // Blood Moon wins the subtype-set race, and CR 613.8 (issue #2068)
+            // is why it wins it at EITHER timestamp: Yavimaya, Cradle of Growth
+            // is itself a nonbasic land, so applying Blood Moon sets its
+            // subtype to Mountain and CR 305.7 takes away "all abilities
+            // generated from its rules text". Yavimaya's own effect no longer
+            // exists, so no Forest is added — before the dependency system this
+            // read ["Mountain", "Forest"], which was the CR 613.7 answer to a
+            // question CR 613.8 takes off the timestamp system. The
+            // ability-loss keeps the lock stripped either way.
+            expect(baseline.subtypes).toEqual(["Mountain"]);
             expect(baseline.staticAbilities).not.toContain("does-not-untap");
 
             recomputeContinuousEffects(state);
@@ -209,7 +216,7 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             const slimLand = projected.players[0].battlefield.find(
                 (c) => c.id === land.id
             )!;
-            expect(slimLand.subtypes).toEqual(["Mountain", "Forest"]);
+            expect(slimLand.subtypes).toEqual(["Mountain"]);
             expect(slimLand.staticAbilities).not.toContain("does-not-untap");
         });
     });

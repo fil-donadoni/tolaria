@@ -145,9 +145,11 @@ Five decisions bound the scope:
   (SBA, combat, the client-side Brain's search). Registry reads need to be cheap
   or memoised within a resolution step; this is the main performance risk and
   should be measured, not assumed, against the bot suite's per-test ceiling.
-- CR 613.8 remains unimplemented, tracked by **#2068**, which any
-  `// divergence` marker must reference per the documented-divergence guard
-  (`.claude/rules/gre-development.md`, Guard B).
+- CR 613.8 was shipped on top of this registry by issue #2068, which discharged
+  decision 3 above; ADR 0115 is its design record and `gre/dependency.ts` its
+  implementation. The registry is what made it expressible: 613.8a asks whether
+  applying one effect would change another, which needs every effect in a layer
+  visible at once.
 - Rules-modifying effects (CR 611.3) keep their current, separate handling.
   A future ADR may unify their duration/expiry handling with the registry's
   without absorbing them into the layer system.

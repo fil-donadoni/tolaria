@@ -76,11 +76,11 @@ export const snuffOut: CardDefinition = {
 // creature spells and creature cards outside the battlefield — is inert,
 // because the layer 2-5 derivation walks battlefields and the command zone only.
 //
-// CR 613.8 dependency ordering is unimplemented (tracked-by: #2068): this
-// card's layer-4 effect and Life and Limb's are mutually dependent (each
-// changes what the other applies to), which is the loop CR 613.8b's last
-// sentence exists for. Both apply in CR 613.7 timestamp order today, which is
-// the right answer for a loop and the wrong one for every other pairing.
+// CR 613.8b (issue #2068) — this card's layer-4 effect and Life and Limb's are
+// mutually dependent (each changes what the other applies to), so they form the
+// dependency LOOP the rule's last sentence exists for and are applied in
+// timestamp order relative to each other. That order is now a decision the
+// dependency system reaches, not the only thing the engine could do.
 // compiler-gap: As this enchantment enters, choose a creature type. (#2693)
 // compiler-gap: Creatures you control are the chosen type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield. (#2693)
 export const conspiracy: CardDefinition = {

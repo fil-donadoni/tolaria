@@ -120,7 +120,18 @@ registerTokenDefinition({
     rarity: "common",
     manaCost: {},
     types: ["Enchantment"],
-    staticEffects: [{ kind: "ability-loss", applies: () => true }],
+    // Humility's own predicate (CR 613.1f), not a blanket `() => true`. Since
+    // CR 613.8 shipped (issue #2068) a stripper that also reached ENCHANTMENTS
+    // would destroy the Flight aura's own ability, and the grant these tests
+    // order against it would cease to exist rather than lose a timestamp race —
+    // a different rule from the one they pin. Every `ability-loss` in the
+    // catalogue is narrowed this way or narrower.
+    staticEffects: [
+        {
+            kind: "ability-loss",
+            applies: (target, _source, ctx) => ctx.isCreature(target),
+        },
+    ],
 });
 
 /** A blanket layer-4 `type-add` source (the Animate Artifact / Titania's Song

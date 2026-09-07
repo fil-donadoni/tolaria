@@ -41,12 +41,13 @@ import { BASIC_LAND_SUBTYPES } from "../../types";
 // the live controller, so a land that only becomes a land — or only becomes
 // yours — later is picked up on the next layer recomputation.
 //
-// CR 613.8 dependency ordering is unimplemented (tracked-by: #2068): Blood
-// Moon's "Nonbasic lands are Mountains" and this card each change what the
-// other applies to (613.8a), so 613.8b should order them by dependency —
-// Prismatic Omen applies first, then Blood Moon overwrites, leaving nonbasic
-// lands as Mountains only. The engine applies both in CR 613.7 timestamp
-// order, so the board depends on which was played first.
+// CR 613.8a (issue #2068) — this card and Blood Moon / Magus of the Moon are
+// INDEPENDENT, and the board therefore depends on which was played first. This
+// comment used to claim the opposite. Neither changes what the other applies to:
+// "nonbasic" is the Basic SUPERTYPE, which this card never writes, and "lands
+// you control" is a card TYPE and a controller, neither of which a subtype
+// replacement writes. Nor can either end the other's existence — CR 305.7
+// reaches a land's rules text, and this card is an enchantment.
 // compiler-gap: Lands you control are every basic land type in addition to their other types. (#2693)
 export const prismaticOmen: CardDefinition = {
     id: "e75594cc-de47-49f2-9a8b-ba76c576368e",

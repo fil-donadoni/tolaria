@@ -22,12 +22,11 @@ import type { CardDefinition } from "../../types";
 // Humility is an Enchantment, not a creature, so it never strips or resizes
 // itself.
 //
-// CR 613.8 dependency ordering is unimplemented (tracked-by: #2068): in layer
-// 6 this card's removal and an ability GRANTED by a creature's own static
-// ability (Lord of Atlantis's islandwalk) are dependent — applying Humility
-// destroys the existence of the grant (613.8a b), so 613.8b would apply the
-// grant last, i.e. never. The engine orders layer 6 by CR 613.7 timestamp
-// instead, so a Lord that entered after Humility keeps handing out islandwalk.
+// CR 613.8 (issue #2068) — in layer 6 this card's removal and an ability GRANTED
+// by a creature's own static ability (Lord of Atlantis's islandwalk) are
+// dependent: applying Humility destroys the existence of the grant (CR 613.8a,
+// clause (b)), so CR 613.8b applies the grant last, which is to say never — at
+// either timestamp, including a Lord that entered after Humility.
 //
 // Second, SEPARATE divergence (tracked-by: #3170), not a case of the above:
 // the layer-7 walk reads a source's `staticEffects[]` off its definition

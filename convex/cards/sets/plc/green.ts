@@ -41,13 +41,10 @@ const IS_FOREST_OR_SAPROLING: StaticPTSet["applies"] = (target, _source, ctx) =>
 // is created green — so the divergence is observable only on a Forest that is
 // some OTHER colour first (a Dryad Arbor stolen by a colour-granting effect).
 //
-// CR 613.8 dependency ordering is unimplemented (tracked-by: #2068): in layer
-// 4 this card and Blood Moon / Magus of the Moon are dependent — applying
-// Blood Moon replaces a nonbasic Forest's land types with Mountain, which
-// changes what this effect applies to (613.8a b), so 613.8b would order them
-// by dependency. The engine orders every layer-4 effect by CR 613.7 timestamp
-// instead, which is the wrong board whenever the dependency disagrees with the
-// play order.
+// CR 613.8 orders this card's layer-4 effects against Blood Moon / Magus of the
+// Moon by DEPENDENCY, not by timestamp (issue #2068): the predicate below reads
+// the live subtypes, which their subtype replacement writes, so this card waits
+// for them however the two were played.
 // compiler-gap: All Forests and all Saprolings are 1/1 green Saproling creatures and Forest lands in addition to their other types. (#2693)
 export const lifeAndLimb: CardDefinition = {
     id: "0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3",

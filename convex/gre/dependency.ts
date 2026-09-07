@@ -64,62 +64,61 @@ export type DependencyContext = {
 
 /** CR 613.8a clause (b), the READ half — the default per `StaticEffect` kind.
  *
- *  Exhaustive over the union by construction (`Record<StaticEffect["kind"], …>`,
+ *  Exhaustive over the union by construction (`Record<StaticEffect["kind"], …>`),
  *  so a new kind that ships without a row is a `tsc` error rather than a
- *  silently independent effect — ADR 0115's consequence list).
+ *  silently independent effect — ADR 0115's consequence list.
  *
- *  Each row is the union of what any predicate of that kind could read WITHIN
- *  ITS OWN LAYER; clause (a) makes every other characteristic irrelevant, since
- *  an effect in another layer can never be depended on. The consequence of a
- *  wide row is not a wrong order but NO order: two effects that read each
- *  other's writes are mutually dependent, and CR 613.8b sends a dependency loop
- *  straight back to timestamp order, which is what this engine did before
- *  613.8 existed. A declaration narrows its own row with `reads`
- *  (`DependencyReads`, `cards/types.ts`) when it needs a real edge.
+ *  Every row is EMPTY, and that is the argued position rather than a stub. ADR
+ *  0115 decision 1 proposed a per-kind default that "over-declares by
+ *  construction, being the union of what any predicate of that kind could
+ *  read". Building it showed why decision 2's warning — keep the table tight,
+ *  never generous — swallows decision 1: a wide row does not merely add
+ *  harmless edges.
  *
- *  The CR 611.3 rules-modifying kinds read nothing because they are not in the
- *  layer system at all (ADR 0082 decision 2) and never reach this module; their
- *  rows exist only so the record stays total. */
+ *  The reason is that reads and writes are not symmetric. Within layer 4 the
+ *  catalogue's predicates read a counter (Cyclopean Tomb), an Aura host (Evil
+ *  Presence), the PRINTED type line (Blood Moon), the live card types (Yavimaya,
+ *  Cradle of Growth) and the live subtypes (Life and Limb) — no union is both
+ *  narrow enough to be safe and wide enough to be right. Give them all
+ *  {types, subtypes, supertypes} and Cyclopean Tomb, whose predicate reads a
+ *  mire counter and nothing else, is made to wait for Blood Moon, which reads
+ *  neither: a ONE-DIRECTIONAL phantom edge, and CR 613.9's first example is the
+ *  proof that order is observable between independent effects ("applying them in
+ *  timestamp order means the one that was generated last wins").
+ *
+ *  So a kind asserts nothing about its predicates and a DECLARATION asserts
+ *  everything (`reads`, `DependencyReads` in `cards/types.ts`). An undeclared
+ *  effect participates in no applies-limb edge, which leaves it exactly where CR
+ *  613.7 put it: an undeclared effect can fail to be ordered by dependency,
+ *  never be ordered wrongly by it. The EXISTENCE limb needs no declaration at
+ *  all — it is a fact about provenance, not about a predicate — so CR 305.7 goes
+ *  on ordering Urborg, Tomb of Yawgmoth behind Blood Moon whether or not either
+ *  card ever says a word about its reads.
+ *
+ *  The CR 611.3 rules-modifying kinds are empty for a second, independent
+ *  reason: they are not in the layer system at all (ADR 0082 decision 2) and
+ *  never reach this module.
+ */
 export const STATIC_EFFECT_READS: Record<
     StaticEffect["kind"],
     readonly ContinuousCharacteristic[]
 > = {
-    // --- Layer 2 (CR 613.1b) ------------------------------------------------
-    // A control-changing predicate can read the target's CURRENT controller
-    // ("gain control of each creature an opponent controls"), which is the one
-    // thing layer 2 writes.
-    "control-change": ["controller"],
-
-    // --- Layer 4 (CR 613.1d) ------------------------------------------------
-    // Layer 4 writes three families and its predicates read all three: card
-    // types (`ctx.isCreature`, `target.types.includes("Land")`), subtypes
-    // (`IS_FOREST_OR_SAPROLING`) and supertypes (`IS_NONBASIC_LAND`).
-    "type-add": ["types", "subtypes", "supertypes"],
-    "type-remove": ["types", "subtypes", "supertypes"],
-    "subtype-set": ["types", "subtypes", "supertypes"],
-    "subtype-add": ["types", "subtypes", "supertypes"],
-    "supertype-set": ["types", "subtypes", "supertypes"],
-
-    // --- Layer 5 (CR 613.1e) ------------------------------------------------
-    "color-grant": ["colors"],
-
-    // --- Layer 6 (CR 613.1f) ------------------------------------------------
-    // An ability-matters predicate reads abilities, which is all layer 6
-    // writes ("creatures with flying lose flying").
-    "keyword-grant": ["abilities"],
-    "keyword-remove": ["abilities"],
-    "ability-loss": ["abilities"],
-    "activated-grant": ["abilities"],
-    "triggered-grant": ["abilities"],
-
-    // --- Layer 7 (CR 613.4) -------------------------------------------------
-    // A P/T-matters predicate reads P/T ("creatures with power 2 or less get
-    // +1/+1"). Sublayers are separate groups, so a 7c buff can never be
-    // depended on by a 7b set in the first place.
-    "pt-cda": ["pt"],
-    "pt-set": ["pt"],
-    "pt-buff": ["pt"],
-
+    // --- CR 613 layers 2-7 --------------------------------------------------
+    "control-change": [],
+    "type-add": [],
+    "type-remove": [],
+    "subtype-set": [],
+    "subtype-add": [],
+    "supertype-set": [],
+    "color-grant": [],
+    "keyword-grant": [],
+    "keyword-remove": [],
+    "ability-loss": [],
+    "activated-grant": [],
+    "triggered-grant": [],
+    "pt-cda": [],
+    "pt-set": [],
+    "pt-buff": [],
     // --- CR 611.3, outside the layer system ---------------------------------
     "attack-restriction": [],
     "declared-attack-restriction": [],
@@ -224,41 +223,28 @@ function writesOf(
 
 /** CR 613.8a clause (b), the READ half for one entry.
  *
- *  A TEMPLATE entry reads what its declaration says (`reads`) or what its kind
- *  says by default. An INLINE entry — CR 611.2c residue of a resolved spell,
- *  whose affected set was frozen when it began and whose payload is data rather
- *  than a closure — genuinely reads NOTHING: neither "what it applies to" nor
- *  "what it does to them" can change under another effect, so on the literal
- *  reading it can be the target of a dependency but never a dependent.
+ *  A TEMPLATE entry reads what its declaration says, or — undeclared — what its
+ *  kind's row says, which is nothing (see {@link STATIC_EFFECT_READS}).
  *
- *  It is nevertheless given the same default as the effects around it, and that
- *  is a deliberate OVER-declaration. Taking the literal reading here would make
- *  every undeclared template effect in the layer depend on every inline one, in
- *  one direction, on no evidence: the asymmetry alone would produce the edge.
- *  A one-directional phantom edge REORDERS — CR 613.9's own example shows two
- *  independent effects still ordering by timestamp, with the later one winning —
- *  so it is not free (this is the case ADR 0115 decision 2 names, met in
- *  practice). Reading its own family instead makes an undeclared pair MUTUALLY
- *  dependent, and CR 613.8b sends a loop straight back to timestamp order: an
- *  undeclared effect can fail to be ordered by dependency, never be ordered
- *  wrongly by it.
+ *  An INLINE entry reads NOTHING, and here the literal reading and the safe one
+ *  agree. CR 611.2c freezes the affected set of a resolution-generated effect
+ *  when it begins and its payload is data rather than a closure, so neither
+ *  "what it applies to" nor "what it does to them" can change under another
+ *  effect: it can be the TARGET of a dependency but never a dependent (ADR 0115,
+ *  the structural asymmetry).
  *
  *  `rules-text` rides on every TEMPLATE entry: the effect exists because its
  *  source's rules text generates it, so anything destroying that rules text
  *  destroys the effect — CR 613.8a's EXISTENCE limb. It is implicit rather than
  *  declarable, being a fact about provenance and not about the predicate. An
  *  inline entry does not carry it: its source is gone, and CR 611.2a keeps the
- *  effect alive without it.
+ *  effect alive without one.
  */
 function readsOf(
     entry: ContinuousEffect,
-    template: DependencyTemplate | undefined,
-    writes: ContinuousCharacteristic | undefined
+    template: DependencyTemplate | undefined
 ): readonly ContinuousCharacteristic[] {
-    if (entry.payload.kind !== "template") {
-        return writes === undefined ? [] : [writes];
-    }
-    if (!template) return [];
+    if (entry.payload.kind !== "template" || !template) return [];
     const declared =
         template.effect.reads ?? STATIC_EFFECT_READS[template.effect.kind];
     return [...declared, "rules-text"];
@@ -278,24 +264,34 @@ function declaresReads(
     );
 }
 
-/** CR 305.7 — "If an effect sets a land's subtype to one or more of the basic
- *  land types ... It loses all abilities generated from its rules text". The
- *  one way one layer-4 effect can end another's EXISTENCE, and the reason
- *  Urborg, Tomb of Yawgmoth depends on Blood Moon while Blood Moon depends on
- *  nothing.
+/** CR 613.8a's EXISTENCE limb: would applying `entry` take away the rules text
+ *  that generates `victim`'s own continuous effect?
  *
- *  Asked of a SPECIFIC permanent rather than declared, because the computed
- *  form of a subtype set (`subtypesFor`, Illusionary Terrain) chooses its
- *  replacement per target: Conspiracy sets a creature's subtypes and destroys no
- *  rules text; Magus of the Moon sets a land's to Mountain and destroys all of
- *  it. Two predicate evaluations on the LIVE board — not a speculative
- *  re-derivation on a hypothetical one. */
+ *  Two rules answer yes, one per layer that can express the question:
+ *
+ *  - CR 305.7 (layer 4) — "If an effect sets a land's subtype to one or more of
+ *    the basic land types ... It loses all abilities generated from its rules
+ *    text". This is why Urborg, Tomb of Yawgmoth depends on Blood Moon while
+ *    Blood Moon depends on nothing.
+ *  - CR 613.1f (layer 6) — an effect that removes ALL abilities. Applying
+ *    Humility to Lord of Atlantis destroys the ability granting islandwalk, so
+ *    the grant depends on Humility and is applied after it, which is to say
+ *    never. A single-keyword removal is NOT this: it takes a keyword away from
+ *    the objects it applies to and leaves the granting ability intact.
+ *
+ *  Asked of a SPECIFIC permanent rather than declared, because the computed form
+ *  of a subtype set (`subtypesFor`, Illusionary Terrain) chooses its replacement
+ *  per target: Conspiracy sets a creature's subtypes and destroys no rules text;
+ *  Magus of the Moon sets a land's to Mountain and destroys all of it. Two
+ *  predicate evaluations on the LIVE board — not a speculative re-derivation on
+ *  a hypothetical one. */
 function destroysRulesTextOf(
     entry: ContinuousEffect,
     template: DependencyTemplate | undefined,
     victim: PermanentView,
     ctx: StaticEffectContext
 ): boolean {
+    if (removesAllAbilitiesFrom(entry, template, victim, ctx)) return true;
     // CR 305.7 is a rule about LANDS. A subtype set on anything else leaves its
     // rules text alone.
     if (!victim.types.includes("Land")) return false;
@@ -304,6 +300,26 @@ function destroysRulesTextOf(
     // "to one or more of the basic land types" — a set naming no basic land
     // type (Conspiracy's chosen creature type) is not CR 305.7's effect.
     return replacement.some((subtype) => BASIC_LAND_SUBTYPES.includes(subtype));
+}
+
+/** CR 613.1f — whether `entry` strips EVERY ability from `victim`. */
+function removesAllAbilitiesFrom(
+    entry: ContinuousEffect,
+    template: DependencyTemplate | undefined,
+    victim: PermanentView,
+    ctx: StaticEffectContext
+): boolean {
+    if (entry.payload.kind !== "template") {
+        if (entry.payload.kind !== "ability-loss") return false;
+        return (
+            entry.affected.kind === "predicate" ||
+            entry.affected.instanceIds.includes(victim.id)
+        );
+    }
+    if (!template) return false;
+    const effect = template.effect;
+    if (effect.kind !== "ability-loss") return false;
+    return effect.applies(victim, template.source, ctx);
 }
 
 /** The subtypes `entry` would REPLACE `victim`'s with, or `undefined` when it
@@ -444,12 +460,11 @@ function orderGroup(
 
     const nodes: DependencyNode[] = group.map((entry, i) => {
         const template = templates[i];
-        const writes = writesOf(entry, template);
         return {
             entry,
             template,
-            reads: readsOf(entry, template, writes),
-            writes,
+            reads: readsOf(entry, template),
+            writes: writesOf(entry, template),
             rulesTextSource:
                 entry.payload.kind === "template"
                     ? template?.source
@@ -565,18 +580,22 @@ function applyExistence(
     return applied;
 }
 
-/** Whether this entry could END another effect's existence through CR 305.7 —
- *  a subtype REPLACEMENT, which is the only payload the rule speaks about. The
- *  cheap half of {@link destroysRulesTextOf}, asked of no particular victim, so
- *  a group can be shown symmetric without evaluating a single predicate. */
+/** Whether this entry could END another effect's existence at all — a subtype
+ *  REPLACEMENT (CR 305.7) or a total ability removal (CR 613.1f). The cheap half
+ *  of {@link destroysRulesTextOf}, asked of no particular victim, so a group can
+ *  be shown edge-free without evaluating a single predicate. */
 function canDestroyRulesText(
     entry: ContinuousEffect,
     template: DependencyTemplate | undefined
 ): boolean {
     if (entry.payload.kind !== "template") {
-        return entry.payload.kind === "subtype-change" && !!entry.payload.set;
+        return (
+            entry.payload.kind === "ability-loss" ||
+            (entry.payload.kind === "subtype-change" && !!entry.payload.set)
+        );
     }
-    return template?.effect.kind === "subtype-set";
+    const kind = template?.effect.kind;
+    return kind === "subtype-set" || kind === "ability-loss";
 }
 
 /** Tarjan's strongly connected components, iterative so a deep graph cannot
