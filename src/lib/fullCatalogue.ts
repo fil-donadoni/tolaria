@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { foldAccents } from "@convex/cards/textNormalize";
-import { useSearchIndex } from "./searchIndex";
+import { searchIndex } from "./searchIndex";
 import { toDashedUuid } from "./scryfallId";
 
 /** A single rehydrated row from the Full Catalogue columnar arrays. */
@@ -146,11 +146,11 @@ export interface FullCatalogueResult {
  * and not otherwise (`useDeckCardShapeResolver`) — can call the hook
  * unconditionally (hook order stays stable) without paying for the ~34k-row
  * download. Disabled, `rows` stays `undefined`, exactly as it reads while
- * loading. The index needs no such gate: it is derived, not fetched, and
- * memoised once per document.
+ * loading. It gates the INDEX too — deriving it walks ~4,300 definitions
+ * (measured 57 ms), and a surface that will not render a card pool should not
+ * pay that any more than it should pay the download.
  */
 export function useFullCatalogue(enabled = true): FullCatalogueResult {
-    const index = useSearchIndex();
     const [catalogue, setCatalogue] = useState<FullCatalogueRow[] | undefined>(
         undefined
     );
@@ -187,11 +187,15 @@ export function useFullCatalogue(enabled = true): FullCatalogueResult {
         };
     }, [enabled]);
 
+    // `searchIndex()`, not `useSearchIndex()`: the call has to sit INSIDE the
+    // memo so a disabled caller never triggers the derivation. It is the same
+    // memoised value either way — the index is module-level, not per-hook.
     const availableFolds = useMemo<Set<string>>(() => {
         const set = new Set<string>();
-        for (const row of index) set.add(row.nameFold);
+        if (!enabled) return set;
+        for (const row of searchIndex()) set.add(row.nameFold);
         return set;
-    }, [index]);
+    }, [enabled]);
 
     const rows = useMemo(() => {
         if (!catalogue) return undefined;

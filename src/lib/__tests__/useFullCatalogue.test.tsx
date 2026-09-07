@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // irrelevant here — what matters is that `rows` is gated only on the fetch —
 // so it is stubbed rather than derived from a real catalogue hydration.
 vi.mock("../searchIndex", () => ({
-    useSearchIndex: () => [{ nameFold: "lightning bolt" }],
+    searchIndex: () => [{ nameFold: "lightning bolt" }],
 }));
 
 const WIRE = {
