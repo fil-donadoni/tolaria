@@ -27,6 +27,11 @@ import {
 } from "../../../../gre/state";
 import { pushSpell } from "../../../__tests__/setup";
 import { annihilatorTriggerId } from "../../../abilities/annihilator";
+// SEAM EXCEPTION (issue #3048): this file's annihilator test asserts the
+// difference between the RAW module export and what the seam serves, so it is
+// the one place a set-module import IS the point. Allowlisted in
+// `scripts/__tests__/card-test-seam-boundary.test.ts`.
+import { emrakulTheAeonsTorn as rawEmrakulModuleExport } from "../colorless";
 import { getDefinition } from "../../..";
 
 const emrakulTheAeonsTorn = getDefinition(
@@ -59,7 +64,7 @@ describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)",
         // the raw module export must NOT show it — reading through
         // `getDefinition` must.
         const rawTriggerIds = (
-            emrakulTheAeonsTorn.triggeredAbilities ?? []
+            rawEmrakulModuleExport.triggeredAbilities ?? []
         ).map((a) => a.id);
         expect(rawTriggerIds).not.toContain(annihilatorTriggerId(6));
 
