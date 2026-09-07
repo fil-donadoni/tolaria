@@ -514,19 +514,35 @@ describe("presetSeedDecision — upsert by slug (issue #3168)", () => {
         });
     });
 
-    it("OVERWRITES the card list, unlike presetsToSeed's insert-if-absent", () => {
-        // The two seed paths have deliberately opposite contracts:
-        // `presetsToSeed` protects an Admin's curation on a bulk seed, this
-        // one re-syncs ONE named slug to the canonical list — a re-seed after
-        // a card slice lands that changed nothing would be a silent no-op.
-        const stale = { ...row, cards: [], sideboard: [] };
+    it("carries the NEW card list into the patch, where presetsToSeed skips entirely", () => {
+        // The two seed paths have deliberately opposite contracts on an
+        // already-present slug, and this pins both halves of the contrast on
+        // the SAME slug with a real, non-empty input on each side.
+        //
+        // What this can and cannot show: `presetSeedDecision` is handed only
+        // the existing row's `_id`, never its contents, so it is structurally
+        // incapable of "merging" — the assertion is that the patch is the
+        // canonical list's cards, which is what makes a re-seed after a card
+        // slice landed actually change the row instead of no-opping.
         const decision = presetSeedDecision(
             { _id: "row-id" as Doc<"presetDecks">["_id"] },
             row
         );
         if (decision.action !== "patch") throw new Error("unreachable");
-        expect(decision.patch.cards).toHaveLength(1);
-        expect(stale.cards).toHaveLength(0);
-        expect(presetsToSeed([], new Set(["oath-ponza"]))).toEqual([]);
+        expect(decision.patch.cards).toEqual(row.cards);
+
+        // `presetsToSeed`, given the SAME preset and that slug already
+        // present, yields nothing — it protects an Admin's curation on a bulk
+        // seed. A non-empty preset list, so the skip is genuinely exercised.
+        const preset: DeckPreset = {
+            presetId: "oath-ponza",
+            name: "Oath Ponza",
+            format: "premodern",
+            description: "",
+            colors: ["R", "G"],
+            cards: [],
+        };
+        expect(presetsToSeed([preset], new Set(["oath-ponza"]))).toEqual([]);
+        expect(presetsToSeed([preset], new Set())).toHaveLength(1);
     });
 });

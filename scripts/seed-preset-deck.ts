@@ -27,6 +27,13 @@
  *
  * `--dry-run` builds and validates the payload and prints it, touching no
  * deployment — which is also what makes the refusal paths testable offline.
+ *
+ * The `convex run` call is INLINE here, where `seed-scenario.ts` factors its
+ * equivalent into `scripts/lib/seed-scenario-run.ts`. That split exists
+ * because two callers need it (the per-PR CLI and the backlog sweep); this
+ * has one. A second entry point — a sweep seeding all six Tier 1 lists once
+ * #2719's card slices land — is the moment to extract it, before the two
+ * copies drift.
  */
 
 import { spawnSync } from "node:child_process";
