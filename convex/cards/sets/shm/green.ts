@@ -66,7 +66,7 @@ export const prismaticOmen: CardDefinition = {
             // changes neither what this applies to nor what it does to it, so
             // the two are INDEPENDENT and CR 613.7 timestamp order decides the
             // board — the later effect wins.
-            reads: ["types"],
+            reads: [{ characteristic: "types", values: ["Land"] }],
             applies: (target, source) =>
                 target.types.includes("Land") &&
                 target.controllerId === source.controllerId,

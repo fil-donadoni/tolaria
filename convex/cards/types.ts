@@ -8298,30 +8298,57 @@ export type ContinuousCharacteristic =
     /** CR 305.7 — see above. */
     | "rules-text";
 
+/** One entry of a declaration's read set: a characteristic, optionally narrowed
+ *  to the VALUES the predicate looks for.
+ *
+ *  The bare form is the whole family. The narrowed form exists because the
+ *  family is too coarse to separate two shipped cards: Life and Limb reads
+ *  subtypes and Urborg, Tomb of Yawgmoth WRITES subtypes, so a family-level
+ *  intersection makes them dependent — but Urborg only ever adds `Swamp`, and
+ *  adding `Swamp` can never make a permanent a Forest or a Saproling. The edge
+ *  is unrealisable on any board, and because Urborg genuinely depends on Life
+ *  and Limb (its `type-add` makes a Saproling token a Land), the phantom closes
+ *  a LOOP and takes the real dependency down with it (CR 613.8b) — the exact
+ *  cost ADR 0115 decision 2 names.
+ *
+ *  A writer whose values are not statically known — a whole-line replacement,
+ *  which can remove any value, or a computed `subtypesFor` — writes ANY value
+ *  and intersects with every reader of its family. */
+export type ContinuousRead =
+    | ContinuousCharacteristic
+    | {
+          characteristic: ContinuousCharacteristic;
+          /** The values the predicate tests for. An effect writing none of them
+           *  cannot change what this one applies to. */
+          values: readonly string[];
+      };
+
 /** CR 613.8a clause (b), the READ half: which characteristics this
- *  declaration's `applies` / `subtypesFor` / `condition` predicate consults.
+ *  declaration's `applies` / `subtypesFor` predicate consults.
  *
- *  Omitted is the norm. A declaration that says nothing takes its KIND's
- *  default (`STATIC_EFFECT_READS`, `gre/dependency.ts`), which is the union of
- *  what any predicate of that kind could read — wide enough that two effects in
- *  the same layer read each other's writes, which makes them mutually
- *  dependent, which CR 613.8b resolves back to plain timestamp order. That is
- *  the pre-613.8 behaviour, so an undeclared effect cannot be ordered WRONGLY
- *  by this system; it can only fail to be ordered by dependency at all.
+ *  Omitted is the norm, and it is the SAFE default. A declaration that says
+ *  nothing takes its kind's row in `STATIC_EFFECT_READS` (`gre/dependency.ts`),
+ *  and every one of those rows is EMPTY — deliberately, and argued at length in
+ *  that module's header. An undeclared effect therefore draws no applies-limb
+ *  edge and stays exactly where CR 613.7 put it.
  *
- *  Declaring it buys the precision back, and that is the whole mechanism: it is
- *  the asymmetry between two effects' read sets that produces a real edge.
- *  Blood Moon reads a land's TYPES and SUPERTYPES and never its subtypes, so
- *  nothing that writes subtypes can be applied before it (ADR 0115 decision 2 —
- *  a phantom edge that is one-directional REORDERS, and a set-vs-add pair makes
- *  that observable, so the table is kept tight and argued rather than generous).
+ *  Declaring it is what produces a dependency at all, and that is the whole
+ *  mechanism. Two rules govern what goes in the list:
  *
- *  It must be the truth about the predicate, not a wish: an under-declaration is
- *  a missed dependency and a wrong board. `dependency.test.ts`'s oracle — CR
- *  613.8a taken literally, run over the acceptance boards — is what proves a
- *  declaration honest. */
+ *  1. **Only characteristics in this effect's OWN layer.** CR 613.8a clause (a)
+ *     confines a dependency to one layer, so a predicate reading the target's
+ *     controller (layer 2) from a layer-4 effect declares nothing: no layer-4
+ *     effect can write it. Prismatic Omen and Conspiracy both read
+ *     `controllerId` and declare only `["types"]` for this reason.
+ *  2. **It must be the truth about the predicate.** An under-declaration is a
+ *     missed dependency and a wrong board. `dependency.test.ts`'s oracle — CR
+ *     613.8a taken literally, run over the acceptance boards and held against
+ *     the shipping relation — is what proves a declaration honest.
+ *
+ *  What a declaration CANNOT be ordered wrongly by is its own absence; what it
+ *  can be ordered wrongly by is a lie. */
 export interface DependencyReads {
-    reads?: readonly ContinuousCharacteristic[];
+    reads?: readonly ContinuousRead[];
 }
 
 export type StaticEffect = (

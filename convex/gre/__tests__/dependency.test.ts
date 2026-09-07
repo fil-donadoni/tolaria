@@ -274,6 +274,50 @@ describe("CR 613.8a/b — the dependency cases", () => {
         });
     }
 
+    // The false positive a FAMILY-level read set would invent, and the reason
+    // `reads` narrows to values. Urborg depends on Life and Limb — the
+    // `type-add` makes a Saproling token a Land, which changes what Urborg
+    // applies to. Life and Limb does NOT depend on Urborg: adding Swamp can
+    // never make a permanent a Forest or a Saproling, and CR 305.7's last
+    // sentence keeps the rules text of a land that only GAINS a type. So the
+    // edge is one-directional and the token is a Swamp at either timestamp. Read
+    // at the family level the two would be mutually dependent, the loop would
+    // swallow the real edge, and CR 613.8b would hand the pair back to timestamp
+    // order — a wrong board half the time.
+    for (const urborgFirst of [true, false]) {
+        it(`Urborg waits for Life and Limb and never the other way round (Urborg ${urborgFirst ? "first" : "second"})`, () => {
+            const urborg = makeInstance(urborgTombOfYawgmoth.id, {
+                id: "urborg",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const lal = makeInstance(lifeAndLimb.id, {
+                id: "lal",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const token = makeInstance(grizzlyBears.id, {
+                id: "token",
+                controllerId: "p1",
+                ownerId: "p1",
+                subtypes: ["Saproling"],
+            });
+            const state = boardWith(
+                [urborg, lal, token],
+                urborgFirst ? [urborg, lal] : [lal, urborg]
+            );
+            const subtypes = deriveLayers2to5(
+                view(state),
+                asView(token)
+            ).subtypes;
+            // Life and Limb makes it a Land; Urborg then sees a Land and adds
+            // Swamp. Both orders, because the dependency decides it.
+            expect([...subtypes].sort()).toEqual(
+                ["Forest", "Saproling", "Swamp"].sort()
+            );
+        });
+    }
+
     // CR 613.8a clause (b), the EXISTENCE limb in layer 6 (CR 613.1f). Applying
     // Humility takes every ability away from Lord of Atlantis, and the islandwalk
     // grant is one of that ability's continuous effects — so the grant DEPENDS on

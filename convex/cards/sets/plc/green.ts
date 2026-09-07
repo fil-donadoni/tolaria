@@ -59,18 +59,31 @@ export const lifeAndLimb: CardDefinition = {
         {
             kind: "type-add",
             // CR 613.8a clause (b) — `IS_FOREST_OR_SAPROLING` reads the target's
-            // SUBTYPES and nothing else. Conspiracy writes subtypes, so this
-            // effect waits for it; Conspiracy's own predicate reads card types,
-            // which this effect writes, so it waits back. CR 613.8b: a
+            // SUBTYPES, and only two of them. Conspiracy replaces a creature's
+            // whole subtype line, which can take Forest or Saproling away, so
+            // this effect waits for it; Conspiracy's own predicate reads card
+            // types, which this effect writes, so it waits back. CR 613.8b: a
             // dependency loop, applied in timestamp order.
-            reads: ["subtypes"],
+            //
+            // The VALUES matter, not just the family: Urborg, Tomb of Yawgmoth
+            // also writes subtypes, but only ever ADDS Swamp, which can never
+            // make a permanent a Forest or a Saproling. Declaring the family
+            // alone would invent an edge back to Urborg, and since Urborg
+            // genuinely depends on this card (the `type-add` below makes a
+            // Saproling token a Land), that phantom would close a LOOP and take
+            // the real dependency down with it.
+            reads: [
+                { characteristic: "subtypes", values: ["Forest", "Saproling"] },
+            ],
             applies: IS_FOREST_OR_SAPROLING,
             types: ["Creature", "Land"],
         },
         // CR 305.7 — layer 4, the added subtypes.
         {
             kind: "subtype-add",
-            reads: ["subtypes"],
+            reads: [
+                { characteristic: "subtypes", values: ["Forest", "Saproling"] },
+            ],
             applies: IS_FOREST_OR_SAPROLING,
             subtypes: ["Saproling", "Forest"],
         },

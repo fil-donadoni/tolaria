@@ -30,6 +30,7 @@
 
 import type {
     ContinuousCharacteristic,
+    ContinuousRead,
     PermanentView,
     StaticEffect,
     StaticEffectContext,
@@ -101,7 +102,7 @@ export type DependencyContext = {
  */
 export const STATIC_EFFECT_READS: Record<
     StaticEffect["kind"],
-    readonly ContinuousCharacteristic[]
+    readonly ContinuousRead[]
 > = {
     // --- CR 613 layers 2-7 --------------------------------------------------
     "control-change": [],
@@ -158,67 +159,126 @@ export const STATIC_EFFECT_READS: Record<
 export const CDA_STATIC_EFFECT_KINDS: ReadonlySet<StaticEffect["kind"]> =
     new Set<StaticEffect["kind"]>(["pt-cda"]);
 
-/** Which characteristic family an entry WRITES — CR 613.8a clause (b) seen from
- *  the other side, and the free half of the relation: one family per payload,
- *  and clause (a) guarantees the two entries being compared are in the same
- *  layer, so no cross-layer pair is ever asked. */
+/** What an entry WRITES — CR 613.8a clause (b) seen from the other side, and
+ *  the free half of the relation: one characteristic family per payload, and
+ *  clause (a) guarantees the two entries being compared are in the same layer,
+ *  so no cross-layer pair is ever asked.
+ *
+ *  `values` narrows the family to what this entry actually puts there, when that
+ *  is statically knowable. `undefined` means ANY value, and it is the honest
+ *  answer for a whole-line REPLACEMENT (which removes values it cannot name) and
+ *  for a computed output (`subtypesFor`, Illusionary Terrain), both of which can
+ *  change a value any predicate of the family reads. */
+type ContinuousWrite = {
+    characteristic: ContinuousCharacteristic;
+    values?: readonly string[];
+};
+
 function writesOf(
     entry: ContinuousEffect,
     template: DependencyTemplate | undefined
-): ContinuousCharacteristic | undefined {
+): ContinuousWrite | undefined {
     if (entry.payload.kind !== "template") {
-        switch (entry.payload.kind) {
+        const payload = entry.payload;
+        switch (payload.kind) {
             case "control-change":
-                return "controller";
+                return { characteristic: "controller" };
             case "text-change":
-                return "text";
+                return { characteristic: "text" };
             case "type-change":
-                return "types";
+                return {
+                    characteristic: "types",
+                    // A `set` replaces the whole line, so it can strip a type it
+                    // does not name: ANY value.
+                    ...(payload.set
+                        ? {}
+                        : {
+                              values: [
+                                  ...(payload.add ?? []),
+                                  ...(payload.remove ?? []),
+                              ],
+                          }),
+                };
             case "subtype-change":
-                return "subtypes";
+                return {
+                    characteristic: "subtypes",
+                    ...(payload.set ? {} : { values: payload.add ?? [] }),
+                };
             case "supertype-change":
-                return "supertypes";
+                return {
+                    characteristic: "supertypes",
+                    values: [...(payload.add ?? []), ...(payload.remove ?? [])],
+                };
             case "color-change":
-                return "colors";
+                return {
+                    characteristic: "colors",
+                    ...(payload.set ? {} : { values: payload.add ?? [] }),
+                };
             case "keyword-grant":
+                return {
+                    characteristic: "abilities",
+                    values: [payload.keyword],
+                };
             case "keyword-remove":
+                return {
+                    characteristic: "abilities",
+                    values: [payload.keyword],
+                };
             case "ability-loss":
             case "activated-grant":
             case "triggered-grant":
-                return "abilities";
+                return { characteristic: "abilities" };
             case "pt-set":
             case "pt-modify":
             case "pt-switch":
-                return "pt";
+                return { characteristic: "pt" };
         }
     }
-    const kind = template?.effect.kind;
-    switch (kind) {
+    const effect = template?.effect;
+    switch (effect?.kind) {
         case "control-change":
-            return "controller";
+            return { characteristic: "controller" };
         case "type-add":
         case "type-remove":
-            return "types";
-        case "subtype-set":
+            return { characteristic: "types", values: effect.types };
         case "subtype-add":
-            return "subtypes";
+            return { characteristic: "subtypes", values: effect.subtypes };
+        case "subtype-set":
+            // CR 205.1a — a replacement, so any subtype can disappear.
+            return { characteristic: "subtypes" };
         case "supertype-set":
-            return "supertypes";
+            return {
+                characteristic: "supertypes",
+                values: [...(effect.add ?? []), ...(effect.remove ?? [])],
+            };
         case "color-grant":
-            return "colors";
+            return { characteristic: "colors", values: effect.colors };
         case "keyword-grant":
+            return { characteristic: "abilities", values: [effect.keyword] };
         case "keyword-remove":
+            return { characteristic: "abilities", values: [effect.keyword] };
         case "ability-loss":
         case "activated-grant":
         case "triggered-grant":
-            return "abilities";
+            return { characteristic: "abilities" };
         case "pt-cda":
         case "pt-set":
         case "pt-buff":
-            return "pt";
+            return { characteristic: "pt" };
         default:
             return undefined;
     }
+}
+
+/** CR 613.8a clause (b) — does what `write` puts on the board intersect what
+ *  `read` looks for? The family must match; the VALUES need only overlap when
+ *  both sides know theirs. */
+function intersects(read: ContinuousRead, write: ContinuousWrite): boolean {
+    const characteristic =
+        typeof read === "string" ? read : read.characteristic;
+    if (characteristic !== write.characteristic) return false;
+    if (typeof read === "string" || write.values === undefined) return true;
+    return write.values.some((value) => read.values.includes(value));
 }
 
 /** CR 613.8a clause (b), the READ half for one entry.
@@ -243,7 +303,7 @@ function writesOf(
 function readsOf(
     entry: ContinuousEffect,
     template: DependencyTemplate | undefined
-): readonly ContinuousCharacteristic[] {
+): readonly ContinuousRead[] {
     if (entry.payload.kind !== "template" || !template) return [];
     const declared =
         template.effect.reads ?? STATIC_EFFECT_READS[template.effect.kind];
@@ -355,8 +415,8 @@ function subtypeReplacementFor(
 type DependencyNode = {
     entry: ContinuousEffect;
     template: DependencyTemplate | undefined;
-    reads: readonly ContinuousCharacteristic[];
-    writes: ContinuousCharacteristic | undefined;
+    reads: readonly ContinuousRead[];
+    writes: ContinuousWrite | undefined;
     /** The permanent whose rules text generates this effect, when it has one —
      *  the victim CR 305.7 is asked about. */
     rulesTextSource: PermanentView | undefined;
@@ -405,9 +465,10 @@ function dependsOn(
     // characteristic-defining ability or both are.
     if (a.cda !== b.cda) return false;
     // Clause (b), "what it applies to" / "what it does to them".
-    if (b.writes !== undefined && a.reads.includes(b.writes)) return true;
-    // Clause (b), the EXISTENCE limb (CR 305.7).
-    if (!a.rulesTextSource || !a.reads.includes("rules-text")) return false;
+    const write = b.writes;
+    if (write && a.reads.some((read) => intersects(read, write))) return true;
+    // Clause (b), the EXISTENCE limb (CR 305.7, CR 613.1f).
+    if (!a.rulesTextSource) return false;
     return destroysRulesTextOf(b.entry, b.template, a.rulesTextSource, ctx);
 }
 

@@ -42,7 +42,7 @@ export const urborgTombOfYawgmoth: CardDefinition = {
             // Blood Moon is the EXISTENCE limb: CR 305.7 strips "all abilities
             // generated from its rules text" from a land whose subtype is set
             // to a basic land type, and this land is one of them.
-            reads: ["types"],
+            reads: [{ characteristic: "types", values: ["Land"] }],
             applies: (target) => target.types.includes("Land"),
             subtypes: ["Swamp"],
         },

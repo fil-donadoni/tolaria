@@ -114,7 +114,7 @@ export const bloodMoon: CardDefinition = {
             // dependency: Urborg, Tomb of Yawgmoth waits for this effect (CR
             // 305.7 destroys the rules text generating Urborg's own), and this
             // effect waits for nothing.
-            reads: ["supertypes"],
+            reads: [{ characteristic: "supertypes", values: ["Basic"] }],
         },
     ],
 };
