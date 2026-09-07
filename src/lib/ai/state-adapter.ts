@@ -72,6 +72,8 @@ import type {
     SeatDeckKnowledge,
 } from "@convex/gre";
 import { knowledgeFor, PLACEHOLDER_CARD_ID } from "@convex/gre";
+import { openPeekTopCount } from "@convex/gre/libraryKnownRuns";
+import type { PendingChoice } from "@convex/gre/state";
 import type {
     KnownLibraryCard,
     PublicGameState,
@@ -293,7 +295,8 @@ function makeRealLibrary(
 function overlayKnownLibraryCards(
     library: CardInstanceState[],
     player: PublicPlayer,
-    viewerId?: string
+    viewerId?: string,
+    headChoice?: PendingChoice
 ): CardInstanceState[] {
     const wireKnown = Array.isArray(player.library)
         ? undefined
@@ -308,16 +311,37 @@ function overlayKnownLibraryCards(
     // which of them to keep. Left out, the Worker rebuilt those slots from
     // placeholders / the deck remainder, so the candidate generator priced
     // cards that are not there and submitted ids the server rejects.
-    // Overlaid at indices [0, n) exactly as `known[]` is at its own indices,
-    // and the `knownTo` stamp is what carries the entitlement onwards into
-    // `determinize` (whose `openPeekTopCount` derives the same run from the
-    // engine-native side).
-    const peek: KnownLibraryCard[] | undefined = player.libraryPeek?.map(
-        (card, index): KnownLibraryCard => ({ index, card })
-    );
-    const known =
-        peek && peek.length > 0 ? [...(wireKnown ?? []), ...peek] : wireKnown;
-    if (!known || known.length === 0) return library;
+    //
+    // HOW MANY of those entries are a TOP RUN is `openPeekTopCount`'s
+    // question, and it is asked here rather than answered again: the field is
+    // also emitted for `reorder-library`, `divide-piles` and `pick-pile`,
+    // whose payload is the DIVIDER's pile order — not library order — so
+    // mapping entry `i` to index `i` for those would write cards into slots
+    // they do not occupy and then stamp `knownTo` on the lie (PR review
+    // finding 4). Sharing the engine's derivation is also what keeps this from
+    // becoming a third parallel answer to "what does this viewer know", which
+    // is the drift `libraryKnownRuns.ts` exists to prevent.
+    const peekTop =
+        viewerId === undefined
+            ? 0
+            : openPeekTopCount(headChoice, player.id, viewerId);
+    const peek: KnownLibraryCard[] = (player.libraryPeek ?? [])
+        .slice(0, peekTop)
+        .map((card, index): KnownLibraryCard => ({ index, card }));
+    // Peek entries WIN at a colliding index. Concatenating two sources can
+    // produce two entries for the same slot (the CR 401.5 continuous top
+    // reveal makes index 0 known while a peek covers it), and the swap logic
+    // below guards donor selection but not overwrite — so a second entry for
+    // an already-resolved slot would exchange a card that genuinely belongs in
+    // the top run for one from deeper in the library. Deduplicating by index
+    // restores the "one entry per index" property the original code got for
+    // free from a single source.
+    const peekIndices = new Set(peek.map((e) => e.index));
+    const known = [
+        ...(wireKnown ?? []).filter((e) => !peekIndices.has(e.index)),
+        ...peek,
+    ];
+    if (known.length === 0) return library;
     const out = [...library];
     // Slots already resolved to a known card — never raided for a donor, or an
     // earlier entry's placement would be undone by a later one.
@@ -415,7 +439,8 @@ export function projectedToGameState(
                             : makeLibraryPlaceholders(p.id, p.library.count);
                     })(),
                     p,
-                    viewerId
+                    viewerId,
+                    state.pendingChoices?.[0] as PendingChoice | undefined
                 ),
         })),
         stack: state.stack,

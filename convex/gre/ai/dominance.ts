@@ -630,6 +630,19 @@ function applyProbeChoice(
             step: move.step,
             choiceId: move.choiceId,
             cardInstanceIds: move.cardInstanceIds,
+            // CR 701.22 / 701.25 / 701.44a (issue #2996) — the THIRD
+            // `Move → submitResolutionChoice` site, and the one the widening
+            // first missed (PR review finding 2). An `order-top` answer
+            // partitions the looked-at window, and its "keep nothing" policy is
+            // exactly the empty-`cardInstanceIds` shape this probe is built to
+            // test; without the second list the resolver throws
+            // ("order-top must place every looked-at card once") and
+            // `probeNoOpChoiceAnswer`'s bare catch swallows it, so the probe
+            // silently proves nothing about the one answer that moves every
+            // card in the window.
+            ...(move.secondZoneIds
+                ? { secondZoneIds: move.secondZoneIds }
+                : {}),
         });
         checkStateBasedActions(branch);
         return true;

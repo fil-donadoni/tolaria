@@ -32,7 +32,11 @@
  * `emitPermanentEntered`, never by an object literal.
  */
 
-import { getCardByName, tokenDefinitionId } from "../../../cards";
+import {
+    getCardByName,
+    tokenDefinitionId,
+    tryGetCardByName,
+} from "../../../cards";
 import { findTokenSpec } from "../../../cards/tokenCatalogue";
 import {
     activateAbilityOnState,
@@ -72,21 +76,30 @@ export class BladeSetupError extends Error {
 
 /** The DEFINITION id a blade entry's `card:` name denotes.
  *
- *  A card name resolves through `getCardByName`, which throws on an unknown
- *  name so a typo is an authoring error rather than a silently-empty match.
+ *  A real CARD wins, always: the card registry is consulted first, so a token
+ *  key can never shadow a printed card of the same name (there are no
+ *  collisions today — 51 token keys against the whole pool — but the ordering
+ *  is what makes that a property rather than a coincidence, and the failure it
+ *  rules out is silent: an existing `activate` / `etb-trigger` entry would
+ *  quietly start matching a token instead of its card. PR review finding 5).
+ *
  *  A TOKEN has no card name at all (CR 111.1 — it is not a card): its
  *  characteristics live in the token catalogue and its definition id is
  *  synthesized from the spec, exactly as `scenarioBuilder` does when the spec
- *  places one with `token: true`. The catalogue is consulted FIRST only for a
- *  name it actually holds, so no card is ever shadowed by a token key.
+ *  places one with `token: true`. Unknown to both throws, so a typo stays an
+ *  authoring error rather than a silently-empty match.
  *
  *  Without this a spec could PLACE a token (`token: true` has been supported
  *  since the vocabulary shipped) but no `setup` step could ever act on it,
  *  which put every token-activated ability — the Map token's Explore
  *  (CR 701.44a) among them — outside the blade suite entirely. */
 function definitionIdForName(name: string): string {
+    const card = tryGetCardByName(name);
+    if (card) return card.id;
     const spec = findTokenSpec(name);
     if (spec) return tokenDefinitionId(spec);
+    // Neither — reuse `getCardByName`'s own error so the message an author
+    // sees is the one every other name-resolution site produces.
     return getCardByName(name).id;
 }
 

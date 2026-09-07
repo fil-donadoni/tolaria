@@ -40,11 +40,13 @@ import type { GameState, PendingChoice, StackItem } from "../../state";
 import { buildSpellContext, getPlayer, resolveTopOfStack } from "../../state";
 import type { LibraryDestination } from "../../types";
 import { enumerateMoves, type Move } from "../../moves";
+import { NEUTRAL_PRIOR } from "../choicePriors";
 import { applyMoveInSearch } from "../../search";
 import { determinize } from "../../determinize";
 import { makeRng } from "../../rng";
 import {
     CHOICE_TOP_K,
+    ORDER_TOP_MAX_CANDIDATES,
     choiceCandidates,
     hasChoiceCandidateGenerator,
     isSearchableChoiceNode,
@@ -222,7 +224,9 @@ describe("order-top generator is self-pruning (contract property 1)", () => {
                 destination: "library-bottom",
             });
             const candidates = choiceCandidates(state, choice);
-            expect(candidates.length).toBeLessThanOrEqual(4);
+            expect(candidates.length).toBeLessThanOrEqual(
+                ORDER_TOP_MAX_CANDIDATES
+            );
             expect(candidates.length).toBeLessThanOrEqual(CHOICE_TOP_K);
         }
     });
@@ -293,6 +297,109 @@ describe("order-top ranks by worth, and flips for a foreign library", () => {
             .map((c) => partition(state, "p1", c.move))
             .find((p) => p.kept.length === 1);
         expect(keepOne).toEqual({ kept: [ORNITHOPTER], binned: [CRAW_WURM] });
+    });
+});
+
+describe("order-top PRIORS point at the right branch", () => {
+    // The reward carries the decision at a production budget, so nothing in
+    // the blade suite fails if this seam is deleted — the prior branch could
+    // be replaced with a flat NEUTRAL_PRIOR and every entry stays green (PR
+    // review finding 1, "aggravating"). These are the assertions that make the
+    // prior's SIGN a guarded property rather than an unchecked intention.
+    const priorOf = (
+        state: GameState,
+        choice: PendingChoice,
+        keptCount: number
+    ): number => {
+        const c = choiceCandidates(state, choice).find(
+            (x) =>
+                x.move.kind === "resolution-choice" &&
+                x.move.cardInstanceIds.length === keptCount
+        );
+        if (!c) throw new Error(`no candidate keeping ${keptCount}`);
+        return c.prior;
+    };
+
+    it("binning blanks off a deck of bombs opens ABOVE keeping them", () => {
+        const { state, choice } = stateWithOrderTop({
+            top: [ORNITHOPTER, ORNITHOPTER],
+            rest: Array(10).fill(CRAW_WURM),
+            destination: "library-bottom",
+        });
+        expect(priorOf(state, choice, 0)).toBeGreaterThan(
+            priorOf(state, choice, 2)
+        );
+    });
+
+    it("binning bombs off a deck of blanks opens BELOW keeping them", () => {
+        const { state, choice } = stateWithOrderTop({
+            top: [CRAW_WURM, CRAW_WURM],
+            rest: Array(10).fill(ORNITHOPTER),
+            destination: "library-bottom",
+        });
+        expect(priorOf(state, choice, 0)).toBeLessThan(
+            priorOf(state, choice, 2)
+        );
+    });
+
+    it("CR 701.29 fateseal — burying the opponent's bomb opens ABOVE leaving it", () => {
+        // The regression this exists for: the chooser's-eye flip lived only in
+        // the ranking comparator, so the HINT the prior reads stayed
+        // owner's-eye and Jace, the Mind Sculptor's whole +2 — bury their best
+        // card — ranked BELOW doing nothing.
+        const { state, choice } = stateWithOrderTop({
+            top: [ORNITHOPTER, CRAW_WURM],
+            rest: Array(10).fill(ORNITHOPTER),
+            destination: "library-bottom",
+            fateseal: true,
+        });
+        expect(priorOf(state, choice, 1)).toBeGreaterThan(
+            priorOf(state, choice, 2)
+        );
+    });
+
+    it("keeping everything is the neutral baseline in every position", () => {
+        // It moves no card, so both hints are 0 by construction — the fixed
+        // point the three assertions above are deviations from.
+        for (const rest of [CRAW_WURM, ORNITHOPTER]) {
+            const { state, choice } = stateWithOrderTop({
+                top: [ORNITHOPTER, CRAW_WURM],
+                rest: Array(10).fill(rest),
+                destination: "library-bottom",
+            });
+            expect(priorOf(state, choice, 2)).toBe(NEUTRAL_PRIOR);
+        }
+    });
+});
+
+describe("order-top declines a window that is no longer the library's TOP RUN", () => {
+    it("emits nothing once the looked-at cards have been displaced", () => {
+        // `SpellContext.orderTop`'s resume does `library.splice(0, m)` and
+        // throws if the kept cards are not the top `m`. The submit path
+        // validates membership and the partition, never POSITION, so a world
+        // whose top run has been disturbed must be refused HERE or the search
+        // throws mid-iteration (PR review finding 3).
+        const build = () =>
+            stateWithOrderTop({
+                top: [ORNITHOPTER, CRAW_WURM],
+                rest: Array(10).fill(ISLAND),
+                destination: "library-bottom",
+            });
+
+        const intact = build();
+        expect(
+            choiceCandidates(intact.state, intact.choice).length
+        ).toBeGreaterThan(0);
+
+        // A SECOND fixture rather than a mutation of the first:
+        // `choiceCandidates` memoizes on the `(state, choice)` object
+        // REFERENCES, so displacing the window in place would be answered from
+        // the cache and the assertion would pass without the guard existing.
+        const displaced = build();
+        getPlayer(displaced.state, "p1").library.unshift(
+            makeInstance(GRIZZLY_BEARS)
+        );
+        expect(choiceCandidates(displaced.state, displaced.choice)).toEqual([]);
     });
 });
 
