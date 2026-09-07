@@ -58,7 +58,7 @@ function activateStackAbility(
 
     if (ability.cost.tap) card.isTapped = true;
     if (ability.cost.removeCounter) {
-        payRemoveCounterCost(card, ability.cost.removeCounter);
+        payRemoveCounterCost(state, card, ability.cost.removeCounter);
     }
 
     const stackItem: StackItem = {

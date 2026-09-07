@@ -647,7 +647,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         const state = boardOf(bear, aura);
         applySourceStaticEffects(state, aura);
 
-        payRemoveCounterCost(bear, { type: "fade", count: 1 });
+        payRemoveCounterCost(state, bear, { type: "fade", count: 1 });
         expect(count(bear, "flying")).toBe(1);
     });
 

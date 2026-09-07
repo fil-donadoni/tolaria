@@ -797,7 +797,7 @@ export function applyActivationCostsForSearch(
     // so reaching here means the source is not short and `payRemoveCounterCost`
     // cannot throw.
     if (ability.cost.removeCounter) {
-        payRemoveCounterCost(src, ability.cost.removeCounter);
+        payRemoveCounterCost(state, src, ability.cost.removeCounter);
     }
     // CR 118.3 — "discard the last card you drew this turn" (Jandor's Ring).
     if (ability.cost.discardLastDrawn && payer) {

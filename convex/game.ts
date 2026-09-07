@@ -1875,7 +1875,7 @@ export function tapSourceIntoPayment(
             if (have < choiceIndex) {
                 throw new Error("Not enough counters for this choice");
             }
-            payRemoveCounterCost(card, {
+            payRemoveCounterCost(state, card, {
                 type: counterType,
                 count: choiceIndex,
             });
@@ -2982,7 +2982,7 @@ export function tryAutoCommitPendingActivation(
         card.isTapped = true;
     }
     if (pa.removeCounterCost) {
-        payRemoveCounterCost(card, pa.removeCounterCost);
+        payRemoveCounterCost(state, card, pa.removeCounterCost);
     }
     if (pa.discardLastDrawnSource) {
         // CR 118.3 — re-check at commit: the recorded card may have left the
@@ -6700,7 +6700,7 @@ export function finalizeTargetSelection(
             ? manaSpentDelta(poolBeforePayment, player.manaPool)
             : undefined;
         if (ability.cost.removeCounter) {
-            payRemoveCounterCost(card, ability.cost.removeCounter);
+            payRemoveCounterCost(state, card, ability.cost.removeCounter);
         }
         if (ability.cost.discardAtRandom) {
             payDiscardAtRandomCost(
@@ -14489,7 +14489,7 @@ export function activateAbilityOnState(
         ? manaSpentDelta(poolBeforePayment, player.manaPool)
         : undefined;
     if (ability.cost.removeCounter) {
-        payRemoveCounterCost(card, ability.cost.removeCounter);
+        payRemoveCounterCost(state, card, ability.cost.removeCounter);
     }
     if (ability.cost.discardLastDrawn) {
         payDiscardLastDrawn(state, player);
@@ -14866,7 +14866,7 @@ export const tapUntap = mutation({
                     if (have < choiceIndex) {
                         throw new Error("Not enough counters for this choice");
                     }
-                    payRemoveCounterCost(card, {
+                    payRemoveCounterCost(state, card, {
                         type: counterType,
                         count: choiceIndex,
                     });

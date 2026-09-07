@@ -268,7 +268,10 @@ import {
     type CopySource,
 } from "./copy";
 import type { ContinuousEffect } from "./continuousEffects";
-import { purgeContinuousEffectsForInstance } from "./continuousEffects";
+import {
+    purgeContinuousEffectsForInstance,
+    removeContinuousEffect,
+} from "./continuousEffects";
 
 /** Stored form of a temporary-effect duration. Mirrors `DurationSpec` but
  *  with the symbolic `player` field resolved to a concrete `playerId` at
@@ -7773,16 +7776,19 @@ export function getEffectiveStaticEffects(
  *  `source.id` so `unapplySourceStaticEffects` can splice it back out when
  *  the source leaves play. No-op if the source has no keyword-grant effects
  *  or no permanent matches its predicate. */
-/** CR 122.1b / 613.7c (issue #1194, PRD #2064 S3) — records the LEDGER ROW for
- *  a keyword counter's grant. It no longer grants anything: `deriveLayer6`
- *  (`gre/layer6.ts`) produces the grant from `card.counters` at every read,
- *  gated on the counter still being there, so removing the last counter needs
- *  no unapply and the grant survives its source by construction.
+/** CR 122.1b / 613.7c (issue #1194, PRD #2064 S6b) — writes the REGISTRY ENTRY
+ *  for a keyword counter's grant.
  *
- *  The row exists only to carry the ONE thing the counter itself does not
- *  record: the CR 613.7c layer timestamp of the moment the counter was put on,
- *  which decides whether the granted keyword survives a "loses all abilities"
- *  that resolved before it. */
+ *  The gate IS the counter: the entry carries a `counter` expiry, which
+ *  `layer6ExpiryLive` re-reads against `card.counters` at every derivation, so
+ *  the grant survives its source by construction and the last counter coming
+ *  off ends it without anything having to walk back and undo a grant.
+ *
+ *  Until this slice the row lived on `card.grantedStaticAbilities` and granted
+ *  nothing — it existed only to carry the CR 613.7c layer timestamp, which the
+ *  counter itself does not record, and `layer6EffectsFor` synthesised a
+ *  throwaway entry around it at every read. The entry now carries its own
+ *  minted stamp and is the record, so that synthesis is gone. */
 function applyKeywordCounterGrant(
     state: GameState,
     card: CardInstanceState,
@@ -7790,47 +7796,91 @@ function applyKeywordCounterGrant(
 ): void {
     const keyword = getKeywordCounterGrant(counterType);
     if (!keyword) return;
-    const already = (card.grantedStaticAbilities ?? []).some(
-        (g) => g.counterType === counterType
+    // CR 122.1c — one entry per (permanent, counter type), not per counter: a
+    // second "flying" counter grants no second occurrence of flying. Keyed on
+    // the entry's own expiry rather than on the composed keyword, for the same
+    // own-record reason `grantStaticAbilityPermanent` documents below.
+    if (findKeywordCounterEntry(state, card.id, counterType)) return;
+    ensureLayer6Base(state, card);
+    pushContinuousEffect(state, {
+        layer: 6,
+        affected: { kind: "instances", instanceIds: [card.id] },
+        expiry: { kind: "counter", permanentId: card.id, counterType },
+        payload: { kind: "keyword-grant", keyword },
+        characteristicDefining: false,
+    });
+}
+
+/** The live registry entry a keyword counter of `counterType` on `permanentId`
+ *  put there, if any. The idempotence key for `applyKeywordCounterGrant` and
+ *  the removal key for `unapplyKeywordCounterGrant` — one function so the two
+ *  cannot drift apart. */
+function findKeywordCounterEntry(
+    state: GameState,
+    permanentId: string,
+    counterType: string
+): ContinuousEffect | undefined {
+    return (state.continuousEffects ?? []).find(
+        (e) =>
+            e.layer === 6 &&
+            e.expiry.kind === "counter" &&
+            e.expiry.permanentId === permanentId &&
+            e.expiry.counterType === counterType &&
+            e.payload.kind === "keyword-grant"
     );
-    if (already) return;
-    ensureLayer6Base(card);
-    card.grantedStaticAbilities = [
-        ...(card.grantedStaticAbilities ?? []),
-        { ability: keyword, counterType, seq: allocStaticTimestamp(state) },
-    ];
 }
 
-/** CR 611.2c (issue #1706) — true for an INDEFINITE keyword grant: one keyed
- *  by none of `duration` / `auraId` / `counterType`, so it lives until the
- *  permanent leaves the battlefield (Cocoon's "gains flying", earthbend N's
- *  haste). The idempotence key for `grantStaticAbilityPermanent` / `animate`:
- *  a second indefinite grant of the same keyword is a no-op, while a
- *  duration-, aura- or counter-keyed grant of it is a DIFFERENT owner and
- *  still gets its own occurrence. */
-function isIndefiniteKeywordGrant(grant: {
-    duration?: Duration;
-    auraId?: string;
-    counterType?: string;
-}): boolean {
-    return !grant.duration && !grant.auraId && !grant.counterType;
+/** CR 611.2c (issue #1706) — whether `permanentId` already carries an
+ *  INDEFINITE registry grant of `keyword`: an entry with an `indefinite`
+ *  expiry, which lives until the permanent leaves the battlefield (Cocoon's
+ *  "gains flying", earthbend N's haste).
+ *
+ *  The idempotence key for `grantStaticAbilityPermanent` / `animateAsCreature`.
+ *  It keys on THIS grant's own record — never on `staticAbilities.includes(…)`
+ *  — because gating on the composed string made the grant piggyback on an
+ *  occurrence another source had put there (an until-EOT flying grant, a flying
+ *  counter) and record nothing at all, so that other source's teardown took the
+ *  shared occurrence away and this indefinite grant vanished with it. Every
+ *  grant owns exactly one entry.
+ *
+ *  Conversely, a duration-, source- or counter-keyed grant of the same keyword
+ *  is a DIFFERENT owner and still gets its own entry: the expiry kind is the
+ *  ownership, which is precisely what the pre-S6b predicate encoded as "keyed
+ *  by none of `duration` / `auraId` / `counterType`". */
+function hasIndefiniteKeywordGrant(
+    state: GameState,
+    permanentId: string,
+    keyword: string
+): boolean {
+    return (state.continuousEffects ?? []).some(
+        (e) =>
+            e.layer === 6 &&
+            e.expiry.kind === "indefinite" &&
+            e.affected.kind === "instances" &&
+            e.affected.instanceIds.includes(permanentId) &&
+            e.payload.kind === "keyword-grant" &&
+            e.payload.keyword === keyword
+    );
 }
 
-/** Reverse of `applyKeywordCounterGrant`: drops the ledger row once the counter
- *  type's count reaches zero. The GRANT itself needs no undoing — `deriveLayer6`
- *  stops producing it the moment the counter is gone (CR 122.1b), which is the
- *  whole of what "revoking" a counter-borne grant means. Called by
- *  `removeCounter`; a stale row left behind would only mean a re-added counter
- *  reuses an old timestamp, which the drop prevents. */
+/** Reverse of `applyKeywordCounterGrant`: drops the registry entry once the
+ *  counter type's count reaches zero.
+ *
+ *  The GRANT itself needs no undoing — the entry's `counter` expiry already
+ *  reads false the moment the counter is gone (CR 122.1b), which is the whole
+ *  of what "revoking" a counter-borne grant means. Dropping the entry is
+ *  hygiene, and it is what keeps a re-added counter from reusing the old
+ *  timestamp: CR 613.7c orders the grant at the moment the counter went ON, so
+ *  a counter removed and re-added must sort at its NEW moment, not its first
+ *  one. Called by `removeCounter`. */
 function unapplyKeywordCounterGrant(
+    state: GameState,
     card: CardInstanceState,
     counterType: string
 ): void {
-    const grants = card.grantedStaticAbilities;
-    if (!grants?.length) return;
-    const kept = grants.filter((g) => g.counterType !== counterType);
-    if (kept.length === grants.length) return;
-    card.grantedStaticAbilities = kept.length > 0 ? kept : undefined;
+    const existing = findKeywordCounterEntry(state, card.id, counterType);
+    if (!existing) return;
+    removeContinuousEffect(state, existing.id);
 }
 
 /** The next deterministic `ce-N` suffix for a Continuous Effects Registry entry
@@ -8173,7 +8223,7 @@ export function applyExistingGrantsTo(
     newPermanent: CardInstanceState
 ): void {
     ensureLayers2to5Base(newPermanent);
-    ensureLayer6Base(newPermanent);
+    ensureLayer6Base(state, newPermanent);
     syncLayers2to5(state);
     syncLayer6(state);
 }
@@ -14521,7 +14571,8 @@ export function buildSpellContext(
             // provenances). Only fires when the type had a live grant AND
             // is now completely gone (`remaining === 0`) — a partial removal
             // (3 flying counters → 1) leaves the keyword granted.
-            if (remaining === 0) unapplyKeywordCounterGrant(found.card, type);
+            if (remaining === 0)
+                unapplyKeywordCounterGrant(state, found.card, type);
             // CR 613.5 (issue #1711) — mirror of the `addCounterToCard` call:
             // re-materialize every counter-gated static so a grant whose
             // predicate has just gone false is actually lifted (Dread Wight's
@@ -14724,7 +14775,7 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            ensureLayer6Base(found.card);
+            ensureLayer6Base(state, found.card);
             applyAbilityLossHold(
                 found.card,
                 "indefinite",
@@ -14773,7 +14824,7 @@ export function buildSpellContext(
             if (!src) return;
             const found = findOnBattlefield(state, targetId);
             if (!found) return;
-            ensureLayer6Base(found.card);
+            ensureLayer6Base(state, found.card);
             applyAbilityLossHold(
                 found.card,
                 src.card.id,
@@ -16653,22 +16704,32 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            // CR 613.7 (PRD #2064 S3) — the grant is a registry entry with a
-            // `duration` expiry, not a push onto `staticAbilities`: the
-            // derivation composes it at every read. It takes a real layer
-            // timestamp because a resolving ability's continuous effect has
-            // one (CR 611.2a) — without it an until-end-of-turn grant sorted
-            // at 0 and was removed by any "loses all abilities" that had ever
-            // resolved, however long before.
-            ensureLayer6Base(found.card);
-            found.card.grantedStaticAbilities = [
-                ...(found.card.grantedStaticAbilities ?? []),
-                {
-                    ability,
+            // CR 613.7 (PRD #2064 S6b) — the grant is a REGISTRY entry with a
+            // `duration` expiry, written through the one write path: the
+            // derivation composes it at every read and
+            // `tickContinuousEffectDurations` counts its boundary, the same
+            // countdown every other duration in the engine uses. It takes a
+            // real layer timestamp because a resolving ability's continuous
+            // effect has one (CR 611.2a) — without it an until-end-of-turn
+            // grant sorted at 0 and was removed by any "loses all abilities"
+            // that had ever resolved, however long before.
+            ensureLayer6Base(state, found.card);
+            pushContinuousEffect(state, {
+                layer: 6,
+                affected: { kind: "instances", instanceIds: [target.id] },
+                expiry: {
+                    kind: "duration",
                     duration: resolveDuration(duration, item.castById, state),
-                    seq: allocStaticTimestamp(state),
+                    // CR 611.2c — the controller of an effect from a resolving
+                    // spell is fixed when the effect is created; the spell is
+                    // gone by the time the boundary is counted, so it is
+                    // stored rather than read off a live source. Mirrors
+                    // `addTemporaryPTBuff`, layer 7's twin of this primitive.
+                    controllerId: item.castById,
                 },
-            ];
+                payload: { kind: "keyword-grant", keyword: ability },
+                characteristicDefining: false,
+            });
             syncLayer6(state);
         },
         // CR 611.2c: grants a keyword with NO duration and NO aura link — it
@@ -16692,15 +16753,18 @@ export function buildSpellContext(
             // record nothing at all, so that other source's teardown took the
             // shared occurrence away and this indefinite grant vanished with
             // it. Every grant owns exactly one occurrence.
-            const already = (found.card.grantedStaticAbilities ?? []).some(
-                (g) => g.ability === ability && isIndefiniteKeywordGrant(g)
-            );
-            if (already) return;
-            ensureLayer6Base(found.card);
-            found.card.grantedStaticAbilities = [
-                ...(found.card.grantedStaticAbilities ?? []),
-                { ability, seq: allocStaticTimestamp(state) },
-            ];
+            if (hasIndefiniteKeywordGrant(state, target.id, ability)) return;
+            ensureLayer6Base(state, found.card);
+            pushContinuousEffect(state, {
+                layer: 6,
+                affected: { kind: "instances", instanceIds: [target.id] },
+                expiry: {
+                    kind: "indefinite",
+                    controllerId: found.card.controllerId,
+                },
+                payload: { kind: "keyword-grant", keyword: ability },
+                characteristicDefining: false,
+            });
             syncLayer6(state);
         },
         // CR 611.2c / 613 — the general form of the two primitives above (ADR
@@ -16878,16 +16942,24 @@ export function buildSpellContext(
             // permanent's effective abilities. Each match becomes a registry
             // entry with a `duration` expiry and its own layer timestamp
             // (CR 613.7), so a grant that lands afterwards wins.
-            ensureLayer6Base(found.card);
-            const seq = allocStaticTimestamp(state);
-            const removedNow = found.card.staticAbilities
-                .filter((kw) => predicate(kw))
-                .map((keyword) => ({ keyword, duration: resolved, seq }));
+            ensureLayer6Base(state, found.card);
+            const removedNow = found.card.staticAbilities.filter((kw) =>
+                predicate(kw)
+            );
             if (removedNow.length === 0) return;
-            found.card.temporaryRemovedKeywords = [
-                ...(found.card.temporaryRemovedKeywords ?? []),
-                ...removedNow,
-            ];
+            for (const keyword of removedNow) {
+                pushContinuousEffect(state, {
+                    layer: 6,
+                    affected: { kind: "instances", instanceIds: [target.id] },
+                    expiry: {
+                        kind: "duration",
+                        duration: resolved,
+                        controllerId: item.castById,
+                    },
+                    payload: { kind: "keyword-remove", keyword },
+                    characteristicDefining: false,
+                });
+            }
             syncLayer6(state);
         },
         // CR 208.2, 611.1: turns the target permanent into a creature with
@@ -16993,16 +17065,22 @@ export function buildSpellContext(
                     // gate as `grantStaticAbilityPermanent`: an `includes`
                     // gate would silently share another source's occurrence
                     // and own none of its own.
-                    const already = (card.grantedStaticAbilities ?? []).some(
-                        (g) =>
-                            g.ability === ability && isIndefiniteKeywordGrant(g)
-                    );
-                    if (already) continue;
-                    ensureLayer6Base(card);
-                    card.grantedStaticAbilities = [
-                        ...(card.grantedStaticAbilities ?? []),
-                        { ability, seq: allocStaticTimestamp(state) },
-                    ];
+                    if (hasIndefiniteKeywordGrant(state, card.id, ability))
+                        continue;
+                    ensureLayer6Base(state, card);
+                    pushContinuousEffect(state, {
+                        layer: 6,
+                        affected: {
+                            kind: "instances",
+                            instanceIds: [card.id],
+                        },
+                        expiry: {
+                            kind: "indefinite",
+                            controllerId: card.controllerId,
+                        },
+                        payload: { kind: "keyword-grant", keyword: ability },
+                        characteristicDefining: false,
+                    });
                 }
                 syncLayer6(state);
             }
@@ -21170,8 +21248,14 @@ export function checkManaCost(
 
 /** Removes counters from `card` to satisfy a `removeCounter` activation cost
  *  (CR 122.6 / 602.1). Caller must validate availability beforehand —
- *  throws if the card has fewer counters than the cost requires. */
+ *  throws if the card has fewer counters than the cost requires.
+ *
+ *  Takes the `GameState` since PRD #2064 S6b: a keyword counter's grant is a
+ *  REGISTRY entry now, not a row on the card, so the splice below cannot be
+ *  done from the instance alone. Every caller had the state in hand already —
+ *  the old stateless signature was a shortcut, not a constraint. */
 export function payRemoveCounterCost(
+    state: GameState,
     card: CardInstanceState,
     cost: { type: string; count: number }
 ): void {
@@ -21192,7 +21276,7 @@ export function payRemoveCounterCost(
     // indestructible counter from Arwen" as her OWN activation cost, not via
     // `removeCounter`/`SpellContext`, so without this call she would keep
     // indestructible after her last indestructible counter is spent).
-    if (remaining === 0) unapplyKeywordCounterGrant(card, cost.type);
+    if (remaining === 0) unapplyKeywordCounterGrant(state, card, cost.type);
     // CR 122.1b (PRD #2064 S3) — recompose this permanent's layer 6 now, so a
     // cost payment that removed the last keyword counter is visible before the
     // next SBA pass (a mana ability resolves in place, with no pass in

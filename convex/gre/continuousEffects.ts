@@ -350,6 +350,28 @@ export function purgeContinuousEffectsForInstance(
     state.continuousEffects = kept.length > 0 ? kept : undefined;
 }
 
+/** Drops the entry with `id` from the registry, if it is still there.
+ *
+ *  The removal twin of `pushContinuousEffect` (`gre/state.ts`), addressed by
+ *  the `id` that function mints. Its one caller is
+ *  `unapplyKeywordCounterGrant` (PRD #2064 S6b): a counter-borne grant is the
+ *  only entry the engine takes back by hand, because every other expiry ends
+ *  on a fact the derivation re-reads (`source`, `while-source-tapped`) or on a
+ *  boundary the tick counts (`duration`). A no-op on an unknown id, so a
+ *  double removal is safe.
+ *
+ *  Entries are SPLICED rather than blanked, for the reason
+ *  `purgeContinuousEffectsForInstance` documents above: `id` is the removal
+ *  handle, and `nextContinuousEffectOrdinal` mints past the highest suffix in
+ *  use, so a removal cannot let a later entry re-issue a live id. */
+export function removeContinuousEffect(state: GameState, id: string): void {
+    const entries = state.continuousEffects;
+    if (!entries?.length) return;
+    const kept = entries.filter((entry) => entry.id !== id);
+    if (kept.length === entries.length) return;
+    state.continuousEffects = kept.length > 0 ? kept : undefined;
+}
+
 /** CR 613.7 — the ONE timestamp comparison in the codebase. "An effect with an
  *  earlier timestamp is applied before an effect with a later timestamp."
  *
