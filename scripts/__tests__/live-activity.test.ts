@@ -218,6 +218,29 @@ describe("live-activity — LiveIndex", () => {
         expect(index.sessionsForIssue(5555)).toEqual([]);
     });
 
+    it("a session being written to NOW outranks an idle one that named the issue more — liveness before mention count", () => {
+        const { utimesSync } = require("node:fs") as typeof import("node:fs");
+        const dir = join(root, "rank-case");
+        const talker = "44444444-4444-4444-8444-444444444444";
+        const worker = "55555555-5555-4555-8555-555555555555";
+        // The talker names #7000 five times but went quiet an hour ago; the
+        // worker names it once and is mid-turn.
+        writeTranscript(dir, talker, [
+            userLine(NOW - HOUR, "#7000 #7000 #7000 #7000 #7000"),
+        ]);
+        const hourAgo = (Date.now() - HOUR) / 1000;
+        utimesSync(join(dir, `${talker}.jsonl`), hourAgo, hourAgo);
+        writeTranscript(dir, worker, [userLine(NOW, "/next-issue 7000")]);
+        const idx = new LiveIndex({
+            projectsRoot: root,
+            projectSlug: "rank-case",
+        });
+        idx.refresh(Date.now());
+        expect(
+            idx.sessionsForIssue(7000, Date.now()).map((s) => s.session)
+        ).toEqual([worker, talker]);
+    });
+
     it("live sessions are the ones written to within the live window", () => {
         // Filesystem mtimes are 'now' for every file the fixture wrote, so
         // liveness is judged against the real clock here.

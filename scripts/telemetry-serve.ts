@@ -24,6 +24,7 @@ import type { Database } from "bun:sqlite";
 import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
 import type { GracefulPriority } from "./loop-status";
 import { homedir } from "node:os";
+import { primaryCheckout } from "./lib/primary-checkout";
 import {
     LiveIndex,
     readTail,
@@ -42,7 +43,10 @@ const DASHBOARD_DIR = join(PROJECT_DIR, "scripts/dashboard");
  *  slug rule `telemetry-ingest.ts` uses (`/` → `-`), and the ONLY root the
  *  live routes ever read under (issue #3135). */
 const PROJECTS_ROOT = join(homedir(), ".claude/projects");
-const PROJECT_SLUG = PROJECT_DIR.replace(/\//g, "-");
+/** Slugged from the PRIMARY checkout, not the cwd: a dashboard launched from
+ *  an issue worktree still shows the project's sessions — the worktree's own
+ *  `<slug>-issue-N` directory is one of the dirs the slug's prefix owns. */
+const PROJECT_SLUG = primaryCheckout(PROJECT_DIR).replace(/\//g, "-");
 
 /**
  * The dashboard's static assets (#2625), as an EXPLICIT list of names.
@@ -1075,7 +1079,7 @@ function liveView(index: LiveIndex, url: URL, nowMs: number) {
     const byIssue: Record<number, ReturnType<typeof sessionView>[]> = {};
     for (const issue of issues) {
         byIssue[issue] = index
-            .sessionsForIssue(issue)
+            .sessionsForIssue(issue, nowMs)
             .map((s) => sessionView(s, nowMs));
     }
     return {

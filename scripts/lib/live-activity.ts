@@ -540,19 +540,41 @@ export class LiveIndex {
     }
 
     /**
-     * The sessions most likely working `issue`, best first: mentions decide,
-     * recency breaks ties — and a session that never names the issue is not
-     * a candidate at all. Capped at three; the drawer offers them as tabs.
+     * The sessions most likely working `issue`, best first. A session that
+     * never names the issue is not a candidate at all; among those that do,
+     * LIVENESS comes first (a transcript being written to right now beats
+     * one idle since this morning, however much the idle one talked about
+     * the issue — measured on a real day: a planning conversation that
+     * discussed issue #3048 forty times outranked the `/next-issue 3048`
+     * session actually working it), then whether the branch or the first
+     * prompt names the issue outright, then the mention count, then recency.
+     * Capped at three; the drawer offers the rest as "+N more".
      */
-    sessionsForIssue(issue: number, limit = 3): SessionSummary[] {
+    sessionsForIssue(
+        issue: number,
+        nowMs: number = Date.now(),
+        limit = 3
+    ): SessionSummary[] {
+        const tier = (s: SessionSummary): number => {
+            const ageMin = (nowMs - s.lastWriteMs) / 60_000;
+            if (ageMin <= ACTIVE_SESSION_MINUTES) return 2;
+            if (ageMin <= LIVE_SESSION_MINUTES) return 1;
+            return 0;
+        };
+        const named = (s: SessionSummary): number =>
+            (s.gitBranch ?? "").endsWith(`issue-${issue}`) ||
+            new RegExp(`\\b${issue}\\b`).test(s.lastPrompt ?? "")
+                ? 1
+                : 0;
         return this.allSessions()
             .filter((s) => (s.mentions[issue] ?? 0) > 0)
-            .sort((a, b) => {
-                const am = a.mentions[issue] ?? 0;
-                const bm = b.mentions[issue] ?? 0;
-                if (bm !== am) return bm - am;
-                return b.lastWriteMs - a.lastWriteMs;
-            })
+            .sort(
+                (a, b) =>
+                    tier(b) - tier(a) ||
+                    named(b) - named(a) ||
+                    (b.mentions[issue] ?? 0) - (a.mentions[issue] ?? 0) ||
+                    b.lastWriteMs - a.lastWriteMs
+            )
             .slice(0, limit);
     }
 
