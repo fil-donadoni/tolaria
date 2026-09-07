@@ -294,27 +294,26 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
   `bun run format` and re-run (#1807).
 - **`bun run test` is three suites** — `test:app` → `test:bot` → `test:blade`.
   **Name any new bot/AI test `*.bot.test.ts`**; `bot-suite-boundary.test.ts`
-  enforces it.
+  enforces it. Wall-clock assertions go in `*.perf.test.ts` — `test:perf`,
+  a fourth suite, never gated (issue #3123).
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
 - **There is no CI: the local gates are the only gates.** Nothing may be left
   to CI. The full offline gate runs post-merge (`health:main`, ADR 0110) —
   running it by hand before a merge is never wrong, just not owed.
 
-**CPU admission control** (`scripts/gate.ts`) — several sessions share this
-machine:
+**CPU admission control** (`scripts/gate.ts`) — sessions share this machine:
 
-| Tier      | Commands                                                           | Behaviour                                                             |
-| --------- | ------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | machine-wide mutex (`~/.cache/tolaria/gate.lock`), `ncpu - 1` workers |
-| **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at 2 workers (`TOLARIA_VITEST_WORKERS`)        |
+| Tier      | Commands                                                           | Behaviour                                                      |
+| --------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | machine-wide mutex, `min(ncpu - 1, 4)` workers (RAM-capped)    |
+| **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at 2 workers (`TOLARIA_VITEST_WORKERS`) |
 
-A queued heavy gate is not a hang: the waiter names its holder, **`bun run
-gate:who`** prints that plus its CPU, and a holder whose subtree stops burning
-CPU stops heartbeating and is reclaimed (issue #2999).
+A queued heavy gate is not a hang: **`bun run gate:who`** names the holder and
+its CPU; one that stops burning CPU is reclaimed (issue #2999).
 **The full gate is blocked inside an issue worktree**
 (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1` is the
-orchestrator-only escape hatch.
+orchestrator's escape hatch.
 
 **Worktree isolation — the shared checkout is read-only.** Every file you
 author goes in a worktree, **including one line of markdown** (markdown is

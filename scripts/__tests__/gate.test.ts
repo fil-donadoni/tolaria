@@ -7,7 +7,7 @@ import {
     existsSync,
     readFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 /**
@@ -34,6 +34,7 @@ function env(extra: Record<string, string> = {}) {
     delete base.TOLARIA_GATE_HELD;
     delete base.TOLARIA_ALLOW_FULL_SUITE;
     delete base.TOLARIA_VITEST_WORKERS;
+    delete base.TOLARIA_HEAVY_WORKERS_CAP;
     return { ...base, ...extra };
 }
 
@@ -126,6 +127,38 @@ describe("gate.ts — tier dispatch", () => {
         expect(r.status).toBe(0);
         expect(r.stdout).toContain("held=[1]");
         expect(r.stdout).toMatch(/w=\[[2-9]\d*\]/);
+    });
+
+    /**
+     * The heavy tier's worker count is RAM-bound, not CPU-bound (issue #3123).
+     * `ncpu - 1` = 7 workers × ~0.9 GB plus `tsc` at ~2 GB is ~8 GB on top of
+     * an ~11 GB baseline on a 16 GB machine — measured 5.5 GB of swap and 1.2M
+     * pageouts, i.e. reds from paging rather than from the code. The default
+     * ceiling is 4.
+     */
+    const cap = (ceiling: number) =>
+        Math.max(2, Math.min(cpus().length - 1, ceiling));
+
+    it("caps the heavy tier's workers at the RAM-bound default of 4", () => {
+        const r = run(["heavy", "echo w=[$TOLARIA_VITEST_WORKERS]"]);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain(`w=[${cap(4)}]`);
+    });
+
+    it("honours TOLARIA_HEAVY_WORKERS_CAP (a bigger machine raises it)", () => {
+        const r = run(["heavy", "echo w=[$TOLARIA_VITEST_WORKERS]"], {
+            env: env({ TOLARIA_HEAVY_WORKERS_CAP: "3" }),
+        });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain(`w=[${cap(3)}]`);
+    });
+
+    it("never drops below 2 workers, however low the cap", () => {
+        const r = run(["heavy", "echo w=[$TOLARIA_VITEST_WORKERS]"], {
+            env: env({ TOLARIA_HEAVY_WORKERS_CAP: "1" }),
+        });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("w=[2]");
     });
 
     it("propagates the child's exit code", () => {

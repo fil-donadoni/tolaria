@@ -70,11 +70,14 @@ const NON_BOT = SRC_TESTS.filter((f) => !f.endsWith(".bot.test.ts"));
 
 describe("src test env split — every src test runs in exactly one project", () => {
     it("reads the real config (sanity — an unparsed config would vacuously pass)", () => {
+        // `perf` (issue #3123) selects `*.perf.test.ts` only and is excluded
+        // from all four general projects, so it never competes for a src test.
         expect(projects?.map((p) => p.test?.name).sort()).toEqual([
             "bot-dom",
             "bot-node",
             "dom",
             "node",
+            "perf",
         ]);
         expect(SRC_TESTS.length).toBeGreaterThan(300);
     });

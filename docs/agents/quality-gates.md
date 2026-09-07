@@ -223,6 +223,47 @@ config, ~42s). `test:bot` is a separate invocation so heavy episodes get an
 uncontended run. Blade's stretch tier stays report-only and manual
 (`bun run test:blade:stretch`).
 
+### Timeouts are hang guards; perf assertions live in the `perf` project
+
+Two separate lessons from the same failure, both issue #3123.
+
+**Per-test timeouts are hang guards, not measurements.** Vitest's 5s default is
+sized for a solo machine. This one is not: health runs measured a load average
+of 21 on 8 cores, and at that contention the default reds CORRECT code — it did
+so in at least 10 of 23 RED health runs. The `node` and `dom` projects therefore
+carry `testTimeout: 30_000`, which is far beyond anything a unit test here
+legitimately takes and still tight enough to catch a genuine hang. (`bot-node` /
+`bot-dom` already had 60s, blade 120s, for the same reason.)
+
+**A wall-clock assertion is a measurement of the machine**, so it may not run in
+a gate at all. `*.perf.test.ts` is its own vitest project, `perf`, excluded from
+all four general projects and run only by `bun run test:perf` — on demand, solo,
+when someone actually wants the number. `bun run test` is unchanged
+(`test:app` → `test:bot` → `test:blade`); `test:perf` is a fourth suite no gate
+invokes. `scripts/__tests__/perf-test-boundary.test.ts` enforces both halves: it
+reds when a gated test asserts on a clock delta, and it reds when the config
+stops excluding the suffix — a config edit cannot silently fold perf tests back
+into the gate while the first half passes vacuously. Its allowlist is for the
+one legitimate shape: elapsed time as the only observable separating two
+BEHAVIOURS, with an order-of-magnitude margin (a stop-file aborting a 30s
+backoff in under 10s says nothing about how fast the machine is).
+
+### The heavy tier's worker count is RAM-bound, not CPU-bound
+
+`ncpu - 1` is a CPU answer to a memory question. Measured 2026-09-07 on this
+machine (16 GB, 8 cores, ~11 GB baseline from editor + browser + agent
+sessions): 7 vitest workers at ~0.9 GB resident each, plus `tsc -b` at ~2 GB,
+is ~8 GB of demand on top of that baseline — **5.5 GB of swap and 1.2M
+pageouts**. Paging, not scheduling, was the wall: workers stall on faults, tests
+blow their ceilings, and the run reds on correct code.
+
+So `scripts/gate.ts` computes
+`HEAVY_WORKERS = max(2, min(ncpu - 1, HEAVY_WORKERS_CAP))` with the cap
+defaulting to **4**. At 4 workers the same suites peak around 5 GB with no swap
+and `test:app` wall time rises only ~25% — a cheap price for a result that is
+not a coin flip. `TOLARIA_HEAVY_WORKERS_CAP=7` raises it on a machine with the
+RAM to spend.
+
 ## Why there is no CI
 
 The three GitHub Actions workflows (`lint`, `test`, `blade`) were deleted
@@ -296,7 +337,10 @@ silent — it vanished for six weeks once before anyone noticed.
 ## CPU admission control
 
 `scripts/gate.ts`, because several sessions share this machine. A queued heavy
-gate is not a hang; stale locks are auto-pruned.
+gate is not a hang; stale locks are auto-pruned. The mutex lives outside the
+repo — `~/.cache/tolaria/gate.lock`, whose `owner.json` is what `bun run
+gate:who` reads — because worktrees are separate directories and an in-repo
+lock would not be shared between them.
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
 `fix/issue-N` → exit 1): the merge-train runs it once per landing tree.

@@ -16,8 +16,9 @@
  * MODEL. Two tiers:
  *
  *   heavy — the full suites and `check:all`. Hold a machine-wide exclusive
- *           mutex and get the full worker count. One at a time, but each runs
- *           at solo speed instead of N running at 1/N speed. Callers queue.
+ *           mutex and get the full worker count, CAPPED (see below). One at a
+ *           time, but each runs at solo speed instead of N running at 1/N
+ *           speed. Callers queue.
  *   light — targeted vitest, `check:ts`, `lint`. No lock, but vitest is capped
  *           at TOLARIA_VITEST_WORKERS (default 2, see vitest.config.ts), so
  *           four concurrent light jobs fit in ncpu.
@@ -45,6 +46,8 @@
  *                              call passes straight through (no self-deadlock)
  *   TOLARIA_ALLOW_FULL_SUITE=1 escape hatch for the issue-worktree guard
  *   TOLARIA_VITEST_WORKERS     worker cap read by vitest.config.ts
+ *   TOLARIA_HEAVY_WORKERS_CAP  ceiling on the heavy tier's worker count
+ *                              (default 4) — RAM-bound, see HEAVY_WORKERS
  *   TOLARIA_GATE_LOCK_ROOT     lock location override (tests only)
  *   TOLARIA_GATE_HEARTBEAT_MS  owner-stamp refresh period override (tests only)
  *   TOLARIA_GATE_STALE_MS      staleness threshold override (tests only)
@@ -90,8 +93,24 @@ const HEARTBEAT_MS = Number(
 const STALL_BEATS = Number(process.env.TOLARIA_GATE_STALL_BEATS ?? 3);
 const POLL_MS = 2000;
 const NCPU = cpus().length;
-/** Full-speed worker count for the heavy tier — leave one core for the OS. */
-const HEAVY_WORKERS = Math.max(2, NCPU - 1);
+/**
+ * Ceiling on the heavy tier's worker count. The cap is RAM-bound, not
+ * CPU-bound (issue #3123).
+ *
+ * Measured 2026-09-07 on this machine (16 GB, 8 cores, ~11 GB baseline from
+ * the editor/browser/agent sessions): `ncpu - 1` = 7 vitest workers at ~0.9 GB
+ * resident each, plus `tsc -b` at ~2 GB, is ~8 GB of demand on top of that
+ * baseline — 5.5 GB of swap and 1.2M pageouts. Paging, not scheduling, was
+ * then the wall: workers stall on faults, tests blow their ceilings, and the
+ * run reds on correct code. At 4 workers the same suites peak around 5 GB with
+ * no swap, and `test:app` wall time rises only ~25% — a cheap price for a
+ * result that is not a coin flip.
+ *
+ * Raise it on a machine with more RAM: TOLARIA_HEAVY_WORKERS_CAP=7.
+ */
+const HEAVY_WORKERS_CAP = Number(process.env.TOLARIA_HEAVY_WORKERS_CAP ?? 4);
+/** Heavy-tier worker count — one core left for the OS, then RAM-capped. */
+const HEAVY_WORKERS = Math.max(2, Math.min(NCPU - 1, HEAVY_WORKERS_CAP));
 
 const [, , tier, ...rest] = process.argv;
 const command = rest.join(" ");
