@@ -86,9 +86,9 @@ export interface QueuePort {
     /**
      * The `Priority` field on the GitHub Project board, per issue number.
      *
-     * A DATA field, not a method, on purpose: the board is one `gh project
-     * item-list` call for the whole queue, so making it a per-issue lookup
-     * would invent a round-trip the two-stage design exists to avoid.
+     * A DATA field, not a method, on purpose: the board is ONE read for the
+     * whole queue, so making it a per-issue lookup would invent a round-trip
+     * the two-stage design exists to avoid.
      *
      * Absent from the map = the issue is not on the board, or is on it with no
      * Priority set. Both mean the same thing here — no explicit priority — and

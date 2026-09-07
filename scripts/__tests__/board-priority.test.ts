@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-    computeItemLimit,
-    fetchBoardPriority,
-    isPossiblyTruncated,
-} from "../lib/board-priority";
+import { fetchBoardPriority, isTruncated } from "../lib/board-priority";
 
 /**
  * `lib/board-priority.ts` (#2519) — extracted out of `queue-plan.ts` so
@@ -13,62 +9,143 @@ import {
  * mis-ordered batch is worse than a stopped loop); `loop:status` needs it to
  * degrade gracefully (a missing priority column is cosmetic there). Every
  * test drives `ghClient` by hand — no real `gh` call.
+ *
+ * The read is a raw `gh api graphql --paginate --slurp` query for the
+ * `Priority` field alone, not `gh project item-list`, which asks for every
+ * field value of every item: 766 GraphQL points against this board versus 8
+ * — same 351 entries, same values — on a 5000-point/HOUR pool shared by
+ * every session on the machine (measured 2026-09-07). Two of these tests
+ * exist specifically because that substitution has failure modes
+ * `item-list` did not:
+ *  - gh's `--paginate` contract is keyed to a variable named exactly
+ *    `$endCursor`; get it wrong and the read silently returns page ONE, so
+ *    the pagination test drives two pages and asserts both are merged;
+ *  - a non-resolving owner or project number comes back as `null` DATA with
+ *    a ZERO exit, so it never reaches the `catch` — an empty map there would
+ *    render as "nobody prioritised anything" and the queue would sort on it.
  */
 
 const OWNER = "fil-donadoni";
 const PROJECT_NUMBER = "2";
 const REPO = "fil-donadoni/tolaria";
 
-function itemList(
-    items: { number: number; repo?: string; priority?: string; type?: string }[]
-): string {
-    return JSON.stringify({
-        items: items.map((i) => ({
-            content: {
-                type: i.type ?? "Issue",
-                number: i.number,
-                repository: i.repo ?? REPO,
-            },
-            ...(i.priority === undefined ? {} : { priority: i.priority }),
-        })),
-    });
+interface FakeItem {
+    number: number;
+    repo?: string;
+    priority?: string;
+    typename?: string;
 }
 
-function projectView(totalCount: number): string {
-    return JSON.stringify({ items: { totalCount } });
+function node(item: FakeItem) {
+    return {
+        content: {
+            __typename: item.typename ?? "Issue",
+            number: item.number,
+            repository: { nameWithOwner: item.repo ?? REPO },
+        },
+        // `null`, not an absent key: that is what GitHub sends for an item
+        // with no Priority set.
+        fieldValueByName:
+            item.priority === undefined ? null : { name: item.priority },
+    };
+}
+
+function page(
+    items: FakeItem[],
+    opts: { hasNextPage?: boolean; totalCount?: number } = {}
+) {
+    return {
+        data: {
+            repositoryOwner: {
+                projectV2: {
+                    items: {
+                        totalCount: opts.totalCount ?? items.length,
+                        pageInfo: {
+                            hasNextPage: opts.hasNextPage ?? false,
+                            endCursor: "cursor",
+                        },
+                        nodes: items.map(node),
+                    },
+                },
+            },
+        },
+    };
+}
+
+/** What `--slurp` hands back: one JSON array holding every page response. */
+function slurped(...pages: unknown[]): string {
+    return JSON.stringify(pages);
+}
+
+function neverErrors(): (m: string) => void {
+    return () => {
+        throw new Error("onError should not be called");
+    };
 }
 
 describe("board-priority — fetchBoardPriority", () => {
-    it("maps issue number to priority for matching Issue rows in the configured repo", () => {
+    it("maps issue number to priority, over ONE paginated GraphQL call", () => {
         const calls: string[][] = [];
         const priority = fetchBoardPriority({
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
-            onError: () => {
-                throw new Error("should not be called");
-            },
+            onError: neverErrors(),
             ghClient: (args) => {
                 calls.push(args);
-                return args[1] === "item-list"
-                    ? itemList([
-                          { number: 1, priority: "P0" },
-                          { number: 2, priority: "P2" },
-                      ])
-                    : projectView(2);
+                return slurped(
+                    page([
+                        { number: 1, priority: "P0" },
+                        { number: 2, priority: "P2" },
+                    ])
+                );
             },
         });
         expect(priority).toEqual({ 1: "P0", 2: "P2" });
-        // `project view` comes FIRST and its `totalCount` sizes the item-list
-        // window (issue #2520) — a static `--limit 2000` on a 411-item board
-        // pages far past the end, and every page is a GraphQL round trip on a
-        // budget several sessions share.
-        expect(calls[0]![1]).toBe("view");
-        expect(calls[1]![1]).toBe("item-list");
-        expect(calls[1]![calls[1]!.indexOf("--limit") + 1]).toBe(
-            String(computeItemLimit(2, 100))
-        );
+
+        // ONE call. The `gh project view` that used to precede the read —
+        // purely to size an `item-list --limit` window — is gone with the
+        // window, and with it the owner-type lookup that reported a
+        // rate-limited board as `unknown owner type`.
+        expect(calls).toHaveLength(1);
+        const args = calls[0]!;
+        expect(args.slice(0, 2)).toEqual(["api", "graphql"]);
+        expect(args).toContain("--paginate");
+        expect(args).toContain("--slurp");
+        // `-F`, not `-f`: `$number: Int!` rejects a string outright.
+        expect(args[args.indexOf("-F") + 1]).toBe(`owner=${OWNER}`);
+        expect(args).toContain(`number=${PROJECT_NUMBER}`);
+        const query = args[args.indexOf("-f") + 1]!;
+        expect(query).toContain('fieldValueByName(name: "Priority")');
+        // The whole point of the rewrite: ask for the Priority field, not
+        // every field value of every item.
+        expect(query).not.toContain("fieldValues");
+    });
+
+    it("merges EVERY page — the --paginate contract is a variable named $endCursor", () => {
+        // gh feeds `pageInfo.endCursor` back into a variable of that exact
+        // name. Rename it and gh returns page one and stops: the newest 100
+        // items keep their priorities and every older one silently loses
+        // them, with no error anywhere. This is the test that notices.
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            onError: neverErrors(),
+            ghClient: (args) => {
+                expect(args[args.indexOf("-f") + 1]).toContain(
+                    "$endCursor: String"
+                );
+                return slurped(
+                    page([{ number: 1, priority: "P0" }], {
+                        hasNextPage: true,
+                        totalCount: 2,
+                    }),
+                    page([{ number: 2, priority: "P1" }], { totalCount: 2 })
+                );
+            },
+        });
+        expect(priority).toEqual({ 1: "P0", 2: "P1" });
     });
 
     it("skips a row from a DIFFERENT repo — issue numbers are unique per repo, not per board", () => {
@@ -76,14 +153,11 @@ describe("board-priority — fetchBoardPriority", () => {
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             onError: () => {},
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList([
-                          { number: 1, priority: "P0", repo: "someone/else" },
-                      ])
-                    : projectView(1),
+            ghClient: () =>
+                slurped(
+                    page([{ number: 1, priority: "P0", repo: "someone/else" }])
+                ),
         });
         expect(priority).toEqual({});
     });
@@ -93,14 +167,13 @@ describe("board-priority — fetchBoardPriority", () => {
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             onError: () => {},
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList([
-                          { number: 1, priority: "P0", type: "PullRequest" },
-                      ])
-                    : projectView(1),
+            ghClient: () =>
+                slurped(
+                    page([
+                        { number: 1, priority: "P0", typename: "PullRequest" },
+                    ])
+                ),
         });
         expect(priority).toEqual({});
     });
@@ -111,29 +184,23 @@ describe("board-priority — fetchBoardPriority", () => {
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             onError: () => {
                 errored = true;
             },
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList([{ number: 1 }])
-                    : projectView(1),
+            ghClient: () => slurped(page([{ number: 1 }])),
         });
         expect(priority).toEqual({});
         expect(errored).toBe(false);
     });
 
-    it("calls onError and returns {} when the item-list read throws (e.g. a missing scope)", () => {
+    it("calls onError and returns {} when the read throws (e.g. a missing scope)", () => {
         const messages: string[] = [];
         const priority = fetchBoardPriority({
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             onError: (m) => messages.push(m),
-            ghClient: (args) => {
-                if (args[1] === "view") return projectView(1);
+            ghClient: () => {
                 throw new Error(
                     "GraphQL: Resource not accessible (read:project)"
                 );
@@ -144,99 +211,80 @@ describe("board-priority — fetchBoardPriority", () => {
         expect(messages[0]).toMatch(/cannot read project/);
     });
 
+    it("calls onError when the owner or project does not resolve — null data exits ZERO", () => {
+        // The failure `item-list` did not have. `repositoryOwner: null` (a
+        // typo'd owner, a project number that is not theirs, a `Priority`
+        // field that was renamed) is a successful HTTP call with null data:
+        // the `catch` never fires, and returning `{}` here would read as
+        // "nobody prioritised anything" — a wrong queue order presented as a
+        // real one.
+        const messages: string[] = [];
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            onError: (m) => messages.push(m),
+            ghClient: () => slurped({ data: { repositoryOwner: null } }),
+        });
+        expect(priority).toEqual({});
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toMatch(/does not resolve/);
+    });
+
+    it("calls onError when --slurp returns no pages at all", () => {
+        const messages: string[] = [];
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            onError: (m) => messages.push(m),
+            ghClient: () => "[]",
+        });
+        expect(priority).toEqual({});
+        expect(messages[0]).toMatch(/no pages/);
+    });
+
+    it("calls onError and returns {} when pagination stopped with pages outstanding", () => {
+        // A partial board must never be treated as the whole one — the items
+        // pagination has not reached are the OLDEST, and one of them can
+        // carry a P0 (issue #2520's harm, in its cursor-paginated form).
+        const messages: string[] = [];
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            onError: (m) => messages.push(m),
+            ghClient: () =>
+                slurped(
+                    page([{ number: 1, priority: "P0" }], {
+                        hasNextPage: true,
+                        totalCount: 400,
+                    })
+                ),
+        });
+        expect(priority).toEqual({});
+        expect(messages[0]).toMatch(/stopped after 1 of 400 items/);
+    });
+
     it("calls onError and skips just the one item on an unrecognized priority value, rather than aborting the whole read", () => {
         const messages: string[] = [];
         const priority = fetchBoardPriority({
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             onError: (m) => messages.push(m),
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList([
-                          { number: 1, priority: "P0" },
-                          { number: 2, priority: "P9" },
-                      ])
-                    : projectView(2),
+            ghClient: () =>
+                slurped(
+                    page([
+                        { number: 1, priority: "P0" },
+                        { number: 2, priority: "P9" },
+                    ])
+                ),
         });
         // #1 still comes through — a bad value on #2 must not blank the map.
         expect(priority).toEqual({ 1: "P0" });
         expect(messages).toHaveLength(1);
         expect(messages[0]).toMatch(/issue #2/);
-    });
-
-    it("calls onError and returns {} when the response FILLED the sized window — the board may have grown past it", () => {
-        // Corrected polarity (issue #2520). This used to compare
-        // `items.length < totalCount`, which can only fire when the board
-        // SHRANK between the two calls — harmless — and is structurally
-        // unable to fire when it GREW, which is the case that silently drops
-        // the oldest items (a P0 among them) because `gh` returns the NEWEST
-        // `limit` items, never the first `limit`.
-        const messages: string[] = [];
-        const limit = computeItemLimit(5, 100);
-        const priority = fetchBoardPriority({
-            owner: OWNER,
-            projectNumber: PROJECT_NUMBER,
-            repo: REPO,
-            itemLimit: 100,
-            onError: (m) => messages.push(m),
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList(
-                          Array.from({ length: limit }, (_, i) => ({
-                              number: i + 1,
-                              priority: "P0",
-                          }))
-                      )
-                    : projectView(5),
-        });
-        expect(priority).toEqual({});
-        expect(messages[0]).toMatch(/truncated/);
-        expect(messages[0]).toMatch(new RegExp(`sized limit \\(${limit}\\)`));
-    });
-
-    it("does NOT call onError when the board SHRANK below the sized window — nothing was lost", () => {
-        // The spurious stop the old `items.length < totalCount` check
-        // produced: `project view` reported 5, the board dropped to 2 before
-        // `item-list` ran, and the read hard-stopped with a "the board likely
-        // grew" message even though it had seen everything.
-        const messages: string[] = [];
-        const priority = fetchBoardPriority({
-            owner: OWNER,
-            projectNumber: PROJECT_NUMBER,
-            repo: REPO,
-            itemLimit: 100,
-            onError: (m) => messages.push(m),
-            ghClient: (args) =>
-                args[1] === "item-list"
-                    ? itemList([
-                          { number: 1, priority: "P0" },
-                          { number: 2, priority: "P1" },
-                      ])
-                    : projectView(5),
-        });
-        expect(priority).toEqual({ 1: "P0", 2: "P1" });
-        expect(messages).toEqual([]);
-    });
-
-    it("falls back to the caller's itemLimit only when totalCount is unreadable", () => {
-        const calls: string[][] = [];
-        fetchBoardPriority({
-            owner: OWNER,
-            projectNumber: PROJECT_NUMBER,
-            repo: REPO,
-            itemLimit: 100,
-            onError: () => {},
-            ghClient: (args) => {
-                calls.push(args);
-                return args[1] === "item-list"
-                    ? itemList([{ number: 1, priority: "P0" }])
-                    : JSON.stringify({ items: {} });
-            },
-        });
-        const itemListCall = calls.find((c) => c[1] === "item-list")!;
-        expect(itemListCall[itemListCall.indexOf("--limit") + 1]).toBe("100");
     });
 
     it("skip:true warns directly and returns {} WITHOUT calling onError, and makes no gh call (PR #2545 review, finding 1)", () => {
@@ -247,7 +295,7 @@ describe("board-priority — fetchBoardPriority", () => {
         // OWN deliberate skip and exit(2), deleting the escape hatch. The
         // fix: the skip is not an error, so it must never reach `onError` —
         // it warns on its own and `onError` stays reserved for genuine
-        // failures (bad scope, truncated list, unrecognized priority value).
+        // failures (bad scope, truncated read, unrecognized priority value).
         let onErrorCalled = false;
         let ghCalled = false;
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -255,14 +303,13 @@ describe("board-priority — fetchBoardPriority", () => {
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             skip: true,
             onError: () => {
                 onErrorCalled = true;
             },
             ghClient: () => {
                 ghCalled = true;
-                return "{}";
+                return "[]";
             },
         });
         expect(priority).toEqual({});
@@ -283,12 +330,11 @@ describe("board-priority — fetchBoardPriority", () => {
             owner: OWNER,
             projectNumber: PROJECT_NUMBER,
             repo: REPO,
-            itemLimit: 100,
             skip: true,
             onError: (m) => {
                 throw new Error(`die: ${m}`);
             },
-            ghClient: () => "{}",
+            ghClient: () => "[]",
         });
         expect(priority).toEqual({});
         warnSpy.mockRestore();
@@ -304,65 +350,37 @@ describe("board-priority — fetchBoardPriority", () => {
                 owner: OWNER,
                 projectNumber: PROJECT_NUMBER,
                 repo: REPO,
-                itemLimit: 100,
                 onError: (m) => {
                     throw new Error(`die: ${m}`);
                 },
-                ghClient: (args) =>
-                    args[1] === "item-list"
-                        ? itemList([{ number: 1, priority: "P9" }])
-                        : projectView(1),
+                ghClient: () => slurped(page([{ number: 1, priority: "P9" }])),
             })
         ).toThrow(/die: issue #1/);
     });
 });
 
-describe("board priority — computeItemLimit (issue #2520 round 2)", () => {
-    it("sizes the request to the board's own totalCount PLUS headroom, not exactly totalCount", () => {
-        // Round 1 pinned this to exactly 411 — `gh project item-list --limit N`
-        // returns the N NEWEST items, not the first N, so sizing the limit to
-        // exactly `totalCount` means a board that grows between the `project
-        // view` (totalCount) call and the `item-list` call gets its OLDEST
-        // items silently dropped. A lower bound is the correct assertion: it
-        // is still much smaller than the historical static 2000, but leaves
-        // room to absorb ordinary growth in that gap.
-        const limit = computeItemLimit(411, 2000);
-        expect(limit).toBeGreaterThan(411);
-        expect(limit).toBeLessThan(2000);
+describe("board priority — isTruncated", () => {
+    it("fires when the LAST page still reports another page", () => {
+        expect(
+            isTruncated([
+                page([{ number: 1 }], { hasNextPage: false }),
+                page([{ number: 2 }], { hasNextPage: true }),
+            ])
+        ).toBe(true);
     });
 
-    it("falls back only when totalCount is unreadable", () => {
-        expect(computeItemLimit(undefined, 2000)).toBe(2000);
-        expect(computeItemLimit(0, 2000)).toBe(2000);
-        expect(computeItemLimit(Number.NaN, 2000)).toBe(2000);
-    });
-});
-
-describe("board priority — isPossiblyTruncated (issue #2520 round 2)", () => {
-    it("fires when the response FILLED the sized window — the board may have grown past it", () => {
-        // The polarity this test locks in: `project view` reports 411,
-        // `computeItemLimit` sizes the window to 461 (411 + headroom), but the
-        // board grows to 470 items before `item-list` runs. `gh` returns the
-        // 461 NEWEST items — the window is exactly filled — so the read
-        // cannot prove the two OLDEST items (one of which can carry a P0)
-        // weren't dropped. The OLD check (`items.length < expected`, i.e.
-        // `461 < 411`) was false here: no die(), priorities silently lost.
-        const limit = computeItemLimit(411, 2000);
-        expect(isPossiblyTruncated(limit, limit)).toBe(true);
+    it("does not fire when the last page completed the walk", () => {
+        // Only the LAST page matters: every page before it necessarily said
+        // `hasNextPage: true`, which is what made gh fetch the next one.
+        expect(
+            isTruncated([
+                page([{ number: 1 }], { hasNextPage: true }),
+                page([{ number: 2 }], { hasNextPage: false }),
+            ])
+        ).toBe(false);
     });
 
-    it("does NOT fire when the board shrank — nothing was lost", () => {
-        // `project view` reports 411 (limit sized to 461), the board shrinks
-        // to 409 items before `item-list` runs: `items.length` (409) is
-        // strictly under the limit (461), which proves the read saw
-        // everything. The OLD check (`409 < 411`) fired here and hard-stopped
-        // with a misleading "the board likely grew" message even though
-        // nothing was lost — a spurious stop in the harmless direction.
-        const limit = computeItemLimit(411, 2000);
-        expect(isPossiblyTruncated(409, limit)).toBe(false);
-    });
-
-    it("does not fire on a response strictly under the limit", () => {
-        expect(isPossiblyTruncated(460, 461)).toBe(false);
+    it("does not fire on an empty page list — that is the no-pages error, not truncation", () => {
+        expect(isTruncated([])).toBe(false);
     });
 });

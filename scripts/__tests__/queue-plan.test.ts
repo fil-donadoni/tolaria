@@ -1273,10 +1273,13 @@ describe("plan artefact (issue #2518)", () => {
 /**
  * Board-priority cache + rate-limit fallback (issue #2520).
  *
- * `gh project item-list` is a GraphQL call over a 400+-item board, run once
- * per pass, per session — the shared GraphQL budget was gone within the hour
+ * The board read is a GraphQL call over a 400+-item board, run once per
+ * pass, per session — the shared GraphQL budget was gone within the hour
  * with several sessions draining the queue, and the planner's ONLY response
- * to that was a hard stop (`GraphQL: API rate limit exceeded …`).
+ * to that was a hard stop (`GraphQL: API rate limit exceeded …`). The read
+ * is ~100x cheaper since it stopped going through `gh project item-list`,
+ * but the cache and its three outcomes are unchanged: cheaper is not free,
+ * and a rate limit reached some other way must still degrade, not stop.
  *
  * Three distinct outcomes, kept distinct on purpose: fresh cache (reuse, no
  * live call at all), stale-but-present cache used ONLY when the live read
@@ -1708,13 +1711,20 @@ describe("board priority — liveFetchBoardPriority (issue #2520)", () => {
         expect(seen?.skip).toBeFalsy();
     });
 
-    it("passes a static limit only as the FALLBACK — the reader sizes the window itself", () => {
-        let seen: { itemLimit?: number } | undefined;
+    it("passes no window size at all — the read is cursor-paginated, not a sized page", () => {
+        // Was: `itemLimit: 2000`, the fallback for sizing an `item-list
+        // --limit` window. The read is now one paginated GraphQL query for
+        // the `Priority` field alone (768 GraphQL points down to 7, measured
+        // 2026-09-07), and cursor pagination has no window to size and no
+        // newest-first truncation to guard against — so a caller that still
+        // handed one over would be describing a read that no longer exists.
+        const seen: Record<string, unknown>[] = [];
         const priority = liveFetchBoardPriority((opts) => {
-            seen = opts;
+            seen.push(opts as unknown as Record<string, unknown>);
             return { 10: "P0" };
         });
         expect(priority).toEqual({ 10: "P0" });
-        expect(seen?.itemLimit).toBe(2000);
+        expect(seen[0]).not.toHaveProperty("itemLimit");
+        expect(seen[0]).toMatchObject({ repo: expect.any(String) });
     });
 });
