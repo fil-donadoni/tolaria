@@ -180,6 +180,8 @@ export function goldenPayload(): NowPayload {
                     subagents: 2,
                     topIssues: [{ issue: 3151, mentions: 9 }],
                     liveness: "active",
+                    origin: "afk",
+                    originSource: "ledger",
                 },
                 {
                     session: "11111111-2222-3333-4444-555555555555",
@@ -197,6 +199,9 @@ export function goldenPayload(): NowPayload {
                     subagents: 0,
                     topIssues: [],
                     liveness: "live",
+                    // INFERRED, not recorded — this row wears the dashed edge.
+                    origin: "interactive",
+                    originSource: "entrypoint",
                 },
             ],
             byIssue: {
@@ -217,6 +222,8 @@ export function goldenPayload(): NowPayload {
                         subagents: 2,
                         topIssues: [{ issue: 3151, mentions: 9 }],
                         liveness: "active",
+                        origin: "afk",
+                        originSource: "ledger",
                     },
                 ],
             },

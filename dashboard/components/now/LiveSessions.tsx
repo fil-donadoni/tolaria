@@ -9,6 +9,7 @@ import {
 import { NowSection } from "./NowSection";
 import { WatchButton } from "./WatchButton";
 import { LivenessBadge } from "./LivenessBadge";
+import { OriginBadge } from "./OriginBadge";
 import { Term } from "../Term";
 import { Unavailable } from "../Unavailable";
 import { EmptyNote } from "../EmptyNote";
@@ -71,6 +72,9 @@ export function LiveSessions({
                                     <Term id="live.active">status</Term>
                                 </TableHead>
                                 <TableHead>
+                                    <Term id="live.origin" />
+                                </TableHead>
+                                <TableHead>
                                     <Term id="live.session" />
                                 </TableHead>
                                 <TableHead>
@@ -100,6 +104,9 @@ export function LiveSessions({
                                             <LivenessBadge
                                                 liveness={s.liveness}
                                             />
+                                        </TableCell>
+                                        <TableCell>
+                                            <OriginBadge session={s} />
                                         </TableCell>
                                         <TableCell
                                             className="max-w-xs"

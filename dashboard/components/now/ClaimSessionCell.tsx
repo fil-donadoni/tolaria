@@ -1,4 +1,5 @@
 import { WatchButton } from "./WatchButton";
+import { OriginBadge } from "./OriginBadge";
 import { StateBadge } from "../StateBadge";
 import { fmtAgoMs } from "../../lib/format";
 import { LIVENESS, sessionLabel } from "../../lib/nowClaims";
@@ -11,6 +12,13 @@ import type { ClaimRow, NowPayload } from "../../lib/nowPayload";
  * recently. The first is offered as a Watch button; the row also says how long
  * ago that transcript was written to, which is the one fact the claim itself
  * cannot carry — whether ANYONE is typing on it right now.
+ *
+ * The TRIGGER badge rides on the CANDIDATE, not on the claim: a claim is a
+ * GitHub label and carries no origin of its own, so what this cell can
+ * honestly say is "the session most likely on this issue was started by X" —
+ * which inherits the mention heuristic's uncertainty on top of the origin's
+ * own (issue #3144). One renderer, `OriginBadge`, never a second copy of the
+ * word list.
  *
  * THREE OUTCOMES, not two. A claim with no candidate says "no session found";
  * a FAILED live read says nothing at all here and lets the table-level
@@ -52,6 +60,7 @@ export function ClaimSessionCell({
             >
                 {fmtAgoMs(best.lastWriteMs, nowMs)}
             </StateBadge>
+            <OriginBadge session={best} />
             {candidates.length > 1 ? (
                 <span className="text-muted-foreground text-xs">
                     +{candidates.length - 1} more

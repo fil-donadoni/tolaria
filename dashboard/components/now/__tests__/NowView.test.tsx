@@ -471,3 +471,50 @@ describe("NowView — the facts a row carries that the glossary cannot", () => {
         expect(within(activity).getByText("PRs merged")).not.toBeNull();
     });
 });
+
+describe("NowView — who started each session (issue #3144)", () => {
+    it("gives the live-sessions table a trigger column and states the recorded answer", async () => {
+        await mountWith(goldenPayload());
+        const live = document.getElementById("ls-section-live")!;
+        expect(within(live).getByText("trigger")).not.toBeNull();
+        const afk = within(live).getByText("afk loop");
+        expect(afk).not.toBeNull();
+        // RECORDED: a solid edge, and a tooltip saying it was read, not
+        // deduced.
+        const badge = afk.closest("[title]")!;
+        expect(badge.getAttribute("title")).toContain("Recorded by the");
+        expect(badge.className).not.toContain("border-dashed");
+    });
+
+    it("marks an INFERRED answer as inferred — a guess and a recording must not look identical", async () => {
+        await mountWith(goldenPayload());
+        const live = document.getElementById("ls-section-live")!;
+        const manual = within(live).getByText("manual").closest("[title]")!;
+        expect(manual.className).toContain("border-dashed");
+        expect(manual.getAttribute("title")).toContain("Inferred from the");
+    });
+
+    it("never renders 'we could not tell' as 'a person did it'", async () => {
+        const payload = goldenPayload();
+        // A session the hook never saw, whose transcript carries no
+        // entrypoint — the shape every pre-hook session has.
+        for (const s of payload.live!.sessions) {
+            delete s.origin;
+            delete s.originSource;
+        }
+        await mountWith(payload);
+        const live = document.getElementById("ls-section-live")!;
+        expect(within(live).getAllByText("unknown")).toHaveLength(2);
+        expect(within(live).queryByText("manual")).toBeNull();
+        expect(within(live).queryByText("afk loop")).toBeNull();
+    });
+
+    it("carries the same badge into the claim's session cell, on the CANDIDATE it offers to watch", async () => {
+        await mountWith(goldenPayload());
+        const claims = document.getElementById("ls-section-claims")!;
+        // The claim itself is a GitHub label and has no origin; what this
+        // cell says is who started the session most likely working it.
+        const badge = within(claims).getByText("afk loop");
+        expect(badge.closest("tr")!.textContent).toContain("#3151");
+    });
+});

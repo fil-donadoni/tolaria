@@ -134,6 +134,13 @@ export interface LoopVerdict {
 
 export type Liveness = "active" | "live" | "idle";
 
+/** Who started a session (issue #3144). `unknown` is deliberately its own
+ *  member: "we could not tell" must never render as "a person did it". */
+export type SessionOrigin = "afk" | "interactive" | "unknown";
+
+/** HOW the origin was arrived at — a recording, a deduction, or neither. */
+export type OriginSource = "ledger" | "entrypoint" | "none";
+
 export interface SessionView {
     session: string;
     title: string | null;
@@ -150,6 +157,10 @@ export interface SessionView {
     subagents: number;
     topIssues: { issue: number; mentions: number }[];
     liveness: Liveness;
+    /** Resolved ONCE, server-side (`sessionView`), so the page holds no
+     *  second authority that can drift from it. */
+    origin?: SessionOrigin;
+    originSource?: OriginSource;
 }
 
 export interface HourBucket {
