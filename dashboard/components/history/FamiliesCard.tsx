@@ -47,7 +47,10 @@ const COLUMNS: readonly DataColumn<FamilyPivotRow>[] = [
             fixed: true,
             cell: (r) => {
                 const cell = r.roles[role];
-                return cell ? mc(cell.minutes, cell.cost) : <EmptyMark />;
+                // TWO ways to be empty, one mark: the family never ran this
+                // role at all, or it ran it for no measurable time and no
+                // cost. Both mean "nothing happened here"; neither is a `0`.
+                return (cell && mc(cell.minutes, cell.cost)) || <EmptyMark />;
             },
         })
     ),

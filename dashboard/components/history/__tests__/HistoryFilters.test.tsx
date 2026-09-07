@@ -11,7 +11,7 @@ import {
     setSlice,
 } from "../../../lib/historyState";
 import { resetHistoryColors } from "../../../lib/historyColors";
-import { GLOSSARY } from "../../../glossary";
+import { GLOSSARY, lookupTerm } from "../../../glossary";
 import { META, stubHistoryFetch } from "./fixture";
 
 /**
@@ -36,6 +36,22 @@ const renderFilters = () => {
             </TooltipProvider>
         ),
     };
+};
+
+/** Open a glossary tooltip the way a person does. base-ui opens on hover, so
+ *  the tip TEXT is readable rather than inferred from a trigger's class. */
+const hover = async (el: HTMLElement) => {
+    fireEvent.pointerEnter(el, { pointerType: "mouse" });
+    fireEvent.mouseEnter(el);
+    await waitFor(() =>
+        expect(el.getAttribute("data-popup-open")).not.toBeNull()
+    );
+};
+
+const unhover = async (el: HTMLElement) => {
+    fireEvent.pointerLeave(el, { pointerType: "mouse" });
+    fireEvent.mouseLeave(el);
+    await waitFor(() => expect(el.getAttribute("data-popup-open")).toBeNull());
 };
 
 const optionsOf = (name: string) =>
@@ -88,15 +104,49 @@ describe("History filter bar — glossary-sourced labels (#2633)", () => {
         );
     });
 
-    it("each picker's caption is EXPLAINABLE — it carries the tooltip for the CURRENT selection, so the label is a door and not decoration", () => {
+    it("each picker's caption carries the tooltip for the CURRENT selection — the label is a door, not decoration", async () => {
         renderFilters();
-        // `DynamicTerm` renders a plain fragment when a term does not resolve
-        // and a help-cursor trigger when it does, so the trigger treatment IS
-        // the observable form of "the term resolved".
-        for (const caption of ["Dataset", "Metric", "Split by"]) {
+        // QUALIFIED by the current dataset, and this is where that matters:
+        // `total_seconds` has its own `agent_runs.` entry whose tip is about
+        // subagent wall clock, not the `spans` one about tool calls. A caption
+        // that looked up the bare term would show the wrong sentence.
+        for (const [caption, term] of [
+            ["Dataset", "agent_runs"],
+            ["Metric", "agent_runs.total_seconds"],
+            ["Split by", "agent_runs.role"],
+        ] as const) {
             const label = screen.getByText(caption);
-            expect(label.className, caption).toContain("cursor-help");
+            await hover(label);
+            expect(
+                screen.getByText(lookupTerm(term)!.tip),
+                caption
+            ).not.toBeNull();
+            await unhover(label);
         }
+        // The qualified entry really is a different sentence from the bare
+        // one — otherwise the case above would pass either way.
+        expect(lookupTerm("agent_runs.total_seconds")!.tip).not.toBe(
+            GLOSSARY.total_seconds.tip
+        );
+    });
+
+    it("a metric-only change re-points the Metric caption's tooltip — the caption re-renders with the value, so the two cannot fall out of step", async () => {
+        renderFilters();
+        fireEvent.change(screen.getByRole("combobox", { name: "Metric" }), {
+            target: { value: "cost_usd" },
+        });
+        await waitFor(() => expect(getSlice().metric).toBe("cost_usd"));
+        const label = screen.getByText("Metric");
+        await hover(label);
+        // Before the port this needed an explicit `syncMetricLabelTerm()`
+        // call, because the tooltip engine read a `data-term` ATTRIBUTE that
+        // the metric-only change handler did not rebuild.
+        expect(
+            screen.getByText(lookupTerm("agent_runs.cost_usd")!.tip)
+        ).not.toBeNull();
+        expect(
+            screen.queryByText(lookupTerm("agent_runs.total_seconds")!.tip)
+        ).toBeNull();
     });
 });
 

@@ -47,12 +47,27 @@ export async function seedColors(table: string, dim: string): Promise<void> {
     if (seeded.has(key)) return;
     seeded.add(key);
     const canonical = Object.keys(getHistoryMeta()?.metrics[table] ?? {})[0];
-    if (!canonical) return;
-    const { rows } = await seedQuery(table, canonical, dim);
-    rows.forEach((r, i) => {
-        const k = `${dim} ${String(r[dim])}`;
-        if (!colorMap.has(k)) colorMap.set(k, slot(i));
-    });
+    if (!canonical) {
+        seeded.delete(key);
+        return;
+    }
+    try {
+        const { rows } = await seedQuery(table, canonical, dim);
+        rows.forEach((r, i) => {
+            const k = `${dim} ${String(r[dim])}`;
+            if (!colorMap.has(k)) colorMap.set(k, slot(i));
+        });
+    } catch (e) {
+        // The latch is claimed BEFORE the await, so two charts rendering at
+        // once cannot both issue the query. That makes a FAILED query the
+        // hazard: leaving the pair latched would mark it seeded for the rest
+        // of the session with no colours in it, and every value would then
+        // take its slot from first-render order — the very thing seeding
+        // exists to avoid — with no way to recover short of a reload. The
+        // vanilla module had no catch at all and lost the pair permanently.
+        seeded.delete(key);
+        throw e;
+    }
 }
 
 /** The colour for one value of one dimension. A value the seeding query never

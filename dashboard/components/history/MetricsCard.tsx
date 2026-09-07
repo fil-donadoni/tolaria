@@ -42,27 +42,34 @@ export function MetricsCard({
 }) {
     const slice = useHistorySlice();
 
+    // Labelled off `charts.table`, NEVER off the picker's current dataset. The
+    // two differ for the whole time a query is in flight: `setSlice` publishes
+    // synchronously on the click, and `charts` only changes when the read
+    // lands. Qualifying `agent_runs`' metric names as `llm.<metric>` for that
+    // window is the "one dataset's rows under another's column names" hazard
+    // `HistoryChartData` exists to prevent — and the three sibling cards
+    // already read `charts.table` for exactly this reason.
     const columns = useMemo<readonly DataColumn<MetricRow>[]>(() => {
         if (!charts) return [];
-        const { split, metrics } = charts;
+        const { table, split, metrics } = charts;
         return [
             {
                 key: split,
-                term: `${slice.table}.${split}`,
-                label: labelFor(split, slice.table),
+                term: `${table}.${split}`,
+                label: labelFor(split, table),
                 cell: (r) => String(r[split] ?? ""),
             },
             ...metrics.map(
                 (m): DataColumn<MetricRow> => ({
                     key: m,
-                    term: `${slice.table}.${m}`,
-                    label: labelFor(m, slice.table),
+                    term: `${table}.${m}`,
+                    label: labelFor(m, table),
                     num: true,
                     cell: (r) => fmtMetric(m, r[m] as number | null),
                 })
             ),
         ];
-    }, [charts, slice.table]);
+    }, [charts]);
 
     // `sort` is `null` until a header is clicked; the table is then ordered by
     // the CURRENT metric, which is the column a person came to the card for.
@@ -81,6 +88,14 @@ export function MetricsCard({
                     reason={`could not read the aggregate rows: ${error}`}
                     consequence="Every figure in this card, and in the two charts above it, is unavailable for this slice."
                 />
+            ) : !charts ? (
+                // A table whose COLUMNS are not known yet is not an empty
+                // table: rendering one would put a `<thead>` with no cells and
+                // a body cell spanning zero columns on screen, which reads as
+                // "this slice has no rows".
+                <p className="text-muted-foreground text-xs">
+                    reading the telemetry store…
+                </p>
             ) : (
                 <DataTable
                     caption="Every metric for the current slice"

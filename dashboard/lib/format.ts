@@ -171,6 +171,15 @@ export const tier = (m: string | null | undefined): string =>
  *  repeated `Math.round(v) + "'"` at four call sites apiece. */
 export const fmtMin = (m: number): string => `${Math.round(m)}'`;
 
-/** minutes · cost — the Family × role pivot's cell. */
-export const mc = (min: number, cost: number): string =>
-    `${Math.round(min)}' · ${fmtUsd(cost)}`;
+/**
+ * minutes · cost — the Family × role pivot's cell, or `null` when there is
+ * nothing to show.
+ *
+ * `null` rather than an em-dash string, because the caller renders the empty
+ * mark as a component. The DISTINCTION is the point and it is the vanilla
+ * one: a role cell can exist and still sum to zero (a run that took no
+ * measurable time and cost nothing), and `0' · $0.00` claims a measurement
+ * where the table means "nothing happened here".
+ */
+export const mc = (min: number, cost: number): string | null =>
+    min || cost ? `${Math.round(min)}' · ${fmtUsd(cost)}` : null;
