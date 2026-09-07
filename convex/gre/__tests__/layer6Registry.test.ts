@@ -25,6 +25,7 @@ import {
 } from "../state";
 import { deriveLayer6, recomposeLayer6ForInstance } from "../layer6";
 import {
+    continuousEffectsInLayer,
     outrankedBy,
     renderKeyword,
     type ContinuousEffect,
@@ -170,6 +171,70 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
                 UNTIL_EOT
             );
             expect(count(elemental, "flying")).toBe(0);
+        });
+    });
+
+    describe("one continuous effect is one entry-set with one controller (CR 611.2a / 611.2c)", () => {
+        it("a multi-keyword strip shares ONE CR 613.7 timestamp", () => {
+            // CR 611.2a — `removeStaticAbilities` is ONE continuous effect
+            // however many keywords its predicate matched, so its entries share
+            // one stamp. Minting per entry spreads them over a range and
+            // silently defeats `compareLayer6Entries`' equal-timestamp
+            // tie-break, which exists so a grant sharing a stripper's stamp
+            // survives it (CR 613.1f, issue #1715).
+            const bear = makeInstance(grizzlyBears.id, { id: "multi" });
+            bear.staticAbilities = ["flying", "trample", "vigilance"];
+            bear.baseStaticAbilities = ["flying", "trample", "vigilance"];
+            const state = boardOf(bear);
+            ctxFor(state).removeStaticAbilities(
+                { type: "permanent", id: "multi" },
+                (kw) => kw === "flying" || kw === "trample",
+                { phase: "end-of-turn" }
+            );
+
+            const stamps = continuousEffectsInLayer(state, 6)
+                .filter((e) => e.payload.kind === "keyword-remove")
+                .map((e) => e.timestamp);
+            expect(stamps).toHaveLength(2);
+            expect(new Set(stamps).size).toBe(1);
+            expect(count(bear, "flying")).toBe(0);
+            expect(count(bear, "trample")).toBe(0);
+            expect(count(bear, "vigilance")).toBe(1);
+        });
+
+        it("an entry records the ABILITY's controller, not the target's (CR 611.2c)", () => {
+            // CR 611.2c fixes the controller of a resolving ability's
+            // continuous effect to the ability's controller, at creation. The
+            // affected permanent's controller is a different fact and can
+            // change afterwards, so a grant aimed at an OPPONENT's creature is
+            // where the two come apart. Nothing reads `expiry.controllerId`
+            // yet; it is stored provenance, and storing the wrong player is a
+            // bug the first duration or end-step that reads it inherits.
+            const mine = makeInstance(grizzlyBears.id, { id: "mine" });
+            const theirs = makeInstance(grizzlyBears.id, {
+                id: "theirs",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = boardOf(mine, theirs);
+            state.players[1].battlefield = [theirs];
+            state.players[0].battlefield = [mine];
+            const ctx = ctxFor(state); // cast by p1
+            ctx.grantStaticAbility(
+                { type: "permanent", id: "theirs" },
+                "flying",
+                { phase: "end-of-turn" }
+            );
+            ctx.grantStaticAbilityPermanent(
+                { type: "permanent", id: "theirs" },
+                "trample"
+            );
+
+            for (const entry of continuousEffectsInLayer(state, 6)) {
+                expect(entry.expiry).toEqual(
+                    expect.objectContaining({ controllerId: "p1" })
+                );
+            }
         });
     });
 
