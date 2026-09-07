@@ -110,7 +110,8 @@ of which is **client** code) must move from reading `item.types` to asking the
 layer pipeline, and the pipeline runs inside the bot's cloned-state search, so
 the per-read cost is on a hot path (PRD #2064's S7 perf pass inherits it).
 
-Divergence, deliberate: CR 613.8 dependency ordering is not implemented for
-these effects any more than for the existing ones — tracked in #2068. With a
-single stack-side type-changing effect in the pool, layer+timestamp ordering is
-trivially correct; a second one lands on the registry, not on this code.
+CR 613.8 dependency ordering shipped in issue #2068 (ADR 0115) and reaches these
+effects through the registry like any other: they are layer-4 entries, so
+`gre/dependency.ts` orders them with the rest of the layer. With a single
+stack-side type-changing effect in the pool, layer+timestamp ordering was
+trivially correct anyway; a second one lands on the registry, not on this code.

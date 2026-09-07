@@ -58,16 +58,20 @@
 // Within each layer, entries apply in CR 613.7 timestamp order through the S1
 // ordering comparator — never an inline `staticSeq` comparison (#1715).
 //
-// CR 613.8 DEPENDENCY ORDERING IS NOT HERE. Layer 4 is where the classic
-// dependency cases live (Blood Moon + Urborg, Humility + Opalescence). This
-// slice ships TIMESTAMP order for them, which is what the pre-migration engine
-// shipped too; dependency detection is tracked by #2068.
+// CR 613.8 dependency ordering runs over each layer's entries before this walk
+// consumes them (`gre/dependency.ts`, ADR 0115, issue #2068). Layer 4 is where
+// the classic cases live — Blood Moon + Urborg, Conspiracy + Life and Limb — and
+// the reordering happens inside one layer's run of the sorted array, never
+// across the 2 -> 3 -> 4 -> 5 boundary.
 
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { applyLandTypeReplacement, sameOrder } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
+import type { DependencyTemplate } from "./dependency";
+import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
+import { orderByDependency } from "./dependency";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
 import type { Duration } from "./state";
@@ -469,11 +473,17 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
                           }
                         : {}),
                 },
-                // CR 604.3 — none of the layer-2-5 static effect kinds is a
-                // characteristic-defining ability: a CDA defines a
-                // characteristic of the object it is ON, and every kind here
-                // changes another object's.
-                characteristicDefining: false,
+                // CR 604.3 — read from the ONE naming authority
+                // (`CDA_STATIC_EFFECT_KINDS`, `gre/dependency.ts`) rather than
+                // hardcoded, so CR 613.8a clause (c) cannot fail open the day a
+                // layer-4 kind becomes characteristic-defining. No layer-2-5
+                // kind is one today — a CDA defines a characteristic of the
+                // object it is ON, and every kind here changes another
+                // object's — but CR 702.73 Changeling is exactly such an
+                // ability and is `planned` in the Mechanics Registry.
+                characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(
+                    effect.kind
+                ),
             });
         }
     };
@@ -729,7 +739,38 @@ function finishEffectsFor(
     // The comparator is the S1 ordering authority; the layer key in front of it
     // is the CR 613 order itself, which no comparator over one layer can carry.
     entries.sort((a, b) => a.layer - b.layer || compareContinuousEffects(a, b));
-    return { entries, templates };
+    // CR 613.8 — dependency overrides the timestamp system, WITHIN a layer.
+    // Reordering happens inside each layer's run of the sorted array and never
+    // across the layer boundary, so the 2 → 3 → 4 → 5 walk below is untouched.
+    return {
+        entries: orderByDependency(entries, {
+            compare: compareContinuousEffects,
+            template: (entry) => resolveTemplate(state, entry, templates),
+            ctx: STATIC_EFFECT_CTX,
+        }),
+        templates,
+    };
+}
+
+/** The live source and `StaticEffect` behind a template entry, for the CR 613.8
+ *  dependency pass. The derived half is already in `templates`; a STORED
+ *  template entry names its source by id only, so it is resolved the same way
+ *  `resolveAction` resolves it — one lookup, on the entries of one layer. */
+function resolveTemplate(
+    state: LayerStateView,
+    entry: ContinuousEffect,
+    templates: ReadonlyMap<string, DerivedTemplate>
+): DependencyTemplate | undefined {
+    const derived = templates.get(entry.id);
+    if (derived) return derived;
+    if (entry.payload.kind !== "template") return undefined;
+    if (entry.expiry.kind !== "source") return undefined;
+    const source = findPermanent(state, entry.expiry.sourceId);
+    if (!source) return undefined;
+    const effect = sourceStaticEffects(source, entry.payload.modeId)[
+        entry.payload.effectIndex
+    ];
+    return effect ? { source, effect } : undefined;
 }
 
 /** Whether a STORED entry applies to `target`. A `predicate`-affected entry is

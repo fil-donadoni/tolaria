@@ -297,10 +297,10 @@ export type ContinuousEffect = ContinuousEffectSlot &
         /** CR 604.3 — this effect comes from a characteristic-defining
          *  ability. Load-bearing for CR 613.8a clause (c), which makes a
          *  dependency exist only when NEITHER effect is from a CDA or BOTH
-         *  are. The dependency algorithm itself is a documented divergence
-         *  tracked by #2068; the flag ships now because retrofitting it onto
-         *  entries the migrations have already written would mean a second
-         *  pass over every producer. */
+         *  are. Read by `gre/dependency.ts`, which refuses an edge between a
+         *  CDA and a non-CDA; the flag shipped with S1 because retrofitting it
+         *  onto entries the migrations had already written would have meant a
+         *  second pass over every producer. */
         characteristicDefining: boolean;
     };
 

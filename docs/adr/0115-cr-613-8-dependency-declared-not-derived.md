@@ -2,9 +2,10 @@
 
 ## Status
 
-accepted (discharges ADR 0082 decision 3, which deferred these questions until
-the Continuous Effects Registry existed; shapes issue #2068, whose acceptance
-surface is issue #3098)
+accepted, and implemented by issue #2068 (`convex/gre/dependency.ts`), which
+amended decisions 1 and 2 in place — see the amendment notes under each.
+Discharges ADR 0082 decision 3, which deferred these questions until the
+Continuous Effects Registry existed; its acceptance surface is issue #3098.
 
 ## Context
 
@@ -93,26 +94,59 @@ metadata. Not "apply B, re-derive A, diff the result".
 
 The read set is declared as **a table keyed on `StaticEffect["kind"]`** — a
 closed union whose exhaustiveness `tsc` enforces — **plus a per-declaration
-override** for a predicate narrower than its kind's default. The table
-over-declares by construction, being the union of what any predicate of that
-kind could read; the override is how a declaration buys back precision it
-actually needs. Most of the 295 declarations never touch it.
+override**.
+
+**Amended on implementation (issue #2068).** This decision originally said the
+table "over-declares by construction, being the union of what any predicate of
+that kind could read", with the override buying precision back. Built that way it
+broke five existing tests, and decision 2 below is why: reads and writes are not
+symmetric, so a wide row does not merely add harmless edges. Layer 4's predicates
+read a mire counter (Cyclopean Tomb), an Aura host (Evil Presence), the PRINTED
+type line (Blood Moon), the live card types (Yavimaya) and the live subtypes
+(Life and Limb) — no union is both narrow enough to be safe and wide enough to be
+right. Give them all `{types, subtypes, supertypes}` and Cyclopean Tomb, whose
+predicate reads a counter and nothing else, is made to wait for Blood Moon, which
+reads neither.
+
+So **every kind's row is empty and every declaration says everything**. A kind
+asserts nothing about its predicates; the table exists to make a new kind's
+silence a deliberate, `tsc`-forced choice rather than an accident. An undeclared
+effect draws no applies-limb edge and stays where CR 613.7 put it. The existence
+limb needs no declaration at all, being a fact about provenance, so CR 305.7 goes
+on ordering Urborg behind Blood Moon regardless.
+
+A declaration's read entry may also name the **values** its predicate looks for,
+not only the characteristic family. The family alone is too coarse to separate
+two shipped cards: Life and Limb reads subtypes and Urborg WRITES subtypes, but
+Urborg only ever adds `Swamp`, which can never make a permanent a Forest or a
+Saproling — and because Urborg genuinely depends on Life and Limb, that phantom
+closes a loop and takes the real dependency down with it, which is precisely the
+cost decision 2 names.
 
 The literal reading of 613.8a — speculative double evaluation — is rejected as
 the production path for a reason 613.8c supplies: detection runs once **per
 effect applied**, not once per read, so it must be a table lookup rather than a
 derivation.
 
-### 2. Over-declaring is nearly free, and the exception is named
+### 2. Over-declaring is NOT free — a phantom edge reorders, and a phantom loop is worse
 
-Two effects that are genuinely independent under 613.8a produce the same result
-in either order — that is what independence means. So a phantom edge on a
-linear path changes nothing observable.
+**Amended on implementation (issue #2068): over-declaring is not nearly free,
+and this decision's premise was wrong.** It read "two effects that are genuinely
+independent under 613.8a produce the same result in either order — that is what
+independence means", and CR 613.9's own first example refutes it: two independent
+effects, and "applying them in timestamp order means the one that was generated
+last 'wins'". Independence means neither CHANGES the other, not that order is
+immaterial — and a set-versus-add pair in layer 4 makes the difference plainly
+visible on the board.
 
-It is **not** free when a phantom edge closes a loop: 613.8b then discards the
-dependency system for that whole loop, taking any real dependency inside it
-down as well. The table is therefore kept tight and argued per kind, never
-generous "just in case".
+So a one-directional phantom edge REORDERS, which is the common case and not a
+harmless one. The loop case this decision named is worse still: 613.8b discards
+the dependency system for the whole loop, taking any real dependency inside it
+down as well.
+
+The table is therefore kept tight and argued, never generous "just in case" —
+which, taken to its conclusion, is the empty-row default decision 1 now
+records.
 
 ### 3. The relation is STATIC, so 613.8c is vacuous — and that is an APPROXIMATION
 

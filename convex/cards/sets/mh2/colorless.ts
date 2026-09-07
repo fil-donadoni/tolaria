@@ -26,6 +26,13 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
     staticEffects: [
         {
             kind: "subtype-add",
+            // CR 613.8a clause (b) — the predicate reads the target's card TYPES
+            // and nothing else, the same shape as Urborg, Tomb of Yawgmoth's.
+            // What makes this effect depend on Blood Moon / Magus of the Moon is
+            // the EXISTENCE limb: this land is itself nonbasic, so their subtype
+            // replacement takes away "all abilities generated from its rules
+            // text" (CR 305.7) and this effect ceases to exist.
+            reads: [{ characteristic: "types", values: ["Land"] }],
             applies: (target) => target.types.includes("Land"),
             subtypes: ["Forest"],
         },

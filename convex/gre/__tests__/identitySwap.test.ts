@@ -108,11 +108,18 @@ registerTokenDefinition({
     },
 });
 
-/** A blanket "loses all abilities" source (CR 613.1f, the Humility /
- *  Titania's Song shape) with no `applies` narrowing, so the test can point it
- *  at any permanent. The catalogue's two shipped ability-loss cards both bind
- *  to a card type (nonbasic land / noncreature artifact) that an identity swap
- *  itself changes, which would confound the assertion under test. */
+/** A CREATURE-scoped "loses all abilities" source — Humility's own predicate
+ *  (CR 613.1f). It stands in for the catalogue's shipped ability-loss cards,
+ *  which bind to a card type (nonbasic land / noncreature artifact) that an
+ *  identity swap itself changes and would confound the assertion under test.
+ *
+ *  It was a blanket `() => true` until CR 613.8 shipped (issue #2068). A
+ *  stripper reaching ENCHANTMENTS now destroys the Flight aura's own granting
+ *  ability, so the grant these tests order against it would cease to exist
+ *  rather than lose a timestamp race — a different rule from the one they pin.
+ *  Every `ability-loss` in the catalogue is narrowed at least this far. The
+ *  narrowing costs the only coverage of a stripper reaching a NON-creature
+ *  permanent; nothing else in the suite had it either. */
 const NULLIFIER_ID = "test-identity-swap-nullifier";
 registerTokenDefinition({
     id: NULLIFIER_ID,
@@ -120,7 +127,12 @@ registerTokenDefinition({
     rarity: "common",
     manaCost: {},
     types: ["Enchantment"],
-    staticEffects: [{ kind: "ability-loss", applies: () => true }],
+    staticEffects: [
+        {
+            kind: "ability-loss",
+            applies: (target, _source, ctx) => ctx.isCreature(target),
+        },
+    ],
 });
 
 /** A blanket layer-4 `type-add` source (the Animate Artifact / Titania's Song

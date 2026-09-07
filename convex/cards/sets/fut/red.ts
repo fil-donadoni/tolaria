@@ -16,12 +16,13 @@ import { IS_NONBASIC_LAND } from "../../types";
 // lands are untouched. The creature body is plain data — no keyword, no
 // ability of its own beyond the static above.
 //
-// CR 613.8 dependency ordering is unimplemented (tracked-by: #2068): this
-// card's layer-4 effect and Urborg, Tomb of Yawgmoth's "Each land is a Swamp"
-// each change what the other applies to, so 613.8a makes them dependent and
-// 613.8b would order them by dependency. The engine orders every layer-4
-// effect by CR 613.7 timestamp instead, which is the wrong board whenever the
-// dependency disagrees with the play order.
+// CR 613.8 (issue #2068) — this card's layer-4 effect is applied BEFORE Urborg,
+// Tomb of Yawgmoth's "Each land is a Swamp" at either timestamp. Urborg is
+// itself a nonbasic land, so applying this effect sets its subtype to Mountain
+// and CR 305.7 takes away "all abilities generated from its rules text": Urborg
+// depends on this card through CR 613.8a's existence limb, and this card depends
+// on nothing, since `IS_NONBASIC_LAND` reads the printed type line and the Basic
+// supertype and neither is anything Urborg writes.
 // compiler-gap: Nonbasic lands are Mountains. (#2693)
 export const magusOfTheMoon: CardDefinition = {
     id: "c06a4443-6851-4873-8fb8-2ef76c9d6d2c",
@@ -45,6 +46,15 @@ export const magusOfTheMoon: CardDefinition = {
             kind: "subtype-set",
             applies: IS_NONBASIC_LAND,
             subtypes: ["Mountain"],
+            // CR 613.8a clause (b) — `IS_NONBASIC_LAND` reads the PRINTED type
+            // line (`ctx.getPrintedTypes`, which no layer can touch) and the
+            // Basic SUPERTYPE. It never reads a land's subtypes, so nothing
+            // that writes subtypes changes what this effect applies to and
+            // nothing in layer 4 can make it wait. That asymmetry is the whole
+            // dependency: Urborg, Tomb of Yawgmoth waits for this effect (CR
+            // 305.7 destroys the rules text generating Urborg's own), and this
+            // effect waits for nothing.
+            reads: [{ characteristic: "supertypes", values: ["Basic"] }],
         },
     ],
 };

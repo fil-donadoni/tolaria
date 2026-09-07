@@ -36,6 +36,13 @@ export const urborgTombOfYawgmoth: CardDefinition = {
     staticEffects: [
         {
             kind: "subtype-add",
+            // CR 613.8a clause (b) — the predicate reads the target's card
+            // TYPES and nothing else, so Blood Moon's subtype replacement does
+            // not change what this applies to. What makes this effect depend on
+            // Blood Moon is the EXISTENCE limb: CR 305.7 strips "all abilities
+            // generated from its rules text" from a land whose subtype is set
+            // to a basic land type, and this land is one of them.
+            reads: [{ characteristic: "types", values: ["Land"] }],
             applies: (target) => target.types.includes("Land"),
             subtypes: ["Swamp"],
         },
