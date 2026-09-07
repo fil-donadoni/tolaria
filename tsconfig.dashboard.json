@@ -34,9 +34,15 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
 
+        // `@convex/*` is here for the same reason `tsconfig.scripts.json` has
+        // it: the dashboard imports shadcn primitives out of `src/`, and the
+        // program that pulls in reaches `src/types/game.ts`, which re-exports
+        // the engine's types. The dashboard itself uses none of them — it just
+        // has to be able to RESOLVE them.
         "paths": {
             "~/*": ["./src/*"],
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@convex/*": ["./convex/*"]
         }
     },
     "include": ["dashboard"]

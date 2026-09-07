@@ -4,10 +4,9 @@
     --plane: #f9f9f7;
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
-    --muted: #898781;
+    --text-muted: #898781;
     --grid: #e1e0d9;
     --axis: #c3c2b7;
-    --border: rgba(11, 11, 11, 0.1);
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
@@ -16,17 +15,12 @@
     --series-6: #008300;
     --series-7: #4a3aa7;
     --series-8: #e34948;
-    /* Semantic STATE roles (#2630). Role names, never chromatic ones: a
-       light, a verdict word, a claim mark and an UNAVAILABLE banner all mean
-       "good"/"warn"/"bad"/"cannot tell", and before this block each reached
-       for a `--series-N` slot by hand. `unknown` is deliberately its OWN hue
-       rather than a second name for `bad`: "I could not tell" is not "this is
-       wrong", and collapsing the two is the exact confusion #2630 exists to
-       kill. */
-    --state-good: #1baf7a;
-    --state-warn: #eda100;
-    --state-bad: #eb6834;
-    --state-unknown: #4a3aa7;
+    /* The semantic STATE roles (#2630) moved to `dashboard/index.css` with
+       the Tailwind entry (PRD #3148 S1) — ONE declaration, for the same
+       reason `--border` has one: two declarations of a name in two imported
+       stylesheets are resolved by import order rather than by intent, and
+       these four are read by BOTH systems (the tone table's utilities and the
+       legacy rules below). */
     /* A transient LANDING mark (#2630), its own role and not a state. It is
        what a section wears for 1.6s after a light scrolls to it: it means
        "here is where you landed", which is orthogonal to whether the thing
@@ -43,10 +37,9 @@
         --plane: #0d0d0d;
         --text-primary: #ffffff;
         --text-secondary: #c3c2b7;
-        --muted: #898781;
+        --text-muted: #898781;
         --grid: #2c2c2a;
         --axis: #383835;
-        --border: rgba(255, 255, 255, 0.1);
         --series-1: #3987e5;
         --series-2: #d95926;
         --series-3: #199e70;
@@ -55,10 +48,6 @@
         --series-6: #008300;
         --series-7: #9085e9;
         --series-8: #e66767;
-        --state-good: #199e70;
-        --state-warn: #c98500;
-        --state-bad: #d95926;
-        --state-unknown: #9085e9;
         /* A transient LANDING mark (#2630), its own role and not a state. It is
            what a section wears for 1.6s after a light scrolls to it: it means
            "here is where you landed", which is orthogonal to whether the thing
@@ -75,10 +64,9 @@
     --plane: #0d0d0d;
     --text-primary: #ffffff;
     --text-secondary: #c3c2b7;
-    --muted: #898781;
+    --text-muted: #898781;
     --grid: #2c2c2a;
     --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
@@ -87,10 +75,6 @@
     --series-6: #008300;
     --series-7: #9085e9;
     --series-8: #e66767;
-    --state-good: #199e70;
-    --state-warn: #c98500;
-    --state-bad: #d95926;
-    --state-unknown: #9085e9;
     /* A transient LANDING mark (#2630), its own role and not a state. It is
        what a section wears for 1.6s after a light scrolls to it: it means
        "here is where you landed", which is orthogonal to whether the thing
@@ -135,24 +119,6 @@ h1 {
     color: var(--text-secondary);
     font-size: 13px;
 }
-button.theme,
-button.shortcuts-btn {
-    background: var(--surface-1);
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-}
-/* Pushes this button AND everything after it (the theme toggle) to the
-   header's right edge — moved here from `button.theme` so the two form one
-   right-aligned group (#2635) rather than each claiming the header's only
-   flex-auto margin. */
-button.shortcuts-btn {
-    margin-left: auto;
-}
 
 /* One filter row above everything it scopes. */
 .filters {
@@ -175,7 +141,7 @@ button.shortcuts-btn {
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 select,
 input[type="date"] {
@@ -226,7 +192,7 @@ input[type="date"] {
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .tile .v {
     font-size: 26px;
@@ -300,7 +266,7 @@ td:first-child {
     font-variant-numeric: normal;
 }
 th {
-    color: var(--muted);
+    color: var(--text-muted);
     font-weight: 500;
     font-size: 11px;
     letter-spacing: 0.03em;
@@ -338,7 +304,7 @@ tbody tr:hover {
 }
 .ls-pass {
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 /* Claim verdict marks (#2632) — words ("orphaned"/"unsure"/"working"), not
    the `×`/`?`/`·` symbols they replace, so `width: 14px; text-align: center`
@@ -410,7 +376,7 @@ tbody tr:hover {
     white-space: nowrap;
 }
 .ls-empty {
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 12px;
 }
 .ls-unavailable {
@@ -601,7 +567,7 @@ tbody tr:hover {
     color: var(--text-primary);
     background: var(--plane);
     border: 1px solid var(--border);
-    border-left: 4px solid var(--muted);
+    border-left: 4px solid var(--text-muted);
     border-radius: 8px;
     padding: 10px 12px;
     cursor: pointer;
@@ -706,7 +672,7 @@ tbody tr:hover {
 }
 .ls-tl-track-label {
     font-size: 11px;
-    /* --text-secondary, not --muted (measured 3.41:1 against --plane, below
+    /* --text-secondary, not --text-muted (measured 3.41:1 against --plane, below
        WCAG AA's 4.5:1 — the SAME pre-existing gap PR #2837 already found on
        .ls-pass/table th, not repeated here since the fix was this cheap). */
     color: var(--text-secondary);
@@ -816,7 +782,7 @@ tbody tr:hover {
     margin-left: 2px;
     background: repeating-linear-gradient(
         to right,
-        var(--muted) 0 4px,
+        var(--text-muted) 0 4px,
         transparent 4px 8px
     );
 }
@@ -1033,9 +999,10 @@ tbody tr:hover {
     font: inherit;
     font-size: 13px;
 }
-.shortcuts-sheet .shortcuts-close:focus-visible,
-button.shortcuts-btn:focus-visible,
-button.theme:focus-visible {
+/* The theme and shortcuts BUTTONS became shadcn `Button`s in S1 and carry
+   their own focus ring; only the sheet's own close button is still painted
+   here, and it dies with the sheet at S2. */
+.shortcuts-sheet .shortcuts-close:focus-visible {
     outline: 2px solid var(--text-secondary);
     outline-offset: 2px;
 }
@@ -1045,7 +1012,7 @@ button.theme:focus-visible {
     font-size: 13px;
 }
 .mini {
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .row-filters {
     display: flex;
@@ -1053,7 +1020,7 @@ button.theme:focus-visible {
     flex-wrap: wrap;
     margin: 6px 0 10px;
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .row-filters label {
     display: flex;

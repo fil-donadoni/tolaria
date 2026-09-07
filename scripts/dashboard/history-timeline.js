@@ -112,7 +112,7 @@ export function renderTimeSeries(rows, split, metric) {
             x: padL - 10,
             y: y(t) + 4,
             "text-anchor": "end",
-            fill: "var(--muted)",
+            fill: "var(--text-muted)",
             "font-size": 11,
         });
         lab.textContent = fmtMetric(metric, t);
@@ -210,7 +210,7 @@ export function renderTimeSeries(rows, split, metric) {
                 x: x + barW / 2,
                 y: padT + plotH + 16,
                 "text-anchor": "end",
-                fill: "var(--muted)",
+                fill: "var(--text-muted)",
                 "font-size": 10,
                 transform: `rotate(-45 ${x + barW / 2} ${padT + plotH + 16})`,
             });

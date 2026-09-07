@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { injectActionToken } from "./scripts/lib/action-token";
 import { DASHBOARD_OUT_DIR } from "./scripts/lib/dashboard-build";
@@ -58,7 +59,7 @@ export default defineConfig(({ command }) => ({
             },
         },
     },
-    plugins: [react(), devActionToken()],
+    plugins: [tailwindcss(), react(), devActionToken()],
 }));
 
 /**

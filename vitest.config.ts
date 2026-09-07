@@ -239,7 +239,15 @@ export default defineConfig({
                     name: "dom",
                     environment: "happy-dom",
                     setupFiles: ["./vitest.setup.ts"],
-                    include: ["src/**/*.test.{ts,tsx}"],
+                    // `dashboard/**` joins the DOM project WHOLE (PRD #3148
+                    // S1), not split by AXIS 1's runtime-need rule: every
+                    // module in that tree is either a React component or a
+                    // store built on `document`/`localStorage`/`matchMedia`,
+                    // so there is no pure-logic subset to route to `node`.
+                    include: [
+                        "src/**/*.test.{ts,tsx}",
+                        "dashboard/**/*.test.{ts,tsx}",
+                    ],
                     exclude: [...exclude, ...BOT_GLOB_DOM, ...SRC_NODE_TESTS],
                     // Same hang guard as the `node` project above (#3123).
                     testTimeout: 30_000,
