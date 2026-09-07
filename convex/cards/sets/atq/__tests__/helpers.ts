@@ -5,8 +5,6 @@
 // convex/cards/__tests__/setup.ts.
 
 import { expect } from "vitest";
-import { titaniasSong, energyFlux } from "..";
-import { solRing } from "../../lea";
 import { makeInstance, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -21,6 +19,11 @@ import type {
     BlockersConfirmedEvent,
     GameEvent,
 } from "../../../types";
+import { getDefinition } from "../../../index";
+
+const titaniasSong = getDefinition("583a53af-2e2a-4f3f-8eab-bd874c6ed80a");
+const energyFlux = getDefinition("bd1f624b-e8f2-462f-838a-7cb9e8fda988");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 export function submitChoice(
     state: GameState,

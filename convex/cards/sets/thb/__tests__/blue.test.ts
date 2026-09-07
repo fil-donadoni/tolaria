@@ -67,7 +67,7 @@ function submitKeep(state: GameState, keep: string[]): void {
 
 describe("Thassa's Oracle (CR 401.4 / 700.5 / 104.2a, issue #2070)", () => {
     it("declares the card and its ETB trigger", () => {
-        expect(getCardByName("Thassa's Oracle")).toBe(thassasOracle);
+        expect(getCardByName("Thassa's Oracle").id).toBe(thassasOracle.id);
         expect(thassasOracle.manaCost).toEqual({ U: 2 });
         expect(thassasOracle.power).toBe(1);
         expect(thassasOracle.toughness).toBe(3);

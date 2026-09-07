@@ -78,19 +78,13 @@ const towerOfCoireall = getDefinition("64c19977-ac7d-4ce7-925c-33a7503420f5");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 describe("DRK registry parity", () => {
-    it("registers the skeleton creatures by id", () => {
-        expect(getDefinition(squire.id)).toBe(squire);
-        expect(getDefinition(goblinHero.id)).toBe(goblinHero);
-        expect(getDefinition(scarwoodGoblins.id)).toBe(scarwoodGoblins);
-    });
-
     it("registers them by name (debug-panel / pool lookup path)", () => {
         // The Debug-panel preset scenario and the card pool both resolve cards
         // by name via getCardByName (game.ts seedScenario) — registration alone
         // must make the cards reachable.
-        expect(getCardByName("Squire")).toBe(squire);
-        expect(getCardByName("Goblin Hero")).toBe(goblinHero);
-        expect(getCardByName("Scarwood Goblins")).toBe(scarwoodGoblins);
+        expect(getCardByName("Squire").id).toBe(squire.id);
+        expect(getCardByName("Goblin Hero").id).toBe(goblinHero.id);
+        expect(getCardByName("Scarwood Goblins").id).toBe(scarwoodGoblins.id);
     });
 
     it("includes them in getAllCards (deck-builder index)", () => {

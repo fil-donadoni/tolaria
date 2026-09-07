@@ -43,7 +43,7 @@ function libraryOf(n: number, owner = "p1"): CardInstanceState[] {
 
 describe("Mind Stone (mana rock + sacrifice cantrip, CR 605 / 121.1)", () => {
     it("registers and has a colourless {C} mana ability (useStack:false)", () => {
-        expect(getCardByName("Mind Stone")).toBe(mindStone);
+        expect(getCardByName("Mind Stone").id).toBe(mindStone.id);
         expect(mindStone.manaCost).toEqual({ X: 2 });
         const mana = mindStone.activatedAbilities!.find(
             (a) => a.id === "mind-stone-mana"

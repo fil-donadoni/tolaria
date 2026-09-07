@@ -211,12 +211,8 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 // ---------------------------------------------------------------------------
 
 describe("ICE registry parity", () => {
-    it("registers Balduvian Bears by id", () => {
-        expect(getDefinition(balduvianBears.id)).toBe(balduvianBears);
-    });
-
     it("registers it by name (debug-panel / pool lookup path)", () => {
-        expect(getCardByName("Balduvian Bears")).toBe(balduvianBears);
+        expect(getCardByName("Balduvian Bears").id).toBe(balduvianBears.id);
     });
 
     it("includes it in getAllCards (deck-builder index)", () => {

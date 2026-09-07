@@ -73,8 +73,7 @@ function boardWithDomain(n: number): GameState {
 
 describe("Leyline Binding — Domain cost reduction (CR 601.2f / 305.6)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(leylineBinding.id)).toBe(leylineBinding);
-        expect(getCardByName("Leyline Binding")).toBe(leylineBinding);
+        expect(getCardByName("Leyline Binding").id).toBe(leylineBinding.id);
     });
 
     it.each([

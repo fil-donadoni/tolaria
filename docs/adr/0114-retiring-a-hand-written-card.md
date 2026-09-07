@@ -125,8 +125,13 @@ Split by population, because the two have different evidence available:
 
 - **A card that had a per-card test** (310 of the classifier's 319 FREE
   closures are "AFK-ready", i.e. already have one): the test is **rewritten
-  onto the registry seam** — `getDefinition(id)` / `getCardByName(name)`
-  instead of a module import — and kept. That test becomes the permanent
+  onto the registry seam** — `getDefinition(id)` instead of a module import,
+  and specifically NOT `getCardByName(name)` / `getAllCards()`, which read a
+  name map and a memoized array `preloadDefinitions` never writes, so a
+  subject taken from either passes against the hand-written card no matter
+  what the harness swapped in (issue #3048; argument in
+  `convex/oracle/behavioural.ts`, enforced by
+  `scripts/__tests__/card-test-seam-boundary.test.ts`) — and kept. That test becomes the permanent
   behavioural guard; a later compiler regression on that card is red, not
   silent. Deleting a test written for a card whose behaviour was imperative is
   deleting the only proof that the compilation was ever correct.

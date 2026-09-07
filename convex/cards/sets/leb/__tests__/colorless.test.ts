@@ -55,7 +55,6 @@ describe("LEB registry parity", () => {
     });
 
     it("registers the two Beta-original definitions", () => {
-        expect(getDefinition(volcanicIsland.id)).toBe(volcanicIsland);
         expect(getDefinition(circleOfProtectionBlack.id)).toBe(
             circleOfProtectionBlack
         );

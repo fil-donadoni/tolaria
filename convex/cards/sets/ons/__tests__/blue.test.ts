@@ -49,7 +49,6 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         expect(chainOfVapor.rarity).toBe("uncommon");
         expect(chainOfVapor.targetRequirement?.excludeTypes).toBe("Land");
         expect(chainOfVapor.targetRequirement?.count).toBe(1);
-        expect(getDefinition(chainOfVapor.id)).toBe(chainOfVapor);
     });
 
     it("returns the target nonland permanent to its owner's hand and offers the controller a may-sacrifice (CR 400.7 return / 701.21 sacrifice)", () => {

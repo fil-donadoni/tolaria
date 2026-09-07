@@ -124,8 +124,9 @@ function scullerLeaves(state: GameState): void {
 
 describe("Tidehollow Sculler (ALA — linked hand exile + return on leave, CR 603.2 / 607 / 400.7)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(tidehollowSculler.id)).toBe(tidehollowSculler);
-        expect(getCardByName("Tidehollow Sculler")).toBe(tidehollowSculler);
+        expect(getCardByName("Tidehollow Sculler").id).toBe(
+            tidehollowSculler.id
+        );
     });
 
     it("ETB exiles the chosen nonland card into the OPPONENT's exile, stamped with the Sculler's instance (CR 607)", () => {

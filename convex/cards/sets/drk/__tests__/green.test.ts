@@ -37,6 +37,8 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
 
 const elvesOfDeepShadow = getDefinition("f395278e-6d74-4f35-af9d-21bad7b19763");
+const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const gaeasTouch = getDefinition("0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7");
 const hiddenPath = getDefinition("cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77");
 const lurker = getDefinition("b39eb671-e17e-4c5a-8913-1e3be7faedfb");
@@ -949,9 +951,9 @@ describe("Spitting Slug — combat first-strike trigger (CR 509.1h / 118.4)", ()
 
 describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.8)", () => {
     function setupCombat(otherSubtypes: string[] = ["Bear"]) {
-        const otherName = otherSubtypes.includes("Wall")
-            ? "Wall of Swords"
-            : "Grizzly Bears";
+        const otherId = otherSubtypes.includes("Wall")
+            ? wallOfSwords.id
+            : grizzlyBears.id;
         // Host (p1 attacker) carries Venom; "other" creature is p2's blocker.
         const host = makeInstance(
             getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
@@ -968,7 +970,7 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
             ownerId: "p1",
             attachedTo: "host",
         });
-        const other = makeInstance(getCardByName(otherName).id, {
+        const other = makeInstance(otherId, {
             id: "other",
             controllerId: "p2",
             ownerId: "p2",
@@ -1246,8 +1248,7 @@ describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120
     });
 
     it("registry parity: reachable by id and by name (debug-panel / pool path)", () => {
-        expect(getDefinition(marshViper.id)).toBe(marshViper);
-        expect(getCardByName("Marsh Viper")).toBe(marshViper);
+        expect(getCardByName("Marsh Viper").id).toBe(marshViper.id);
         expect(getAllCards()).toContain(marshViper);
     });
 });

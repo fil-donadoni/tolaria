@@ -29,7 +29,8 @@
  * code paths.
  *
  * Per-card tests reach their subject through `getDefinition(id)` too (issue
- * #3048 migrated all 319 of them off module imports, and
+ * #3048 migrated 325 test files and 7 sibling fixture modules off module
+ * imports, and
  * `scripts/__tests__/card-test-seam-boundary.test.ts` keeps them there), so
  * both the id they pass around AND the definition fields they assert on are
  * the twin's. Before that migration only the former was true: a test reading

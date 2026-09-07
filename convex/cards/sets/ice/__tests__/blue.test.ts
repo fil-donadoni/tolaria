@@ -2990,8 +2990,7 @@ describe("Winter's Chill (capped-X + per-target three-way may-pay, CR 107.3/118/
             "DECLARE_ATTACKERS",
         ]);
         expect(wintersChill.castXUpperBound).toBe("snow-lands");
-        expect(getDefinition(wintersChill.id)).toBe(wintersChill);
-        expect(getCardByName("Winter's Chill")).toBe(wintersChill);
+        expect(getCardByName("Winter's Chill").id).toBe(wintersChill.id);
     });
 });
 

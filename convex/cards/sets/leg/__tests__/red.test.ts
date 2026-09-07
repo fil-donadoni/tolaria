@@ -1038,7 +1038,6 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
             type: "any",
             count: 1,
         });
-        expect(getDefinition(chainLightning.id)).toBe(chainLightning);
     });
 
     it("deals 3 damage to a player target (CR 119.3)", () => {

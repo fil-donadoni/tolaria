@@ -32,7 +32,7 @@ function resolveActivated(
 
 describe("Mishra's Bauble (free sac + next-upkeep cantrip, CR 603.7d)", () => {
     it("is a {0} artifact carrying the next-upkeep delayed trigger", () => {
-        expect(getCardByName("Mishra's Bauble")).toBe(mishrasBauble);
+        expect(getCardByName("Mishra's Bauble").id).toBe(mishrasBauble.id);
         expect(mishrasBauble.manaCost).toEqual({});
         expect(mishrasBauble.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
         const ability = mishrasBauble.activatedAbilities![0];

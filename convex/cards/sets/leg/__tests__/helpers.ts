@@ -4,7 +4,6 @@
 // builders (makeInstance/makePlayer/makeState/pushSpell) stay in
 // convex/cards/__tests__/setup.ts.
 
-import { greed, recall, sylvanLibrary, theTabernacleAtPendrellVale } from "..";
 import {
     applySourceStaticEffects,
     resolveTopOfStack,
@@ -18,8 +17,16 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardByName } from "../../../index";
-import { grizzlyBears } from "../../lea";
+
+import { getDefinition } from "../../../index";
+
+const greed = getDefinition("111a16a2-e875-4756-80db-290f9e8606db");
+const recall = getDefinition("33296718-0625-4422-a65c-b21cf99c52ec");
+const sylvanLibrary = getDefinition("f486df00-7c4a-4ff0-bb0b-c8b5432ac742");
+const theTabernacleAtPendrellVale = getDefinition(
+    "64bc9b1d-5818-4d9e-b771-e49af4ff9a5c"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // --- helpers (mirrors arn.test.ts) ----------------------------------------
 
@@ -256,9 +263,13 @@ export function castEvent(
 // creatures; the AI sheds its worst (sacrifice-permanents heuristic).
 // ---------------------------------------------------------------------------
 
-export const HEADLESS = getCardByName("Headless Horseman").id; // vanilla 2/2, nonartifact
+export const HEADLESS = getDefinition(
+    "d1aa37c8-98fa-4984-b09b-cf65ad84e97b"
+).id; // vanilla 2/2, nonartifact
 
-export const ORNITHOPTER = getCardByName("Ornithopter").id; // 0/2 Artifact Creature
+export const ORNITHOPTER = getDefinition(
+    "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0"
+).id; // 0/2 Artifact Creature
 
 /** PHASE_BEGIN upkeep event for a given active player. */
 export function abyssUpkeep(activePlayerId: string): StackItem["triggerEvent"] {

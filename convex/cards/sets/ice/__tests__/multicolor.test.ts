@@ -1028,8 +1028,7 @@ describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target op
 
 describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(ghostlyFlame.id)).toBe(ghostlyFlame);
-        expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
+        expect(getCardByName("Ghostly Flame").id).toBe(ghostlyFlame.id);
     });
 
     it("a black source is coloured B without Ghostly Flame, colourless with it", () => {

@@ -109,8 +109,7 @@ function chooseExileTarget(state: GameState, targetId: string): void {
 
 describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () => {
     it("registers by id and name", () => {
-        expect(getDefinition(banishingLight.id)).toBe(banishingLight);
-        expect(getCardByName("Banishing Light")).toBe(banishingLight);
+        expect(getCardByName("Banishing Light").id).toBe(banishingLight.id);
     });
 
     it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.13/704.5n)", () => {

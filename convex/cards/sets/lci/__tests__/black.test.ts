@@ -108,8 +108,7 @@ function batLeaves(state: GameState): void {
 
 describe("Deep-Cavern Bat (LCI — private look + optional linked exile, returned on leave; CR 400.2 / 607 / 400.7)", () => {
     it("registers by id and name, and carries flying", () => {
-        expect(getDefinition(deepCavernBat.id)).toBe(deepCavernBat);
-        expect(getCardByName("Deep-Cavern Bat")).toBe(deepCavernBat);
+        expect(getCardByName("Deep-Cavern Bat").id).toBe(deepCavernBat.id);
         expect(deepCavernBat.staticAbilities).toContain("flying");
     });
 

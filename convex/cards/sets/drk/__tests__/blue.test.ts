@@ -889,8 +889,7 @@ function fireEtbAndCopy(
 
 describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () => {
     it("is registered by id and name", () => {
-        expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
-        expect(getCardByName("Dance of Many")).toBe(danceOfMany);
+        expect(getCardByName("Dance of Many").id).toBe(danceOfMany.id);
     });
 
     it("excludes a TOKEN creature from the legal copy targets (CR 111.5, issue #1195 — previously an incorrectly-legal target)", () => {

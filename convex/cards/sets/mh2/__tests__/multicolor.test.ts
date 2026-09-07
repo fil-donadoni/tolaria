@@ -17,6 +17,20 @@ import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { getDefinition } from "../../../index";
+
+const masterOfDeath = getDefinition("b9775175-6763-4826-afc8-dc520a235c36");
+const territorialKavu = getDefinition("2605df98-0b02-4aab-bc36-01e93c693743");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
+const gristTheHungerTide = getDefinition(
+    "69af2825-18c2-4463-b6ba-42eaa070ccc1"
+);
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const xantidSwarm = getDefinition("6a87911a-3931-46aa-9348-2728c4b73b96");
 
 describe("Master of Death (CR 701.25 ETB surveil 2; CR 603.6e graveyard-zone upkeep return for 1 life)", () => {
     function gyState(): GameState {
@@ -106,20 +120,6 @@ import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
-
-const masterOfDeath = getDefinition("b9775175-6763-4826-afc8-dc520a235c36");
-const territorialKavu = getDefinition("2605df98-0b02-4aab-bc36-01e93c693743");
-const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
-const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
-const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
-const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
-const gristTheHungerTide = getDefinition(
-    "69af2825-18c2-4463-b6ba-42eaa070ccc1"
-);
-const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const xantidSwarm = getDefinition("6a87911a-3931-46aa-9348-2728c4b73b96");
 
 const GRIST = gristTheHungerTide.id;
 const PLUS1 = "grist-the-hunger-tide-plus1";

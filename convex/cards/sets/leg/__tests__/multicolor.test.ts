@@ -92,17 +92,12 @@ const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 // ---------------------------------------------------------------------------
 
 describe("LEG registry parity", () => {
-    it("registers the skeleton legendary creatures by id", () => {
-        expect(getDefinition(jasmineBoreal.id)).toBe(jasmineBoreal);
-        expect(getDefinition(ladyOrca.id)).toBe(ladyOrca);
-    });
-
     it("registers them by name (debug-panel / pool lookup path)", () => {
         // The Debug-panel preset scenario and the card pool both resolve cards
         // by name via getCardByName (game.ts seedScenario) — registration alone
         // must make the cards reachable.
-        expect(getCardByName("Jasmine Boreal")).toBe(jasmineBoreal);
-        expect(getCardByName("Lady Orca")).toBe(ladyOrca);
+        expect(getCardByName("Jasmine Boreal").id).toBe(jasmineBoreal.id);
+        expect(getCardByName("Lady Orca").id).toBe(ladyOrca.id);
     });
 
     it("includes them in getAllCards (deck-builder index)", () => {
@@ -276,11 +271,11 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.14)"
 
 describe("LEG multicolor vanilla / keyword legendary creatures (CR 205.4a, 702)", () => {
     it("registers the multicolor cards by name (pool / debug lookup)", () => {
-        expect(getCardByName("Dakkon Blackblade")).toBe(dakkonBlackblade);
-        expect(getCardByName("Sol'kanar the Swamp King")).toBe(
-            solkanarTheSwampKing
+        expect(getCardByName("Dakkon Blackblade").id).toBe(dakkonBlackblade.id);
+        expect(getCardByName("Sol'kanar the Swamp King").id).toBe(
+            solkanarTheSwampKing.id
         );
-        expect(getCardByName("Boris Devilboon")).toBe(borisDevilboon);
+        expect(getCardByName("Boris Devilboon").id).toBe(borisDevilboon.id);
     });
 });
 

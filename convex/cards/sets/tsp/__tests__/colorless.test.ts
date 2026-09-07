@@ -35,7 +35,7 @@ function resolveTrigger(
 
 describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () => {
     it("registers with a five-colour mana ability (useStack:false)", () => {
-        expect(getCardByName("Chromatic Star")).toBe(chromaticStar);
+        expect(getCardByName("Chromatic Star").id).toBe(chromaticStar.id);
         expect(chromaticStar.manaCost).toEqual({ X: 1 });
         const mana = chromaticStar.activatedAbilities!.find(
             (a) => a.id === "chromatic-star-mana"

@@ -21,6 +21,17 @@ import {
 import { mustAttack } from "../../../../gre/combat";
 import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
+import { getDefinition } from "../../../index";
+
+const mineCollapse = getDefinition("56e2e8b5-660d-4469-a4fe-2367dfadb709");
+const blazingRootwalla = getDefinition("4404fc9c-ef02-479c-9638-0cc163f0b48f");
+const ragavanNimblePilferer = getDefinition(
+    "a9738cda-adb1-47fb-9f4c-ecd930228c4d"
+);
+const dragonsRageChanneler = getDefinition(
+    "4ced112a-e775-4f97-97b3-74877e9dce12"
+);
+const fury = getDefinition("bd281158-8180-40b9-a5b7-03cfc712d81a");
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -90,17 +101,6 @@ describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 60
 import { finalizeTargetSelection } from "../../../../game";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import type { TargetSelection } from "../../../types";
-import { getDefinition } from "../../../index";
-
-const mineCollapse = getDefinition("56e2e8b5-660d-4469-a4fe-2367dfadb709");
-const blazingRootwalla = getDefinition("4404fc9c-ef02-479c-9638-0cc163f0b48f");
-const ragavanNimblePilferer = getDefinition(
-    "a9738cda-adb1-47fb-9f4c-ecd930228c4d"
-);
-const dragonsRageChanneler = getDefinition(
-    "4ced112a-e775-4f97-97b3-74877e9dce12"
-);
-const fury = getDefinition("bd281158-8180-40b9-a5b7-03cfc712d81a");
 
 function furyEtbOnStack(state: GameState, controllerId: string): StackItem {
     const source = makeInstance(fury.id, {

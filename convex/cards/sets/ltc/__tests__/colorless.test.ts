@@ -42,7 +42,7 @@ function answerChoice(state: GameState, picks: string[]): void {
 
 describe("Relic of Sauron (Grixis rock + draw-two-discard-one, CR 605 / 608.2)", () => {
     it("has a {U}{B}{R} two-mana ability with six combinations", () => {
-        expect(getCardByName("Relic of Sauron")).toBe(relicOfSauron);
+        expect(getCardByName("Relic of Sauron").id).toBe(relicOfSauron.id);
         expect(relicOfSauron.manaCost).toEqual({ X: 4 });
         const mana = relicOfSauron.activatedAbilities!.find(
             (a) => a.id === "relic-of-sauron-mana"

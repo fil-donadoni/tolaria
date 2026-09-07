@@ -6,7 +6,6 @@
 // "import from setup, don't copy fixtures" convention — these two are
 // Saga-specific (not general enough for `cards/__tests__/setup.ts`).
 
-import { urzasSaga } from "..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     processPendingActionTriggers,
@@ -18,6 +17,9 @@ import {
     advanceSagasAtPrecombatMain,
     LORE_COUNTER,
 } from "../../../../gre/sagas";
+import { getDefinition } from "../../../index";
+
+const urzasSaga = getDefinition("c1e0f201-42cb-46a1-901a-65bb4fc18f6c");
 
 /** The Saga on the battlefield with `lore` counters already on it, plus any
  *  extra permanents / library. Built through the shared fixtures so the state

@@ -23,6 +23,15 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { getDefinition } from "../../../index";
+
+const creepingTarPit = getDefinition("0f427f0b-034c-4821-8758-e395c0042d8a");
+const celestialColonnade = getDefinition(
+    "f6929259-2903-4f6f-9b06-42048fd55c6a"
+);
+const everflowingChalice = getDefinition(
+    "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd"
+);
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolve it. Local copy
@@ -276,15 +285,6 @@ describe("Everflowing Chalice (Multikicker {2}, CR 702.33e)", () => {
 // development.md`), since `projectPublicState` reshapes the instance.
 import { getEffectiveColors } from "../../../effectiveColors";
 import { resetBattlefieldTransientState } from "../../../../gre/state";
-import { getDefinition } from "../../../index";
-
-const creepingTarPit = getDefinition("0f427f0b-034c-4821-8758-e395c0042d8a");
-const celestialColonnade = getDefinition(
-    "f6929259-2903-4f6f-9b06-42048fd55c6a"
-);
-const everflowingChalice = getDefinition(
-    "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd"
-);
 
 describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
     function animate(

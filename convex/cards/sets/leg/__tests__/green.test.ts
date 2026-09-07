@@ -86,7 +86,6 @@ const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 
 describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
     it("registers the green vanilla creatures with correct P/T", () => {
-        expect(getDefinition(barbaryApes.id)).toBe(barbaryApes);
         expect(barbaryApes.power).toBe(2);
         expect(barbaryApes.toughness).toBe(2);
         expect(durkwoodBoars.power).toBe(4);
