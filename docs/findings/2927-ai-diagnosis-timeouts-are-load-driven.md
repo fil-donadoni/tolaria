@@ -52,3 +52,17 @@ No issue is owed: the finding's own "why it may not deserve its own issue"
 paragraph called the fix as small as raising the constant, and it was. The
 broader question it flags — gate flakiness under shared-machine load — is not
 defensible without this episode, which is the drawer's bar for a ticket.
+
+**Root cause gone (2026-09-07, issue #2436).** The subject of this finding no
+longer exists: `ai-diagnosis.bot.test.ts` and its five-rung ISMCTS ladder left
+the gate entirely, executing the owner's 2026-08-22 decision that the file
+measures STRENGTH rather than guarding correctness. With it went
+`DIAGNOSIS_TIMEOUT_MS` — the 300s ceiling this finding's inline fix installed,
+and the last wall-clock ceiling in the bot suite. What replaced it cannot
+reproduce the shape: a bounded liveness smoke at 400 iterations
+(`searchLiveness.bot.test.ts`), three `must` blade entries at the production
+budget, and two search-free leaf assertions in `evaluate.bot.test.ts`. Nothing
+in the bot suite now sits close enough to a timeout for machine load to decide
+its verdict. Kept `declined`: the broader "gate flakiness under shared-machine
+load" question it flags is still not defensible without the episode, and the
+episode is gone.

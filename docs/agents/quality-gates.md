@@ -21,7 +21,10 @@ Three lanes:
 
 1. **The bot suite's fast lane** (#1912) — `TOLARIA_BOT_FAST=1`, deny-list in
    `vitest.config.ts`, ~60-75s. Home of the catalogue-wide bot guards:
-   `aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, the censuses.
+   `aiEffectsGuard`, `pickRatings`, `opValuerCoverage`, the censuses. The
+   deny-list has been EMPTY since issue #2436 took the AI-diagnosis ladder
+   episodes out of the gate: the lane and `test:bot` now run the same files,
+   and the mechanism survives only for the next file that earns an exception.
 2. **The whole application suite — node AND dom, both WHOLE** —
    `vitest run --project node --project dom`. `node` is `convex/**` +
    `scripts/**` + every DOM-free `src` test (~30s at the light tier's 2
