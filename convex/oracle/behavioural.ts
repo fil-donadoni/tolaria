@@ -28,11 +28,13 @@
  * hand-written definition and passes against the twin passed against the SAME
  * code paths.
  *
- * Per-card tests reference their card as `someCard.id` (a string) and drive
- * behaviour through `resolveTopOfStack` / `getLegalTargets` / the projections,
- * every one of which resolves the definition through `getDefinition`. So the
- * import in the test file keeps pointing at the hand-written module while the
- * BEHAVIOUR under assertion is the compiled twin's.
+ * Per-card tests reach their subject through `getDefinition(id)` too (issue
+ * #3048 migrated all 319 of them off module imports, and
+ * `scripts/__tests__/card-test-seam-boundary.test.ts` keeps them there), so
+ * both the id they pass around AND the definition fields they assert on are
+ * the twin's. Before that migration only the former was true: a test reading
+ * `someCard.activatedAbilities` off the module export was asserting against
+ * the hand-written shape while claiming to test the compiled one.
  *
  * ── Fail loud, never vacuous ───────────────────────────────────────────────
  *
