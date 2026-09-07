@@ -15,6 +15,7 @@ import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
+import { projectPublicState } from "../../../../gameProjections";
 
 // Wasteland (TMP) — a nonbasic land with no basic land type, used as the
 // "nonbasic land an opponent controls" target for Boseiju's first clause.
@@ -171,6 +172,47 @@ describe("Boseiju, Who Endures (Channel ability word, CR 207.2c; snapshot-idiom 
             state.players[1].battlefield.some((c) => c.id === "opp-lib-tundra")
         ).toBe(true);
         expect(state.players[1].library).toHaveLength(0);
+    });
+
+    it("wire format: the destroyed target's departure and the found land's arrival survive projectPublicState", () => {
+        const boseiju = makeInstance(boseijuWhoEndures.id, {
+            id: "boseiju",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const target = makeInstance(WASTELAND_ID, {
+            id: "opp-wasteland",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const libraryLand = makeInstance(TUNDRA_ID, {
+            id: "opp-lib-tundra",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [boseiju] }),
+                makePlayer("p2", {
+                    battlefield: [target],
+                    library: [libraryLand],
+                }),
+            ],
+        });
+        resolveActivated(state, boseiju, "boseiju-channel", [
+            { type: "permanent", id: "opp-wasteland" },
+        ]);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        submitSearchChoice(state, ["opp-lib-tundra"]);
+        // Projected from p1's (the activator's) view: the projection strips
+        // fat fields (`card.card` → `{ id }`), so this proves the outcome is
+        // visible to the CLIENT, not just to a GRE-only reader.
+        const projected = projectPublicState(state, 1, "p1");
+        const p2Battlefield = projected.players.find(
+            (p) => p.id === "p2"
+        )!.battlefield;
+        expect(p2Battlefield.some((c) => c.id === "opp-wasteland")).toBe(false);
+        expect(p2Battlefield.some((c) => c.id === "opp-lib-tundra")).toBe(true);
     });
 
     it("the search clause still happens when the destroy did NOT remove the permanent (indestructible, CR 608.2h last-known information)", () => {
