@@ -5711,6 +5711,60 @@ describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
     });
 });
 
+// CR 207.2c Channel (ability word, issue #2290) — a hand-activated ability
+// structurally identical to Cycling (`activateFromHand`), so it must surface
+// through the SAME reducer path. Boseiju, Who Endures is the exemplar: it
+// also carries a plain `{T}: Add {G}` mana ability, which must NOT surface
+// here (that ability has no `activateFromHand`).
+describe("getHandStackAbilities (CR 207.2c — Channel, issue #2290)", () => {
+    const BOSEIJU_ID = "2135ac5a-187b-4dc9-8f82-34e8d1603416";
+
+    const boseijuInHand = () =>
+        makeCardInstance({
+            id: "boseiju-1",
+            card: { id: BOSEIJU_ID },
+            types: ["Land"],
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "hand",
+        });
+
+    const viewFor = (card: CardInstance, activePlayerId = "p1") =>
+        buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [card],
+                    battlefield: [],
+                    graveyard: [],
+                },
+            ],
+            activePlayerId
+        );
+
+    it("surfaces ONLY the Channel ability (never the {T}: Add {G} mana ability) for Boseiju in the viewer's own hand", () => {
+        const boseiju = boseijuInHand();
+        const abilities = getHandStackAbilities(
+            boseiju,
+            "PRECOMBAT_MAIN",
+            viewFor(boseiju)
+        );
+        expect(abilities.map((a) => a.id)).toEqual(["boseiju-channel"]);
+    });
+
+    it("is offered at instant speed, including during the opponent's turn (CR 602.1)", () => {
+        const boseiju = boseijuInHand();
+        expect(
+            getHandStackAbilities(
+                boseiju,
+                "POSTCOMBAT_MAIN",
+                viewFor(boseiju, "p2")
+            ).map((a) => a.id)
+        ).toEqual(["boseiju-channel"]);
+    });
+});
+
 // ---------------------------------------------------------------------------
 // CR 702.126 — Improvise (issue #1313)
 // ---------------------------------------------------------------------------
