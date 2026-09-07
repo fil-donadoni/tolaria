@@ -159,18 +159,6 @@ non-trivial card gets a `describe` block in the parallel per-colour test file
 `convex/cards/__tests__/setup.ts` (`makeInstance`, `makePlayer`, `makeState`,
 `pushSpell`) — never duplicate them.
 
-**The subject comes from the registry seam, never from a module import** (issue
-#3048, ADR 0046): `const brainstorm = getDefinition("<uuid>");`, not
-`import { brainstorm } from "../blue"`. The test then survives the card's
-hand-written closure being retired for a compiled twin (ADR 0114 §1) — which is
-the point of keeping it — and it reads the definition the ENGINE reads, so the
-gold harness's `preloadDefinitions` swap reaches the assertions and not just the
-id. `getCardByName("…")` and `getAllCards()` are NOT substitutes: they read
-`nameRegistry` and a memoized snapshot that the swap never writes, so a subject
-resolved there passes vacuously against the hand-written card.
-`scripts/__tests__/card-test-seam-boundary.test.ts` enforces both halves; a
-reprint `CardPrint` row is not a registry definition and stays importable.
-
 | Card has                     | GRE test                                               | Wire format test                                |
 | ---------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
 | `resolve()` (spell)          | yes — push, `resolveTopOfStack`, assert outcome        | only if visible client-side                     |
