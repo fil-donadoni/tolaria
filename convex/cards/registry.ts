@@ -153,7 +153,7 @@ const LAYER_6_STATIC_KINDS = new Set<string>([
 /** CR 613.4 — the `StaticEffect` kinds the layer-7 derivation owns.
  *  Duplicated from `gre/layers.ts`'s own table for the reason
  *  `LAYER_2_5_STATIC_KINDS` above is; `layers.test.ts` asserts the two agree. */
-const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda"]);
+const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda", "pt-set"]);
 
 /** Membership in one of the three derived sets above, for an id that may never
  *  have been REGISTERED.

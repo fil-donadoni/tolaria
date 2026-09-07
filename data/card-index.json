@@ -16104,6 +16104,14 @@
         "source": "compiled"
     },
     {
+        "name": "Humility",
+        "scryfallId": "a2fb7128-806b-4148-80fe-eb967f248021",
+        "oracleId": "ed7bdb3e-5c51-4547-9266-76a791e0b2b0",
+        "firstSet": "tmp",
+        "firstPrintId": "a2fb7128-806b-4148-80fe-eb967f248021",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Humongulus",
         "scryfallId": "21982dc7-4f79-4251-8382-95cd1f627e0f",
         "oracleId": "395922cc-d524-4241-a7d8-9c7959f0b9db",
@@ -19258,6 +19266,14 @@
         "firstPrintSet": "m19",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Life and Limb",
+        "scryfallId": "0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3",
+        "oracleId": "d0d7250b-70d2-43f9-ae15-837227061ccb",
+        "firstSet": "plc",
+        "firstPrintId": "0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3",
+        "firstPrintSet": "plc"
     },
     {
         "name": "Lifeblood",

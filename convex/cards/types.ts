@@ -6987,6 +6987,37 @@ export interface StaticPTCDA {
     ) => { power: number; toughness: number };
 }
 
+/** Base-P/T-setting static ability (CR 613.4b, sublayer 7b) — "All creatures
+ *  ... have base power and toughness 1/1" (Humility), "All Forests and all
+ *  Saprolings are 1/1 ... creatures" (Life and Limb).
+ *
+ *  The third of the layer-7 kinds, and the one that SETS rather than adds. It
+ *  exists because neither sibling can express the clause: `pt-buff` lands in
+ *  7c and adds, and `pt-cda` lands in 7a, where CR 613.4a makes the latest
+ *  characteristic-defining effect overwrite every earlier one and CR 604.3a
+ *  denies the label to an ability that defines ANOTHER object's P/T. A
+ *  `pt-cda` returning `1 - basePower` would also read wrong on the very board
+ *  the card is played on: a Saproling token is already 1/1, so a 7a addition
+ *  of 1/1 shows 2/2.
+ *
+ *  Recomputed at every read like `pt-buff` / `pt-cda` (never materialised onto
+ *  the instance), and ordered against other 7b entries by the source's CR
+ *  613.7a timestamp — a later `pt-set` wins, an earlier one loses, and every
+ *  `pt-buff` still applies on top (CR 613.4c is a later sublayer). */
+export interface StaticPTSet {
+    kind: "pt-set";
+    /** Predicate: does this set apply to `target` given its `source`? */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** The base power the effect sets (CR 613.4b). */
+    power: number;
+    /** The base toughness the effect sets (CR 613.4b). */
+    toughness: number;
+}
+
 /** Continuous static ability that grants a keyword to the enchanted
  *  permanent (CR 611, 113.1). Typical usage: an Aura grants "protection
  *  from red" or "flying" to its host. The engine applies the grant
@@ -8238,6 +8269,7 @@ export interface CounterGatedStatic {
 export type StaticEffect = (
     | StaticPTBuff
     | StaticPTCDA
+    | StaticPTSet
     | StaticKeywordGrant
     | StaticControlChange
     | StaticActivatedGrant
