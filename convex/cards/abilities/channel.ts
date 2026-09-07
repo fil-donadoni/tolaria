@@ -58,12 +58,11 @@ export function channelAbility(args: {
     return {
         id: args.id,
         oracleText: args.oracleText,
-        // CR 113.6j — the discard-this cost, mirroring Cycling's non-mana
-        // leg exactly (`discardThis` routes through the shared
-        // `discardToGraveyard` choke point, so a "whenever you discard"
-        // trigger fires from it, CR 701.8). No `cyclingCost` marker — that
-        // flag exists only to disambiguate a "when you cycle this card"
-        // trigger (CR 702.29c), which no Channel card carries.
+        // CR 113.6j — the discard-this cost (`discardThis` routes through
+        // the shared `discardToGraveyard` choke point, so a "whenever you
+        // discard" trigger fires from it, CR 701.9). No `cyclingCost`
+        // marker — that flag exists only to disambiguate a "when you cycle
+        // this card" trigger (CR 702.29c), which no Channel card carries.
         cost: {
             mana: args.cost,
             discardThis: true,

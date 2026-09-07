@@ -97,7 +97,7 @@ describe("Boseiju, Who Endures (Channel ability word, CR 207.2c; snapshot-idiom 
         ).toThrow();
     });
 
-    it("declining the search leaves the library unshuffled and untouched (CR 701.19 never begins)", () => {
+    it("declining the search leaves the library unshuffled and untouched (CR 701.23's search never begins)", () => {
         const boseiju = makeInstance(boseijuWhoEndures.id, {
             id: "boseiju",
             controllerId: "p1",

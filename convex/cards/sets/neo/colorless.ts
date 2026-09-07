@@ -42,11 +42,11 @@ const LEGENDARY_CREATURE_COUNT = {
 //
 // "That player MAY search" (not a compulsory search that may merely fail to
 // find) is the cost-free `mayPay` yes/no gate (CR 117.3a, issue #680) wrapped
-// around the WHOLE search+shuffle tail via `if($search)`: declining skips the
-// search and the shuffle entirely (CR 701.19 never begins), matching
-// Formidable Speaker's `mayPay` + `if($discarded)` shape (`ecl/green.ts`)
-// exactly. Once accepted, the search itself may still fail to find nothing
-// (`count: { min: 0, max: 1 }`, CR 701.19b) — Nature's Lore's compulsory-
+// around the WHOLE search-then-shuffle tail via `if($search)`: declining
+// means CR 701.23's search never begins at all, matching Formidable
+// Speaker's `mayPay` + `if($discarded)` shape (`ecl/green.ts`) exactly. Once
+// accepted, the search itself may still fail to find nothing
+// (`count: { min: 0, max: 1 }`, CR 701.23b) — Nature's Lore's compulsory-
 // search shape (`ice/green.ts`) — before the mandatory post-search shuffle.
 //
 // "a land card with a basic land type" (NOT "a basic land card" — a Triome or
