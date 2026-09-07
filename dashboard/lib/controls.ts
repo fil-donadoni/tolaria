@@ -40,3 +40,29 @@ export const CONTROL_PRIMARY_CLASS =
 export const CONTROL_QUIET_CLASS =
     `inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground ` +
     `transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+
+/**
+ * A native form control — a `<select>`, a text/search box, a date picker
+ * (PRD #3148 S3).
+ *
+ * NATIVE, deliberately. The History filter bar renders five comboboxes and two
+ * date pickers, and the dashboard has no shadcn `select` primitive; adding one
+ * would mean a popover, a listbox and its keyboard model for a control the
+ * platform already ships with typeahead, a native picker on every OS and no
+ * bundle cost. What was missing was never behaviour, only that it looked
+ * nothing like the rest of the page — which is one class, here.
+ *
+ * `accent-color` is what makes the date picker's own calendar follow the
+ * dashboard's theme instead of the browser default.
+ */
+export const FIELD_CLASS =
+    `border-border bg-card text-foreground h-8 rounded-md border px-2 text-xs ` +
+    `[accent-color:var(--primary)] ${FOCUS_RING}`;
+
+/** A filter chip: a value of the current split, on or off. The pressed state
+ *  is `aria-pressed`, and the fill follows it — colour is never the only
+ *  carrier, so the border changes with it. */
+export const CHIP_CLASS =
+    `rounded-full border px-2 py-0.5 text-xs transition-colors ` +
+    `aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:border-primary ` +
+    `border-border text-muted-foreground hover:text-foreground ${FOCUS_RING}`;

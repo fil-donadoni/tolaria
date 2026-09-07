@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CONTROL_CLASS } from "../lib/controls";
 import { toggleSheet } from "../lib/shortcuts";
 import type { View } from "../lib/view";
+import { MetaLine } from "./MetaLine";
 import { ThemeToggle } from "./ThemeToggle";
 import { ViewTabs } from "./ViewTabs";
 
@@ -10,10 +11,12 @@ import { ViewTabs } from "./ViewTabs";
  * The dashboard's chrome (PRD #3148 S1) — header, tabs, theme, shortcuts.
  *
  * The two view panels are rendered by the caller and shown/hidden here, by the
- * SAME `?view=` value the tabs write. `hidden` rather than unmounting: the
- * vanilla modules that still fill both panels resolve their elements once, at
- * import time, and an unmounted History would take every one of those handles
- * with it. S3 makes that a real choice again.
+ * SAME `?view=` value the tabs write. `hidden` rather than unmounting, still —
+ * but since S3 the reason is no longer the vanilla modules' `getElementById`
+ * handles. It is that each view holds real state a tab switch must not throw
+ * away: History's filter slice, its two table sorts, an expanded drill-down,
+ * and the six reads behind them. Unmounting would re-fetch the store every
+ * time someone pressed `1` and then `2`.
  *
  * The shortcuts button is the only affordance making the keyboard layer
  * discoverable without already knowing `?` opens it (#2635 AC). S2 wires it
@@ -39,12 +42,7 @@ export function Shell({
                     <h1 className="text-base font-semibold tracking-tight">
                         Tolaria telemetry
                     </h1>
-                    <span
-                        className="text-muted-foreground text-xs"
-                        id="meta-line"
-                    >
-                        loading…
-                    </span>
+                    <MetaLine />
                     <div className="ml-auto flex items-center gap-2">
                         <button
                             id="shortcuts-btn"

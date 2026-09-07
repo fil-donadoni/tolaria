@@ -501,20 +501,21 @@ const STATIC_IMPORT_RE = /(?:import|export)\s[^;]*["']\.\/([^"']+)["']/g;
  * Everything reachable from `main.js` over static import edges — the
  * transitive closure, CRAWLED, never listed.
  *
- * SINCE S2 (PRD #3148) this entry is HISTORY ONLY: the Now view is React and
- * owns its own transport, so `main.js` no longer imports `now-loop-status.js`
- * or the keyboard layer. What this crawl still guards is the half that has not
- * moved — that History arrives through a DYNAMIC import and drags nothing
- * store-backed into the page load. The Now half is guarded one layer up, over
- * the React graph (see the second boundary suite below), which is where the
- * code now lives. A hand-maintained list sees only
- * the edges its author remembered: with one, `tabs.js -> svg.js ->
- * history-state.js` reintroduces both the eager History load and the DB read
- * #2519 forbids while every assertion below stays green (measured — see the
- * PR's proof-of-failure table). Deriving the set means a new static edge at
- * any depth, in any module — `import ... from` or a re-export alike — is
- * inside the guards the moment it is written, with the single
- * formatter-excluded shape named on `STATIC_IMPORT_RE` above.
+ * SINCE S3 (PRD #3148) this entry owns NOTHING: the Now view went to React in
+ * S2 and History in S3, so `main.js` is an empty shell that installs the
+ * tooltip engine and nothing else, and S4 deletes it with the directory. The
+ * Now/History data boundary itself is guarded one layer up, over the React
+ * graph (the second boundary suite below), which is where the code now lives.
+ *
+ * What survives here is the DB-route assertion, kept for as long as any
+ * vanilla module is still shipped to a browser: a module in this closure that
+ * grew a `/api/q` would be a store read on the critical path of every page
+ * load, whichever tree it lived in. A hand-maintained list sees only the edges
+ * its author remembered — with one, `tabs.js -> svg.js -> history-state.js`
+ * reintroduced both the eager History load and the DB read #2519 forbids while
+ * every assertion stayed green (measured, PR #2913). Deriving the set means a
+ * new static edge at any depth, in any module, is inside the guard the moment
+ * it is written.
  */
 const nowClosure = (): string[] => {
     const seen = new Set<string>();
@@ -573,30 +574,16 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         }
     });
 
-    it("no module in the legacy entry's closure is a History module — a static edge, at any depth, would drag the store-backed graph into the page load", () => {
-        expect(
-            NOW_MODULES.filter((name) => name.startsWith("history-")),
-            "reachable from main.js without a dynamic import"
-        ).toEqual([]);
-    });
-
-    it("History is reached only through a dynamic import inside main.js's try/catch — #2519's guarantee, preserved across the module split and across the S2 port", () => {
-        const main = stripComments(
-            readFileSync(join(REPO_DASHBOARD_DIR, "main.js"), "utf8")
-        );
-        const historyAt = main.indexOf('import("./history-boot.js")');
-        expect(historyAt).toBeGreaterThan(-1);
-        // History's whole load+bootstrap sits inside a catch, so a missing or
-        // stale telemetry.db leaves the page standing.
-        expect(main.slice(historyAt)).toMatch(/}\s*catch/);
-        // A static import of history-boot would defeat that: statically
-        // imported modules evaluate before main.js's first line.
-        expect(main).not.toMatch(/^import\s[^;]*history-/m);
-        // And since S2 this entry must not reach the Now view at all — the
-        // React tree owns it, and an edge back here would resurrect the
-        // duplicate composition the port exists to remove.
+    it("the legacy entry reaches neither view — both are React, and an edge back here would resurrect a second composition of the same data", () => {
+        // S2 took the Now view, S3 took History. `main.js` importing either
+        // half again would mean two renderers of one payload on one screen,
+        // free to disagree — the exact duplication the port exists to remove.
         expect(NOW_MODULES).not.toContain("now-loop-status.js");
         expect(NOW_MODULES).not.toContain("now.js");
+        expect(
+            NOW_MODULES.filter((name) => name.startsWith("history-")),
+            "History is React since S3; scripts/dashboard/history-*.js is gone"
+        ).toEqual([]);
     });
 });
 
@@ -713,10 +700,13 @@ const resolveReactEdge = (fromDir: string, spec: string): string | null => {
     return null;
 };
 
-/** Everything reachable from `dashboard/main.tsx` over STATIC edges. */
-const reactNowClosure = (): string[] => {
+/** Everything reachable from one React module over STATIC edges. Used from
+ *  both ends of the boundary: from the entry, to assert what a page load
+ *  pulls; and from `HistoryView`, to assert that what the entry excludes is
+ *  genuinely the store-backed half. */
+const closureFrom = (entry: string): string[] => {
     const seen = new Set<string>();
-    const queue = [join(REPO_REACT_DIR, REACT_ENTRY)];
+    const queue = [entry];
     while (queue.length > 0) {
         const file = queue.shift()!;
         if (seen.has(file)) continue;
@@ -729,6 +719,9 @@ const reactNowClosure = (): string[] => {
     }
     return [...seen];
 };
+
+const reactNowClosure = (): string[] =>
+    closureFrom(join(REPO_REACT_DIR, REACT_ENTRY));
 
 describe("telemetry dashboard — Now/History data boundary over the React graph (ADR 0117)", () => {
     const REACT_NOW = reactNowClosure();
@@ -758,10 +751,51 @@ describe("telemetry dashboard — Now/History data boundary over the React graph
     });
 
     it("no History module is statically reachable from the React entry", () => {
+        // BLUNT ON PURPOSE — any path segment naming History, not just the
+        // files that happen to fetch today. The vanilla version of this guard
+        // was equally blunt (`history-*`), and that bluntness is what caught a
+        // single `export { state } from "./history-state.js"` re-export
+        // reintroducing the eager store read while every other assertion in
+        // this file stayed green. `historyState.ts` names no route and a
+        // static edge to it would be harmless in itself; it is still a red,
+        // because "harmless today" is how the harmful edge arrives.
         expect(
-            REACT_NOW.filter((f) => f.includes("history-")),
+            REACT_NOW.filter((f) => /history/i.test(f)),
             "reachable from dashboard/main.tsx without a dynamic import"
         ).toEqual([]);
+    });
+
+    it("the History VIEW is reached by a lazy import, and its own graph really is store-backed — the guard above is not passing vacuously", () => {
+        // Half a guard is a guard that goes quiet. The assertion above says
+        // History is not in the closure; this one says the thing it is
+        // excluding is the thing that matters — that `HistoryView`'s own graph
+        // names DB-backed routes, so admitting it would put `/api/meta` and
+        // `/api/q` on the critical path of every page load (PRD #2621 D1).
+        const app = stripComments(
+            readFileSync(join(REPO_REACT_DIR, "App.tsx"), "utf8")
+        );
+        expect(app).toMatch(
+            /lazy\(\s*\(\)\s*=>\s*import\(\s*["']\.\/components\/history\/HistoryView["']\s*\)/
+        );
+        // A static `import ... from` of the same path would defeat it.
+        expect(app).not.toMatch(/^import\s[^;]*history\//m);
+
+        const historyClosure = closureFrom(
+            join(REPO_REACT_DIR, "components", "history", "HistoryView.tsx")
+        );
+        const routes = new Set<string>();
+        for (const file of historyClosure) {
+            const src = stripComments(readFileSync(file, "utf8"));
+            for (const m of src.matchAll(/\/api\/[a-z-]+/g)) routes.add(m[0]);
+        }
+        expect([...routes].sort()).toEqual([
+            "/api/families",
+            "/api/issues",
+            "/api/meta",
+            "/api/q",
+            "/api/runs",
+            "/api/sessions",
+        ]);
     });
 
     it("the legacy entry is reached by a DYNAMIC import, after the render has been flushed", () => {

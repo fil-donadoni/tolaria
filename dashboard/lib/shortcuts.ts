@@ -38,9 +38,9 @@ import {
  * React entry and asserts none is a History module and none reaches a
  * DB-backed route (#2519: the Now panel must render with no telemetry.db).
  * This module is chrome, so it IS in that closure — which is why History's
- * `refresh()` is reached through a DYNAMIC `import()` in `refreshVisibleView`
- * below, the same sanctioned mechanism `scripts/dashboard/main.js` uses for
- * `history-boot.js`, and for the same reason.
+ * refresh is reached through a DYNAMIC `import()` in `refreshVisibleView`
+ * below, the same sanctioned mechanism `App.tsx` uses to reach the History
+ * view itself, and for the same reason.
  */
 
 /** One row per shortcut — the single list the sheet renders AND the keydown
@@ -78,7 +78,8 @@ const NON_TEXT_INPUT_TYPES = new Set([
  *
  * `SELECT` (round 2 review, medium): History renders five native comboboxes
  * where a letter or digit is the browser's own typeahead. Proven with a
- * scratch test: focus `#if-family`, dispatch `1`, and the view switched to Now
+ * scratch test: focus the Issues card's family picker, dispatch `1`, and the
+ * view switched to Now
  * underneath the still-focused dropdown.
  *
  * Deliberately NOT a blanket `[tabindex]` check, despite that covering
@@ -104,8 +105,8 @@ const currentView = () => viewFromParams(new URLSearchParams(location.search));
 
 /**
  * `/` focuses the FIRST visible search box in DOM order — History renders two
- * (`#if-text` for Issues, `#sf-text` for Sessions), and the Issues card leads
- * the view. Now has none; querying finds nothing and this is a silent no-op,
+ * (`SearchField`, in the Issues card and the Sessions card), and the Issues
+ * card leads the view. Now has none; querying finds nothing and this is a silent no-op,
  * which is also the correct behaviour for a view that never gets one.
  */
 function focusVisibleSearchBox(doc: Document): void {
@@ -119,11 +120,11 @@ function focusVisibleSearchBox(doc: Document): void {
 /**
  * `r` refreshes whichever view is on screen. Now's transport is part of this
  * graph, so that half is a direct call. History's is reached only through a
- * dynamic `import()` — see the module header — and gated on `getMeta()`
- * returning non-null: `refresh()` dereferences it unconditionally, so calling
- * it before `/api/meta` has ever resolved (no telemetry.db, or the fetch still
- * in flight) would throw instead of doing nothing. `#meta-line` already said
- * once that the store is unavailable; refreshing a view with nothing loaded
+ * dynamic `import()` — see the module header — and is gated on the store
+ * having ANSWERED: a refresh issued before `/api/meta` has resolved would
+ * query a dataset and date range that were never validated against it, and one
+ * issued after it FAILED would re-run six reads against a store that is not
+ * there. The header line already says the store is unavailable; pressing `r`
  * should be quiet, not a second error.
  */
 async function refreshVisibleView(): Promise<void> {
@@ -131,12 +132,11 @@ async function refreshVisibleView(): Promise<void> {
         void refreshLoopStatus();
         return;
     }
-    const { getMeta } =
-        await import("../../scripts/dashboard/history-state.js");
-    if (!getMeta()) return;
-    const { refresh } =
-        await import("../../scripts/dashboard/history-refresh.js");
-    await refresh();
+    const { getHistorySnapshot, refreshHistory } =
+        await import("./historyData");
+    const { booted, bootstrapError } = getHistorySnapshot();
+    if (!booted || bootstrapError) return;
+    await refreshHistory();
 }
 
 export const sheetOpen = (): boolean => isOverlayOpen("shortcuts");

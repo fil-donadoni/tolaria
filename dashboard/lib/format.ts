@@ -9,7 +9,13 @@
  * caller must remember to escape"). React escapes text nodes, so the function
  * has no call site here and importing it would invite one back.
  *
- * `format.js` stays where it is until S4: History still renders strings.
+ * S3 brought the History half across: `fmtDur`, `fmtMetric`, `tier`, `fmtMin`,
+ * `mc` and the three metric PREDICATES below. The predicates are the load-
+ * bearing ones — `isAdditive` decides whether a chart may stack, whether a
+ * tile may express a share, and whether a series tail may fold into "Other".
+ * Get it wrong and the page prints a number that measures nothing.
+ *
+ * `format.js` stays where it is until S4, which deletes it with the directory.
  */
 
 export function fmtNum(n: number | null | undefined, integral = false): string {
@@ -112,3 +118,59 @@ export const issueUrl = (n: number | string): string =>
 
 export const plural = (n: number, one: string, many: string): string =>
     n === 1 ? one : many;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THE HISTORY HALF (PRD #3148 S3)
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** A metric name's UNIT, read off the name — the store returns bare numbers
+ *  and the column name is the only thing that says what they count. */
+export const isSeconds = (m: string): boolean => m.endsWith("seconds");
+export const isCost = (m: string): boolean => m.includes("cost");
+
+/** Counts are whole things — rendering one run as "1.0" reads as a rate,
+ *  not a tally. */
+export const isCount = (m: string): boolean =>
+    ["runs", "calls", "messages"].includes(m);
+
+/**
+ * Only a SUM composes. A mean or a max is a statistic of the rows in its own
+ * group: stacking them produces a number that measures nothing, and dividing
+ * one by another is not a share. Everything that stacks, totals, or expresses
+ * a percentage is gated on this.
+ */
+export const isAdditive = (m: string): boolean => !/^(avg|max)_/.test(m);
+
+/** Seconds as elapsed time a person reads at a glance. */
+export function fmtDur(s: number | null | undefined): string {
+    if (s == null) return "–";
+    if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+    const h = Math.floor(s / 3600);
+    return `${h}h ${Math.round((s % 3600) / 60)}m`;
+}
+
+/** A metric value in the unit its NAME implies — the one formatter every
+ *  History chart, tile and table cell goes through, so a duration cannot
+ *  render as a bare number in one card and as `2h 14m` in the next. */
+export function fmtMetric(
+    metric: string,
+    v: number | null | undefined
+): string {
+    if (isSeconds(metric)) return fmtDur(v);
+    if (isCost(metric)) return fmtUsd(v);
+    return fmtNum(v, isCount(metric));
+}
+
+/** `claude-opus-4-1-20250805` → `opus`. */
+export const tier = (m: string | null | undefined): string =>
+    m ? m.replace(/^claude-/, "").replace(/-\d.*$/, "") : "—";
+
+/** Whole minutes with this page's own minute mark. The ONE authority for a
+ *  per-role minute cell — before #2634 the Issues and Sessions tables each
+ *  repeated `Math.round(v) + "'"` at four call sites apiece. */
+export const fmtMin = (m: number): string => `${Math.round(m)}'`;
+
+/** minutes · cost — the Family × role pivot's cell. */
+export const mc = (min: number, cost: number): string =>
+    `${Math.round(min)}' · ${fmtUsd(cost)}`;
