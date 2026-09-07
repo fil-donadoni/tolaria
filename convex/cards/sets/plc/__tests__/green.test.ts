@@ -22,7 +22,8 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { lifeAndLimb } from "../green";
+
+const lifeAndLimb = getDefinition("0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3");
 
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
@@ -119,16 +120,20 @@ describe("Life and Limb ({3}{G} Enchantment — CR 613 layers 4, 5 and sublayer 
     });
 
     it("stops applying when it leaves the battlefield (CR 611.2)", () => {
-        const sap = saprolingOnBoard();
-        const state = withLifeAndLimb([sap]);
-        expect(getEffectivePower(state, sap)).toBe(1);
+        // The FOREST, not the token: a Saproling prints 1/1, so asserting 1/1
+        // on it after the source leaves passes with the whole `pt-set` kind
+        // deleted. A Forest prints no P/T at all, so the read has to move.
+        const woods = forestOnBoard();
+        const state = withLifeAndLimb([woods]);
+        expect(getEffectivePower(state, woods)).toBe(1);
 
         state.players[0].battlefield = [];
 
         // The 7b entry is derived from the live source, so it is gone at the
-        // next read — no purge pass in between. The token's printed 1/1 stands.
-        expect(getEffectivePower(state, sap)).toBe(1);
-        expect(getEffectiveToughness(state, sap)).toBe(1);
+        // next read — no purge pass in between. The layer-4 animation is
+        // MATERIALISED, so it is unapplied on the way out instead.
+        expect(getEffectivePower(state, woods)).toBe(0);
+        expect(getEffectiveToughness(state, woods)).toBe(0);
     });
 
     // Wire format (MANDATORY for staticEffects, per gre-development.md § Card

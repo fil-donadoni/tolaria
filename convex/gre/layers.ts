@@ -325,7 +325,8 @@ function layer7EffectsFor(
     const templates = new Map<string, DerivedTemplate>();
 
     // One walk covers all three layer-7 kinds — `pt-cda` (7a), `pt-set` (7b)
-    // and `pt-buff` (7c) — for battlefield sources AND emblems. The pre-registry code reached emblems from the
+    // and `pt-buff` (7c) — for battlefield sources AND emblems. The
+    // pre-registry code reached emblems from the
     // pt-buff walk only, so an emblem-declared `pt-cda` contributed nothing;
     // it now contributes to 7a. That is a deliberate widening, not an
     // accident — CR 604.3 makes a characteristic-defining ability apply in
@@ -363,11 +364,13 @@ function layer7EffectsFor(
             // CR 611.2c source-level gate ("as long as ..."): evaluated once
             // per source against the whole board (Jihad). Only `pt-buff`
             // carries one — a characteristic-defining ability has no such gate
-            // (CR 604.3: it applies in every zone, at all times), and a
-            // `pt-set` declares no gate either (its two cards, Humility and
-            // Life and Limb, are unconditional). Keyed on the KIND rather than
-            // on "not a CDA", so widening the table again is a `tsc` error
-            // here instead of a silently skipped gate.
+            // (CR 604.3: it applies in every zone, at all times), and
+            // `StaticPTSet` declares no `condition` field at all, so an "as
+            // long as ..." base-P/T set is not expressible today (neither
+            // Humility nor Life and Limb is conditional). Keyed on the KIND
+            // because the narrowed union no longer carries `condition` on
+            // every member: a FOURTH kind that declared one would need its own
+            // arm here, and nothing but this comment would say so.
             if (
                 effect.kind === "pt-buff" &&
                 effect.condition &&
@@ -684,7 +687,7 @@ export const LAYER_7_STATIC_EFFECT_KINDS = {
     "pt-buff": "7c",
 } as const satisfies Record<string, ContinuousEffectSublayer>;
 
-/** Narrows a `StaticEffect` to the two layer 7 owns, reading
+/** Narrows a `StaticEffect` to the three layer 7 owns, reading
  *  {@link LAYER_7_STATIC_EFFECT_KINDS} for the membership and deriving the
  *  narrowed type from the SAME table's keys — so adding a row widens the
  *  narrowed union with it, and every read below the gate that the new kind

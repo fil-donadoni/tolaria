@@ -21,10 +21,14 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { humility } from "../white";
-import { airElemental } from "../../lea/blue";
-import { grizzlyBears } from "../../lea/green";
-import { crusade } from "../../lea/white";
+import { getDefinition } from "../../../index";
+
+// Subjects resolve through the registry seam (ADR 0046), never off the set
+// module: a definition reached by import cannot be swapped.
+const humility = getDefinition("a2fb7128-806b-4148-80fe-eb967f248021");
+const airElemental = getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 /** Humility on the battlefield beside `others`, its statics applied. */
 function withHumility(others: CardInstanceState[]): {

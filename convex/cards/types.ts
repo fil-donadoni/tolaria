@@ -8240,9 +8240,10 @@ export interface StaticCastTimingLock {
  *
  *  The engine splits static effects in two by HOW they reach the game state:
  *
- *   - **Recomputed** kinds (`pt-buff`, `pt-cda`, and the restriction/guard
- *     predicates) are evaluated at every read, so a counter-gated predicate is
- *     live for free — Homarid's tide counters need nothing here.
+ *   - **Recomputed** kinds (`pt-buff`, `pt-cda`, `pt-set`, and the
+ *     restriction/guard predicates) are evaluated at every read, so a
+ *     counter-gated predicate is live for free — Homarid's tide counters need
+ *     nothing here.
  *   - **Materialized** kinds (`keyword-grant`, `activated-grant`,
  *     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
  *     `supertype-set`, `color`, `keyword-remove`, `control-change`, …) are

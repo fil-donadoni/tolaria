@@ -28,6 +28,17 @@ import type { CardDefinition } from "../../types";
 // destroys the existence of the grant (613.8a b), so 613.8b would apply the
 // grant last, i.e. never. The engine orders layer 6 by CR 613.7 timestamp
 // instead, so a Lord that entered after Humility keeps handing out islandwalk.
+//
+// Second, SEPARATE divergence (tracked-by: #3170), not a case of the above:
+// the layer-7 walk reads a source's `staticEffects[]` off its definition
+// without asking whether layer 6 already suppressed that source's abilities,
+// so a lord stripped by this card still hands out its +1/+1 in 7c (measured:
+// Humility + two Lord of Atlantis leaves the second at 2/2, CR says 1/1). It
+// predates this card — Titania's Song + Mightstone reproduces it with no
+// Humility on the board — and the fix is not a gate on suppression alone:
+// CR 613.6 keeps the layer-7 part of an ability whose EARLIER-layer part
+// already applied, which this engine cannot yet tell apart because one Oracle
+// line becomes several independent per-layer `StaticEffect` entries.
 // compiler-gap: All creatures lose all abilities and have base power and toughness 1/1. (#2693)
 export const humility: CardDefinition = {
     id: "a2fb7128-806b-4148-80fe-eb967f248021",
