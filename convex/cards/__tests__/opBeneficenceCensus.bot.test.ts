@@ -145,7 +145,13 @@ describe("OP_BENEFICENCE census (issue #3006)", () => {
             // `reflexiveTrigger` share a reason) — then require a comment.
             let j = i - 1;
             while (j >= 0 && /^\s{4}\w+:\s*"neutral",/.test(lines[j])) j--;
-            if (j < 0 || !lines[j].trimStart().startsWith("//")) {
+            const above = j >= 0 ? lines[j].trimStart() : "";
+            // A SECTION DIVIDER (`// ── Binds a value … ──`) is not a reason —
+            // it says what the group is about, not why THIS Op moves no stake.
+            // Proving this test could fail is what surfaced the difference:
+            // deleting a row's real comment left the divider above it and the
+            // check stayed green.
+            if (!above.startsWith("//") || above.startsWith("// ─")) {
                 unexplained.push(match[1]);
             }
         });
