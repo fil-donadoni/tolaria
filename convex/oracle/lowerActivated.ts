@@ -17,7 +17,7 @@ import type {
     EffectSentenceIR,
     RestrictionIR,
 } from "./grammar/shared/effectClause";
-import { declareTargets, lowerSentence, TargetSlots } from "./lowerEffects";
+import { declareTargets, lowerSentence, SentenceWalk } from "./lowerEffects";
 
 /** Re-exported: `compile.test.ts` reaches for it here, and the >1-target
  *  refusal it guards is stated in this file's contract (one target per
@@ -66,6 +66,8 @@ function applyRestrictions(
 export function lowerActivatedAbility(input: {
     readonly id: string;
     readonly oracleText: string;
+    /** CR 201.5 — the card's printed name, for the prompts a body emits. */
+    readonly cardName: string;
     readonly cost: ActivationCostIR;
     readonly effects: readonly EffectSentenceIR[];
     readonly restrictions: readonly RestrictionIR[];
@@ -73,14 +75,15 @@ export function lowerActivatedAbility(input: {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
 
-    const slots = new TargetSlots();
+    const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const sentence of input.effects) {
         // CR 107.3 — an activated ability announces X in its ACTIVATION cost,
         // which the cost sub-grammar does not yet read as a variable, so no
         // site here can supply a value for it.
-        const result = lowerSentence(sentence, slots, {
+        const result = lowerSentence(sentence, walk, {
             allowX: false,
+            selfName: input.cardName,
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
@@ -95,7 +98,7 @@ export function lowerActivatedAbility(input: {
         useStack: true,
         effects: ops,
     };
-    const targetError = declareTargets(ability, slots.requirements());
+    const targetError = declareTargets(ability, walk.targets.requirements());
     if (targetError !== null) return { ok: false, reason: targetError };
 
     const restrictionError = applyRestrictions(ability, input.restrictions);

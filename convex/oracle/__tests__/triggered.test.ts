@@ -206,16 +206,117 @@ describe("the intervening-if (CR 603.4)", () => {
     });
 });
 
-describe("what the triggered slot refuses", () => {
-    it('refuses "you may" — CR 603 optionality has no Effect Script construct', () => {
-        // `optionChoice`'s modes are validated as NON-EMPTY Op lists, so
-        // "decline and do nothing" is not expressible. A missing Op is
-        // stop-and-open-an-issue, never a guess.
+describe('optionality — "you may <effect>" (CR 603.2)', () => {
+    // Issue #3022. The shape is the one the DSL has expressed since issue
+    // #680: a `mayPay` with its `cost` OMITTED is a bare cost-free decision,
+    // and the `if` on its REQUIRED boolean bind runs the body only on accept.
+    // Declining runs nothing — there is no `else`, no placeholder Op and no
+    // empty mode, which is what the earlier refusal here wrongly claimed the
+    // engine could not express.
+    it("emits the cost-free mayPay + if pair, and nothing else", () => {
+        const triggers = triggersOf(
+            "When this creature enters, you may draw a card."
+        );
+        expect(triggers[0]!.effects).toEqual([
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Draw a card?",
+                bind: "$may1",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$may1" },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+        // Said again as the three properties the shape rests on, because
+        // `toEqual` above would still pass if all three moved together.
+        const [may, branch] = triggers[0]!.effects as [
+            Record<string, unknown>,
+            Record<string, unknown>,
+        ];
+        expect(may.cost).toBeUndefined();
+        expect(branch.else).toBeUndefined();
+        expect(branch.predicate).toEqual({ binding: may.bind });
+    });
+
+    it("announces the inner sentence's target through the SAME walk", () => {
+        // Row 4 of the corpus. The requirement is declared once, and the Op
+        // inside the `if` points at that slot — a second allocator would
+        // emit `{ target: 0 }` against a requirement nothing declared.
+        const triggers = triggersOf(
+            "Whenever this creature attacks, you may tap target creature."
+        );
+        expect(triggers[0]!.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        expect(triggers[0]!.effects).toEqual([
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Tap target creature?",
+                bind: "$may1",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$may1" },
+                then: [
+                    { op: "tapUntap", action: "tap", target: { target: 0 } },
+                ],
+            },
+        ]);
+    });
+
+    it("puts the card's printed name back into the prompt (CR 201.5)", () => {
+        // `normalize.ts` replaced the name with the self marker so the grammar
+        // could bind a REFERENT; a prompt is read by a player, so "{self}" in
+        // it is never valid output (the defect PR #3044's review caught on a
+        // mode's picker label).
+        const triggers = triggersOf(
+            "When this creature enters, you may return {self} to its owner's hand."
+        );
+        const may = triggers[0]!.effects[0] as { prompt: string };
+        expect(may.prompt).toBe("Return Test Card to its owner's hand?");
+    });
+
+    it("names each optional sentence's binding uniquely", () => {
+        // A binding is a SCRIPT-wide identifier: two sentences both called
+        // `$may` would make the second `if` read the first decision.
+        const triggers = triggersOf(
+            "When this creature enters, you may draw a card. You may draw a card."
+        );
+        const binds = triggers[0]!.effects
+            .filter((op) => op.op === "mayPay")
+            .map((op) => (op as { bind: string }).bind);
+        expect(binds).toEqual(["$may1", "$may2"]);
+    });
+
+    it("refuses the WHOLE line when the inner sentence does not parse", () => {
+        // Fail-closed (ADR 0105): the marker is not a licence to emit a
+        // half-lowered ability whose body the grammar never read.
         expect(
-            refusalReason("When this creature enters, you may draw a card.")
+            refusalReason(
+                "When this creature enters, you may draw a card at the beginning of the next turn's upkeep."
+            )
         ).toMatch(/no slot consumed the line/);
     });
 
+    it("refuses a non-effect sentence under the marker", () => {
+        // "you may activate only as a sorcery" is a line we have misread, not
+        // an optional effect — a CR 602.5 restriction has no meaning here at
+        // all, and wrapping one would be an ability with an empty body.
+        const r = triggeredSlot.run(
+            "When this creature enters, you may activate only as a sorcery.",
+            ctx
+        );
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.reason).toMatch(/you may|restriction/);
+    });
+});
+
+describe("what the triggered slot refuses", () => {
     it("refuses an activation restriction on a trigger (CR 602.5)", () => {
         const r = triggeredSlot.run(
             "When this creature enters, activate only as a sorcery.",

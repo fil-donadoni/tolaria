@@ -139,6 +139,29 @@ export type EffectSentenceIR =
           readonly kind: "discard-at-random";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 603.2 — "…, you may <effect>." The controller decides on
+           * resolution and declining does NOTHING.
+           *
+           * A WRAPPER around one sentence rather than a flag on each member:
+           * every effect the grammar already reads becomes optional at once,
+           * the lowering has ONE place to emit the decision, and the inner
+           * sentence is lowered by the SAME walk — so "you may tap target
+           * creature" announces its target through the shared slot allocator
+           * exactly as the non-optional sentence does.
+           */
+          readonly kind: "optional";
+          /**
+           * The inner clause AS PRINTED, which is what the player is asked.
+           * The compiler has no better phrasing to offer a prompt than the
+           * words the card itself uses, and inventing one would be a claim
+           * about the card the Oracle text does not make (the argument
+           * `lowerSpell.ts` makes for a mode's picker label).
+           */
+          readonly clause: string;
+          readonly effect: EffectSentenceIR;
       };
 
 /** CR 602.5 — a clause restricting WHEN the ability may be activated. */
@@ -281,6 +304,56 @@ export function uncapitalise(span: string): string {
  */
 export function capitalise(span: string): string {
     return span.length === 0 ? span : span[0]!.toUpperCase() + span.slice(1);
+}
+
+/** CR 603.2's optional marker, as printed at a trigger's effect clause. */
+const MAY_PREFIX = "you may ";
+
+/**
+ * Wrap a sentence rule so it also reads CR 603.2's "you may <effect>".
+ *
+ * A COMBINATOR over the caller's sentence rule rather than a branch inside
+ * `sentenceRule`, because the marker is printed at trigger casing ("…, you may
+ * draw a card") and each slot capitalises for itself: composing here keeps one
+ * sentence table and lets a slot that has no optional shape stay unable to
+ * read one.
+ *
+ * Fail-closed twice over (ADR 0105). An inner sentence the effect grammar
+ * cannot parse fails the WHOLE span — the marker never licences a half-read
+ * line — and a CR 602.5 restriction or a CR 701.19c modifier under "you may"
+ * is a line we have misread rather than an optional effect, so it fails too.
+ * There is no nesting: the inner rule is the caller's plain sentence, so
+ * "you may you may draw a card" is not a sentence this grammar knows.
+ */
+export function optionalSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(`optional ${inner.label}`, (span, ctx) => {
+        // The marker is a FUNCTION word at the head of its sentence, so it is
+        // read at either casing — lowercase where a trigger's first clause
+        // prints it ("…, you may draw a card"), capitalised where a following
+        // sentence does ("… . You may gain 1 life"). Same probe the subject
+        // rule uses, for the same reason: only the sentence-initial letter
+        // differs, and only for the words this grammar dispatches on.
+        const probe = uncapitalise(span);
+        if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
+        const clause = probe.slice(MAY_PREFIX.length);
+        const parsed = inner.run(clause, ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `"you may" offers an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "optional" as const,
+                clause,
+                effect: parsed.value.effect,
+            },
+        });
+    });
 }
 
 /** A subject that must be a player (CR 102.1) — "you", "target player". */

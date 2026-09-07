@@ -161,6 +161,7 @@ function lowerLine(
             const lowered = lowerActivatedAbility({
                 id,
                 oracleText: parsed.line,
+                cardName: card.name,
                 cost: ir.cost,
                 effects: ir.effects,
                 restrictions: ir.restrictions,
@@ -179,6 +180,7 @@ function lowerLine(
             const lowered = lowerTriggeredAbility({
                 id,
                 oracleText: parsed.line,
+                cardName: card.name,
                 head: ir.head,
                 ...(ir.condition !== undefined
                     ? { condition: ir.condition }
@@ -233,6 +235,7 @@ function lowerLine(
                 // a fact about the cost rather than about the sentence
                 // (`lowerEffects.ts` — `SiteOptions`).
                 allowX: hasVariableX(card.manaCost),
+                selfName: card.name,
             });
             if (!body.ok) return body.reason;
             acc.spellEffects = body.value.effects;
@@ -248,7 +251,7 @@ function lowerLine(
             const modes = lowerSpellModes(
                 ir.modes,
                 { slug: slugify(card.name), name: card.name },
-                { allowX: hasVariableX(card.manaCost) }
+                { allowX: hasVariableX(card.manaCost), selfName: card.name }
             );
             if (!modes.ok) return modes.reason;
             acc.spellModes = modes.value;

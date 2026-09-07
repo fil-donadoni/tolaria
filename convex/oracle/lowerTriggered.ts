@@ -25,7 +25,7 @@ import type { EffectOp, TargetRequirement } from "../cards/types";
 import type { ConditionIR } from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
-import { declareTargets, lowerSentence, TargetSlots } from "./lowerEffects";
+import { declareTargets, lowerSentence, SentenceWalk } from "./lowerEffects";
 
 export type LowerTriggerResult =
     | { readonly ok: true; readonly ability: CompiledTriggeredAbility }
@@ -73,17 +73,20 @@ function lowerCondition(condition: ConditionIR): CompiledTriggerCondition {
 export function lowerTriggeredAbility(input: {
     readonly id: string;
     readonly oracleText: string;
+    /** CR 201.5 — the card's printed name, for the prompts a body emits. */
+    readonly cardName: string;
     readonly head: TriggerHeadIR;
     readonly condition?: ConditionIR;
     readonly effects: readonly EffectSentenceIR[];
 }): LowerTriggerResult {
-    const slots = new TargetSlots();
+    const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const sentence of input.effects) {
         // CR 107.3 — a triggered ability has no cost and announces nothing,
         // so an X in its body has no value to read.
-        const result = lowerSentence(sentence, slots, {
+        const result = lowerSentence(sentence, walk, {
             allowX: false,
+            selfName: input.cardName,
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
@@ -93,7 +96,7 @@ export function lowerTriggeredAbility(input: {
     // the stack. `declareTargets` writes at most one and REFUSES more, which
     // is the same ceiling and the same refusal the activated site pays.
     const declared: { targetRequirement?: TargetRequirement } = {};
-    const targetError = declareTargets(declared, slots.requirements());
+    const targetError = declareTargets(declared, walk.targets.requirements());
     if (targetError !== null) return { ok: false, reason: targetError };
 
     return {

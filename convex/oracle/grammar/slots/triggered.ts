@@ -26,18 +26,23 @@
  * handed to the shared sentence rule — the mirror of `uncapitalise`, which the
  * subject rule already applies in the other direction.
  *
- * ── What v1 refuses, and why that is the point ─────────────────────────────
+ * ── Optionality (CR 603.2) ─────────────────────────────────────────────────
  *
- * "…, you may draw a card." is REFUSED. CR 603 optionality needs a resolution
- * body that can decline, and the frozen Effect Script grammar has no such
- * construct: `optionChoice`'s modes are validated as NON-EMPTY Op lists
- * (`gre/effects/validate.ts`), so "do nothing" is not expressible, and padding
- * a decline mode with a placeholder Op is the workaround that file's own
- * comment names as a workaround. A missing Op is not a licence to guess
- * (`.claude/rules/gre-development.md` § DSL-first authoring) — it is
- * stop-and-open-an-issue, so the 2,254 "you may" trigger cards stay `unparsed`
- * with the exact fragment recorded, which is what ranks the Op — tracked-by:
- * issue #3022.
+ * "…, you may draw a card." is READ, onto the idiom the DSL has expressed since
+ * issue #680: a `mayPay` Op with its `cost` OMITTED is a bare cost-free "you
+ * may" decision whose REQUIRED boolean `bind` a following `if` reads, so
+ * declining runs nothing at all — no placeholder Op, no empty mode, no new
+ * structural construct (issue #3022). An earlier revision of this comment
+ * claimed the opposite, naming `optionChoice`'s non-empty-mode validation as an
+ * ENGINE gap; the capability was already shipped and in use at ~79 `mayPay`
+ * sites under `convex/cards/sets/**`, one of them at a trigger site (Fasting,
+ * DRK). The marker itself lives in the SHARED sentence grammar
+ * (`optionalSentenceRule`), so the lowering walk that allocates target slots is
+ * the same one either way.
+ *
+ * What stays refused is everything the sentence grammar could not read anyway:
+ * a "you may" whose inner sentence does not parse fails the WHOLE line, exactly
+ * as it did before the marker existed (ADR 0105).
  */
 
 import {
@@ -54,6 +59,7 @@ import { conditionRule, type ConditionIR } from "../shared/condition";
 import {
     assembleSentences,
     capitalise,
+    optionalSentenceRule,
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
@@ -63,10 +69,19 @@ import type { SlotIR } from "../ir";
 export const TRIGGERED_SLOT = "triggered";
 
 /** One tail sentence: the shared effect sentence, read at trigger casing. */
-const triggerSentence: Rule<SentenceIR> = rule(
+const plainSentence: Rule<SentenceIR> = rule(
     "trigger effect sentence",
     (span, ctx) => sentenceRule.run(capitalise(span), ctx)
 );
+
+/**
+ * The same sentence, with CR 603.2's optional marker in front of it.
+ *
+ * Wrapped OUTSIDE the casing rule, because the marker is printed lowercase at
+ * this site and the sentence behind it is capitalised by the rule it wraps —
+ * one table, read through one rule, at both casings.
+ */
+const triggerSentence: Rule<SentenceIR> = optionalSentenceRule(plainSentence);
 
 interface TailIR {
     readonly condition?: ConditionIR;

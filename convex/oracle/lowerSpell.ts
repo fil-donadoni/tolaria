@@ -35,7 +35,7 @@ import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import {
     declareTargets,
     lowerSentence,
-    TargetSlots,
+    SentenceWalk,
     type SiteOptions,
 } from "./lowerEffects";
 
@@ -54,23 +54,23 @@ export interface LoweredSpellBody {
  *
  * A spell and a MODE of a spell are the same site in every respect that
  * matters here (CR 700.2c — only the chosen mode's targets are announced), so
- * both go through this one walk and each gets its own `TargetSlots`: a mode's
+ * both go through this one walk and each gets its own `SentenceWalk`: a mode's
  * `{ target: 0 }` indexes that MODE's requirement, never a sibling's.
  */
 function lowerBody(
     effects: readonly EffectSentenceIR[],
     site: SiteOptions
 ): LowerSpellResult<LoweredSpellBody> {
-    const slots = new TargetSlots();
+    const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const sentence of effects) {
-        const lowered = lowerSentence(sentence, slots, site);
+        const lowered = lowerSentence(sentence, walk, site);
         if (!lowered.ok) return { ok: false, reason: lowered.reason };
         ops.push(...lowered.value);
     }
     const body: { effects: EffectOp[]; targetRequirement?: TargetRequirement } =
         { effects: ops };
-    const error = declareTargets(body, slots.requirements());
+    const error = declareTargets(body, walk.targets.requirements());
     if (error !== null) return { ok: false, reason: error };
     return { ok: true, value: body };
 }
