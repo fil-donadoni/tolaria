@@ -1,7 +1,16 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createServer } from "node:net";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import type { DashboardBuild } from "../lib/dashboard-build";
 import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
 
 /**
@@ -160,16 +169,50 @@ describe("telemetry-serve — handleRequest routes (#2623)", () => {
  */
 const REPO_DASHBOARD_DIR = join(import.meta.dirname, "..", "dashboard");
 
-describe("telemetry-serve — dashboard asset allow-list (#2625)", () => {
-    it("serves an allow-listed asset, and asks the filesystem for the LIST's path — never for the request's text", async () => {
+/** The React app (ADR 0117) — `dashboard/` at the repo root, one level above
+ *  `scripts/`. S1-S3 grow it; S4 deletes `REPO_DASHBOARD_DIR`. */
+const REPO_REACT_DIR = join(import.meta.dirname, "..", "..", "dashboard");
+
+/**
+ * A build, as `readDashboardBuild` would return one — hashed names and all.
+ *
+ * Injected rather than produced: the `node` vitest project cannot run a Vite
+ * build (and would not want to pay for one), and the property under test is
+ * the LOOKUP, which is independent of who wrote the manifest. `BUILD_DIR` is
+ * a path that exists nowhere and every read seam is injected below, so no
+ * assertion in this describe depends on a file existing. (`handleRequest`
+ * still probes the real output directory ONCE per process for its default
+ * `dashboardBuild`; every case here overrides it, so that probe never
+ * decides an outcome.)
+ */
+const BUILD_DIR = join("/nonexistent", "dashboard", "dist");
+const builtAssets = ["index-BfYWQ-gq.css", "index-iaOdGxez.js"];
+const fakeBuild = (): DashboardBuild => ({
+    assets: new Map(
+        builtAssets.map((name) => [
+            name,
+            {
+                path: join(BUILD_DIR, name),
+                type: name.endsWith(".css")
+                    ? "text/css; charset=utf-8"
+                    : "text/javascript; charset=utf-8",
+            },
+        ])
+    ),
+    htmlPath: join(BUILD_DIR, "index.html"),
+});
+
+describe("telemetry-serve — dashboard asset serving (ADR 0117)", () => {
+    it("serves a built asset, and asks the filesystem for the MANIFEST's path — never for the request's text", async () => {
         const { handleRequest } = await import("../telemetry-serve");
         const asked: string[] = [];
         const res = await handleRequest(
-            new Request("http://127.0.0.1/assets/main.js"),
+            new Request("http://127.0.0.1/assets/index-iaOdGxez.js"),
             {
-                readAsset: async (p) => {
+                dashboardBuild: fakeBuild(),
+                readAssetBytes: async (p) => {
                     asked.push(p);
-                    return "// served";
+                    return new TextEncoder().encode("// served");
                 },
             }
         );
@@ -178,56 +221,70 @@ describe("telemetry-serve — dashboard asset allow-list (#2625)", () => {
             "text/javascript; charset=utf-8"
         );
         await expect(res.text()).resolves.toBe("// served");
-        expect(asked).toHaveLength(1);
-        expect(asked[0].endsWith(join("scripts", "dashboard", "main.js"))).toBe(
-            true
-        );
+        expect(asked).toEqual([join(BUILD_DIR, "index-iaOdGxez.js")]);
     });
 
     it("serves the stylesheet as CSS", async () => {
         const { handleRequest } = await import("../telemetry-serve");
         const res = await handleRequest(
-            new Request("http://127.0.0.1/assets/dashboard.css"),
-            { readAsset: async () => "body{}" }
+            new Request("http://127.0.0.1/assets/index-BfYWQ-gq.css"),
+            {
+                dashboardBuild: fakeBuild(),
+                readAssetBytes: async () => new TextEncoder().encode("body{}"),
+            }
         );
         expect(res.status).toBe(200);
         expect(res.headers.get("content-type")).toBe("text/css; charset=utf-8");
     });
 
     /**
-     * PROOF-OF-FAILURE (recorded in the PR): replacing the `Map.get`
-     * allow-list lookup in `handleRequest` with the naive
-     * `readAsset(join(DASHBOARD_DIR, name))` reds every case below — the
-     * traversals resolve and return file contents instead of 404, and
-     * `evil.js` reaches the filesystem. Reverted after watching it fail.
+     * PROOF-OF-FAILURE (recorded in the PR): replacing the `Map.get` lookup in
+     * `handleRequest` with the naive `readAsset(join(BUILD_DIR, name))` reds
+     * every case below — the traversals resolve and return file contents
+     * instead of 404, and `evil.js` reaches the filesystem. Reverted after
+     * watching it fail.
      *
-     * Each row is a DIFFERENT way of spelling "not on the list", because the
-     * failure mode of a sanitiser is that it handles the spelling its author
-     * thought of. An allow-list has no spellings to handle: the request text
-     * is a Map key, so every one of these is simply absent.
+     * The names changed with the bundler (ADR 0117); the PROPERTY did not.
+     * Each row is a DIFFERENT way of spelling "not a name the build wrote",
+     * because the failure mode of a sanitiser is that it handles the spelling
+     * its author thought of. An exact-match lookup has no spellings to handle:
+     * the request text is a Map key, so every one of these is simply absent.
      */
     it.each([
-        ["a name that is not on the list", "/assets/evil.js"],
+        ["a name that is not in the manifest", "/assets/evil.js"],
+        ["the pre-build name of a real module", "/assets/main.js"],
         ["a plain traversal", "/assets/../telemetry-serve.ts"],
         ["a deep traversal", "/assets/../../package.json"],
         ["a percent-encoded traversal", "/assets/%2e%2e%2ftelemetry-serve.ts"],
         ["a double-encoded traversal", "/assets/%252e%252e%252fpackage.json"],
         ["a backslash traversal", "/assets/..\\telemetry-serve.ts"],
         ["an absolute path", "/assets//etc/passwd"],
-        ["a nested path under a listed name", "/assets/main.js/../../.env"],
+        [
+            "a nested path under a built name",
+            "/assets/index-iaOdGxez.js/../../.env",
+        ],
         ["a prototype key", "/assets/__proto__"],
         ["a constructor key", "/assets/constructor"],
         ["the empty name", "/assets/"],
-        ["a listed name with a query-ish suffix", "/assets/main.js%00.txt"],
+        ["the built document itself", "/assets/index.html"],
+        [
+            "a built name with a null-byte suffix",
+            "/assets/index-iaOdGxez.js%00.txt",
+        ],
     ])("refuses %s", async (_label, pathname) => {
         const { handleRequest } = await import("../telemetry-serve");
         let reads = 0;
         const res = await handleRequest(
             new Request(`http://127.0.0.1${pathname}`),
             {
+                dashboardBuild: fakeBuild(),
                 readAsset: async () => {
                     reads += 1;
                     return "LEAKED";
+                },
+                readAssetBytes: async () => {
+                    reads += 1;
+                    return new TextEncoder().encode("LEAKED");
                 },
             }
         );
@@ -237,39 +294,169 @@ describe("telemetry-serve — dashboard asset allow-list (#2625)", () => {
         expect(reads).toBe(0);
     });
 
-    it("the allow-list and scripts/dashboard/ are the same set — a module that lands without an entry would 404", async () => {
-        const { DASHBOARD_ASSET_NAMES } = await import("../telemetry-serve");
-        const onDisk = readdirSync(REPO_DASHBOARD_DIR).sort();
-        expect([...DASHBOARD_ASSET_NAMES].sort()).toEqual(onDisk);
-    });
-
-    it("every relative import in every dashboard module resolves to an allow-listed file", async () => {
-        const { DASHBOARD_ASSET_NAMES } = await import("../telemetry-serve");
-        const allowed = new Set<string>(DASHBOARD_ASSET_NAMES);
-        for (const name of readdirSync(REPO_DASHBOARD_DIR)) {
-            if (!name.endsWith(".js")) continue;
-            const src = readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8");
-            for (const m of src.matchAll(/["']\.\/([^"']+)["']/g)) {
-                expect(
-                    allowed.has(m[1]),
-                    `${name} imports ./${m[1]}, which is not served`
-                ).toBe(true);
+    it("serves a built asset as BYTES — a font or an icon is not UTF-8 text", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        // Four bytes that are not valid UTF-8. Decoded and re-encoded they
+        // come back as U+FFFD replacement characters, so this asserts the
+        // route never took that path — the failure mode is a font that loads
+        // as garbage under a perfectly correct Content-Type.
+        const bytes = new Uint8Array([0x00, 0x80, 0xfe, 0xff]);
+        const build = fakeBuild();
+        const assets = new Map(build.assets);
+        assets.set("logo-abc123.woff2", {
+            path: join(BUILD_DIR, "logo-abc123.woff2"),
+            type: "font/woff2",
+        });
+        const res = await handleRequest(
+            new Request("http://127.0.0.1/assets/logo-abc123.woff2"),
+            {
+                dashboardBuild: { ...build, assets },
+                readAssetBytes: async () => bytes,
             }
-        }
+        );
+        expect(res.headers.get("content-type")).toBe("font/woff2");
+        const served = new Uint8Array(await res.arrayBuffer());
+        expect([...served]).toEqual([...bytes]);
     });
 
-    it("the shell loads the entry module and the stylesheet through /assets/", () => {
-        const shell = readFileSync(
-            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
-            "utf8"
+    it.each(["/", "/index.html", "/assets/index-iaOdGxez.js"])(
+        "%s 503s with the build command when there is no build — never a blank page",
+        async (pathname) => {
+            const { handleRequest } = await import("../telemetry-serve");
+            let reads = 0;
+            const res = await handleRequest(
+                new Request(`http://127.0.0.1${pathname}`),
+                {
+                    dashboardBuild: null,
+                    readAsset: async () => {
+                        reads += 1;
+                        return "LEAKED";
+                    },
+                    readAssetBytes: async () => {
+                        reads += 1;
+                        return new TextEncoder().encode("LEAKED");
+                    },
+                }
+            );
+            expect(res.status).toBe(503);
+            await expect(res.text()).resolves.toContain(
+                "bun run telemetry:dash:build"
+            );
+            expect(reads).toBe(0);
+        }
+    );
+
+    it("a missing build takes no route with it — /api/loop-status still answers", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        const res = await handleRequest(
+            new Request("http://127.0.0.1/api/loop-status"),
+            { dashboardBuild: null, getLoopStatus: async () => ({ ok: true }) }
         );
-        expect(shell).toContain('href="/assets/dashboard.css"');
-        expect(shell).toContain(
-            '<script type="module" src="/assets/main.js"></script>'
-        );
-        // The shell is a shell: no inline behaviour or styling survived.
+        expect(res.status).toBe(200);
+        await expect(res.json()).resolves.toEqual({ ok: true });
+    });
+
+    it("the Vite entry is a shell: one #root, one module script, no inline behaviour or styling", () => {
+        const shell = readFileSync(join(REPO_REACT_DIR, "index.html"), "utf8");
+        expect(shell).toContain('<div id="root"></div>');
+        expect(shell).toContain('<script type="module" src="/main.tsx">');
         expect(shell).not.toContain("<style");
         expect(shell).not.toMatch(/<script(?![^>]*\bsrc=)/);
+        // The hashed asset tags are the BUILD's job, so the source document
+        // must name none of them — a hand-written `/assets/…` here would be a
+        // path that rots on the next content change.
+        expect(shell).not.toContain("/assets/");
+    });
+});
+
+/**
+ * `readDashboardBuild` — the map's construction (ADR 0117).
+ *
+ * The route tests above inject a build; these are what say the real reader
+ * produces one with the same shape, from bytes a Vite build actually writes.
+ */
+describe("readDashboardBuild — the manifest IS the allow-list (ADR 0117)", () => {
+    const dirs: string[] = [];
+    const outDir = (manifest: unknown, html = true): string => {
+        const dir = mkdtempSync(join(tmpdir(), "dashboard-build-"));
+        dirs.push(dir);
+        if (manifest !== undefined) {
+            mkdirSync(join(dir, ".vite"), { recursive: true });
+            writeFileSync(
+                join(dir, ".vite", "manifest.json"),
+                typeof manifest === "string"
+                    ? manifest
+                    : JSON.stringify(manifest)
+            );
+        }
+        if (html) writeFileSync(join(dir, "index.html"), "<html></html>");
+        return dir;
+    };
+    afterAll(() => {
+        for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+    });
+
+    /** The real shape Vite 8 writes for this app, trimmed to the keys the
+     *  reader looks at — captured from an actual `telemetry:dash:build`. */
+    const REAL_MANIFEST = {
+        "../scripts/dashboard/main.js": { file: "main-CZP9F4c_.js" },
+        "_tooltip-Bm5uVsJF.js": { file: "tooltip-Bm5uVsJF.js" },
+        "index.html": {
+            file: "index-iaOdGxez.js",
+            css: ["index-BfYWQ-gq.css"],
+            isEntry: true,
+        },
+    };
+
+    it("names every file the manifest names — entry chunk, split chunks and css alike", async () => {
+        const { readDashboardBuild } = await import("../lib/dashboard-build");
+        const dir = outDir(REAL_MANIFEST);
+        const build = readDashboardBuild(dir)!;
+        expect([...build.assets.keys()].sort()).toEqual([
+            "index-BfYWQ-gq.css",
+            "index-iaOdGxez.js",
+            "main-CZP9F4c_.js",
+            "tooltip-Bm5uVsJF.js",
+        ]);
+        // Every path is built HERE, from the manifest's name.
+        expect(build.assets.get("index-iaOdGxez.js")!.path).toBe(
+            join(dir, "index-iaOdGxez.js")
+        );
+        expect(build.assets.get("index-BfYWQ-gq.css")!.type).toBe(
+            "text/css; charset=utf-8"
+        );
+        expect(build.htmlPath).toBe(join(dir, "index.html"));
+    });
+
+    it("keeps the document out of the asset map — /assets/index.html can never hand out an un-tokenised shell", async () => {
+        const { readDashboardBuild } = await import("../lib/dashboard-build");
+        const build = readDashboardBuild(
+            outDir({ "index.html": { file: "index.html", isEntry: true } })
+        )!;
+        expect(build.assets.has("index.html")).toBe(false);
+    });
+
+    it.each([
+        ["a traversal", "../../.env"],
+        ["a nested traversal", "chunks/../../.env"],
+        ["an absolute path", "/etc/passwd"],
+    ])(
+        "refuses a manifest name that leaves the output directory (%s)",
+        async (_label, name) => {
+            const { readDashboardBuild } =
+                await import("../lib/dashboard-build");
+            const build = readDashboardBuild(outDir({ a: { file: name } }))!;
+            expect([...build.assets.keys()]).toEqual([]);
+        }
+    );
+
+    it.each([
+        ["no manifest at all", undefined, true],
+        ["a corrupt manifest", "{not json", true],
+        ["a manifest but no document", {}, false],
+    ])("reads a missing build as null (%s)", async (_label, manifest, html) => {
+        const { readDashboardBuild } = await import("../lib/dashboard-build");
+        expect(readDashboardBuild(outDir(manifest, html))).toBeNull();
     });
 });
 
@@ -479,6 +666,110 @@ async function postAction(
     });
     return { res, calls: rec.calls, text: await res.text() };
 }
+
+/**
+ * The SAME boundary, one layer up — over the React import graph (ADR 0117).
+ *
+ * PRD #3148 S0 moved the build, not the components, so the crawl above still
+ * walks the real behaviour and is untouched. But the entry the browser now
+ * loads is `dashboard/main.tsx`, and every slice from S1 on moves code INTO
+ * that graph. A guard that only ever looked at `scripts/dashboard/` would go
+ * quietly vacuous exactly as the port progressed: by S4 it would crawl an
+ * empty directory and pass forever.
+ *
+ * So the same property — "Now reads no database route" (PRD #2621 D1, #2519)
+ * — is asserted over the React graph too. A React import graph is still a
+ * STATIC import graph; only the file extensions changed.
+ */
+const REACT_ENTRY = "main.tsx";
+
+/** Every relative static edge, in TS/TSX as in JS. Same two keywords as
+ *  `STATIC_IMPORT_RE` and for the same reason (a re-export evaluates its
+ *  target too), widened to `../` because `main.tsx` legitimately reaches out
+ *  of `dashboard/` for the legacy stylesheet. */
+const REACT_IMPORT_RE = /(?:import|export)\s[^;]*["'](\.\.?\/[^"']+)["']/g;
+
+const CANDIDATE_EXTENSIONS = ["", ".ts", ".tsx", ".js"];
+
+/** Resolve a relative specifier the way the bundler does, and return the file
+ *  it names — or `null` for one that is not a module (the stylesheet). */
+const resolveReactEdge = (fromDir: string, spec: string): string | null => {
+    for (const ext of CANDIDATE_EXTENSIONS) {
+        const candidate = join(fromDir, spec + ext);
+        if (!existsSync(candidate)) continue;
+        return /\.(ts|tsx|js)$/.test(candidate) ? candidate : null;
+    }
+    return null;
+};
+
+/** Everything reachable from `dashboard/main.tsx` over STATIC edges. */
+const reactNowClosure = (): string[] => {
+    const seen = new Set<string>();
+    const queue = [join(REPO_REACT_DIR, REACT_ENTRY)];
+    while (queue.length > 0) {
+        const file = queue.shift()!;
+        if (seen.has(file)) continue;
+        seen.add(file);
+        const src = stripComments(readFileSync(file, "utf8"));
+        for (const m of src.matchAll(REACT_IMPORT_RE)) {
+            const next = resolveReactEdge(dirname(file), m[1]);
+            if (next) queue.push(next);
+        }
+    }
+    return [...seen];
+};
+
+describe("telemetry dashboard — Now/History data boundary over the React graph (ADR 0117)", () => {
+    const REACT_NOW = reactNowClosure();
+
+    it("the crawl really followed an edge — main.tsx alone would pass everything below vacuously", () => {
+        expect(REACT_NOW).toContain(join(REPO_REACT_DIR, "main.tsx"));
+        expect(REACT_NOW).toContain(join(REPO_REACT_DIR, "App.tsx"));
+    });
+
+    it("nothing statically reachable from the React entry names a database route", () => {
+        // The same five as the vanilla crawl: `/api/loop-status` and
+        // `/api/action` read no store (#2519/#2636), and the three transcript
+        // routes read session files, not `telemetry.db` (issue #3135).
+        const ALLOWED = new Set([
+            "/api/loop-status",
+            "/api/action",
+            "/api/activity",
+            "/api/live",
+            "/api/tail",
+        ]);
+        for (const file of REACT_NOW) {
+            const src = stripComments(readFileSync(file, "utf8"));
+            for (const m of src.matchAll(/\/api\/[a-z-]+/g)) {
+                expect(ALLOWED.has(m[0]), `${file} reaches ${m[0]}`).toBe(true);
+            }
+        }
+    });
+
+    it("no History module is statically reachable from the React entry", () => {
+        expect(
+            REACT_NOW.filter((f) => f.includes("history-")),
+            "reachable from dashboard/main.tsx without a dynamic import"
+        ).toEqual([]);
+    });
+
+    it("the legacy entry is reached by a DYNAMIC import, after the render has been flushed", () => {
+        const entry = stripComments(
+            readFileSync(join(REPO_REACT_DIR, REACT_ENTRY), "utf8")
+        );
+        // A static import would evaluate `scripts/dashboard/main.js` before
+        // this module's first line, so every `getElementById` in it would see
+        // an empty document — AND it would drag the whole vanilla graph,
+        // History's dynamic edge included, into the guards above.
+        expect(REACT_NOW).not.toContain(join(REPO_DASHBOARD_DIR, "main.js"));
+        const flushAt = entry.indexOf("flushSync(");
+        const handoverAt = entry.indexOf(
+            'await import("../scripts/dashboard/main.js")'
+        );
+        expect(flushAt).toBeGreaterThan(-1);
+        expect(handoverAt).toBeGreaterThan(flushAt);
+    });
+});
 
 describe("telemetry-serve — action endpoint dispatch (#2628)", () => {
     it("driver.stop runs the stop operation and nothing else", async () => {
@@ -704,11 +995,14 @@ describe("telemetry-serve — action endpoint guards (#2628)", () => {
 describe("telemetry-serve — action token lifecycle (#2628)", () => {
     it("the boot token is injected into the served page, once, inside <head>", async () => {
         const { handleRequest } = await import("../telemetry-serve");
-        const shell = readFileSync(
-            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
-            "utf8"
-        );
+        // The SOURCE document. What the server actually reads is the
+        // build's `index.html`, which Vite derives from this one by adding
+        // the hashed asset tags — an operation that cannot change the
+        // property under test (the head's closing tag, asserted singular
+        // below and therefore the same one both injections find).
+        const shell = readFileSync(join(REPO_REACT_DIR, "index.html"), "utf8");
         const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            dashboardBuild: fakeBuild(),
             readAsset: async () => shell,
             actionToken: ACTION_TOKEN,
         });
@@ -724,17 +1018,22 @@ describe("telemetry-serve — action token lifecycle (#2628)", () => {
         );
     });
 
-    it("the shipped shell carries exactly one </head>, so the injection can never silently no-op", () => {
-        const shell = readFileSync(
-            join(import.meta.dirname, "..", "telemetry-dashboard.html"),
-            "utf8"
-        );
+    it("the shipped shell carries exactly one </head>, so the injection can never silently no-op — and so Vite's own injection lands in the same place", () => {
+        // TWO injections now target this string (ADR 0117): Vite's, which
+        // puts the hashed asset tags in at BUILD time, and
+        // `injectActionToken`'s, at request time. Both take the FIRST match.
+        // A second occurrence — a prose mention of the tag inside the
+        // document's own comment, which is exactly how this shipped broken
+        // once — silently puts the script tags inside that comment and
+        // serves a blank page. One occurrence is what makes both correct.
+        const shell = readFileSync(join(REPO_REACT_DIR, "index.html"), "utf8");
         expect(shell.match(/<\/head>/g) ?? []).toHaveLength(1);
     });
 
     it("the token is escaped on the way into the page — a token can never break out of the attribute", async () => {
         const { handleRequest } = await import("../telemetry-serve");
         const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            dashboardBuild: fakeBuild(),
             readAsset: async () => "<html><head></head><body></body></html>",
             actionToken: `"><script>alert(1)</script>`,
         });
@@ -1005,6 +1304,7 @@ describe("telemetry-serve — the token injection is literal (#2628)", () => {
         // expand them against the surrounding document.
         const token = "a$&b$`c$'d$1e";
         const res = await handleRequest(new Request(`${ACTION_ORIGIN}/`), {
+            dashboardBuild: fakeBuild(),
             readAsset: async () =>
                 "<html><head><title>BEFORE</title></head><body>AFTER</body></html>",
             actionToken: token,

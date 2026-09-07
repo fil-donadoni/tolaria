@@ -67,6 +67,7 @@
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
         "telemetry:context": "bun scripts/telemetry-context.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
+        "telemetry:dash:build": "vite build --config vite.dashboard.config.ts",
         "telemetry:ingest": "bun scripts/telemetry-ingest.ts",
         "telemetry:budget": "bun scripts/telemetry-budget.ts",
         "telemetry:latency": "bun scripts/telemetry-latency.ts",

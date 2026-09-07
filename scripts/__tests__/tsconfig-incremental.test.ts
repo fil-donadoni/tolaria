@@ -113,10 +113,11 @@ const leafRelPaths = (rootConfig.references ?? []).map((r) => {
 });
 
 describe("root tsconfig references (sanity — pins the leaf-config list this guard walks)", () => {
-    it("has at least the four known leaf projects", () => {
+    it("has at least the five known leaf projects", () => {
         expect(leafRelPaths.sort()).toEqual(
             [
                 "tsconfig.app.json",
+                "tsconfig.dashboard.json",
                 "tsconfig.node.json",
                 "tsconfig.scripts.json",
                 "convex/tsconfig.json",

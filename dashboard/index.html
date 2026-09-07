@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Tolaria telemetry</title>
+        <!--
+            The dashboard is a BUILT React app (ADR 0117). This document is the
+            Vite entry: everything else — the shell markup, the stylesheet and
+            the behaviour — arrives through `main.tsx`, and the served page is
+            the BUILD's `index.html`, whose asset URLs carry content hashes and
+            are resolved through the build manifest by `telemetry-serve.ts`.
+
+            `telemetry-serve.ts` injects the per-boot action token (#2628) at
+            the head's closing tag on the way out, so this document must carry
+            exactly ONE of those — and so must this comment avoid spelling it,
+            since Vite injects the built asset tags at the first one it finds.
+            `scripts/__tests__/telemetry-serve.test.ts` pins the count.
+        -->
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/main.tsx"></script>
+    </body>
+</html>
