@@ -3,11 +3,13 @@
  *
  * Today the same card can exist twice — a hand-written module under
  * `convex/cards/sets/**` and a compiled `ready` row in the Oracle lockfile —
- * and the collision is resolved TWICE AT RUNTIME: `scripts/oracle-pool.ts`
- * drops the compiled twin at generation, `convex/cards/catalogue.ts` drops it
- * again at hydration as a backstop (ADR 0108 §4). ADR 0114 §2 replaces both
- * with one artifact merged here, so the runtime resolves nothing because
- * nothing is left to resolve.
+ * and the collision used to be resolved TWICE AT RUNTIME: the retired
+ * `scripts/oracle-pool.ts` dropped the compiled twin at generation,
+ * `convex/cards/catalogue.ts` drops it again at hydration as a backstop
+ * (ADR 0108 §4). ADR 0114 §2 replaces both with one artifact merged here, so
+ * the runtime resolves nothing because nothing is left to resolve — and since
+ * issue #3055 this merge renders BOTH sides of ADR 0113 §2's asymmetry, so
+ * there is no second join left to disagree with.
  *
  * ── The three populations ──────────────────────────────────────────────────
  *
@@ -219,8 +221,21 @@ export interface CompiledCard {
 }
 
 export interface MergeResult {
-    /** The artifact's rows, sorted by `id`. */
+    /** The artifact's rows, sorted by `id` — the CLIENT rendering. */
     readonly rows: readonly CardDefinition[];
+    /**
+     * The SERVER rendering: the compiled-only subset of {@link rows}, sorted
+     * by `id`, and the exact same objects — `rows.filter(...)`, never a second
+     * derivation (issue #3055).
+     *
+     * This is what `data/oracle-compiled-pool.json` holds and what
+     * `convex/cards/compiledPool.ts` bundles into every Convex mutation. The
+     * relocated hand-written rows are absent because the server already has
+     * them as modules; the client's copy of the artifact carries them and
+     * `excludeHandWritten` drops them at hydration, so both sides register the
+     * SAME population from the SAME bytes.
+     */
+    readonly serverRows: readonly CardDefinition[];
     readonly relocated: number;
     readonly compiledOnly: number;
     readonly twins: number;
@@ -282,15 +297,24 @@ export function mergeCatalogue(
     }
 
     let compiledOnly = 0;
+    const compiledOnlyIds = new Set<string>();
     for (const row of compiled) {
         if (handWrittenOracleIds.has(row.oracleId)) continue;
         rows.push(row.definition);
+        compiledOnlyIds.add(row.definition.id);
         compiledOnly++;
     }
 
     rows.sort((a, b) => a.id.localeCompare(b.id));
+    // Filtered out of the SORTED merged list rather than collected in the loop
+    // above: the server rendering must be the same objects in the same order
+    // as the client's, and a second sort of a second array is a second chance
+    // to disagree. `compiledOnlyIds` is a set of print ids, which are unique
+    // across the merge (asserted in `catalogue-artifact.test.ts`).
+    const serverRows = rows.filter((r) => compiledOnlyIds.has(r.id));
     return {
         rows,
+        serverRows,
         relocated,
         compiledOnly,
         twins,
@@ -307,4 +331,131 @@ export function mergeCatalogue(
  *  (ADR 0105), and ~60% of that file's bytes are prettier whitespace. */
 export function serializeCatalogue(rows: readonly CardDefinition[]): string {
     return JSON.stringify(rows) + "\n";
+}
+
+/**
+ * The SERVER rendering's bytes: `data/oracle-compiled-pool.json`.
+ *
+ * Four-space, not minified, and a BARE ARRAY with no header — both deliberate
+ * and both load-bearing. The indentation is the shape the retired
+ * `scripts/oracle-pool.ts` wrote before this generator absorbed it (issue
+ * #3055), kept so the change
+ * that made the two renderings one source moved no committed byte; the bare
+ * array is the merge-conflict immunity `scripts/lib/generated-artifacts.ts`
+ * records and `scripts/__tests__/generated-artifact-merge.test.ts` pins — a
+ * header field holding a hash or a tally is whole-file state, and two branches
+ * that both regenerate would then collide on a line neither of them touched.
+ *
+ * So the source hash is NOT in here. It rides in
+ * {@link SOURCE_HASH_FILE} beside the artifact, which the server bundles
+ * through `convex/cards/compiledCatalogue.ts`.
+ */
+export function serializePool(rows: readonly CardDefinition[]): string {
+    return JSON.stringify(rows, null, 4) + "\n";
+}
+
+/** The server's copy of the source hash — one generated file, so the hash is
+ *  never a literal a human can edit out of agreement with the bytes. Sits
+ *  inside {@link CATALOGUE_DIR}, which the client's `catalogue-*.json` glob
+ *  does not match. */
+export const SOURCE_HASH_FILE = "source-hash.json";
+
+export const serializeSourceHash = (hash: string): string =>
+    JSON.stringify({ hash }, null, 4) + "\n";
+
+/**
+ * A byte-level disagreement between the two renderings of ONE shared
+ * definition — the drift ADR 0113 §2 names as the price of the asymmetry
+ * ("the server module and the client asset could disagree").
+ *
+ * It does not crash. The server resolves a spell one way and the client's
+ * Brain plans against another: a wrong move, or a UI showing something the
+ * server never applied. So it is reported with the CARD on it, not as a
+ * boolean.
+ */
+export interface IdentityDrift {
+    /** `count` — one side has rows the other does not; `id` — the two
+     *  populations diverge in membership or order; `bytes` — the same card,
+     *  two different definitions. `bytes` is the dangerous one. */
+    readonly kind: "count" | "id" | "bytes";
+    /** Row index, in the shared `id` order. */
+    readonly at: number;
+    readonly card: string;
+    readonly server: string;
+    readonly client: string;
+}
+
+/**
+ * The FIRST place the server-bundled definitions and the client artifact
+ * disagree, or `null` when every shared definition is byte-identical.
+ *
+ * Byte comparison and not `toEqual`: two objects can deep-equal while
+ * serializing differently (key order), and it is the SERIALIZED form the
+ * client receives over the wire — so the bytes are what has to agree, not an
+ * equality the wire never sees.
+ *
+ * First, not all: a drift is a stale regeneration, which moves hundreds of
+ * rows at once. The first card is the diagnosis; the rest is the same
+ * sentence repeated.
+ */
+export function firstIdentityDrift(
+    server: readonly CardDefinition[],
+    client: readonly CardDefinition[]
+): IdentityDrift | null {
+    const shared = Math.min(server.length, client.length);
+    for (let i = 0; i < shared; i++) {
+        const s = server[i]!;
+        const c = client[i]!;
+        if (s.id !== c.id) {
+            return {
+                kind: "id",
+                at: i,
+                card: `${s.name} (${s.id}) vs ${c.name} (${c.id})`,
+                server: s.id,
+                client: c.id,
+            };
+        }
+        const serverBytes = JSON.stringify(s);
+        const clientBytes = JSON.stringify(c);
+        if (serverBytes !== clientBytes) {
+            return {
+                kind: "bytes",
+                at: i,
+                card: `${s.name} (${s.id})`,
+                server: serverBytes,
+                client: clientBytes,
+            };
+        }
+    }
+    if (server.length !== client.length) {
+        const longer = server.length > client.length ? server : client;
+        const extra = longer[shared]!;
+        return {
+            kind: "count",
+            at: shared,
+            card: `${extra.name} (${extra.id})`,
+            server: String(server.length),
+            client: String(client.length),
+        };
+    }
+    return null;
+}
+
+/** One line naming the first differing card, for a gate message. */
+export function describeIdentityDrift(drift: IdentityDrift): string {
+    switch (drift.kind) {
+        case "count":
+            return (
+                `row count differs — server ${drift.server}, client ${drift.client}; ` +
+                `first unmatched: ${drift.card}`
+            );
+        case "id":
+            return `row ${drift.at} is a different card — ${drift.card}`;
+        case "bytes":
+            return (
+                `${drift.card} is TWO definitions:\n` +
+                `      server: ${drift.server}\n` +
+                `      client: ${drift.client}`
+            );
+    }
 }

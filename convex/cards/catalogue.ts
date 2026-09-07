@@ -387,7 +387,7 @@ for (const print of allPrints) {
 
 // Compiled-card hydration (issue #2702). The collision between a compiled row
 // and a hand-written definition for the same print id is resolved at BUILD
-// (ADR 0114 §2, issue #3052) — `scripts/oracle-pool.ts` excludes a
+// (ADR 0114 §2, issue #3052) — `scripts/catalogue-artifact.ts` excludes a
 // hand-written oracle id at generation and `scripts/catalogue-artifact.ts`
 // merges the two populations into one artifact — so on the server this filter
 // has nothing left to drop. That it never does is asserted in the GATE

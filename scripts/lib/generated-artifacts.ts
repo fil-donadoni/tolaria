@@ -25,6 +25,20 @@
  *   - `data/oracle-compiled-pool.json` — IMMUNE BY SHAPE. A bare array of
  *     resolved card rows; no header, no hash, no tally (ADR 0114 §2 keeps it a
  *     catalogue with nothing left to resolve at runtime).
+ *   - `data/catalogue/source-hash.json` — IN THIS CLASS (issue #3055). One
+ *     line of whole-file state on a STABLE path: the hash of the catalogue
+ *     source both renderings are generated from. Two branches that both
+ *     regenerate collide on it, and taking a side would leave the server's
+ *     record of the hash disagreeing with the artifact that carries it in its
+ *     name — which is the drift ADR 0113 §2 makes the whole guard about.
+ *     Re-derived by `catalogue:pack`, which needs no corpus and which also
+ *     resolves the two-artifact case named next.
+ *   - `data/oracle-compiled-pool.json` is re-derived by that SAME run (issue
+ *     #3055 made the two one generator), so it needs no row of its own: its
+ *     bare-array shape means git merges it correctly per row, and the one
+ *     thing that could still go wrong — a merge producing a pool that no
+ *     longer matches the artifact — is what `catalogue:pack` regenerating
+ *     alongside the hash fixes.
  *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
  *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
  *     Its bytes are whole-file state, but two branches that regenerate it
@@ -68,6 +82,15 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         script: "oracle:legality",
         wholeFileState: "contentHash, corpus",
         requiresCorpus: true,
+    },
+    {
+        path: "data/catalogue/source-hash.json",
+        script: "catalogue:pack",
+        wholeFileState: "hash",
+        // The catalogue is a pure JOIN of three COMMITTED sources (the module
+        // graph, the compiler's lockfile, the card index) — offline, so a
+        // conflict here is resolvable in any worktree, corpus or no corpus.
+        requiresCorpus: false,
     },
 ] as const;
 

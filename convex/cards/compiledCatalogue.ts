@@ -25,15 +25,38 @@
 // two client chunks by `scripts/check-bundle-size.ts`; the server bundle by
 // `bun run check:convex-bundle` (ADR 0113 § Amendment).
 import type { CardDefinition } from "./types";
+import catalogueSource from "../../data/catalogue/source-hash.json";
+
+/**
+ * The source hash the SERVER's rendering was generated from — the server half
+ * of ADR 0113 §2's identity guard (issue #3055).
+ *
+ * `scripts/catalogue-artifact.ts` writes both renderings in one run and stamps
+ * this same hash on both: the client carries it in the artifact's FILE NAME
+ * (`catalogue-<hash>.json`, which is that file's own content hash), the server
+ * carries it here, bundled into every Convex mutation with the pool it labels.
+ *
+ * Two independently written records of ONE generation, which is the point: a
+ * merge or a hand-edit that takes one side and not the other shows up as a
+ * hash mismatch, before any row has to be compared.
+ * `scripts/__tests__/catalogue-artifact.test.ts` compares them in the gate.
+ *
+ * It is NOT a header field on `data/oracle-compiled-pool.json`, deliberately:
+ * that file's merge immunity is its bare-array shape
+ * (`scripts/lib/generated-artifacts.ts`), and whole-file state in a header is
+ * exactly what makes two branches collide on a line neither of them touched.
+ */
+export const CATALOGUE_SOURCE_HASH: string = catalogueSource.hash;
 
 /**
  * The runtime backstop, kept as a FILTER and asserted to be a no-op
  * (ADR 0114 §2, issue #3052).
  *
  * The collision between a compiled row and a hand-written definition for the
- * same print id is resolved at BUILD: `scripts/oracle-pool.ts` excludes a
- * hand-written oracle id at generation, and `scripts/catalogue-artifact.ts`
- * merges the two populations into one artifact, where a divergence is a red.
+ * same print id is resolved at BUILD: `scripts/catalogue-artifact.ts` merges
+ * the two populations into one artifact — excluding a hand-written oracle id
+ * as it goes — and writes BOTH renderings from it, where a divergence is a
+ * red.
  * So on the SERVER this never has anything to drop, and the assertion that it
  * never does lives in `scripts/__tests__/catalogue-artifact.test.ts`.
  *
