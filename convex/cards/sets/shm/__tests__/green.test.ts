@@ -21,6 +21,7 @@ const prismaticOmen = getDefinition("e75594cc-de47-49f2-9a8b-ba76c576368e");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const tropicalIsland = getDefinition("a9c6c759-aabf-44e7-ba8c-33c5df232b56");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const urzasMine = getDefinition("ddf85792-470b-4b42-99ac-9cb43a575523");
 
 const ALL_BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
@@ -76,6 +77,18 @@ describe("Prismatic Omen ({1}{G} — CR 205.1b / 305.7 additive layer-4 land typ
         // CR 305.7's last sentence — a land that GAINS types keeps its rules
         // text, unlike the `subtype-set` family Blood Moon uses.
         expect(abilitiesSuppressed(mine)).toBe(false);
+    });
+
+    // The discriminating case between ADD and SET. Every subtype a basic or a
+    // dual land carries is itself a basic land type, so a `subtype-set` to all
+    // five basics produces the identical line and no assertion above can tell
+    // the two kinds apart. Urza's Mine's land types are NOT basic ones, so
+    // only an addition leaves them standing (CR 305.7's last sentence).
+    it("keeps a NONBASIC land type — the add/set discriminator (CR 305.7)", () => {
+        const { mine } = withOmen(urzasMine.id);
+        expect(mine.subtypes).toContain("Urza's");
+        expect(mine.subtypes).toContain("Mine");
+        for (const basic of ALL_BASICS) expect(mine.subtypes).toContain(basic);
     });
 
     it("makes an affected land tap for all five colours — CR 305.6 intrinsic mana", () => {
