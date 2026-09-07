@@ -45,7 +45,7 @@ Runs **server-side** in Convex mutations. The client never validates rules —
 it is only a view of the state.
 
 - **Authoritative**: every move validated server-side before applying
-- **Deterministic**: same event log ⇒ same state
+- **Deterministic**: seeded PRNG (`rngSeed`/`rngCounter`) — no event log
 - **Isolated**: rules logic independent of transport
 
 ### Authentication
@@ -66,8 +66,13 @@ clients cannot spoof identity.
 
 ### Data model
 
-- `game_state` — current snapshot (cache, overwritten per action, deleted at game end)
-- `game_events` — append-only event log (source of truth for replays, 30-90 days)
+- `gameStates` — **one row per game, patched in place** by `saveGameState`,
+  its sole writer: compacted snapshot + monotonic `seq`. No undo history.
+- `gameTicks` — ~150-byte wake-up companion row, written with every
+  `gameStates` save so a subscriber need not hold the fat row.
+- **There is no event log.** `game_events` was designed, never built: the
+  snapshot is the source of truth and replay-from-log does not exist.
+  Detail: `docs/PROJECT.md` § Data model.
 
 User decks in `userDecks` (indexed by `userId`); preset decks in
 `convex/deckPresets.ts` (served via `api.decks.list`). State saved **only at
@@ -80,7 +85,7 @@ stable points** (waiting for human input).
 2. GRE validates → applies in memory → generates internal events
 3. Trigger scan → triggers go to stack (never auto-resolve)
 4. SBAs applied (automatic, no priority)
-5. Stable state → save game_state + append game_events → clients react
+5. Stable state → patch `gameStates` + its `gameTicks` companion → clients react
 ```
 
 ### Stack, priority, turn structure

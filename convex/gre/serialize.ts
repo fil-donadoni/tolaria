@@ -764,7 +764,7 @@ function compactCard(
     }
     // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
     // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
-    // stable point (state written to `game_state`), and only THEN does the
+    // stable point (state written to `gameStates`), and only THEN does the
     // trigger resolve and re-check its CR 603.4 intervening-if. Dropped here,
     // "if X is 5 or greater" would read 0 on every real game.
     if (card.chosenXOnCast !== undefined) {
@@ -2439,7 +2439,7 @@ function migrateLegacyInstanceKeywordLedgers(
             // copies every row it finds, and `layer6DerivedFields` deliberately
             // carries non-`auraId` rows through `syncLayer6` — so `compactCard`
             // would write the legacy rows straight back out and the next
-            // `expandState` would mint a second entry for each. `game_state` is
+            // `expandState` would mint a second entry for each. `gameStates` is
             // expanded and compacted on EVERY mutation, so that is one extra
             // keyword occurrence per action, not per session: a Shelkin Brownie
             // strip would take one of them and the creature would keep flying.

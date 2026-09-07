@@ -3961,11 +3961,13 @@ export type GameState = {
     /** Number of consecutive priority passes (resets on any action). Resolves top of stack at 2. */
     passCount: number;
     phase: Phase;
-    /** Seed for the per-game PRNG. Logged on GAME_INITIALIZED for replay. */
+    /** Seed for the per-game PRNG. Persisted on the state itself — there is no
+     *  event log to log it to (`docs/PROJECT.md` § Data model). */
     rngSeed: number;
     /** Monotonic counter advanced by every consumption of randomness (shuffle,
-     *  discard at random, coin flips). With rngSeed, the event log is
-     *  sufficient to reproduce the exact random choices made during a game. */
+     *  discard at random, coin flips). With rngSeed it makes a game's random
+     *  choices reproducible — that is the determinism half of replay. The other
+     *  half, a log of the actions to replay, does not exist. */
     rngCounter: number;
     /** CR 702.35a — the currently-open Madness cast window. Set when a reflexive
      *  madness trigger resolves (`openMadnessCastWindow`): the owner may cast the

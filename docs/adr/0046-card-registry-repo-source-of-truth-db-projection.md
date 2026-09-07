@@ -61,7 +61,7 @@ friction).
 
 - Git review, rollback, and history remain exactly as strong after the DB
   arrives as before it: a card change is always a PR diff.
-- Never embed definitions in `game_state` — it is rewritten at every stable
+- Never embed definitions in `gameStates` — it is rewritten at every stable
   point and would multiply write bandwidth. Definitions travel via the
   registry seam only.
 - Steady-state Convex cost of the future DB registry is ~zero: immutable

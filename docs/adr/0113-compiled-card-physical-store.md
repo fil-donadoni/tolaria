@@ -60,7 +60,7 @@ with no network. A fetched asset is therefore impossible server-side; the only
 options are the module graph or a table read. A table read is the Convex usage
 model's known bug class — a game is hundreds of mutations, each needing the
 deck's ~40 distinct definitions at ~859 B each, and putting them on
-`game_state` would attach a fat cold field to the hottest reactive row in the
+`gameStates` would attach a fat cold field to the hottest reactive row in the
 app. Bundling costs **zero reads, zero bandwidth, zero billing**: it is code,
 not data.
 
@@ -408,7 +408,7 @@ artifact** at 347 B/row; the ceiling applies to the **bundled** form.
   sentence**: a table read. A Convex mutation cannot fetch, so the content-
   addressed asset that solves the client cannot solve the server, and the
   remaining server-side options are the module graph (now bounded) or a read.
-  What § 2 correctly rejected was attaching the corpus to `game_state` — a fat
+  What § 2 correctly rejected was attaching the corpus to `gameStates` — a fat
   cold field on the hottest reactive row. A per-id read of the ~40 definitions
   a game references, from a table nothing subscribes to, is a different design
   and was never actually priced against the usage model.
