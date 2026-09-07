@@ -197,7 +197,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Atraxa, Grand Unifier",
     "Aura Blast",
     "Aura Mutation",
-    "Aura Shards",
     "Aura of Silence",
     "Aurochs",
     "Aurora Griffin",
