@@ -33,3 +33,68 @@ export const mindStone: CardDefinition = {
         },
     ],
 };
+
+// Phyrexian Furnace — {1} Artifact, a two-ability graveyard-hate rock:
+//  • "{T}: Exile the bottom card of target player's graveyard." The target is
+//    the PLAYER (CR 115.1); WHICH card leaves is not a choice at all but the
+//    deterministic bottom of that player's ordered graveyard (CR 404.2) — the
+//    `moveZone` positional shape (`EffectZonePositionSelector`, the Shallow
+//    Grave / Corpse Dance selector) with `position: "bottom"` and its
+//    `player` ref pointed at the announced target slot. An empty graveyard is
+//    a clean CR 609.3 no-op.
+//  • "{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw
+//    a card." A real target announced as the ability is ACTIVATED, not picked
+//    at resolution (CR 602.2b routes an activated ability through the same
+//    CR 601.2c target grammar a spell uses). `type: "card"` + `zone:
+//    "graveyard"` + `controller: "any"` — either bin — is the Soul-Guide
+//    Lantern shape (`thb/colorless.ts`), exiled through `moveZone` and
+//    followed by the plain `draw` Op.
+//
+// compiler-gap: {T}: Exile the bottom card of target player's graveyard. (#2693)
+export const phyrexianFurnace: CardDefinition = {
+    id: "e98bca31-8c05-430b-b5d7-331bdc55710a",
+    name: "Phyrexian Furnace",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: Exile the bottom card of target player's graveyard.\n{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw a card.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "phyrexian-furnace-exile-bottom",
+            oracleText:
+                "{T}: Exile the bottom card of target player's graveyard.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: {
+                        zone: "graveyard",
+                        position: "bottom",
+                        player: { target: 0 },
+                    },
+                    to: "exile",
+                },
+            ],
+        },
+        {
+            id: "phyrexian-furnace-exile-draw",
+            oracleText:
+                "{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw a card.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "card",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    ],
+};

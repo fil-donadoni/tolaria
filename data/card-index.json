@@ -4770,6 +4770,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Call of the Herd",
+        "scryfallId": "429a88cc-53db-4c5e-a061-f0f49a38c675",
+        "oracleId": "ee243f81-f51c-4d9a-a396-f7cef84b46c1",
+        "firstSet": "ody",
+        "firstPrintId": "429a88cc-53db-4c5e-a061-f0f49a38c675",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Call to Arms",
         "scryfallId": "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
         "oracleId": "72eaaa73-3263-46e9-aa86-5862d3aed20a",
@@ -24494,6 +24502,14 @@
         "firstPrintSet": "mir"
     },
     {
+        "name": "Phyrexian Furnace",
+        "scryfallId": "e98bca31-8c05-430b-b5d7-331bdc55710a",
+        "oracleId": "4aafb7e7-b9fc-44ae-9c54-da11fd9dcc17",
+        "firstSet": "wth",
+        "firstPrintId": "e98bca31-8c05-430b-b5d7-331bdc55710a",
+        "firstPrintSet": "wth"
+    },
+    {
         "name": "Phyrexian Gremlins",
         "scryfallId": "21a985a9-5612-4844-982e-fd1aa6249770",
         "oracleId": "407a0761-7ccc-4607-8df6-e744d30a81a0",
@@ -33846,6 +33862,14 @@
         "source": "compiled"
     },
     {
+        "name": "Terravore",
+        "scryfallId": "c39c412b-2f21-483a-b744-5d55bc007c0d",
+        "oracleId": "f44fb61a-9aa5-4178-b958-5115d62a7f50",
+        "firstSet": "ody",
+        "firstPrintId": "c39c412b-2f21-483a-b744-5d55bc007c0d",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Terrian, World Tyrant",
         "scryfallId": "b44255cf-5264-4ead-9de0-20cc0f7cac6f",
         "oracleId": "856245a6-c697-4f03-90be-77d8eb2d274e",
@@ -35332,6 +35356,14 @@
         "firstPrintSet": "fdn",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Treetop Village",
+        "scryfallId": "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
+        "oracleId": "b53f216d-1592-4eee-b204-502a805fbc8c",
+        "firstSet": "ulg",
+        "firstPrintId": "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
+        "firstPrintSet": "ulg"
     },
     {
         "name": "Treetop Warden",

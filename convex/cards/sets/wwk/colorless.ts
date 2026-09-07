@@ -77,14 +77,14 @@ export const creepingTarPit: CardDefinition = {
 // Migrated resolve()→effects[] (ADR 0045, PRD #795): the `animate` Op (CR
 // 208.2/611.1, issue #1317) is a thin declarative skin over the exact
 // `animateAsCreature` call this closure made (4/4 base P/T, Elemental
-// subtype, until end of turn). Flying/vigilance are NOT folded into
-// `animate`'s own `grantedAbilities` param — that param grants PERMANENTLY
-// (not spliced back out at `duration`, unlike a plain `grantAbility` Op call;
-// see `AnimateSpec.grantedAbilities`'s doc), which would diverge from the
-// original two `ctx.grantStaticAbility(source, ability, { phase:
-// "end-of-turn" })` calls that DO expire at end of turn. Two separate
+// subtype, until end of turn). Flying/vigilance stay as two separate
 // `grantAbility` Ops (CR 611.2a/613.1f, issue #843), each carrying its own
-// `duration: { phase: "end-of-turn" }`, reproduce that exactly.
+// `duration: { phase: "end-of-turn" }`, reproducing the original two
+// `ctx.grantStaticAbility(source, ability, { phase: "end-of-turn" })` calls
+// exactly. That split WAS forced — `animate`'s `grantedAbilities` param used
+// to grant permanently — and is now merely one of two equivalent spellings:
+// the param carries the animation's own duration (CR 611.2a), so folding the
+// two keywords into the `animate` spec would produce the identical board.
 export const celestialColonnade: CardDefinition = {
     id: "f6929259-2903-4f6f-9b06-42048fd55c6a",
     rarity: "rare",

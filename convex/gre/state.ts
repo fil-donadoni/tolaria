@@ -16999,20 +16999,43 @@ export function buildSpellContext(
                     );
                 }
             }
-            // CR 611.2c — keyword abilities an animate effect grants as part of
-            // "becomes a creature with [keyword]" (Earthbend N's haste) persist
-            // independent of the animation's own duration, mirroring
-            // `grantStaticAbilityPermanent`: idempotent, cleared only when the
-            // permanent leaves the battlefield. Applied unconditionally (even
-            // when `card.animation` was already set above) so a second
+            // Keyword abilities an animate effect grants as part of "becomes a
+            // creature with [keyword]" share the ANIMATION'S OWN duration
+            // (CR 611.2a — a continuous effect from a resolving ability "lasts
+            // as long as stated by the spell or ability creating it", and the
+            // "until end of turn" in "becomes a 3/3 green Ape creature with
+            // trample until end of turn" governs the whole clause, keyword
+            // included). An INDEFINITE animation (Earthbend N's haste, no
+            // stated duration) still grants indefinitely — CR 611.2a's "until
+            // the end of the game" default — cleared only when the permanent
+            // leaves the battlefield. Applied unconditionally (even when
+            // `card.animation` was already set above) so a second
             // earthbend-style application still (re)grants the keyword.
             if (spec.grantedAbilities) {
+                // THIS ability's own stated duration (CR 611.2a), resolved
+                // here rather than read off the live `card.animation` record:
+                // the grant block runs even when the permanent was ALREADY
+                // animated, and that record belongs to the EARLIER effect.
+                // Reading it would make an "until end of turn" grant inherit a
+                // standing indefinite animation's non-boundary (Earthbend then
+                // Treetop Village → trample forever) and an indefinite grant
+                // inherit a live until-end-of-turn one (Treetop Village then
+                // Earthbend → haste destroyed at cleanup). Each ability's
+                // effect lasts as long as THAT ability states.
+                const grantDuration = spec.duration
+                    ? resolveDuration(spec.duration, item.castById, state)
+                    : undefined;
                 for (const ability of spec.grantedAbilities) {
                     // CR 113.1 (issue #1706) — same own-record idempotence
                     // gate as `grantStaticAbilityPermanent`: an `includes`
                     // gate would silently share another source's occurrence
-                    // and own none of its own.
-                    if (hasIndefiniteKeywordGrant(state, card.id, ability))
+                    // and own none of its own. A BOUNDED grant is not gated by
+                    // it: an indefinite grant from some other source must not
+                    // swallow this animation's own until-end-of-turn record.
+                    if (
+                        !grantDuration &&
+                        hasIndefiniteKeywordGrant(state, card.id, ability)
+                    )
                         continue;
                     ensureLayer6Base(card);
                     pushContinuousEffect(state, {
@@ -17021,12 +17044,23 @@ export function buildSpellContext(
                             kind: "instances",
                             instanceIds: [card.id],
                         },
-                        expiry: {
-                            kind: "indefinite",
-                            // CR 611.2c — the ability's controller, not the
-                            // animated permanent's. See `grantStaticAbility`.
-                            controllerId: item.castById,
-                        },
+                        expiry: grantDuration
+                            ? {
+                                  kind: "duration",
+                                  duration: grantDuration,
+                                  // CR 611.2c — the controller of an effect
+                                  // from a resolving ability is fixed when the
+                                  // effect is created; the ability is gone by
+                                  // the time the boundary is counted.
+                                  controllerId: item.castById,
+                              }
+                            : {
+                                  kind: "indefinite",
+                                  // CR 611.2c — the ability's controller, not
+                                  // the animated permanent's. See
+                                  // `grantStaticAbility`.
+                                  controllerId: item.castById,
+                              },
                         payload: { kind: "keyword-grant", keyword: ability },
                         characteristicDefining: false,
                     });

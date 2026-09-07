@@ -1828,13 +1828,26 @@ export interface AnimateSpec {
      *  revert removes exactly those that were added. */
     additionalTypes?: CardType[];
     /** Keyword static abilities granted as part of becoming a creature
-     *  (Earthbend N's "becomes a 0/0 creature with haste", issue #1317). Applied
-     *  via the SAME no-duration channel as `SpellContext.grantStaticAbilityPermanent`
-     *  (CR 611.2c) — idempotent, and NOT spliced back out when a temporary
-     *  animation (`duration` set) reverts; only leaving the battlefield clears
-     *  a permanent's granted abilities. No card in scope combines a temporary
-     *  animation with a granted ability, so this asymmetry is unexercised but
-     *  documented. */
+     *  (Earthbend N's "becomes a 0/0 creature with haste", issue #1317;
+     *  Treetop Village's "becomes a 3/3 green Ape creature with trample until
+     *  end of turn").
+     *
+     *  The grant carries THIS spec's own `duration` (CR 611.2a — a resolving
+     *  ability's continuous effect "lasts as long as stated by the spell or
+     *  ability creating it"): the keyword is part of the same printed clause
+     *  as the P/T and the type line, so it expires exactly when they do. With
+     *  no `duration` the grant is INDEFINITE, the same rule's "until the end
+     *  of the game" default, and is then idempotent per source
+     *  (`grantStaticAbilityPermanent`'s gate) and cleared only by the
+     *  permanent leaving the battlefield.
+     *
+     *  The duration comes from the SPEC, never from a `card.animation` record
+     *  that may belong to an earlier effect: the grant is applied even on a
+     *  re-application onto an already-animated permanent, and inheriting the
+     *  live animation's boundary made an until-EOT grant permanent (earthbend
+     *  then Treetop Village) and an indefinite one die at cleanup (the
+     *  reverse). Both orderings are pinned in
+     *  `convex/gre/__tests__/grantedKeywordOccurrences.test.ts`. */
     grantedAbilities?: string[];
     /** Colours the permanent BECOMES while animated (layer 5, CR 613.1e —
      *  "becomes a 3/2 blue and black Elemental creature", Creeping Tar Pit).
@@ -13084,7 +13097,9 @@ export type EffectOp =
       }
     /** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with
      *  the given base P/T, optionally adding a subtype / extra card types /
-     *  permanently-granted keyword abilities, for `duration` (a temporary
+     *  granted keyword abilities (which share the animation's own stated
+     *  duration, CR 611.2a — see `AnimateSpec.grantedAbilities`), for
+     *  `duration` (a temporary
      *  Mishra's-Factory-style animation) or INDEFINITELY when `duration` is
      *  omitted (CR 611.2b — Earthbend N's "Target land you control becomes a
      *  0/0 creature with haste that's still a land"). A thin declarative skin
