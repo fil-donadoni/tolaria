@@ -78,7 +78,9 @@ const exclude = [...baseExclude, ...PERF_GLOB];
 // full game states, so a single file can occupy a worker for tens of seconds.
 // Mixed into the ~578-file application suite they lose the CPU race and their
 // heavy episodes time out — the ai-diagnosis ladder episodes did exactly that
-// on main, red under full-suite load and green in isolation.
+// on main, red under full-suite load and green in isolation (they have since
+// left the gate outright, issue #2436; the split is what kept every OTHER bot
+// file honest in the meantime).
 //
 // Selection is by FILENAME, not directory: `*.bot.test.ts` is the bot suite,
 // every other `*.test.ts` is the application suite. Bot tests are interleaved
@@ -145,9 +147,12 @@ const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
 // suite, each caught only by human/agent review or by CI after the fact.
 //
 // So `check:pr` now runs the bot suite too — minus a DENY-LIST of the few
-// genuinely expensive files. The cost distribution makes this cheap: measured
-// per-file, `ai-diagnosis.bot.test.ts` alone is 163s of the suite's 188s, and
-// the remaining 65 files total ~25s of test time.
+// genuinely expensive files. The cost distribution made this cheap: measured
+// per-file, `ai-diagnosis.bot.test.ts` alone was 163s of the suite's then-188s,
+// and the remaining 65 files totalled ~25s of test time. Since issue #2436 that
+// one file is gone (its ladder episodes were a strength measurement, not a
+// correctness guard) and the deny-list is EMPTY — the fast lane and the full
+// lane run the same bot files, and the whole suite is the ~25s remainder.
 //
 // DENY-list, not an allow-list of guards, on purpose: an allow-list silently
 // stops covering every guard added after it was written — the hand-maintained
@@ -158,11 +163,20 @@ const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
 // The deny-listed files still run in the full gate (`bun run test:bot`) — this
 // lane defers them, it never drops them.
 // ─────────────────────────────────────────────────────────────────────────────
-const HEAVY_BOT_GLOB = [
-    // Real ISMCTS ladder episodes at up to 20k iterations — 163s on its own,
-    // i.e. ~87% of the entire bot suite's runtime.
-    "**/ai-diagnosis.bot.test.ts",
-];
+// Bot test files the `TOLARIA_BOT_FAST=1` lane skips. EMPTY since issue #2436:
+// its sole member was `ai-diagnosis.bot.test.ts`, whose five-rung ISMCTS ladder
+// episodes (up to 20 000 iterations, 163s — ~87% of the bot suite) were a
+// STRENGTH measurement rather than a correctness guard and left the gate
+// altogether; what survived is a bounded liveness smoke
+// (`searchLiveness.bot.test.ts`), three `must` blade entries and two leaf
+// assertions in `evaluate.bot.test.ts`, none of them expensive. So the fast
+// lane and the full lane now run the SAME bot files.
+//
+// The mechanism is kept, not deleted: it is the declared home for a future file
+// too expensive for `check:pr`, and `scripts/__tests__/bot-fast-lane.test.ts`
+// mirrors this list so the two cannot drift. Adding an entry means accepting
+// that `check:pr` stops covering it.
+const HEAVY_BOT_GLOB: string[] = [];
 const BOT_FAST = process.env.TOLARIA_BOT_FAST === "1";
 const botExclude = BOT_FAST ? [...exclude, ...HEAVY_BOT_GLOB] : exclude;
 
@@ -242,8 +256,8 @@ export default defineConfig({
                     include: BOT_GLOB_NODE,
                     exclude: botExclude,
                     isolate: false,
-                    // A bot test runs a real ISMCTS search (the ai-diagnosis
-                    // ladder tops out at 20k iterations, and since ADR 0015
+                    // A bot test runs a real ISMCTS search (production
+                    // budgets are hundreds of iterations, and since ADR 0015
                     // each rollout plays a full round). The default 5s ceiling
                     // is not a meaningful signal here — it only needs to be
                     // tight enough to still catch a genuine hang. Same

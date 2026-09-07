@@ -30,8 +30,12 @@ import * as path from "path";
 
 const ROOT = path.resolve(__dirname, "../..");
 
-/** Must mirror `HEAVY_BOT_GLOB` in `vitest.config.ts`. */
-const HEAVY_BOT_BASENAMES = ["ai-diagnosis.bot.test.ts"];
+/** Must mirror `HEAVY_BOT_GLOB` in `vitest.config.ts`. EMPTY since issue #2436
+ *  took the AI-diagnosis ladder episodes out of the gate entirely: nothing in
+ *  the bot suite is expensive enough to defer any more, so the fast lane and
+ *  the full lane run the same files. The guard is kept for the next file that
+ *  earns an exception — and to keep the two lists from drifting when one does. */
+const HEAVY_BOT_BASENAMES: string[] = [];
 
 /** A deny-list bigger than this is a smell, not a budget exception. */
 const MAX_DENY_LIST = 4;
@@ -62,9 +66,12 @@ describe("bot fast lane — deny-list stays honest (issue #1912)", () => {
         expect(botTests.length).toBeGreaterThan(20);
     });
 
-    it.each(HEAVY_BOT_BASENAMES)(
-        "deny-listed file %s still exists",
-        (basename) => {
+    // A loop rather than `it.each`, because the list is legitimately EMPTY
+    // today (issue #2436) and an empty `it.each` registers no test at all —
+    // the guard would vanish silently, which is the exact rot mode this file
+    // exists to prevent.
+    it("every deny-listed file still exists", () => {
+        for (const basename of HEAVY_BOT_BASENAMES) {
             const matches = botTests.filter(
                 (f) => path.basename(f) === basename
             );
@@ -75,7 +82,7 @@ describe("bot fast lane — deny-list stays honest (issue #1912)", () => {
                     `excluding nothing and check:pr silently got ~3x slower.`
             ).toHaveLength(1);
         }
-    );
+    });
 
     it("keeps the deny-list small — it is a cost exception, not a hiding place", () => {
         expect(
@@ -92,13 +99,15 @@ describe("bot fast lane — deny-list stays honest (issue #1912)", () => {
             path.join(ROOT, "vitest.config.ts"),
             "utf8"
         );
+        // The annotation is optional: an EMPTY list needs `: string[]` for
+        // `tsc` to infer anything at all (issue #2436).
         const block = config.match(
-            /const HEAVY_BOT_GLOB\s*=\s*\[([\s\S]*?)\]/
+            /const HEAVY_BOT_GLOB(?::\s*string\[\])?\s*=\s*\[([\s\S]*?)\]/
         )?.[1];
         expect(
             block,
             "HEAVY_BOT_GLOB not found in vitest.config.ts"
-        ).toBeTruthy();
+        ).toBeDefined();
         const inConfig = [...block!.matchAll(/"\*\*\/([^"]+)"/g)]
             .map((m) => m[1])
             .sort();

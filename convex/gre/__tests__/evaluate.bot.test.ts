@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import {
     cardValue,
+    declaredBlockDelta,
+    declaredCombatDelta,
     evaluate,
     evaluateAutoTapPosition,
     evaluateBreakdown,
@@ -40,6 +42,9 @@ const GROWTH = getCardByName("Giant Growth").id; // instant, G (MV 1)
 // realistic small COST rather than the double-counted-as-gain total the old
 // buggy valuer produced; Uthden Troll's ability has no self-directed half.)
 const UTILITY_CREATURE = getCardByName("Uthden Troll").id;
+const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5 ground
+const SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
+const SPECTER = getCardByName("Hypnotic Specter").id; // 2/2 flying
 
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
@@ -1370,5 +1375,128 @@ describe("manaDevelopment term (issue #2686)", () => {
         const withBigger = withLands(3, [cheap("h1"), held("big")]);
         expect(devTerm(twoCheap)).toBe(devTerm(oneCheap));
         expect(devTerm(withBigger)).toBeGreaterThan(devTerm(oneCheap));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lifted from the AI-diagnosis harness when its ladder episodes left the gate
+// (issue #2436). Both were LEAF claims the harness happened to assert next to a
+// five-rung ISMCTS sweep: deterministic, search-free, sub-second, and covered
+// nowhere else. The search-level half of each episode is now a blade entry
+// (`registry.ts`: "wasteful attack: …", "chump block: …").
+// ─────────────────────────────────────────────────────────────────────────────
+describe("predictCombatOutcome — an absorbing blocker (issue #2436, ex-episode #9)", () => {
+    /** p1's 3/5 attacks into a 2/4 reach blocker, a 2/2 flyer and a 0/1: NO
+     *  defender has 5 power, so nothing kills the attacker — but Giant Spider
+     *  (toughness 4 > 3 power) blocks and SURVIVES, absorbing every point for
+     *  free. The predicted combat must therefore be neither a kill nor face
+     *  damage, or the attacker's declared-combat delta carries a phantom
+     *  +3 x W_LIFE reward for a swing that achieves nothing. */
+    function absorbingAttack(): GameState {
+        const ironroot = makeInstance(IRONROOT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "ir",
+            isSummoningSick: false,
+            isAttacking: true,
+            isTapped: true,
+        });
+        const defenders = [
+            [SPIDER, "spider"],
+            [SPECTER, "specter"],
+            [BOP, "bird"],
+        ].map(([cardId, id]) =>
+            makeInstance(cardId, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id,
+                isSummoningSick: false,
+            })
+        );
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [ironroot] }),
+                makePlayer("p2", { battlefield: defenders }),
+            ],
+            combat: {
+                attackerIds: ["ir"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("models the free absorbing block: no face damage, no dead attacker", () => {
+        const out = predictCombatOutcome(absorbingAttack(), "p1", "p2");
+        expect(out.faceDamage).toBe(0);
+        expect(out.deadAttackerIds).toEqual([]);
+    });
+
+    it("so the attacker's declared-combat delta is never a phantom reward", () => {
+        expect(
+            declaredCombatDelta(absorbingAttack(), "p1")
+        ).toBeLessThanOrEqual(0);
+    });
+});
+
+describe("declaredBlockDelta — a double block that kills nothing (issue #2436, ex-episode #10)", () => {
+    /** A lone Hypnotic Specter (2/2 flying) attacks into Scryb Sprites (1/1
+     *  flying) and Birds of Paradise (0/1 flying). Their COMBINED power is 1,
+     *  below the Specter's 2 toughness, so no block kills it (CR 510.1d — the
+     *  blockers assign 1 damage in total to a 2-toughness attacker), while its
+     *  2 power is lethal to either 1-toughness blocker (CR 704.5g). The double block loses TWO
+     *  creatures to kill nothing; the single block loses one. */
+    function blocked(assignments: Record<string, string[]>): GameState {
+        const specter = makeInstance(SPECTER, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "ch-atk",
+            isSummoningSick: false,
+            isAttacking: true,
+            isTapped: true,
+        });
+        const sprites = makeInstance(SPRITES, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ch-sprites",
+            isSummoningSick: false,
+        });
+        const bird = makeInstance(BOP, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ch-bird",
+            isSummoningSick: false,
+        });
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2", { battlefield: [sprites, bird] }),
+            ],
+            combat: {
+                attackerIds: ["ch-atk"],
+                confirmed: true,
+                blockerAssignments: assignments,
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    it("scores the double block strictly below the single one", () => {
+        const double = declaredBlockDelta(
+            blocked({ "ch-sprites": ["ch-atk"], "ch-bird": ["ch-atk"] }),
+            "p2"
+        );
+        const single = declaredBlockDelta(
+            blocked({ "ch-bird": ["ch-atk"] }),
+            "p2"
+        );
+        expect(double).toBeLessThan(single);
     });
 });

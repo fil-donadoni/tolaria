@@ -4896,6 +4896,129 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair (issue #3041) — PAIRED WITH "entomb: buries the reanimation target, not one of eight lands". Removing the recursion from hand flips the correct answer from the largest card to the self-reachable one, which is what proves the change is a destination-and-reachability PRICING fix and not a size rule: half 1 alone passes for a bot that always buries the biggest thing it can find. Proof-of-failure: the same call-site revert reds this entry — destination-blind, the eight bodies (108 to 252) all out-rank Lingering Souls (78.8) and fill every `CHOICE_TOP_K` slot, so the one card that does anything from a graveyard is never emitted and the bot buries a creature it can never get back.',
     },
+    {
+        // Lifted from the AI-diagnosis harness, episode #9 (issue #2436).
+        //
+        // The bot's 3/5 faces a 2/4 reach blocker: NO defending creature has 5
+        // power, so nothing kills the attacker — but Giant Spider (toughness 4 >
+        // 3 power) blocks and SURVIVES, absorbing every point for free. The best
+        // realistic case is a neutral exchange; the downside is real (the 3/5 is
+        // tapped out of defence, and the defender has six untapped lands plus a
+        // card). Swinging for an at-best-neutral result is the blunder, and it is
+        // ruled out STRUCTURALLY (`isWastefulAttack`, search.ts) rather than by
+        // the material tie-break: the rollout margin actually favours the swing,
+        // because a survived attacker leaves board material unchanged.
+        label: "wasteful attack: does not swing a 3/5 into a blocker that absorbs it for free",
+        spec: {
+            cards: [
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Giant Spider",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hypnotic Specter",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Birds of Paradise",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // Open mana and a card in hand: the swing also runs into a
+                // possible trick, which is part of why it is not worth making.
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Ironroot Treefolk" },
+            ],
+        },
+        note: "The leaf half of the same episode — `predictCombatOutcome` must report the free absorbing block rather than 3 face damage — is a deterministic assertion on the predictor and lives in `evaluate.bot.test.ts`.",
+    },
+    {
+        // Lifted from the AI-diagnosis harness, episode #10 (issue #2436).
+        //
+        // The defender holds Scryb Sprites (1/1 flying) and Birds of Paradise
+        // (0/1 flying) against a lone Hypnotic Specter (2/2 flying). Their
+        // COMBINED power is 1, below the Specter's 2 toughness, so no block kills
+        // it (CR 510.1d — the blockers assign 1 damage in total to a 2-toughness
+        // attacker) while its 2 power is lethal to either 1-toughness blocker
+        // (CR 704.5g).
+        // Double-blocking therefore loses TWO creatures to kill nothing — it is
+        // strictly dominated by the single block, which is dominated in turn by
+        // taking 2. Only the double block is forbidden here: choosing between
+        // "chump one" and "take it" is a judgement, throwing two creatures away
+        // for nothing is not.
+        label: "chump block: never double-blocks a 2/2 with two bodies that cannot kill it",
+        spec: {
+            cards: [
+                {
+                    name: "Hypnotic Specter",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Scryb Sprites",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Birds of Paradise",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The attack is declared by the ENGINE and priority walked to the block
+        // window (ADR 0070 §4), never by a hand-seeded `combat.attackerIds`.
+        setup: [{ kind: "declare-attackers", cards: ["Hypnotic Specter"] }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-blockers",
+                    cards: ["Scryb Sprites", "Birds of Paradise"],
+                },
+            ],
+        },
+        note: "The leaf half of the same episode — `declaredBlockDelta` must score the double block strictly below the single one — is a deterministic assertion on the term and lives in `evaluate.bot.test.ts`.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
