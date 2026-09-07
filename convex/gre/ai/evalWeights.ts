@@ -130,8 +130,6 @@ export type EvalWeights = {
     /** Fitted logistic margin → win-probability constant, ladder corpus
      *  (`CALIBRATED_REWARD_K`; issue #1929). */
     calibratedRewardK: number;
-    /** Reward gained per Forge-scale combo point (`COMBO_REWARD`). */
-    comboReward: number;
     /** Weight of a choice-node prior in UCB1 selection (`CHOICE_PRIOR_C`). */
     choicePriorC: number;
     /** Visit-count band for "near-equal" root candidates (`VISIT_TOL`,
@@ -176,7 +174,6 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     terminalBand: 0.25,
     materialFull: 500,
     calibratedRewardK: 9.983957e-4,
-    comboReward: 0.00003,
     choicePriorC: 0.75,
     visitTol: 0.15,
     outcomeEps: 0.05,

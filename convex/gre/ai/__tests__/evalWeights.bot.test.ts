@@ -63,7 +63,6 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             terminalBand: 0.25,
             materialFull: 500,
             calibratedRewardK: 9.983957e-4,
-            comboReward: 0.00003,
             choicePriorC: 0.75,
             visitTol: 0.15,
             outcomeEps: 0.05,

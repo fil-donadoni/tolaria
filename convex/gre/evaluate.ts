@@ -63,7 +63,6 @@ import {
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
-import { comboScore } from "./ai/comboAnnotations";
 import {
     creatureValueRaw,
     dslLatentPiecesById,
@@ -1047,7 +1046,6 @@ export function evaluate(
     // reward band reads.
     return (
         margin +
-        comboScore(state, playerId) +
         dangerClock(state, playerId) +
         declaredCombatDelta(state, me.id, weights) +
         lethalUnblockedDelta(state, playerId, weights) +

@@ -163,9 +163,10 @@ describe("applyMoveInSearch pushes a GRANTED ability with its provenance (CR 113
 
 describe("search values a GRANTED ability's payoff (issue #2468)", () => {
     it("activating the granted ability out-scores pass when the granted effect is clearly profitable", () => {
-        // No combo annotation involved: `comboAnnotations.ts` is untouched by
-        // this fix, and the position is scored on its own material merit — a
-        // second 2/2 body joining the battlefield is worth more than nothing.
+        // No combo term is involved anywhere in the evaluation any more
+        // (`comboAnnotations.ts` deleted by issue #3138, ADR 0102): the
+        // position is scored on its own material merit — a second 2/2 body
+        // joining the battlefield is worth more than nothing.
         const state = grantedBearState();
         const move = grantedMove();
         const pass: Move = { kind: "pass" };

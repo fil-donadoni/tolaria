@@ -356,7 +356,19 @@ export type BeyondBudgetCause =
      *  set but never gets enough visits. Missing knowledge: move PRIORS. */
     | "branching"
     /** The payoff lands beyond the rollout horizon, so the line scores the
-     *  same as the blunder. Missing knowledge: VALUATION of the pattern. */
+     *  same as the blunder. Missing knowledge: DEPTH to the payoff — bought
+     *  with iterations, or removed by a primitive that brings the payoff
+     *  within one ply. (The tagline read "VALUATION of the pattern" until
+     *  issue #3138; that is what `valuation` means, and registry.ts's own
+     *  `horizon` note had already said "depth to the payoff, not a term".)
+     *
+     *  Usually a compute shortfall a bigger budget clears, so a `horizon`
+     *  entry normally carries `passesAt`. The exception is a payoff behind a
+     *  LOOP (ADR 0102): activate → trigger → resolve → activate → … ×20 is
+     *  ~40 plies of identical moves before the evaluation sees lethal, and no
+     *  budget a browser Worker gets walks it — what collapses the loop to one
+     *  ply is the CR 732 shortcut Move (PRD #2687), not more iterations. Such
+     *  an entry may omit `passesAt`; see `BeyondBudget.passesAt`. */
     | "horizon"
     /** The refutation depends on a card the determinizer only occasionally
      *  deals into the hidden zone. Missing knowledge: an OPPONENT MODEL. */
@@ -374,13 +386,28 @@ export type BeyondBudgetCause =
  *  budget to turn an entry green is not a legitimate move (ADR 0070 §2). */
 export type BeyondBudget = {
     cause: BeyondBudgetCause;
-    /** The budget at which it WAS observed to pass, for the record. Absent
-     *  only for `cause: "valuation"` — a mis-valued subtree converges AWAY
-     *  from the right move as the budget rises, so there is no budget to
-     *  record (issue #1518). Every other cause names a genuine compute
-     *  shortfall that more search eventually clears, so it must carry the
-     *  budget that clears it. */
+    /** The budget at which it WAS observed to pass, for the record.
+     *
+     *  Omitting it is honest for exactly two causes. `valuation`: a mis-valued
+     *  subtree converges AWAY from the right move as the budget rises, so
+     *  there is no budget to record (issue #1518). `horizon` when the payoff
+     *  sits behind a LOOP (ADR 0102, issue #3138): the Twin/Exarch entries
+     *  measure 0/5 at 400, 1200, 4000 and 12000 iterations — the 2/5 at 4000
+     *  is rollout noise, back to 0/5 above it — because ~40 plies of identical
+     *  activations separate the position from lethal. `branching` and
+     *  `hidden-information` name a genuine compute shortfall that more search
+     *  eventually clears, so they must carry the budget that clears it. */
     passesAt?: { iterations: number };
+    /** The highest budget actually SWEPT, at which the entry still FAILED.
+     *
+     *  Mandatory whenever `passesAt` is omitted for any cause but
+     *  `valuation` — omitting a passing budget is a claim that none was
+     *  found, and a claim needs a search. Without this field the only
+     *  evidence would be `note`, which `blade.spec.ts` deliberately asserts
+     *  nothing about, so an unmeasured `horizon` entry would sail through
+     *  (issue #3138 review). Must exceed `budget.iterations`, exactly as
+     *  `passesAt` must. */
+    sweptTo?: { iterations: number };
     /** Which piece of bot knowledge is missing — prose, printed verbatim by
      *  the stretch report. */
     note: string;
