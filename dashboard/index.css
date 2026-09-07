@@ -37,12 +37,11 @@
         @slot;
     }
     @media (prefers-color-scheme: dark) {
-        &:where(
-            html:not([data-theme]),
-            html:not([data-theme]) *,
-            [data-theme="system"],
-            [data-theme="system"] *
-        ) {
+        /* "System" is the ABSENCE of the attribute, never the literal value
+           `system` — `applyToDocument` removes it. Matching a
+           `[data-theme="system"]` that is never written would only advertise
+           a spelling the store does not use. */
+        &:where(html:not([data-theme]), html:not([data-theme]) *) {
             @slot;
         }
     }
@@ -200,11 +199,11 @@
     --color-state-unknown: var(--state-unknown);
     --color-state-neutral: var(--state-neutral);
 
-    /* The named z rungs the shared primitives already reference. The
-       dashboard needs exactly the layering ones — a tooltip and a sheet over
-       the page, nothing else — so this is the game app's scale TRUNCATED, not
-       a second scale with different numbers. */
-    --z-sheet: 50;
+    /* `z-modal` is a NAMED rung the shared primitives reference by class
+       (`src/components/ui/tooltip.tsx`), so it has to exist here too or the
+       tooltip renders unlayered. Same number as the game app's: this is that
+       scale truncated to the one rung the dashboard needs, never a second
+       scale. (`sheet.tsx` uses Tailwind's numeric `z-50` and needs nothing.) */
     --z-modal: 100;
 
     --radius-sm: calc(var(--radius) - 4px);

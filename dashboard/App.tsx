@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Shell } from "./components/Shell";
 import { Section } from "./components/Section";
-import { subscribeToView, viewFromParams } from "./lib/view";
+import { getView, subscribeToView } from "./lib/view";
 
 /**
  * The dashboard's page (PRD #3148 S0 → S1).
@@ -20,9 +20,7 @@ import { subscribeToView, viewFromParams } from "./lib/view";
  * Each class disappears with the module that needs it.
  */
 export function App() {
-    const view = useSyncExternalStore(subscribeToView, () =>
-        viewFromParams(new URLSearchParams(location.search))
-    );
+    const view = useSyncExternalStore(subscribeToView, getView);
     return (
         <>
             <Shell

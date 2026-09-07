@@ -1,6 +1,12 @@
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
-import { subscribeToView, switchView, VIEWS, type View } from "../lib/view";
+import {
+    getView,
+    subscribeToView,
+    switchView,
+    VIEWS,
+    type View,
+} from "../lib/view";
 
 const LABELS: Record<View, string> = { now: "Now", history: "History" };
 
@@ -19,11 +25,12 @@ const LABELS: Record<View, string> = { now: "Now", history: "History" };
  * disagrees with the URL after a keystroke.
  */
 export function ViewTabs() {
-    const view = useSyncExternalStore(subscribeToView, () =>
-        new URLSearchParams(location.search).get("view") === "history"
-            ? "history"
-            : "now"
-    );
+    // `getView` and not a local re-read of the query: one function decides
+    // what "which view" means, and a second spelling of it here is the thing
+    // that answers differently the day `VIEWS` grows a third member. It
+    // returns a primitive, so the snapshot is referentially stable and the
+    // inline closure cannot loop `useSyncExternalStore`.
+    const view = useSyncExternalStore(subscribeToView, getView);
     return (
         <nav className="flex gap-1" role="tablist" aria-label="Dashboard view">
             {VIEWS.map((v) => (

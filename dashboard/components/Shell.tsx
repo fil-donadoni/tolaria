@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { View } from "../lib/view";
 import { ThemeToggle } from "./ThemeToggle";
 import { ViewTabs } from "./ViewTabs";
 
@@ -24,7 +25,7 @@ export function Shell({
 }: {
     now: ReactNode;
     history: ReactNode;
-    view: "now" | "history";
+    view: View;
 }) {
     return (
         <TooltipProvider>
