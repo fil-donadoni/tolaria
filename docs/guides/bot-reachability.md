@@ -28,13 +28,33 @@ the Bot"_. Inverted trigger, so it never fires when it matters most.
 ### 1. `enumerateMoves` — is the action REACHABLE?
 
 `convex/gre/moves.ts`. If the enumerator does not build a Move for it, the Bot
-cannot play the card at all, and **no suite goes red**: there is no
-catalogue-wide census here, only per-mechanic `*.bot.test.ts` files.
+cannot play the card at all, and for most shapes **no suite goes red**: there is
+no catalogue-wide reachability census, only per-mechanic `*.bot.test.ts` files.
 
-Ask: does this card add an activation or cost shape the enumerator has not seen
-before? A new cost leg, a new activation zone, a new timing restriction. If yes,
-it owes a `*.bot.test.ts` proving the Move is enumerated — nothing else catches
-it. Prior art: `activationCostsInSearch`, `castCostPicksInSearch`,
+One narrow slice is now guarded. `COST_LEG_CLAIMS` (`convex/gre/costLegClaims.ts`,
+issue #3007) is a total `Record<keyof ActivatedAbility["cost"], CostLegClaim>`
+naming, per activation-cost leg, the enumerator branch or shared helper that
+pays it, plus a one-line reason. Because it is total, **`tsc` reds the moment a
+new cost leg is added to the type** — a new leg cannot land unadjudicated. A
+runtime companion (`costLegClaims.bot.test.ts`) catches a claim naming a symbol
+that has since moved, and `NEVER_AUTO_PAYABLE_COST_LEGS` is derived from the
+table's `autoPayable` field rather than hand-maintained beside it.
+
+**Be precise about what that buys you**, because the name flatters it. The table
+is a completeness property over the TYPE: it proves a human adjudicated every
+leg. It proves **nothing about board-state reachability** — that
+`enumerateMoves` yields a legal, payable Move for that leg on a real position.
+Two of the twenty-one rows are `hole`s for exactly that reason, both found by a
+human reading the claim rather than by any check: `xFromTargetSpellMv` prices at
+zero in the enumerator while the mutation charges 2x the targeted spell's mana
+value (issue #3117), and the search-side cycling discard drops its
+`cause: "cycling"` so cycling triggers never fire in the tree (issue #3118).
+
+So the question to ask is unchanged: does this card add an activation or cost
+shape the enumerator has not seen before? A new cost leg, a new activation zone,
+a new timing restriction. If yes, it owes a `*.bot.test.ts` proving the Move is
+enumerated ON A BOARD — the claim table will make you write a row, not a test.
+Prior art: `activationCostsInSearch`, `castCostPicksInSearch`,
 `grantedAbilityEnumeration`.
 
 ### 2. The choice surface — can the Bot ANSWER it?
@@ -81,7 +101,10 @@ nothing about either — run `bun run check:guards`.
 
 ## Checklist
 
-1. New activation or cost shape? → `*.bot.test.ts` proving the Move enumerates.
+1. New activation or cost shape? → `*.bot.test.ts` proving the Move enumerates
+   **on a board**. A new `ActivatedAbility["cost"]` leg additionally reds `tsc`
+   until it has a row in `COST_LEG_CLAIMS` (`convex/gre/costLegClaims.ts`) —
+   that row is an adjudication, not a substitute for the test.
 2. Raises a `PendingChoice`? → name the kind, say which of the three outcomes
    above applies.
 3. Introduces an Op? → `/new-op`, and answer **site 7b** (`OP_BENEFICENCE`)
