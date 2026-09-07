@@ -254,9 +254,43 @@ function registryGrantedKeywordsFor(
         if (entry.affected.kind !== "instances") continue;
         if (!entry.affected.instanceIds.includes(permanentId)) continue;
         if (entry.payload.kind !== "keyword-grant") continue;
+        // The registry twins of the two filters the instance loop above
+        // carries. An entry that put NO occurrence into the multiset gives none
+        // back, and there are two ways to put none:
+        //
+        //  - the entry is not live (`counter` whose counter is gone, `source`
+        //    whose source has left) — the `grant.suppressed` case, one layer up;
+        //  - a later `ability-loss` cleared the occurrence in `deriveLayer6`'s
+        //    ordered walk (CR 613.1f), which is what `suppressed` recorded
+        //    before layer 6 was derived.
+        //
+        // Without them a base capture on a permanent under Humility would
+        // subtract a grant that contributed nothing and eat a PRINTED keyword.
+        if (!layer6ExpiryLive(state, entry)) continue;
+        if (grantClearedByAbilityLoss(state, permanentId, entry)) continue;
         out.push(renderKeyword(entry.payload));
     }
     return out;
+}
+
+/** CR 613.1f / 613.7 — whether a live `ability-loss` outranks `entry`, so the
+ *  grant it carries never reached the multiset. Strictly-greater, matching
+ *  `grantOutrankedByAbilityLoss` (`gre/activatedAbilities.ts`): a grant sharing
+ *  a stripper's timestamp survives it. */
+function grantClearedByAbilityLoss(
+    state: LayerStateView,
+    permanentId: string,
+    entry: ContinuousEffect
+): boolean {
+    for (const other of state.continuousEffects ?? []) {
+        if (other.layer !== 6) continue;
+        if (other.payload.kind !== "ability-loss") continue;
+        if (other.affected.kind !== "instances") continue;
+        if (!other.affected.instanceIds.includes(permanentId)) continue;
+        if (!layer6ExpiryLive(state, other)) continue;
+        if (other.timestamp > entry.timestamp) return true;
+    }
+    return false;
 }
 
 /** The static effects a source contributes, resolved through the card registry

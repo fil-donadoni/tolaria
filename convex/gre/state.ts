@@ -7912,13 +7912,20 @@ function nextContinuousEffectOrdinal(
  *  scan of the live registry cannot see the entry it is stamping. */
 function pushContinuousEffect(
     state: GameState,
-    entry: Omit<ContinuousEffect, "id" | "timestamp">
+    entry: Omit<ContinuousEffect, "id" | "timestamp">,
+    /** CR 611.2a / 613.7 — a stamp minted by the CALLER, for the one shape a
+     *  per-entry mint gets wrong: a single continuous effect that needs several
+     *  entries (`removeStaticAbilities` strips every keyword its predicate
+     *  matched, and that is ONE effect with ONE timestamp). Still minted by
+     *  `allocStaticTimestamp`, never a second counter — the caller just mints
+     *  once and hands the same value to each entry. */
+    timestamp?: number
 ): ContinuousEffect {
     const existing = state.continuousEffects ?? [];
     const created = {
         ...entry,
         id: `ce-${nextContinuousEffectOrdinal(existing)}`,
-        timestamp: allocStaticTimestamp(state),
+        timestamp: timestamp ?? allocStaticTimestamp(state),
     } as ContinuousEffect;
     state.continuousEffects = [...existing, created];
     return created;
@@ -16739,7 +16746,12 @@ export function buildSpellContext(
                 affected: { kind: "instances", instanceIds: [target.id] },
                 expiry: {
                     kind: "indefinite",
-                    controllerId: found.card.controllerId,
+                    // CR 611.2c — the controller of an effect from a resolving
+                    // ability is the ability's controller, fixed when the
+                    // effect is created; NOT the affected permanent's, which
+                    // can differ (a keyword granted to an opponent's creature)
+                    // and can change later.
+                    controllerId: item.castById,
                 },
                 payload: { kind: "keyword-grant", keyword: ability },
                 characteristicDefining: false,
@@ -16926,18 +16938,32 @@ export function buildSpellContext(
                 predicate(kw)
             );
             if (removedNow.length === 0) return;
+            // CR 611.2a / 613.7 — ONE continuous effect, so ONE timestamp,
+            // however many keywords the predicate matched. Minting per keyword
+            // would make a multi-keyword strip span a range of stamps and
+            // silently defeat `compareLayer6Entries`' equal-timestamp
+            // tie-break, which exists so a grant sharing a stripper's stamp
+            // survives it.
+            const seq = allocStaticTimestamp(state);
             for (const keyword of removedNow) {
-                pushContinuousEffect(state, {
-                    layer: 6,
-                    affected: { kind: "instances", instanceIds: [target.id] },
-                    expiry: {
-                        kind: "duration",
-                        duration: resolved,
-                        controllerId: item.castById,
+                pushContinuousEffect(
+                    state,
+                    {
+                        layer: 6,
+                        affected: {
+                            kind: "instances",
+                            instanceIds: [target.id],
+                        },
+                        expiry: {
+                            kind: "duration",
+                            duration: resolved,
+                            controllerId: item.castById,
+                        },
+                        payload: { kind: "keyword-remove", keyword },
+                        characteristicDefining: false,
                     },
-                    payload: { kind: "keyword-remove", keyword },
-                    characteristicDefining: false,
-                });
+                    seq
+                );
             }
             syncLayer6(state);
         },
@@ -17055,7 +17081,9 @@ export function buildSpellContext(
                         },
                         expiry: {
                             kind: "indefinite",
-                            controllerId: card.controllerId,
+                            // CR 611.2c — the ability's controller, not the
+                            // animated permanent's. See `grantStaticAbility`.
+                            controllerId: item.castById,
                         },
                         payload: { kind: "keyword-grant", keyword: ability },
                         characteristicDefining: false,

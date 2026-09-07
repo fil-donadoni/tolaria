@@ -2398,6 +2398,9 @@ function migrateLegacyInstanceKeywordLedgers(
             if (!legacy.id) continue;
             const card = live.battlefield.find((c) => c.id === legacy.id);
             if (!card) continue;
+            const auraRows = (legacy.grantedStaticAbilities ?? []).filter(
+                (g) => g.auraId
+            );
             const grants = (legacy.grantedStaticAbilities ?? []).filter(
                 (g) => !g.auraId
             );
@@ -2425,6 +2428,30 @@ function migrateLegacyInstanceKeywordLedgers(
                 }
                 card.baseStaticAbilities = base;
             }
+            // IDEMPOTENCE — the migrated rows are STRUCK from the expanded card,
+            // or the next save/load migrates them again.
+            //
+            // The layer-7 twin (`migrateLegacyInstancePTLedgers`) needs no such
+            // line because its source fields no longer exist on
+            // `CardInstanceState` at all, so `expandCard` drops them and they
+            // can never be re-persisted. `grantedStaticAbilities` is different:
+            // it SURVIVES this slice as layer 6's derived output, `expandCard`
+            // copies every row it finds, and `layer6DerivedFields` deliberately
+            // carries non-`auraId` rows through `syncLayer6` — so `compactCard`
+            // would write the legacy rows straight back out and the next
+            // `expandState` would mint a second entry for each. `game_state` is
+            // expanded and compacted on EVERY mutation, so that is one extra
+            // keyword occurrence per action, not per session: a Shelkin Brownie
+            // strip would take one of them and the creature would keep flying.
+            //
+            // Only the `auraId` rows survive, which is exactly what this field
+            // holds from this slice on.
+            card.grantedStaticAbilities =
+                auraRows.length > 0
+                    ? (auraRows as NonNullable<
+                          CardInstanceState["grantedStaticAbilities"]
+                      >)
+                    : undefined;
             for (const grant of grants) {
                 if (!grant.counterType) continue;
                 appendMigratedEffect(state, {

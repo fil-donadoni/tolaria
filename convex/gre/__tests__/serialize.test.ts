@@ -27,6 +27,8 @@ import {
 } from "../../cards/sets/lea";
 import { bloodMoon } from "../../cards/sets/drk/red";
 import { crusade } from "../../cards/sets/lea/white";
+import { grizzlyBears } from "../../cards/sets/lea/green";
+import { syncLayer6 } from "../layer6";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
@@ -1072,7 +1074,7 @@ describe("game_state serialize round-trip", () => {
         // layer-6 DERIVED OUTPUT now. The duration-scoped grant that used to sit
         // beside them (Wall of Caltrops' EOT banding, #495) is a registry entry,
         // and a state persisted with the old shape is migrated — see
-        // "migrates a pre-S6b layer-6 ledger" below.
+        // "migrates a pre-S6b layer-6 ledger into the registry" below.
         lion.grantedStaticAbilities = [
             { ability: "flying", auraId: "aura-1", seq: 3 },
             // CR 613.1f (issue #1715) — a grant a strictly-later stripper
@@ -2917,6 +2919,142 @@ describe("backward compatibility", () => {
         for (const reading of readings) {
             expect(reading).toEqual(["Swamp"]);
         }
+    });
+});
+
+describe("migrates a pre-S6b layer-6 ledger into the registry (PRD #2064 S6b)", () => {
+    /** A state persisted BEFORE S6b: the layer-6 residue lives on the instance
+     *  as `grantedStaticAbilities` rows (duration-, counter- and indefinite-
+     *  keyed) and `temporaryRemovedKeywords`, and `staticAbilities` holds the
+     *  composed answer the old engine wrote. Built by compacting a live state
+     *  and then writing the legacy shapes onto the COMPACT record, because the
+     *  expanded card can no longer hold them. */
+    function legacyBoard(rows: {
+        granted?: Record<string, unknown>[];
+        removed?: Record<string, unknown>[];
+        staticAbilities?: string[];
+        baseStaticAbilities?: string[];
+    }): Record<string, unknown> {
+        const bear = makeInstance(grizzlyBears.id, { id: "legacy-1" });
+        if (rows.staticAbilities) bear.staticAbilities = rows.staticAbilities;
+        if (rows.baseStaticAbilities) {
+            bear.baseStaticAbilities = rows.baseStaticAbilities;
+        } else {
+            delete bear.baseStaticAbilities;
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const compact = compactState(state) as {
+            players: { battlefield: Record<string, unknown>[] }[];
+        };
+        const card = compact.players[0].battlefield[0];
+        delete card.baseStaticAbilities;
+        if (rows.baseStaticAbilities) {
+            card.baseStaticAbilities = rows.baseStaticAbilities;
+        }
+        if (rows.granted) card.grantedStaticAbilities = rows.granted;
+        if (rows.removed) card.temporaryRemovedKeywords = rows.removed;
+        return compact as unknown as Record<string, unknown>;
+    }
+
+    const layer6Of = (state: GameState) =>
+        (state.continuousEffects ?? []).filter((e) => e.layer === 6);
+
+    it("a duration grant becomes a duration entry and composes (CR 611.2a)", () => {
+        const state = expandState(
+            legacyBoard({
+                granted: [
+                    { ability: "flying", duration: { phase: "end-of-turn" } },
+                ],
+                staticAbilities: ["flying"],
+            })
+        );
+        syncLayer6(state);
+        const card = state.players[0].battlefield[0];
+        expect(layer6Of(state)).toEqual([
+            expect.objectContaining({
+                expiry: expect.objectContaining({
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                }),
+                payload: { kind: "keyword-grant", keyword: "flying" },
+            }),
+        ]);
+        // The base is reconstructed too, or the composition would grant it a
+        // SECOND time on top of a base that already held it.
+        expect(card.baseStaticAbilities).toEqual([]);
+        expect(card.staticAbilities).toEqual(["flying"]);
+    });
+
+    it("a bare row becomes an indefinite entry, a counter row a counter one", () => {
+        const state = expandState(
+            legacyBoard({
+                granted: [
+                    { ability: "haste" },
+                    { ability: "trample", counterType: "trample" },
+                ],
+                staticAbilities: ["haste", "trample"],
+            })
+        );
+        expect(
+            layer6Of(state)
+                .map((e) => e.expiry.kind)
+                .sort()
+        ).toEqual(["counter", "indefinite"]);
+    });
+
+    it("an auraId row is NOT migrated — it is layer 6's own derived output", () => {
+        const state = expandState(
+            legacyBoard({
+                granted: [{ ability: "flying", auraId: "aura-1", seq: 3 }],
+                staticAbilities: ["flying"],
+            })
+        );
+        expect(layer6Of(state)).toEqual([]);
+        expect(state.players[0].battlefield[0].grantedStaticAbilities).toEqual([
+            { ability: "flying", auraId: "aura-1", seq: 3 },
+        ]);
+    });
+
+    it("is IDEMPOTENT across repeated save/load — the migrated rows are struck", () => {
+        // `game_state` is expanded and compacted on EVERY mutation, so a
+        // migration that leaves its source rows behind mints one extra entry
+        // and one extra keyword occurrence per ACTION. `grantedStaticAbilities`
+        // survives this slice as derived output and `layer6DerivedFields`
+        // carries non-`auraId` rows through `syncLayer6`, so nothing else
+        // removes them.
+        let data = legacyBoard({
+            granted: [
+                { ability: "flying", duration: { phase: "end-of-turn" } },
+            ],
+            staticAbilities: ["flying"],
+        });
+        for (let load = 0; load < 4; load++) {
+            const state = expandState(data);
+            syncLayer6(state);
+            expect(layer6Of(state)).toHaveLength(1);
+            expect(state.players[0].battlefield[0].staticAbilities).toEqual([
+                "flying",
+            ]);
+            data = compactState(state);
+        }
+    });
+
+    it("a state persisted AFTER S6b is left alone", () => {
+        const state = expandState(
+            legacyBoard({
+                staticAbilities: ["flying"],
+                baseStaticAbilities: ["flying"],
+            })
+        );
+        expect(layer6Of(state)).toEqual([]);
+        expect(state.players[0].battlefield[0].baseStaticAbilities).toEqual([
+            "flying",
+        ]);
     });
 });
 

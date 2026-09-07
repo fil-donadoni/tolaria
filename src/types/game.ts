@@ -211,6 +211,12 @@ export interface CardInstance {
         ability: string;
         duration?: unknown;
         auraId?: string;
+        /** CR 613.7 layer timestamp. Present on the rows PRD #2064 S6b rebuilds
+         *  from the registry for the wire (`registryKeywordGrantsFor`,
+         *  `convex/gre/wireCharacteristics.ts`) — a resolving ability's grant
+         *  and a keyword counter's — which carry no `auraId` and are the only
+         *  record the client has that the permanent is altered. */
+        seq?: number;
     }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, e.g. Energy Flux granting an upkeep sacrifice trigger
