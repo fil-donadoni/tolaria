@@ -244,11 +244,11 @@ cannot answer a choice the card raises, or has no opinion on whether the effect
 is worth anything. Silent in a way the UI case is not: no test reds, the card
 simply never shows up in a game against the Bot.
 
-| Seam                                                   | Question                  | What already guards it                                                                                |
-| ------------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `enumerateMoves` (`gre/moves.ts`)                      | is the action REACHABLE?  | **nothing catalogue-wide** — only per-mechanic `*.bot.test.ts`                                        |
-| `CHOICE_CANDIDATE_GENERATORS` + minimal-legal fallback | can the Bot ANSWER it?    | partial by design; no generator = never a search decision, no fallback = freeze                       |
-| `OP_VALUERS` / `OP_BENEFICENCE`                        | does it know it WANTS to? | valuer censused by `opValuerCoverage.bot.test.ts`; **beneficence is not** — `?? "neutral"` fails open |
+| Seam                                                   | Question                  | What already guards it                                                                                                                                                   |
+| ------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enumerateMoves` (`gre/moves.ts`)                      | is the action REACHABLE?  | **nothing catalogue-wide** — only per-mechanic `*.bot.test.ts`                                                                                                           |
+| `CHOICE_CANDIDATE_GENERATORS` + minimal-legal fallback | can the Bot ANSWER it?    | partial by design; no generator = never a search decision, no fallback = freeze                                                                                          |
+| `OP_VALUERS` / `OP_BENEFICENCE`                        | does it know it WANTS to? | both censused in the bot suite — `opValuerCoverage.bot.test.ts` and, since issue #3006, `opBeneficenceCensus.bot.test.ts`; a `"neutral"` sign needs a comment saying why |
 
 Procedure, checklist and the failure gallery: `docs/guides/bot-reachability.md`.
 
