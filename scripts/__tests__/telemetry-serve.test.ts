@@ -179,8 +179,11 @@ const REPO_REACT_DIR = join(import.meta.dirname, "..", "..", "dashboard");
  * Injected rather than produced: the `node` vitest project cannot run a Vite
  * build (and would not want to pay for one), and the property under test is
  * the LOOKUP, which is independent of who wrote the manifest. `BUILD_DIR` is
- * a path that exists nowhere: nothing here is allowed to reach a filesystem,
- * and `readAsset` is injected in every case below to prove it.
+ * a path that exists nowhere and every read seam is injected below, so no
+ * assertion in this describe depends on a file existing. (`handleRequest`
+ * still probes the real output directory ONCE per process for its default
+ * `dashboardBuild`; every case here overrides it, so that probe never
+ * decides an outcome.)
  */
 const BUILD_DIR = join("/nonexistent", "dashboard", "dist");
 const builtAssets = ["index-BfYWQ-gq.css", "index-iaOdGxez.js"];
@@ -207,9 +210,9 @@ describe("telemetry-serve — dashboard asset serving (ADR 0117)", () => {
             new Request("http://127.0.0.1/assets/index-iaOdGxez.js"),
             {
                 dashboardBuild: fakeBuild(),
-                readAsset: async (p) => {
+                readAssetBytes: async (p) => {
                     asked.push(p);
-                    return "// served";
+                    return new TextEncoder().encode("// served");
                 },
             }
         );
@@ -225,7 +228,10 @@ describe("telemetry-serve — dashboard asset serving (ADR 0117)", () => {
         const { handleRequest } = await import("../telemetry-serve");
         const res = await handleRequest(
             new Request("http://127.0.0.1/assets/index-BfYWQ-gq.css"),
-            { dashboardBuild: fakeBuild(), readAsset: async () => "body{}" }
+            {
+                dashboardBuild: fakeBuild(),
+                readAssetBytes: async () => new TextEncoder().encode("body{}"),
+            }
         );
         expect(res.status).toBe(200);
         expect(res.headers.get("content-type")).toBe("text/css; charset=utf-8");
@@ -276,12 +282,41 @@ describe("telemetry-serve — dashboard asset serving (ADR 0117)", () => {
                     reads += 1;
                     return "LEAKED";
                 },
+                readAssetBytes: async () => {
+                    reads += 1;
+                    return new TextEncoder().encode("LEAKED");
+                },
             }
         );
         expect(res.status).toBe(404);
         await expect(res.text()).resolves.toBe("not found");
         // The stronger claim: refused BY CONSTRUCTION. Nothing was read.
         expect(reads).toBe(0);
+    });
+
+    it("serves a built asset as BYTES — a font or an icon is not UTF-8 text", async () => {
+        const { handleRequest } = await import("../telemetry-serve");
+        // Four bytes that are not valid UTF-8. Decoded and re-encoded they
+        // come back as U+FFFD replacement characters, so this asserts the
+        // route never took that path — the failure mode is a font that loads
+        // as garbage under a perfectly correct Content-Type.
+        const bytes = new Uint8Array([0x00, 0x80, 0xfe, 0xff]);
+        const build = fakeBuild();
+        const assets = new Map(build.assets);
+        assets.set("logo-abc123.woff2", {
+            path: join(BUILD_DIR, "logo-abc123.woff2"),
+            type: "font/woff2",
+        });
+        const res = await handleRequest(
+            new Request("http://127.0.0.1/assets/logo-abc123.woff2"),
+            {
+                dashboardBuild: { ...build, assets },
+                readAssetBytes: async () => bytes,
+            }
+        );
+        expect(res.headers.get("content-type")).toBe("font/woff2");
+        const served = new Uint8Array(await res.arrayBuffer());
+        expect([...served]).toEqual([...bytes]);
     });
 
     it.each(["/", "/index.html", "/assets/index-iaOdGxez.js"])(
@@ -296,6 +331,10 @@ describe("telemetry-serve — dashboard asset serving (ADR 0117)", () => {
                     readAsset: async () => {
                         reads += 1;
                         return "LEAKED";
+                    },
+                    readAssetBytes: async () => {
+                        reads += 1;
+                        return new TextEncoder().encode("LEAKED");
                     },
                 }
             );

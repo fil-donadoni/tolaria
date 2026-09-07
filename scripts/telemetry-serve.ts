@@ -892,6 +892,17 @@ export interface TelemetryDeps {
      */
     readAsset: (absolutePath: string) => Promise<string>;
     /**
+     * Reads one BUILT asset as bytes. Separate from `readAsset` because that
+     * one decodes UTF-8, which is right for the document and silently wrong
+     * for everything a bundle can contain that is not text — a font, an icon,
+     * an image. Vite would hash and manifest such a file correctly and the
+     * server would hand out mojibake under a correct `Content-Type`, which is
+     * the worst shape of bug: no error anywhere. S1 adds the shadcn primitives
+     * and the fonts that go with them, so this is a live path, not a
+     * hypothetical one.
+     */
+    readAssetBytes: (absolutePath: string) => Promise<Uint8Array>;
+    /**
      * The token required on `/api/action` and injected into the served page
      * (#2628). Defaults to this process's boot token; a test injects a known
      * one, which is what lets the accept-path be exercised at all without
@@ -932,6 +943,7 @@ function defaultLiveIndex(): LiveIndex {
 const defaultDeps: TelemetryDeps = {
     getLoopStatus: getLoopStatusCached,
     readAsset: (absolutePath) => readFile(absolutePath, "utf8"),
+    readAssetBytes: (absolutePath) => readFile(absolutePath),
     get dashboardBuild() {
         return loadDashboardBuild();
     },
@@ -1106,7 +1118,13 @@ export async function handleRequest(
     // `Partial`, so a test that only cares about one seam keeps passing one
     // key — adding `readAsset` in #2625 must not force every existing call
     // site to name every dependency.
-    const { getLoopStatus, readAsset, liveIndex, dashboardBuild } = {
+    const {
+        getLoopStatus,
+        readAsset,
+        readAssetBytes,
+        liveIndex,
+        dashboardBuild,
+    } = {
         ...defaultDeps,
         ...deps,
     };
@@ -1193,7 +1211,8 @@ export async function handleRequest(
                 url.pathname.slice(ASSET_PREFIX.length)
             );
             if (!asset) return new Response("not found", { status: 404 });
-            return new Response(await readAsset(asset.path), {
+            // BYTES, never a decoded string — see `readAssetBytes`.
+            return new Response(await readAssetBytes(asset.path), {
                 headers: { "content-type": asset.type },
             });
         }
