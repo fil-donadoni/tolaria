@@ -219,7 +219,6 @@ describe("live-activity — LiveIndex", () => {
     });
 
     it("a session being written to NOW outranks an idle one that named the issue more — liveness before mention count", () => {
-        const { utimesSync } = require("node:fs") as typeof import("node:fs");
         const dir = join(root, "rank-case");
         const talker = "44444444-4444-4444-8444-444444444444";
         const worker = "55555555-5555-4555-8555-555555555555";

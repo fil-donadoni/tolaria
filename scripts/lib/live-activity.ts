@@ -801,9 +801,9 @@ export function readTail(
         };
     }
     const from = Math.max(0, size - TAIL_INITIAL_BYTES);
-    let { lines, nextOffset } = readLinesFrom(path, from, size);
+    const { lines: raw, nextOffset } = readLinesFrom(path, from, size);
     // A mid-file start lands inside a line: drop the partial head.
-    if (from > 0 && lines.length > 0) lines = lines.slice(1);
+    const lines = from > 0 && raw.length > 0 ? raw.slice(1) : raw;
     const entries = parseTailEntries(lines);
     return {
         session,
