@@ -169,6 +169,23 @@ export interface DeckZoneSurfaceProps {
      *  only on the `"columns"` drop model, since the `"pane"` Zone
      *  (Sideboard) has no Columns to pin into. */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
+    /** READ-ONLY mount (issue #3167) — the explicit opt-out this surface needs
+     *  to render somewhere nothing is editable: the Limited "Review the Table"
+     *  disclosure, which shows a COMPLETED event's deck and Pool as the same
+     *  card-image piles the deckbuilder draws.
+     *
+     *  Every other editing affordance here is already presence-switched (no
+     *  `onPin`/`onAddColumn`/`onCardSelect` ⇒ no pin, no column management, no
+     *  Peek Panel), and `dropModel: "pane"` already leaves the Columns inert.
+     *  The two things presence cannot switch off are the DND registrations —
+     *  this surface's pane droppable and every tile's draggable — so they take
+     *  a flag. Without it a review mount registers live drop targets into
+     *  dnd-kit's default manager (there is no host `DragDropProvider` on a
+     *  review page) and a card visibly drags to a drop nothing handles.
+     *
+     *  Deliberately a flag rather than a forked read-only pile component: one
+     *  pile surface is the whole point of ADR 0075. */
+    readOnly?: boolean;
 }
 
 /** One card of a Zone, carrying the key its Card Pin is recorded under. The
@@ -205,6 +222,7 @@ export default function DeckZoneSurface({
     onRenameColumn,
     onDeleteColumn,
     onPin,
+    readOnly = false,
 }: DeckZoneSurfaceProps) {
     // The Zone build-time filter (issue #1625, ADR 0075 § "Filter is
     // momentary") lives ONLY in this component's own state — never lifted to
@@ -446,6 +464,10 @@ export default function DeckZoneSurface({
                                         !!featuredCardId &&
                                         card.cardId === featuredCardId,
                                     isSelected: selectedTileKey === key,
+                                    // Issue #3167 — the tile's own opt-out
+                                    // (no drag, no tab stop, no destructive
+                                    // hover ring); see `readOnly` above.
+                                    readOnly,
                                 };
                             }
                         ),
@@ -464,6 +486,7 @@ export default function DeckZoneSurface({
             featuredCardId,
             onPin,
             moveMenuColumns,
+            readOnly,
         ]
     );
 
@@ -473,7 +496,7 @@ export default function DeckZoneSurface({
     // Column targets is exactly the nesting ambiguity that model avoids.
     const { ref: paneRef, isDropTarget } = useDroppable({
         id: zonePaneDropId(zone),
-        disabled: dropModel !== "pane",
+        disabled: dropModel !== "pane" || readOnly,
     });
 
     // Issue #2511: the JS reading of `DeckColumnPile`'s own `hidden md:flex`

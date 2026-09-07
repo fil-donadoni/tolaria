@@ -59,6 +59,26 @@ export interface DeckCardTileProps {
      *  the Peek Panel is showing. Draws a selection ring; purely a cue, the
      *  panel itself is the parent's. */
     isSelected?: boolean;
+    /** READ-ONLY mount (issue #3167) — the explicit opt-out of every gesture
+     *  this tile otherwise binds. The Limited "Review the Table" disclosure
+     *  renders a finished event's deck and Pool through the same surface as
+     *  the deckbuilder, and there is nothing left to edit there: the tile must
+     *  not be draggable (there is no `DragDropProvider` and no drop that could
+     *  mean anything), must not be a tab stop promising an activation, and
+     *  must not paint the destructive "this click removes" hover ring.
+     *
+     *  An opt-out rather than a second tile component (issue #3167's own
+     *  instruction): a forked read-only tile is a second place for the card
+     *  face, the ring recipe and the count badge to drift.
+     *
+     *  It also flips the two `CardImage` choices an EDITING surface makes for
+     *  reasons that stop applying here — the hold-preview comes back (reading
+     *  the card is the whole point of a review surface, and no 250ms hold is
+     *  a drag any more), and the art loads lazily and unpromoted, because a
+     *  completed 8-seat table mounts hundreds of these at once inside
+     *  collapsed disclosures (see {@link CONTAINED_LAYER} in
+     *  `card-image.tsx`). */
+    readOnly?: boolean;
     /** How many identical copies this tile stands for (issue #2584's MV rows).
      *  `undefined` or `1` renders no badge; `>1` renders a `×N` badge. The
      *  badge is `pointer-events-none` — it is a LABEL, not one of the overlay
@@ -76,9 +96,17 @@ export default function DeckCardTile({
     stackIndex,
     isFeatured,
     isSelected,
+    readOnly = false,
     count,
 }: DeckCardTileProps) {
-    const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
+    // Registered but disabled on a read-only mount: dnd-kit wants a stable id
+    // per mounted draggable, exactly as `DeckColumnPile` documents for its
+    // droppable, and a disabled draggable never starts a drag.
+    const { ref, isDragging } = useDraggable({
+        id: dragId,
+        data: dragData,
+        disabled: readOnly,
+    });
     const stacked = stackIndex !== undefined;
 
     // THIS TILE BINDS ONE POINTER GESTURE, AND IT IS THE PRIMARY CLICK.
@@ -141,13 +169,21 @@ export default function DeckCardTile({
     return (
         <div
             ref={ref}
-            role="button"
-            tabIndex={0}
-            {...{ [CARD_TILE_ATTR]: "" }}
+            /* A read-only tile is not a control: no role, no tab stop, no
+               gesture. The keyboard grid handle goes with them — there is
+               nothing to activate, so arrow-navigating between tiles would
+               only park focus somewhere a reader cannot act. */
+            {...(readOnly
+                ? {}
+                : {
+                      role: "button",
+                      tabIndex: 0,
+                      [CARD_TILE_ATTR]: "",
+                      onClick,
+                      onDoubleClick,
+                      onKeyDown: handleKeyDown,
+                  })}
             title={title}
-            onClick={onClick}
-            onDoubleClick={onDoubleClick}
-            onKeyDown={handleKeyDown}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding
@@ -174,8 +210,10 @@ export default function DeckCardTile({
                 // pile-mates overlapping it — a buried tile shows a ~20px
                 // sliver, and a ring on a sliver is not a visible focus
                 // indicator (WCAG 2.4.11).
-                "group aspect-5/7 w-(--card-w) shrink-0 cursor-grab touch-pan-x select-none transition hover:-translate-y-0.5 hover:z-10",
-                "focus-visible:z-20 focus-visible:-translate-y-0.5",
+                "group aspect-5/7 w-(--card-w) shrink-0 select-none transition",
+                readOnly
+                    ? "cursor-default"
+                    : "cursor-grab touch-pan-x hover:-translate-y-0.5 hover:z-10 focus-visible:z-20 focus-visible:-translate-y-0.5",
                 stacked ? "absolute left-0" : "relative",
                 isDragging ? "opacity-30" : "",
                 isSelected ? "z-10 -translate-y-0.5" : ""
@@ -183,15 +221,25 @@ export default function DeckCardTile({
         >
             {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
                 the DRAG (gesture model A), so the hold-preview is off — the
-                card is read through the Peek Panel's Inspect CTA instead. */}
-            <CardImage card={{ id: cardId }} holdPreview={false} />
+                card is read through the Peek Panel's Inspect CTA instead. On a
+                `readOnly` mount there is no drag to lose the gesture to and no
+                Peek Panel to read the card in, so the hold-preview is the one
+                card-reading affordance and comes back on (issue #3167). */}
+            <CardImage
+                card={{ id: cardId }}
+                holdPreview={readOnly}
+                lazy={readOnly}
+                promoteLayer={!readOnly}
+            />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card.
                 Not one of the three card-ring ROLES (ADR 0103 §8) — it says
                 "this click destroys", not "candidate / selected / attacking" —
                 so it borrows the `.card-ring` recipe for the inset geometry and
                 supplies its own colour. Transparent until hovered. */}
-            <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-danger-strong)_70%,transparent)]" />
+            {!readOnly && (
+                <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-danger-strong)_70%,transparent)]" />
+            )}
             {isFeatured && (
                 <div className="card-ring card-ring-selected pointer-events-none absolute inset-0" />
             )}
