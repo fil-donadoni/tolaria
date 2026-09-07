@@ -301,6 +301,7 @@ describe("opBeneficence — the sign of an Op for its recipient (issue #1888)", 
             player: { target: 0 },
             zone: kind === "discard-hand" ? "hand" : "battlefield",
             count: 1,
+            prompt: "pick",
             bind: "$picked",
         });
         // Coerced: Liliana of the Veil's `−2`, the Mind Rot family. The
