@@ -1,4 +1,5 @@
 import { esc } from "./format.js";
+import { infoHtml } from "./now-atoms.js";
 
 /**
  * The loop verdict band (#2624, split out in #2625).
@@ -99,19 +100,36 @@ export function actionButtonHtml(action) {
     );
 }
 
+/**
+ * A finding (issue #3135): the engine's code as a badge carrying its
+ * glossary term (`finding.<code>` — `claims-held`, `orphaned-claims`,
+ * `failed-reads`), then the engine's own detail sentence. The code stays
+ * visible — it is what `bun run loop:status` prints and what the
+ * `loop-drain.log` reason column says — but it is no longer the only word.
+ */
+export function findingHtml(f) {
+    return (
+        `<div class="ls-finding">` +
+        `<span class="ls-badge warn" data-term="finding.${esc(f.code)}">${esc(f.code)}</span>` +
+        `<span class="ls-finding-detail">${esc(f.detail)}</span>` +
+        `</div>`
+    );
+}
+
 export function verdictBandHtml(verdict) {
     if (!verdict) return "";
+    const findings = verdict.findings ?? [];
     return (
+        `<div class="ls-verdict-wrap">` +
         `<div class="ls-verdict">` +
-        `<span class="ls-verdict-state ${verdictTone(verdict.state)}">${esc(verdict.state)}</span>` +
+        `<span class="ls-verdict-state ${verdictTone(verdict.state)}" data-term="loop.${esc(verdict.state)}">${esc(verdict.state)}</span>` +
+        infoHtml("section.verdict", "the loop verdict") +
         `<span class="ls-verdict-sentence">${esc(verdict.sentence)}</span>` +
-        `<span class="ls-verdict-remedy">→ ${remedyHtml(verdict.remedy)}${actionButtonHtml(verdict.remedyAction)}</span>` +
         `</div>` +
-        (verdict.findings ?? [])
-            .map(
-                (f) =>
-                    `<div class="ls-finding">· ${esc(f.code)}: ${esc(f.detail)}</div>`
-            )
-            .join("")
+        `<div class="ls-verdict-remedy"><span class="ls-verdict-remedy-label">Next step</span> ${remedyHtml(verdict.remedy)}${actionButtonHtml(verdict.remedyAction)}</div>` +
+        (findings.length
+            ? `<div class="ls-findings"><span class="ls-findings-label">Evidence</span>${findings.map(findingHtml).join("")}</div>`
+            : "") +
+        `</div>`
     );
 }

@@ -1,5 +1,6 @@
 import { esc } from "./format.js";
 import { claimsHeaderCount } from "./now-claims-table.js";
+import { infoHtml } from "./now-atoms.js";
 
 /**
  * The four traffic lights of the Now view (#2630) — Driver, Queue, Claims,
@@ -314,6 +315,16 @@ function lightHtml(light) {
         `<span class="ls-light-head">` +
         `<span class="ls-light-glyph" aria-hidden="true">${esc(glyph(light.tone))}</span>` +
         `<span class="ls-light-label">${esc(light.label)}</span>` +
+        // The `ⓘ` (issue #3135): the light's own glossary entry, the same
+        // `section.<id>` term its detail section's heading carries — one
+        // explanation per subsystem, declared in two places.
+        infoHtml(`section.${light.id}`, `the ${light.label} light`).replace(
+            'class="ls-info"',
+            // Inside a <button> nothing else may take focus (interactive
+            // content is not permitted in a button); the light itself is the
+            // focus target and the term is read on hover / via the section.
+            'class="ls-info" tabindex="-1"'
+        ) +
         `<span class="ls-light-word">${esc(light.word)}</span>` +
         `</span>` +
         `<span class="ls-light-value">` +

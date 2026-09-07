@@ -123,16 +123,31 @@ export const hideTip = () => {
  * @param {{ label: string, tip: string }} entry
  */
 export function tooltipHtml(entry) {
-    return `<b>${esc(entry.label)}</b><br>${esc(entry.tip)}`;
+    // A `data-tip` entry has no label; its text may carry newlines, which
+    // read as line breaks (an activity bar lists four numbers).
+    const body = esc(entry.tip).replace(/\n/g, "<br>");
+    return entry.label ? `<b>${esc(entry.label)}</b><br>${body}` : body;
 }
 
-/** The nearest ancestor (or self) that declares a resolvable term. */
+/**
+ * The nearest ancestor (or self) that declares a resolvable term — or, since
+ * issue #3135, a per-element `data-tip` (plain text, escaped here). The
+ * glossary path is for VOCABULARY, one explanation per term; `data-tip` is
+ * for a datum's own numbers — an activity bar's hour and token counts —
+ * which no glossary could declare in advance. Same layer, same delegation,
+ * same keyboard path; only where the words come from differs.
+ */
 function termTargetOf(node) {
     if (!node || typeof node.closest !== "function") return null;
-    const el = node.closest("[data-term]");
+    const el = node.closest("[data-term],[data-tip]");
     if (!el) return null;
-    const entry = lookupTerm(el.getAttribute("data-term"));
-    return entry ? { el, entry } : null;
+    if (el.hasAttribute("data-term")) {
+        const entry = lookupTerm(el.getAttribute("data-term"));
+        if (entry) return { el, entry };
+    }
+    const tip = el.getAttribute("data-tip");
+    if (tip) return { el, entry: { label: "", tip } };
+    return null;
 }
 
 /**

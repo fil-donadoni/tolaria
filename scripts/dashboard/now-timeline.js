@@ -1,5 +1,6 @@
 import { esc } from "./format.js";
 import { LIGHT_TONES } from "./now-lights.js";
+import { sectionHtml } from "./now-atoms.js";
 
 /**
  * The Now view's 24-hour timeline (#2631) — passes as blocks, claims as pins
@@ -551,11 +552,11 @@ export function timelineSectionHtml(data, nowMs = Date.now()) {
 
     const body = nothingKnown ? emptyTimelineHtml() : timelineHtml(data, nowMs);
 
-    return (
-        `<div id="${TIMELINE_SECTION_ID}" class="ls-section ls-timeline-section">` +
-        `<b>Last ${WINDOW_HOURS}h</b>` +
-        unavailableHtml +
-        body +
-        `</div>`
-    );
+    return sectionHtml({
+        id: TIMELINE_SECTION_ID,
+        term: "section.timeline",
+        title: `Last ${WINDOW_HOURS} hours`,
+        cls: "ls-timeline-section",
+        body: unavailableHtml + body,
+    });
 }

@@ -16,6 +16,8 @@
  * called by the transport module after the first render.
  */
 
+import { openTail } from "./now-tail.js";
+
 /** How long a jumped-to section stays highlighted. */
 const FLASH_MS = 1600;
 /** How long "copied" replaces the button's label. */
@@ -82,6 +84,19 @@ export function initNowNav(root = document.getElementById("loop-status-body")) {
             return;
         }
         const copy = e.target.closest?.(".ls-copy");
-        if (copy) copyCommand(copy);
+        if (copy) {
+            copyCommand(copy);
+            return;
+        }
+        // A Watch button (issue #3135) opens the tail drawer on its session.
+        const watch = e.target.closest?.(".ls-watch");
+        if (watch) {
+            openTail({
+                session: watch.dataset.session,
+                label: watch.dataset.label,
+                issue: watch.dataset.issue || null,
+                opener: watch,
+            });
+        }
     });
 }

@@ -349,14 +349,25 @@ describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
         expect(NOW_MODULES).toContain("format.js");
     });
 
-    it("Now reads /api/loop-status and posts to /api/action, and nothing else — no database route, direct or transitive", () => {
+    it("Now reads /api/loop-status and the three transcript routes and posts to /api/action, and nothing else — no database route, direct or transitive", () => {
         // `/api/action` (#2628) joined the allow-list in #2636: the Now
         // view's action buttons (`actions.js`, reached from `main.js` via
         // `now-loop-status.js`) POST the three reversible driver operations
         // there. It reads no DB — same guarantee `/api/loop-status` gives —
         // so admitting it here does not reopen the thing this guard exists
         // to prevent (a DB-backed route reachable without telemetry.db).
-        const ALLOWED = new Set(["/api/loop-status", "/api/action"]);
+        // `/api/activity`, `/api/live` and `/api/tail` (issue #3135) read
+        // the session transcripts through `lib/live-activity.ts` — no
+        // database, the same guarantee as `/api/loop-status` — so admitting
+        // them keeps the thing this guard exists to prevent (a
+        // `telemetry.db`-backed route reachable without the store) intact.
+        const ALLOWED = new Set([
+            "/api/loop-status",
+            "/api/action",
+            "/api/activity",
+            "/api/live",
+            "/api/tail",
+        ]);
         for (const name of NOW_MODULES) {
             const src = stripComments(
                 readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
@@ -1005,5 +1016,128 @@ describe("telemetry-serve — the token injection is literal (#2628)", () => {
         expect(html).not.toContain("BEFOREBEFORE");
         expect(html.match(/BEFORE/g) ?? []).toHaveLength(1);
         expect(html.match(/AFTER/g) ?? []).toHaveLength(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// issue #3135 — the three transcript routes. An injected `LiveIndex` over a
+// temp directory: the routes never see the operator's real ~/.claude.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("telemetry-serve — transcript routes (issue #3135)", () => {
+    const SESSION = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const SLUG = "-Users-x-proj";
+    let root: string;
+    let liveIndex: import("../lib/live-activity").LiveIndex;
+
+    const setup = async () => {
+        if (root) return;
+        const { mkdtempSync, mkdirSync, writeFileSync } =
+            await import("node:fs");
+        const { tmpdir } = await import("node:os");
+        root = mkdtempSync(join(tmpdir(), "serve-live-"));
+        mkdirSync(join(root, SLUG), { recursive: true });
+        const ts = new Date().toISOString();
+        writeFileSync(
+            join(root, SLUG, `${SESSION}.jsonl`),
+            [
+                JSON.stringify({
+                    type: "user",
+                    timestamp: ts,
+                    message: { role: "user", content: "hello #3096" },
+                }),
+                JSON.stringify({
+                    type: "assistant",
+                    uuid: "u1",
+                    timestamp: ts,
+                    message: {
+                        id: "m1",
+                        model: "claude-sonnet-5",
+                        usage: {
+                            input_tokens: 1,
+                            output_tokens: 7,
+                            cache_read_input_tokens: 0,
+                            cache_creation_input_tokens: 0,
+                        },
+                        content: [{ type: "text", text: "hi" }],
+                    },
+                }),
+            ].join("\n") + "\n"
+        );
+        const { LiveIndex } = await import("../lib/live-activity");
+        liveIndex = new LiveIndex({ projectsRoot: root, projectSlug: SLUG });
+    };
+
+    it("/api/tail refuses a session id that is not a UUID (400) before touching any path", async () => {
+        await setup();
+        const { handleRequest } = await import("../telemetry-serve");
+        for (const bad of ["../../etc/passwd", "abc", `${SESSION}/x`, ""]) {
+            const res = await handleRequest(
+                new Request(
+                    `http://127.0.0.1/api/tail?session=${encodeURIComponent(bad)}`
+                ),
+                { liveIndex }
+            );
+            expect(res.status, bad).toBe(400);
+        }
+    });
+
+    it("/api/tail 404s a well-formed session id that no project directory holds", async () => {
+        await setup();
+        const { handleRequest } = await import("../telemetry-serve");
+        const res = await handleRequest(
+            new Request(
+                `http://127.0.0.1/api/tail?session=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb`
+            ),
+            { liveIndex }
+        );
+        expect(res.status).toBe(404);
+    });
+
+    it("/api/tail returns the conversation and an offset; passing the offset back returns nothing new", async () => {
+        await setup();
+        const { handleRequest } = await import("../telemetry-serve");
+        const first = await handleRequest(
+            new Request(`http://127.0.0.1/api/tail?session=${SESSION}`),
+            { liveIndex }
+        );
+        expect(first.status).toBe(200);
+        const page = await first.json();
+        expect(page.entries.map((e: { kind: string }) => e.kind)).toEqual([
+            "user",
+            "assistant",
+        ]);
+        expect(page.summary.liveness).toBe("active");
+        expect(page.summary.topIssues).toEqual([{ issue: 3096, mentions: 1 }]);
+        const again = await handleRequest(
+            new Request(
+                `http://127.0.0.1/api/tail?session=${SESSION}&offset=${page.offset}`
+            ),
+            { liveIndex }
+        );
+        expect((await again.json()).entries).toEqual([]);
+    });
+
+    it("/api/activity answers 24 hourly buckets and /api/live maps an asked-about issue to its session", async () => {
+        await setup();
+        const { handleRequest } = await import("../telemetry-serve");
+        const activity = await (
+            await handleRequest(new Request("http://127.0.0.1/api/activity"), {
+                liveIndex,
+            })
+        ).json();
+        expect(activity.buckets).toHaveLength(24);
+        expect(activity.buckets[23].outTok).toBe(7);
+        const live = await (
+            await handleRequest(
+                new Request("http://127.0.0.1/api/live?issues=3096,9999,x"),
+                { liveIndex }
+            )
+        ).json();
+        expect(
+            live.sessions.map((s: { session: string }) => s.session)
+        ).toEqual([SESSION]);
+        expect(live.byIssue[3096][0].session).toBe(SESSION);
+        expect(live.byIssue[9999]).toEqual([]);
     });
 });

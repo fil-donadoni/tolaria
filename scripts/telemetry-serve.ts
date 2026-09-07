@@ -23,11 +23,26 @@ import { promisify } from "node:util";
 import type { Database } from "bun:sqlite";
 import { gatherLoopStatus, fetchPriorityGracefully } from "./loop-status";
 import type { GracefulPriority } from "./loop-status";
+import { homedir } from "node:os";
+import {
+    LiveIndex,
+    readTail,
+    SESSION_ID_RE,
+    ACTIVITY_WINDOW_HOURS,
+    LIVE_SESSION_MINUTES,
+    ACTIVE_SESSION_MINUTES,
+} from "./lib/live-activity";
+import type { SessionSummary } from "./lib/live-activity";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
 const HTML_PATH = join(PROJECT_DIR, "scripts/telemetry-dashboard.html");
 const DASHBOARD_DIR = join(PROJECT_DIR, "scripts/dashboard");
+/** Where the harness keeps this project's session transcripts — the same
+ *  slug rule `telemetry-ingest.ts` uses (`/` → `-`), and the ONLY root the
+ *  live routes ever read under (issue #3135). */
+const PROJECTS_ROOT = join(homedir(), ".claude/projects");
+const PROJECT_SLUG = PROJECT_DIR.replace(/\//g, "-");
 
 /**
  * The dashboard's static assets (#2625), as an EXPLICIT list of names.
@@ -66,6 +81,10 @@ export const DASHBOARD_ASSET_NAMES = [
     "now-nav.js",
     "now-claims-table.js",
     "now-timeline.js",
+    "now-atoms.js",
+    "now-activity.js",
+    "now-live.js",
+    "now-tail.js",
     "actions.js",
     "history-boot.js",
     "history-state.js",
@@ -952,6 +971,24 @@ export interface TelemetryDeps {
     allowedOrigins: ReadonlySet<string>;
     /** The three reversible operations `/api/action` dispatches (#2628). */
     driverActions: DriverActions;
+    /**
+     * The transcript index behind `/api/activity`, `/api/live` and
+     * `/api/tail` (issue #3135). Injected so a test can point it at a temp
+     * directory it wrote itself — the default reads the operator's real
+     * `~/.claude/projects/<slug>*`, which no test may touch.
+     */
+    liveIndex: LiveIndex;
+}
+
+/** One index per process, built on first use — `refresh` walks the disk,
+ *  and nothing should walk it at import time. */
+let liveIndexSingleton: LiveIndex | null = null;
+function defaultLiveIndex(): LiveIndex {
+    liveIndexSingleton ??= new LiveIndex({
+        projectsRoot: PROJECTS_ROOT,
+        projectSlug: PROJECT_SLUG,
+    });
+    return liveIndexSingleton;
 }
 
 const defaultDeps: TelemetryDeps = {
@@ -960,7 +997,126 @@ const defaultDeps: TelemetryDeps = {
     actionToken: BOOT_ACTION_TOKEN,
     allowedOrigins: loopbackOrigins(resolvePort()),
     driverActions: defaultDriverActions,
+    get liveIndex() {
+        return defaultLiveIndex();
+    },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live routes (issue #3135) — transcripts, never the store. Each refresh is
+// throttled: a poll every few seconds from every open tab must not re-walk
+// ~50 multi-megabyte files each time, and the index's own byte cursors make a
+// refresh that finds nothing new cost one `stat` per file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LIVE_REFRESH_MIN_MS = 2_000;
+const lastRefreshByIndex = new WeakMap<LiveIndex, number>();
+
+function refreshThrottled(index: LiveIndex, nowMs: number): void {
+    const last = lastRefreshByIndex.get(index) ?? 0;
+    if (nowMs - last < LIVE_REFRESH_MIN_MS) return;
+    lastRefreshByIndex.set(index, nowMs);
+    index.refresh(nowMs);
+}
+
+/** A session summary as the page receives it — the mentions map reduced to
+ *  the issues it names most, and liveness stated as words, not left to the
+ *  client to re-derive from timestamps. */
+export function sessionView(s: SessionSummary, nowMs: number) {
+    const ageMin = (nowMs - s.lastWriteMs) / 60_000;
+    const topIssues = Object.entries(s.mentions)
+        .map(([issue, n]) => ({ issue: Number(issue), mentions: n }))
+        .sort((a, b) => b.mentions - a.mentions)
+        .slice(0, 3);
+    return {
+        session: s.session,
+        title: s.title,
+        lastPrompt: s.lastPrompt,
+        cwd: s.cwd,
+        gitBranch: s.gitBranch,
+        lastWriteMs: s.lastWriteMs,
+        lastMessageMs: s.lastMessageMs,
+        outTok: s.outTok,
+        inTok: s.inTok,
+        cacheRead: s.cacheRead,
+        cost: s.cost,
+        messages: s.messages,
+        subagents: s.subagents,
+        topIssues,
+        liveness:
+            ageMin <= ACTIVE_SESSION_MINUTES
+                ? "active"
+                : ageMin <= LIVE_SESSION_MINUTES
+                  ? "live"
+                  : "idle",
+    };
+}
+
+/** `/api/activity` — one bucket per hour of the window. */
+function activityView(index: LiveIndex, nowMs: number) {
+    refreshThrottled(index, nowMs);
+    return {
+        windowHours: ACTIVITY_WINDOW_HOURS,
+        asOf: index.refreshedAt,
+        buckets: index.activity(nowMs),
+    };
+}
+
+/**
+ * `/api/live?issues=3096,3100` — the sessions live right now, and for each
+ * issue asked about, the sessions most likely working it.
+ */
+function liveView(index: LiveIndex, url: URL, nowMs: number) {
+    refreshThrottled(index, nowMs);
+    const issues = (url.searchParams.get("issues") ?? "")
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0);
+    const byIssue: Record<number, ReturnType<typeof sessionView>[]> = {};
+    for (const issue of issues) {
+        byIssue[issue] = index
+            .sessionsForIssue(issue)
+            .map((s) => sessionView(s, nowMs));
+    }
+    return {
+        asOf: index.refreshedAt,
+        liveMinutes: LIVE_SESSION_MINUTES,
+        activeMinutes: ACTIVE_SESSION_MINUTES,
+        sessions: index.liveSessions(nowMs).map((s) => sessionView(s, nowMs)),
+        byIssue,
+    };
+}
+
+/**
+ * `/api/tail?session=<uuid>&offset=<bytes>` — the conversation as a person
+ * reads it. The session id is validated against `SESSION_ID_RE` BEFORE it
+ * touches a path and resolved only inside this slug's own project
+ * directories (`LiveIndex.transcriptPath`); anything else is a 400 or a 404,
+ * and no other spelling of a path exists on this route.
+ */
+function tailView(index: LiveIndex, url: URL, nowMs: number): Response {
+    const session = url.searchParams.get("session") ?? "";
+    if (!SESSION_ID_RE.test(session)) {
+        return Response.json({ error: "bad session id" }, { status: 400 });
+    }
+    const path = index.transcriptPath(session);
+    if (!path) {
+        return Response.json({ error: "no such session" }, { status: 404 });
+    }
+    const rawOffset = url.searchParams.get("offset");
+    const offset =
+        rawOffset === null || rawOffset === ""
+            ? null
+            : Number.isInteger(Number(rawOffset)) && Number(rawOffset) >= 0
+              ? Number(rawOffset)
+              : null;
+    refreshThrottled(index, nowMs);
+    const summary = index.session(session);
+    return Response.json({
+        ...readTail(path, session, offset),
+        summary: summary ? sessionView(summary, nowMs) : null,
+    });
+}
 
 /** The three security-relevant dependencies, resolved. */
 export interface SecurityDeps {
@@ -1009,7 +1165,7 @@ export async function handleRequest(
     // `Partial`, so a test that only cares about one seam keeps passing one
     // key — adding `readAsset` in #2625 must not force every existing call
     // site to name every dependency.
-    const { getLoopStatus, readAsset } = { ...defaultDeps, ...deps };
+    const { getLoopStatus, readAsset, liveIndex } = { ...defaultDeps, ...deps };
     const { actionToken, allowedOrigins, driverActions } =
         resolveSecurityDeps(deps);
     const url = new URL(req.url);
@@ -1018,6 +1174,18 @@ export async function handleRequest(
         // stale (#2519), so it is dispatched before any DB-backed route.
         if (url.pathname === "/api/loop-status") {
             return Response.json(await getLoopStatus());
+        }
+        // The live routes (issue #3135) read transcripts, not the store —
+        // dispatched with `/api/loop-status`, before any DB-backed route,
+        // for the same reason.
+        if (url.pathname === "/api/activity") {
+            return Response.json(activityView(liveIndex, Date.now()));
+        }
+        if (url.pathname === "/api/live") {
+            return Response.json(liveView(liveIndex, url, Date.now()));
+        }
+        if (url.pathname === "/api/tail") {
+            return tailView(liveIndex, url, Date.now());
         }
         if (url.pathname === "/api/meta") {
             return Response.json(meta());
