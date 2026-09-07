@@ -80,13 +80,27 @@
     --ring: #2a78d6;
     --radius: 0.5rem;
 
-    /* Chart slots, wired to the dashboard's own series ramp so a shadcn chart
-       and a hand-drawn SVG cannot drift apart. */
-    --chart-1: #2a78d6;
-    --chart-2: #eb6834;
-    --chart-3: #1baf7a;
-    --chart-4: #eda100;
-    --chart-5: #e87ba4;
+    /* The SERIES RAMP — the categorical palette, eight slots (PRD #3148 S3).
+       History's "Over time" card folds everything past the eighth into one
+       explicit "Other" rather than cycling hues, so eight is the whole ramp
+       and not an arbitrary prefix of a longer one.
+
+       The shadcn chart slots ALIAS the first five rather than restating them.
+       Two literal declarations of one colour in two token families is decided
+       by whichever block a reader happens to edit; an alias cannot drift. */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
+    --chart-1: var(--series-1);
+    --chart-2: var(--series-2);
+    --chart-3: var(--series-3);
+    --chart-4: var(--series-4);
+    --chart-5: var(--series-5);
 
     /* Semantic STATE roles (#2630), carried over verbatim. Role names, never
        chromatic ones. `unknown` is deliberately its OWN hue rather than a
@@ -120,11 +134,14 @@
         --border: rgba(255, 255, 255, 0.1);
         --input: #1a1a19;
         --ring: #3987e5;
-        --chart-1: #3987e5;
-        --chart-2: #d95926;
-        --chart-3: #199e70;
-        --chart-4: #c98500;
-        --chart-5: #d55181;
+        --series-1: #3987e5;
+        --series-2: #d95926;
+        --series-3: #199e70;
+        --series-4: #c98500;
+        --series-5: #d55181;
+        --series-6: #008300;
+        --series-7: #9085e9;
+        --series-8: #e66767;
         --state-good: #199e70;
         --state-warn: #c98500;
         --state-bad: #d95926;
@@ -154,11 +171,14 @@
     --border: rgba(255, 255, 255, 0.1);
     --input: #1a1a19;
     --ring: #3987e5;
-    --chart-1: #3987e5;
-    --chart-2: #d95926;
-    --chart-3: #199e70;
-    --chart-4: #c98500;
-    --chart-5: #d55181;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
     --state-good: #199e70;
     --state-warn: #c98500;
     --state-bad: #d95926;
@@ -202,6 +222,19 @@
     --color-chart-3: var(--chart-3);
     --color-chart-4: var(--chart-4);
     --color-chart-5: var(--chart-5);
+
+    /* The eight series slots as utilities as well, for the same reason the
+       chart slots are (PRD #3148 S3): History's legend swatch wears
+       `bg-series-N` and would render with NO background at all — invisible
+       rather than wrong — if the name existed only as a CSS variable. */
+    --color-series-1: var(--series-1);
+    --color-series-2: var(--series-2);
+    --color-series-3: var(--series-3);
+    --color-series-4: var(--series-4);
+    --color-series-5: var(--series-5);
+    --color-series-6: var(--series-6);
+    --color-series-7: var(--series-7);
+    --color-series-8: var(--series-8);
 
     /* The state roles as UTILITIES (`bg-state-good`, `text-state-bad`), which
        is what lets `dashboard/lib/tones.ts` be ONE table of class names rather
