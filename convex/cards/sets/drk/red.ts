@@ -14,6 +14,7 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
 } from "../../types";
+import { IS_NONBASIC_LAND } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -77,13 +78,10 @@ export const goblinHero: CardDefinition = {
 //     `["Mountain"]`, which makes `getBasicLandMana` return {R}.
 // The layer system recomputes both live and `stopApplyingStaticEffects`
 // reverts them cleanly when Blood Moon leaves the battlefield.
-const IS_NONBASIC_LAND: (
-    target: PermanentView,
-    source: PermanentView,
-    ctx: StaticEffectContext
-) => boolean = (target, _source, ctx) =>
-    ctx.getPrintedTypes(target).includes("Land") &&
-    !ctx.hasSupertype(target, "Basic");
+//
+// The `IS_NONBASIC_LAND` predicate both halves scan lives in `cards/types.ts`:
+// Magus of the Moon (`sets/fut/red.ts`) prints the identical Oracle line, so
+// the set is shared rather than restated once per card.
 
 export const bloodMoon: CardDefinition = {
     id: "78373616-e2d6-4ccf-998f-09f02bea45b4",

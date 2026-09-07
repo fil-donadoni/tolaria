@@ -6220,6 +6220,14 @@
         "firstPrintSet": "mid"
     },
     {
+        "name": "Conspiracy",
+        "scryfallId": "411c9f22-2df0-4a63-b2be-fa02612a6ef8",
+        "oracleId": "775d284d-0884-4ae3-a1b5-2b2a50a895b4",
+        "firstSet": "mmq",
+        "firstPrintId": "411c9f22-2df0-4a63-b2be-fa02612a6ef8",
+        "firstPrintSet": "mmq"
+    },
+    {
         "name": "Consulate Skygate",
         "scryfallId": "9a7922c3-1baa-41ed-bd06-b5a97cddb90e",
         "oracleId": "671db0d7-b103-4c13-9914-a444f2ecf9d6",
@@ -20048,6 +20056,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Magus of the Moon",
+        "scryfallId": "c06a4443-6851-4873-8fb8-2ef76c9d6d2c",
+        "oracleId": "6800d01c-345d-4932-a2a4-8df0fb1902f2",
+        "firstSet": "fut",
+        "firstPrintId": "c06a4443-6851-4873-8fb8-2ef76c9d6d2c",
+        "firstPrintSet": "fut"
+    },
+    {
         "name": "Magus of the Unseen",
         "scryfallId": "86da04e9-b94d-42af-add3-02baf772bd33",
         "oracleId": "d8857977-c8a5-4703-9aaa-331b17c7a713",
@@ -25386,6 +25402,14 @@
         "firstSet": "leg",
         "firstPrintId": "a1dcf48c-2700-4024-807e-9244e4c649ac",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Prismatic Omen",
+        "scryfallId": "e75594cc-de47-49f2-9a8b-ba76c576368e",
+        "oracleId": "d90882ae-6572-4214-8d9c-0bdfb75f9be2",
+        "firstSet": "shm",
+        "firstPrintId": "e75594cc-de47-49f2-9a8b-ba76c576368e",
+        "firstPrintSet": "shm"
     },
     {
         "name": "Prismatic Vista",
