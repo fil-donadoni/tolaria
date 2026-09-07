@@ -62,8 +62,10 @@ function main(): void {
     }
     git(["fetch", "origin", BASE_BRANCH, "-q"], primary);
     git(["worktree", "add", worktree, "-b", branch, ORIGIN_BASE], primary);
+    // Bootstrap chatter goes to STDERR: stdout carries the path and nothing
+    // else, so `cd "$(bun run --silent wt:new N)"` works.
     const init = spawnSync("bun", ["run", "worktree:init"], {
-        stdio: "inherit",
+        stdio: ["ignore", 2, 2],
         cwd: worktree,
     });
     if (init.status !== 0) {

@@ -134,9 +134,8 @@ both. They answer opposite questions, and an issue carrying both is a
 contradiction: it claims to be executable AND to be waiting on a human.
 
 - **`ready-for-agent`** — the draft is complete: area identified, current vs
-  desired behavior stated, acceptance criteria testable, out-of-scope drawn. An
-  implement-subagent could pick it up as-is. `/process-gh-issues` drains this
-  queue.
+  desired behavior stated, acceptance criteria testable, out-of-scope drawn. A
+  session could pick it up as-is. `/next-issue` drains this queue.
 - **`needs-triage`** — something still needs a human decision: the repro is
   unconfirmed, the desired behavior is a product call, the scope is unbounded,
   or a criterion can't be written without the maintainer choosing. The issue is
@@ -178,7 +177,7 @@ whenever the observation is filed as a slice of an existing PRD, and whenever
 an issue is turned INTO a PRD and its work is split out of it: the children
 are wired in the same pass, never left for later.
 
-Why it is mandatory and not decorative: `/process-gh-issues` sorts its queue
+Why it is mandatory and not decorative: the queue planner sorts its queue
 by `parent.number ?? number` — oldest **lineage** first — read from its cheap
 Stage-1 list call. A child with no edge sorts on its own number, so a slice
 cut today from a PRD opened months ago lands at the **back** of the queue and

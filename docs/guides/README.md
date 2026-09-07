@@ -12,7 +12,7 @@ an agent's context automatically — these are read on demand.
 
 | Guide                                           | Answers                                                                                                                                       |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [AFK loop](afk-loop.md)                         | Run the queue unattended: `bun run loop:afk`, monitoring, stop reasons, what to fix by hand                                                   |
+| [Land and release](land-and-release.md)         | Ship a change: `wt:new`, `check:lane`, the PR, `land` onto the base branch; then `release` to production — every phase, every refusal         |
 | [Browser verification](browser-verification.md) | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                 |
 | [UI runbooks](ui-runbooks.md)                   | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                  |
 | [Bot glossary](bot-glossary.md)                 | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, blade, ladder, rungs                        |
@@ -75,7 +75,7 @@ table above, give it a glossary per the section above, and ship it through the
 documentation lane:
 
 ```bash
-bun run wt:docs <slug>     # worktree + branch off origin/main
+bun run wt:docs <slug>     # worktree + branch off origin/<base> (tolaria.config.json)
 … write …
 bun run docs:ship          # check:docs → PR → merge
 ```

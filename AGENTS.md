@@ -210,18 +210,17 @@ labelled `ready-for-agent`; **`/next-issue` drains that queue one issue per
 session** (ADR 0110 — single-session pipeline). Pick intake by where work
 comes FROM:
 
-| Skill                | Trigger                         | Does                                                                                                           |
-| -------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `/next-issue`        | Draining the queue              | ONE issue end-to-end in this session: pick → worktree → implement → one routed review → land                   |
-| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                                                      |
-| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD                                            |
-| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation                                            |
-| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker                                                |
-| `/process-gh-issues` | LEGACY fan-out (ADR 0110)       | File-disjoint batch, parallel implement, review, serial merge-train — being retired in favour of `/next-issue` |
-| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                                                                |
-| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                                                    |
-| `/new-op`            | Card needs a missing DSL verb   | Walks all seven Op registration sites + the Op's permanent test                                                |
-| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine                                             |
+| Skill                | Trigger                         | Does                                                                                         |
+| -------------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `/next-issue`        | Draining the queue              | ONE issue end-to-end in this session: pick → worktree → implement → one routed review → land |
+| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                                    |
+| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD                          |
+| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation                          |
+| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker                              |
+| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                                              |
+| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                                  |
+| `/new-op`            | Card needs a missing DSL verb   | Walks all seven Op registration sites + the Op's permanent test                              |
+| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine                           |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
 via branch + PR + gate like any source file
@@ -314,7 +313,7 @@ A queued heavy gate is not a hang: **`bun run gate:who`** names the holder and
 its CPU; one that stops burning CPU is reclaimed (issue #2999).
 **The full gate is blocked inside an issue worktree**
 (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1` is the
-orchestrator's escape hatch.
+escape hatch `land` alone uses.
 
 **Worktree isolation — the shared checkout is read-only.** Every file you
 author goes in a worktree, **including one line of markdown** (markdown is
@@ -409,7 +408,7 @@ When a card needs a capability that genuinely isn't built, flag it explicitly
 
 ## Agent skills
 
-- **Guides**: `docs/guides/` answers "how do I RUN this?" (AFK loop, …) —
+- **Guides**: `docs/guides/` answers "how do I RUN this?" (land and release, …) —
   index at `docs/guides/README.md`. Read on demand, never resident.
 - **Issue tracker**: GitHub Issues, `gh` CLI. See `docs/agents/issue-tracker.md`.
   In agent output and generated artifacts (terminal, commits, receipts)

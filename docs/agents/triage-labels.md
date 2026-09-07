@@ -6,36 +6,34 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | -------------------------- | -------------------- | ---------------------------------------- |
 | `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
 | `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
+| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for `/next-issue` |
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
+When a skill mentions a role (e.g. "apply the agent-ready triage label"), use the corresponding label string from this table.
 
 ## The queue labels are mutually exclusive
 
 `ready-for-agent` and `needs-triage` answer opposite questions and **must never
 appear on the same issue**. `ready-for-agent` asserts the issue is executable
-as written — an implement-subagent could pick it up and `/process-gh-issues`
-will drain it. `needs-triage` asserts a human still has to decide something
+as written — `/next-issue` could pick it up and land it. `needs-triage` asserts a human still has to decide something
 (unconfirmed repro, product call, unbounded scope). An issue carrying both
-claims to be executable AND blocked, which is not a state: it lands in the AFK
+claims to be executable AND blocked, which is not a state: it lands in the
 queue while reading as un-evaluated.
 
 Rule when filing: if an agent could execute it without asking anyone, apply
 **only** `ready-for-agent`; otherwise apply **only** `needs-triage`. Never hedge
 by applying both. The same exclusivity holds for `needs-info` and
 `ready-for-human` against `ready-for-agent` — anything that says "a human is
-still involved" excludes the AFK queue label.
+still involved" excludes the queue label.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
 
 ## Model-routing labels escalate by exception
 
 **This section is the single authority on model routing, for filing AND for
-pickup.** `model:opus` and `model:fable` route the implement/fixup subagent in
-`/process-gh-issues` and decide whether `/next-issue` may run an issue on the
-session's tier; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
+pickup.** `model:opus` and `model:fable` decide whether `/next-issue` may run
+an issue on the session's tier and where its review is routed; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
 and nothing else. An unlabelled issue runs on the default tier (Sonnet). There
 is deliberately no `model:sonnet` label — absence IS the default.
 

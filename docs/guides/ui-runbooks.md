@@ -116,7 +116,7 @@ forces a full reload and drops you at the lobby mid-sequence.
 
 To add a scenario, use the panel's own save form (label + spec) — a DB insert,
 never a code edit. Headless agents do not insert: they emit `{ label, spec }`
-in the PR receipt and the orchestrator seeds it post-merge.
+in the PR body and `land` seeds it post-merge.
 
 **The one scenario the `check:ui` lane itself needs** is
 `UI stress — full board, full hand, deep piles`, which the `game-stress`

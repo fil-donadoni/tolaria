@@ -203,12 +203,10 @@ real diff — never from the issue's `area:*` label, which is a hypothesis a
 human wrote before the code existed. A batch is admitted lane-homogeneous
 (all `skin`, all `engine`, all `docs`, or all `full`); a candidate whose real lane
 disagrees with the batch's is deferred as a lane mismatch, the same way an
-overlapping target file is deferred today. `/process-gh-issues` runs exactly
-one `check:ui` for a `skin` batch, on the integrated tree, before any of its
-PRs merge, and bisects across the batch's PRs on red rather than patching an
-unattributed failure — see `references/merge-train.md` (§ "Batch-level
-`check:ui`") for the procedure, including the lane re-derivation from the
-integration's real diff.
+overlapping target file is deferred today. `/next-issue` lands one issue at a
+time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
+it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
+with it.
 
 ## The base branch and `release` — where the full gate went (ADR 0116)
 
@@ -379,7 +377,7 @@ lock would not be shared between them.
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
 `fix/issue-N` → exit 1): the merge-train runs it once per landing tree.
-`TOLARIA_ALLOW_FULL_SUITE=1` is the orchestrator-only escape hatch.
+`TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch `land` alone uses.
 
 ### The heartbeat attests to progress, not to being alive (issue #2999)
 
@@ -469,7 +467,7 @@ to their work — which under the green-main invariant they must stop and deal
 with. The user-visible symptom is "I launch three sessions and they fight".
 
 The rule "never work in the shared main checkout" already existed, but it lived
-inside `.claude/skills/process-gh-issues/SKILL.md` — so `/process-gh-issues`
+inside the fan-out skill (`/process-gh-issues`, since retired) — so that loop
 isolated every time and an ordinary discussion never did. It is now in
 `CLAUDE.md`, and enforced:
 
@@ -503,7 +501,7 @@ isolated every time and an ordinary discussion never did. It is now in
 break the engine, so it does not owe the heavy suite:
 
 ```
-bun run wt:docs <slug>     # worktree + docs/<slug> branch off origin/main
+bun run wt:docs <slug>     # worktree + docs/<slug> branch off origin/<base>
 … write the document …
 bun run docs:ship          # check:docs → commit → rebase → push → PR → merge → teardown
 bun run docs:ship --no-merge   # …but leave the PR open

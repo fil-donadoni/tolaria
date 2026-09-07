@@ -516,6 +516,31 @@ export function primaryBranchFastForwardStep(
     );
 }
 
+/**
+ * The issue a branch claims, by the `feat|fix|<kind>/issue-N` naming every
+ * worktree here is built with (`wt:new`), or null for any other branch.
+ */
+export function issueOfBranch(branch: string): number | null {
+    const m = /(?:^|\/)issue-(\d+)$/.exec(branch);
+    return m ? Number(m[1]) : null;
+}
+
+/**
+ * Release the `in-progress` claim on the issue the landed branch names
+ * (issue #3130). The claim is added at pick time and, before this, nothing
+ * removed it on the success path: `claim-sweep.sh` runs at SessionEnd and
+ * deliberately leaves a claim whose PR is open, `loop:doctor` sweeps OPEN
+ * issues only, so an issue closed by its PR kept the label forever — 56 of
+ * them on 2026-09-07. Non-gating like the rest of the housekeeping: a label
+ * edit that fails must never turn a merged PR into a reported failure.
+ * Returns null for a branch that names no issue.
+ */
+export function releaseClaimStep(branch: string): string | null {
+    const issue = issueOfBranch(branch);
+    if (issue === null) return null;
+    return `(gh issue edit ${issue} --remove-label in-progress --remove-assignee @me >/dev/null 2>&1 || echo "land: could not release the in-progress claim on issue #${issue}" >&2; true)`;
+}
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
     // the checks the classified diff owes (degrading to `check:pr` verbatim
@@ -569,6 +594,9 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
         steps.push(primaryBranchFastForwardStep(opts.primaryCheckout));
+        // The claim outlives nothing: the PR is merged, the issue is closing.
+        const release = releaseClaimStep(opts.branch);
+        if (release !== null) steps.push(release);
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.
