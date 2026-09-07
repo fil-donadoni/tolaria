@@ -3,9 +3,10 @@
 //
 // The engine reaches game state with a static effect in one of two ways:
 //
-//   - RECOMPUTED kinds (`pt-buff`, `pt-cda`, and the restriction/guard
-//     predicates) are evaluated at every read, so a counter-gated predicate is
-//     live for free. Homarid's tide counters need nothing.
+//   - RECOMPUTED kinds (`pt-buff`, `pt-cda`, `pt-set`, and the
+//     restriction/guard predicates) are evaluated at every read, so a
+//     counter-gated predicate is live for free. Homarid's tide counters need
+//     nothing.
 //   - MATERIALIZED kinds (`keyword-grant`, `activated-grant`,
 //     `triggered-grant`, `type-add`/`type-remove`, `subtype-set`/`subtype-add`,
 //     `supertype-set`, `color-grant`, `keyword-remove`, `ability-loss`) are
@@ -66,6 +67,7 @@ const KIND_MATERIALIZATION: Record<
     // --- recomputed at read time ---------------------------------------
     "pt-buff": "recomputed",
     "pt-cda": "recomputed",
+    "pt-set": "recomputed",
     "untap-restriction": "recomputed",
     "block-restriction": "recomputed",
     "attack-restriction": "recomputed",

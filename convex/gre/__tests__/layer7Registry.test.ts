@@ -588,6 +588,134 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
     });
 });
 
+// ---------------------------------------------------------------------------
+// CR 613.4b — the `pt-set` STATIC kind (issue #3161).
+//
+// The derived-from-a-source half of sublayer 7b. The stored half is exercised
+// above with hand-built entries; what these need is the WALK: a battlefield
+// source whose `staticEffects[]` declares `pt-set` must produce a 7b entry
+// carrying the source's own CR 613.7a timestamp, so two such sources order by
+// when each began applying rather than by board-walk order.
+// ---------------------------------------------------------------------------
+
+/** A probe enchantment declaring one `pt-set` over every creature. Built off
+ *  Crusade so every non-static field is a real definition's. */
+function ptSetProbe(id: string, power: number, toughness: number) {
+    return {
+        ...getDefinition(crusade.id),
+        id,
+        name: `Probe ${id}`,
+        staticEffects: [
+            {
+                kind: "pt-set",
+                applies: (target: { types: string[] }) =>
+                    target.types.includes("Creature"),
+                power,
+                toughness,
+            } as unknown as StaticEffect,
+        ],
+    } as CardDefinition;
+}
+
+/** The probe on the battlefield with an explicit CR 613.7a stamp. */
+function probeSource(
+    instanceId: string,
+    cardId: string,
+    staticSeq: number
+): CardInstanceState {
+    return creature(instanceId, 0, 0, {
+        types: ["Enchantment"],
+        card: { id: cardId },
+        staticSeq,
+    } as Partial<CardInstanceState>);
+}
+
+describe("a static `pt-set` derives a sublayer-7b entry from its source (CR 613.4b)", () => {
+    it("sets the base P/T of every creature its predicate matches", () => {
+        const bear = creature("bear", 2, 2);
+        withTemporaryDefinition(ptSetProbe("s7-ptset-a", 1, 1), () => {
+            const state = stateWith(
+                [probeSource("probe-a", "s7-ptset-a", 10), bear],
+                []
+            );
+            expect(getEffectivePower(state, bear)).toBe(1);
+            expect(getEffectiveToughness(state, bear)).toBe(1);
+        });
+    });
+
+    it("loses to a LATER `pt-set` source and beats an earlier one (CR 613.7a)", () => {
+        const bear = creature("bear", 2, 2);
+        withTemporaryDefinition(ptSetProbe("s7-ptset-a", 1, 1), () => {
+            withTemporaryDefinition(ptSetProbe("s7-ptset-b", 5, 6), () => {
+                // The LATER stamp (20) is the 5/6 probe, so it wins — and it
+                // wins whichever order the board walk reaches the two sources
+                // in, which is what the stamp buys over walk order.
+                const later = stateWith(
+                    [
+                        probeSource("probe-a", "s7-ptset-a", 10),
+                        probeSource("probe-b", "s7-ptset-b", 20),
+                        bear,
+                    ],
+                    []
+                );
+                expect(getEffectivePower(later, bear)).toBe(5);
+                expect(getEffectiveToughness(later, bear)).toBe(6);
+
+                // Same two sources, stamps swapped: now the 1/1 is later.
+                const earlier = stateWith(
+                    [
+                        probeSource("probe-a", "s7-ptset-a", 30),
+                        probeSource("probe-b", "s7-ptset-b", 20),
+                        bear,
+                    ],
+                    []
+                );
+                expect(getEffectivePower(earlier, bear)).toBe(1);
+                expect(getEffectiveToughness(earlier, bear)).toBe(1);
+            });
+        });
+    });
+
+    it("still takes a `pt-buff` on top of it (7c after 7b, CR 613.4c)", () => {
+        // Crusade's +1/+1 is sublayer 7c, so it lands AFTER the set however
+        // the two sources' timestamps compare — the set's stamp here is the
+        // later of the two.
+        const whiteBear = creature("bear", 2, 2, {
+            card: { id: "synth-bear", manaCost: { W: 1 } },
+        });
+        const anthem = creature("crusade", 0, 0, {
+            types: crusade.types,
+            card: { id: crusade.id },
+            staticSeq: 10,
+        } as Partial<CardInstanceState>);
+        withTemporaryDefinition(ptSetProbe("s7-ptset-a", 1, 1), () => {
+            const state = stateWith(
+                [anthem, probeSource("probe-a", "s7-ptset-a", 20), whiteBear],
+                []
+            );
+            expect(getEffectivePower(state, whiteBear)).toBe(2);
+            expect(getEffectiveToughness(state, whiteBear)).toBe(2);
+        });
+    });
+
+    it("loses to a later STORED 7b entry, which the walk sorts against it", () => {
+        // The two provenances share sublayer 7b, so the derived entry's CR
+        // 613.7a stamp has to be comparable with a stored entry's — the
+        // ORDER hazard `layer7EffectsFor` names in its own comment.
+        const bear = creature("bear", 2, 2);
+        withTemporaryDefinition(ptSetProbe("s7-ptset-a", 1, 1), () => {
+            const state = stateWith(
+                [probeSource("probe-a", "s7-ptset-a", 10), bear],
+                [entry("ce-late-set", 20, "7b", { kind: "pt-set", power: 9 })]
+            );
+            // Power: the stored entry is later, so 9. Toughness: it sets none,
+            // so the derived set's 1 stands.
+            expect(getEffectivePower(state, bear)).toBe(9);
+            expect(getEffectiveToughness(state, bear)).toBe(1);
+        });
+    });
+});
+
 describe("the registry precheck names exactly the kinds the derivation owns", () => {
     it("`declaresLayer7StaticEffect` and `LAYER_7_STATIC_EFFECT_KINDS` agree", () => {
         // PRD #2064 S7 — `layer7EffectsFor` skips a battlefield source whose

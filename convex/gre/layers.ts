@@ -297,10 +297,10 @@ type DerivedTemplate = { source: PermanentView; effect: StaticEffect };
  *  read (ADR 0082's own argument for why the other provenances need a registry
  *  at all):
  *
- *  - a permanent's or emblem's `pt-buff` / `pt-cda` static ability — expiry
- *    `source`, re-evaluated against the live board at every read, so phasing,
- *    a control change and a leave-the-battlefield need no purge site and
- *    cannot drift (CR 613.1: characteristics are recomputed every time they
+ *  - a permanent's or emblem's `pt-buff` / `pt-cda` / `pt-set` static ability
+ *    — expiry `source`, re-evaluated against the live board at every read, so
+ *    phasing, a control change and a leave-the-battlefield need no purge site
+ *    and cannot drift (CR 613.1: characteristics are recomputed every time they
  *    are checked);
  *  - counters — expiry `counter`, one entry per counter TYPE because CR 613.7c
  *    gives every counter of a kind the same timestamp.
@@ -324,8 +324,9 @@ function layer7EffectsFor(
     const entries: ContinuousEffect[] = [];
     const templates = new Map<string, DerivedTemplate>();
 
-    // One walk covers both `pt-cda` (7a) and `pt-buff` (7c) for battlefield
-    // sources AND emblems. The pre-registry code reached emblems from the
+    // One walk covers all three layer-7 kinds — `pt-cda` (7a), `pt-set` (7b)
+    // and `pt-buff` (7c) — for battlefield sources AND emblems. The
+    // pre-registry code reached emblems from the
     // pt-buff walk only, so an emblem-declared `pt-cda` contributed nothing;
     // it now contributes to 7a. That is a deliberate widening, not an
     // accident — CR 604.3 makes a characteristic-defining ability apply in
@@ -355,14 +356,23 @@ function layer7EffectsFor(
             // reads it. Preserving it is the difference between this slice
             // changing WHERE the answer comes from and changing WHAT it is.
             const seq = (source as { staticSeq?: number }).staticSeq ?? 0;
-            const cda = effect.kind === "pt-cda";
+            // CR 613.4 — the sublayer is the kind's, read from the SAME table
+            // that decides membership, so a kind cannot be admitted to the walk
+            // without saying where in 613.4 it lands.
+            const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
             // CR 611.2c source-level gate ("as long as ..."): evaluated once
             // per source against the whole board (Jihad). Only `pt-buff`
             // carries one — a characteristic-defining ability has no such gate
-            // (CR 604.3: it applies in every zone, at all times).
+            // (CR 604.3: it applies in every zone, at all times), and
+            // `StaticPTSet` declares no `condition` field at all, so an "as
+            // long as ..." base-P/T set is not expressible today (neither
+            // Humility nor Life and Limb is conditional). Keyed on the KIND
+            // because the narrowed union no longer carries `condition` on
+            // every member: a FOURTH kind that declared one would need its own
+            // arm here, and nothing but this comment would say so.
             if (
-                !cda &&
+                effect.kind === "pt-buff" &&
                 effect.condition &&
                 !effect.condition(source, state, STATIC_EFFECT_CTX)
             ) {
@@ -373,8 +383,9 @@ function layer7EffectsFor(
             entries.push({
                 id,
                 layer: 7,
-                // CR 613.4a vs 613.4c — a CDA defines P/T, a buff modifies it.
-                sublayer: cda ? "7a" : "7c",
+                // CR 613.4a vs 613.4b vs 613.4c — a CDA defines P/T, a set
+                // replaces it, a buff modifies it.
+                sublayer,
                 timestamp: seq,
                 expiry: { kind: "source", sourceId: source.id },
                 affected: { kind: "predicate" },
@@ -384,7 +395,7 @@ function layer7EffectsFor(
                     effectIndex: index,
                     modeId: (source as { chosenModeId?: string }).chosenModeId,
                 },
-                characteristicDefining: cda,
+                characteristicDefining: sublayer === "7a",
             });
         }
     };
@@ -643,25 +654,40 @@ function resolveLayer7Payload(
         }
         return effect.compute(source, state, STATIC_EFFECT_CTX, target);
     }
+    // CR 613.4b — the base-P/T set. Both halves are always present (the kind
+    // declares them as required numbers), so the entry sets power AND
+    // toughness, never one of the two the way a `pt-set` PAYLOAD may.
+    if (effect?.kind === "pt-set") {
+        if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
+            return undefined;
+        }
+        return { power: effect.power, toughness: effect.toughness };
+    }
     return undefined;
 }
 
-/** CR 613.4 — the `StaticEffect` kinds layer 7 owns: 613.4a's
- *  characteristic-defining `pt-cda` and 613.4c's `pt-buff`.
+/** CR 613.4 — the `StaticEffect` kinds layer 7 owns, each mapped to the
+ *  sublayer it lands in: 613.4a's characteristic-defining `pt-cda`, 613.4b's
+ *  base-P/T-setting `pt-set` (Humility, Life and Limb) and 613.4c's `pt-buff`.
  *
  *  The single naming authority, and it is the WALK's own gate (through
  *  {@link isLayer7StaticEffect}) rather than a table beside it: a list the
  *  derivation does not read is a list that can disagree with the derivation.
+ *  The VALUE is read by the walk too, for the same reason the keys are — a
+ *  kind admitted here without a sublayer would not compile, so "which of
+ *  613.4's sublayers is this?" cannot be answered in one place and forgotten
+ *  in another.
  *  `declaresLayer7StaticEffect` (`cards/registry.ts`) is pinned against this
  *  one in `layer7Registry.test.ts`, so a kind added here and not there cannot
  *  ship silently skipped by the precheck — and a kind added to the walk without
  *  passing through here is not expressible. */
 export const LAYER_7_STATIC_EFFECT_KINDS = {
-    "pt-buff": true,
-    "pt-cda": true,
-} as const;
+    "pt-cda": "7a",
+    "pt-set": "7b",
+    "pt-buff": "7c",
+} as const satisfies Record<string, ContinuousEffectSublayer>;
 
-/** Narrows a `StaticEffect` to the two layer 7 owns, reading
+/** Narrows a `StaticEffect` to the three layer 7 owns, reading
  *  {@link LAYER_7_STATIC_EFFECT_KINDS} for the membership and deriving the
  *  narrowed type from the SAME table's keys — so adding a row widens the
  *  narrowed union with it, and every read below the gate that the new kind
