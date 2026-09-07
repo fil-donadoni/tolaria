@@ -21,11 +21,13 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import { durationSpec } from "./grammar/shared/duration";
-import type {
-    AmountIR,
-    EffectSentenceIR,
-    SubjectIR,
+import {
+    capitalise,
+    type AmountIR,
+    type EffectSentenceIR,
+    type SubjectIR,
 } from "./grammar/shared/effectClause";
+import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 
@@ -66,6 +68,19 @@ export function unlowerable<T>(reason: string): Lowered<T> {
 export interface SiteOptions {
     /** CR 107.3 — the source announces a value for {X} (it has an `{X}` pip). */
     readonly allowX: boolean;
+    /**
+     * CR 201.5 — the card's PRINTED name, for the display strings a lowering
+     * emits (today: a `mayPay` prompt).
+     *
+     * The same species of site fact as `allowX`: `normalize.ts` replaced the
+     * card's own name with `SELF_MARKER` so the GRAMMAR could bind a REFERENT
+     * rather than a string, and a sentence span therefore cannot know what to
+     * put back. `lowerSpell.ts` makes the argument in full for a mode's picker
+     * label — "{self} deals 5 damage" is never valid output, and it shipped on
+     * 18 of 34 modal rows before PR #3044's review caught it. A prompt is read
+     * by a player exactly as that label is.
+     */
+    readonly selfName: string;
 }
 
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
@@ -99,6 +114,28 @@ export class TargetSlots {
 
     requirements(): readonly TargetRequirement[] {
         return this.slots;
+    }
+}
+
+/**
+ * The bookkeeping ONE walk over an ability's sentence list owns.
+ *
+ * Two things now share the walk, for the same reason: both are cross-sentence
+ * and both break silently when a second copy exists. Target SLOTS index the
+ * requirements the ability declares, so an Op emitted by sentence 2 that
+ * pointed into sentence 1's private allocator would dangle. BINDING NAMES are
+ * script-wide identifiers (`validateEffectScript` rejects a dangling or
+ * duplicated one), so two optional sentences in one ability must not both be
+ * called `$may`.
+ */
+export class SentenceWalk {
+    readonly targets = new TargetSlots();
+    private binds = 0;
+
+    /** A binding name unique within this ability's script. */
+    nextBind(prefix: string): string {
+        this.binds += 1;
+        return `$${prefix}${this.binds}`;
     }
 }
 
@@ -155,9 +192,10 @@ function damageTarget(
 
 export function lowerSentence(
     sentence: EffectSentenceIR,
-    slots: TargetSlots,
+    walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    const slots = walk.targets;
     switch (sentence.kind) {
         case "pump": {
             const target = objectSelector(sentence.subject, slots);
@@ -271,6 +309,33 @@ export function lowerSentence(
         }
         case "move-zone":
             return lowerMoveZone(sentence.subject, sentence.to, slots);
+        case "optional": {
+            // CR 603.2 — an optional triggered ability's controller chooses on
+            // resolution, and declining does NOTHING. That is a cost-free
+            // `mayPay` (its `cost` OMITTED, issue #680) whose REQUIRED boolean
+            // bind an `if` reads: no placeholder Op, no empty mode, no fifth
+            // structural construct. The inner sentence is lowered by THIS
+            // walk, so "you may tap target creature" allocates its slot once,
+            // through the shared allocator, exactly as the bare sentence does.
+            const inner = lowerSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            const bind = walk.nextBind("may");
+            return lowered([
+                {
+                    op: "mayPay",
+                    // CR 603.2 — "you" on a triggered ability is its
+                    // controller; no other site emits this shape today.
+                    player: "controller",
+                    prompt: `${capitalise(sentence.clause.split(SELF_MARKER).join(site.selfName))}?`,
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { binding: bind },
+                    then: inner.value,
+                },
+            ]);
+        }
         case "discard-at-random": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;
