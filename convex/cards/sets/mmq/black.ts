@@ -99,6 +99,13 @@ export const conspiracy: CardDefinition = {
     staticEffects: [
         {
             kind: "subtype-set",
+            // CR 613.8a clause (b) — reads whether the target is a CREATURE,
+            // a card type, and never its subtypes. Life and Limb's `type-add`
+            // writes card types, so this effect waits for it; this effect
+            // writes the subtypes Life and Limb's own predicate reads, so that
+            // one waits for this. Mutual: CR 613.8b's dependency loop, resolved
+            // back to timestamp order.
+            reads: ["types"],
             subtypesFor: (target, source, ctx) => {
                 const chosen = source.chosenSubtypes?.[0];
                 if (chosen === undefined) return null;

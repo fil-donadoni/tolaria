@@ -15,6 +15,7 @@ import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
 import { compareContinuousEffects } from "./continuousEffects";
+import { orderByDependency } from "./dependency";
 import type {
     ContinuousEffect,
     ContinuousEffectSublayer,
@@ -522,7 +523,21 @@ function layer7EffectsFor(
     }
 
     entries.sort(compareContinuousEffects);
-    return { entries, templates };
+    // CR 613.8 — "if a dependency exists, it will override the timestamp
+    // system". Applied per SUBLAYER (clause (a) says "the same layer and, if
+    // applicable, sublayer"), which `orderByDependency` reads off the entries
+    // themselves. Layer 7 is the hottest derivation in the engine — every SBA
+    // sweep asks it of every creature — so the ordering pass is guarded by the
+    // two cheap facts that decide it: a group of one, and a group with no edge
+    // at all, both return the timestamp order this sort just produced.
+    return {
+        entries: orderByDependency(entries, {
+            compare: compareContinuousEffects,
+            template: (entry) => templates.get(entry.id),
+            ctx: STATIC_EFFECT_CTX,
+        }),
+        templates,
+    };
 }
 
 /** CR 611.2 — whether a STORED entry has ENDED, for the expiries whose end is a

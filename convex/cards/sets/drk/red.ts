@@ -106,6 +106,15 @@ export const bloodMoon: CardDefinition = {
             kind: "subtype-set",
             applies: IS_NONBASIC_LAND,
             subtypes: ["Mountain"],
+            // CR 613.8a clause (b) — `IS_NONBASIC_LAND` reads the PRINTED type
+            // line (`ctx.getPrintedTypes`, which no layer can touch) and the
+            // Basic SUPERTYPE. It never reads a land's subtypes, so nothing
+            // that writes subtypes changes what this effect applies to and
+            // nothing in layer 4 can make it wait. That asymmetry is the whole
+            // dependency: Urborg, Tomb of Yawgmoth waits for this effect (CR
+            // 305.7 destroys the rules text generating Urborg's own), and this
+            // effect waits for nothing.
+            reads: ["supertypes"],
         },
     ],
 };

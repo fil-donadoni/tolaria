@@ -61,12 +61,19 @@ export const lifeAndLimb: CardDefinition = {
         // CR 613.1d — layer 4, the added card types.
         {
             kind: "type-add",
+            // CR 613.8a clause (b) — `IS_FOREST_OR_SAPROLING` reads the target's
+            // SUBTYPES and nothing else. Conspiracy writes subtypes, so this
+            // effect waits for it; Conspiracy's own predicate reads card types,
+            // which this effect writes, so it waits back. CR 613.8b: a
+            // dependency loop, applied in timestamp order.
+            reads: ["subtypes"],
             applies: IS_FOREST_OR_SAPROLING,
             types: ["Creature", "Land"],
         },
         // CR 305.7 — layer 4, the added subtypes.
         {
             kind: "subtype-add",
+            reads: ["subtypes"],
             applies: IS_FOREST_OR_SAPROLING,
             subtypes: ["Saproling", "Forest"],
         },

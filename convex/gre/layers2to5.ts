@@ -68,6 +68,8 @@ import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { applyLandTypeReplacement, sameOrder } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
+import type { DependencyTemplate } from "./dependency";
+import { orderByDependency } from "./dependency";
 import { applySubstitution } from "./textChanges";
 import type { ContinuousEffect } from "./continuousEffects";
 import type { Duration } from "./state";
@@ -729,7 +731,38 @@ function finishEffectsFor(
     // The comparator is the S1 ordering authority; the layer key in front of it
     // is the CR 613 order itself, which no comparator over one layer can carry.
     entries.sort((a, b) => a.layer - b.layer || compareContinuousEffects(a, b));
-    return { entries, templates };
+    // CR 613.8 — dependency overrides the timestamp system, WITHIN a layer.
+    // Reordering happens inside each layer's run of the sorted array and never
+    // across the layer boundary, so the 2 → 3 → 4 → 5 walk below is untouched.
+    return {
+        entries: orderByDependency(entries, {
+            compare: compareContinuousEffects,
+            template: (entry) => resolveTemplate(state, entry, templates),
+            ctx: STATIC_EFFECT_CTX,
+        }),
+        templates,
+    };
+}
+
+/** The live source and `StaticEffect` behind a template entry, for the CR 613.8
+ *  dependency pass. The derived half is already in `templates`; a STORED
+ *  template entry names its source by id only, so it is resolved the same way
+ *  `resolveAction` resolves it — one lookup, on the entries of one layer. */
+function resolveTemplate(
+    state: LayerStateView,
+    entry: ContinuousEffect,
+    templates: ReadonlyMap<string, DerivedTemplate>
+): DependencyTemplate | undefined {
+    const derived = templates.get(entry.id);
+    if (derived) return derived;
+    if (entry.payload.kind !== "template") return undefined;
+    if (entry.expiry.kind !== "source") return undefined;
+    const source = findPermanent(state, entry.expiry.sourceId);
+    if (!source) return undefined;
+    const effect = sourceStaticEffects(source, entry.payload.modeId)[
+        entry.payload.effectIndex
+    ];
+    return effect ? { source, effect } : undefined;
 }
 
 /** Whether a STORED entry applies to `target`. A `predicate`-affected entry is

@@ -41,6 +41,8 @@ import { declaresLayer6StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { sameOrder } from "./constants";
 import { compareContinuousEffects, renderKeyword } from "./continuousEffects";
+import type { DependencyTemplate } from "./dependency";
+import { orderByDependency } from "./dependency";
 import type { ContinuousEffect } from "./continuousEffects";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
 import type { LayerStateView } from "./layers";
@@ -484,7 +486,39 @@ function layer6EffectsFor(
     }
 
     entries.sort(compareLayer6Entries);
-    return { entries, templates };
+    // CR 613.8 — dependency overrides the timestamp system. The comparator
+    // handed over is `compareLayer6Entries`, not the registry's own: CR 613.8b
+    // sends both a dependency loop and a tie between ready effects back to
+    // "timestamp order", and layer 6's timestamp order is the one that puts a
+    // removal before a grant at an equal stamp so the walk agrees with
+    // `grantOutrankedByAbilityLoss` (ADR 0115 decision 6).
+    return {
+        entries: orderByDependency(entries, {
+            compare: compareLayer6Entries,
+            template: (entry) => resolveLayer6Template(state, entry, templates),
+            ctx: STATIC_EFFECT_CTX,
+        }),
+        templates,
+    };
+}
+
+/** The live source and `StaticEffect` behind a template entry, for the CR 613.8
+ *  dependency pass — layer 6's twin of layers 2-5's `resolveTemplate`. */
+function resolveLayer6Template(
+    state: LayerStateView,
+    entry: ContinuousEffect,
+    templates: ReadonlyMap<string, DerivedTemplate>
+): DependencyTemplate | undefined {
+    const derived = templates.get(entry.id);
+    if (derived) return derived;
+    if (entry.payload.kind !== "template") return undefined;
+    if (entry.expiry.kind !== "source") return undefined;
+    const source = findPermanent(state, entry.expiry.sourceId);
+    if (!source) return undefined;
+    const effect = sourceStaticEffects(source, entry.payload.modeId)[
+        entry.payload.effectIndex
+    ];
+    return effect ? { source, effect } : undefined;
 }
 
 /** CR 613.7 plus the ONE tie-break layer 6 needs.

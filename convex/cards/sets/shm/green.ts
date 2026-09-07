@@ -59,6 +59,13 @@ export const prismaticOmen: CardDefinition = {
     staticEffects: [
         {
             kind: "subtype-add",
+            // CR 613.8a clause (b) — reads the target's card TYPES and its
+            // controller (layer 2, another layer, so clause (a) rules it out).
+            // Never its subtypes: Magus of the Moon replacing a land's subtypes
+            // changes neither what this applies to nor what it does to it, so
+            // the two are INDEPENDENT and CR 613.7 timestamp order decides the
+            // board — the later effect wins.
+            reads: ["types"],
             applies: (target, source) =>
                 target.types.includes("Land") &&
                 target.controllerId === source.controllerId,
