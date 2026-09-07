@@ -1340,11 +1340,18 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
     const SLUG = "-Users-x-proj";
     let root: string;
     let liveIndex: import("../lib/live-activity").LiveIndex;
+    // Injected for the same reason as `liveIndex` (issue #3144): the default
+    // reads the OPERATOR's `.claude/telemetry/sessions.jsonl` in the primary
+    // checkout, so a route test that let it default would answer differently
+    // depending on which sessions happened to have run on this machine.
+    let originLedger: import("../lib/session-origin").OriginLedger;
+    let ledgerPath: string;
+    let writeFileSync: typeof import("node:fs").writeFileSync;
 
     const setup = async () => {
         if (root) return;
-        const { mkdtempSync, mkdirSync, writeFileSync } =
-            await import("node:fs");
+        ({ writeFileSync } = await import("node:fs"));
+        const { mkdtempSync, mkdirSync } = await import("node:fs");
         const { tmpdir } = await import("node:os");
         root = mkdtempSync(join(tmpdir(), "serve-live-"));
         mkdirSync(join(root, SLUG), { recursive: true });
@@ -1377,6 +1384,10 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
         );
         const { LiveIndex } = await import("../lib/live-activity");
         liveIndex = new LiveIndex({ projectsRoot: root, projectSlug: SLUG });
+        const { OriginLedger } = await import("../lib/session-origin");
+        ledgerPath = join(root, "sessions.jsonl");
+        writeFileSync(ledgerPath, "");
+        originLedger = new OriginLedger(ledgerPath);
     };
 
     it("/api/tail refuses a session id that is not a UUID (400) before touching any path", async () => {
@@ -1387,7 +1398,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
                 new Request(
                     `http://127.0.0.1/api/tail?session=${encodeURIComponent(bad)}`
                 ),
-                { liveIndex }
+                { liveIndex, originLedger }
             );
             expect(res.status, bad).toBe(400);
         }
@@ -1400,7 +1411,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
             new Request(
                 `http://127.0.0.1/api/tail?session=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb`
             ),
-            { liveIndex }
+            { liveIndex, originLedger }
         );
         expect(res.status).toBe(404);
     });
@@ -1410,7 +1421,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
         const { handleRequest } = await import("../telemetry-serve");
         const first = await handleRequest(
             new Request(`http://127.0.0.1/api/tail?session=${SESSION}`),
-            { liveIndex }
+            { liveIndex, originLedger }
         );
         expect(first.status).toBe(200);
         const page = await first.json();
@@ -1424,7 +1435,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
             new Request(
                 `http://127.0.0.1/api/tail?session=${SESSION}&offset=${page.offset}`
             ),
-            { liveIndex }
+            { liveIndex, originLedger }
         );
         expect((await again.json()).entries).toEqual([]);
     });
@@ -1435,6 +1446,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
         const activity = await (
             await handleRequest(new Request("http://127.0.0.1/api/activity"), {
                 liveIndex,
+                originLedger,
             })
         ).json();
         expect(activity.buckets).toHaveLength(24);
@@ -1442,7 +1454,7 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
         const live = await (
             await handleRequest(
                 new Request("http://127.0.0.1/api/live?issues=3096,9999,x"),
-                { liveIndex }
+                { liveIndex, originLedger }
             )
         ).json();
         expect(
@@ -1450,5 +1462,50 @@ describe("telemetry-serve — transcript routes (issue #3135)", () => {
         ).toEqual([SESSION]);
         expect(live.byIssue[3096][0].session).toBe(SESSION);
         expect(live.byIssue[9999]).toEqual([]);
+    });
+
+    it("/api/live says WHO started each session — the journal when it has a row, the transcript's entrypoint when it does not (issue #3144)", async () => {
+        await setup();
+        const { handleRequest } = await import("../telemetry-serve");
+        const { OriginLedger } = await import("../lib/session-origin");
+
+        // The fixture transcript carries no `entrypoint` at all, so with an
+        // empty journal there is nothing to go on — and that must read
+        // `unknown`, never `manual`.
+        const blank = await (
+            await handleRequest(
+                new Request("http://127.0.0.1/api/live?issues=3096"),
+                { liveIndex, originLedger }
+            )
+        ).json();
+        expect(blank.sessions[0].origin).toBe("unknown");
+        expect(blank.sessions[0].originSource).toBe("none");
+        expect(blank.byIssue[3096][0].origin).toBe("unknown");
+
+        // A recorded row answers exactly, on both the session list and the
+        // per-issue candidates the claims table reads.
+        writeFileSync(
+            ledgerPath,
+            JSON.stringify({ ts: 1, session: SESSION, origin: "afk" }) + "\n"
+        );
+        const recorded = await (
+            await handleRequest(
+                new Request("http://127.0.0.1/api/live?issues=3096"),
+                { liveIndex, originLedger: new OriginLedger(ledgerPath) }
+            )
+        ).json();
+        expect(recorded.sessions[0].origin).toBe("afk");
+        expect(recorded.sessions[0].originSource).toBe("ledger");
+        expect(recorded.byIssue[3096][0].origin).toBe("afk");
+
+        // …and the tail drawer's own header summary resolves it the same
+        // way, through the one call site — not a second derivation.
+        const tail = await (
+            await handleRequest(
+                new Request(`http://127.0.0.1/api/tail?session=${SESSION}`),
+                { liveIndex, originLedger: new OriginLedger(ledgerPath) }
+            )
+        ).json();
+        expect(tail.summary.origin).toBe("afk");
     });
 });

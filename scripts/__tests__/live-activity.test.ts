@@ -462,3 +462,41 @@ describe("live-activity — review of PR #3136", () => {
         ]);
     });
 });
+
+describe("live-activity — session entrypoint (issue #3144)", () => {
+    it("folds the entrypoint off the transcript, latest line winning, and leaves it null when no line carries one", () => {
+        // The FALLBACK signal for who started a session: `sdk-cli` is a
+        // headless `claude -p` — the shape `loop-drain.sh` launches — and
+        // `cli` an interactive terminal. Read exactly like `cwd`/`gitBranch`
+        // beside it, so a session that gains the field mid-transcript ends up
+        // with the value its latest line carries, not its first.
+        const dir = join(root, "entrypoint-case");
+        const headless = "88888888-8888-4888-8888-888888888888";
+        const plain = "99999999-9999-4999-8999-999999999999";
+        const silent = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+        writeTranscript(dir, headless, [
+            userLine(NOW - 60_000, "/next-issue 3096", {
+                entrypoint: "sdk-cli",
+            }),
+            assistantLine("e1", NOW - 59_000, 10),
+        ]);
+        writeTranscript(dir, plain, [
+            userLine(NOW - 60_000, "hello", { entrypoint: "cli" }),
+            assistantLine("e2", NOW - 59_000, 10),
+        ]);
+        // No line stamps one at all — the reading must stay null, which is
+        // what `resolveOrigin` turns into "unknown" rather than a guess.
+        writeTranscript(dir, silent, [
+            userLine(NOW - 60_000, "hello"),
+            assistantLine("e3", NOW - 59_000, 10),
+        ]);
+        const idx = new LiveIndex({
+            projectsRoot: root,
+            projectSlug: "entrypoint-case",
+        });
+        idx.refresh(NOW);
+        expect(idx.session(headless)!.entrypoint).toBe("sdk-cli");
+        expect(idx.session(plain)!.entrypoint).toBe("cli");
+        expect(idx.session(silent)!.entrypoint).toBeNull();
+    });
+});

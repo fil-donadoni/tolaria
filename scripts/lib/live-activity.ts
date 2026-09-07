@@ -90,6 +90,7 @@ interface TranscriptLine {
     timestamp?: string;
     cwd?: string;
     gitBranch?: string;
+    entrypoint?: string;
     isMeta?: boolean;
     isSidechain?: boolean;
     customTitle?: string;
@@ -160,6 +161,15 @@ export interface SessionSummary {
     lastPrompt: string | null;
     cwd: string | null;
     gitBranch: string | null;
+    /**
+     * The harness entrypoint the session's lines are stamped with —
+     * `"sdk-cli"` for a headless `claude -p` (what `loop-drain.sh` launches),
+     * `"cli"` for an interactive terminal (issue #3144). Read exactly like
+     * `cwd`/`gitBranch` beside it: last value seen wins. It is the FALLBACK
+     * signal for who started a session; `lib/session-origin.ts` combines it
+     * with the recorded one and owns the mapping.
+     */
+    entrypoint: string | null;
     /** Epoch ms of the transcript's last write — liveness. */
     lastWriteMs: number;
     /** Epoch ms of the newest message stamped in it, or null. */
@@ -437,6 +447,7 @@ export class LiveIndex {
                 lastPrompt: null,
                 cwd: null,
                 gitBranch: null,
+                entrypoint: null,
                 lastWriteMs: 0,
                 lastMessageMs: null,
                 outTok: 0,
@@ -477,6 +488,7 @@ export class LiveIndex {
                 summary.lastPrompt = e.lastPrompt;
             if (e.cwd) summary.cwd = e.cwd;
             if (e.gitBranch) summary.gitBranch = e.gitBranch;
+            if (e.entrypoint) summary.entrypoint = e.entrypoint;
         }
         if (e.type !== "assistant") return;
         const msg = e.message;

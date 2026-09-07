@@ -24,6 +24,57 @@ import {
  * impure Now module besides the transport.
  */
 
+/**
+ * Tone + word per session ORIGIN (issue #3144) — who started the session.
+ *
+ * `afk` is the amber one on purpose: an unattended driver pass is the row an
+ * operator scans for, the same way `warn` marks a claim that is old enough to
+ * doubt. `manual` is unremarkable, so it is neutral, and a session neither
+ * signal could place reads `unknown` — never `manual`, which would be a
+ * silent claim that a person is at the keyboard.
+ *
+ * `originSource` is NOT folded into the word. It is a different question —
+ * how sure the answer is, not what it says — and a four- or six-word
+ * vocabulary for two axes is how a badge stops being readable at a glance.
+ * It renders as a dashed border plus the sentence in the tooltip.
+ */
+const ORIGIN = {
+    afk: { word: "afk loop", tone: "warn", term: "live.origin.afk" },
+    interactive: {
+        word: "manual",
+        tone: "neutral",
+        term: "live.origin.manual",
+    },
+    unknown: { word: "unknown", tone: "unknown", term: "live.origin.unknown" },
+};
+
+/** How the origin was arrived at, as the sentence the badge carries. */
+const ORIGIN_SOURCE_TITLE = {
+    ledger: "Recorded by the SessionStart hook inside the session itself — exact.",
+    entrypoint:
+        "Inferred from the transcript's entrypoint (a headless `claude -p` is the shape the AFK driver launches) — the session started before the hook existed, so nothing recorded it.",
+    none: "Neither recorded nor inferable — the session's transcript carries no entrypoint and no hook row exists for it.",
+};
+
+/**
+ * The trigger badge. Dashed border when the answer was INFERRED rather than
+ * recorded: the difference decides whether "afk loop" is a fact or a guess,
+ * and a badge that renders both identically is the one that gets believed
+ * when it is wrong.
+ */
+export function originBadgeHtml(s) {
+    const o = ORIGIN[s.origin] ?? ORIGIN.unknown;
+    const source = s.originSource ?? "none";
+    const title = ORIGIN_SOURCE_TITLE[source] ?? ORIGIN_SOURCE_TITLE.none;
+    const inferred = source === "entrypoint" ? ` data-inferred="1"` : "";
+    return badgeHtml(
+        o.word,
+        o.tone,
+        o.term,
+        `title="${esc(title)}"${inferred}`
+    );
+}
+
 /** Tone + glossary term per liveness word the server sends. */
 const LIVENESS = {
     active: { tone: "good", term: "live.active", word: "active" },
@@ -68,6 +119,7 @@ function rowHtml(s, nowMs) {
     const label = sessionLabel(s);
     return [
         livenessBadgeHtml(s.liveness),
+        originBadgeHtml(s),
         `<span class="ls-live-title" title="${esc(s.session)}">${esc(label)}</span>`,
         s.gitBranch
             ? `<code class="ls-cmd">${esc(s.gitBranch)}</code>`
@@ -84,6 +136,7 @@ export const LIVE_SECTION_ID = "ls-section-live";
 
 export const LIVE_COLUMNS = [
     { term: "live.active", label: "status" },
+    { term: "live.origin", label: "trigger" },
     { term: "live.session", label: "session" },
     { term: "live.branch", label: "branch" },
     { term: "live.last", label: "last activity" },

@@ -1247,6 +1247,14 @@ tr.drill th:first-child {
 .ls-badge.term {
     border-bottom-style: solid;
 }
+/* An INFERRED answer, not a recorded one (issue #3144): the origin badge on
+   a session that started before the SessionStart hook existed is a reading of
+   the transcript's entrypoint, not a recording of what launched it. Dashed
+   rather than a second word — the badge stays one glance wide, and the
+   sentence is in its title. */
+.ls-badge[data-inferred] {
+    border-style: dashed;
+}
 
 .ls-tbl-wrap {
     max-height: 380px;

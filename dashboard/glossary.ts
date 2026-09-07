@@ -678,6 +678,26 @@ export const GLOSSARY = {
         label: "session",
         tip: "The session most likely working this issue: the transcript in the window that names the issue most often, most recently. A heuristic — nothing on disk records the pairing.",
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Who started a session (issue #3144)
+    // ─────────────────────────────────────────────────────────────────────
+    "live.origin": {
+        label: "trigger",
+        tip: "Who started this session: the unattended AFK driver (bun run loop:afk, which launches every pass as a headless claude -p), or a person at a terminal. Recorded at SessionStart when the hook was in place; otherwise inferred from the transcript's entrypoint, and a dashed border says which.",
+    },
+    "live.origin.afk": {
+        label: "afk loop",
+        tip: "Started by the AFK driver — an unattended pass, answering its own permission prompts, with nobody watching. Stop the run with bun run loop:afk --stop.",
+    },
+    "live.origin.manual": {
+        label: "manual",
+        tip: "Started by a person: an interactive Claude Code session in a terminal, not a driver pass.",
+    },
+    "live.origin.unknown": {
+        label: "unknown",
+        tip: "Neither signal placed this session — no hook row and no recognised entrypoint. Deliberately not shown as manual: 'we could not tell' must not read as 'a person did it'.",
+    },
 } as const satisfies Record<string, GlossaryEntry>;
 
 /**
