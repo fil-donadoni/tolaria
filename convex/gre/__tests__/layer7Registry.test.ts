@@ -608,4 +608,31 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
             });
         }
     });
+
+    it("indexes a COMPILED anthem, which has no `staticEffects[]` at index time", () => {
+        // `setRegistryEntry` derives the membership from the RAW entry, and the
+        // Oracle compiler's descriptors (issue #2700) become real
+        // `staticEffects` only at the `expandDefinition` seam. Reading just
+        // `staticEffects[]` made every compiled anthem invisible to the walk —
+        // caught by `oracle/__tests__/staticSlot.test.ts`, pinned here beside
+        // the precheck it is a property of.
+        const id = "s7-layer7-precheck-compiled";
+        const probe: CardDefinition = {
+            ...getDefinition(crusade.id),
+            id,
+            name: "Compiled Anthem",
+            staticEffects: undefined,
+            compiledStaticEffects: [
+                {
+                    kind: "pt-buff",
+                    filter: { types: ["Creature"] },
+                    power: 1,
+                    toughness: 1,
+                },
+            ],
+        };
+        withTemporaryDefinition(probe, () => {
+            expect(declaresLayer7StaticEffect(id)).toBe(true);
+        });
+    });
 });

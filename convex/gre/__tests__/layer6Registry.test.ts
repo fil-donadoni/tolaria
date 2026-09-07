@@ -965,6 +965,33 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         }
     });
 
+    it("indexes a COMPILED static, which has no `staticEffects[]` at index time", () => {
+        // The membership sets are derived by `setRegistryEntry` from the RAW
+        // entry, and the Oracle compiler's descriptors (issue #2700) are
+        // rebuilt into real `staticEffects` later, at the `expandDefinition`
+        // seam. A precheck reading only `staticEffects[]` therefore answers a
+        // stale FALSE for every compiled card — the one failure mode these
+        // prechecks are not allowed to have, since the walk simply skips the
+        // source and its effect never applies.
+        const id = "s7-precheck-compiled-layer6";
+        const probe: CardDefinition = {
+            ...getDefinition(grizzlyBears.id),
+            id,
+            name: "Compiled Lord",
+            staticEffects: undefined,
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    filter: { types: ["Creature"] },
+                    keyword: "flying",
+                },
+            ],
+        };
+        withTemporaryDefinition(probe, () => {
+            expect(declaresLayer6StaticEffect(id)).toBe(true);
+        });
+    });
+
     it("evaluates the CR 611.2c source gate ONCE per source, `applies` once per pair", () => {
         // CR 613 composes a layer over a FIXED input, and `condition` reads the
         // SOURCE and the BOARD and never the target — so its answer is the same

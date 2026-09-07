@@ -89,9 +89,11 @@ const layer7StaticIds = new Set<string>();
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
     if (def.offBattlefieldCharacteristics) zoneConditionalIds.add(key);
-    if (declaresLayer2to5Kind(def)) layer2to5StaticIds.add(key);
-    if (declaresLayer6Kind(def)) layer6StaticIds.add(key);
-    if (declaresLayer7Kind(def)) layer7StaticIds.add(key);
+    if (declaresStaticKind(def, LAYER_2_5_STATIC_KINDS)) {
+        layer2to5StaticIds.add(key);
+    }
+    if (declaresStaticKind(def, LAYER_6_STATIC_KINDS)) layer6StaticIds.add(key);
+    if (declaresStaticKind(def, LAYER_7_STATIC_KINDS)) layer7StaticIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -108,13 +110,32 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
     "color-grant",
 ]);
 
-/** Whether a definition declares any layer-2-to-5 static effect, in its own
- *  `staticEffects[]` or in a mode's (CR 700.2c — `getEffectiveStaticEffects`
- *  concatenates both). */
-const declaresLayer2to5Kind = (def: CardDefinition): boolean =>
-    (def.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind)) ||
+/** Whether a definition declares a static effect of any kind in `kinds` —
+ *  the ONE scan behind all three layer prechecks below.
+ *
+ *  Three places can hold one, and a precheck that reads fewer than three can
+ *  answer a stale FALSE, which is the failure mode none of these prechecks is
+ *  allowed to have (a source silently dropped from a derivation, with no test
+ *  of its own to red):
+ *
+ *   - the definition's own `staticEffects[]`;
+ *   - a MODE's (CR 700.2c — `getEffectiveStaticEffects` concatenates both);
+ *   - `compiledStaticEffects[]`, the Oracle compiler's JSON-pure descriptors
+ *     (issue #2700). These are rebuilt into real `staticEffects` at the
+ *     `expandDefinition` seam, i.e. AFTER `setRegistryEntry` has indexed the
+ *     RAW entry — so a compiled anthem's `staticEffects[]` does not exist yet
+ *     at index time, and reading only that field made the whole layer-7 walk
+ *     skip it (`oracle/__tests__/staticSlot.test.ts`). A descriptor's `kind`
+ *     is the kind of the `StaticEffect` it rebuilds into, so it answers the
+ *     question directly. */
+const declaresStaticKind = (
+    def: CardDefinition,
+    kinds: ReadonlySet<string>
+): boolean =>
+    (def.staticEffects ?? []).some((e) => kinds.has(e.kind)) ||
+    (def.compiledStaticEffects ?? []).some((d) => kinds.has(d.kind)) ||
     (def.modes ?? []).some((m) =>
-        (m.staticEffects ?? []).some((e) => LAYER_2_5_STATIC_KINDS.has(e.kind))
+        (m.staticEffects ?? []).some((e) => kinds.has(e.kind))
     );
 
 /** CR 613.1f — the `StaticEffect` kinds the layer-6 derivation owns.
@@ -129,26 +150,10 @@ const LAYER_6_STATIC_KINDS = new Set<string>([
     "triggered-grant",
 ]);
 
-/** Whether a definition declares any layer-6 static effect, in its own
- *  `staticEffects[]` or in a mode's (CR 700.2c). */
-const declaresLayer6Kind = (def: CardDefinition): boolean =>
-    (def.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind)) ||
-    (def.modes ?? []).some((m) =>
-        (m.staticEffects ?? []).some((e) => LAYER_6_STATIC_KINDS.has(e.kind))
-    );
-
 /** CR 613.4 — the `StaticEffect` kinds the layer-7 derivation owns.
  *  Duplicated from `gre/layers.ts`'s own table for the reason
  *  `LAYER_2_5_STATIC_KINDS` above is; `layers.test.ts` asserts the two agree. */
 const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda"]);
-
-/** Whether a definition declares any layer-7 static effect, in its own
- *  `staticEffects[]` or in a mode's (CR 700.2c). */
-const declaresLayer7Kind = (def: CardDefinition): boolean =>
-    (def.staticEffects ?? []).some((e) => LAYER_7_STATIC_KINDS.has(e.kind)) ||
-    (def.modes ?? []).some((m) =>
-        (m.staticEffects ?? []).some((e) => LAYER_7_STATIC_KINDS.has(e.kind))
-    );
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
