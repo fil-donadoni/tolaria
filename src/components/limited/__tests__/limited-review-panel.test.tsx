@@ -399,6 +399,29 @@ describe("LimitedReviewSeat card piles (issue #3167)", () => {
         expect(container.querySelector('[data-slot="review-pool"]')).toBeNull();
     });
 
+    it("pairs the Maindeck and the Sideboard in ONE row, with the Pool below it (issue #3180)", () => {
+        const { container } = render(
+            <LimitedReviewPanel event={sealedSeat()} isAdmin={true} />
+        );
+        const pair = blockOf(container, "review-deck-pair");
+        // Both zones are children of the SAME row, in Maindeck-then-Sideboard
+        // order — that is what makes them two columns of one row rather than
+        // two stacked sections.
+        expect(
+            [...pair.children].map((el) => el.getAttribute("data-slot"))
+        ).toEqual(["review-maindeck", "review-sideboard"]);
+        // The Pool / pick order stays OUTSIDE the pair, full-width below it.
+        expect(pair.querySelector('[data-slot="review-pool"]')).toBeNull();
+        expect(blockOf(container, "review-pool")).toBeTruthy();
+        // happy-dom has no layout engine, so the BREAKPOINT itself can only be
+        // asserted as the class contract here — `bun run check:ui` is what
+        // measures the two columns actually sitting side by side. The pair
+        // stacks below `md` and becomes a row at it, the same breakpoint
+        // `deck-zones-surface.tsx` uses for the deckbuilder's own zone pair.
+        expect(pair.className).toContain("flex-col");
+        expect(pair.className).toContain("md:flex-row");
+    });
+
     it("exposes NO editing affordance: no tile gesture, no pin, no column management", () => {
         const { container } = render(
             <LimitedReviewPanel event={sealedSeat()} isAdmin={true} />
