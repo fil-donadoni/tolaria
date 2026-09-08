@@ -1073,7 +1073,17 @@ function computeChoiceExposure(
             // Only the LIBRARY-zone divide is hidden (battlefield / graveyard
             // divides are already public); expose exactly the divided
             // `candidateIds` face-up so the pile picker can render them.
-            head.kind === "divide-piles") &&
+            head.kind === "divide-piles" ||
+            // choose-library-card (Intuition, issue #3205) — pick one of the
+            // cards a preceding step REVEALED (CR 701.20a). It exposes exactly
+            // its `candidateIds`, never the whole library: the zone stays
+            // hidden (CR 400.2) and only the revealed cards became public, so
+            // this rides `libraryPeek` rather than the `librarySearch` channel
+            // `search-library` uses. The chooser may be a FOREIGN player
+            // ("Target opponent chooses one") — `peekZoneOwner` below already
+            // follows `zoneOwnerId`, so the exposed pile is the LIBRARY
+            // owner's, projected into the CHOOSER's view.
+            head.kind === "choose-library-card") &&
         head.zone === "library";
     // reorder-library shows `count` cards; draw-look-keep, look-top and
     // order-top show all the looked-at cards named in `candidateIds`.
@@ -1090,7 +1100,12 @@ function computeChoiceExposure(
     // slice.
     const peekCandidateIds =
         exposeLibraryPeek &&
-        (head.kind === "reorder-library" || head.kind === "divide-piles")
+        (head.kind === "reorder-library" ||
+            head.kind === "divide-piles" ||
+            // choose-library-card (issue #3205) — the revealed cards were
+            // found by a SEARCH, so they sit wherever they sat in the library,
+            // not in a top-N window. Pinned like the two kinds above.
+            head.kind === "choose-library-card")
             ? head.candidateIds
             : undefined;
 

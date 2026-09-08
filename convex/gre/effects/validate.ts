@@ -1497,6 +1497,7 @@ const EFFECT_CHOICE_KINDS: Record<EffectChoiceKind, true> = {
     "choose-hand-card": true,
     "choose-graveyard-card": true,
     "choose-exile-card": true,
+    "choose-library-card": true,
 };
 
 function isEffectChoiceKind(value: unknown): boolean {
@@ -4504,12 +4505,41 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             const errors: string[] = [];
             // Value checks, not `in`: an explicitly-`undefined` optional key is
             // the same as an absent one everywhere else in the grammar.
+            // CR 400.2 / 701.20a (issue #3205) — `candidates` names objects
+            // ahead of the pick, which for a hidden or unordered zone is
+            // normally impossible. ONE shape is the principled exception, and
+            // it is the reveal: a card that was SHOWN to all players
+            // ("it remains revealed for as long as necessary to complete the
+            // parts of the effect that card is relevant to") HAS been named
+            // publicly, and a foreign chooser can only choose because they can
+            // see it. That shape is `zone: "library"` with
+            // `kind: "choose-library-card"`, whose candidates the script-level
+            // walk additionally forces to be bindings an earlier Op both BOUND
+            // and REVEALED (see `checkRevealedCandidates`) — the reveal is what
+            // makes the set public, so nothing here may be taken on trust.
+            const revealedLibraryPick =
+                entry.zone === "library" &&
+                entry.kind === "choose-library-card";
             if (
                 entry.candidates !== undefined &&
-                entry.zone !== "battlefield"
+                entry.zone !== "battlefield" &&
+                !revealedLibraryPick
             ) {
                 errors.push(
-                    '"candidates" is valid only with zone: "battlefield" — the other zones are hidden or unordered, so nothing in them can be named ahead of the pick'
+                    '"candidates" is valid only with zone: "battlefield", or with zone: "library" + kind: "choose-library-card" (a REVEALED set, CR 701.20a) — every other zone is hidden or unordered, so nothing in it can be named ahead of the pick'
+                );
+            }
+            // The converse: the new kind exists ONLY to pick from a revealed
+            // set, so it is meaningless without one. Without this a
+            // `choose-library-card` with no `candidates` would raise a pick
+            // over the WHOLE library and the projection would expose it — the
+            // exact leak this kind was introduced to avoid.
+            if (
+                entry.kind === "choose-library-card" &&
+                (entry.zone !== "library" || entry.candidates === undefined)
+            ) {
+                errors.push(
+                    'kind: "choose-library-card" requires zone: "library" and a "candidates" set — it picks from REVEALED cards (CR 701.20a), never from the library at large (use kind: "search-library" for a search)'
                 );
             }
             // `hasAbility` (issue #1097) is honest only for `zone:
@@ -4579,6 +4609,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"bindOther" requires "candidates" — there is no candidate set to take the complement of'
+                );
+            }
+            // `bindOther` snapshots the unpicked candidate as a PERMANENT
+            // (`bindSnapshot { type: "permanent" }`), which was safe while
+            // `candidates` implied `zone: "battlefield"`. The revealed-library
+            // exception (issue #3205) broke that implication: an unpicked
+            // LIBRARY card is not a permanent, and snapshotting one would hand
+            // every object-acting Op downstream a fabricated permanent. Keep
+            // the field where its own semantics hold.
+            if (entry.bindOther !== undefined && entry.zone !== "battlefield") {
+                errors.push(
+                    '"bindOther" is valid only with zone: "battlefield" — it snapshots the unpicked candidate as a permanent, which a card in a hidden or unordered zone is not'
                 );
             }
             return errors;
@@ -5652,6 +5694,23 @@ function checkOpListRefs(
     declared: Map<string, BindingKind>,
     eventScope: EventScope
 ): void {
+    // CR 701.20a (issue #3205) — the binding names a PRECEDING `reveal` Op in
+    // THIS op list showed to all players. It is what makes a
+    // `choose-library-card` pick's candidate set public knowledge (CR 400.2 —
+    // a library is a hidden zone "even if all the cards in one such zone happen
+    // to be revealed", so the reveal, not the zone, is the authority), and the
+    // projection exposes exactly that set to the chooser. Deliberately scoped
+    // to this list, not inherited into or out of an `if`/`forEach` body: a
+    // reveal that may not have run cannot be relied on to have made anything
+    // public, so a nested scope starts with an empty set and fails closed.
+    // Keyed by binding name, valued by the reveal's own AUDIENCE-defining
+    // player ref, serialized. Who the reveal names matters: `reveal` scans
+    // THAT player's zones, so a reveal aimed at the opponent grants nothing
+    // about the controller's library. A set of names alone would let a script
+    // satisfy this check with a reveal that made nothing public — which, since
+    // the wire exposure is driven by the pick's `candidateIds` and never by
+    // `knownTo`, would be the whole leak.
+    const revealedBindings = new Map<string, string>();
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -5700,7 +5759,20 @@ function checkOpListRefs(
                 k === "watch" ||
                 k === "objects" ||
                 k === "chosenEffect" ||
-                k === "otherEffect"
+                k === "otherEffect" ||
+                // `choice.candidates` on a `choose-library-card` pick
+                // (issue #3205) — the ONE `candidates` shape that is NOT a
+                // list of `EffectObjectSelector`s. A revealed LIBRARY card is
+                // not a battlefield object, so each entry is a bare PICKS ref
+                // naming the search choice's own bind; the generic collector
+                // below tags every `candidates` entry as an OBJECT position
+                // (Barrin's Spite, which is the other shape). Checked instead
+                // by the dedicated pass further down, which enforces the picks
+                // family AND the CR 701.20a reveal the object position knows
+                // nothing about.
+                (k === "candidates" &&
+                    entry.op === "choice" &&
+                    entry.kind === "choose-library-card")
             ) {
                 continue;
             }
@@ -6023,6 +6095,67 @@ function checkOpListRefs(
                 errors,
                 eventScope
             );
+        }
+
+        // CR 701.20a (issue #3205) — record what THIS list has revealed, and
+        // enforce that a `choose-library-card` pick names only revealed sets.
+        // Runs AFTER the bind registration above so `declared` already carries
+        // this Op's own binding, and BEFORE the next entry, so the ordering is
+        // the same "a ref may only name a PRECEDING Op" rule the whole pass is
+        // built on.
+        if (entry.op === "reveal") {
+            const cards = entry.cards as { ref?: unknown } | undefined;
+            if (cards && typeof cards.ref === "string") {
+                revealedBindings.set(
+                    cards.ref,
+                    JSON.stringify(entry.player ?? null)
+                );
+            }
+        }
+        if (entry.op === "choice" && entry.kind === "choose-library-card") {
+            const candidates = Array.isArray(entry.candidates)
+                ? entry.candidates
+                : [];
+            for (const selector of candidates) {
+                const ref =
+                    typeof selector === "object" &&
+                    selector !== null &&
+                    typeof (selector as { ref?: unknown }).ref === "string"
+                        ? (selector as { ref: string }).ref
+                        : undefined;
+                if (ref === undefined) {
+                    errors.push(
+                        `${at}: kind "choose-library-card" candidates must each be a bare binding ref — an announced target slot or a $event ref names a battlefield object, which no library pick can be about`
+                    );
+                    continue;
+                }
+                if (declared.get(ref) !== "picks") {
+                    errors.push(
+                        `${at}: kind "choose-library-card" candidate "${ref}" must name a picks binding an EARLIER Op in this list declared (a search-library choice's own bind)`
+                    );
+                    continue;
+                }
+                const revealedTo = revealedBindings.get(ref);
+                if (revealedTo === undefined) {
+                    errors.push(
+                        `${at}: kind "choose-library-card" candidate "${ref}" was never revealed — CR 701.20a is what makes a hidden-zone candidate set public, so a preceding reveal { cards: { ref: "${ref}" } } in this same list is required`
+                    );
+                    continue;
+                }
+                // The reveal has to be of the LIBRARY BEING PICKED FROM. A
+                // `reveal { player: <someone else> }` scans that player's own
+                // zones and makes nothing public about this one, so accepting
+                // it would let a script expose three of the zone owner's
+                // library cards to a chooser they were never shown to.
+                const zoneOwnerRef = JSON.stringify(
+                    entry.zoneOwnerId ?? entry.player ?? null
+                );
+                if (revealedTo !== zoneOwnerRef) {
+                    errors.push(
+                        `${at}: kind "choose-library-card" candidate "${ref}" was revealed to a DIFFERENT player's zones than the one being picked from — CR 701.20a only makes public what the reveal actually showed, so the reveal's "player" must be the pick's zone owner`
+                    );
+                }
+            }
         }
 
         // `choice.bindOther` declares an object SNAPSHOT binding — the single

@@ -12166,7 +12166,14 @@ export type EffectChoiceKind =
     // filtered via `EffectCardFilter.hasCounter` ("an exiled card an
     // opponent owns with a void counter on it"). See `ZonePickKind`
     // (`gre/types.ts`) for the full design note.
-    | "choose-exile-card";
+    | "choose-exile-card"
+    // Intuition (issue #3205) — pick from an explicit `candidates` allow-list
+    // of REVEALED library cards (CR 701.20a). See `ZonePickKind`
+    // (`gre/types.ts`) for the full design note; the DSL-side rule is that
+    // `choice.candidates` is legal for `zone: "library"` only with this kind,
+    // and only when every candidate names a picks binding an earlier Op in the
+    // same script both BOUND and REVEALED.
+    | "choose-library-card";
 
 /** One mode of an `optionChoice` Op (ADR 0045, issue #849) — a labelled
  *  sub-effect-list. The chooser picks one mode; the interpreter then runs that

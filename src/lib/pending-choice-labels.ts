@@ -27,6 +27,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     // Dauthi Voidwalker (issue #1156) — pick an exiled card to grant a free
     // cast for.
     "choose-exile-card": "Choose",
+    // Intuition (issue #3205) — pick one of the REVEALED library cards.
+    "choose-library-card": "Choose",
     "choose-damage-target": "Choose target",
     // trigger-time player target (CR 115.1a — Endurance's "up to one target player")
     "choose-player": "Choose a player",

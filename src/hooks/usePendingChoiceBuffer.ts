@@ -33,6 +33,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         // Non-cast Aura host (CR 303.4f) — battlefield pick of exactly one
         // legal host for a reanimated Aura (Replenish, Living Death).
         "choose-aura-host",
+        // Intuition (CR 701.20a, issue #3205) — library pick of N of the
+        // cards a preceding step revealed, rendered from `libraryPeek`.
+        "choose-library-card",
     ]);
 
 export function isClientBufferedKind(kind: PendingChoiceKind): boolean {

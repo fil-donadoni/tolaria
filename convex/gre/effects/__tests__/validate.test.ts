@@ -4130,6 +4130,142 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
         );
     });
 
+    // issue #3205 — the ONE principled exception to "candidates ⇒ battlefield":
+    // a LIBRARY set the script itself REVEALED (CR 701.20a), picked through the
+    // dedicated `choose-library-card` kind. Everything that could make that
+    // exception fail open is refused below.
+    describe("the revealed-library exception (CR 701.20a / 400.2)", () => {
+        const searchThenPick = (over: Record<string, unknown> = {}) =>
+            host({
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "search-library",
+                        player: "controller",
+                        zone: "library",
+                        count: 3,
+                        prompt: "Search for three cards.",
+                        bind: "$found",
+                    },
+                    {
+                        op: "reveal",
+                        player: "controller",
+                        cards: { ref: "$found" },
+                    },
+                    {
+                        op: "choice",
+                        kind: "choose-library-card",
+                        player: { target: 0 },
+                        zoneOwnerId: "controller",
+                        zone: "library",
+                        candidates: [{ ref: "$found" }],
+                        count: 1,
+                        prompt: "Choose one.",
+                        bind: "$kept",
+                        ...over,
+                    },
+                ] as EffectOp[],
+            });
+
+        it("accepts a revealed, bound library set picked by a foreign chooser", () => {
+            expect(validateEffectScript(searchThenPick())).toEqual([]);
+        });
+
+        it("rejects the same pick when nothing revealed the set", () => {
+            const script = searchThenPick();
+            // Drop the `reveal` Op — the bind and the pick are unchanged, so
+            // the ONLY thing missing is what made the set public.
+            const effects = (script.effects as EffectOp[]).filter(
+                (op) => (op as { op: string }).op !== "reveal"
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain("was never revealed");
+        });
+
+        // Review finding — the STATIC reveal check is the whole security
+        // property: the wire exposure is driven by the pick's `candidateIds`
+        // and never consults `knownTo`, so a reveal that made nothing public
+        // about the picked-from library must not satisfy it.
+        it("rejects a reveal aimed at a DIFFERENT player's zones", () => {
+            const script = searchThenPick();
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "reveal"
+                    ? ({
+                          op: "reveal",
+                          // Scans the TARGET's zones, not the controller's —
+                          // it grants nothing about the library being picked
+                          // from, so the pick would expose three never-shown
+                          // cards to the chooser.
+                          player: { target: 0 },
+                          cards: { ref: "$found" },
+                      } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain(
+                "revealed to a DIFFERENT player's zones"
+            );
+        });
+
+        // Review finding — `bindOther` snapshots the unpicked candidate as a
+        // PERMANENT, which was implied safe only while `candidates` implied
+        // `zone: "battlefield"`. The exception broke that implication.
+        it("rejects bindOther on the library pick — an unpicked library card is not a permanent", () => {
+            const errors = validateEffectScript(
+                searchThenPick({ bindOther: "$other" })
+            );
+            expect(errors.join("\n")).toContain(
+                '"bindOther" is valid only with zone: "battlefield"'
+            );
+        });
+
+        it("rejects a candidate that is not a picks binding", () => {
+            const errors = validateEffectScript(
+                searchThenPick({ candidates: [{ target: 0 }] })
+            );
+            expect(errors.join("\n")).toContain(
+                "must each be a bare binding ref"
+            );
+        });
+
+        it("rejects the kind without a candidates set — it would raise a pick over the WHOLE library", () => {
+            const script = searchThenPick();
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { kind?: string }).kind === "choose-library-card"
+                    ? (omitKey(op, "candidates") as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain(
+                'requires zone: "library" and a "candidates" set'
+            );
+        });
+
+        it("still rejects candidates in every OTHER hidden or unordered zone", () => {
+            for (const [kind, zone] of [
+                ["choose-hand-card", "hand"],
+                ["choose-graveyard-card", "graveyard"],
+                ["choose-exile-card", "exile"],
+            ] as const) {
+                const errors = validateEffectScript(
+                    host({
+                        effects: [
+                            candidateChoice({
+                                kind,
+                                zone,
+                                bindOther: undefined,
+                            }),
+                        ],
+                    })
+                );
+                expect(
+                    errors.join("\n"),
+                    `${kind} / ${zone} must still be refused`
+                ).toContain('valid only with zone: "battlefield"');
+            }
+        });
+    });
+
     it("rejects bindOther without candidates", () => {
         const errors = validateEffectScript(
             host({
