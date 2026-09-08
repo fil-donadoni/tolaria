@@ -64,6 +64,22 @@ describe("convexRunErrorMessage — the thrown message, not the framing", () => 
         );
     });
 
+    it("keeps a thrown message that spans lines whole", () => {
+        // A mutation that joins its violations with a newline instead of a
+        // semicolon must not be truncated to its first violation.
+        const captured = [
+            '✖ Failed to run function "decks:seedPresetDirect":',
+            "Error: [Request ID: 0badc0de0badc0de] Server Error",
+            "Uncaught Error: deck is not legal in premodern:",
+            "Mana Drain is banned",
+            "Grim Monolith is banned",
+            "    at handler (../convex/decks.ts:531:16)",
+        ].join("\n");
+        expect(convexRunErrorMessage(captured)).toBe(
+            "deck is not legal in premodern: Mana Drain is banned Grim Monolith is banned"
+        );
+    });
+
     it("caps the message so a giant throw cannot flood the terminal", () => {
         const long = `Uncaught Error: Unknown card name(s): ${"x".repeat(500)}`;
         expect(convexRunErrorMessage(long)).toHaveLength(300);

@@ -40,17 +40,28 @@ export function convexRunErrorMessage(text: string, maxLength = 300): string {
         .split("\n")
         .map((l) => l.trim())
         .filter(Boolean);
-    const body = lines.filter((l) => !STACK_FRAME_RE.test(l));
 
     // LAST, not first: the innermost throw is the one that says why. Convex's
     // transport line matches too, and losing to the cause is the whole fix.
-    const thrown = body.filter((l) => ERROR_PREFIX_RE.test(l));
-    const chosen = thrown[thrown.length - 1];
-    if (chosen) {
-        const message = strip(chosen);
+    let start = -1;
+    lines.forEach((line, i) => {
+        if (!STACK_FRAME_RE.test(line) && ERROR_PREFIX_RE.test(line)) start = i;
+    });
+    if (start >= 0) {
+        // A thrown message may span lines — the mutation that joins its
+        // violations with a newline must not be truncated to its first one.
+        // Continuation runs until the stack, or until the next throw.
+        const parts = [lines[start]];
+        for (let i = start + 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (STACK_FRAME_RE.test(line) || ERROR_PREFIX_RE.test(line)) break;
+            parts.push(line);
+        }
+        const message = strip(parts.join(" "));
         if (message) return message.slice(0, maxLength);
     }
 
+    const body = lines.filter((l) => !STACK_FRAME_RE.test(l));
     const fallback =
         body[body.length - 1] ?? lines[lines.length - 1] ?? "unknown failure";
     return fallback.slice(0, maxLength);
