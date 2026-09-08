@@ -241,10 +241,12 @@ export const COST_LEG_CLAIMS = {
         hole: "#3117",
     },
     cyclingCost: {
-        paidBy: { file: "convex/game.ts", symbol: "activateAbilityOnState" },
-        why: 'CR 702.29c — not a payable leg at all: it is a MARKER qualifying the `discardThis` payment so the discard carries `cause: "cycling"`. Only the mutation passes it; the search-side discard omits the cause, so a "when you cycle" trigger (CR 702.29c) would fire on the real board and not inside the tree. LATENT, not live: `cycledTrigger` (`cards/abilities/cycling.ts`) has no call site in `cards/sets/**` yet, so no shipped card is mis-valued today — it becomes a real defect with the first cycling trigger.',
+        paidBy: {
+            file: "convex/gre/applyMove.ts",
+            symbol: "applyActivationCostsForSearch",
+        },
+        why: 'CR 702.29c — not a payable leg at all: it is a MARKER qualifying the `discardThis` payment so the discard carries `cause: "cycling"`. Issue #3118 recorded this as a HOLE: only the mutation passed the cause, so a "when you cycle this card" trigger fired on the real board and not inside the Bot\'s tree. Closed by issue #3206, which shipped `cycledTrigger`\'s first consumer (Decree of Silence) and made the hole live: the search-side discard now reads the same flag and passes the same cause, so both surfaces emit ONE CARD_DISCARDED with identical provenance (702.29d — never two events).',
         autoPayable: false,
-        hole: "#3118",
     },
 } as const satisfies Record<keyof ActivatedAbility["cost"], CostLegClaim>;
 

@@ -79,6 +79,7 @@ import type {
     EffectDifferenceOperand,
     EffectExiledWithSourceSelector,
     EffectForEachSelector,
+    EffectRef,
     EffectListSelector,
     EffectObjectSelector,
     EffectOp,
@@ -100,6 +101,7 @@ import type {
 } from "../../cards/types";
 import type { LookDistributeDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
+import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
 import { parseProtectionFromColor } from "../protection";
 import { parseTargetNameRef } from "./targetRef";
@@ -222,7 +224,7 @@ function isEventRef(ref: string): boolean {
 function resolveEventRef(
     ctx: SpellContext,
     ref: string
-): { family: "object" | "player"; id: string } | undefined {
+): { family: EventFieldFamily; id: string } | undefined {
     const dot = ref.indexOf(".");
     if (dot < 0) return undefined;
     const field = ref.slice(dot + 1);
@@ -1385,6 +1387,26 @@ function resolveTargetRef(
     ref: EffectTargetRef
 ): TargetSelection | undefined {
     return ctx.targets[ref.target];
+}
+
+/** Resolves an `$event` STACK-OBJECT ref (issue #3206) to a `"spell"`
+ *  TargetSelection — the spell a `SPELL_CAST` trigger fired on. Its own
+ *  resolver rather than a branch of `resolveObjectRef`, because that function's
+ *  whole contract is a BATTLEFIELD-presence recheck (`getOwnerId`), which
+ *  rejects every stack object by construction. Presence on the STACK is the
+ *  right question here and it is asked once, inside `SpellContext.counter`
+ *  (CR 608.2b) — see `EventFieldRow.family`.
+ *
+ *  Undefined when the ref is not an `$event` ref, names a field of another
+ *  family, or the event carries no such id — the reading Op then skips. */
+function resolveStackObjectRef(
+    ctx: SpellContext,
+    ref: EffectRef
+): TargetSelection | undefined {
+    if (!isEventRef(ref.ref)) return undefined;
+    const ev = resolveEventRef(ctx, ref.ref);
+    if (!ev || ev.family !== "stack-object") return undefined;
+    return { type: "spell", id: ev.id };
 }
 
 /** Resolves an object selector to a TargetSelection: the announced target
@@ -5179,7 +5201,19 @@ export const OP_EXECUTORS: {
     // instead of the CR 701.6a graveyard default (No More Lies, Memory Lapse,
     // Remand).
     counter(ctx, op) {
-        const target = resolveTargetRef(ctx, op.target);
+        // Two shapes (issue #3206). An announced slot (CR 601.2c —
+        // Counterspell) resolves through `ctx.targets`; an `$event`
+        // STACK-OBJECT ref (CR 603.2 — Decree of Silence's trigger, which
+        // announces nothing) resolves through the EVENT_FIELD_REGISTRY and is
+        // carried as a `"spell"` TargetSelection. The CR 608.2b "already left
+        // the stack" skip is deliberately NOT repeated here: `ctx.counter`
+        // fizzles silently on a spell no longer on the stack, and it is the
+        // single authority for that question — a second lookup here could
+        // drift from it.
+        const target =
+            "target" in op.target
+                ? resolveTargetRef(ctx, op.target)
+                : resolveStackObjectRef(ctx, op.target);
         if (target && target.type === "spell")
             ctx.counter(target, op.destination);
     },

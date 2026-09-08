@@ -687,7 +687,21 @@ export function applyActivationCostsForSearch(
               )?.activatedAbilities?.find((a) => a.id === move.abilityId)
             : undefined;
         if (handOwner && handAbility?.cost.discardThis) {
-            discardToGraveyard(state, handOwner.id, move.cardInstanceId);
+            // CR 702.29c (issue #3118, closed here by #3206) — the cycling
+            // MARKER must ride the search-side discard exactly as it rides the
+            // mutation's (`activateAbilityOnState`, `convex/game.ts`). Without
+            // it the ONE CARD_DISCARDED event carries no cause inside the tree,
+            // so a "when you cycle this card" trigger (CR 702.29c) fires on the
+            // real board and not in the Bot's search — the bot prices a cycling
+            // card as a plain cantrip and never sees the trigger it is played
+            // for. Latent until Decree of Silence became `cycledTrigger`'s
+            // first shipped consumer; live from that card on.
+            discardToGraveyard(
+                state,
+                handOwner.id,
+                move.cardInstanceId,
+                handAbility.cost.cyclingCost ? "cycling" : undefined
+            );
         }
         // CR 702.49a — the NINJUTSU return leg, the other board-changing cost a
         // hand-source ability can carry. Paid through the same

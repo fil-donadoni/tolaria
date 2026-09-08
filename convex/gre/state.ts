@@ -21456,8 +21456,13 @@ export function payDiscardLastDrawn(
  *  cost payment) and rides onto the single CARD_DISCARDED event; omitting it
  *  means "an ordinary discard", which is what every producer that predates the
  *  distinction correctly is. Producer census (one row per call site) lives in
- *  the PR for issue #2442 — only the three `cost.discardThis` commit sites can
- *  ever pass a cause, and only when the ability declares `cost.cyclingCost`. */
+ *  the PR for issue #2442 — only a `cost.discardThis` commit site can ever pass
+ *  a cause, and only when the ability declares `cost.cyclingCost`. There are
+ *  FOUR such sites, not the three that census recorded: the three mutation
+ *  commits (`activateAbilityOnState`'s inline path, `finalizeTargetSelection`,
+ *  `tryAutoCommitPendingActivation`) plus the Bot's SEARCH-side payment
+ *  (`applyActivationCostsForSearch`, `gre/applyMove.ts`), which omitted the
+ *  cause until issue #3206 — the defect declared as hole #3118. */
 export function discardToGraveyard(
     state: GameState,
     playerId: string,

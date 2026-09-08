@@ -3769,12 +3769,28 @@ export function getKeywordCounterGrant(
 // row per migrated card. `TriggeredAbility.event` is statically known, so
 // validation is exact per trigger.
 
-export type EventFieldFamily = "object" | "player";
+export type EventFieldFamily = "object" | "player" | "stack-object";
 
 export interface EventFieldRow {
-    /** Value family — an object (permanent instance id) ref or a player id ref.
-     *  The validator checks this against the ref's POSITION (a destroy target vs
-     *  a player selector); a mismatch is a definition bug. */
+    /** Value family — which decides the ref POSITION the field is legal in, and
+     *  which PRESENCE recheck its consumer owes (CR 608.2b):
+     *
+     *   - `"object"` — a permanent instance id. Rechecked against the
+     *     BATTLEFIELD at resolution (`resolveObjectRef`); a permanent that left
+     *     skips the reading Op.
+     *   - `"player"` — a player id. Nothing to recheck (a player does not leave
+     *     a zone).
+     *   - `"stack-object"` — a SPELL on the stack (issue #3206). Neither of the
+     *     two above: a stack object is not a permanent, so a battlefield
+     *     recheck would reject every one of them, and the presence question is
+     *     "is it still ON THE STACK". That recheck is NOT duplicated here — it
+     *     lives in `SpellContext.counter` (`gre/state.ts`), which already
+     *     fizzles silently on a spell that has left (CR 608.2b, the same skip
+     *     an announced target that departed gets). One authority, not two.
+     *
+     *  The validator checks the family against the ref's POSITION (a destroy
+     *  target vs a player selector vs a `counter` target); a mismatch is a
+     *  definition bug. */
     family: EventFieldFamily;
     /** Flattens the firing event to the single id the friendly field names, or
      *  undefined when the event carries no such id (e.g. DAMAGE_DEALT dealt to a
@@ -3960,6 +3976,26 @@ export const EVENT_FIELD_REGISTRY: Record<
             family: "player",
             resolve: (e) =>
                 e.type === "SPELL_KICKED" ? e.casterId : undefined,
+        },
+    },
+    // CR 601.2i — a spell was cast. Two rows, both flattening the event that
+    // `emitSpellCastEvent` (`gre/state.ts`) builds at the single cast choke
+    // point (issue #3206).
+    //
+    // `spell` is the first `"stack-object"` field: the spell itself, as an
+    // object a `counter` can act on. A triggered ability that counters the
+    // spell that triggered it announces no target (CR 603.2), so `counter`'s
+    // `EffectTargetRef` had nothing to name — this ref is what names it.
+    // Mana Vortex (`sets/drk/blue.ts`) asked for exactly this row by name.
+    SPELL_CAST: {
+        spell: {
+            family: "stack-object",
+            resolve: (e) =>
+                e.type === "SPELL_CAST" ? e.spellInstanceId : undefined,
+        },
+        caster: {
+            family: "player",
+            resolve: (e) => (e.type === "SPELL_CAST" ? e.casterId : undefined),
         },
     },
     BECAME_TARGET: {
