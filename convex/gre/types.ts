@@ -64,6 +64,22 @@ export type ZonePickKind =
     // (a filter dimension every zone-choice's `choice` Op shares), exactly
     // like a graveyard/library card-type filter precomputes its allow-list.
     | "choose-exile-card"
+    // Intuition (TMP, issue #3205): mid-resolution pick of N cards from a
+    // LIBRARY, narrowed to an explicit `candidateIds` allow-list of cards a
+    // prior step in the same resolution REVEALED (CR 701.20a — "it remains
+    // revealed for as long as necessary to complete the parts of the effect
+    // that card is relevant to"). The library twin of `choose-graveyard-card`
+    // / `choose-exile-card`, and deliberately NOT `search-library`: the
+    // chooser does not get to look at the library (CR 400.2 — it stays a
+    // hidden zone), only at the cards the reveal made public, so it carries no
+    // `isSearch` and rides the `libraryPeek` channel scoped to
+    // `candidateIds`, never the whole-library `librarySearch` channel.
+    //
+    // The chooser may be a FOREIGN player (Intuition: "Target opponent chooses
+    // one") through the `zoneOwnerId` split the Word of Command search path
+    // already established — the submit validator is chooser-agnostic and reads
+    // `zoneOwnerId ?? playerId` for zone membership.
+    | "choose-library-card"
     | "choose-damage-target"
     // Trigger-time PLAYER target (CR 115.1a — a player is a legal target),
     // chosen mid-resolution when a `TriggeredAbility` (which carries no

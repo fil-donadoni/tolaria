@@ -16940,6 +16940,14 @@
         "source": "compiled"
     },
     {
+        "name": "Intuition",
+        "scryfallId": "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
+        "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",
+        "firstSet": "tmp",
+        "firstPrintId": "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Invisibility",
         "scryfallId": "1858ac51-e6a7-48d7-8759-166070ca13d8",
         "oracleId": "de26b0c6-dfb7-45a8-9d7f-f8d45522d675",

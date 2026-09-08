@@ -1107,6 +1107,20 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "choose-aura-host":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // Intuition (CR 701.20a, issue #3205) — the bot is the OPPONENT being
+        // asked which of the revealed library cards its opponent gets to keep.
+        // `readChoiceZone` sourced the candidates from `libraryPeek` (the
+        // projection exposes exactly the revealed `candidateIds` to the
+        // chooser), so this is a pool of real cards with real values, and the
+        // decision is ADVERSARIAL: hand over the least valuable one. Hence the
+        // explicit `worstFirst` — `buildOwedChoice` emits candidates in
+        // `candidateIds` order, i.e. in the order the SEARCHER listed them, so
+        // a bare `slice` would let the caster choose their own gift.
+        case "choose-library-card":
+            return worstFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
         // "As it enters, choose …" body selection (CR 614.12 — Primal Clay,
         // Shapeshifter). The options are appended to `candidates` as neutral-
         // value picks in `buildOwedChoice`; a minimal-legal default (ADR 0016)

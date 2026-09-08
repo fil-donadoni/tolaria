@@ -1768,6 +1768,37 @@ function choiceCandidates(
         return { available: ids.length, candidateIds: ids };
     }
     if (op.zone === "library") {
+        // CR 701.20a / 400.2 (issue #3205, Intuition) — `candidates` on a
+        // LIBRARY pick names cards a preceding step in this same script both
+        // bound and REVEALED ("it remains revealed for as long as necessary to
+        // complete the parts of the effect that card is relevant to"), so the
+        // set IS public knowledge at the moment the pick is raised even though
+        // the zone is not (400.2: a library is hidden "even if all the cards in
+        // one such zone happen to be revealed"). The validator enforces both
+        // the reveal and `kind: "choose-library-card"`; this branch only has to
+        // resolve the bindings.
+        //
+        // Resolved through `resolvePicks`, not `resolveObjectRef`: a library
+        // card is not a battlefield permanent, so the snapshot path's
+        // presence recheck would reject every one of them. Intersected with
+        // the library's CURRENT contents instead, which is the same CR 608.2b
+        // drop-what-left policy the battlefield branch gets from that
+        // recheck — a revealed card another effect moved out of the library
+        // before this pick simply falls out, and the count clamps.
+        if (op.candidates) {
+            const inLibrary = new Set(
+                ctx.getLibraryCards(zoneOwnerId).map((c) => c.id)
+            );
+            const ids: string[] = [];
+            for (const selector of op.candidates) {
+                if (!("ref" in selector)) continue;
+                for (const id of resolvePicks(ctx, selector) ?? []) {
+                    if (!inLibrary.has(id) || ids.includes(id)) continue;
+                    ids.push(id);
+                }
+            }
+            return { available: ids.length, candidateIds: ids };
+        }
         // A library is hidden — the submit validator has no card
         // characteristics to check a raw pick against, so a type/subtype/
         // supertype/color/mana-value restriction (issue #677 — "search … for
@@ -5014,7 +5045,16 @@ export const OP_EXECUTORS: {
         // all. So a library search with zero eligible cards still raises the
         // choice, as a 0-pick one: the client renders the full library with
         // every card inert and a Done that only shuffles.
-        const searchWithNoHit = op.zone === "library" && available === 0;
+        // CR 401.4 / 701.19a — scoped to the SEARCH kind, not to the zone
+        // (issue #3205): the entitlement being protected is the look a search
+        // grants, and `choose-library-card` grants none — its candidates are a
+        // set someone else revealed. A zero-candidate revealed pick is simply
+        // nothing to choose from, so it skips like every other empty choice
+        // rather than raising a dead prompt at the opponent.
+        const searchWithNoHit =
+            op.zone === "library" &&
+            op.kind === "search-library" &&
+            available === 0;
         let count: number | { min: number; max: number };
         if (searchWithNoHit) {
             count = { min: 0, max: 0 };

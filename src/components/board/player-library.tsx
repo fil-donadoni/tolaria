@@ -126,8 +126,30 @@ export default function PlayerLibrary({
         player.id === orderPickOwner &&
         !!player.libraryPeek;
 
+    // Intuition (CR 701.20a, issue #3205, `choose-library-card`): a pick over
+    // exactly the cards a preceding step REVEALED — exposed as `libraryPeek`,
+    // never the whole library (CR 400.2 keeps the zone hidden; only the
+    // revealed cards became public). Its own predicate rather than a member of
+    // `isLibraryPeekPick` above for ONE reason: the chooser is routinely a
+    // FOREIGN player ("Target opponent chooses one"), so the owner test is
+    // `zoneOwnerId ?? playerId` — the same split `isLookDistributeGridPick`
+    // and `isOrderTopPick` already draw — while `isLibraryPeekPick`'s
+    // `player.id === playerId` assumes the chooser owns the library. Reuses
+    // the grid + buffered-submit path unchanged.
+    const revealedPickOwner = head?.zoneOwnerId ?? head?.playerId;
+    const isRevealedLibraryPick =
+        !!head &&
+        head.kind === "choose-library-card" &&
+        head.zone === "library" &&
+        head.playerId === playerId &&
+        player.id === revealedPickOwner &&
+        !!player.libraryPeek;
+
     const isLibraryPick =
-        isLibrarySearchTarget || isLibraryPeekPick || isLookDistributeGridPick;
+        isLibrarySearchTarget ||
+        isLibraryPeekPick ||
+        isLookDistributeGridPick ||
+        isRevealedLibraryPick;
 
     // ADR 0026 — outside an active pick, the pile renders from the projected
     // library: known positions (`knownTo`) face-up, the rest as backs.
@@ -150,7 +172,7 @@ export default function PlayerLibrary({
         ? // Issue #933 follow-up: put eligible (allow-listed) cards first, then
           // sort the whole pile by type line with name as the tiebreaker.
           orderLibrarySearchCards(player.librarySearch!, eligibleIds)
-        : isLibraryPeekPick || isLookDistributeGridPick
+        : isLibraryPeekPick || isLookDistributeGridPick || isRevealedLibraryPick
           ? player.libraryPeek!
           : pileModel.map((slot) => slot.card);
     // Per-card face-up override for the non-pick library view (picks expose
