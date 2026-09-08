@@ -34,7 +34,8 @@
  */
 
 import { expandDefinition } from "../cards/registry";
-import type { CardDefinition } from "../cards/types";
+import type { CardDefinition, GameEventType } from "../cards/types";
+import type { CompiledTriggerHead } from "../cards/compiledTriggers";
 import { compileCard } from "./compile";
 import { sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
@@ -590,7 +591,35 @@ export function compiledTwin(definition: CardDefinition): TwinResult {
 }
 
 /**
- * Carry the HAND-WRITTEN ability ids onto the twin, position by position.
+ * The `GameEventType` a compiled trigger HEAD fires on — the same event each
+ * factory in `cards/abilities/triggers/*Trigger.ts` bakes into the
+ * `TriggeredAbility` it returns (`enteredTrigger` → `PERMANENT_ENTERED`,
+ * `diedTrigger` → `CREATURE_DIED`, and so on). `Record<CompiledTriggerHead
+ * ["kind"], …>` makes the table exhaustive by construction: a new head added
+ * to that closed union without a row here is a compile error, not a silent
+ * pairing gap. Used to pair a compiled descriptor against the hand-written
+ * ability that shares its trigger head (issue #3060 gap 3), rather than by
+ * array position.
+ */
+const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
+    entered: "PERMANENT_ENTERED",
+    died: "CREATURE_DIED",
+    attacks: "ATTACKERS_DECLARED",
+    "combat-damage-to-player": "DAMAGE_DEALT",
+    phase: "PHASE_BEGIN",
+    "spell-cast": "SPELL_CAST",
+};
+
+/** `TriggeredAbility.event` normalised to an array — CR 603.2 lets one Oracle
+ *  line span several engine events, so a scalar and a singleton array mean
+ *  the same thing for pairing purposes. */
+function eventsOf(event: GameEventType | GameEventType[]): GameEventType[] {
+    return Array.isArray(event) ? event : [event];
+}
+
+/**
+ * Carry the HAND-WRITTEN ability ids onto the twin, PAIRED by a structural
+ * key rather than by array position (issue #3060 gap 3).
  *
  * An ability `id` is an engine handle, not behaviour, and this file already
  * says so: it sits in `ABILITY_DISPLAY_KEYS`, excluded from the structural
@@ -607,9 +636,29 @@ export function compiledTwin(definition: CardDefinition): TwinResult {
  * That is the same false signal in the opposite direction from a vacuous green,
  * and just as wrong.
  *
- * Grafted BY POSITION and only when the counts match. A different count means
- * the compiler read a different NUMBER of abilities out of the card, which IS a
- * behavioural difference — one the twin must keep so the run reds on it.
+ * The PREVIOUS version paired ability `i` on one side with ability `i` on the
+ * other whenever the counts matched, with nothing checking the compiler read
+ * them in the SAME order — dormant only because every card in the population
+ * carries exactly one ability of each kind. A compiler that emitted the right
+ * number in a different order would graft the wrong hand-written id onto the
+ * wrong compiled body, and a test addressing that id by name would then
+ * execute something other than what its title claims.
+ *
+ * Paired instead by a STRUCTURAL key: activation `cost` (CR 602.1's "[Cost]:
+ * [Effect]") for an activated ability, trigger HEAD event for a triggered one
+ * — see `TRIGGER_HEAD_EVENT`. A single ability on each side (today's whole
+ * population) pairs trivially, since there is nothing else it could pair
+ * with. Two or more abilities pair by exact key match; a key this card's own
+ * abilities SHARE (which the key alone cannot disambiguate) is left
+ * UNGRAFTED rather than guessed — the compiled body keeps its own invented
+ * id, the per-card test addressing the hand-written id cannot find it, and
+ * the run reds. That refusal is the safe direction: a spurious red gets
+ * investigated, a wrong pairing does not.
+ *
+ * A different COUNT is still refused outright, before any pairing is
+ * attempted — a different count means the compiler read a different NUMBER
+ * of abilities out of the card, which IS a behavioural difference the twin
+ * must keep so the run reds on it.
  *
  * `modes` carries an `id` too, addressed as `chosenModeId`, and is deliberately
  * not grafted: no modal card is in the behavioural population yet, and a graft
@@ -617,7 +666,11 @@ export function compiledTwin(definition: CardDefinition): TwinResult {
  * first modal card that needs it. `compiledStaticEffects` needs nothing — a
  * static effect is never addressed by an id.
  */
-function graftAbilityIds(
+/** Exported for `convex/oracle/__tests__/gold.test.ts` (issue #3060 gap 3) —
+ *  the pairing logic below has no compiled fixture in the current catalogue
+ *  with more than one ability of a kind, so it is exercised with hand-built
+ *  `CardDefinition` fragments rather than through `compiledTwin`. */
+export function graftAbilityIds(
     handWritten: CardDefinition,
     compiled: CardDefinition
 ): CardDefinition {
@@ -628,7 +681,8 @@ function graftAbilityIds(
     return { ...patched, ...graftTriggerIds(handWritten, compiled) };
 }
 
-/** Position-wise id graft over one same-named array on both sides. */
+/** Id graft over one same-named array on both sides, paired by `cost` — see
+ *  the header on `graftAbilityIds` above. */
 function graftIds(
     key: "activatedAbilities",
     handWritten: CardDefinition,
@@ -638,12 +692,31 @@ function graftIds(
     const mine = compiled[key];
     if (gold === undefined || mine === undefined) return {};
     if (gold.length !== mine.length) return {};
+    if (gold.length === 1) {
+        // Nothing else the single compiled ability could pair with —
+        // today's whole population, and the case a cost-key comparison would
+        // trivially resolve anyway.
+        return typeof gold[0].id === "string"
+            ? { [key]: [{ ...mine[0], id: gold[0].id }] }
+            : {};
+    }
+    const costKey = (a: { cost: unknown }) => JSON.stringify(sortKeys(a.cost));
+    const goldByCost = new Map<string, number[]>();
+    gold.forEach((a, i) => {
+        const k = costKey(a);
+        goldByCost.set(k, [...(goldByCost.get(k) ?? []), i]);
+    });
     return {
-        [key]: mine.map((ability, i) =>
-            typeof gold[i].id === "string"
-                ? { ...ability, id: gold[i].id }
-                : ability
-        ),
+        [key]: mine.map((ability) => {
+            const candidates = goldByCost.get(costKey(ability)) ?? [];
+            // Ambiguous — 0 or ≥2 of this card's OWN abilities share this
+            // cost — refuse rather than guess; see the header.
+            if (candidates.length !== 1) return ability;
+            const goldId = gold[candidates[0]].id;
+            return typeof goldId === "string"
+                ? { ...ability, id: goldId }
+                : ability;
+        }),
     };
 }
 
@@ -663,9 +736,14 @@ function graftIds(
  * a triggered card, and every twin otherwise identical to the hand-written
  * ability).
  *
- * Aligned against the concatenation `expandCompiledTriggers` produces —
- * `triggeredAbilities` first, then the rebuilt descriptors — so the positions
- * mean the same thing on both sides.
+ * PAIRED by trigger HEAD event (issue #3060 gap 3) rather than by the position
+ * `expandCompiledTriggers`'s concatenation would produce — `triggeredAbilities`
+ * first, then the rebuilt descriptors, direct entries and descriptors both
+ * processed in that order so an earlier pairing's claim is visible to a later
+ * one. See `graftIds`'s header for the same argument in the activated-ability
+ * case: a single ability on each side (today's whole population) pairs
+ * trivially; with more than one, a card whose own abilities fire on the SAME
+ * event is left ungrafted rather than paired by a guess.
  */
 function graftTriggerIds(
     handWritten: CardDefinition,
@@ -676,8 +754,46 @@ function graftTriggerIds(
     const direct = compiled.triggeredAbilities ?? [];
     const descriptors = compiled.compiledTriggeredAbilities ?? [];
     if (gold.length !== direct.length + descriptors.length) return {};
-    const idAt = (i: number): string | undefined =>
-        typeof gold[i].id === "string" ? gold[i].id : undefined;
+
+    if (gold.length === 1) {
+        const goldId = gold[0].id;
+        const withId = <T extends { id: string }>(a: T): T =>
+            typeof goldId === "string" ? { ...a, id: goldId } : a;
+        return {
+            ...(direct.length === 1
+                ? { triggeredAbilities: [withId(direct[0])] }
+                : {}),
+            ...(descriptors.length === 1
+                ? { compiledTriggeredAbilities: [withId(descriptors[0])] }
+                : {}),
+        };
+    }
+
+    // One "unit" per position in the direct+descriptor concatenation, each
+    // carrying the event(s) it fires on: a direct ability states its own
+    // `event`; a descriptor's is read off its trigger HEAD.
+    const units: { expected: GameEventType[] }[] = [
+        ...direct.map((a) => ({ expected: eventsOf(a.event) })),
+        ...descriptors.map((d) => ({
+            expected: [TRIGGER_HEAD_EVENT[d.head.kind]],
+        })),
+    ];
+    const claimed = new Set<number>();
+    const idAt = (unitIndex: number): string | undefined => {
+        const expected = units[unitIndex].expected;
+        const candidates = gold
+            .map((g, j) => ({ j, events: eventsOf(g.event) }))
+            .filter(
+                ({ j, events }) =>
+                    !claimed.has(j) && expected.some((e) => events.includes(e))
+            );
+        // Ambiguous — no candidate, or this card's own abilities share an
+        // event the head alone cannot disambiguate — refuse; see the header.
+        if (candidates.length !== 1) return undefined;
+        claimed.add(candidates[0].j);
+        const id = gold[candidates[0].j].id;
+        return typeof id === "string" ? id : undefined;
+    };
     return {
         ...(compiled.triggeredAbilities === undefined
             ? {}

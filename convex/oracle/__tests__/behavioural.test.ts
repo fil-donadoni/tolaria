@@ -18,6 +18,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards/catalogue";
 import { getDefinition, preloadDefinitions } from "../../cards/registry";
+import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 import type { CardDefinition } from "../../cards/types";
 import {
     assertSwapped,
@@ -25,7 +26,7 @@ import {
     parseSwapIds,
     resolveSwapTwins,
 } from "../behavioural";
-import { compiledTwin } from "../gold";
+import { compiledTwin, graftAbilityIds } from "../gold";
 
 describe("behavioural swap — every failure is loud (issue #2703)", () => {
     it("refuses an env var that names no card", () => {
@@ -151,5 +152,160 @@ describe("compiled twin — ability ids are grafted, not invented (issue #2703)"
         expect(mismatched.definition.activatedAbilities?.[0].id).not.toBe(
             card.activatedAbilities?.[0].id
         );
+    });
+});
+
+describe("ability id graft — paired by structural key, not position (issue #3060 gap 3)", () => {
+    // No compiled fixture in today's catalogue carries more than one ability
+    // of a kind (the previous position-only graft was dormant for exactly
+    // that reason), so these build hand-written/compiled fragments directly
+    // rather than through `compiledTwin`.
+    const assassin = getCardByName("Royal Assassin");
+    const activatedTemplate = assassin.activatedAbilities![0];
+    const djinn = getCardByName("Juzám Djinn");
+    const triggeredTemplate = djinn.triggeredAbilities![0];
+
+    it("pairs activated abilities by COST when the compiler reorders them", () => {
+        const tapCost = { tap: true };
+        const tapManaCost = { tap: true, mana: { generic: 1 } };
+        const handWritten: CardDefinition = {
+            ...assassin,
+            activatedAbilities: [
+                { ...activatedTemplate, id: "gold-tap", cost: tapCost },
+                {
+                    ...activatedTemplate,
+                    id: "gold-tap-mana",
+                    cost: tapManaCost,
+                },
+            ],
+        };
+        // Same two abilities, opposite array order — as if the compiler read
+        // the card's ability list back to front.
+        const compiled: CardDefinition = {
+            ...assassin,
+            activatedAbilities: [
+                {
+                    ...activatedTemplate,
+                    id: "compiled-tap-mana",
+                    cost: tapManaCost,
+                },
+                { ...activatedTemplate, id: "compiled-tap", cost: tapCost },
+            ],
+        };
+        const grafted = graftAbilityIds(handWritten, compiled);
+        expect(grafted.activatedAbilities?.map((a) => a.id)).toEqual([
+            "gold-tap-mana",
+            "gold-tap",
+        ]);
+    });
+
+    it("refuses to graft when two of the card's OWN abilities share a cost", () => {
+        // The cost key cannot tell them apart — pairing by index would be a
+        // guess, so neither gets grafted and the compiled body keeps its own
+        // invented id (a refusal, not a silent mispairing).
+        const tapCost = { tap: true };
+        const handWritten: CardDefinition = {
+            ...assassin,
+            activatedAbilities: [
+                { ...activatedTemplate, id: "gold-a", cost: tapCost },
+                { ...activatedTemplate, id: "gold-b", cost: tapCost },
+            ],
+        };
+        const compiled: CardDefinition = {
+            ...assassin,
+            activatedAbilities: [
+                { ...activatedTemplate, id: "compiled-a", cost: tapCost },
+                { ...activatedTemplate, id: "compiled-b", cost: tapCost },
+            ],
+        };
+        const grafted = graftAbilityIds(handWritten, compiled);
+        expect(grafted.activatedAbilities?.map((a) => a.id)).toEqual([
+            "compiled-a",
+            "compiled-b",
+        ]);
+    });
+
+    it("pairs triggered descriptors by their HEAD's event when reordered", () => {
+        const handWritten: CardDefinition = {
+            ...djinn,
+            triggeredAbilities: [
+                {
+                    ...triggeredTemplate,
+                    id: "gold-attacks",
+                    event: "ATTACKERS_DECLARED",
+                },
+                {
+                    ...triggeredTemplate,
+                    id: "gold-damage",
+                    event: "DAMAGE_DEALT",
+                },
+            ],
+        };
+        const descriptors: CompiledTriggeredAbility[] = [
+            {
+                id: "compiled-damage",
+                oracleText: "",
+                head: { kind: "combat-damage-to-player" },
+                effects: [],
+            },
+            {
+                id: "compiled-attacks",
+                oracleText: "",
+                head: { kind: "attacks" },
+                effects: [],
+            },
+        ];
+        const compiled: CardDefinition = {
+            ...djinn,
+            triggeredAbilities: undefined,
+            compiledTriggeredAbilities: descriptors,
+        };
+        const grafted = graftAbilityIds(handWritten, compiled);
+        expect(grafted.compiledTriggeredAbilities?.map((d) => d.id)).toEqual([
+            "gold-damage",
+            "gold-attacks",
+        ]);
+    });
+
+    it("refuses to graft when two of the card's OWN triggers share an event", () => {
+        const handWritten: CardDefinition = {
+            ...djinn,
+            triggeredAbilities: [
+                {
+                    ...triggeredTemplate,
+                    id: "gold-1",
+                    event: "ATTACKERS_DECLARED",
+                },
+                {
+                    ...triggeredTemplate,
+                    id: "gold-2",
+                    event: "ATTACKERS_DECLARED",
+                },
+            ],
+        };
+        const descriptors: CompiledTriggeredAbility[] = [
+            {
+                id: "compiled-1",
+                oracleText: "",
+                head: { kind: "attacks" },
+                effects: [],
+            },
+            {
+                id: "compiled-2",
+                oracleText: "",
+                head: { kind: "attacks" },
+                effects: [],
+            },
+        ];
+        const compiled: CardDefinition = {
+            ...djinn,
+            triggeredAbilities: undefined,
+            compiledTriggeredAbilities: descriptors,
+        };
+        const grafted = graftAbilityIds(handWritten, compiled);
+        expect(grafted.compiledTriggeredAbilities?.map((d) => d.id)).toEqual([
+            "compiled-1",
+            "compiled-2",
+        ]);
     });
 });

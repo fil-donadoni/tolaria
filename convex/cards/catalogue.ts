@@ -409,6 +409,16 @@ const handWrittenIds = new Set(allCards.map((c) => c.id));
 // first-write-wins makes it the FIRST. It is only safe because compiled names
 // are unique, which `scripts/__tests__/catalogue-artifact.test.ts` asserts
 // rather than assumes — a duplicate there would make the two shapes disagree.
+//
+// SWAP-BLIND: a module-load `const`, never rewritten by `preloadDefinitions`
+// (`registry.ts`) — the behavioural gold harness's swap
+// (`convex/oracle/behavioural.ts`) writes the registry Map, not this Map, so
+// a card test resolving its subject here would read the hand-written
+// definition even while the twin is registered. Closed by
+// `scripts/__tests__/card-test-seam-boundary.test.ts` (issue #3048), which
+// forbids a per-card test from reaching `getCardByName`/`tryGetCardByName`
+// as its subject — see `convex/oracle/behavioural.ts` § "Gap 1 disposition"
+// (issue #3060) for the full argument.
 const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
@@ -479,7 +489,13 @@ export const getAllCardNames = (): string[] =>
 
 /** All registered `CardDefinition`s in load order. Routed through
  *  `getDefinition` (ADR 0054) so the catalogue and the `getDefinition`
- *  seam return the SAME (expanded) object for a keyword card. */
+ *  seam return the SAME (expanded) object for a keyword card.
+ *
+ *  SWAP-BLIND once memoized: `vitest.setup.node.ts` calls this in its freeze
+ *  loop BEFORE the behavioural swap block runs, so `expandedAllCards` bakes
+ *  in the hand-written population for the rest of that worker. Same
+ *  disposition as `nameRegistry` above — see `convex/oracle/behavioural.ts`
+ *  § "Gap 1 disposition" (issue #3060). */
 let expandedAllCards: CardDefinition[] | null = null;
 export const getAllCards = (): CardDefinition[] => {
     if (!expandedAllCards)
