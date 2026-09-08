@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted — shipped by issue #2073
 
 ## Context
 
@@ -85,15 +85,28 @@ CR 704.5m gets its bestow arm in `gre/sba.ts`: a hostless permanent whose
 the layer-4 effect stops applying and it reads as a creature again) instead of
 being put into its owner's graveyard.
 
-**Sequencing against ADR 0082.** PRD #2064 is migrating every layer into one
-Continuous Effects Registry, and its slice **S4** covers layers 2–5 (control,
-text, **type**, colour). Bestow's type removal and the stack-object path are
-built in today's `gre/layers.ts` — an extension of the single existing model,
-not a second one — and migrate wholesale at S4, which is recorded as known
-scope on that slice. Blocking bestow on an unstarted 8-slice PRD was rejected:
-the CR-faithfulness at stake is about the **mechanism** (derived continuous
-effect, never stored mutation), which this delivers now; the registry is about
-_where the one authority lives_, which S4 fixes for every layer at once.
+**Sequencing against ADR 0082 — as it actually went.** This ADR was written
+expecting bestow to be built in the pre-registry `gre/layers.ts` and migrated
+wholesale at PRD #2064's slice **S4** (layers 2–5: control, text, **type**,
+colour). The order reversed: bestow shipped its cost and marker halves first
+(PR #2576) with the stored type-line rewrite this ADR rejects, S4 landed the
+registry (PR #3035), and issue #2073 then implemented the decision on top of
+it. Two consequences worth recording, because they made the decision cheaper
+than it was costed:
+
+- **Layer-4 type REMOVAL already existed.** `type-remove` is part of the
+  registry's layer-4 static-effect vocabulary and is what the reconfigure cards
+  use (`cards/sets/neo/white.ts`), so bestow declares it rather than adding it.
+- **The stack-side `.types` readers did not have to move.** This ADR costed
+  ~11 consult sites migrating from `item.types` to a pipeline call. Since S4 the
+  derivation MATERIALISES its layer-4 answer onto `types`/`subtypes`
+  (`writeDerivedCharacteristics`), so every existing reader — the target
+  filters, the `spellTypes` snapshot `emitSpellCastEvent` takes, the client's —
+  reads the derived answer unchanged. What the stack needed was to be DERIVED,
+  not to be read differently: `deriveLayers2to5Board` walks `state.stack`
+  alongside the battlefields, and a stack object takes the layer-3-to-5 answer
+  and no layer-2 relocation (its output is a battlefield placement it has none
+  of).
 
 ## Consequences
 

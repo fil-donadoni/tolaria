@@ -319,11 +319,11 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // "look at the top N, exile one face down" trigger the same way, and
     // Annihilator N (CR 702.86, issue #2295) its declare-attackers
     // "defending player sacrifices N permanents" trigger — one per declared
-    // instance of the keyword (CR 702.86b). Bestow (CR 702.103, ADR 0084)
-    // injects its layer-4 type change from the `bestow` COST field rather than
-    // from a keyword string — the field is the declaration — so that the type
-    // line a bestowed object reads is a derived continuous effect and not a
-    // stamp some cast path wrote.
+    // instance of the keyword (CR 702.86b).
+    // Bestow (CR 702.103, ADR 0084) injects its layer-4 type change from the
+    // `bestow` COST field rather than from a keyword string — the field is the
+    // declaration — so that the type line a bestowed object reads is a derived
+    // continuous effect and not a stamp some cast path wrote.
     // Issue #2698 — `expandCompiledTriggers` runs INNERMOST so a compiled
     // card's rebuilt triggers are visible to every later expander exactly as a
     // hand-written card's are (a keyword expander must not see a different
