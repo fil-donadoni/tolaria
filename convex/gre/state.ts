@@ -7037,6 +7037,10 @@ function resetStackTransientState(item: StackItem): void {
     delete item.castOffSorceryTiming;
     delete item.abilityId;
     delete item.grantedSourceCardId;
+    // Issue #2943 — same group-(2) membership as the line above: the origin is
+    // meaningless without the def id it discriminates, so the ONE place that
+    // answers "is this cast-instance-scoped" must name both.
+    delete item.grantedAbilityOrigin;
     delete item.triggeredAbilityId;
     delete item.triggerSourceId;
     delete item.triggerEvent;

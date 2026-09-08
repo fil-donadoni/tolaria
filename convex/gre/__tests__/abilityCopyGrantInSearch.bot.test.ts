@@ -22,6 +22,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { applyMoveInSearch } from "../search";
+import { compactState, expandState } from "../serialize";
 import { resolveTopOfStack } from "../state";
 import { enumerateMoves, type Move } from "../moves";
 import {
@@ -100,6 +101,24 @@ describe("ability-copy grant through the search (CR 607.2a, issue #2943)", () =>
         // CR 607.2a — the ability is the exiled card's own, resolved with the
         // BEAR as its source (CR 113.1).
         expect(state.players[1].life).toBe(19);
+    });
+
+    it("keeps the origin across a save/load, and still resolves after one", () => {
+        // Review round 1 finding 1. `expandStackItem` is an explicit key
+        // whitelist with no passthrough, so a written-but-unread key is dropped
+        // silently — and a save ALWAYS intervenes between activating an ability
+        // and resolving it (the opponent gets priority, which is a stable
+        // point). The item would come back with its granting def id and no
+        // origin, look the template up in `grantTemplates[]`, find nothing, and
+        // pop having paid the tap for nothing.
+        const state = grantedBearState("card-abilities");
+        applyMoveInSearch(state, "p1", enumeratedZap(state));
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.stack).toHaveLength(1);
+        expect(reloaded.stack[0].grantedSourceCardId).toBe(SORCERER);
+        expect(reloaded.stack[0].grantedAbilityOrigin).toBe("card-abilities");
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[1].life).toBe(19);
     });
 
     it("resolves NOTHING when the origin is dropped — the no-op this guards", () => {

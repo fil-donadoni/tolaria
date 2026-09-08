@@ -32,6 +32,7 @@
 import type { EffectOp } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { findTriggeredAbility } from "../copy";
+import { resolveGrantedActivatedAbility } from "../activatedAbilities";
 import type { GameState, PendingChoice, StackItem } from "../state";
 import { childOpArrays } from "./effectOpChildren";
 
@@ -125,9 +126,16 @@ function resolvingEffectScript(
     }
 
     if (item.abilityId) {
+        // Issue #2943 — THE shared resolver, the sixth site of the five the
+        // issue enumerated. It read `grantTemplates[]` unconditionally, so an
+        // ability copied off a card in a linked exile pile resolved to no
+        // script at all and the bot faced its `search-library` choice with no
+        // destination signal.
         const ability = item.grantedSourceCardId
-            ? tryGetDefinition(item.grantedSourceCardId)?.grantTemplates?.find(
-                  (a) => a.id === item.abilityId
+            ? resolveGrantedActivatedAbility(
+                  item.grantedSourceCardId,
+                  item.abilityId,
+                  item.grantedAbilityOrigin
               )
             : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
         if (!ability) return undefined;

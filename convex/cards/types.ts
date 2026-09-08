@@ -7217,7 +7217,7 @@ export interface StaticControlChange extends ZoneScopedStaticEffect {
  *  Zombie Master's regen shields the Zombie that activated it, not the
  *  Master itself). Cost payment, target requirement and effect body are read
  *  from the template on the granting card's def. */
-export interface StaticActivatedGrant {
+interface StaticActivatedGrantBase {
     kind: "activated-grant";
     /** Predicate: does this grant apply to `target` given `source`? */
     applies: (
@@ -7225,33 +7225,52 @@ export interface StaticActivatedGrant {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    /** Id on `source.grantTemplates[]` to grant.
-     *
-     *  Exactly one of `abilityId` / `abilitiesOf` is set — the ability SOURCE
-     *  half of this effect, orthogonal to `applies`, which stays the RECIPIENT
-     *  half in both flavours (issue #2943). A separate `kind` was considered
-     *  and rejected: it would duplicate `applies`, the layer timestamp and the
-     *  whole materialisation path, and grow a parallel row in every kind
-     *  census. */
-    abilityId?: string;
-    /** CR 607.2a / 113.1 — grant every activated ability of every card the
-     *  selector names, read off those cards' OWN `activatedAbilities[]`
-     *  (Agatha's Soul Cauldron: "Creatures you control with +1/+1 counters on
-     *  them have all activated abilities of all creature cards exiled with
-     *  this").
-     *
-     *  Deliberately typed as the ONE selector layer 6 can answer rather than
-     *  the wider `EffectCardSelector`: a shape the derivation cannot resolve
-     *  must be a compile error, not a card that ships inert. Widening this
-     *  union means teaching `resolveLayer6Action` (`gre/layer6.ts`) the new
-     *  shape in the same change.
-     *
-     *  The ability set is re-read at EVERY derivation, so a card entering or
-     *  leaving the linked pile at instant speed is reflected on the next
-     *  stable transition (ADR 0112; the derivation is `syncLayer6`, and
-     *  timestamps are preserved per CR 613.7). */
-    abilitiesOf?: EffectExiledWithSourceSelector;
 }
+
+/** The ability-SOURCE half of an `activated-grant`, as a real XOR rather than
+ *  two optionals (issue #2943, review round 1 finding 4). `abilityId` was
+ *  REQUIRED before this slice, so `tsc` caught its omission; two plain
+ *  optionals would have given that guarantee back to nobody, and an
+ *  `activated-grant` declaring `applies` and no ability source at all would
+ *  compile and ship silently doing nothing. `?: never` on each arm's other
+ *  member restores the compile error — the same reason `abilitiesOf` is typed
+ *  as the ONE selector layer 6 can answer rather than the wider
+ *  `EffectCardSelector`. */
+export type StaticActivatedGrant = StaticActivatedGrantBase &
+    (
+        | {
+              /** Id on `source.grantTemplates[]` to grant.
+               *
+               *  Exactly one of `abilityId` / `abilitiesOf` is set — the ability SOURCE
+               *  half of this effect, orthogonal to `applies`, which stays the RECIPIENT
+               *  half in both flavours (issue #2943). A separate `kind` was considered
+               *  and rejected: it would duplicate `applies`, the layer timestamp and the
+               *  whole materialisation path, and grow a parallel row in every kind
+               *  census. */
+              abilityId: string;
+              abilitiesOf?: never;
+          }
+        | {
+              abilityId?: never;
+              /** CR 607.2a / 113.1 — grant every activated ability of every card the
+               *  selector names, read off those cards' OWN `activatedAbilities[]`
+               *  (Agatha's Soul Cauldron: "Creatures you control with +1/+1 counters on
+               *  them have all activated abilities of all creature cards exiled with
+               *  this").
+               *
+               *  Deliberately typed as the ONE selector layer 6 can answer rather than
+               *  the wider `EffectCardSelector`: a shape the derivation cannot resolve
+               *  must be a compile error, not a card that ships inert. Widening this
+               *  union means teaching `resolveLayer6Action` (`gre/layer6.ts`) the new
+               *  shape in the same change.
+               *
+               *  The ability set is re-read at EVERY derivation, so a card entering or
+               *  leaving the linked pile at instant speed is reflected on the next
+               *  stable transition (ADR 0112; the derivation is `syncLayer6`, and
+               *  timestamps are preserved per CR 613.7). */
+              abilitiesOf: EffectExiledWithSourceSelector;
+          }
+    );
 
 /** Continuous static ability that grants a TRIGGERED ability to matching
  *  permanents (CR 611, 113.1). The lord-style analogue of
