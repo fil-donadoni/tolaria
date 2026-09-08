@@ -21,6 +21,7 @@
 // not be able to fail a landed PR.
 
 import { spawnSync } from "node:child_process";
+import { convexRunErrorMessage } from "./convex-run-error";
 import type { ScenarioCandidate } from "./scenario-block";
 
 export interface SeedOutcome {
@@ -56,7 +57,7 @@ export function seedScenario(
     if (res.error) return { ok: false, error: res.error.message };
     if (res.status !== 0) {
         const out = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim();
-        return { ok: false, error: firstUsefulLine(out) };
+        return { ok: false, error: convexRunErrorMessage(out) };
     }
     let action: string | undefined;
     try {
@@ -69,20 +70,4 @@ export function seedScenario(
         // turn a successful write into a reported failure.
     }
     return action ? { ok: true, action } : { ok: true };
-}
-
-/** Convex prints a stack around the thrown message; the first line naming the
- *  actual error is what a reader needs. */
-function firstUsefulLine(text: string): string {
-    const lines = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-    const named = lines.find(
-        (l) => l.includes("Unknown card name") || l.includes("Error:")
-    );
-    return (named ?? lines[lines.length - 1] ?? "unknown failure").slice(
-        0,
-        300
-    );
 }
