@@ -272,7 +272,8 @@ const { getAiDecisions, clearAiDecisions } =
     await import("~/lib/ai/trace-store");
 // Resets the Brain's per-game Worker respawn budget between the issue #3040
 // cases below, which deliberately spend it.
-const { disposeBrain } = await import("~/lib/ai/brain-client");
+const { disposeBrain, MAX_BRAIN_WORKER_SPAWNS } =
+    await import("~/lib/ai/brain-client");
 
 /** Flush the driver's NORMAL decision path — the think beat, the inline search
  *  and the mutation promises — without reaching the liveness watchdog's deadline
@@ -1021,6 +1022,7 @@ describe("useVsAiDriver (issue #110)", () => {
             onmessage: unknown = null;
             onerror: ((e: unknown) => void) | null = null;
             constructor() {
+                constructed += 1;
                 void Promise.resolve().then(() =>
                     this.onerror?.({ type: "error" })
                 );
@@ -1028,19 +1030,14 @@ describe("useVsAiDriver (issue #110)", () => {
             postMessage() {}
             terminate() {}
         }
+        let constructed = 0;
         const originalWorker = globalThis.Worker;
 
-        beforeEach(() => {
-            (globalThis as { Worker?: unknown }).Worker =
-                LoadFailingWorker as unknown as typeof Worker;
-        });
-        afterEach(() => {
-            (globalThis as { Worker?: unknown }).Worker = originalWorker;
-            disposeBrain();
-        });
-
-        it("still plays a land on the bot's own main phase", async () => {
-            currentState = botState({
+        /** The bot's own main phase with a land in hand — a window it must
+         *  SEARCH. A trivial pass short-circuits before `consultBrain`, so it
+         *  would never reach the Worker at all and never spend a spawn. */
+        function landInHand() {
+            return botState({
                 priorityPlayerId: BOT,
                 players: [
                     {
@@ -1057,6 +1054,20 @@ describe("useVsAiDriver (issue #110)", () => {
                     player(HUMAN),
                 ],
             });
+        }
+
+        beforeEach(() => {
+            constructed = 0;
+            (globalThis as { Worker?: unknown }).Worker =
+                LoadFailingWorker as unknown as typeof Worker;
+        });
+        afterEach(() => {
+            (globalThis as { Worker?: unknown }).Worker = originalWorker;
+            disposeBrain();
+        });
+
+        it("still plays a land on the bot's own main phase", async () => {
+            currentState = landInHand();
             renderHook(() => useVsAiDriver(GAME, BOT));
             await settleDriver();
 
@@ -1068,24 +1079,29 @@ describe("useVsAiDriver (issue #110)", () => {
             );
         });
 
+        it("hands the NEXT game a fresh respawn budget", async () => {
+            // The cap is documented as per GAME, and the only thing that can
+            // make that true is the driver tearing the Brain down when the bot
+            // seat goes away — `disposeBrain` had no caller in the app at all,
+            // which silently made it per TAB: the second game would inherit an
+            // exhausted Brain and never even try to spawn a Worker.
+            // The first game must SPEND the budget, or the second one would
+            // spawn again whether or not anything reset it.
+            currentState = landInHand();
+            const first = renderHook(() => useVsAiDriver(GAME, BOT));
+            await settleDriver();
+            const afterFirstGame = constructed;
+            expect(afterFirstGame).toBe(MAX_BRAIN_WORKER_SPAWNS);
+
+            first.unmount();
+            currentState = landInHand();
+            renderHook(() => useVsAiDriver(GAME2, BOT));
+            await settleDriver();
+            expect(constructed).toBeGreaterThan(afterFirstGame);
+        });
+
         it("records the Worker failure AND the fallback that answered", async () => {
-            currentState = botState({
-                priorityPlayerId: BOT,
-                players: [
-                    {
-                        ...player(BOT),
-                        hand: [
-                            makeInstance(MOUNTAIN, {
-                                controllerId: BOT,
-                                ownerId: BOT,
-                                id: "land1",
-                                zone: "hand",
-                            }),
-                        ],
-                    },
-                    player(HUMAN),
-                ],
-            });
+            currentState = landInHand();
             renderHook(() => useVsAiDriver(GAME, BOT));
             await settleDriver();
 
