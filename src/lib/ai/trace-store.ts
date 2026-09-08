@@ -134,14 +134,26 @@ export type AiDecisionRecord = {
     outcome: AiDecisionOutcome;
     /** Whether a Worker was involved. Absent for driver-owned outcomes. */
     via?: "worker" | "inline";
-    /** The Expected Input kind the game was resting on (ADR 0047). */
-    expectedKind: ExpectedInputKind;
+    /** The Expected Input kind the game was resting on (ADR 0047).
+     *
+     *  Optional since issue #3040, for the ONE writer that has no window: a
+     *  Brain Worker whose script fails at WARM-UP time (`warmBrain`, called on
+     *  mount) fails before the game rests on the bot at all, and that failure
+     *  is the loudest evidence there is that the bot is about to pass every
+     *  decision — it must reach a bug report, not vanish for want of a field it
+     *  cannot honestly fill. Every DRIVER call site still goes through `note`,
+     *  which requires all three. Absent, never faked: a plausible-looking
+     *  default here reads as evidence, and a `seq` naming a version the failure
+     *  never saw cannot be lined up with the board snapshot beside it, which is
+     *  the whole job of these fields. */
+    expectedKind?: ExpectedInputKind;
     /** Phase and state version, so a record can be lined up against the board
      *  snapshot a bug report captures alongside it. The ENGINE's `Phase`, for
      *  the same reason `expectedKind` above is the engine's union: a loose
-     *  `string` lets a typo render as a plausible-looking blank. */
-    phase: Phase;
-    seq: number;
+     *  `string` lets a typo render as a plausible-looking blank. Both absent
+     *  for a windowless record — see `expectedKind`. */
+    phase?: Phase;
+    seq?: number;
     /** The `Move` kind the SEARCH chose, when it chose one. */
     moveKind?: Move["kind"];
     /** The `BotAction` kind a non-search exit submitted. Distinct from

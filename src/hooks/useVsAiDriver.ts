@@ -88,7 +88,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
-import { consultBrain, warmBrain } from "~/lib/ai/brain-client";
+import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
     recordAiEscalation,
@@ -178,7 +178,23 @@ export function useVsAiDriver(
     // download instead of on the search.
     useEffect(() => {
         if (botId) warmBrain();
-    }, [botId]);
+        // Tear the Brain down when the bot seat goes away (issue #3040). It
+        // frees a thread that had no owner otherwise — `disposeBrain` had no
+        // caller in the app at all — and, more to the point, it resets the
+        // respawn budget: `MAX_BRAIN_WORKER_SPAWNS` is documented as a cap PER
+        // GAME, and without a dispose it was silently per TAB, so a game whose
+        // Worker died would hand the next game an already-exhausted Brain that
+        // never even tried to spawn one.
+        return () => disposeBrain();
+        // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
+        // Switch Game swaps `gameId` on the SAME hook instance (the board is
+        // rendered unkeyed — see the `lastGameId` reset below), and in a solo
+        // game the bot's seat id is `${userId}-p2` in both games. Keyed on
+        // `botId` alone this effect never re-ran across a rematch, so the
+        // respawn budget `disposeBrain` resets would never have been reset and
+        // the cap would still be per TAB: game 2 would inherit an exhausted
+        // Brain and never even try to spawn a Worker.
+    }, [gameId, botId]);
 
     const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
     const botOwesInput = !!(
