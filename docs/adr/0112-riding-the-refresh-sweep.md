@@ -99,3 +99,37 @@ Three boundaries keep this from becoming a licence:
   battlefield for any board whose sources declare nothing.
 - This ADR does not accept or amend ADR 0082, which stays `proposed`. It
   narrows what "wait for the registry" means for a consumer, nothing more.
+
+## Update — the sweep this ADR rides no longer exists (issue #2943)
+
+Written against a codebase where `refreshCounterGatedStatics` was a narrow
+sweep with a hand-kept disjunct gate. PRD #2064 S4 landed between this ADR and
+its first consumer and dissolved that sweep: the function is now
+`recomputeContinuousEffects` (`convex/gre/state.ts`) and its whole body is the
+two derivations, `syncLayers2to5` + `syncLayer6`. **Every gate, of every kind,
+on every source, is re-evaluated against the live board at every stable
+transition** — there is no disjunct list left to add to, and none may be added
+back.
+
+The decision is unchanged and is satisfied a fortiori; only the mechanism it
+names has moved. Read against HEAD:
+
+- **Boundary 1 (only the existing sweep)** — still the line. Cauldron's
+  ability set is re-read inside `deriveLayer6`'s own resolution of the effect
+  (`resolveActivatedGrant`, `convex/gre/layer6.ts`), not at the point a
+  consumer consults an ability. Recompute-at-consult remains barred, and
+  #1329's recomputed keyword PARAMETER still waits for #2064.
+- **Boundary 2 (the declaration is on the effect)** — the disjunct list is
+  gone rather than merely closed. The census in
+  `convex/cards/__tests__/counterGatedStatics.test.ts` is still the guard, and
+  still derived from `StaticEffect["kind"]` rather than hand-listed.
+- **Boundary 3 (timestamps untouched)** — a re-derivation carries the
+  registry ENTRY's timestamp, so an arbitrary number of SBA passes leaves CR
+  613.7 ordering exactly where the first application put it.
+
+One consequence is worth recording because it is now stale in the other
+direction: `dependsOnCounters` is inert for the kinds the two derivations own,
+which is every kind the census classifies `materialized`. The declaration is
+still demanded (and still honest — it marks a live-state dependency for the
+#2064 migration to enumerate), but nothing reads it to decide whether to
+re-derive. Re-classifying the census is its own change, not this one's.

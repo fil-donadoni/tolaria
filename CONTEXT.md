@@ -257,6 +257,14 @@ _Avoid_: Passive ability, aura effect
 Two abilities printed on the same object where one acts and the other refers back to what that action produced — "exile one or more cards" paired with "cards **exiled with** this", or "choose a colour" paired with "the chosen colour" (CR 607). The second ability sees **only** what the first one did: cards a different object exiled, or a colour chosen by another effect, are not in its set. The link is to the **Object**, not to the card, so a **Permanent** that leaves the **Battlefield** and returns is a new object whose linked set is empty — what its previous incarnation exiled is no longer "exiled with" it (CR 400.7). A linked set is a set, not an ordered pile: an effect that must pick one member of a multi-card set has no defined order to fall back on.
 _Avoid_: Remembered cards, associated cards, its exile pile
 
+**Ability-Copy Grant**:
+A **Continuous Effect** whose granted abilities are read off OTHER cards' own ability lists rather than from a template on the granting card — Agatha's Soul Cauldron's "creatures you control with +1/+1 counters on them have all activated abilities of all creature cards exiled with this" (CR 113.1, 607.2a). Two independent halves: the RECIPIENTS (whom the grant applies to) and the ABILITY SOURCE (whose abilities are granted), and either half may read live state. The engine records which half a granted row came from as the row's **Grant Origin**; the set itself is re-read at every **Layer** derivation, so a **Linked Abilities** pile that changes at instant speed is followed without the grant being re-**Timestamp**ed.
+_Avoid_: ability stealing (that is a control change), copying a creature (that is CR 706 and copies the whole object), granting an ability (the ordinary lord-style case, whose template lives on the granting card)
+
+**Grant Origin**:
+Which list on a granting card's definition holds a granted **Activated Ability**'s template — the card's `grantTemplates[]` (the lord-style default, deliberately kept off its own ability list so the source exposes no native copy) or its own `activatedAbilities[]` (an **Ability-Copy Grant**). Carried explicitly on the grant and on the **Stack** item it becomes, never inferred: falling back from one list to the other would turn a template that has gone missing into an ability that resolves by accident.
+_Avoid_: grant source (that names the granting card, not the list)
+
 **Mana Ability**:
 An **Activated Ability** that produces **Mana** and has no target. Resolves immediately — does not use the **Stack** (CR 605.3a).
 _Avoid_: Tap for mana

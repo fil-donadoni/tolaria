@@ -373,6 +373,7 @@ import type { Phase, ManaRestriction } from "./gre/types";
 // without importing this module; re-exported below for back-compat with every
 // existing `from "./game"` / `from "../../game"` import site.
 import { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
+import type { GrantedAbilityOrigin } from "./gre/activatedAbilities";
 export { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
 // CR 602.2a / 602.5 — the shared shape of an activated ability's stack item and
 // the shared activation tally, so the three commit sites below and the ISMCTS
@@ -2709,6 +2710,9 @@ export function buildPendingActivation(opts: {
     chosenModeId?: string;
     keepPriority?: boolean;
     grantedSourceCardId?: string;
+    /** CR 113.1 — which list on the granting def holds the template (issue
+     *  #2943). Travels with `grantedSourceCardId` at every hand-off. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     fromGraveyard?: boolean;
     fromHand?: boolean;
     /** Unified filtered-sacrifice choice (own cost + static Drought), built by
@@ -2816,6 +2820,9 @@ export function buildPendingActivation(opts: {
         keepPriority: opts.keepPriority,
         ...(opts.grantedSourceCardId
             ? { grantedSourceCardId: opts.grantedSourceCardId }
+            : {}),
+        ...(opts.grantedAbilityOrigin
+            ? { grantedAbilityOrigin: opts.grantedAbilityOrigin }
             : {}),
     };
 }
@@ -3164,6 +3171,9 @@ export function tryAutoCommitPendingActivation(
         ...(pa.chosenX !== undefined ? { chosenX: pa.chosenX } : {}),
         ...(pa.grantedSourceCardId
             ? { grantedSourceCardId: pa.grantedSourceCardId }
+            : {}),
+        ...(pa.grantedAbilityOrigin
+            ? { grantedAbilityOrigin: pa.grantedAbilityOrigin }
             : {}),
         // CR 118.1 / 608.2h — the additional-cost victim's snapshot, from
         // whichever leg this activation actually paid. No shipped ability
@@ -5996,6 +6006,7 @@ function resolveActivatedAbility(
         ReturnType<typeof getDefinition>["activatedAbilities"]
     >[number];
     grantedSourceCardId?: string;
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
 } | null {
     return (
         getEffectiveActivatedAbilities(card).find(
@@ -6464,6 +6475,12 @@ export function finalizeTargetSelection(
         }
         const grantedSourceCardId =
             pt.grantedSourceCardId ?? resolved.grantedSourceCardId;
+        // CR 113.1 (issue #2943) — the origin travels with the def id and is
+        // read off the SAME side of the `??`, never mixed: a pending target
+        // that carried its own granting def carried its own origin with it.
+        const grantedAbilityOrigin = pt.grantedSourceCardId
+            ? pt.grantedAbilityOrigin
+            : resolved.grantedAbilityOrigin;
         if (ability.cost.tap && card.isTapped) {
             throw new Error("Card is already tapped");
         }
@@ -6681,6 +6698,7 @@ export function finalizeTargetSelection(
                     chosenModeId,
                     keepPriority,
                     grantedSourceCardId,
+                    grantedAbilityOrigin,
                     fromGraveyard: sourceFromGraveyard,
                     fromHand: sourceFromHand,
                     ...(activationSac
@@ -6809,6 +6827,7 @@ export function finalizeTargetSelection(
                 ? { chosenX: abilityChosenX }
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
             ...(targetedSacSnapshot
                 ? { additionalSacrificeSnapshot: targetedSacSnapshot }
                 : {}),
@@ -13992,6 +14011,7 @@ export function activateAbilityOnState(
         throw new Error("You do not control this permanent");
     }
     const grantedSourceCardId = resolved.grantedSourceCardId;
+    const grantedAbilityOrigin = resolved.grantedAbilityOrigin;
     if (!ability.useStack) {
         throw new Error("Use tapUntap for mana abilities");
     }
@@ -14248,6 +14268,7 @@ export function activateAbilityOnState(
                 : {}),
             ...(targetChosenX !== undefined ? { chosenX: targetChosenX } : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
             // Same shared filter builder as the spell-cast path
             // (`pendingTargetFiltersFromRequirement`), so the three
             // pending-target builders can never drift (CR 601.2c) — this
@@ -14493,6 +14514,7 @@ export function activateAbilityOnState(
             ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
             keepPriority: args.keepPriority,
             grantedSourceCardId,
+            grantedAbilityOrigin,
             fromGraveyard,
             fromHand,
             ...(activationSac ? { sacrificeSelection: activationSac } : {}),
@@ -14615,6 +14637,7 @@ export function activateAbilityOnState(
         ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+        ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
         ...(immediateSacSnapshot
             ? { additionalSacrificeSnapshot: immediateSacSnapshot }
             : {}),
@@ -15570,6 +15593,9 @@ export const activateManaAbility = mutation({
             abilityId: args.abilityId,
             ...(resolved.grantedSourceCardId
                 ? { grantedSourceCardId: resolved.grantedSourceCardId }
+                : {}),
+            ...(resolved.grantedAbilityOrigin
+                ? { grantedAbilityOrigin: resolved.grantedAbilityOrigin }
                 : {}),
         });
         state.stack.push(stackItem);

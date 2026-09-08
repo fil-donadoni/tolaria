@@ -43,7 +43,9 @@ import {
     abilityLossTimestamp,
     getEffectiveActivatedAbilities,
     grantOutrankedByAbilityLoss,
+    resolveGrantedActivatedAbility,
 } from "@convex/gre/activatedAbilities";
+import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
 import { findTriggeredAbility } from "@convex/gre/copy";
 import type { UnblockedAttackerScope } from "@convex/gre/combat";
 import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
@@ -2513,6 +2515,7 @@ export function getAbilityOracleText(
     grantedActivatedAbilities?: ReadonlyArray<{
         sourceCardId: string;
         abilityId: string;
+        origin?: GrantedAbilityOrigin;
     }>
 ): string | null {
     const cardDef = getDefinition(cardId);
@@ -2520,8 +2523,16 @@ export function getAbilityOracleText(
     if (ability?.oracleText) return ability.oracleText;
     for (const grant of grantedActivatedAbilities ?? []) {
         if (grant.abilityId !== abilityId) continue;
-        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
-            (a) => a.id === abilityId
+        // Issue #2943 — THE shared resolver, not a hand-rolled
+        // `grantTemplates?.find(...)`. The hand-rolled one dropped every grant
+        // whose template lives on the granting card's own
+        // `activatedAbilities[]` (an ability COPIED off an exiled card has no
+        // `grantTemplates` to find), and dropped it SILENTLY: the engine
+        // offered the ability and the stack rendered no text for it.
+        const tmpl = resolveGrantedActivatedAbility(
+            grant.sourceCardId,
+            abilityId,
+            grant.origin
         );
         if (tmpl?.oracleText) return tmpl.oracleText;
     }
@@ -2642,6 +2653,7 @@ export function getStackAbilityOracleText(item: {
     grantedActivatedAbilities?: ReadonlyArray<{
         sourceCardId: string;
         abilityId: string;
+        origin?: GrantedAbilityOrigin;
     }>;
     grantedTriggeredAbilities?: ReadonlyArray<{
         sourceCardId: string;
@@ -2923,9 +2935,14 @@ export function getDisplayAbilities(
             order: paragraphOrder(a.oracleText),
         }));
     for (const grant of instance?.grantedActivatedAbilities ?? []) {
-        const sourceDef = tryGetDefinition(grant.sourceCardId);
-        const tmpl = sourceDef?.grantTemplates?.find(
-            (a) => a.id === grant.abilityId
+        // Issue #2943 — same shared resolver as the engine's
+        // `getEffectiveActivatedAbilities`, so this list marks exactly the rows
+        // the engine offers. The hand-rolled `grantTemplates?.find(...)` this
+        // replaces `continue`d past an ability-COPY grant.
+        const tmpl = resolveGrantedActivatedAbility(
+            grant.sourceCardId,
+            grant.abilityId,
+            grant.origin
         );
         if (!tmpl?.oracleText) continue;
         activated.push({

@@ -256,6 +256,40 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
         expect(findUndeclaredOffenders([card])).toHaveLength(1);
     });
 
+    it("catches a declaring-nothing counter-gated ability-COPY grant (ADR 0112, issue #2943)", () => {
+        // The #2943 shape: an `activated-grant` with BOTH halves live — the
+        // recipient gate reads `+1/+1` counters and the ability set is read off
+        // a linked exile pile (`abilitiesOf`). The ABILITY half needs no
+        // declaration (it is re-read inside the derivation itself,
+        // `resolveActivatedGrant` in `gre/layer6.ts`); the RECIPIENT half is an
+        // ordinary counter-gated predicate on a census-materialized kind, so it
+        // answers the census's one question like every other kind. A new
+        // dynamic kind that declares nothing reds HERE instead of shipping
+        // inert — ADR 0112's boundary 2, and the reason nothing was added to a
+        // disjunct list to make Cauldron work.
+        const effect = {
+            kind: "activated-grant",
+            abilitiesOf: { exiledWithSource: true },
+            applies: (target: {
+                counters?: Record<string, number>;
+                types: string[];
+            }) =>
+                target.types.includes("Creature") &&
+                (target.counters?.["+1/+1"] ?? 0) > 0,
+        };
+        expect(
+            findUndeclaredOffenders([fakeCard("Fixture Soul Cauldron", effect)])
+        ).toHaveLength(1);
+        expect(
+            findUndeclaredOffenders([
+                fakeCard("Fixture Soul Cauldron", {
+                    ...effect,
+                    dependsOnCounters: true,
+                }),
+            ])
+        ).toEqual([]);
+    });
+
     it("leaves recomputed kinds alone even when they read counters", () => {
         // `pt-buff` is evaluated at every read, so a counter-gated predicate is
         // live for free (Homarid). Demanding the flag here would be noise.

@@ -9,6 +9,59 @@ import type { CardInstanceState } from "./state";
 export interface EffectiveActivatedAbility {
     ability: ActivatedAbility;
     grantedSourceCardId?: string;
+    /** Which list on `grantedSourceCardId`'s definition the template came from
+     *  (issue #2943). Travels with `grantedSourceCardId` everywhere it goes —
+     *  onto the stack item at activation commit — so the RESOLUTION sites look
+     *  the ability up in exactly the list the grant named. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
+}
+
+/** Which list on the granting card's definition a CR 113.1 granted activated
+ *  ability is read from (issue #2943).
+ *
+ *  - `"grant-template"` (the default when the field is absent) — the granting
+ *    card's `grantTemplates[]`, deliberately kept OFF `activatedAbilities` so
+ *    the source itself does not expose a native copy of what it lords out.
+ *    Every grant written before #2943, persisted or live, is this one.
+ *  - `"card-abilities"` — the named card's OWN `activatedAbilities[]`. The
+ *    ability-COPY shape (CR 706.2 / 607.2a): Agatha's Soul Cauldron grants the
+ *    abilities of arbitrary creature cards in its linked exile pile, and those
+ *    cards declare no `grantTemplates` at all.
+ *
+ *  An EXPLICIT discriminator, never a `grantTemplates`-then-`activatedAbilities`
+ *  fallback: a fallback turns a genuinely missing template — a typo'd
+ *  `abilityId`, a card whose templates were renamed — into a grant that works
+ *  by accident, and it was five hand-rolled `find(...)` calls (two of them
+ *  client-side, both failing silently) that made that possible. */
+export type GrantedAbilityOrigin = "grant-template" | "card-abilities";
+
+/** THE grant → `ActivatedAbility` resolver (issue #2943). Every site that
+ *  turns a `{ sourceCardId, abilityId, origin }` triple back into a template
+ *  calls this one — the engine's activation authority
+ *  (`getEffectiveActivatedAbilities`), the three stack-item resolution sites
+ *  in `gre/state.ts`, and BOTH client ability views in `src/lib/card-utils.ts`.
+ *
+ *  Exported for the same reason `grantOutrankedByAbilityLoss` is: the client
+ *  ability list must resolve exactly the rows the engine resolves. The two
+ *  client sites used to hand-roll `def.grantTemplates?.find(...)` and drop a
+ *  miss silently (`return null` / `continue`), so a Cauldron-shaped grant —
+ *  whose `sourceCardId` is an exiled CREATURE card, which has no
+ *  `grantTemplates` at all — rendered as nothing while the engine offered it.
+ *
+ *  Non-throwing (`tryGetDefinition`): an unregistered id reads as "no such
+ *  ability", the tolerance every historic call site here already had. */
+export function resolveGrantedActivatedAbility(
+    sourceCardId: string,
+    abilityId: string,
+    origin: GrantedAbilityOrigin | undefined
+): ActivatedAbility | undefined {
+    const def = tryGetDefinition(sourceCardId);
+    if (!def) return undefined;
+    const list =
+        origin === "card-abilities"
+            ? def.activatedAbilities
+            : def.grantTemplates;
+    return list?.find((a) => a.id === abilityId);
 }
 
 /** Every activated ability actually available on this permanent POST-LAYER
@@ -53,13 +106,16 @@ export function getEffectiveActivatedAbilities(
     }
     for (const grant of card.grantedActivatedAbilities ?? []) {
         if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
-        const tmpl = tryGetDefinition(grant.sourceCardId)?.grantTemplates?.find(
-            (a) => a.id === grant.abilityId
+        const tmpl = resolveGrantedActivatedAbility(
+            grant.sourceCardId,
+            grant.abilityId,
+            grant.origin
         );
         if (tmpl) {
             out.push({
                 ability: tmpl,
                 grantedSourceCardId: grant.sourceCardId,
+                ...(grant.origin ? { grantedAbilityOrigin: grant.origin } : {}),
             });
         }
     }

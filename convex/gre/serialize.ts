@@ -58,6 +58,7 @@ import {
     recomposeLayers2to5ForInstance,
 } from "./layers2to5";
 import { migrateLegacyAbilityLossHolds } from "./layer6";
+import type { GrantedAbilityOrigin } from "./activatedAbilities";
 
 type CompactCard = Record<string, unknown>;
 // [instanceId, cardId] for the common case; a third element carries persistent
@@ -1487,6 +1488,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.grantedSourceCardId) {
         base.grantedSourceCardId = item.grantedSourceCardId;
     }
+    // CR 113.1 (issue #2943) — the origin rides with the def id or the
+    // template lookup resolves against the wrong list after a save/load.
+    if (item.grantedAbilityOrigin) {
+        base.grantedAbilityOrigin = item.grantedAbilityOrigin;
+    }
     if (item.triggeredAbilityId) {
         base.triggeredAbilityId = item.triggeredAbilityId;
     }
@@ -1650,6 +1656,15 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.abilityId) item.abilityId = compact.abilityId as string;
     if (compact.grantedSourceCardId) {
         item.grantedSourceCardId = compact.grantedSourceCardId as string;
+    }
+    // Issue #2943 — the MIRROR of the write above. `expandStackItem` is an
+    // explicit key whitelist with no passthrough, so a written-but-unread key
+    // is silently dropped and the template lookup runs against the wrong list
+    // on the very next load — an ability-copy activation that survives a save
+    // pops as a no-op, the issue #2468 shape one field over.
+    if (compact.grantedAbilityOrigin) {
+        item.grantedAbilityOrigin =
+            compact.grantedAbilityOrigin as GrantedAbilityOrigin;
     }
     if (compact.triggeredAbilityId) {
         item.triggeredAbilityId = compact.triggeredAbilityId as string;

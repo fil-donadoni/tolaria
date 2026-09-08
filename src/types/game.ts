@@ -6,6 +6,7 @@ import type { ManaCost, TargetSelection } from "@convex/cards/types";
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { FaceDownProducer } from "@convex/gre/faceDown";
+import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
 import type {
     PublicGrantedAbility,
     SlimCompanionSlot,
@@ -194,6 +195,14 @@ export interface CardInstance {
     grantedActivatedAbilities?: {
         sourceCardId: string;
         abilityId: string;
+        /** Which list on `sourceCardId`'s def holds the template (issue
+         *  #2943) — omitted means `grantTemplates[]`, `"card-abilities"` means
+         *  the card's own `activatedAbilities[]` (an ability COPIED off a card
+         *  in a linked exile pile, CR 607.2a). The client MUST pass it to
+         *  `resolveGrantedActivatedAbility` rather than reaching for
+         *  `grantTemplates` itself, or it renders nothing for a grant the
+         *  engine is offering. */
+        origin?: GrantedAbilityOrigin;
         auraId?: string;
         duration?: unknown;
         /** CR 613.7 layer timestamp of the grant. Read against

@@ -128,6 +128,9 @@ import {
     hasCityBlessing,
 } from "./cityBlessing";
 import { effectivePermanentView } from "./permanentView";
+import type { GrantedAbilityOrigin } from "./activatedAbilities";
+import { resolveGrantedActivatedAbility } from "./activatedAbilities";
+import { getCardsExiledWith as getCardsExiledWithLink } from "./exileLinks";
 import {
     effectiveRequirementForSource,
     getExtraLandDrops,
@@ -556,6 +559,26 @@ export type CardInstanceState = {
     grantedActivatedAbilities?: {
         sourceCardId: string;
         abilityId: string;
+        /** Which list on `sourceCardId`'s definition holds the template
+         *  (issue #2943) — see {@link GrantedAbilityOrigin}. Absent means
+         *  `grantTemplates[]`, which is every entry written before #2943 and
+         *  every lord-style grant since; `"card-abilities"` names the card's
+         *  own `activatedAbilities[]` and is what an ability-COPY grant
+         *  (Agatha's Soul Cauldron, CR 607.2a) writes.
+         *
+         *  A DISCRIMINATOR, not a hint: `resolveGrantedActivatedAbility` reads
+         *  exactly one list and never the other, so a template that has gone
+         *  missing reads as "no such ability" instead of silently resolving to
+         *  a same-named ability in the other list.
+         *
+         *  Rides the existing `grantedActivatedAbilities` row through
+         *  serialization (the whole array is in `PERSISTED_OPTIONAL_KEYS`) and
+         *  through the wire projection. The resolved ability object is
+         *  deliberately NOT inlined here: this row is persisted and projected
+         *  on every permanent, and a fat field on a hot row is a read-cost
+         *  regression (`docs/agents/...` — Convex bills a read by the whole
+         *  document). */
+        origin?: GrantedAbilityOrigin;
         auraId?: string;
         duration?: Duration;
         /** Layer timestamp of the grant (CR 613.7). Read against
@@ -2055,6 +2078,14 @@ export type StackItem = CardInstanceState & {
      *  to look up `activatedAbilities[abilityId]`. Undefined for native
      *  activated abilities. */
     grantedSourceCardId?: string;
+    /** Which list on `grantedSourceCardId`'s definition holds the template
+     *  (issue #2943). Absent — every grant written before #2943 — means
+     *  `grantTemplates[]`; `"card-abilities"` means the named card's own
+     *  `activatedAbilities[]` (the CR 607.2a ability-COPY shape, Agatha's Soul
+     *  Cauldron). Travels with `grantedSourceCardId` at every hand-off, because
+     *  the pair is what `resolveGrantedActivatedAbility` needs to look the
+     *  template up without falling back between the two lists. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     /** If set, this stack item is a triggered ability (CR 603). The source
      *  permanent stays on the battlefield; the trigger vanishes on resolution. */
     triggeredAbilityId?: string;
@@ -2734,6 +2765,14 @@ export type PendingActivation = {
      *  resolveTopOfStack reads the correct template. Undefined for native
      *  activated abilities. */
     grantedSourceCardId?: string;
+    /** Which list on `grantedSourceCardId`'s definition holds the template
+     *  (issue #2943). Absent — every grant written before #2943 — means
+     *  `grantTemplates[]`; `"card-abilities"` means the named card's own
+     *  `activatedAbilities[]` (the CR 607.2a ability-COPY shape, Agatha's Soul
+     *  Cauldron). Travels with `grantedSourceCardId` at every hand-off, because
+     *  the pair is what `resolveGrantedActivatedAbility` needs to look the
+     *  template up without falling back between the two lists. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     /** Noted-mana battery (CR 106.10 — Jeweled Amulet / Ice Cauldron). Set when
      *  the ability declares `noteManaSpent: true`. At commit the engine captures
      *  the manaPool delta (which colours paid the cost) and writes it onto the
@@ -3629,6 +3668,14 @@ export type PendingTarget = {
      *  this card def id; the ability resolves with the source permanent as
      *  `ctx.sourceInstanceId`. Undefined for native activated abilities. */
     grantedSourceCardId?: string;
+    /** Which list on `grantedSourceCardId`'s definition holds the template
+     *  (issue #2943). Absent — every grant written before #2943 — means
+     *  `grantTemplates[]`; `"card-abilities"` means the named card's own
+     *  `activatedAbilities[]` (the CR 607.2a ability-COPY shape, Agatha's Soul
+     *  Cauldron). Travels with `grantedSourceCardId` at every hand-off, because
+     *  the pair is what `resolveGrantedActivatedAbility` needs to look the
+     *  template up without falling back between the two lists. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     /** Acting Player (ADR 0037): the player who answers cast-time choices when
      *  split off from the controller (`playerId`) for a controlled cast.
      *  Defaults to `playerId` when absent — read via `getActingPlayer`. */
@@ -5576,8 +5623,10 @@ function resolvingTargetRequirement(
         // CR 113.1 — an ability granted by another card reads its template
         // off the GRANTING card, same lookup `resolveTopOfStackInner` uses.
         const ability = item.grantedSourceCardId
-            ? tryGetDefinition(item.grantedSourceCardId)?.grantTemplates?.find(
-                  (a) => a.id === item.abilityId
+            ? resolveGrantedActivatedAbility(
+                  item.grantedSourceCardId,
+                  item.abilityId,
+                  item.grantedAbilityOrigin
               )
             : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
         if (!ability) return undefined;
@@ -6542,9 +6591,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (top.abilityId) {
         let ability;
         if (top.grantedSourceCardId) {
-            const grantingDef = tryGetDefinition(top.grantedSourceCardId);
-            ability = grantingDef?.grantTemplates?.find(
-                (a) => a.id === top.abilityId
+            ability = resolveGrantedActivatedAbility(
+                top.grantedSourceCardId,
+                top.abilityId,
+                top.grantedAbilityOrigin
             );
         } else {
             ability = cardDef?.activatedAbilities?.find(
@@ -6987,6 +7037,10 @@ function resetStackTransientState(item: StackItem): void {
     delete item.castOffSorceryTiming;
     delete item.abilityId;
     delete item.grantedSourceCardId;
+    // Issue #2943 — same group-(2) membership as the line above: the origin is
+    // meaningless without the def id it discriminates, so the ONE place that
+    // answers "is this cast-instance-scoped" must name both.
+    delete item.grantedAbilityOrigin;
     delete item.triggeredAbilityId;
     delete item.triggerSourceId;
     delete item.triggerEvent;
@@ -13531,8 +13585,10 @@ export function manaCostForCardFilter(
 function abilityActivatedFromGraveyard(item: StackItem): boolean {
     if (!item.abilityId) return false;
     const ability = item.grantedSourceCardId
-        ? tryGetDefinition(item.grantedSourceCardId)?.grantTemplates?.find(
-              (a) => a.id === item.abilityId
+        ? resolveGrantedActivatedAbility(
+              item.grantedSourceCardId,
+              item.abilityId,
+              item.grantedAbilityOrigin
           )
         : tryGetDefinition(presentedDefId(item))?.activatedAbilities?.find(
               (a) => a.id === item.abilityId
@@ -19377,24 +19433,29 @@ export function buildSpellContext(
                 colors: Color[];
                 counters: Record<string, number>;
             }> = [];
-            for (const p of state.players) {
-                for (const c of p.exile) {
-                    if (c.exiledBySourceId !== sourceInstanceId) continue;
-                    const cardId = (c.card as { id?: string }).id;
-                    const def = cardId ? tryGetDefinition(cardId) : undefined;
-                    // CR 113.6c — see `getHandCards` above.
-                    const zc = resolveZoneCharacteristics(def, "exile");
-                    out.push({
-                        id: c.id,
-                        ownerId: p.id,
-                        name: def?.name ?? "",
-                        types: zc?.types ?? def?.types ?? c.types,
-                        subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
-                        manaValue: manaValue(def?.manaCost),
-                        colors: getColorsFromCost(def?.manaCost),
-                        counters: c.counters ?? {},
-                    });
-                }
+            // WHICH cards are linked is `gre/exileLinks.ts`'s answer and only
+            // its answer (issue #2943) — the layer path asks the same function
+            // for the same pile, so the resolving-ability reading and the
+            // continuous-effect reading cannot drift. What stays here is the
+            // characteristic SNAPSHOT the DSL consumers expect.
+            for (const { card: c, ownerId } of getCardsExiledWithLink(
+                state,
+                sourceInstanceId
+            )) {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                // CR 113.6c — see `getHandCards` above.
+                const zc = resolveZoneCharacteristics(def, "exile");
+                out.push({
+                    id: c.id,
+                    ownerId,
+                    name: def?.name ?? "",
+                    types: zc?.types ?? def?.types ?? c.types,
+                    subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
+                    manaValue: manaValue(def?.manaCost),
+                    colors: getColorsFromCost(def?.manaCost),
+                    counters: c.counters ?? {},
+                });
             }
             return out;
         },
