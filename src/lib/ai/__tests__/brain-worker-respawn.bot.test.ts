@@ -25,6 +25,7 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
+import type { SearchBudget } from "@convex/gre";
 import { projectPublicState } from "@convex/gameProjections";
 import { getCardByName } from "@convex/cards";
 import {
@@ -43,6 +44,26 @@ import {
     WORKER_SCRIPT_LOAD_FAILURE,
 } from "../brain-client";
 import { clearAiDecisions, getAiDecisions } from "../trace-store";
+
+/** Every budget the in-thread handler was actually asked to search at. The
+ *  handler itself is the REAL one — only wrapped — because the fallback's job is
+ *  to return a real move, and a stubbed search could not show that. Without
+ *  this seam the clamp is unobservable: a fallback searching at the caller's
+ *  full `hard` budget still returns the same move, three seconds later, on the
+ *  UI thread. */
+const searchedAt: (SearchBudget | undefined)[] = [];
+vi.mock("../brain-request", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../brain-request")>();
+    return {
+        ...actual,
+        handleBrainRequest: (
+            ...args: Parameters<typeof actual.handleBrainRequest>
+        ) => {
+            searchedAt.push(args[0].budget);
+            return actual.handleBrainRequest(...args);
+        },
+    };
+});
 
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
@@ -148,6 +169,7 @@ const flush = () => vi.advanceTimersByTimeAsync(0);
 
 beforeEach(() => {
     constructed = 0;
+    searchedAt.length = 0;
     clearAiDecisions();
     vi.useFakeTimers();
     // The handler draws its own seed from `Math.random` when the caller gives
@@ -265,9 +287,24 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
         );
     });
 
-    it("searches at a reduced budget, because it runs on the UI thread", () => {
-        // Weaker than every real preset above `easy` — a full `hard` think on
-        // the main thread would freeze the tab for three seconds per decision.
+    it("searches at the reduced budget, because it runs on the UI thread", async () => {
+        // The player asked for `hard` — 1,200 iterations / 3,000 ms. Handing
+        // that to the main thread would freeze the tab for three seconds per
+        // decision, so the fallback clamps it.
+        warmBrain();
+        await flush();
+        const consult = consultBrain(
+            landInHandBoard(),
+            BOT,
+            DIFFICULTY_BUDGETS.hard
+        );
+        await flush();
+        await consult;
+        expect(searchedAt.at(-1)).toMatchObject({
+            iterations: BRAIN_FALLBACK_BUDGET.iterations,
+            timeMs: BRAIN_FALLBACK_BUDGET.timeMs,
+        });
+        // Weaker than every real preset above `easy`.
         expect(BRAIN_FALLBACK_BUDGET.iterations!).toBeGreaterThan(0);
         expect(BRAIN_FALLBACK_BUDGET.iterations!).toBeLessThan(
             DIFFICULTY_BUDGETS.medium.iterations!
@@ -278,6 +315,11 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
     });
 
     it("keeps a caller's already-smaller budget rather than raising it", async () => {
+        // `easy` is 3 iterations / 120ms — the clamp is a CEILING, so it must
+        // not hand the main thread MORE work than the player asked for.
+        expect(DIFFICULTY_BUDGETS.easy.iterations!).toBeLessThan(
+            BRAIN_FALLBACK_BUDGET.iterations!
+        );
         warmBrain();
         await flush();
         const consult = consultBrain(
@@ -286,12 +328,11 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
             DIFFICULTY_BUDGETS.easy
         );
         await flush();
-        // `easy` is 3 iterations / 120ms — the clamp is a CEILING, so it must
-        // not hand the main thread MORE work than the player asked for.
-        expect(DIFFICULTY_BUDGETS.easy.iterations!).toBeLessThan(
-            BRAIN_FALLBACK_BUDGET.iterations!
-        );
         await expect(consult).resolves.toMatchObject({ via: "inline" });
+        expect(searchedAt.at(-1)).toMatchObject({
+            iterations: DIFFICULTY_BUDGETS.easy.iterations,
+            timeMs: DIFFICULTY_BUDGETS.easy.timeMs,
+        });
     });
 });
 
