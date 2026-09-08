@@ -20,6 +20,7 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { assertActivationTimingLegal } from "../../../../game";
 
 const HEXDRINKER = "89f5cc05-5d9d-4709-b3c5-a6249c294acc";
 
@@ -63,11 +64,16 @@ describe("Hexdrinker — Level Up (CR 702.87)", () => {
         expect(hex.counters?.level).toBe(3);
     });
 
-    it("CR 702.87a / 307.5 — the ability is sorcery-speed only", () => {
-        const def = getDefinition(HEXDRINKER);
-        const ability = def.activatedAbilities?.[0];
-        expect(ability?.id).toBe("level-up");
-        expect(ability?.sorcerySpeedOnly).toBe(true);
+    it("CR 702.87a / 602.5d — the server's own timing gate refuses it outside a main phase", () => {
+        const ability = getDefinition(HEXDRINKER).activatedAbilities![0];
+        const { state, hex } = board(0);
+        expect(() =>
+            assertActivationTimingLegal(state, hex, ability)
+        ).not.toThrow();
+        state.phase = "DECLARE_ATTACKERS";
+        expect(() =>
+            assertActivationTimingLegal(state, hex, ability)
+        ).toThrow();
     });
 
     it("CR 711.4 — the ability stays activatable at every level", () => {
@@ -111,25 +117,55 @@ describe("Hexdrinker — LEVEL bands (CR 711.2)", () => {
         expect(getEffectiveToughness(state, hex)).toBe(6);
         expect(hex.staticAbilities).toContain("protection from everything");
         // CR 711.2a's band is bounded at N2 = 7 — crossing into the final band
-        // must UNAPPLY it, not stack on top of it (the materialized-grant
-        // staleness CR 613.5 / `dependsOnCounters` exists to prevent).
+        // must UNAPPLY it, not stack on top of it.
         expect(hex.staticAbilities).not.toContain("protection from instants");
     });
 });
 
 describe("Hexdrinker — wire format (projectPublicState)", () => {
-    it("level counters, band P/T and the granted keyword all survive the projection", () => {
-        const { state, hex } = board(8);
-        const projected = projectPublicState(state, 1, "p1");
-        const slim = projected.players[0].battlefield.find(
-            (c) => c.id === hex.id
-        )!;
-        expect(slim.counters?.level).toBe(8);
-        // The band is a layer-7b `pt-set` read at every stat read, so the
-        // projection must carry enough for the CLIENT to reach the same
-        // answer — a GRE-only assertion would pass on a stripped view.
-        expect(getEffectivePower(projected, slim)).toBe(6);
-        expect(getEffectiveToughness(projected, slim)).toBe(6);
-        expect(slim.staticAbilities).toContain("protection from everything");
-    });
+    // CR 711.2/711.5 — one row per band. The projection strips `card.card` to
+    // `{ id }` and reshapes the zone arrays, so a band that reads right
+    // server-side can still be wrong on the client.
+    const bands: {
+        level: number;
+        power: number;
+        toughness: number;
+        keyword?: string;
+    }[] = [
+        { level: 0, power: 2, toughness: 1 },
+        {
+            level: 3,
+            power: 4,
+            toughness: 4,
+            keyword: "protection from instants",
+        },
+        {
+            level: 8,
+            power: 6,
+            toughness: 6,
+            keyword: "protection from everything",
+        },
+    ];
+
+    for (const band of bands) {
+        it(`level ${band.level}: counters, P/T and granted keyword all survive the projection`, () => {
+            const { state, hex } = board(band.level);
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === hex.id
+            )!;
+            expect(slim.counters?.level ?? 0).toBe(band.level);
+            expect(getEffectivePower(projected, slim)).toBe(band.power);
+            expect(getEffectiveToughness(projected, slim)).toBe(band.toughness);
+            if (band.keyword) {
+                expect(slim.staticAbilities).toContain(band.keyword);
+            } else {
+                expect(
+                    (slim.staticAbilities ?? []).filter((a) =>
+                        a.startsWith("protection from")
+                    )
+                ).toEqual([]);
+            }
+        });
+    }
 });

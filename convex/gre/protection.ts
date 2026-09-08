@@ -44,7 +44,9 @@
 //      exception — unlike the CR 702.16k player quality, the protected
 //      permanent's OWN controller is barred too. Distinct from the
 //      PLAYER-scoped variant The One Ring grants
-//      (`playerHasProtectionFromEverything` below, CR 115.4 / 702.16j).
+//      (`playerHasProtectionFromEverything` below) — CR 702.16j itself
+//      covers both scopes: "A permanent OR PLAYER with protection from
+//      everything ...".
 //
 // The parser is TOTAL and FAILS CLOSED: an ability string that starts with
 // "protection from " but whose quality it cannot name returns `null` rather
@@ -127,8 +129,8 @@ export const PROTECTION_FROM_COLORED_SPELLS =
  *  as an unparseable string rather than being silently approximated.
  *
  *  The PLAYER-scoped variant of the same rule is a separate authority
- *  (`playerHasProtectionFromEverything`, reached via CR 115.4): a player is
- *  not a card and carries no `staticAbilities[]` to parse. */
+ *  (`playerHasProtectionFromEverything`) — CR 702.16j names both scopes,
+ *  and a player is not a card: it carries no `staticAbilities[]` to parse. */
 export const PROTECTION_FROM_EVERYTHING = "protection from everything";
 
 /** CR 205.4a — every supertype a protection quality can name. Iterated to read
@@ -559,7 +561,8 @@ export function isProtectedFromSource(
 }
 
 /** True if `playerId` currently has PROTECTION FROM EVERYTHING (CR 702.16j
- *  applied to a player via CR 115.4 — The One Ring, issue #674).
+ *  — the rule names both scopes, "A permanent OR PLAYER with protection
+ *  from everything"; The One Ring, issue #674).
  *
  *  The SINGLE authority for the player-scoped variant: every consumer reads
  *  this one predicate — `getLegalTargets` (the offered set) and the

@@ -23,8 +23,8 @@
 // decomposes into three already-exercised primitives —
 //   - the `counters` Op (`action: "add"`, issue #841) on `$source`, CR 122.1,
 //     with the free-form counter type `"level"`;
-//   - `sorcerySpeedOnly` on the activated ability (CR 602.3b via 307.5's
-//     timing template) — already honoured by `gre/moves.ts` (bot Move
+//   - `sorcerySpeedOnly` on the activated ability (CR 602.5d, which defers to
+//     307.5's timing template) — already honoured by `gre/moves.ts` (bot Move
 //     enumeration), `gre/ai/abilityTiming.ts` and `src/lib/card-utils.ts`
 //     (the client's activation gate);
 //   - a `pt-set` (CR 613.4b, layer 7b) plus a `keyword-grant` (CR 613.1f,
@@ -97,14 +97,63 @@ export interface LevelBand {
     abilities?: readonly string[];
 }
 
+/** CR 711.1/711.2 — rejects a band set that cannot describe a printed leveler:
+ *  no bands at all, an empty range, an open-ended band that is not the last
+ *  one, a closed LAST band, or two bands that overlap or arrive out of order.
+ *  Throws at module load (a card's `staticEffects` is built when its set file
+ *  is imported), so a malformed leveler is a red catalogue, never a permanent
+ *  with two racing layer-7b effects. */
+function assertWellFormedBands(bands: readonly LevelBand[]): void {
+    if (bands.length === 0) {
+        throw new Error(
+            "levelBandStatics: a leveler card has at least one LEVEL symbol (CR 711.1)"
+        );
+    }
+    for (let i = 0; i < bands.length; i++) {
+        const { min, max } = bands[i];
+        const isLast = i === bands.length - 1;
+        if (max !== undefined && max < min) {
+            throw new Error(
+                `levelBandStatics: LEVEL ${min}-${max} is an empty range (CR 711.2a)`
+            );
+        }
+        if (isLast) {
+            // CR 711.2b — the last symbol is "{LEVEL N3+}": open-ended, or a
+            // level above it would belong to no band at all.
+            if (max !== undefined) {
+                throw new Error(
+                    `levelBandStatics: the last LEVEL symbol must be open-ended (CR 711.2b), got ${min}-${max}`
+                );
+            }
+            continue;
+        }
+        if (max === undefined) {
+            throw new Error(
+                `levelBandStatics: only the last LEVEL symbol may be open-ended (CR 711.2b), LEVEL ${min}+ is not`
+            );
+        }
+        if (bands[i + 1].min <= max) {
+            throw new Error(
+                `levelBandStatics: LEVEL symbols overlap or are out of order (CR 711.2) — ${min}-${max} then ${bands[i + 1].min}`
+            );
+        }
+    }
+}
+
 /** Builds the continuous static effects for a leveler card's LEVEL symbols
  *  (CR 711.2a/b). Each band contributes a layer-7b `pt-set` (CR 613.4b) and
  *  one layer-6 `keyword-grant` per granted ability (CR 613.1f), both applying
  *  to the source itself and both gated on its own level-counter count.
  *
- *  The bands are mutually exclusive by construction (a closed band's `max` is
- *  below the next band's `min`), so no two `pt-set`s ever race for layer 7b. */
+ *  The bands MUST be ordered, mutually exclusive, and open-ended only in the
+ *  LAST symbol — CR 711.2's printed shape. Checked here rather than left to
+ *  the author: two overlapping bands would emit two layer-7b `pt-set`s from
+ *  the SAME source with the SAME CR 613.7a timestamp, an unordered tie with no
+ *  defined winner; and a level ABOVE a closed final band would silently fall
+ *  back to the printed P/T, which is CR 711.5's answer for a level BELOW the
+ *  first band and means nothing above the last one. */
 export function levelBandStatics(bands: readonly LevelBand[]): StaticEffect[] {
+    assertWellFormedBands(bands);
     const effects: StaticEffect[] = [];
     for (const band of bands) {
         const { min, max } = band;
@@ -125,11 +174,14 @@ export function levelBandStatics(bands: readonly LevelBand[]): StaticEffect[] {
         for (const ability of band.abilities ?? []) {
             effects.push({
                 kind: "keyword-grant",
-                // CR 613.5 (issue #1711) — `keyword-grant` is a MATERIALIZED
-                // kind: without this flag the grant would freeze at whatever
-                // the level was when the permanent entered, and the creature
-                // would keep (or never gain) the band's abilities as counters
-                // move.
+                // CR 613.5 (issue #1711) — required, not optional: the
+                // catalogue guard `counterGatedStatics.test.ts` demands the
+                // declaration on every MATERIALIZED kind whose predicate reads
+                // counters, and `keyword-grant` is one. It is that guard which
+                // makes the flag load-bearing today, not the recompute: since
+                // PRD #2064 S4 `recomputeContinuousEffects` no longer filters
+                // on it (layer 6 is a per-read derivation). The declaration
+                // stays the honest description of what the predicate reads.
                 dependsOnCounters: true,
                 applies: (target, source, ctx) =>
                     target.id === source.id &&

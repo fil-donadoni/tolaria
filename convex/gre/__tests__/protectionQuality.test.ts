@@ -1678,6 +1678,27 @@ describe("CR 702.16j consult sites — targeted / enchanted / equipped / damaged
         expect(offeredToOpponent(levelerBoard(7).state)).toContain("hex");
     });
 
+    it("CR 702.16b — the ACCEPTED set refuses it too (the ADR 0068 pair)", () => {
+        // `getLegalTargets` above is the OFFERED set; `selectTarget`
+        // (`convex/game.ts`) is the accepted one, and it is the half that
+        // rejects a click. It composes exactly these three calls, so drive
+        // them: a divergence here is the Phelia bug class.
+        const cast = (level: number): boolean => {
+            const { state } = levelerBoard(level);
+            const spell = pushSpell(state, GRIZZLY_BEARS, "p2");
+            const source = pendingTargetingSource(state, spell.id, "cast");
+            const hex = state.players[0].battlefield[0];
+            return isProtectedFrom(
+                hex,
+                protectionSourceFromTargeting(source, "p2")
+            );
+        };
+        expect(cast(8)).toBe(true);
+        // must-NOT — at level 7 only instants are barred, and a creature spell
+        // is not one.
+        expect(cast(7)).toBe(false);
+    });
+
     it("CR 702.16b — its own controller cannot target it either", () => {
         const { state } = levelerBoard(8);
         const offered = getLegalTargets(
