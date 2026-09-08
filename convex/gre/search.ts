@@ -1373,6 +1373,16 @@ export function applyMoveInSearch(
                                       activatedEntry.grantedSourceCardId,
                               }
                             : {}),
+                        // Issue #2943 — the origin travels with the def id for
+                        // the same reason: an ability-COPY grant resolved
+                        // against `grantTemplates[]` finds nothing and the
+                        // tree scores the move as a no-op.
+                        ...(activatedEntry?.grantedAbilityOrigin
+                            ? {
+                                  grantedAbilityOrigin:
+                                      activatedEntry.grantedAbilityOrigin,
+                              }
+                            : {}),
                         ...(costOut.additionalSacrificeSnapshot
                             ? {
                                   additionalSacrificeSnapshot:

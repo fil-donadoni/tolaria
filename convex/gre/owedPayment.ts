@@ -155,6 +155,9 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         fromHand: "non-park",
         /** CR 113.1 — the granting card's def id, for template lookup. */
         grantedSourceCardId: "non-park",
+        /** CR 113.1 — WHICH list on that def holds the template (issue
+         *  #2943). Travels with `grantedSourceCardId`, same class. */
+        grantedAbilityOrigin: "non-park",
         /** CR 106.10 — a flag read at commit (Jeweled Amulet). */
         noteManaSpent: "non-park",
 

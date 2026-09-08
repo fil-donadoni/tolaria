@@ -20,6 +20,7 @@
 
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import type { TargetSelection } from "../cards/types";
+import type { GrantedAbilityOrigin } from "./activatedAbilities";
 import { emitAbilityActivated } from "./state";
 
 /** Everything an activation contributes to its stack item BEYOND the source
@@ -46,6 +47,12 @@ export type ActivatedAbilityCommit = {
     /** CR 113.1 — the granting card's def id when the ability was granted to
      *  the source by another card (Zombie Master's regenerate). */
     grantedSourceCardId?: string;
+    /** CR 113.1 — WHICH list on that def holds the template (issue #2943):
+     *  omitted for `grantTemplates[]`, `"card-abilities"` for an ability-COPY
+     *  grant (Agatha's Soul Cauldron). Without it `resolveTopOfStack` looks in
+     *  the wrong list and the item pops as a no-op — the #2468 failure, one
+     *  field over. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     /** CR 118.8 / 601.2f — snapshot of the permanent sacrificed as an
      *  additional cost, captured at commit because it is gone by resolution. */
     additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
@@ -79,6 +86,9 @@ export function buildActivatedAbilityStackItem(
         ...(commit.chosenX !== undefined ? { chosenX: commit.chosenX } : {}),
         ...(commit.grantedSourceCardId
             ? { grantedSourceCardId: commit.grantedSourceCardId }
+            : {}),
+        ...(commit.grantedAbilityOrigin
+            ? { grantedAbilityOrigin: commit.grantedAbilityOrigin }
             : {}),
         ...(commit.additionalSacrificeSnapshot
             ? {

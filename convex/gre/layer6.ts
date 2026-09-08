@@ -47,8 +47,14 @@ import { orderByDependency } from "./dependency";
 import type { ContinuousEffect } from "./continuousEffects";
 import { emblemAsStaticSource, STATIC_EFFECT_CTX } from "./layers";
 import type { LayerStateView } from "./layers";
-import type { PermanentView, StaticEffect } from "../cards/types";
+import type {
+    PermanentView,
+    StaticActivatedGrant,
+    StaticEffect,
+} from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
+import type { GrantedAbilityOrigin } from "./activatedAbilities";
+import { getCardsExiledWith } from "./exileLinks";
 
 /** The `StaticEffect` kinds layer 6 owns (CR 613.1f). Every other kind belongs
  *  to another layer (or, for the CR 611.3 rules-modifying kinds, outside the
@@ -78,7 +84,19 @@ type Layer6Action =
     | { kind: "keyword-grant"; keyword: string }
     | { kind: "keyword-remove"; keyword: string }
     | { kind: "ability-loss" }
-    | { kind: "activated-grant"; sourceCardId: string; abilityId: string }
+    /** ONE `activated-grant` effect can name MANY abilities (issue #2943):
+     *  `abilityId` names exactly one template on the source, while
+     *  `abilitiesOf` names a whole SET of cards and takes every activated
+     *  ability each of them declares. The action carries the list so the walk
+     *  below stays one loop over one action per entry. */
+    | {
+          kind: "activated-grant";
+          grants: ReadonlyArray<{
+              sourceCardId: string;
+              abilityId: string;
+              origin?: GrantedAbilityOrigin;
+          }>;
+      }
     | { kind: "triggered-grant"; sourceCardId: string; abilityId: string };
 
 /** Everything layer 6 produces for one permanent. Every field is DERIVED — no
@@ -109,6 +127,9 @@ export type Layer6Derivation = {
     grantedActivated: {
         sourceCardId: string;
         abilityId: string;
+        /** Which list on `sourceCardId` holds the template (issue #2943) —
+         *  omitted for the `grantTemplates[]` default. */
+        origin?: GrantedAbilityOrigin;
         auraId: string;
         seq: number;
     }[];
@@ -648,6 +669,17 @@ function resolveLayer6Action(
             case "ability-loss":
                 return { kind: "ability-loss" };
             case "activated-grant":
+                // A STORED inline payload is a runtime grant
+                // (`grantActivatedAbility`) and names exactly one template.
+                return {
+                    kind: "activated-grant",
+                    grants: [
+                        {
+                            sourceCardId: payload.sourceCardId,
+                            abilityId: payload.abilityId,
+                        },
+                    ],
+                };
             case "triggered-grant":
                 return {
                     kind: payload.kind,
@@ -741,6 +773,7 @@ function resolveLayer6Action(
         case "ability-loss":
             return { kind: "ability-loss" };
         case "activated-grant":
+            return resolveActivatedGrant(state, source, effect);
         case "triggered-grant":
             return {
                 kind: effect.kind,
@@ -750,6 +783,63 @@ function resolveLayer6Action(
         default:
             return undefined;
     }
+}
+
+/** CR 113.1 / 607.2a — the ability-SOURCE half of an `activated-grant`,
+ *  resolved against the live board (issue #2943).
+ *
+ *  The two arms are an XOR on the effect, orthogonal to `applies` (which has
+ *  already decided this target is a recipient):
+ *
+ *  - `abilityId` — one template on the granting card's own `grantTemplates[]`.
+ *    Every grant that shipped before #2943, and the only arm the 12 shipped
+ *    lord-style cards use.
+ *  - `abilitiesOf` — every activated ability of every card the selector names.
+ *    Re-read HERE, at derivation time, which is what makes the set live: a
+ *    card entering or leaving the linked exile pile at instant speed changes
+ *    the answer on the next `syncLayer6` without any sweep having to be told
+ *    about this effect kind (ADR 0112). Timestamps are the ENTRY's, so CR
+ *    613.7 ordering is untouched by a re-derivation.
+ *
+ *  A source whose linked pile is empty — or a view with no `exile` zone to
+ *  read, the `NO_BOARD_LAYER_VIEW` / `manaLayerView` case — grants NOTHING,
+ *  the conservative direction. */
+function resolveActivatedGrant(
+    state: LayerStateView,
+    source: PermanentView,
+    effect: StaticActivatedGrant
+): Layer6Action | undefined {
+    if (effect.abilityId !== undefined) {
+        return {
+            kind: "activated-grant",
+            grants: [
+                {
+                    sourceCardId: (source.card as { id?: string }).id ?? "",
+                    abilityId: effect.abilityId,
+                },
+            ],
+        };
+    }
+    if (effect.abilitiesOf === undefined) return undefined;
+    const grants: Array<{
+        sourceCardId: string;
+        abilityId: string;
+        origin: GrantedAbilityOrigin;
+    }> = [];
+    for (const { card } of getCardsExiledWith(state, source.id)) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        for (const ability of tryGetDefinition(cardId)?.activatedAbilities ??
+            []) {
+            grants.push({
+                sourceCardId: cardId,
+                abilityId: ability.id,
+                origin: "card-abilities",
+            });
+        }
+    }
+    if (grants.length === 0) return undefined;
+    return { kind: "activated-grant", grants };
 }
 
 /** CR 613.1f / 613.7 — layer 6 for one permanent, applied in timestamp order.
@@ -855,15 +945,18 @@ export function deriveLayer6(
                 grantedTriggered.length = 0;
                 break;
             case "activated-grant":
-                grantedActivated.push({
-                    sourceCardId: action.sourceCardId,
-                    abilityId: action.abilityId,
-                    auraId:
-                        entry.expiry.kind === "source"
-                            ? entry.expiry.sourceId
-                            : INDEFINITE_SOURCE_ID,
-                    seq: entry.timestamp,
-                });
+                for (const grant of action.grants) {
+                    grantedActivated.push({
+                        sourceCardId: grant.sourceCardId,
+                        abilityId: grant.abilityId,
+                        ...(grant.origin ? { origin: grant.origin } : {}),
+                        auraId:
+                            entry.expiry.kind === "source"
+                                ? entry.expiry.sourceId
+                                : INDEFINITE_SOURCE_ID,
+                        seq: entry.timestamp,
+                    });
+                }
                 break;
             case "triggered-grant":
                 grantedTriggered.push({

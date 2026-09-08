@@ -1487,6 +1487,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.grantedSourceCardId) {
         base.grantedSourceCardId = item.grantedSourceCardId;
     }
+    // CR 113.1 (issue #2943) — the origin rides with the def id or the
+    // template lookup resolves against the wrong list after a save/load.
+    if (item.grantedAbilityOrigin) {
+        base.grantedAbilityOrigin = item.grantedAbilityOrigin;
+    }
     if (item.triggeredAbilityId) {
         base.triggeredAbilityId = item.triggeredAbilityId;
     }

@@ -6854,6 +6854,30 @@ export interface StaticEffectStateView {
          *  cards" claim the engine cannot currently verify — never fall back
          *  to a numeric default that could flip the predicate true. */
         hand?: { readonly length: number };
+        /** CR 400.7 / 607.2a — this player's EXILE zone, exposed so a layer-6
+         *  continuous effect can read a LINKED exile pile (the cards a source
+         *  exiled "with it", stamped by `SpellContext.linkExileToSource`).
+         *  Agatha's Soul Cauldron's "all activated abilities of all creature
+         *  cards exiled with this" is a grant whose ability set lives on cards
+         *  in this zone, so the derivation has to be able to see them.
+         *
+         *  Only the three fields the derivation reads are declared — the
+         *  instance id, the CR 111 provenance stamp and the definition handle
+         *  — so a `CardInstanceState[]` satisfies it structurally and no view
+         *  constructor has to fabricate card characteristics.
+         *
+         *  OPTIONAL, the `hand` / `activePlayerId` "read best-effort" shape:
+         *  not every literal constructor of this view has an exile zone to
+         *  offer (`gre/constants.ts`'s `manaLayerView` builds a
+         *  battlefields-only view). `undefined` reads as "unknown", and every
+         *  reader MUST resolve it the conservative way — for a GRANT that
+         *  means granting NOTHING, never handing out an ability the real board
+         *  might not support. */
+        exile?: ReadonlyArray<{
+            readonly id: string;
+            readonly exiledBySourceId?: string;
+            readonly card: Readonly<Record<string, unknown>>;
+        }>;
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
      *  layer system reads it best-effort: it is a top-level `GameState` field
@@ -7201,8 +7225,32 @@ export interface StaticActivatedGrant {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    /** Id on `source.grantTemplates[]` to grant. */
-    abilityId: string;
+    /** Id on `source.grantTemplates[]` to grant.
+     *
+     *  Exactly one of `abilityId` / `abilitiesOf` is set — the ability SOURCE
+     *  half of this effect, orthogonal to `applies`, which stays the RECIPIENT
+     *  half in both flavours (issue #2943). A separate `kind` was considered
+     *  and rejected: it would duplicate `applies`, the layer timestamp and the
+     *  whole materialisation path, and grow a parallel row in every kind
+     *  census. */
+    abilityId?: string;
+    /** CR 607.2a / 113.1 — grant every activated ability of every card the
+     *  selector names, read off those cards' OWN `activatedAbilities[]`
+     *  (Agatha's Soul Cauldron: "Creatures you control with +1/+1 counters on
+     *  them have all activated abilities of all creature cards exiled with
+     *  this").
+     *
+     *  Deliberately typed as the ONE selector layer 6 can answer rather than
+     *  the wider `EffectCardSelector`: a shape the derivation cannot resolve
+     *  must be a compile error, not a card that ships inert. Widening this
+     *  union means teaching `resolveLayer6Action` (`gre/layer6.ts`) the new
+     *  shape in the same change.
+     *
+     *  The ability set is re-read at EVERY derivation, so a card entering or
+     *  leaving the linked pile at instant speed is reflected on the next
+     *  stable transition (ADR 0112; the derivation is `syncLayer6`, and
+     *  timestamps are preserved per CR 613.7). */
+    abilitiesOf?: EffectExiledWithSourceSelector;
 }
 
 /** Continuous static ability that grants a TRIGGERED ability to matching

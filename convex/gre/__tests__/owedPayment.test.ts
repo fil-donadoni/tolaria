@@ -114,6 +114,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     targets: [],
     targetAmounts: {},
     grantedSourceCardId: "c",
+    grantedAbilityOrigin: "grant-template",
     noteManaSpent: false,
     manaSpendChoice: { generic: 1, candidateColors: ["R"] },
 };
