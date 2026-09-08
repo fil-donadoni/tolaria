@@ -8098,17 +8098,81 @@ export interface StaticKeywordRemove {
     keyword: string;
 }
 
+/** The COST a `mana-substitution` static's permission reaches (CR 609.4b).
+ *  Absent on the static = every cost its controller pays, which is what
+ *  Sunglasses of Urza prints ("You may spend white mana as though it were red
+ *  mana.") and what this static meant before issue #2944.
+ *
+ *  A scope is a DISCRIMINATED shape, not a boolean, so a future "spells you
+ *  cast" narrowing is a second arm rather than a flag: the only one shipped is
+ *  an activated ability's cost (CR 602.1), which is Agatha's Soul Cauldron's
+ *  wording — "You may spend mana as though it were mana of any color to
+ *  activate abilities of creatures you control."
+ *
+ *  CR 602.1e — "If a spell or ability that refers to the 'activation cost' of
+ *  an ability modifies how a player may pay that cost, that modification
+ *  applies to the total cost of that ability, even if that cost is increased
+ *  and/or decreased by other effects." So the activation scope needs no
+ *  counterpart to the cast side's `printedManaCostOnly` gate: it reaches the
+ *  ability's whole cost, additional costs and cost increases included, where
+ *  North Star's "that spell's MANA COST" wording deliberately does not.
+ *
+ *  Scoping FAILS CLOSED, exactly like `getManaSubstitutions`'
+ *  `castCardInstanceId`: a payment site that does not name the activation it
+ *  is paying for sees a scoped static not at all. The permission is one a
+ *  player is always free to decline (CR 609.4b affects only HOW a cost may be
+ *  paid), so a forgetful caller loses an affordance; the opposite default
+ *  would leak the fixing onto a spell cast, a morph or a may-pay cost that
+ *  never earned it. */
+export interface ManaSubstitutionScope {
+    /** CR 602.1 — the cost being paid is that of an ACTIVATED ability, and
+     *  `applies` narrows which sources' abilities the permission reaches. */
+    kind: "activated-ability";
+    /** `target` is the permanent whose activated ability's cost is being paid;
+     *  `source` is the permanent declaring this static (CR 611.2). Same
+     *  `applies(target, source, ctx)` convention every other scoped static
+     *  uses, evaluated live at each payment so it observes the current board.
+     *  Agatha's Soul Cauldron reads
+     *  `ctx.isCreature(target) && target.controllerId === source.controllerId`. */
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+}
+
 /** Mana-substitution static effect (CR 609.4b — "spend mana as though it
  *  were mana of another color/type"). While the source is on the battlefield,
  *  its controller may pay a cost requiring `to`-color mana with `from`-color
  *  mana. Derived live at payment time (auto-reverts when the source leaves),
  *  so it carries no per-player persisted state. Used by Sunglasses of Urza
- *  ("You may spend white mana as though it were red mana."). */
-export interface StaticManaSubstitution {
+ *  ("You may spend white mana as though it were red mana.").
+ *
+ *  Two axes, both optional refinements of that one card's shape:
+ *
+ *  - BREADTH. A single `{from,to}` pair is what a printed one-pair permission
+ *    says; "as though it were mana of any color/type" is a whole FAMILY of
+ *    pairs, so it is declared as a `breadth` and expanded by
+ *    `substitutionsForBreadth` (`gre/manaColors.ts`) — the ONLY enumeration of
+ *    these pairs, shared with the cast-scoped grants of issue #2890. The two
+ *    are mutually exclusive by construction (the union below), because a
+ *    static that declared both would have no defensible reading.
+ *  - SCOPE (`ManaSubstitutionScope`). Which cost the permission reaches.
+ *    Absent = every cost, i.e. Sunglasses' behaviour and this static's
+ *    behaviour before issue #2944. */
+export type StaticManaSubstitution = {
     kind: "mana-substitution";
-    from: Color;
-    to: Color;
-}
+    /** CR 609.4b — which cost this permission reaches. Absent = every cost. */
+    scope?: ManaSubstitutionScope;
+} & (
+    | { from: Color; to: Color; breadth?: never }
+    | {
+          /** CR 105.1 / 106.1b — "mana of any color" / "of any type". */
+          breadth: ManaSubstitutionBreadth;
+          from?: never;
+          to?: never;
+      }
+);
 
 /** Continuous protection bundle for matching permanents (CR 611 continuous
  *  effect — evaluated live, never timestamp-applied). Unlike `keyword-grant`,

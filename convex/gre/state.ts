@@ -7,6 +7,7 @@ import {
     type CardType,
     type Color,
     type ManaSubstitutionBreadth,
+    type ManaSubstitutionScope,
     type ControlChangeCondition,
     type CounterDestination,
     type CostReductionAmount,
@@ -22711,7 +22712,38 @@ export function getStaticAdditionalSacrifices(
  *  activated ability's cost, a morph or companion special action, a may-pay
  *  cost. Omitting it fails CLOSED (the grant simply is not seen, exactly as
  *  before #2890 shipped), never open; passing it where the Oracle text does not
- *  reach would leak the fixing onto a cost that never earned it. */
+ *  reach would leak the fixing onto a cost that never earned it.
+ *
+ *  A battlefield static may itself be SCOPED (issue #2944, Agatha's Soul
+ *  Cauldron: "to activate abilities of creatures you control"). That scope is
+ *  matched against `opts` by `manaSubstitutionScopeMatches` and fails closed in
+ *  the same direction — an UNSCOPED static is returned to every caller exactly
+ *  as before, and a scoped one only to the caller that named the payment its
+ *  scope speaks about (`opts.abilitySource` for the one arm shipped). */
+/** CR 609.4b (issue #2944) — does a scoped `mana-substitution` static reach
+ *  the cost currently being paid?
+ *
+ *  Every arm reads a field the CALLER had to opt into, which is what makes the
+ *  scope fail closed: a payment site that names no activation cannot match the
+ *  `activated-ability` arm, so a scoped static stays invisible to it exactly as
+ *  it was before the field existed. A future arm ("spells you cast", "abilities
+ *  of artifacts") adds a case here and a field to `opts`, never a default. */
+function manaSubstitutionScopeMatches(
+    scope: ManaSubstitutionScope,
+    source: CardInstanceState,
+    opts: { abilitySource?: CardInstanceState } | undefined
+): boolean {
+    switch (scope.kind) {
+        case "activated-ability": {
+            const target = opts?.abilitySource;
+            if (!target) return false;
+            return scope.applies(target, source, STATIC_EFFECT_CTX);
+        }
+        default:
+            return false;
+    }
+}
+
 export function getManaSubstitutions(
     state: GameState,
     playerId: string,
@@ -22737,6 +22769,22 @@ export function getManaSubstitutions(
          *  by `settleSpellManaSubstitutionGrant` alone, to decide whether a
          *  grant was what made the cost payable; never by a payment path. */
         excludeOneShotGrants?: boolean;
+        /** CR 602.1 / 609.4b (issue #2944) — the permanent whose ACTIVATED
+         *  ABILITY's cost is being paid. A battlefield `mana-substitution`
+         *  static carrying an `activated-ability` scope (Agatha's Soul
+         *  Cauldron) is returned ONLY when this names a permanent its `applies`
+         *  predicate accepts.
+         *
+         *  MANDATORY at every activated-ability payment / affordability /
+         *  auto-tap site and OMITTED everywhere else — a spell cast, a morph or
+         *  companion special action, a may-pay cost, a player-source ability
+         *  with no permanent behind it. Omitting it fails CLOSED, the same
+         *  direction `castCardInstanceId` fails: an unscoped caller sees
+         *  exactly what it saw before this field existed. Prefer the named
+         *  wrapper {@link getAbilityManaSubstitutions} at call sites, so the
+         *  ability seam is as greppable as `getCastManaSubstitutions` makes
+         *  the cast one. */
+        abilitySource?: CardInstanceState;
     }
 ): ManaSubstitution[] {
     const out: ManaSubstitution[] = [];
@@ -22748,7 +22796,24 @@ export function getManaSubstitutions(
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
             for (const effect of effects) {
                 if (effect.kind !== "mana-substitution") continue;
-                out.push({ from: effect.from, to: effect.to });
+                // CR 609.4b (issue #2944) — a SCOPED permission reaches only
+                // the cost its scope names. Fails closed: no scope arm matches
+                // the payment being made (including a caller that named none),
+                // the static contributes nothing.
+                if (
+                    effect.scope &&
+                    !manaSubstitutionScopeMatches(effect.scope, source, opts)
+                ) {
+                    continue;
+                }
+                // BREADTH via the single pair enumeration (`manaColors.ts`),
+                // never a hand-built list — the same generator the cast-scoped
+                // grants of issue #2890 go through.
+                if (effect.breadth !== undefined) {
+                    out.push(...substitutionsForBreadth(effect.breadth));
+                } else {
+                    out.push({ from: effect.from, to: effect.to });
+                }
             }
         }
     }
@@ -22842,6 +22907,30 @@ export function isPrintedManaCostOnly(
         if ((printed[key] ?? 0) !== (paidCost[key] ?? 0)) return false;
     }
     return true;
+}
+
+/** CR 602.1 / 609.4b (issue #2944) — the ACTIVATED-ABILITY payment seam, twin
+ *  of {@link getCastManaSubstitutions}. `source` is the permanent whose ability
+ *  is being paid for; it unlocks the battlefield statics scoped to
+ *  `activated-ability` (Agatha's Soul Cauldron) and nothing else — the
+ *  cast-scoped grants of issue #2890 stay withheld here because no card id is
+ *  named, which is the pre-existing fail-closed behaviour and is correct: an
+ *  ability's cost is not a spell's.
+ *
+ *  Exists so every ability payment / affordability / auto-tap site reads as one
+ *  greppable call rather than an `opts` object each site could spell
+ *  differently — a disagreement between the affordability probe and the actual
+ *  payment is a bot freeze, not a cosmetic drift. `source` accepts
+ *  null/undefined (a player-source ability, a vanished permanent) and then
+ *  degrades to exactly the unscoped set. */
+export function getAbilityManaSubstitutions(
+    state: GameState,
+    playerId: string,
+    source: CardInstanceState | null | undefined
+): ManaSubstitution[] {
+    return getManaSubstitutions(state, playerId, undefined, {
+        abilitySource: source ?? undefined,
+    });
 }
 
 /** CR 609.4b — every mana substitution available to `player` for THIS cast.
