@@ -158,19 +158,20 @@ describe("telemetry-serve — handleRequest routes (#2623)", () => {
 });
 
 /**
- * #2625 — the dashboard stopped being one 1853-line file and became a shell
- * plus a stylesheet plus one ES module per concern, served by a new static
- * route. These are that route's guards plus the two invariants the split could
- * silently break: which files are reachable, and which data each view reads.
+ * The vanilla dashboard's directory, kept as a PATH and nothing else.
  *
- * `REPO_DASHBOARD_DIR` is the real checkout, deliberately NOT
- * `CLAUDE_PROJECT_DIR` (pinned to an empty temp dir above so the module never
- * finds a telemetry store): the census below asks what is actually committed.
+ * #2625 split the dashboard into one ES module per concern under
+ * `scripts/dashboard/`; PRD #3148 ported every one of them to React and S4
+ * deleted the directory. What is left here is the assertion that it stayed
+ * deleted — `existsSync` below — because the guards that used to crawl it
+ * would otherwise pass forever on an empty directory, which is exactly the
+ * quiet vacuity S0 anticipated when it added the React-graph suite beside
+ * them.
  */
 const REPO_DASHBOARD_DIR = join(import.meta.dirname, "..", "dashboard");
 
 /** The React app (ADR 0117) — `dashboard/` at the repo root, one level above
- *  `scripts/`. S1-S3 grow it; S4 deletes `REPO_DASHBOARD_DIR`. */
+ *  `scripts/`. Since S4 it is the whole dashboard. */
 const REPO_REACT_DIR = join(import.meta.dirname, "..", "..", "dashboard");
 
 /**
@@ -399,7 +400,7 @@ describe("readDashboardBuild — the manifest IS the allow-list (ADR 0117)", () 
     /** The real shape Vite 8 writes for this app, trimmed to the keys the
      *  reader looks at — captured from an actual `telemetry:dash:build`. */
     const REAL_MANIFEST = {
-        "../scripts/dashboard/main.js": { file: "main-CZP9F4c_.js" },
+        "dashboard/main.tsx": { file: "main-CZP9F4c_.js" },
         "_tooltip-Bm5uVsJF.js": { file: "tooltip-Bm5uVsJF.js" },
         "index.html": {
             file: "index-iaOdGxez.js",
@@ -462,130 +463,12 @@ describe("readDashboardBuild — the manifest IS the allow-list (ADR 0117)", () 
 
 /**
  * Comments out. Every assertion below is about what the CODE does, and these
- * modules document their own data boundary in prose — `main.js`'s banner names
- * `/api/meta` to explain why History is loaded the way it is. Scanning the raw
- * text would let a comment fail the guard, and (the direction that matters)
- * would let a comment SATISFY one, which is the exact trap #2624 recorded.
+ * modules document their own data boundary in prose. Scanning the raw text
+ * would let a comment fail the guard, and (the direction that matters) would
+ * let a comment SATISFY one, which is the exact trap #2624 recorded.
  */
 const stripComments = (src: string) =>
     src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-
-/**
- * A STATIC module edge, and only a static one. Two keywords, because BOTH
- * evaluate the target before the importer's first line: `import ... from` and
- * the re-export `export { x } from "./y.js"`. Matching only `import` left the
- * re-export invisible, and a single `export { state } from
- * "./history-state.js"` reintroduced the eager History load and the `/api/meta`
- * read #2519 forbids with every assertion below still green (measured — see the
- * PR's proof-of-failure table). Nothing else in the repo would have caught it:
- * `eslint.config.js` scopes every rule to `**\/*.{ts,tsx}`, so
- * `scripts/dashboard/*.js` is unlinted.
- *
- * The keyword is followed by whitespace, so `await import("./history-boot.js")`
- * — no whitespace after the keyword — is deliberately not matched. That
- * exclusion is the point: the dynamic edge is exactly the one #2519 requires
- * History to stay behind. `[^;]*` spans newlines, so a multi-line named-import
- * list (`history-narrative.js:3-8`) is one match; it also stops at the first
- * `;`, so `export const leak = () => fetch(...)` cannot be mistaken for an
- * edge.
- *
- * One shape stays outside, and only the formatter keeps it there: a
- * semicolon-less pair (`import { a } from "./x.js"` newline `import { b } from
- * "./y.js";`) loses the first specifier to the greedy `[^;]*`. `.prettierrc`
- * sets `semi: true`, `scripts/dashboard/` is not prettier-ignored, and
- * `check:all` VERIFIES formatting — so that input cannot reach `main`.
- */
-const STATIC_IMPORT_RE = /(?:import|export)\s[^;]*["']\.\/([^"']+)["']/g;
-
-/**
- * Everything reachable from `main.js` over static import edges — the
- * transitive closure, CRAWLED, never listed.
- *
- * SINCE S3 (PRD #3148) this entry owns NOTHING: the Now view went to React in
- * S2 and History in S3, so `main.js` is an empty shell that installs the
- * tooltip engine and nothing else, and S4 deletes it with the directory. The
- * Now/History data boundary itself is guarded one layer up, over the React
- * graph (the second boundary suite below), which is where the code now lives.
- *
- * What survives here is the DB-route assertion, kept for as long as any
- * vanilla module is still shipped to a browser: a module in this closure that
- * grew a `/api/q` would be a store read on the critical path of every page
- * load, whichever tree it lived in. A hand-maintained list sees only the edges
- * its author remembered — with one, `tabs.js -> svg.js -> history-state.js`
- * reintroduced both the eager History load and the DB read #2519 forbids while
- * every assertion stayed green (measured, PR #2913). Deriving the set means a
- * new static edge at any depth, in any module, is inside the guard the moment
- * it is written.
- */
-const nowClosure = (): string[] => {
-    const seen = new Set<string>();
-    const queue = ["main.js"];
-    while (queue.length > 0) {
-        const name = queue.shift()!;
-        if (seen.has(name)) continue;
-        seen.add(name);
-        const src = stripComments(
-            readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
-        );
-        for (const m of src.matchAll(STATIC_IMPORT_RE)) queue.push(m[1]);
-    }
-    return [...seen];
-};
-
-describe("telemetry dashboard — Now/History data boundary (#2625)", () => {
-    /** Everything reachable from `main.js` WITHOUT loading History. */
-    const NOW_MODULES = nowClosure();
-
-    it("the closure is crawled from main.js, transitively — a one-hop crawl would pass the guards below vacuously", () => {
-        // `format.js` is reachable only at depth 2 (main.js -> tooltip.js ->
-        // format.js): it is here iff the crawl really followed an edge out of
-        // a module main.js does not import itself.
-        expect(NOW_MODULES).toContain("main.js");
-        expect(NOW_MODULES).toContain("tooltip.js");
-        expect(NOW_MODULES).toContain("format.js");
-    });
-
-    it("the legacy entry reaches no database route, direct or transitive", () => {
-        // `/api/action` (#2628) joined the allow-list in #2636: the Now
-        // view's action buttons (`actions.js`, reached from `main.js` via
-        // `now-loop-status.js`) POST the three reversible driver operations
-        // there. It reads no DB — same guarantee `/api/loop-status` gives —
-        // so admitting it here does not reopen the thing this guard exists
-        // to prevent (a DB-backed route reachable without telemetry.db).
-        // `/api/activity`, `/api/live` and `/api/tail` (issue #3135) read
-        // the session transcripts through `lib/live-activity.ts` — no
-        // database, the same guarantee as `/api/loop-status` — so admitting
-        // them keeps the thing this guard exists to prevent (a
-        // `telemetry.db`-backed route reachable without the store) intact.
-        const ALLOWED = new Set([
-            "/api/loop-status",
-            "/api/action",
-            "/api/activity",
-            "/api/live",
-            "/api/tail",
-        ]);
-        for (const name of NOW_MODULES) {
-            const src = stripComments(
-                readFileSync(join(REPO_DASHBOARD_DIR, name), "utf8")
-            );
-            for (const m of src.matchAll(/\/api\/[a-z-]+/g)) {
-                expect(ALLOWED.has(m[0]), `${name} reaches ${m[0]}`).toBe(true);
-            }
-        }
-    });
-
-    it("the legacy entry reaches neither view — both are React, and an edge back here would resurrect a second composition of the same data", () => {
-        // S2 took the Now view, S3 took History. `main.js` importing either
-        // half again would mean two renderers of one payload on one screen,
-        // free to disagree — the exact duplication the port exists to remove.
-        expect(NOW_MODULES).not.toContain("now-loop-status.js");
-        expect(NOW_MODULES).not.toContain("now.js");
-        expect(
-            NOW_MODULES.filter((name) => name.startsWith("history-")),
-            "History is React since S3; scripts/dashboard/history-*.js is gone"
-        ).toEqual([]);
-    });
-});
 
 /**
  * #2628 — the action endpoint. Three reversible driver operations behind
@@ -798,21 +681,15 @@ describe("telemetry dashboard — Now/History data boundary over the React graph
         ]);
     });
 
-    it("the legacy entry is reached by a DYNAMIC import, after the render has been flushed", () => {
+    it("the entry mounts the app and hands over to nothing — the vanilla graph it used to reach is gone (PRD #3148 S4)", () => {
         const entry = stripComments(
             readFileSync(join(REPO_REACT_DIR, REACT_ENTRY), "utf8")
         );
-        // A static import would evaluate `scripts/dashboard/main.js` before
-        // this module's first line, so every `getElementById` in it would see
-        // an empty document — AND it would drag the whole vanilla graph,
-        // History's dynamic edge included, into the guards above.
-        expect(REACT_NOW).not.toContain(join(REPO_DASHBOARD_DIR, "main.js"));
-        const flushAt = entry.indexOf("flushSync(");
-        const handoverAt = entry.indexOf(
-            'await import("../scripts/dashboard/main.js")'
-        );
-        expect(flushAt).toBeGreaterThan(-1);
-        expect(handoverAt).toBeGreaterThan(flushAt);
+        // `scripts/dashboard/` is deleted, so the handover this entry used to
+        // perform — `flushSync` then `await import(...)` — has no target. A
+        // reference to it reappearing would mean the directory came back.
+        expect(entry).not.toMatch(/scripts\/dashboard/);
+        expect(existsSync(REPO_DASHBOARD_DIR)).toBe(false);
     });
 });
 

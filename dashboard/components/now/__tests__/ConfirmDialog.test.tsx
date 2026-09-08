@@ -20,6 +20,25 @@ import { actionToken } from "../../../lib/actions";
  * server refuses, and it must stay empty rather than be faked), a double click
  * must not send twice, and a refusal must leave the dialog open with its
  * reason rather than closing as though it had worked.
+ *
+ * ── WHAT THIS FILE INHERITED (PRD #3148 S4) ───────────────────────────────
+ *
+ * `scripts/__tests__/dashboard-actions.test.ts` drove `actions.js`'s
+ * hand-built dialog through `initActions()` and `querySelector`. Eighteen of
+ * its nineteen cases are about the DIALOG and are here, against a rendered
+ * component: what it says before anything is sent, that every way of closing
+ * it sends nothing, where focus goes and where it comes back to, the in-flight
+ * latch, and the refusal path. The nineteenth is a CONTRACT with the server
+ * route and stayed in `scripts/__tests__/dashboard-actions.test.ts`, which
+ * says why.
+ *
+ * The Tab/Shift+Tab wrap assertions did NOT come across as keystroke
+ * simulations, and that is the point of the port rather than a gap: `dialog.js`
+ * existed because the trap had been hand-written twice, and a hand-written trap
+ * is a thing you test key by key. base-ui owns it now, so what is asserted is
+ * the property the trap was FOR — the dialog declares itself modal and the page
+ * behind it is inert — which is also what `ShortcutsSheet.test.tsx` asserts for
+ * the other consumer.
  */
 
 const TOKEN_META = 'meta[name="loop-action-token"]';
@@ -260,5 +279,214 @@ describe("ConfirmDialog — a stale response belongs to the dialog that asked fo
         // open and unanswered.
         expect(onSuccess).not.toHaveBeenCalled();
         expect(screen.getByText(second)).not.toBeNull();
+    });
+});
+
+describe("ConfirmDialog — every way of closing it sends nothing (#2636 AC)", () => {
+    it("states a DRIVER action's exact effect too, and has sent nothing at the point it asks", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        act(() => {
+            requestAction({ action: "driver.stop", opener: null });
+        });
+        expect(await screen.findByText("Stop driver")).not.toBeNull();
+        expect(
+            screen.getByText(
+                "Ask the running driver to stop after its current pass."
+            )
+        ).not.toBeNull();
+        // The AC's first half: opening states the effect and sends nothing.
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("Cancel closes the dialog and never calls fetch", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise();
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+        await waitFor(() =>
+            expect(screen.queryByText("Release claim")).toBeNull()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("Escape closes the dialog and never calls fetch", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise();
+        await screen.findByText("Release claim");
+        fireEvent.keyDown(document, { key: "Escape" });
+        await waitFor(() =>
+            expect(screen.queryByText("Release claim")).toBeNull()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("a press outside the dialog closes it and sends nothing", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise();
+        await screen.findByText("Release claim");
+        fireEvent.pointerDown(document.body);
+        fireEvent.mouseDown(document.body);
+        fireEvent.click(document.body);
+        await waitFor(() =>
+            expect(screen.queryByText("Release claim")).toBeNull()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+});
+
+describe("ConfirmDialog — focus goes in, and comes back out to where it started", () => {
+    it("moves focus INTO the dialog when it opens", async () => {
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise();
+        const dialog = await screen.findByRole("dialog");
+        await waitFor(() =>
+            expect(dialog.contains(document.activeElement)).toBe(true)
+        );
+    });
+
+    it("declares itself modal, so nothing behind it is reachable while it is open — the property the hand-written Tab trap existed to provide", async () => {
+        render(
+            <>
+                <button type="button">behind</button>
+                <ConfirmDialog onSuccess={() => {}} />
+            </>
+        );
+        raise();
+        await screen.findByRole("dialog");
+        // The control behind is out of the accessibility tree while the dialog
+        // is up — which is the property the hand-written Tab trap was FOR, and
+        // it holds for every way of reaching the page behind, not only for the
+        // two keystrokes a hand-written trap remembered to intercept.
+        expect(screen.queryByRole("button", { name: "behind" })).toBeNull();
+        // Sanity: the same query DOES find it once the dialog closes, so the
+        // assertion above cannot pass by asking for the wrong thing.
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() =>
+            expect(
+                screen.queryByRole("button", { name: "behind" })
+            ).not.toBeNull()
+        );
+    });
+
+    it("returns focus to the control that opened it", async () => {
+        render(
+            <>
+                <button type="button">Release</button>
+                <ConfirmDialog onSuccess={() => {}} />
+            </>
+        );
+        const opener = screen.getByRole("button", { name: "Release" });
+        opener.focus();
+        act(() => {
+            requestAction({
+                action: "claim.release",
+                issue: 3152,
+                opener,
+            });
+        });
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+        // A poll may have replaced the button by now, which is why the dialog
+        // holds the ELEMENT rather than a selector — and why this is asserted
+        // rather than assumed.
+        await waitFor(() => expect(document.activeElement).toBe(opener));
+    });
+});
+
+describe("ConfirmDialog — the request it sends", () => {
+    it("posts the action name for a driver operation, and nothing else", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        act(() => {
+            requestAction({ action: "driver.stop", opener: null });
+        });
+        fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+        const [url, init] = fetchMock.mock.calls[0] as unknown as [
+            string,
+            RequestInit,
+        ];
+        expect(url).toBe("/api/action");
+        expect(JSON.parse(init.body as string)).toEqual({
+            action: "driver.stop",
+        });
+    });
+
+    it("posts the issue as a NUMBER for the row it was raised on — a string would be the two halves agreeing by luck", async () => {
+        const fetchMock = vi.fn(okResponse);
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise(2582);
+        fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+        const [, init] = fetchMock.mock.calls[0] as unknown as [
+            string,
+            RequestInit,
+        ];
+        expect(JSON.parse(init.body as string)).toEqual({
+            action: "claim.release",
+            issue: 2582,
+        });
+    });
+
+    it("closes and calls onSuccess when the server accepts the action", async () => {
+        vi.stubGlobal("fetch", vi.fn(okResponse));
+        const onSuccess = vi.fn();
+        render(<ConfirmDialog onSuccess={onSuccess} />);
+        raise();
+        fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText("Release claim")).toBeNull();
+    });
+
+    it("marks Confirm busy from the first click until the response resolves, and Cancel deliberately stays live", async () => {
+        // WHAT CHANGED, AND WHY (PRD #3148 S2). The vanilla dialog disabled
+        // BOTH buttons in flight. The port keeps the half that matters — a
+        // second Confirm cannot send a second request — and deliberately
+        // leaves Cancel live, because closing while a request is still out is
+        // a case this dialog now SUPPORTS rather than prevents (#2636 review
+        // round 1, finding 4: the latch is cleared on close, so the next
+        // dialog's Confirm is not swallowed).
+        //
+        // `aria-disabled` and a changed label, not the `disabled` attribute:
+        // the re-entrancy guard is the latch, and a disabled control is a UI
+        // reflection of it rather than the enforcement — the point the
+        // component's own header makes and the sibling case proves.
+        let release: (r: Response) => void = () => {};
+        const fetchMock = vi.fn(
+            () =>
+                new Promise<Response>((resolve) => {
+                    release = resolve;
+                })
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        render(<ConfirmDialog onSuccess={() => {}} />);
+        raise();
+        fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+        const busy = await screen.findByRole("button", { name: "Working…" });
+        expect(busy.getAttribute("aria-disabled")).toBe("true");
+        expect(
+            screen
+                .getByRole("button", { name: "Cancel" })
+                .hasAttribute("disabled")
+        ).toBe(false);
+
+        fireEvent.click(busy);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            release({
+                ok: true,
+                json: () => Promise.resolve({ ok: true }),
+            } as Response);
+        });
     });
 });

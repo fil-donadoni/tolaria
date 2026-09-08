@@ -16,6 +16,8 @@ import { lookupTerm } from "../glossary";
  * arrives on the wire. `lookupTerm` is the documented runtime door for exactly
  * that, with its own qualify-then-fallback policy.
  *
+ * KEYBOARD-REACHABLE for the same reason `<Term>` is — see its header.
+ *
  * A key that resolves to nothing renders the text WITHOUT a tooltip rather
  * than an empty one: an affordance that opens on hover and then says nothing
  * is worse than no affordance. `dashboard-glossary.test.ts` is what keeps the
@@ -24,9 +26,13 @@ import { lookupTerm } from "../glossary";
  */
 export function DynamicTerm({
     term,
+    focusable = true,
     children,
 }: {
     term: string;
+    /** See `<Term>`: a tab stop here is wrong inside another control or
+     *  inside an open tooltip's own popup. */
+    focusable?: boolean;
     children: ReactNode;
 }) {
     const entry = lookupTerm(term);
@@ -35,7 +41,10 @@ export function DynamicTerm({
         <Tooltip>
             <TooltipTrigger
                 render={
-                    <span className="cursor-help underline decoration-dotted decoration-from-font underline-offset-2" />
+                    <span
+                        tabIndex={focusable ? 0 : undefined}
+                        className="cursor-help rounded-sm underline decoration-dotted decoration-from-font underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    />
                 }
             >
                 {children}

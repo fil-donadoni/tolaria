@@ -51,7 +51,9 @@ export function ClaimPin({ item }: { item: ClaimItem }) {
                     #{item.issue} {item.title}
                     {tip ? " — " : ""}
                     {tip ? (
-                        <DynamicTerm term={item.term}>{item.state}</DynamicTerm>
+                        <DynamicTerm term={item.term} focusable={false}>
+                            {item.state}
+                        </DynamicTerm>
                     ) : null}
                     {item.reason ? ` (${item.reason})` : ""}
                 </span>

@@ -1,4 +1,4 @@
-import type { NowPayload } from "../../../lib/nowPayload";
+import type { NowPayload, TailEntry } from "../../../lib/nowPayload";
 
 /**
  * THE GOLDEN PAYLOAD (PRD #3148 S2 AC: "every section renders with the same
@@ -240,11 +240,11 @@ export const TAIL_PAGE = {
     truncated: false,
     entries: [
         {
-            kind: "assistant" as const,
+            kind: "assistant",
             ts: NOW_MS - 1000,
             text: "the transcript says something",
         },
-    ],
+    ] as TailEntry[],
     summary: null,
 };
 
@@ -254,7 +254,12 @@ export const TAIL_PAGE = {
  * the live read carries is derived from the claims, and getting that wrong is
  * silent (an empty session column, not an error).
  */
-export function stubNowFetch(payload: NowPayload = goldenPayload()) {
+export function stubNowFetch(
+    payload: NowPayload = goldenPayload(),
+    /** The `/api/tail` page, when a case is about the transcript itself
+     *  rather than about the drawer that shows it. */
+    tail: typeof TAIL_PAGE = TAIL_PAGE
+) {
     const calls: string[] = [];
     const { activity, live, ...loopStatus } = payload;
     const json = (body: unknown) =>
@@ -271,7 +276,7 @@ export function stubNowFetch(payload: NowPayload = goldenPayload()) {
             const session =
                 new URLSearchParams(url.split("?")[1] ?? "").get("session") ??
                 "";
-            return json({ ...TAIL_PAGE, session });
+            return json({ ...tail, session });
         }
         return json(loopStatus);
     };

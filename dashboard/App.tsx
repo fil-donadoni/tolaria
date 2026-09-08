@@ -10,8 +10,9 @@ import { useShortcuts } from "./lib/shortcuts";
  *
  * S0 reproduced the hand-written shell verbatim so the port could not change
  * anything. S1 replaced the CHROME — header, tabs, theme, the framed section.
- * S2 replaced the NOW view, S3 the HISTORY view, and with the second of those
- * no `getElementById` handle and no vanilla renderer survives on this page.
+ * S2 replaced the NOW view, S3 the HISTORY view, and S4 deleted
+ * `scripts/dashboard/` outright. Nothing on this page is resolved by id, and
+ * no stylesheet outside `index.css` reaches it.
  *
  * ── HISTORY IS A LAZY ROUTE ───────────────────────────────────────────────
  *
@@ -55,15 +56,6 @@ export function App() {
                 }
             />
             <ShortcutsSheet />
-
-            {/*
-                The vanilla tooltip layer's `position:fixed` host, resolved by
-                id in `scripts/dashboard/tooltip.js`. Since S3 no surface on
-                this page paints a `data-term` string, so the engine serves
-                nothing — but `scripts/dashboard/main.js` still installs it and
-                the installer reads this element, so both die together in S4.
-            */}
-            <div id="tip" />
         </>
     );
 }

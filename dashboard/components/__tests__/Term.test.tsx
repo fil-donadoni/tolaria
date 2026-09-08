@@ -27,6 +27,13 @@ const renderTerm = (id: TermId, children?: string) =>
         </TooltipProvider>
     );
 
+const renderTerm2 = (id: TermId, focusable: boolean) =>
+    render(
+        <TooltipProvider>
+            <Term id={id} focusable={focusable} />
+        </TooltipProvider>
+    );
+
 describe("Term — the glossary's typed door", () => {
     it("renders the label, not the key — the page prints words, never column names", () => {
         renderTerm("spans");
@@ -44,6 +51,27 @@ describe("Term — the glossary's typed door", () => {
         const trigger = screen.getByText(GLOSSARY.spans.label);
         expect(trigger.className).toContain("cursor-help");
         expect(trigger.className).toContain("underline");
+    });
+
+    it("is reachable by KEYBOARD, not only by a pointer (#2629 AC, migrated in PRD #3148 S4)", () => {
+        renderTerm("spans");
+        // A `<span>` is not focusable on its own, and base-ui opens on focus.
+        // The vanilla engine wrote `tabindex="0"` onto every declared term for
+        // exactly this reason; without it the explanation is a mouse-only
+        // affordance, which is the state #2629 exists to end.
+        expect(
+            screen.getByText(GLOSSARY.spans.label).getAttribute("tabindex")
+        ).toBe("0");
+    });
+
+    it("takes NO tab stop where one would be wrong — inside another control, or inside an open tooltip's own popup", () => {
+        renderTerm2("spans", false);
+        // Interactive content is not permitted inside a `<button>`, and a
+        // second tab stop that opens the explanation while the control's own
+        // does not is worse than none.
+        expect(
+            screen.getByText(GLOSSARY.spans.label).getAttribute("tabindex")
+        ).toBeNull();
     });
 
     it("every id the TYPE admits resolves to an entry with a real tip — the runtime half of the guarantee the type gives", () => {
