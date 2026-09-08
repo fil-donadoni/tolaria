@@ -53,7 +53,10 @@ import type {
     ManaSubstitutionBreadth,
     TextChange,
 } from "../cards/types";
-import { INDEFINITE_SOURCE_ID } from "./layers2to5";
+import {
+    INDEFINITE_SOURCE_ID,
+    recomposeLayers2to5ForInstance,
+} from "./layers2to5";
 import { migrateLegacyAbilityLossHolds } from "./layer6";
 
 type CompactCard = Record<string, unknown>;
@@ -1099,7 +1102,7 @@ function expandCard(
     // CR 702.103b — restore the Bestow marker, and with it the ONE part of the
     // bestow characteristic change the definition-diff cannot carry. A
     // bestowed object is an Aura enchantment with NO power or toughness
-    // (CR 205.1a), so `compactCard` writes `power: undefined` — and an
+    // (CR 208.3), so `compactCard` writes `power: undefined` — and an
     // explicit `undefined` does not survive JSON, which makes the
     // `"power" in compact` fallback above hand back the printed 1/1 instead.
     // Re-clearing here keeps the round-trip exact.
@@ -1107,6 +1110,30 @@ function expandCard(
         result.bestowed = compact.bestowed as boolean;
         delete result.power;
         delete result.toughness;
+        // ONE-SHOT MIGRATION (ADR 0084, issue #2073). Bestow's type line used
+        // to be STAMPED onto the instance at cast commit, so a state persisted
+        // before this slice carries `Enchantment — Aura` in `types`/`subtypes`
+        // AND — worse, because the base capture ran after the stamp — in
+        // `baseTypes`/`baseSubtypes`. The type line is now a layer-4 continuous
+        // effect derived over that base, and a base that already reads
+        // `Enchantment` would make the object stay an enchantment forever once
+        // it ceased to be bestowed (CR 702.103f).
+        //
+        // Re-seating the base to the PRINTED line and recomposing is exact
+        // rather than approximate: the derivation reapplies the very same
+        // effect the stamp used to write, so a still-bestowed object comes back
+        // out of this identical, and one that later unattaches now has a
+        // creature to go back to. Idempotent — a state written after this slice
+        // already holds the printed base and recomposes to itself.
+        const bestowCardId = (result.card as { id?: string } | undefined)?.id;
+        const bestowDef = bestowCardId
+            ? tryGetDefinition(bestowCardId)
+            : undefined;
+        if (bestowDef) {
+            result.baseTypes = [...bestowDef.types];
+            result.baseSubtypes = [...(bestowDef.subtypes ?? [])];
+            recomposeLayers2to5ForInstance(result);
+        }
     }
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — restore the "cast off
     // sorcery timing" snapshot.

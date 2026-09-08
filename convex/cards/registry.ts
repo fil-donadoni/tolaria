@@ -23,6 +23,7 @@ import {
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
+import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
@@ -113,7 +114,7 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
 /** Whether a definition declares a static effect of any kind in `kinds` —
  *  the ONE scan behind all three layer prechecks below.
  *
- *  Three places can hold one, and a precheck that reads fewer than three can
+ *  FOUR places can hold one, and a precheck that reads fewer than four can
  *  answer a stale FALSE, which is the failure mode none of these prechecks is
  *  allowed to have (a source silently dropped from a derivation, with no test
  *  of its own to red):
@@ -127,7 +128,9 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
  *     at index time, and reading only that field made the whole layer-7 walk
  *     skip it (`oracle/__tests__/staticSlot.test.ts`). A descriptor's `kind`
  *     is the kind of the `StaticEffect` it rebuilds into, so it answers the
- *     question directly. */
+ *     question directly;
+ *   - `bestow` (CR 702.103b, ADR 0084), whose layer-4 type change is injected
+ *     by `expandBestow` at that same post-index seam. */
 const declaresStaticKind = (
     def: CardDefinition,
     kinds: ReadonlySet<string>
@@ -136,7 +139,13 @@ const declaresStaticKind = (
     (def.compiledStaticEffects ?? []).some((d) => kinds.has(d.kind)) ||
     (def.modes ?? []).some((m) =>
         (m.staticEffects ?? []).some((e) => kinds.has(e.kind))
-    );
+    ) ||
+    // CR 702.103b (ADR 0084) — bestow's layer-4 entries are injected by
+    // `expandBestow` at the SAME seam `compiledStaticEffects` is rebuilt at,
+    // so they do not exist on the raw entry this index reads either. The
+    // `bestow` field is what says they will.
+    (def.bestow !== undefined &&
+        BESTOW_STATIC_EFFECT_KINDS.some((kind) => kinds.has(kind)));
 
 /** CR 613.1f — the `StaticEffect` kinds the layer-6 derivation owns.
  *  Duplicated from `gre/layer6.ts`'s own table for the reason
@@ -310,7 +319,11 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // "look at the top N, exile one face down" trigger the same way, and
     // Annihilator N (CR 702.86, issue #2295) its declare-attackers
     // "defending player sacrifices N permanents" trigger — one per declared
-    // instance of the keyword (CR 702.86b).
+    // instance of the keyword (CR 702.86b). Bestow (CR 702.103, ADR 0084)
+    // injects its layer-4 type change from the `bestow` COST field rather than
+    // from a keyword string — the field is the declaration — so that the type
+    // line a bestowed object reads is a derived continuous effect and not a
+    // stamp some cast path wrote.
     // Issue #2698 — `expandCompiledTriggers` runs INNERMOST so a compiled
     // card's rebuilt triggers are visible to every later expander exactly as a
     // hand-written card's are (a keyword expander must not see a different
@@ -318,12 +331,14 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // `expandCompiledStatics` sits beside it, one step further in, for the same
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
-    const expanded = expandAnnihilator(
-        expandHideaway(
-            expandKeywordTriggers(
-                expandFadingVanishing(
-                    expandChapterAbilities(
-                        expandCompiledTriggers(expandCompiledStatics(base))
+    const expanded = expandBestow(
+        expandAnnihilator(
+            expandHideaway(
+                expandKeywordTriggers(
+                    expandFadingVanishing(
+                        expandChapterAbilities(
+                            expandCompiledTriggers(expandCompiledStatics(base))
+                        )
                     )
                 )
             )

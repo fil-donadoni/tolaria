@@ -501,6 +501,23 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
             pushSourceEffects(view, sourceStaticEffects(view));
         }
     }
+    // CR 613.1 / 702.103b (ADR 0084) — objects on the STACK generate layer-2-5
+    // effects too. Only ONE shape reaches here today, and it is the shape the
+    // rule is about: a bestowed spell's self-applying layer-4 type change,
+    // which is what makes it an Aura spell rather than a creature spell for the
+    // whole time it sits on the stack.
+    //
+    // Collected through the very same `pushSourceEffects` the battlefield walk
+    // uses — a stack item IS a `CardInstanceState` — so nothing about the entry,
+    // its CR 613.7a timestamp or its `applies` predicate is stack-specific. An
+    // unstamped stack item derives at timestamp 0 ("earliest in the layer"),
+    // which is correct for a self-applying effect and is the same fallback an
+    // unstamped permanent gets.
+    for (const source of state.stack ?? []) {
+        const cardId = (source.card as { id?: string } | undefined)?.id;
+        if (!cardId || !declaresLayer2to5StaticEffect(cardId)) continue;
+        pushSourceEffects(source, sourceStaticEffects(source));
+    }
     // CR 114 — command-zone emblems generate continuous effects like any other
     // object (issue #1221).
     for (const emblem of state.emblems ?? []) {
@@ -1219,7 +1236,13 @@ export function syncLayers2to5(
     // battlefield arrays the derivation walk above is iterating, and the CR
     // 613.7 answer for every permanent was computed against the board as it
     // stood at the top of this sync (CR 613.1 — one recompute, one board).
-    for (const { card, result } of derived) {
+    for (const { card, result, zone } of derived) {
+        // CR 613.1b layer 2 is about CONTROL OF A PERMANENT (CR 110.2), and its
+        // output is a battlefield PLACEMENT. A stack object has a controller
+        // (CR 400.5 — the spell's controller) but no battlefield slot to be
+        // moved between, so it takes the layer-3-to-5 answer above and nothing
+        // here.
+        if (zone === "stack") continue;
         if (card.controllerId === result.controllerId) continue;
         const previous = card.controllerId;
         card.controllerId = result.controllerId;
@@ -1252,7 +1275,15 @@ export function deriveLayers2to5Board(
          *  no projected characteristic is read out of a field `sync*` wrote). */
         deriveAll?: boolean;
     }
-): { card: CardInstanceState; result: Layers2to5Derivation }[] {
+): {
+    card: CardInstanceState;
+    result: Layers2to5Derivation;
+    /** Which zone the derived object was read from — the ONE thing a consumer
+     *  must branch on, because layer 2's output is a battlefield placement and
+     *  a stack object has none (CR 613.1b / 405). Nothing else in the
+     *  derivation is zone-dependent. */
+    zone: "battlefield" | "stack";
+}[] {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
         ? {
@@ -1264,8 +1295,11 @@ export function deriveLayers2to5Board(
           }
         : state) as unknown as LayerStateView;
 
-    const derived: { card: CardInstanceState; result: Layers2to5Derivation }[] =
-        [];
+    const derived: {
+        card: CardInstanceState;
+        result: Layers2to5Derivation;
+        zone: "battlefield" | "stack";
+    }[] = [];
     // ONE board scan for the whole sync (CR 613.1 — one recompute, one board),
     // rather than one per permanent.
     const collected = collectSourceEntries(view);
@@ -1298,8 +1332,39 @@ export function deriveLayers2to5Board(
                     card as unknown as PermanentView,
                     collected
                 ),
+                zone: "battlefield",
             });
         }
+    }
+    // CR 613.1 / 702.103b (ADR 0084) — the same walk over objects on the STACK.
+    // CR 613.1 governs objects, not only permanents, and a bestowed spell has
+    // to read as an Aura spell for the whole time it is on the stack: that is
+    // what makes it illegal for "target creature spell" (`gre/targetFilters.ts`)
+    // and invisible to "whenever you cast a creature spell" (the `spellTypes`
+    // snapshot `emitSpellCastEvent` takes).
+    //
+    // The SAME fast path applies, and it is what keeps this free on the ISMCTS
+    // hot path: the overwhelming majority of stacks carry no layer-2-5 state at
+    // all and are skipped without a derivation.
+    for (const item of state.stack ?? []) {
+        const card = item as unknown as CardInstanceState;
+        ensureLayer4Base(card);
+        if (
+            opts?.deriveAll !== true &&
+            noSourceEffects &&
+            !carriesLayer2to5State(card)
+        ) {
+            continue;
+        }
+        derived.push({
+            card,
+            result: deriveLayers2to5(
+                view,
+                card as unknown as PermanentView,
+                collected
+            ),
+            zone: "stack",
+        });
     }
     return derived;
 }

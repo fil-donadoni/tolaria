@@ -129,6 +129,12 @@ function cloneBoard(state: GameState): GameState {
             ...player,
             battlefield: player.battlefield.map((card) => ({ ...card })),
         })),
+        // CR 613.1 (ADR 0084) — the derivation walks objects on the STACK too,
+        // and its one-shot base capture WRITES to the objects it is given
+        // (`ensureLayer4Base`). Cloning the stack for the same reason the
+        // battlefield is cloned: a projection must not mutate the state it is
+        // projecting.
+        stack: state.stack.map((item) => ({ ...item })),
     } as GameState;
 }
 
@@ -185,9 +191,17 @@ export function deriveWireCharacteristics(
     // that reads the RESULT has nothing to read for a skipped permanent, and
     // falling back to the instance field is precisely what this module exists
     // to stop.
-    for (const { card, result } of deriveLayers2to5Board(board, {
+    for (const { card, result, zone } of deriveLayers2to5Board(board, {
         deriveAll: true,
     })) {
+        // CR 405 — the stack is derived (a bestowed spell is an Aura spell
+        // while it is on the stack, CR 702.103b) but is not patched onto the
+        // wire here: `projectStackItem` ships the stack item's own fields, and
+        // the sync has already written this same answer into them. The
+        // registry-over-fields contract this module enforces (PRD #2064 S5 AC 1)
+        // is a BATTLEFIELD contract; extending it to the stack is S5's to
+        // finish, not bestow's.
+        if (zone === "stack") continue;
         const fields = layers2to5WireFields(card, result);
         // `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which
         // rides the wire already — the client's `layer4SubtypeBase` reads the

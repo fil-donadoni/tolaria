@@ -6853,6 +6853,20 @@ export interface StaticEffectStateView {
      *  GRANT that means withholding the keyword, never handing out a
      *  permission the real board might not allow. */
     turn?: number;
+    /** `GameState.stack` — the objects on the stack (CR 405), exposed because
+     *  CR 613.1 governs OBJECTS, not only permanents: a spell cast bestowed is
+     *  an Aura spell **while it is on the stack** (CR 702.103b, ADR 0084), and
+     *  that type line is a layer-4 continuous effect the derivation has to be
+     *  able to both READ (the stack item is a target) and COLLECT (it is its
+     *  own source).
+     *
+     *  OPTIONAL — the same "read best-effort" shape as `emblems`/`hand`/`turn`
+     *  above: a literal constructor with no stack to offer (`manaLayerView`,
+     *  `toLayerState`) omits it, and an omitted stack means "no stack objects
+     *  to derive", which is the conservative answer for the one effect that
+     *  reads it (an object not in the list generates nothing and receives
+     *  nothing). */
+    stack?: ReadonlyArray<PermanentView>;
 }
 
 /** Read-only board snapshot for a `CardDefinition.entersTappedUnless`
