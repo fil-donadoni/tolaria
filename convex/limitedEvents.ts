@@ -1321,10 +1321,13 @@ function buildTimerConfig(
  *  seq-based cancellation, not an explicit cancel call. A no-op for a
  *  timer-off event (`timerEnabled` falsy) since `updates` is always empty in
  *  that case (the pure engine never stamps a seat with no `TimerConfig`).
- *  Each entry's delay is `update.pickDeadline - now` (issue #1243: no longer
+ *  Each entry's delay is `update.timeoutAt - now` (issue #1243: no longer
  *  a single shared `timerSeconds * 1000` for the whole event — every stamped
- *  pack can carry a different countdown length per the descending
- *  schedule). */
+ *  pack can carry a different countdown length per the descending schedule).
+ *  `timeoutAt` is the update's own field, NOT the seat row's displayed
+ *  `pickDeadline` (issue #2278): a 1-card pack is scheduled here while
+ *  rendering no countdown, so an absent Seat never strands the table on the
+ *  last card of a pack. */
 async function scheduleSeatTimers(
     ctx: MutationCtx,
     eventId: Id<"limitedEvents">,
@@ -1335,7 +1338,7 @@ async function scheduleSeatTimers(
     if (!timerEnabled || updates.length === 0) return;
     for (const update of updates) {
         await ctx.scheduler.runAfter(
-            Math.max(0, update.pickDeadline - now),
+            Math.max(0, update.timeoutAt - now),
             internal.limitedEvents.autoPickSeatTimeout,
             {
                 eventId,
