@@ -73,18 +73,19 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  moves to enumerate, so each informed iteration costs more, and under a
  *  wall-clock cap a more expensive iteration means fewer completed — the
  *  level must not end up weaker than `hard` despite nominally deeper search).
- *  Benchmarked on a representative branching mid-game decision (a 3-card hand
- *  against a 4-permanent board, forced to run its full iteration count via
- *  `minIterations`, averaged over 8 seeded runs, two independent trials): the
- *  informed/blind per-iteration ratio measured 0.98–1.02 — i.e. the added
+ *  Measured in `docs/research/expert-informed-iteration-cost.md`: forcing the
+ *  full iteration count via `minIterations` on a representative branching
+ *  mid-game decision, across three 8-seed runs, the informed/blind
+ *  per-iteration ratio landed within ±3% of 1.0 — the added
  *  `unseenRemainder` bookkeeping is within noise, not a measurable per-node
  *  cost. `expert.timeMs` still carries a +10% margin over `hard.timeMs`
  *  (3000 → 3300) rather than trusting the null result exactly, since a real
- *  browser's per-iteration cost can differ from this benchmark; `iterations`
- *  gets the same +10% (1200 → 1320) so the preset stays the strictly deepest
- *  of the four when time is not the binding constraint, preserving the
- *  monotonic-budget pattern the other three presets already assert. Both stay
- *  well under `BRAIN_CONSULT_TIMEOUT_MS` (5000ms, `src/lib/ai/brain-client.ts`). */
+ *  browser's per-iteration cost can differ from this dev-machine benchmark;
+ *  `iterations` gets the same +10% (1200 → 1320) so the preset stays the
+ *  strictly deepest of the four when time is not the binding constraint,
+ *  preserving the monotonic-budget pattern the other three presets already
+ *  assert. Both stay well under `BRAIN_CONSULT_TIMEOUT_MS` (5000ms,
+ *  `src/lib/ai/brain-client.ts`). */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
     easy: { iterations: 3, timeMs: 120 },
     medium: { iterations: 400, timeMs: 1500 },
