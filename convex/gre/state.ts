@@ -2693,6 +2693,11 @@ export type PendingActivation = {
      *  a cancelled or dropped mana payment must leave the graveyard exactly as
      *  it was (CR 601.2h). */
     exileThisSource?: boolean;
+    /** CR 602.1a / 118.1 — the `cost.returnThisToHand` leg's intent, carried
+     *  from announcement to commit exactly as `exileThisSource` is, so a
+     *  cancelled mana payment leaves the permanent on the battlefield
+     *  (CR 601.2h). Paid by `payReturnThisToHandCost`. */
+    returnThisToHandSource?: boolean;
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
@@ -20840,6 +20845,29 @@ export function payExileThisCost(
 ): boolean {
     if (fromGraveyard) return exileCardFromGraveyard(player, cardInstanceId);
     return removePermanentTo(state, cardInstanceId, "exile") !== null;
+}
+
+/** SINGLE AUTHORITY for the `cost.returnThisToHand` activation cost — "Return
+ *  this permanent to its owner's hand" (CR 602.1a — the activation cost is
+ *  everything before the colon; CR 601.2h via CR 602.2b — it is paid while the
+ *  ability is being put on the stack, never at resolution).
+ *
+ *  ONE source zone, unlike its exile twin: a "return this to its owner's hand"
+ *  cost is only meaningful for a permanent, so there is no
+ *  `activateFromGraveyard` split to dispatch on. Routed through
+ *  `removePermanentTo(…, "hand")`, the same leave-the-battlefield funnel
+ *  `cost.sacrifice` and `payExileThisCost`'s battlefield leg use, so aura
+ *  cleanup, PERMANENT_LEFT, a CR 614 leave-replacement and CR 400.3's
+ *  "it goes to its OWNER's hand" all apply with no restatement here.
+ *
+ *  Returns false when the source is no longer on the battlefield — the
+ *  vanished-source policy every deferred cost leg shares: the caller drops the
+ *  activation rather than paying a phantom cost. */
+export function payReturnThisToHandCost(
+    state: GameState,
+    cardInstanceId: string
+): boolean {
+    return removePermanentTo(state, cardInstanceId, "hand") !== null;
 }
 
 export function moveCard(

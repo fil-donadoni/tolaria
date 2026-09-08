@@ -224,6 +224,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 118.1 / 601.2h — always payable, so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only HALF the Bot path: the graveyard leg delegates to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over.",
         autoPayable: false,
     },
+    returnThisToHand: {
+        paidBy: {
+            file: "convex/gre/applyMove.ts",
+            symbol: "applyActivationCostsForSearch",
+        },
+        why: "CR 602.1a / 601.2h — always payable for a battlefield source, so `enumerateAbilityMoves` gates nothing and the search-side application bounces the permanent through the same `removePermanentTo` funnel the mutation uses. Unlike `exileThis` there is no second source zone, so this row covers the WHOLE Bot path rather than half of it; the `!src` graveyard/hand branch above is unreachable for this leg by construction.",
+        autoPayable: false,
+    },
 
     // ── Declared holes: writing the claim is what found them ─────────────
     xFromTargetSpellMv: {

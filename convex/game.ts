@@ -29,6 +29,7 @@ import {
     emitCardDrawn,
     discardToGraveyard,
     payExileThisCost,
+    payReturnThisToHandCost,
     matchesPermanentFilter,
     moveCard,
     removeFromZone,
@@ -2736,6 +2737,12 @@ export function buildPendingActivation(opts: {
         // graveyard" leg. Deferred to commit like `discardThisSource` so a
         // cancelled mana payment leaves the graveyard untouched.
         ...(ability.cost.exileThis ? { exileThisSource: true } : {}),
+        // CR 602.1a / 118.1 — Attunement's "Return this enchantment to its
+        // owner's hand" leg. Deferred to commit like `exileThisSource` so a
+        // cancelled mana payment leaves the permanent on the battlefield.
+        ...(ability.cost.returnThisToHand
+            ? { returnThisToHandSource: true }
+            : {}),
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
@@ -3044,6 +3051,18 @@ export function tryAutoCommitPendingActivation(
     // stack-item clone below so the ability's source is captured while valid.
     if (pa.exileThisSource) {
         if (!payExileThisCost(state, player, card.id, !!pa.fromGraveyard)) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+    }
+    // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
+    // cost, paid as the ability goes on the stack (Attunement). Re-check at
+    // commit: the permanent may have left the battlefield while mana was
+    // tapped; if so, drop the payment silently (lands stay tapped, mirroring
+    // the vanished-source policy above). Runs BEFORE the stack-item clone
+    // below so the ability's source is captured while still valid.
+    if (pa.returnThisToHandSource) {
+        if (!payReturnThisToHandCost(state, card.id)) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -6747,6 +6766,28 @@ export function finalizeTargetSelection(
                 player,
                 card.id,
                 !!ability.activateFromGraveyard
+            );
+        }
+        // CR 602.1a / 601.2h — the "Return this permanent to its owner's
+        // hand" activation cost (Attunement). Runs BEFORE the stack-item clone
+        // below (the card object persists after the move, so the item keeps
+        // CR 608.2h last-known information).
+        //
+        // FAIL CLOSED on an unpayable cost (CR 601.2h — "Unpayable costs can't
+        // be paid"). Unlike `exileThis`, this leg has no `activateFromGraveyard`
+        // discriminator to dispatch on, so nothing structural stops a
+        // definition from pairing it with `activateFromHand` / a graveyard
+        // source; `card` would then be located OFF the battlefield, the
+        // payment would find nothing to move and the ability would go on the
+        // stack with its cost silently unpaid — repeatable, forever. A throw
+        // rolls the mutation back whole, in the same shape as the "Not enough
+        // mana" / "Not enough life" rejections on this path.
+        if (
+            ability.cost.returnThisToHand &&
+            !payReturnThisToHandCost(state, card.id)
+        ) {
+            throw new Error(
+                "Cannot pay the return-to-hand cost: the source is not on the battlefield"
             );
         }
         // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
@@ -14536,6 +14577,21 @@ export function activateAbilityOnState(
             player,
             card.id,
             !!ability.activateFromGraveyard
+        );
+    }
+    // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
+    // activation cost, paid as the ability commits (Attunement). Runs BEFORE
+    // the stack-item clone below (the card object persists after the move, so
+    // the item keeps CR 608.2h last-known information). FAIL CLOSED on an
+    // unpayable cost — see the twin site in `finalizeTargetSelection` for why
+    // this leg, unlike `exileThis`, has no structural guarantee that `card`
+    // was located on a battlefield.
+    if (
+        ability.cost.returnThisToHand &&
+        !payReturnThisToHandCost(state, card.id)
+    ) {
+        throw new Error(
+            "Cannot pay the return-to-hand cost: the source is not on the battlefield"
         );
     }
     // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered

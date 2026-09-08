@@ -2088,6 +2088,14 @@
         "source": "compiled"
     },
     {
+        "name": "Attunement",
+        "scryfallId": "f6723528-8b2c-4beb-a465-800300faf158",
+        "oracleId": "5ea46ccf-5e36-4889-bf64-00d4f327e9b2",
+        "firstSet": "usg",
+        "firstPrintId": "f6723528-8b2c-4beb-a465-800300faf158",
+        "firstPrintSet": "usg"
+    },
+    {
         "name": "Auger Spree",
         "scryfallId": "9580a40b-b413-4f0d-9b38-13903a9d367d",
         "oracleId": "c0c96c7a-02d8-40cb-a08b-4a2a3b631eef",

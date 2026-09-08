@@ -454,6 +454,7 @@ describe("activation cost sub-grammar (CR 602.1a, CR 118.1)", () => {
             ["Remove a charge counter from this artifact", ["remove-counter"]],
             ["Exile two cards from your graveyard", ["exile-from-graveyard"]],
             ["{T}, Exile this artifact", ["tap", "exile-self"]],
+            ["Return this enchantment to its owner's hand", ["return-self"]],
         ];
         for (const [span, kinds] of cases) {
             const parsed = accept<{ atoms: { kind: string }[] }>(
@@ -502,10 +503,19 @@ describe("activation cost sub-grammar (CR 602.1a, CR 118.1)", () => {
                 "{T}, Reveal a Goblin card from your hand"
             )
         ).toBe(true);
+        // issue #3204 — the SELF return is a real leg now (`cost.returnThisToHand`),
+        // so the refusal moved to the two shapes that still have no field: a
+        // return naming another object, and a return to another zone.
         expect(
             refuses(
                 activationCostRule,
-                "Return this creature to its owner's hand"
+                "Return target creature to its owner's hand"
+            )
+        ).toBe(true);
+        expect(
+            refuses(
+                activationCostRule,
+                "Return this creature to the top of your library"
             )
         ).toBe(true);
     });

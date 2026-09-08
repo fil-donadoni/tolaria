@@ -958,6 +958,11 @@ export function isProbeEligibleMove(
             // Cane trades the artifact for a whole graveyard). Same exclusion
             // as `sacrifice`, its graveyard-bound twin.
             cost.exileThis ||
+            // CR 602.1a — "Return this permanent to its owner's hand" spends
+            // the source's board presence, and re-buying an enters-the-
+            // battlefield effect (or dodging removal) can BE the point. Same
+            // exclusion as `sacrifice` and `exileThis`, its two twins.
+            cost.returnThisToHand ||
             cost.discardLastDrawn ||
             cost.discardAtRandom !== undefined ||
             cost.exileFromGraveyard ||

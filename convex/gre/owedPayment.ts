@@ -187,6 +187,9 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         /** CR 702.129a — Eternalize exiles THIS card from the graveyard; no
          *  pick. */
         exileThisSource: "non-park",
+        /** CR 602.1a — Attunement returns THIS permanent to its owner's hand;
+         *  no pick. */
+        returnThisToHandSource: "non-park",
         /** CR 118.3 — discarded AT RANDOM (Coral Helm): the PRNG picks, not the
          *  payer. A park would never clear. */
         discardAtRandomCount: "non-park",

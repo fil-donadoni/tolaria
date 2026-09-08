@@ -138,6 +138,11 @@ describe("all-consuming invariant — targeted residue shapes", () => {
         power: undefined,
         toughness: undefined,
     });
+    const artifact = oracleCard({
+        typeLine: "Artifact",
+        power: undefined,
+        toughness: undefined,
+    });
 
     const cases: [string, OracleCard, string][] = [
         // ── activated abilities (#2697) ────────────────────────────────────
@@ -168,9 +173,23 @@ describe("all-consuming invariant — targeted residue shapes", () => {
             "{T}, Reveal a Goblin card from your hand: Draw a card.",
         ],
         [
+            // issue #3204 — the cost atom READS, but a mana ability has no
+            // payment site for it (CR 605.1a): `activateManaAbility` pays only
+            // tap/sacrifice/tapOtherFilter/mana/life, so lowering it would emit
+            // a permanent that adds mana every priority window and never
+            // leaves the battlefield. Must fail the whole LINE, not drop the
+            // atom.
+            "mana ability + a cost leg the stackless path cannot pay",
+            artifact,
+            "Return this artifact to its owner's hand: Add {C}.",
+        ],
+        [
             "activated ability + unreadable second cost atom",
             creature,
-            "{T}, Return this creature to its owner's hand: Draw a card.",
+            // issue #3204 made the SELF return a real leg; a return to another
+            // ZONE still has no cost field, so it is the shape that must still
+            // fail the whole line rather than be dropped.
+            "{T}, Return this creature to the top of your library: Draw a card.",
         ],
         // A restriction sentence that is not one of the printed templatings.
         [

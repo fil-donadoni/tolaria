@@ -1279,6 +1279,41 @@ export interface ActivatedAbility {
          *  from exile, the same last-known-information shape `moveZone` uses
          *  (CR 608.2b). */
         exileThis?: boolean;
+        /** "Return this permanent to its owner's hand" as an activation cost
+         *  (CR 602.1a — the activation cost is everything before the colon;
+         *  CR 118.1 — a cost is an action necessary to take another action;
+         *  CR 601.2h via CR 602.2b — costs are paid at ACTIVATION, not at
+         *  resolution). The SOURCE permanent itself is bounced as the ability
+         *  goes on the stack. The bounce twin of `exileThis`, and like it a
+         *  BATTLEFIELD-source leg only: there is no hidden-zone variant to
+         *  dispatch on, so it carries no `activateFromGraveyard`-style split.
+         *
+         *  Routed through `removePermanentTo(…, "hand")`, the same
+         *  leave-the-battlefield funnel `sacrifice` and `exileThis` use, so
+         *  aura cleanup, PERMANENT_LEFT, a CR 614 leave-replacement and
+         *  CR 400.3's "it goes to its OWNER's hand" all apply unchanged.
+         *
+         *  Paying it at activation is observable, not cosmetic: the permanent
+         *  is already in hand while the ability sits on the stack, so an
+         *  opponent cannot respond by destroying it, and the card is a legal
+         *  discard/pitch for the ability's own resolution (Attunement returns
+         *  itself, then draws three and discards four — the returned card is
+         *  one of the four it may discard).
+         *
+         *  Deferred to COMMIT, never to announcement: a cancelled mana payment
+         *  must leave the source's zone untouched (CR 601.2h — an aborted
+         *  activation is rewound), so `PendingActivation.returnThisToHandSource`
+         *  carries the intent and `commitPendingActivation` performs the move.
+         *  Both commit paths funnel through the single authority
+         *  `payReturnThisToHandCost` (`gre/state.ts`).
+         *
+         *  Distinct from `returnUnblockedAttacker` (CR 702.49a ninjutsu),
+         *  which returns a CHOSEN unblocked attacker through the
+         *  `sacrificeChoice` selection layer — a real tactical pick. This leg
+         *  returns THIS source: no choice, so it belongs with `sacrifice` /
+         *  `exileThis`, never with the selection layer. Used by Attunement
+         *  (`sets/usg/blue.ts`). */
+        returnThisToHand?: boolean;
         /** "Discard N cards at random" cost (CR 118.3 / 701.8 — an additional
          *  cost paid by discarding randomly-chosen cards). The ability is only
          *  legal to activate while the activating player has at least one card
