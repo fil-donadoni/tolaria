@@ -2682,8 +2682,13 @@ export type DecisionTrace = {
  *
  *  Without `moverId` the old stop-at-any-choice behaviour is kept verbatim.
  *  Returns the settled state, which may be a BRANCH rather than the argument;
- *  callers own their clone and must use the return value. */
-function settleStackForBreakdown(
+ *  callers own their clone and must use the return value.
+ *
+ *  Exported (like `blockDeltaOf` and `buildTrace`) as a named seam: whether the
+ *  probe resolves THROUGH a choice or stops at it is the whole of issue #3194,
+ *  and a test that can only observe it through a whole search would be pinning
+ *  rollout noise instead of the mechanism. */
+export function settleStackForBreakdown(
     state: GameState,
     moverId?: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
@@ -3196,8 +3201,13 @@ function isSelfHarmRemovalCast(
  *  it answers `false` for any resolution that does NOT suspend on a mover-owned
  *  choice (an ordinary creature or removal cast never reaches this path at
  *  all), and it answers `false` the moment ONE branch reaches the opponent — a
- *  Vision Charm aimed at an opponent's Forests is a real play and stays one. */
-function reachesOnlyOwnSideThroughChoice(
+ *  Vision Charm aimed at an opponent's Forests is a real play and stays one.
+ *
+ *  Exported as a named seam for the same reason `settleStackForBreakdown` is:
+ *  the discriminating pair this predicate draws (self-only position vs. the
+ *  same mode against the opponent's lands) is deterministic here and only
+ *  statistical at the root. */
+export function reachesOnlyOwnSideThroughChoice(
     state: GameState,
     move: Move,
     botId: string
