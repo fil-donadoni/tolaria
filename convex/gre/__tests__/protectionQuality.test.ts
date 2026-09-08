@@ -43,7 +43,11 @@ import {
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
-import { buildSpellContext, resolveTopOfStack } from "../state";
+import {
+    beginApplyingStaticEffects,
+    buildSpellContext,
+    resolveTopOfStack,
+} from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
 import { legalActions } from "../legalActions";
 import { validateBlockerEligibility } from "../combat";
@@ -61,6 +65,7 @@ const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // plain Creature
 const KARAKAS = "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b"; // Legendary Land
 const BLESSING = "f131fd27-18da-47ca-b59f-135bcac83abd"; // Aura — enchant creature
 const LION_SASH = "3e1766e9-2fa7-4446-a255-7beea1467ece"; // Artifact Creature — Equipment
+const HEXDRINKER = "89f5cc05-5d9d-4709-b3c5-a6249c294acc"; // Creature — Snake; LEVEL 8+ grants protection from everything
 
 /** Grants the Legendary supertype to an instance the way a real
  *  `supertype-set` continuous effect does (CR 205.4a) — the engine reads
@@ -1506,5 +1511,377 @@ describe("CR 702.16d/f protection — a coloured PERMANENT blocks, is blocked, a
             state.players[0].battlefield.find((c) => c.id === "aura")
                 ?.attachedTo
         ).toBe("warded");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 702.16j — protection from EVERYTHING, permanent-scoped (issue #2386)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The fifth quality family, and the only one that reads NO field of the source
+// at all. The risk it carries is the exact opposite of the other four: those
+// fail by matching too little, this one fails by matching too much — so every
+// row below is paired with a must-NOT taken from the SAME card one level
+// counter lower, where the CR 711.2b band does not apply and Hexdrinker is an
+// ordinary 4/4 with protection from instants.
+//
+// Hexdrinker is used rather than a synthetic definition precisely so the tests
+// prove the keyword is really GRANTED by the LEVEL band (CR 711.2b, layer 6)
+// and really reaches each consult site, not that a hand-written string parses.
+
+/** A Hexdrinker with `level` level counters on it, not yet applying. */
+function hexdrinker(level: number, controllerId = "p1"): CardInstanceState {
+    return makeInstance(HEXDRINKER, {
+        id: "hex",
+        controllerId,
+        ownerId: controllerId,
+        counters: { level },
+    });
+}
+
+/** Mints the CR 613.7a static timestamp every real battlefield arrival mints
+ *  (`beginApplyingStaticEffects`), which is what lets the layer-6 derivation
+ *  see the LEVEL band as a source at all. Without it an unstamped source is
+ *  skipped and Hexdrinker would carry no protection — the fixture would pass
+ *  vacuously on every must-NOT row and prove nothing on the must rows. */
+function beginAll(state: GameState): GameState {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            beginApplyingStaticEffects(state, card);
+        }
+    }
+    return state;
+}
+
+/** Hexdrinker at `level` alone on p1's battlefield, applying. */
+function levelerBoard(
+    level: number,
+    opponentBattlefield: CardInstanceState[] = []
+): { state: GameState; hex: CardInstanceState } {
+    const state = beginAll(
+        makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hexdrinker(level)] }),
+                makePlayer("p2", { battlefield: opponentBattlefield }),
+            ],
+        })
+    );
+    return { state, hex: state.players[0].battlefield[0] };
+}
+
+describe("parseProtectionQuality — everything (CR 702.16j)", () => {
+    it("names the quality, and only from the exact phrase", () => {
+        expect(parseProtectionQuality("protection from everything")).toEqual({
+            kind: "everything",
+        });
+        // Fail-closed neighbours: a near-miss phrasing must still reach the
+        // catalogue guard as unparseable rather than be approximated by it.
+        expect(parseProtectionQuality("protection from everything else")).toBe(
+            null
+        );
+        expect(parseProtectionQuality("protection from all")).toBe(null);
+    });
+
+    it("the live catalogue grants it from the CR 711.2b band, and only there", () => {
+        const eight = levelerBoard(8).hex;
+        expect(getProtectionQualities(eight)).toContainEqual({
+            kind: "everything",
+        });
+        const seven = levelerBoard(7).hex;
+        expect(getProtectionQualities(seven)).not.toContainEqual({
+            kind: "everything",
+        });
+        // …and the earlier band's quality is a normal characteristic one.
+        expect(getProtectionQualities(seven)).toContainEqual({
+            kind: "characteristic",
+            types: ["Instant"],
+            supertypes: [],
+        });
+    });
+});
+
+describe("isProtectedFrom — everything (CR 702.16j)", () => {
+    it("bars every source shape regardless of characteristics", () => {
+        const hex = levelerBoard(8).hex;
+        for (const source of [
+            makeInstance(GRIZZLY_BEARS, { id: "bears", controllerId: "p2" }),
+            makeInstance(BARKTOOTH, { id: "legend", controllerId: "p2" }),
+            makeInstance(KARAKAS, { id: "karakas", controllerId: "p2" }),
+        ]) {
+            expect(isProtectedFromSource(hex, source, false)).toBe(true);
+            // …and as a spell too — the quality reads neither the CR 112.1
+            // spell bit nor the colours.
+            expect(isProtectedFromSource(hex, source, true)).toBe(true);
+        }
+        // A source with no characteristics at all is still barred: this is the
+        // one family for which the empty view is a MATCH, not a fail-closed
+        // miss.
+        expect(
+            isProtectedFrom(hex, {
+                colors: [],
+                types: [],
+                supertypes: [],
+                controllerId: undefined,
+                isSpell: false,
+            })
+        ).toBe(true);
+    });
+
+    it("has NO controller exception — its own controller's sources are barred", () => {
+        const hex = levelerBoard(8).hex;
+        const own = makeInstance(GRIZZLY_BEARS, {
+            id: "own",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(isProtectedFromSource(hex, own, false)).toBe(true);
+    });
+
+    it("must-NOT — one counter short of the band, only instants are barred", () => {
+        const hex = levelerBoard(7).hex;
+        const bears = makeInstance(GRIZZLY_BEARS, { id: "bears" });
+        expect(isProtectedFromSource(hex, bears, false)).toBe(false);
+        expect(
+            isProtectedFrom(hex, {
+                colors: ["U"],
+                types: ["Instant"],
+                supertypes: [],
+                controllerId: "p2",
+                isSpell: true,
+            })
+        ).toBe(true);
+    });
+});
+
+describe("CR 702.16j consult sites — targeted / enchanted / equipped / damaged / blocked", () => {
+    /** The offered set for a plain "target creature" from a p2 creature
+     *  source, through the real `getLegalTargets`. */
+    function offeredToOpponent(state: GameState): string[] {
+        return getLegalTargets(
+            state,
+            CREATURE_REQ,
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Creature"],
+                supertypes: [],
+                isSpell: true,
+            },
+            "p2",
+            undefined,
+            [],
+            undefined
+        ).map((t) => t.id);
+    }
+
+    it("CR 702.16b — not offered as a target at level 8, offered at level 7", () => {
+        expect(offeredToOpponent(levelerBoard(8).state)).not.toContain("hex");
+        expect(offeredToOpponent(levelerBoard(7).state)).toContain("hex");
+    });
+
+    it("CR 702.16b — its own controller cannot target it either", () => {
+        const { state } = levelerBoard(8);
+        const offered = getLegalTargets(
+            state,
+            CREATURE_REQ,
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Creature"],
+                supertypes: [],
+                isSpell: true,
+            },
+            "p1",
+            undefined,
+            [],
+            undefined
+        ).map((t) => t.id);
+        expect(offered).not.toContain("hex");
+    });
+
+    it("CR 702.16c — an attached Aura falls off as an SBA, and stays on at level 7", () => {
+        const auraOnHex = (level: number): GameState => {
+            const aura = makeInstance(BLESSING, {
+                id: "aura",
+                controllerId: "p1",
+                ownerId: "p1",
+                attachedTo: "hex",
+            });
+            return beginAll(
+                makeState({
+                    players: [
+                        makePlayer("p1", {
+                            battlefield: [hexdrinker(level), aura],
+                        }),
+                        makePlayer("p2"),
+                    ],
+                })
+            );
+        };
+        const eight = auraOnHex(8);
+        expect(checkAuraAttachmentSBA(eight)).toBe(true);
+        expect(eight.players[0].battlefield.some((c) => c.id === "aura")).toBe(
+            false
+        );
+        const seven = auraOnHex(7);
+        checkAuraAttachmentSBA(seven);
+        expect(
+            seven.players[0].battlefield.find((c) => c.id === "aura")
+                ?.attachedTo
+        ).toBe("hex");
+    });
+
+    it("CR 702.16d — an Equipment unattaches as an SBA, and stays on at level 7", () => {
+        const equipped = (level: number): GameState => {
+            const sash = makeInstance(LION_SASH, {
+                id: "sash",
+                controllerId: "p1",
+                ownerId: "p1",
+                attachedTo: "hex",
+            });
+            return beginAll(
+                makeState({
+                    players: [
+                        makePlayer("p1", {
+                            battlefield: [hexdrinker(level), sash],
+                        }),
+                        makePlayer("p2"),
+                    ],
+                })
+            );
+        };
+        const eight = equipped(8);
+        expect(checkAttachmentSBA(eight)).toBe(true);
+        // CR 704.5n — unattached, not graveyarded.
+        const sash = eight.players[0].battlefield.find((c) => c.id === "sash");
+        expect(sash).toBeDefined();
+        expect(sash!.attachedTo).toBeUndefined();
+        const seven = equipped(7);
+        expect(checkAttachmentSBA(seven)).toBe(false);
+    });
+
+    it("CR 702.16e — combat damage dealt to it is prevented end-to-end, and lands at level 7", () => {
+        const combat = (level: number): GameState => {
+            const attacker = makeInstance(BARKTOOTH, {
+                id: "attacker",
+                controllerId: "p2",
+                ownerId: "p2",
+                isAttacking: true,
+            });
+            const blocker = hexdrinker(level);
+            blocker.isBlocking = true;
+            return beginAll(
+                makeState({
+                    phase: "COMBAT_DAMAGE",
+                    activePlayerId: "p2",
+                    players: [
+                        makePlayer("p1", { battlefield: [blocker] }),
+                        makePlayer("p2", { battlefield: [attacker] }),
+                    ],
+                    combat: {
+                        confirmed: true,
+                        attackerIds: ["attacker"],
+                        blockerAssignments: { hex: ["attacker"] },
+                        blockedAttackerIds: ["attacker"],
+                        blockersConfirmed: true,
+                        damageConfirmed: false,
+                    } as GameState["combat"],
+                })
+            );
+        };
+        // 3 damage: prevented entirely at level 8, and non-lethal on the
+        // level-7 band's 4/4 so the must-NOT row can read the mark off a
+        // permanent that is still on the battlefield.
+        const eight = combat(8);
+        applyAllCombatDamage(eight, { attacker: { hex: 3 } });
+        expect(
+            eight.players[0].battlefield.find((c) => c.id === "hex")
+                ?.damageMarked ?? 0
+        ).toBe(0);
+        // must-NOT — a legendary creature is not an instant, so the level-7
+        // band does not bar it and the damage lands.
+        const seven = combat(7);
+        applyAllCombatDamage(seven, { attacker: { hex: 3 } });
+        expect(
+            seven.players[0].battlefield.find((c) => c.id === "hex")
+                ?.damageMarked ?? 0
+        ).toBeGreaterThan(0);
+    });
+
+    it("CR 702.16f — no creature can block it at level 8; any creature can at level 7", () => {
+        const blockState = (
+            level: number
+        ): {
+            state: GameState;
+            attacker: CardInstanceState;
+            blocker: CardInstanceState;
+        } => {
+            const attacker = hexdrinker(level);
+            attacker.isAttacking = true;
+            const blocker = makeInstance(GRIZZLY_BEARS, {
+                id: "blocker",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = beginAll(
+                makeState({
+                    players: [
+                        makePlayer("p1", { battlefield: [attacker] }),
+                        makePlayer("p2", { battlefield: [blocker] }),
+                    ],
+                })
+            );
+            return {
+                state,
+                attacker: state.players[0].battlefield[0],
+                blocker: state.players[1].battlefield[0],
+            };
+        };
+        const eight = blockState(8);
+        expect(
+            validateBlockerEligibility(
+                eight.attacker,
+                eight.blocker,
+                [eight.blocker],
+                eight.state
+            ).eligible
+        ).toBe(false);
+        const seven = blockState(7);
+        expect(
+            validateBlockerEligibility(
+                seven.attacker,
+                seven.blocker,
+                [seven.blocker],
+                seven.state
+            ).eligible
+        ).toBe(true);
+    });
+
+    it("wire format — the same verdict survives projectPublicState", () => {
+        const { state, hex } = levelerBoard(8);
+        const bears = makeInstance(GRIZZLY_BEARS, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bears);
+        expect(isProtectedFromSource(hex, bears, false)).toBe(true);
+
+        const projected = projectPublicState(state, 1, "p2");
+        const slimHex = projected.players[0].battlefield.find(
+            (c) => c.id === "hex"
+        )!;
+        const slimBears = projected.players[1].battlefield.find(
+            (c) => c.id === "bears"
+        )!;
+        // The projection strips `card.card` to `{ id }` — the granted keyword
+        // must survive as a real `staticAbilities` entry, or the client's own
+        // click gate (`src/lib/targeting.ts`) silently stops honouring it.
+        expect(slimHex.staticAbilities).toContain("protection from everything");
+        expect(
+            isProtectedFromSource(
+                slimHex as unknown as CardInstanceState,
+                slimBears as unknown as CardInstanceState,
+                false
+            )
+        ).toBe(true);
     });
 });
