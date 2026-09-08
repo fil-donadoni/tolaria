@@ -105,7 +105,55 @@ const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
 
 /** Where an issue sits on the board's priority axis. Unprioritized sorts LAST
  *  — below every explicit value, including `P2`. */
-const UNPRIORITIZED = 3;
+export const UNPRIORITIZED = 3;
+
+/** Rank of a priority that may be absent — the one place `undefined`/`null`
+ *  becomes `UNPRIORITIZED`, so no caller can spell that fallback differently. */
+export function priorityRank(p: BoardPriority | null | undefined): number {
+    return p == null ? UNPRIORITIZED : PRIORITY_RANK[p];
+}
+
+/** The minimum a band computation needs: the issue's own number and its
+ *  native sub-issue parent, both already on every `QueueIssue` and on the
+ *  ready-queue rows `loop-status` gathers. */
+export interface BandedIssue {
+    number: number;
+    parent?: { number: number } | null;
+}
+
+/**
+ * The priority BAND an issue competes in: the stronger of its own board
+ * `Priority` and its parent PRD's (issue #3212).
+ *
+ * A P0 PRD is P0 because it must CLOSE soon, and an umbrella closes only when
+ * its last child does — so its children carry that urgency whatever their own
+ * value says. Without this, a P0 epic drains in dribs while every standalone
+ * P1 interleaves, and the board's strongest statement buys nothing.
+ *
+ * Inheritance never DEMOTES. A `P0` hand-set on a child of a `P2` umbrella is
+ * the maintainer looking at that child and saying so — the same live override
+ * the whole priority axis exists to honour — so the band takes the STRONGER of
+ * the two, never the parent's unconditionally. (No live issue is in that shape
+ * today; the clause is what stops a future one from being swallowed.)
+ *
+ * ONE level. `gh issue list --json parent` carries the parent's number and
+ * title and nothing else — no grandparent, no priority of its own — and the
+ * band is a lookup into the board map already in hand, so it costs no extra
+ * API call. A parent absent from that map ranks `UNPRIORITIZED`, which makes
+ * the minimum degrade to the child's own priority.
+ */
+export function effectivePriority(
+    issue: BandedIssue,
+    priority: Record<number, BoardPriority>
+): BoardPriority | null {
+    const own = priority[issue.number] ?? null;
+    const parent = issue.parent
+        ? (priority[issue.parent.number] ?? null)
+        : null;
+    if (own === null) return parent;
+    if (parent === null) return own;
+    return priorityRank(own) <= priorityRank(parent) ? own : parent;
+}
 
 export interface PlanConfig {
     batchCap: number;
@@ -201,6 +249,12 @@ export interface PlannedIssue {
      *  says WHY an issue jumped the queue — an unexplained reordering reads as
      *  a planner bug and gets "fixed". */
     priority?: BoardPriority;
+    /** The band the issue actually competed in, echoed ONLY when it is
+     *  stronger than `priority` — i.e. when the parent PRD lifted it (issue
+     *  #3212). Present means "this outran its own priority, and here is the
+     *  value it outran it with"; absent means the two agree and there is
+     *  nothing to explain. */
+    priorityBand?: BoardPriority;
     targetFiles: string[];
     blastRadius: BlastRadius;
     /**
@@ -360,6 +414,19 @@ const hasLabel = (issue: QueueIssue, name: string): boolean =>
  *  list payload's `parent` object carries no date at all. */
 const lineage = (issue: QueueIssue): number =>
     issue.parent?.number ?? issue.number;
+
+/** The band, but only when the parent LIFTED it above the issue's own value —
+ *  the one case the plan owes the reader an explanation for. */
+const inheritedBand = (
+    issue: QueueIssue,
+    priority: Record<number, BoardPriority>
+): BoardPriority | null => {
+    const band = effectivePriority(issue, priority);
+    if (band === null) return null;
+    return priorityRank(band) < priorityRank(priority[issue.number])
+        ? band
+        : null;
+};
 
 function hoursBetween(fromIso: string, toIso: string): number {
     return (Date.parse(toIso) - Date.parse(fromIso)) / 3_600_000;
@@ -605,22 +672,31 @@ export function planBatch(
     }
 
     // ── Stage 1: order ──────────────────────────────────────────────────────
-    // Board priority first, then bugs, then oldest LINEAGE, then the issue's
-    // own number so the order is total (a comparator with ties is not
-    // reproducible).
+    // Priority BAND first, then own priority, then bugs, then oldest LINEAGE,
+    // then the issue's own number so the order is total (a comparator with
+    // ties is not reproducible).
     //
     // Priority is the ZEROTH key, above `bug`, and that is the whole point: it
     // is the maintainer's live override, the one input whose criteria change
     // week to week. A P2 outranking an unprioritized `bug` is correct — the
     // human looked at the board and said so. Every key below it is a default
     // for the issues nobody has ruled on, which is the vast majority.
-    const rank = (issue: QueueIssue): number => {
-        const p = port.priority[issue.number];
-        return p === undefined ? UNPRIORITIZED : PRIORITY_RANK[p];
-    };
+    //
+    // The band is INHERITED from the parent PRD (`effectivePriority`, issue
+    // #3212): a P0 umbrella closes only when its last child does, so its
+    // children clear before the P1 band opens. Own priority is the key right
+    // below it, which is what "inside the epic, order by their own P" means —
+    // and it is a SECOND key, not a replacement, so a standalone P0 still
+    // leads the P0 band ahead of a P0 PRD's P1 slice.
+    const band = (issue: QueueIssue): number =>
+        priorityRank(effectivePriority(issue, port.priority));
+    const own = (issue: QueueIssue): number =>
+        priorityRank(port.priority[issue.number]);
     eligible.sort((a, b) => {
-        const priorityDelta = rank(a) - rank(b);
-        if (priorityDelta !== 0) return priorityDelta;
+        const bandDelta = band(a) - band(b);
+        if (bandDelta !== 0) return bandDelta;
+        const ownDelta = own(a) - own(b);
+        if (ownDelta !== 0) return ownDelta;
         const bugA = hasLabel(a, "bug") ? 0 : 1;
         const bugB = hasLabel(b, "bug") ? 0 : 1;
         if (bugA !== bugB) return bugA - bugB;
@@ -801,6 +877,7 @@ export function planBatch(
         }
 
         const { model, ambiguity } = resolveModel(issue, config);
+        const lifted = inheritedBand(issue, port.priority);
         batch.push({
             number: issue.number,
             title: issue.title,
@@ -811,6 +888,7 @@ export function planBatch(
             ...(port.priority[issue.number]
                 ? { priority: port.priority[issue.number] }
                 : {}),
+            ...(lifted !== null ? { priorityBand: lifted } : {}),
             targetFiles: comparable,
             blastRadius,
             lane,

@@ -175,6 +175,38 @@ describe("loop-status — queueDepthByPriority", () => {
         });
     });
 
+    it("buckets a PRD's children in the PARENT's band (issue #3212)", () => {
+        // The depth line is the display of the planner's ordering. Counting
+        // own priority here prints "P0: 1" while the planner has three issues
+        // in the P0 band, and an operator reading it concludes the P0 work is
+        // nearly done.
+        const depth = queueDepthByPriority(
+            [
+                { number: 1 },
+                { number: 2, parent: { number: 100 } },
+                { number: 3, parent: { number: 100 } },
+                { number: 4, parent: { number: 200 } },
+            ],
+            { 1: "P0", 100: "P0", 2: "P1", 200: "P2", 4: "P1" }
+        );
+        expect(depth).toEqual({
+            P0: 3,
+            P1: 1,
+            P2: 0,
+            unprioritized: 0,
+            total: 4,
+        });
+    });
+
+    it("never demotes a child below its own priority", () => {
+        const depth = queueDepthByPriority(
+            [{ number: 2, parent: { number: 100 } }],
+            { 100: "P2", 2: "P0" }
+        );
+        expect(depth.P0).toBe(1);
+        expect(depth.P2).toBe(0);
+    });
+
     it("does NOT fold an unprioritized issue into P2 — they are different facts", () => {
         const depth = queueDepthByPriority([{ number: 9 }], {});
         expect(depth.P2).toBe(0);

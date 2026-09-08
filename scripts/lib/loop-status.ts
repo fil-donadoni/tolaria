@@ -41,8 +41,12 @@ import {
     type ClaimedIssue,
     type ClaimVerdict,
 } from "../loop-doctor";
-import { parseDependencies } from "./queue-plan";
-import type { BoardPriority } from "./queue-plan";
+import {
+    effectivePriority,
+    parseDependencies,
+    priorityRank,
+} from "./queue-plan";
+import type { BandedIssue, BoardPriority } from "./queue-plan";
 import type { Receipt, ReviewReceipt } from "./receipt";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,13 +200,20 @@ export interface QueueDepth {
     total: number;
 }
 
-export interface ReadyQueueIssue {
+export interface ReadyQueueIssue extends BandedIssue {
     number: number;
 }
 
 /** Ready-for-agent, UNCLAIMED issues, split by board priority. Unprioritized
  *  sorts as its own bucket rather than folding into P2 — "nobody has looked
- *  at this yet" and "somebody looked and called it low" are different facts. */
+ *  at this yet" and "somebody looked and called it low" are different facts.
+ *
+ *  The bucket is the issue's BAND, not its own `Priority` — the same
+ *  `effectivePriority` the planner sorts on (issue #3212). Counting own
+ *  priority here would print `P0: 2` while the planner had 41 issues in the
+ *  P0 band, and an operator reading "2 left" would conclude the P0 work was
+ *  nearly done. Two derivations of one concept is the bug; this is the
+ *  display of the planner's. */
 export function queueDepthByPriority(
     issues: ReadyQueueIssue[],
     priority: Record<number, BoardPriority>
@@ -215,7 +226,7 @@ export function queueDepthByPriority(
         total: issues.length,
     };
     for (const issue of issues) {
-        const p = priority[issue.number];
+        const p = effectivePriority(issue, priority);
         if (p === "P0") depth.P0++;
         else if (p === "P1") depth.P1++;
         else if (p === "P2") depth.P2++;
@@ -825,9 +836,6 @@ export interface LoopStatus {
     verdict: LoopVerdict;
 }
 
-const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
-const UNPRIORITIZED_RANK = 3;
-
 export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
     const now = input.now ?? Date.now();
 
@@ -861,10 +869,14 @@ export function buildLoopStatus(input: LoopStatusInput): LoopStatus {
 
     // Board priority first (unprioritized last), then the older claim first
     // within a tier — the two axes an operator scanning the list actually
-    // cares about.
+    // cares about. OWN priority, deliberately, not the queue's inherited band:
+    // a claim is work already in flight, so this list answers "what is running
+    // and how old is it", not "what runs next". The rank function is the
+    // planner's (issue #3212) so the two cannot drift on where unprioritized
+    // sorts.
     claims.sort((a, b) => {
-        const ra = a.priority ? PRIORITY_RANK[a.priority] : UNPRIORITIZED_RANK;
-        const rb = b.priority ? PRIORITY_RANK[b.priority] : UNPRIORITIZED_RANK;
+        const ra = priorityRank(a.priority);
+        const rb = priorityRank(b.priority);
         if (ra !== rb) return ra - rb;
         return b.ageHours - a.ageHours;
     });

@@ -64,8 +64,12 @@ the rendering of either for the rest of the session.
 ## 0. Pick
 
 - `/next-issue 1234` → that issue. Otherwise: `bun run queue:plan --cap 1
---pretty` picks the top unclaimed `ready-for-agent` issue by board
-  Priority (P0 → P1 → P2, then bugs, then oldest).
+--pretty` picks the top unclaimed `ready-for-agent` issue by priority BAND
+  (P0 → P1 → P2 → unprioritized), then own priority, then bugs, then oldest.
+  The band is INHERITED from the parent PRD and never demotes — a P0 umbrella's
+  slices all clear before the P1 band opens, because an umbrella closes only
+  when its last child does (issue #3212). A plan echoing `priorityBand` on an
+  issue is saying "this outran its own priority, and here is what lifted it".
 - Read the issue and its comments IN FULL before touching anything. The
   body's `Target files:` section (one path per line) is the declared blast
   radius — use it to scope your reading and to route the review in §4; a

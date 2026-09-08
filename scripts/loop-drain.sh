@@ -481,8 +481,9 @@ reap_orphan_claims() {
 # planner rather than growing a second, shell-side notion of eligibility here.
 # An interactive `/next-issue` passes no such flag and still sees them.
 #
-# CONSUMED, NOT REIMPLEMENTED. The ordering (board Priority, then bugs, then
-# oldest lineage), the eligibility filter and the label→tier resolution all
+# CONSUMED, NOT REIMPLEMENTED. The ordering (priority BAND inherited from the
+# parent PRD, then own priority, then bugs, then oldest lineage), the
+# eligibility filter and the label→tier resolution all
 # belong to `queue:plan`; this reads `batch[0]` off its plan and nothing
 # more. The read goes through
 # `bun -e` rather than a `grep -o` on the JSON because the plan's OTHER arrays

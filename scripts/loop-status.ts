@@ -172,14 +172,21 @@ export function fetchUnclaimedReadyQueue(
             "--state",
             "open",
             "--json",
-            "number,labels",
+            // `parent` rides along so the depth buckets can be the planner's
+            // BAND (issue #3212) — one more field on a call already made, not
+            // a second request.
+            "number,labels,parent",
             "--limit",
             "300",
         ]) || "[]"
-    ) as { number: number; labels: { name: string }[] }[];
+    ) as {
+        number: number;
+        labels: { name: string }[];
+        parent?: { number: number } | null;
+    }[];
     return raw
         .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
-        .map((i) => ({ number: i.number }));
+        .map((i) => ({ number: i.number, parent: i.parent ?? null }));
 }
 
 /** Headroom above a measured 334 open issues on this repo (2026-08-26) — the
