@@ -60,6 +60,8 @@ import {
     hasLegalBestowHost,
     revertBestow,
 } from "../bestow";
+import { getDefinition } from "../../cards/registry";
+import { declaresLayer2to5StaticEffect } from "../../cards/registry";
 import {
     grantedKeywordRows,
     wireCharacteristicsOf,
@@ -253,6 +255,131 @@ describe("Bestow — the spell becomes an Aura (CR 702.103b / 205.1a)", () => {
         )!;
         expect(permanent.attachedTo).toBeUndefined();
         expect(permanent.zone).toBe("battlefield");
+    });
+});
+
+describe("Bestow — the keyword expands into layer-4 static effects (ADR 0054 / ADR 0084)", () => {
+    it("indexes a bestow card as a layer-2-to-5 SOURCE, though its raw definition declares none", () => {
+        // The card data declares no type-changing static effect at all: CR
+        // 702.103b's type change belongs to the KEYWORD, and a card that had to
+        // restate it could ship the cost with nothing enforcing the rest (the
+        // Guard A inertness shape).
+        expect(
+            (springheartNantuko.staticEffects ?? []).map((e) => e.kind)
+        ).toEqual(["pt-buff"]);
+        // `expandBestow` injects them at the `getDefinition` seam.
+        expect(
+            getDefinition(NANTUKO).staticEffects?.map((e) => e.kind)
+        ).toEqual(["pt-buff", "type-remove", "subtype-set"]);
+        // And the registry's layer precheck — which indexes the RAW entry,
+        // BEFORE that seam — has to know it anyway, or the derivation's board
+        // scan skips every bestow card and the whole effect silently vanishes
+        // with no test of its own to red.
+        expect(declaresLayer2to5StaticEffect(NANTUKO)).toBe(true);
+    });
+});
+
+describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.1 / 702.103b)", () => {
+    it("a whole-board sync DERIVES the Aura type line for a bestowed spell on the stack", () => {
+        const { state } = boardWithHost();
+        const item = castBestowed(state, "host");
+        // Reset the object to its pre-layer-4 base — what a reader sees before
+        // any derivation has run over it. CR 613.1 requires the answer be
+        // recomputed at every read, so a board sync must put the Aura back:
+        // a bestowed spell is an Aura spell for the whole time it is on the
+        // stack, which is what makes it illegal for "target creature spell" and
+        // invisible to "whenever you cast a creature spell".
+        item.types = [...item.baseTypes!];
+        item.subtypes = [...item.baseSubtypes!];
+        expect(item.types).toContain("Creature");
+
+        syncLayers2to5(state);
+
+        expect(item.types).toEqual(["Enchantment"]);
+        expect(item.subtypes).toEqual(["Aura"]);
+    });
+
+    it("stops applying the moment the object ceases to be bestowed, with nothing restoring the printed line by hand (CR 702.103e/f)", () => {
+        const { state } = boardWithHost();
+        const item = castBestowed(state, "host");
+        expect(item.types).toEqual(["Enchantment"]);
+
+        // The marker is the effect's ENTIRE input (CR 702.103b — "these effects
+        // last until the spell ... ceases to be bestowed"). Clearing it alone,
+        // with no restore routine anywhere in the picture, has to give the
+        // printed creature line back.
+        delete item.bestowed;
+        syncLayers2to5(state);
+
+        expect(item.types).toEqual([...springheartNantuko.types]);
+        expect(item.subtypes).toEqual([...(springheartNantuko.subtypes ?? [])]);
+    });
+
+    it("leaves an ordinary spell on the stack untouched", () => {
+        const { state } = boardWithHost();
+        const bears = makeInstance(BEARS, {
+            id: "bears-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        state.stack.push({ ...bears, castById: "p1" });
+        castBestowed(state, "host");
+
+        syncLayers2to5(state);
+
+        const plain = state.stack.find((s) => s.id === "bears-spell")!;
+        expect(plain.types).toEqual([...grizzlyBears.types]);
+        expect(plain.subtypes).toEqual([...(grizzlyBears.subtypes ?? [])]);
+    });
+});
+
+describe("Bestow — a pre-ADR-0084 stamped type line is re-seated at load (issue #2073)", () => {
+    it("restores the PRINTED layer-4 base, so a later unattach gives a creature back", () => {
+        const { state } = boardWithHost();
+        castBestowed(state, "host");
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+
+        // The pre-slice shape: bestow STAMPED `Enchantment — Aura` onto the
+        // instance at cast commit, and the layer-4 base capture — which runs at
+        // the first derivation, i.e. after the stamp — froze that same line as
+        // the base. Reproduced on the compact row rather than described.
+        const compact = JSON.parse(JSON.stringify(compactState(state)));
+        const row = compact.players[0].battlefield.find(
+            (c: { id: string }) => c.id === "nantuko"
+        )!;
+        row.baseTypes = ["Enchantment"];
+        row.baseSubtypes = ["Aura"];
+
+        const restored = expandState(compact);
+        const permanent = getPlayer(restored, "p1").battlefield.find(
+            (c) => c.id === "nantuko"
+        )!;
+        // The base is the printed line again ...
+        expect(permanent.baseTypes).toEqual([...springheartNantuko.types]);
+        expect(permanent.baseSubtypes).toEqual([
+            ...(springheartNantuko.subtypes ?? []),
+        ]);
+        // ... while the object, still bestowed, reads exactly as it did before.
+        expect(permanent.types).toEqual(["Enchantment"]);
+        expect(permanent.subtypes).toEqual(["Aura"]);
+
+        // CR 702.103f — and now the road the frozen base used to close: the
+        // host dies, the Aura becomes unattached, and there is a creature to
+        // go back to.
+        const seat = getPlayer(restored, "p1");
+        seat.battlefield = seat.battlefield.filter((c) => c.id !== "host");
+        checkStateBasedActions(restored);
+        const reverted = getPlayer(restored, "p1").battlefield.find(
+            (c) => c.id === "nantuko"
+        )!;
+        expect(reverted.bestowed).toBeUndefined();
+        expect(reverted.types).toEqual([...springheartNantuko.types]);
+        expect(reverted.subtypes).toEqual([
+            ...(springheartNantuko.subtypes ?? []),
+        ]);
+        expect(reverted.power).toBe(springheartNantuko.power);
     });
 });
 
