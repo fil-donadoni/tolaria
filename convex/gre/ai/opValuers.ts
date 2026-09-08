@@ -1825,6 +1825,18 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // CR 613.1d layer 4 — REPLACES rather than adds, so the direction depends
     // on what was there to begin with (Blood Moon strips a dual's abilities;
     // the same Op turns your own land into an Island for an Islandwalker).
+    //
+    // Issue #3194 asked whether a subtype change aimed at the mover's own land
+    // should stop reading as neutral, after the bot re-typed its own sole blue
+    // source on turn 1. It should not, and the case is not evidence that it
+    // should: this sign is per announced TARGET SLOT (`beneficence.ts`), and
+    // the mode that did it declares no target at all — it reaches a permanent
+    // through a resolution-time choice, which no per-Op sign can see. Signing
+    // this row `harmful` would therefore not have moved that decision by one
+    // visit, and would misread Blood Moon, the fetch enabler and the
+    // Islandwalker setup, which are the same Op in the other direction. The
+    // axis that case needed is reach-keyed, not name-keyed:
+    // `reachesOnlyOwnSideThroughChoice` (`search.ts`).
     setSubtype: "neutral",
     // CR 613.1e layer 5 — a colour change only ever serves ANOTHER effect
     // (protection, a colour-matters filter), and the sign belongs to that

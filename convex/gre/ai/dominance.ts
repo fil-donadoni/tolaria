@@ -119,6 +119,7 @@ import { spellHasDelve } from "../payWith";
 // state.ts↔phases.ts cycle is never touched at module-evaluation time.
 import { wasCastOffSorceryTiming } from "../phases";
 import { choiceCandidates } from "./choiceCandidates";
+import { MAX_CHOICE_BRANCH_WORK, MAX_CHOICE_DEPTH } from "./choiceDepth";
 import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
@@ -133,13 +134,26 @@ const MAX_SETTLE_STEPS = 8;
 /** Bound on branches opened per mid-resolution choice. `CHOICE_TOP_K` is 8, so
  *  this admits every choice the search itself would consider. */
 const MAX_CHOICE_BRANCHES = 8;
-/** Bound on nested mid-resolution choices. One level (Vision Charm's "basic
- *  land type of your choice") is the shape that occurs; deeper is unprovable. */
-const MAX_CHOICE_DEPTH = 1;
+// Bound on nested mid-resolution choices: `MAX_CHOICE_DEPTH`, shared with the
+// search's payoff probes (`ai/choiceDepth.ts`). It used to be the local
+// constant `1`, and its own comment named Vision Charm as "the shape that
+// occurs" — but that card's land-type mode takes TWO nested option choices, so
+// the recursion hit the cap on the second one and returned "not provably
+// futile" on precisely the case it was written for (issue #3194). The bound is
+// now MEASURED from the catalogue, and `MAX_CHOICE_BRANCH_WORK` bounds the work
+// separately, so a deeper bound cannot multiply into a `branches ^ depth`
+// probe.
 
 /** Re-entrancy latch. The probe drives real resolution, which can reach code
  *  that enumerates moves; without this a probe could probe itself. */
 let probing = false;
+
+/** Branch expansions left in the CURRENT probe (issue #3194). Reset at each
+ *  probe entry and spent by `branchesAllNoOp`'s recursion, so the work one
+ *  proof may cost is bounded independently of how deep `MAX_CHOICE_DEPTH`
+ *  lets it go. Exhausting it answers "not provably futile" — the same
+ *  fail-open direction the depth cap already took. */
+let branchWorkLeft = 0;
 
 /** Work accounting, for the two things about this module that must stay pinned.
  *
@@ -219,6 +233,7 @@ export function isDominatedNoOpMove(
                 ? applyProbeCast(probe, pid, move)
                 : applyProbeActivation(probe, pid, move);
         if (!applied) return false;
+        branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
         return branchesAllNoOp(probe, baseline, pid, spentCardId, 0);
     } catch {
         // A probe that throws proves nothing. Never let it change legality.
@@ -226,6 +241,200 @@ export function isDominatedNoOpMove(
     } finally {
         probing = false;
     }
+}
+
+/** Is `move` an announcement that can reach NOTHING but the mover's own side,
+ *  and whose own "do nothing" answer is among the branches it may choose?
+ *  (Issue #3194.)
+ *
+ *  {@link isDominatedNoOpMove} asks whether EVERY branch is futile, and one
+ *  useful branch is enough to keep the move. That is right for a legality-side
+ *  prune and wrong as the only question: a mode whose branches all touch the
+ *  mover's own board, one of which does nothing at all, is not provably a
+ *  no-op — the bot may still choose the branch that re-types its own sole mana
+ *  source — yet nothing it can reach beats simply not casting it. So this is
+ *  the same probe with the two quantifiers the SELECTION side needs:
+ *
+ *    * EVERY branch leaves everything but the mover's own player record
+ *      exactly as it was (so the announcement cannot touch the opponent, any
+ *      shared ledger, or the board at large), and
+ *    * SOME branch is a full no-op (`isNoOpDelta` — the announcement's own "do
+ *      nothing" option is genuinely reachable).
+ *
+ *  The second half is what separates this from a tutor. Demonic Tutor, Entomb,
+ *  Preordain and a positive-X Green Sun's Zenith all reach only the mover's own
+ *  zones and all read as a material LOSS (a card and mana spent for a payoff
+ *  priced in a hidden zone) — but not one of them has a branch that does
+ *  nothing, so none is confused with the shape this answers. A move with no
+ *  choice at all is admitted only when it IS that no-op, which is the verdict
+ *  `isDominatedNoOpMove` already gives it.
+ *
+ *  Fail-closed like its sibling, and in the direction that matters: `true`
+ *  makes a caller demote or hold a legal cast, so every unprovable path — an
+ *  unsettled stack, a choice the mover does not own, the depth cap, the work
+ *  budget, a throw — answers `false`. */
+export function isSelfConfinedFutileMove(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (probing) return false;
+    if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+        return false;
+    }
+    if (state.gameOver) return false;
+    if (
+        state.pendingCast ||
+        state.pendingTarget ||
+        state.pendingActivation ||
+        state.pendingCompanionPay ||
+        (state.pendingChoices?.length ?? 0) > 0
+    ) {
+        return false;
+    }
+    if (!state.players.some((p) => p.id === pid)) return false;
+    if (!isProbeEligibleMove(state, pid, move)) return false;
+
+    probing = true;
+    stats.probes++;
+    try {
+        const baseline = state;
+        const probe = cloneGameState(state);
+        const spentCardId =
+            move.kind === "cast-spell" ? move.cardInstanceId : undefined;
+        const applied =
+            move.kind === "cast-spell"
+                ? applyProbeCast(probe, pid, move)
+                : applyProbeActivation(probe, pid, move);
+        if (!applied) return false;
+        branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
+        const seen = { sawNoOpBranch: false };
+        const confined = branchesTouchOnlyMover(
+            probe,
+            baseline,
+            pid,
+            spentCardId,
+            0,
+            seen
+        );
+        return confined && seen.sawNoOpBranch;
+    } catch {
+        return false;
+    } finally {
+        probing = false;
+    }
+}
+
+/** The `branchesAllNoOp` walk with the other quantifier: every leaf must leave
+ *  everything but the mover untouched, and `seen.sawNoOpBranch` records whether
+ *  any leaf was a full no-op. Returns false — never "unknown" — for a leaf it
+ *  cannot settle, so an unprovable branch suppresses nothing. */
+function branchesTouchOnlyMover(
+    probe: GameState,
+    baseline: GameState,
+    moverId: string,
+    spentCardId: string | undefined,
+    depth: number,
+    seen: { sawNoOpBranch: boolean }
+): boolean {
+    let steps = 0;
+    while (probe.stack.length > baseline.stack.length) {
+        if (steps++ >= MAX_SETTLE_STEPS) return false;
+        if (
+            probe.pendingCast ||
+            probe.pendingTarget ||
+            probe.pendingActivation ||
+            probe.pendingCompanionPay
+        ) {
+            return false;
+        }
+        if ((probe.pendingChoices?.length ?? 0) > 0) break;
+        if (probe.gameOver) return false;
+        resolveTopOfStack(probe);
+        checkStateBasedActions(probe);
+    }
+
+    const head = probe.pendingChoices?.[0];
+    if (head) {
+        if (depth >= MAX_CHOICE_DEPTH) return false;
+        if (head.playerId !== moverId) return false;
+        const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
+        if (candidates.length === 0) return false;
+        for (const candidate of candidates) {
+            if (branchWorkLeft-- <= 0) return false;
+            stats.choiceBranches++;
+            const branch = cloneGameState(probe);
+            if (!applyProbeChoice(branch, moverId, candidate.move)) {
+                return false;
+            }
+            if (
+                !branchesTouchOnlyMover(
+                    branch,
+                    baseline,
+                    moverId,
+                    spentCardId,
+                    depth + 1,
+                    seen
+                )
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // The leaf must be genuinely SETTLED — the same requirement `branchesAllNoOp`
+    // makes. A half-resolved state (the settle loop's own step guard, a
+    // suspension this probe cannot answer) would otherwise be compared as if it
+    // were the outcome.
+    if (probe.gameOver) return false;
+    if (
+        probe.pendingCast ||
+        probe.pendingTarget ||
+        probe.pendingActivation ||
+        probe.pendingCompanionPay
+    ) {
+        return false;
+    }
+    if ((probe.pendingChoices?.length ?? 0) > 0) return false;
+    if (probe.stack.length !== baseline.stack.length) return false;
+    if (isNoOpDelta(baseline, probe, moverId, spentCardId)) {
+        seen.sawNoOpBranch = true;
+        return true;
+    }
+    return touchesOnlyMoverDelta(baseline, probe, moverId, spentCardId);
+}
+
+/** True when `probe` differs from `baseline` in NOTHING outside the mover's own
+ *  player record.
+ *
+ *  It runs through the module's own `normalize` rather than a hand-rolled
+ *  digest, and that is not a style preference — the layer pass stamps its memo
+ *  fields (`baseTypes`, `baseSubtypes`, …) onto every permanent LAZILY, the
+ *  probe runs the engine and the baseline did not, so a raw compare reports a
+ *  difference on every card the opponent controls and answers "this reaches
+ *  them" for a spell that cannot touch them at all. `IGNORED_INSTANCE_KEYS`
+ *  is where that trap is already solved; the first cut of this predicate
+ *  (`search.ts`, issue #3194) re-introduced it and was measured inert the
+ *  moment the opponent controlled any permanent.
+ *
+ *  The mover's own record is dropped from BOTH sides, so everything else —
+ *  the opponent's whole record, and every state-level ledger, including ones
+ *  added tomorrow — is compared by default. A ledger keyed on the MOVER that
+ *  moves therefore reads as a difference too: over-strict, in the fail-open
+ *  direction (no suppression), which is the side to err on. */
+function touchesOnlyMoverDelta(
+    baseline: GameState,
+    probe: GameState,
+    moverId: string,
+    spentCardId: string | undefined
+): boolean {
+    const a = normalize(cloneGameState(baseline), moverId, spentCardId, "base");
+    const b = normalize(cloneGameState(probe), moverId, spentCardId, "probe");
+    if (!a || !b) return false;
+    a.players = a.players.filter((p) => p.id !== moverId);
+    b.players = b.players.filter((p) => p.id !== moverId);
+    return deepEqual(a, b);
 }
 
 /** The choice-level counterpart of {@link isDominatedNoOpMove} (issue #1888
@@ -591,6 +800,11 @@ function branchesAllNoOp(
         const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
         if (candidates.length === 0) return false;
         for (const candidate of candidates) {
+            // The work budget, not the depth cap, is what keeps a deeper bound
+            // affordable (issue #3194): a probe may open at most
+            // `MAX_CHOICE_BRANCH_WORK` branches in total, however they are
+            // distributed across the tree.
+            if (branchWorkLeft-- <= 0) return false;
             stats.choiceBranches++;
             const branch = cloneGameState(probe);
             if (!applyProbeChoice(branch, moverId, candidate.move))

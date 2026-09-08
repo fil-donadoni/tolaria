@@ -1671,6 +1671,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #1888, symptoms 3 and 4, plus the HARMFUL-at-the-opponent negative control. Vision Charm's three modes are three separate enumerated moves (CR 700.2d); `mill` is `harmful`, so milling ITSELF four cards is a misdirected slot and is ranked below the same mode aimed at the opponent — while the correct opponent-targeting is never suppressed, because the rule is a preference among outcome-equal siblings and never a filter. The land-type mode (which moves no material) loses on the resolved-payoff term.",
     },
     {
+        label: "choice-behind payoff: no self-only re-type of the sole mana source",
+        spec: {
+            cards: [
+                { name: "Vision Charm", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+                { name: "Counterspell", owner: "me", zone: "hand", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [12, 14, 15, 16, 18, 19, 25, 27],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                !(
+                    move?.kind === "cast-spell" &&
+                    move.chosenModeId === "land-type"
+                ),
+            describe:
+                "not the land-type mode (which can only re-type the bot's own sole blue source)",
+        },
+        note: "Issue #3194, position A of the discriminating pair. The only land on either battlefield is the bot's own Island, so the land-type mode can do nothing but re-type its own single blue source — and passing, or the mill mode aimed at the opponent, is free. Three seams each failed to see it, and the fix is measured on THESE seeds: before it, all eight cast the self-only mode (8 of 30 swept seeds); after it, none of the thirty does. The seeds are the failing ones on purpose — an entry seeded where the noise already fell the right way proves nothing. Pair with position B below, which is the SAME mode in a position where it is correct and which this fix leaves untouched (7 of 30 seeds pick it, before and after, byte-identical).",
+    },
+    {
+        label: "choice-behind payoff: the re-type mode stays live against the opponent's lands",
+        spec: {
+            cards: [
+                { name: "Vision Charm", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+                { name: "Counterspell", owner: "me", zone: "hand", count: 2 },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [12, 14, 15, 18, 19, 25, 27],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "cast-spell" &&
+                move.chosenModeId === "land-type",
+            describe:
+                "the land-type mode is still chosen when the OPPONENT controls lands of the re-typed subtype",
+        },
+        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. These seven seeds are the ones that pick the mode, and they pick it byte-identically before and after the fix — so the entry goes red the moment the self-confined guard starts firing on a position it must not touch. What it does NOT claim is that the bot PREFERS the mode here on every seed: the evaluator's mana term is colour-blind by construction (`evaluate.ts`, \"CR 601 colored requirements are not modelled\"), so denying green reads as no material change at all, and the remaining 23 seeds tie into the mill mode on rollout noise. Making the bot actively want the denial needs a colour-aware mana axis, which issue #3194 puts out of scope.",
+    },
+    {
         label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",
         spec: {
             cards: [
