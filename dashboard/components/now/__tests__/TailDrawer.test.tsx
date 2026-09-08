@@ -17,7 +17,8 @@ import { resetWatch } from "../../../lib/watch";
 import { requestAction, resetPendingAction } from "../../../lib/confirm";
 import { resetSectionFlash } from "../../../lib/sections";
 import { openSheet } from "../../../lib/shortcuts";
-import { goldenPayload, NOW_MS, stubNowFetch } from "./fixture";
+import { goldenPayload, NOW_MS, stubNowFetch, TAIL_PAGE } from "./fixture";
+import type { TailEntry } from "../../../lib/nowPayload";
 
 /**
  * The session tail drawer's two long-standing defects (PRD #3148 S2).
@@ -233,5 +234,84 @@ describe("TailDrawer — following one transcript", () => {
                 )
             )
         ).toBe(true);
+    });
+});
+
+/** Opens the drawer against a HAND-BUILT transcript page, for the cases that
+ *  are about the lines themselves rather than about the drawer. */
+async function openDrawerWithTail(entries: TailEntry[]) {
+    const { fetchStub } = stubNowFetch(goldenPayload(), {
+        ...TAIL_PAGE,
+        entries,
+    });
+    vi.stubGlobal("fetch", vi.fn(fetchStub));
+    renderNow();
+    await screen.findByText("Live sessions");
+    const live = document.getElementById("ls-section-live")!;
+    pressOn(
+        within(live).getByRole("button", {
+            name: "Watch porting the Now view",
+        })
+    );
+    await screen.findByRole("dialog");
+}
+
+describe("TailDrawer — a line reads the way `tail -f` on the file would", () => {
+    it("labels a tool call by the TOOL's own name, and every other kind by the terminal's word for it", async () => {
+        await openDrawerWithTail([
+            { kind: "user", ts: NOW_MS, text: "run the gate" },
+            { kind: "assistant", ts: NOW_MS, text: "on it" },
+            { kind: "thinking", ts: NOW_MS, text: "…" },
+            {
+                kind: "tool_use",
+                ts: NOW_MS,
+                tool: "Bash",
+                text: "bun run check:lane",
+            },
+            { kind: "tool_result", ts: NOW_MS, text: "exit=0" },
+            { kind: "system", ts: NOW_MS, text: "hook fired" },
+        ]);
+        // A tool call says WHICH tool — labelling all of them "tool" makes the
+        // one line a person scans a transcript for indistinguishable.
+        expect(await screen.findByText("Bash")).not.toBeNull();
+        for (const word of ["you", "claude", "thinking", "result", "system"]) {
+            expect(screen.getByText(word), word).not.toBeNull();
+        }
+        // And the raw wire value is never what the gutter prints.
+        expect(screen.queryByText("tool_use")).toBeNull();
+    });
+
+    it("falls back to 'tool' for a tool_use with no tool recorded, rather than printing nothing", async () => {
+        await openDrawerWithTail([{ kind: "tool_use", ts: NOW_MS, text: "…" }]);
+        expect(await screen.findByText("tool")).not.toBeNull();
+    });
+
+    it("marks a FAILED tool result, so a stack trace is not one more grey line", async () => {
+        await openDrawerWithTail([
+            { kind: "tool_result", ts: NOW_MS, text: "ok", isError: false },
+            { kind: "tool_result", ts: NOW_MS, text: "boom", isError: true },
+        ]);
+        const rows = (await screen.findAllByText("result")).map(
+            (el) => el.parentElement!
+        );
+        expect(rows[0].className).not.toContain("state-bad");
+        expect(rows[1].className).toContain("state-bad");
+    });
+
+    it("renders an entry's text as the literal characters it is, whitespace kept", async () => {
+        await openDrawerWithTail([
+            {
+                kind: "tool_use",
+                ts: NOW_MS,
+                tool: "Bash",
+                text: "<script>alert(1)</script>\n  indented",
+            },
+        ]);
+        const body = await screen.findByText(/alert\(1\)/);
+        // A `<pre>`: a tool's command, a diff fragment or a stack trace is
+        // whitespace-significant, and re-flowing it is how a transcript stops
+        // being readable.
+        expect(body.tagName).toBe("PRE");
+        expect(document.querySelectorAll("script").length).toBe(0);
     });
 });

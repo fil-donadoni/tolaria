@@ -94,7 +94,7 @@ describe("History filter bar — glossary-sourced labels (#2633)", () => {
         renderFilters();
         const values = optionsOf("Split by").map((o) => o.value);
         expect(values).not.toContain("day");
-        expect(values).toEqual(["agent_id", "role", "model"]);
+        expect(values).toEqual(["hour", "role", "model"]);
     });
 
     it("the 'Filter · <dimension>' caption reads the split's glossary label, not its raw key", () => {

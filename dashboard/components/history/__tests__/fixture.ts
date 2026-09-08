@@ -23,17 +23,22 @@ import type {
  */
 
 export const META: HistoryMeta = {
+    // The dimension and metric NAMES are the server's own
+    // (`DIMENSIONS`/`METRICS` in `scripts/telemetry-serve.ts`), not invented
+    // for the fixture: every one of them is a glossary key the page composes
+    // at runtime, and a name that exists only here would let
+    // `glossaryCoverage.test.tsx` sweep a vocabulary nothing ships.
     dimensions: {
-        agent_runs: ["day", "agent_id", "role", "model"],
+        agent_runs: ["day", "hour", "role", "model"],
         llm: ["day", "session", "model"],
     },
     metrics: {
         agent_runs: {
             runs: "count(*)",
-            total_seconds: "sum(sec)",
+            total_seconds: "sum(dur_s)",
             cost_usd: "sum(cost)",
-            out_tokens: "sum(out)",
-            avg_ctx_k: "avg(ctx)",
+            output_tokens: "sum(out_tok)",
+            avg_seconds: "avg(dur_s)",
         },
         llm: { messages: "count(*)", cost_usd: "sum(cost)" },
     },
@@ -41,7 +46,7 @@ export const META: HistoryMeta = {
         agent_runs: {
             role: ["implement", "review", "fixup"],
             model: ["opus", "sonnet"],
-            agent_id: [],
+            hour: [],
         },
         llm: { model: ["opus", "sonnet"], session: [] },
     },
@@ -52,7 +57,13 @@ export const META: HistoryMeta = {
 
 /** `groupBy: ["day", split]` — three days, two roles, one gap on day 2. */
 export const PER_DAY: QueryResult = {
-    metrics: ["runs", "total_seconds", "cost_usd", "out_tokens", "avg_ctx_k"],
+    metrics: [
+        "runs",
+        "total_seconds",
+        "cost_usd",
+        "output_tokens",
+        "avg_seconds",
+    ],
     rows: [
         { day: "2026-08-01", role: "implement", total_seconds: 3600, runs: 4 },
         { day: "2026-08-01", role: "review", total_seconds: 1200, runs: 2 },
@@ -64,37 +75,49 @@ export const PER_DAY: QueryResult = {
 
 /** `groupBy: [split]` — the ranking card and the metric table read these. */
 export const BY_SPLIT: QueryResult = {
-    metrics: ["runs", "total_seconds", "cost_usd", "out_tokens", "avg_ctx_k"],
+    metrics: [
+        "runs",
+        "total_seconds",
+        "cost_usd",
+        "output_tokens",
+        "avg_seconds",
+    ],
     rows: [
         {
             role: "implement",
             runs: 13,
             total_seconds: 12_600,
             cost_usd: 42.5,
-            out_tokens: 120_000,
-            avg_ctx_k: 88,
+            output_tokens: 120_000,
+            avg_seconds: 88,
         },
         {
             role: "review",
             runs: 3,
             total_seconds: 1800,
             cost_usd: 6.25,
-            out_tokens: 20_000,
-            avg_ctx_k: 44,
+            output_tokens: 20_000,
+            avg_seconds: 44,
         },
     ],
 };
 
 /** `groupBy: []` — the one totals row behind the tiles. */
 export const TOTALS: QueryResult = {
-    metrics: ["runs", "total_seconds", "cost_usd", "out_tokens", "avg_ctx_k"],
+    metrics: [
+        "runs",
+        "total_seconds",
+        "cost_usd",
+        "output_tokens",
+        "avg_seconds",
+    ],
     rows: [
         {
             runs: 16,
             total_seconds: 14_400,
             cost_usd: 48.75,
-            out_tokens: 140_000,
-            avg_ctx_k: 80,
+            output_tokens: 140_000,
+            avg_seconds: 80,
         },
     ],
 };

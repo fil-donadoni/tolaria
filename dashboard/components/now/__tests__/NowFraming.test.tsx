@@ -1,6 +1,6 @@
 // Assertions read the DOM directly — see the note in `Term.test.tsx`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NowView } from "../NowView";
 import { refreshLoopStatus, resetLoopStatus } from "../../../lib/loopStatus";
@@ -141,6 +141,30 @@ describe("Now batch heading — a number and a time, with the UUID behind an aff
         expect(screen.queryByText(/Batch #0/)).toBeNull();
     });
 
+    it("a `missing` receipt row names its SESSION and carries no issue link — the sibling branch of the same ternary, and a link there would point at nothing", async () => {
+        const payload = goldenPayload();
+        payload.receiptsSummary = {
+            total: 3,
+            counts: [],
+            interesting: [
+                {
+                    role: "missing",
+                    outcome: "missing",
+                    session: "dd8ad5bf-8093-4f8f-bc83-b9a19cac924f",
+                },
+            ],
+        };
+        await mountWith(payload);
+        const batch = document.getElementById("ls-section-batch")!;
+        expect(
+            within(batch).getByText(/missing · session dd8ad5bf/)
+        ).not.toBeNull();
+        // The row has no issue to link to — a `#undefined` anchor is the
+        // failure this branch exists to prevent. Scoped to the batch section,
+        // because the claims table above legitimately links every row.
+        expect(within(batch).queryByRole("link")).toBeNull();
+    });
+
     it("an interesting (non-`missing`) receipt row's issue number is a real GitHub link — one of two `issueLink()` producer sites that shipped with no test", async () => {
         const payload = goldenPayload();
         payload.receiptsSummary = {
@@ -159,6 +183,27 @@ describe("Now batch heading — a number and a time, with the UUID behind an aff
 });
 
 describe("Now activity chart — one hit target per hour, each carrying its own numbers (issue #3135)", () => {
+    it("a QUIET window is a sentence, not twenty-four flat zero bars — a chart of nothing reads as a broken read", async () => {
+        const payload = goldenPayload();
+        payload.activity = {
+            windowHours: 24,
+            asOf: NOW_MS,
+            buckets: [],
+        };
+        payload.recentMerges = [];
+        await mountWith(payload);
+        expect(
+            screen.getByText(
+                /No tokens generated and nothing merged in the last 24 hours/
+            )
+        ).not.toBeNull();
+        // And no axis at all: a flat row of zeros is what this replaced, and
+        // it is indistinguishable from the failed-read case one branch over.
+        expect(
+            screen.queryByRole("group", { name: /Output tokens and merged/ })
+        ).toBeNull();
+    });
+
     it("draws a keyboard-reachable target for every hour in the window", async () => {
         await mountWith(goldenPayload());
         const hours = screen

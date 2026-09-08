@@ -200,14 +200,25 @@ describe("verdict band — the action button is offered only where the engine sa
                 remedyAction: null,
             })
         );
-        expect(screen.queryByRole("button", { name: /driver/i })).toBeNull();
+        // NOT "no button whose name matches /driver/" — that passes against an
+        // implementation that renders a button with an EMPTY label, which is
+        // exactly the shape `ActionButton`'s own header records. The band
+        // offers NO action at all; the only control left is the remedy's copy
+        // affordance, and this remedy has one backticked literal.
+        expect(
+            screen
+                .queryAllByRole("button")
+                .map((b) => b.getAttribute("aria-label"))
+        ).toEqual(["Copy ready-for-agent"]);
     });
 
     it("renders NO action button when remedyAction is ABSENT — a fixture predating #2636, and `undefined` must not accidentally match a lookup key", () => {
         const v = verdict({ state: "IDLE", remedy: "r" });
         delete (v as Partial<LoopVerdict>).remedyAction;
         renderBand(v);
-        expect(screen.queryByRole("button", { name: /driver/i })).toBeNull();
+        // Same shape as the case above: no button, not "no button that happens
+        // to be named after a driver".
+        expect(screen.queryAllByRole("button")).toEqual([]);
     });
 
     it("renders no action button for an UNRECOGNISED remedyAction — unknown must never render as an offered action", () => {
