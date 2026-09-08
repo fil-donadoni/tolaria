@@ -140,9 +140,27 @@ export default function LimitedReviewSeat({
                 data-slot="review-seat-detail"
             >
                 {deck ? (
-                    <>
+                    /* The pair, side by side from `md` up and stacked below —
+                       the deckbuilder's own shape (`deck-zones-surface.tsx`:
+                       `flex-col` … `md:flex-row`), at the same breakpoint, with
+                       the Maindeck taking the 2/3 share the Limited builder's
+                       `splitDefault` uses. NOT that surface itself: its portrait
+                       regime turns `display: contents` and hands its two zones
+                       to a host pane strip as full-page snap panes, which a
+                       `<details>` section is not, and its split divider, zoom
+                       sliders and Peek Panel all belong to a workbench. What
+                       phone-portrait DOES keep is the arrangement inside each
+                       block — `DeckZoneSurface` draws its Columns as horizontal
+                       rows there on its own (`useViewportMode`), unchanged.
+                       `min-w-0` on both halves is what lets each block's own
+                       card strip scroll instead of forcing the row wider than
+                       the disclosure. */
+                    <div
+                        className="flex min-w-0 flex-col gap-3 md:flex-row"
+                        data-slot="review-deck-pair"
+                    >
                         <div
-                            className="rounded-sm border border-border-subtle/30"
+                            className="min-w-0 rounded-sm border border-border-subtle/30 md:flex-[2]"
                             data-slot="review-maindeck"
                         >
                             <DeckZoneSurface
@@ -166,7 +184,7 @@ export default function LimitedReviewSeat({
                             />
                         </div>
                         <div
-                            className="rounded-sm border border-border-subtle/30"
+                            className="min-w-0 rounded-sm border border-border-subtle/30 md:flex-[1]"
                             data-slot="review-sideboard"
                         >
                             <DeckZoneSurface
@@ -186,7 +204,7 @@ export default function LimitedReviewSeat({
                                 emptyMessage="No sideboard cards."
                             />
                         </div>
-                    </>
+                    </div>
                 ) : (
                     <div>
                         <h4 className="text-xs font-semibold tracking-wide uppercase text-text-muted">
