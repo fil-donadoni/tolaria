@@ -40,7 +40,11 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { activateAbilityOnState, autoTapForManaAbilityCost } from "../../game";
+import {
+    activateAbilityOnState,
+    autoTapForManaAbilityCost,
+    tryAutoCommitPendingActivation,
+} from "../../game";
 import { enumerateMoves, planManaPayment } from "../moves";
 import { substitutionsForBreadth } from "../manaColors";
 import { makeInstance, makeState } from "../../cards/__tests__/setup";
@@ -251,6 +255,28 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
             getPlayer(state, "p1").battlefield.find((c) => c.id === "forest-1")
                 ?.isTapped
         ).toBe(false);
+    });
+
+    it("commits a PARKED activation once the off-colour mana arrives", () => {
+        // The deferred-payment flow, which the inline commit above never
+        // reaches: announce with an empty pool, park, tap, commit. This is the
+        // path `tryAutoCommitPendingActivation` owns, and the one whose source
+        // lookup had to be hoisted above its own coverage check
+        // (`findPendingActivationSource`) for the scope to be visible there.
+        const { state, creature } = board();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: creature.id,
+            abilityId: "red-gain",
+        });
+        expect(state.pendingActivation?.manaCost).toEqual({ R: 1 });
+
+        getPlayer(state, "p1").manaPool = { G: 1 };
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(getPlayer(state, "p1").manaPool.G ?? 0).toBe(0);
     });
 
     it("does NOT make the same {R} ability of a NONCREATURE payable with {G}", () => {
