@@ -37,6 +37,26 @@
  * `someCard.activatedAbilities` off the module export was asserting against
  * the hand-written shape while claiming to test the compiled one.
  *
+ * ── Gap 1 disposition (issue #3060) ─────────────────────────────────────────
+ *
+ * `preloadDefinitions` above writes the ONE registry Map `getDefinition` reads
+ * — but `convex/cards/catalogue.ts` has two OTHER readers that don't:
+ * `getCardByName`/`tryGetCardByName` resolve a module-load `nameRegistry`
+ * `preloadDefinitions` never touches, and `getAllCards()` memoizes its
+ * expanded array on first call, which this file's own freeze loop (above)
+ * makes BEFORE the swap block runs. A per-card test reaching its subject
+ * through either would exercise the hand-written card while this harness
+ * called it green — dormant only because no test did.
+ *
+ * Closed, not merely dormant, since issue #3048 (`scripts/__tests__/card-test-
+ * seam-boundary.test.ts`): every per-card test is now required to resolve its
+ * subject through `getDefinition(id)` and is structurally forbidden from
+ * resolving it through `getCardByName`/`tryGetCardByName` or an
+ * `getAll*Cards().find(...)` pick — the exact two swap-blind readers above.
+ * That guard runs over the same population `findTestFile`
+ * (`scripts/oracle-behavioural.ts`) draws candidates from, so a test that
+ * could exploit this gap fails ITS OWN gate before it ever reaches this one.
+ *
  * ── Fail loud, never vacuous ───────────────────────────────────────────────
  *
  * The failure mode this module is written against is a run that proves nothing

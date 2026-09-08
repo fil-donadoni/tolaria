@@ -13,7 +13,7 @@
 // would not cover the failure shapes that are hard to provoke on demand.
 
 import { describe, expect, it } from "vitest";
-import { classifyRun } from "../oracle-behavioural";
+import { classifyRun, ownsADescribeBlock } from "../oracle-behavioural";
 
 /** Exit 0, the filter matched only skipped tests. */
 const NO_MATCH_LOG = `
@@ -87,5 +87,46 @@ describe("classifyRun — a run that measured nothing is never a card verdict", 
         // `spawnSync` reports `status: null` when the child died to a signal.
         // Nothing ran, so nothing was proved.
         expect(classifyRun(null, "").kind).toBe("harness-error");
+    });
+});
+
+describe("ownsADescribeBlock — a mention is not a test (issue #3060 gap 2)", () => {
+    it("finds a card's own top-level describe block", () => {
+        const source = `describe("Royal Assassin ({T}: destroy target tapped creature)", () => {\n  it("destroys", () => {});\n});\n`;
+        expect(ownsADescribeBlock(source, "Royal Assassin")).toBe(true);
+    });
+
+    it("does not count a bare mention in a code comment", () => {
+        // The Crosis's Catacombs shape: the name appears only in prose, in a
+        // file that is actually about a DIFFERENT card.
+        const source = `// Crosis's Catacombs taps for {U}/{B}/{R} but has no basic land type.\ndescribe("Some Other Card (unrelated)", () => {\n  it("works", () => {});\n});\n`;
+        expect(ownsADescribeBlock(source, "Crosis's Catacombs")).toBe(false);
+    });
+
+    it("does not count a SIBLING's describe title that merely contains the name", () => {
+        // The concrete false-green shape gap 2 names: a card with zero tests
+        // of its own, and a neighbour whose title happens to contain its
+        // name as a substring. The old `includes(card.name)` check treated
+        // this file as the card's own; `-t <name>` would then have selected
+        // the sibling's tests and reported them as this card's evidence.
+        const source = `describe("Phyrexian Reaper / Phyrexian Slayer (shared test)", () => {\n  it("both share a rule", () => {});\n});\n`;
+        expect(ownsADescribeBlock(source, "Phyrexian Slayer")).toBe(false);
+        // The sibling that DOES own the block still passes.
+        expect(ownsADescribeBlock(source, "Phyrexian Reaper")).toBe(true);
+    });
+
+    it("accepts a card with SEVERAL of its own blocks (one per clause)", () => {
+        const source =
+            `describe("Necromancy — CR 601.3 cast-timing permission", () => {});\n` +
+            `describe("Necromancy — CR 303.4 self-transform, reanimation and attachment", () => {});\n`;
+        expect(ownsADescribeBlock(source, "Necromancy")).toBe(true);
+    });
+
+    it("does not let a name-prefixed OTHER card's block count", () => {
+        // "Royal Assassin" must not match a describe for a fictional "Royal
+        // Assassin's Dagger" — the boundary is the space right after the
+        // exact name, not a bare substring.
+        const source = `describe("Royal Assassin's Dagger (unrelated card)", () => {});\n`;
+        expect(ownsADescribeBlock(source, "Royal Assassin")).toBe(false);
     });
 });

@@ -140,6 +140,22 @@ function carriesClosure(definition: CardDefinition): boolean {
  * short name like "Castle" substring-matches unrelated prose, and running the
  * wrong file would report a green that never executed the card's assertions —
  * a vacuous pass, on the strength of which a working closure gets deleted.
+ *
+ * Requires the card to OWN at least one top-level `describe` block — its
+ * title starting with the card's exact name — rather than merely appearing
+ * SOMEWHERE in the file (issue #3060 gap 2). The old `includes(card.name)`
+ * check was satisfied by a code comment (Crosis's Catacombs, mentioned only
+ * in a sibling's comment) or another card's own describe title containing
+ * this name as a substring (a shared "Card A / Card B" block) — in both
+ * shapes `-t <name>` in `runSwapped` below is a bare substring match over the
+ * SIBLING's test titles too, so a card with ZERO tests of its own could have
+ * `-t` select and run someone else's, reporting that green as this card's
+ * behavioural evidence. Requiring ownership rules that out structurally: a
+ * card that never opens its own block gets `no-test`, exactly as if the file
+ * did not mention it at all — which is also the outcome the RUNTIME `-t`
+ * no-match already produced for the pure-comment shape (see
+ * `classifyRun`'s `no-match`), so this check only closes the shape where a
+ * substring match would otherwise have found a LIVE sibling title.
  */
 function findTestFile(card: CardDefinition): string | undefined {
     const module = moduleDefining(card.id);
@@ -150,10 +166,32 @@ function findTestFile(card: CardDefinition): string | undefined {
         `${basename(module, ".ts")}.test.ts`
     );
     if (!existsSync(testFile)) return undefined;
-    // Present but silent about this card: the file covers its siblings, and
-    // running it would prove nothing about this one.
-    if (!readFileSync(testFile, "utf8").includes(card.name)) return undefined;
+    if (!ownsADescribeBlock(readFileSync(testFile, "utf8"), card.name))
+        return undefined;
     return testFile.slice(ROOT.length + 1);
+}
+
+/** Top-level `describe(...)` titles in a test file's source, single- or
+ *  double-quoted (a handful of files use single quotes when the title itself
+ *  contains a `"`). */
+function topLevelDescribeTitles(source: string): string[] {
+    const titles: string[] = [];
+    const re = /^describe\(\s*(["'])((?:(?!\1)[^\\]|\\.)*)\1/gm;
+    for (const m of source.matchAll(re)) titles.push(m[2]);
+    return titles;
+}
+
+/** Does this file open at least one top-level `describe` block that is THIS
+ *  card's own — title equal to its name, or starting with `"<name> "`? Per
+ *  ADR 0043, a card's per-card block(s) always open this way; a card can
+ *  legitimately have SEVERAL (one per Oracle clause or ability), so this asks
+ *  for ownership, not uniqueness. Exported for
+ *  `scripts/__tests__/oracle-behavioural.test.ts` — see `findTestFile`'s
+ *  header (issue #3060 gap 2). */
+export function ownsADescribeBlock(source: string, name: string): boolean {
+    return topLevelDescribeTitles(source).some(
+        (t) => t === name || t.startsWith(`${name} `)
+    );
 }
 
 /** Absolute path of the set module whose source contains `id:` for this card. */
