@@ -565,6 +565,16 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
             source,
             sourceStaticEffects(source).filter(functionsInAllZones)
         );
+        // CR 613.7a — a stack object carries no `staticSeq` (nothing mints one
+        // at cast commit; `beginApplyingStaticEffects` mints on BATTLEFIELD
+        // entry), so its entries derive at timestamp 0, "earliest in the
+        // layer". Deliberately left as the fallback rather than minted here:
+        // the stamp a permanent receives on entry is its ENTRY timestamp, and
+        // minting a second one at cast would have to be reconciled with it.
+        // Unobservable while bestow is the only all-zone declarer — its effect
+        // applies to ITSELF and to nothing else, so no second layer-4 entry can
+        // reach the same stack object to be ordered against. A second all-zone
+        // declarer makes this real and must mint properly.
     }
     // CR 114 — command-zone emblems generate continuous effects like any other
     // object (issue #1221).

@@ -66,12 +66,36 @@ the existing layer-4 vocabulary rather than becoming a bestow-specific hook, so
 "loses all creature types", "is no longer a creature" and the rest arrive with
 it.
 
-**2. The layer pipeline applies to objects on the stack.** CR 613.1 governs
+**2. The layer pipeline applies to objects on the stack, behind an explicit
+zone opt-in.** CR 613.1 governs
 _objects_, not just permanents; a bestow spell is an Aura spell **while on the
 stack**, which is what makes it counterable as an Aura spell, illegal to target
 with "target creature spell" effects, and invisible to "whenever you cast a
 creature spell". `PermanentView` generalises to an object view so the same
 layer evaluation answers for a stack item.
+
+The opt-in is the part a future card author has to know about, and it is
+**fail-closed in both directions**. A layer-2-to-5 static effect is confined to
+the battlefield unless it declares `functionsInAllZones`
+(`ZoneScopedStaticEffect`, `cards/types.ts`), because two different rules say
+so and the derivation would otherwise break both:
+
+- **the source** — CR 604.3: a static ability functions only while its source is
+  a permanent on the battlefield unless the ability says otherwise. Ungated,
+  Conversion's "All Mountains are Plains" fires while the spell is still on the
+  stack.
+- **the target** — CR 109.2: a description including a card type, with no zone
+  and without the word "spell", means a permanent on the battlefield. Ungated,
+  Opalescence's "each other non-Aura enchantment is a creature" turns an
+  enchantment SPELL into a creature spell, and `gre/targetFilters.ts` then lets
+  "counter target creature spell" have it.
+
+Both directions are one board-wide entry list against which every object is
+derived, and a `StaticEffect`'s `applies` predicate reads only the target's
+characteristics — it cannot know what zone anything is in. Bestow is the sole
+declarer, on CR 702.103a's "a static ability that functions in any zone from
+which you could play the card it's on"; every card that does not mention the
+flag behaves exactly as it did before the stack walk existed.
 
 The bestow effect itself is declared, not hardcoded: the `getDefinition` seam
 expands the `bestow` keyword (the `expandHideaway`/`expandFadingVanishing`
