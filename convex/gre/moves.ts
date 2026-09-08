@@ -36,7 +36,7 @@ import {
     applyCostModifiers,
     getCastManaSubstitutions,
     getCostModifiers,
-    getManaSubstitutions,
+    getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
@@ -746,7 +746,16 @@ export function planManaPayment(
         cardInstanceId: string;
         cardDef: CardDefinition | null | undefined;
         chosenX?: number;
-    }
+    },
+    /** CR 602.1 / 609.4b (issue #2944) — the permanent whose ACTIVATED ability
+     *  this plan pays for, when there is one. Mutually exclusive with `cast` by
+     *  construction: a cost is either a spell's or an ability's. Routed through
+     *  the shared `getAbilityManaSubstitutions` so an activation-scoped
+     *  substitution static (Agatha's Soul Cauldron) widens what each source can
+     *  pay here under EXACTLY the scoping `activateAbilityOnState` applies at
+     *  commit. Omitting it is the morph / special-action case and yields the
+     *  unscoped set, as before. */
+    abilitySource?: CardInstanceState
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -992,7 +1001,7 @@ export function planManaPayment(
               cost,
               cast.chosenX
           )
-        : getManaSubstitutions(state, player.id);
+        : getAbilityManaSubstitutions(state, player.id, abilitySource);
     const remaining = sources.map((s) => {
         const options = new Map(s.options);
         for (const sub of substitutions) {
@@ -2834,7 +2843,13 @@ function enumerateAbilityMoves(
             manaCost,
             getCostModifiers(state, perm, "ability", ability, player.id)
         );
-        const tapPlan = planManaPayment(state, player, manaCost);
+        const tapPlan = planManaPayment(
+            state,
+            player,
+            manaCost,
+            undefined,
+            perm
+        );
         if (tapPlan === null) continue;
 
         // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one

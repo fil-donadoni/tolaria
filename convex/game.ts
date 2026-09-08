@@ -55,6 +55,7 @@ import {
     isManaCostCovered,
     getCastManaSubstitutions,
     getManaSubstitutions,
+    getAbilityManaSubstitutions,
     settleSpellManaSubstitutionGrant,
     getCostModifiers,
     applyCostModifiers,
@@ -1162,8 +1163,17 @@ export function applyManaAbilityDiscardCost(
  *  cost-side sibling of `lifePaidThisTap`) so an untap-toggle that reverses the
  *  whole activation before the produced mana is spent refunds exactly what was
  *  taken — a generic {1} can be paid with any colour, so the snapshot, not a
- *  re-derivation from the cost, is what makes the refund exact. */
+ *  re-derivation from the cost, is what makes the refund exact.
+ *
+ *  CR 602.1 / 609.4b (issue #2944) — a mana ability's own cost is an ACTIVATION
+ *  cost like any other, so it reads the ability seam. This is the payment
+ *  `autoTapForManaAbilityCost` plans for, and the two MUST see the same set:
+ *  otherwise the auto-tap reserves a source under a permission this throw then
+ *  refuses ("Not enough mana to activate this ability"). Fire Sprites ("{G},
+ *  {T}: Add {R}" — a CREATURE with a coloured mana-ability cost, `leg/green.ts`)
+ *  is a shipped card the disagreement is reachable on. */
 export function applyManaAbilityManaCost(
+    state: GameState,
     player: PlayerState,
     ability: ActivatedAbility | undefined | null,
     card?: CardInstanceState
@@ -1171,11 +1181,12 @@ export function applyManaAbilityManaCost(
     if (!ability?.cost.mana) return;
     const cost = normalizeManaCost(ability.cost.mana);
     if (Object.keys(cost).length === 0) return;
-    if (!isManaCostCovered(player.manaPool, cost)) {
+    const substitutions = getAbilityManaSubstitutions(state, player.id, card);
+    if (!isManaCostCovered(player.manaPool, cost, substitutions)) {
         throw new Error("Not enough mana to activate this ability");
     }
     const before = { ...player.manaPool };
-    payManaCost(player.manaPool, cost);
+    payManaCost(player.manaPool, cost, substitutions);
     if (!card) return;
     const paid: Record<string, number> = {};
     for (const color of Object.keys(before) as (keyof typeof before)[]) {
@@ -1228,7 +1239,10 @@ export function autoTapForManaAbilityCost(
     if (!ability?.cost.mana) return;
     const cost = normalizeManaCost(ability.cost.mana);
     if (Object.keys(cost).length === 0) return;
-    const substitutions = getManaSubstitutions(state, player.id);
+    // CR 602.1 / 609.4b (issue #2944) — the ability seam: `card` unlocks an
+    // activation-scoped substitution static (Agatha's Soul Cauldron) for the
+    // auto-tap plan, so this plan and the payment that follows see one set.
+    const substitutions = getAbilityManaSubstitutions(state, player.id, card);
     if (isManaCostCovered(player.manaPool, cost, substitutions)) return;
     // The activating permanent can't fund its own activation cost.
     const sources = buildAutoTapSources(
@@ -1747,7 +1761,7 @@ function activateFixedSacrificeManaAbility(
     // CR 605.1a / 601.2f — pay the MANA portion of the cost (the Attendants'
     // {1}, Coal Golem's {3}) FIRST, before any source mutation, so an
     // unaffordable activation throws with nothing changed.
-    applyManaAbilityManaCost(player, ability, card);
+    applyManaAbilityManaCost(state, player, ability, card);
     const produced = ability.manaProduced ?? {};
     // CR 106.6 — a restricted output floats in the parallel `restrictedMana`
     // pool, exactly as the tap branches deposit it.
@@ -1887,7 +1901,7 @@ export function tapSourceIntoPayment(
         // CR 605.1a / 601.2f — pay the mana portion of the activation cost
         // (Chromatic Star's {1}) FIRST, before any source mutation, so an
         // unaffordable activation throws with nothing changed.
-        applyManaAbilityManaCost(player, effAbility, card);
+        applyManaAbilityManaCost(state, player, effAbility, card);
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
         // the card off the battlefield, so the event carries the permanent's
         // pre-sacrifice types/subtypes for trigger predicates.
@@ -1981,7 +1995,7 @@ export function tapSourceIntoPayment(
     // CR 605.1a / 601.2f — pay the mana portion of the activation cost FIRST,
     // before any source mutation, so an unaffordable activation throws with
     // nothing changed.
-    applyManaAbilityManaCost(player, ability, card);
+    applyManaAbilityManaCost(state, player, ability, card);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
@@ -2852,6 +2866,52 @@ function activationSourceTypes(
     return [];
 }
 
+/** The permanent (or graveyard / hand card) a parked `pendingActivation` names
+ *  as its ability's SOURCE, or `undefined` when it has since left that zone.
+ *
+ *  Zone search order, unchanged from where this used to be inlined in
+ *  {@link tryAutoCommitPendingActivation}:
+ *   - CR 113.3c — every player's battlefield, not just the activator's: an
+ *     "any player may activate" ability's source sits on someone else's board
+ *     while the activator pays from their own pool;
+ *   - CR 113.6 — graveyards, but ONLY when the payment was flagged
+ *     `fromGraveyard` (Ashen Ghoul), so a battlefield source that died
+ *     mid-payment still reads as gone instead of resurrecting from its
+ *     graveyard;
+ *   - CR 113.6 / 702.29a — the activator's hand, only under `fromHand`
+ *     (Cycling), for the same reason.
+ *
+ *  Extracted (issue #2944) because two callers now need it BEFORE they spend
+ *  anything: the commit path's mana-coverage check and `autoTapForPayment`'s
+ *  tap plan both read the activation-scoped substitutions off this source
+ *  (CR 602.1 / 609.4b), and a probe that disagreed with the payment would be a
+ *  bot freeze. Pure — it resolves a reference and drops nothing. */
+export function findPendingActivationSource(
+    state: GameState,
+    player: PlayerState,
+    pa: {
+        cardInstanceId: string;
+        fromGraveyard?: boolean;
+        fromHand?: boolean;
+    }
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
+        if (found) return found;
+    }
+    if (pa.fromGraveyard) {
+        for (const p of state.players) {
+            const found = p.graveyard.find((c) => c.id === pa.cardInstanceId);
+            if (found) return found;
+        }
+    }
+    if (pa.fromHand) {
+        const found = player.hand.find((c) => c.id === pa.cardInstanceId);
+        if (found) return found;
+    }
+    return undefined;
+}
+
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
  *  deferred tap/sacrifice costs on the source, push the ability on the stack,
  *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
@@ -2871,6 +2931,13 @@ export function tryAutoCommitPendingActivation(
     if (state.priorityPlayerId !== playerId) return null;
 
     const player = getPlayer(state, playerId);
+    // CR 602.1 / 609.4b (issue #2944) — the ability seam needs the source
+    // permanent, so the lookup that used to sit below the coverage check is
+    // hoisted here. It is a pure read: the "source vanished => drop the
+    // payment" branch stays exactly where it was, BELOW the coverage and
+    // owed-payment gates, so a partially-paid activation whose source is gone
+    // is still dropped in the same order it always was.
+    const card = findPendingActivationSource(state, player, pa);
     // CR 106.6 (issue #728) — restricted mana eligible for THIS ability's
     // source (Soldevi Machinist's artifact-ability mana) counts toward
     // coverage, exactly as `spendablePoolForSpell` does at the cast path.
@@ -2879,7 +2946,7 @@ export function tryAutoCommitPendingActivation(
         !isManaCostCovered(
             spendablePoolForAbility(player, paSourceTypes),
             pa.manaCost,
-            getManaSubstitutions(state, player.id)
+            getAbilityManaSubstitutions(state, player.id, card)
         )
     )
         return null;
@@ -2897,41 +2964,6 @@ export function tryAutoCommitPendingActivation(
         return null;
     }
 
-    // CR 113.3c — the source may live on another player's battlefield for an
-    // "any player may activate" ability, so search every battlefield rather
-    // than just the activator's. Mana is still paid from the activator's pool
-    // above; only the source-permanent lookup is global.
-    let card = player.battlefield.find((c) => c.id === pa.cardInstanceId);
-    if (!card) {
-        for (const p of state.players) {
-            const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
-            if (found) {
-                card = found;
-                break;
-            }
-        }
-    }
-    // CR 113.6 — a graveyard-source activation (Ashen Ghoul): the source is not
-    // on any battlefield. Search graveyards only when the payment was flagged
-    // `fromGraveyard`, so a battlefield source that died mid-payment still
-    // drops silently (below) rather than resurrecting from its graveyard.
-    if (!card && pa.fromGraveyard) {
-        for (const p of state.players) {
-            const found = p.graveyard.find((c) => c.id === pa.cardInstanceId);
-            if (found) {
-                card = found;
-                break;
-            }
-        }
-    }
-    // CR 113.6 / 702.29a — a hand-source activation (Cycling): the source is
-    // not on any battlefield. Search the activator's hand only when the payment
-    // was flagged `fromHand`, so a battlefield source that left mid-payment
-    // still drops silently (below) rather than resurrecting from a hand.
-    if (!card && pa.fromHand) {
-        const found = player.hand.find((c) => c.id === pa.cardInstanceId);
-        if (found) card = found;
-    }
     if (!card) {
         // Source vanished (e.g. removed by an opposing effect). Drop the
         // payment silently — lands stay tapped (same policy as cancelCast for
@@ -2951,7 +2983,7 @@ export function tryAutoCommitPendingActivation(
         const ambiguity = genericSpendAmbiguityForPayment(
             player.manaPool,
             pa.manaCost,
-            getManaSubstitutions(state, player.id)
+            getAbilityManaSubstitutions(state, player.id, card)
         );
         if (ambiguity) {
             pa.manaSpendChoice = ambiguity;
@@ -2973,7 +3005,7 @@ export function tryAutoCommitPendingActivation(
         player,
         pa.manaCost,
         paSourceTypes,
-        getManaSubstitutions(state, player.id),
+        getAbilityManaSubstitutions(state, player.id, card),
         genericSpendOrder
     );
     const notedManaSpent = poolBeforePayment
@@ -6655,7 +6687,7 @@ export function finalizeTargetSelection(
             !isManaCostCovered(
                 spendablePoolForAbility(player, abilitySourceTypes),
                 manaCost,
-                getManaSubstitutions(state, player.id)
+                getAbilityManaSubstitutions(state, player.id, card)
             );
         // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
         // Drought). A non-fungible board defers so the player chooses.
@@ -6729,7 +6761,7 @@ export function finalizeTargetSelection(
                 player,
                 manaCost,
                 abilitySourceTypes,
-                getManaSubstitutions(state, player.id)
+                getAbilityManaSubstitutions(state, player.id, card)
             );
             commitLandsForCost(player, manaCost);
         }
@@ -10002,7 +10034,23 @@ export const autoTapForPayment = mutation({
                       state.pendingCast.manaCost,
                       state.pendingCast.chosenX
                   )
-                : getManaSubstitutions(state, player.id);
+                : // CR 602.1 / 609.4b (issue #2944) — a parked ACTIVATION reads
+                  // the ability seam, naming the source whose ability is being
+                  // paid for, so this tap plan sees the same activation-scoped
+                  // statics `tryAutoCommitPendingActivation` will pay with. A
+                  // bare auto-tap at priority (no pending anything) names no
+                  // source and gets the unscoped set, as before.
+                  getAbilityManaSubstitutions(
+                      state,
+                      player.id,
+                      state.pendingActivation?.playerId === args.playerId
+                          ? findPendingActivationSource(
+                                state,
+                                player,
+                                state.pendingActivation
+                            )
+                          : undefined
+                  );
         const sources = buildAutoTapSources(
             player.battlefield,
             manaGateBattlefields(state)
@@ -14479,7 +14527,7 @@ export function activateAbilityOnState(
         !isManaCostCovered(
             spendablePoolForAbility(player, abilitySourceTypes),
             manaCost,
-            getManaSubstitutions(state, player.id)
+            getAbilityManaSubstitutions(state, player.id, card)
         );
     // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
     // Drought). A non-fungible board defers so the player chooses; a
@@ -14546,7 +14594,7 @@ export function activateAbilityOnState(
             player,
             manaCost,
             abilitySourceTypes,
-            getManaSubstitutions(state, player.id)
+            getAbilityManaSubstitutions(state, player.id, card)
         );
         commitLandsForCost(player, manaCost);
     }
@@ -14961,7 +15009,7 @@ export const tapUntap = mutation({
                 // changed. The payment tap (`tapSourceIntoPayment`) has always
                 // done this; the PRIORITY tap did not, which made every one of
                 // these filters a free ramp source.
-                applyManaAbilityManaCost(player, effAbility, card);
+                applyManaAbilityManaCost(state, player, effAbility, card);
                 // CR 605.2 — emit before any sacrifice path moves the card off
                 // the battlefield, so the event still carries the source's
                 // pre-sacrifice types/subtypes.
@@ -15087,7 +15135,8 @@ export const tapUntap = mutation({
             // (Fire Sprites "{G}, {T}: Add {R}") FIRST, before any source
             // mutation, so an unaffordable activation throws with nothing
             // changed. Tap only — an untap toggle reverses the cost below.
-            if (!wasTapped) applyManaAbilityManaCost(player, ability, card);
+            if (!wasTapped)
+                applyManaAbilityManaCost(state, player, ability, card);
             if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
@@ -15529,20 +15578,17 @@ export const activateManaAbility = mutation({
         }
 
         const manaCost = normalizeManaCost(ability.cost.mana ?? {});
-        if (
-            !isManaCostCovered(
-                player.manaPool,
-                manaCost,
-                getManaSubstitutions(state, player.id)
-            )
-        ) {
+        // CR 602.1 / 605.1a / 609.4b (issue #2944) — a mana ability's own cost
+        // is an ACTIVATION cost like any other, so it reads the ability seam.
+        const manaAbilitySubs = getAbilityManaSubstitutions(
+            state,
+            player.id,
+            card
+        );
+        if (!isManaCostCovered(player.manaPool, manaCost, manaAbilitySubs)) {
             throw new Error("Not enough mana");
         }
-        payManaCost(
-            player.manaPool,
-            manaCost,
-            getManaSubstitutions(state, player.id)
-        );
+        payManaCost(player.manaPool, manaCost, manaAbilitySubs);
         commitLandsForCost(player, manaCost);
 
         // CR 605.1a / 613.4 (issue #1179) — a non-tap mana ability that
@@ -15754,6 +15800,13 @@ export const activatePlayerAbility = mutation({
 
         if (ability.cost.mana) {
             const manaCost = normalizeManaCost(ability.cost.mana);
+            // CR 602.1 / 609.4b (issue #2944) — deliberately the UNSCOPED set,
+            // not the ability seam: a PLAYER-source ability (an emblem's, a
+            // granted one) has no source permanent, so no `activated-ability`
+            // scope predicate could be evaluated against anything. Naming the
+            // seam here with an `undefined` source would read as threaded and
+            // return the same set; leaving it plain says the omission is the
+            // answer.
             if (
                 !isManaCostCovered(
                     player.manaPool,
