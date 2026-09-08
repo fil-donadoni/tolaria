@@ -3171,7 +3171,20 @@ function isSelfHarmRemovalCast(
 ): boolean {
     if (
         !targetsOnlyOwnPermanents(state, move, botId) &&
-        !reachesOnlyOwnSideThroughChoice(state, move, botId)
+        // CAST-only, exactly as the tie-break comment below says this hold is
+        // by construction — `targetsOnlyOwnPermanents` rejects every other move
+        // kind, and the resolution-time widening (issue #3194) must not quietly
+        // undo that. It measured: Mother of Runes' "{T}: target creature you
+        // control gains protection from the colour of your choice" is the same
+        // SHAPE as the mode this widening was written for — self-confined
+        // reach, a mover-owned resolution choice, and a payoff the material
+        // margin cannot see — and holding it is wrong. "Hold it for later" is a
+        // spell-in-hand affordance; an on-board ability that only hurts the bot
+        // loses on reward, not by being held.
+        !(
+            move.kind === "cast-spell" &&
+            reachesOnlyOwnSideThroughChoice(state, move, botId)
+        )
     ) {
         return false;
     }
