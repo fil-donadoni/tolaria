@@ -221,6 +221,15 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
         const { state, creature } = board({ G: 1 });
         const cost = normalizeManaCost({ R: 1 } as ManaCost);
         const subs = getAbilityManaSubstitutions(state, "p1", creature);
+        // A spare Forest, untouched by a correct run: the floating {G} already
+        // covers the {R} through the permission. It is what makes the
+        // affordability PROBE observable — a probe that reads the unscoped set
+        // declares the cost uncovered, parks a payment phase and auto-taps this
+        // land before the (correctly scoped) commit settles anyway. Same end
+        // state on the stack, one land burned for nothing.
+        getPlayer(state, "p1").battlefield.push(
+            makeInstance(forest.id, { id: "forest-1" })
+        );
 
         // The affordability probe agrees ...
         expect(
@@ -238,6 +247,10 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
         expect(state.stack).toHaveLength(1);
         expect(getPlayer(state, "p1").manaPool.G ?? 0).toBe(0);
         expect(getPlayer(state, "p1").life).toBe(lifeBefore);
+        expect(
+            getPlayer(state, "p1").battlefield.find((c) => c.id === "forest-1")
+                ?.isTapped
+        ).toBe(false);
     });
 
     it("does NOT make the same {R} ability of a NONCREATURE payable with {G}", () => {
