@@ -6,17 +6,24 @@
 // than the maintainer.
 
 import { describe, it, expect } from "vitest";
+import { dirname, join } from "node:path";
 import { buildPresetPayload, deckColors } from "../lib/preset-deck-seed";
 import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
-import { primaryCheckout } from "../lib/primary-checkout";
 
 const resolve = (name: string) => tryGetCardByName(name);
 const SUPPLIED = "2026-08-23";
 
+// The canonical list is a git-tracked file, so it belongs to THIS checkout —
+// resolved from the test's own location, exactly as `tier1-decks.test.ts`
+// does. Reading it from the primary checkout (issue #3187) sent the health
+// gate, which runs in a detached worktree at the base tip, to the primary's
+// working tree instead — a different branch, without the file.
+const ROOT = join(dirname(new URL(import.meta.url).pathname), "..", "..");
+
 function oathPonza(): Tier1Deck {
-    const file = readTier1Decks(primaryCheckout());
+    const file = readTier1Decks(ROOT);
     const deck = file.decks.find((d) => d.slug === "oath-ponza");
     if (!deck) throw new Error("oath-ponza missing from the canonical lists");
     return deck;

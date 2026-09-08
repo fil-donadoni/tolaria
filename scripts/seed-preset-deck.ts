@@ -37,11 +37,17 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import { tryGetCardByName } from "../convex/cards/index";
 import { convexRunErrorMessage } from "./lib/convex-run-error";
 import { buildPresetPayload } from "./lib/preset-deck-seed";
 import { readTier1Decks } from "./lib/tier1-decks";
 import { primaryCheckout } from "./lib/primary-checkout";
+
+// This checkout's root. The canonical list and the card registry are
+// git-tracked, so they are read from HERE — from a worktree, the primary's
+// copy is a different branch's (issue #3187).
+const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
@@ -72,10 +78,9 @@ function main(): void {
     }
 
     // The canonical file and the registry both live in the repo, so they are
-    // read from wherever this runs; only the DEPLOYMENT write needs the
-    // primary checkout.
-    const root = primaryCheckout();
-    const file = readTier1Decks(root);
+    // read from wherever this runs; only the DEPLOYMENT write below needs the
+    // primary checkout, whose `.env.local` names the deployment.
+    const file = readTier1Decks(ROOT);
     const deck = file.decks.find((d) => d.slug === slug);
     if (!deck) {
         const known = file.decks.map((d) => d.slug).join(", ");
@@ -118,7 +123,7 @@ function main(): void {
             "decks:seedPresetDirect",
             JSON.stringify({ expectedSlug: slug, input: payload }),
         ],
-        { cwd: root, encoding: "utf8", timeout: 120_000 }
+        { cwd: primaryCheckout(), encoding: "utf8", timeout: 120_000 }
     );
     if (res.error || res.status !== 0) {
         const out = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim();
