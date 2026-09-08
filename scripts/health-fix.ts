@@ -10,12 +10,19 @@
 // session on the `/health-fix` skill, and reads back the verdict that
 // session was required to leave behind.
 //
-// Three refusals, each with its own one-line reason:
+// Five refusals, each with its own one-line reason:
 //
-//   - no `RED` marker            — nothing to fix; this is the common case
-//                                  and it costs nothing
+//   - no `RED` marker            — nothing to fix; this is the common case,
+//                                  and it costs nothing: the marker is a
+//                                  local file and no fetch is paid for a
+//                                  tree with nothing wrong with it
+//   - no health record at all    — a marker with no `last.json` behind it
+//                                  says nothing about WHAT is red
 //   - the health record is not   — the marker is about another tree state;
 //     about the base tip           fixing this tip is not what it asked for
+//   - the record about the tip   — a RUNNING record means another gate has
+//     is not RED                   the sha and must not be raced; a GREEN
+//                                  one means the marker is stale
 //   - stdin is not a TTY         — no human to grill, so a spawned session
 //                                  would block on its first question. This
 //                                  closes an OBSERVED hole: the session that
@@ -233,11 +240,15 @@ function main(): void {
         process.exit(2);
     }
 
-    git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
+    // The marker is a local file, so the common case — nothing red — is
+    // decided without a network round-trip. A green tree must not pay for
+    // machinery it does not need.
+    const redMarker = existsSync(join(cwd, HEALTH_DIR, "RED"));
+    if (redMarker) git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
     const tip = git(["rev-parse", ORIGIN_BASE], cwd);
 
     const decision = spawnDecision({
-        redMarker: existsSync(join(cwd, HEALTH_DIR, "RED")),
+        redMarker,
         last: readHealthRecord(cwd),
         tip,
         interactive: process.stdin.isTTY === true,
