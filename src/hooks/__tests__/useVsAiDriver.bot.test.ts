@@ -491,7 +491,7 @@ describe("useVsAiDriver (issue #110)", () => {
         ]);
     });
 
-    it("hard does NOT feed the human seat's decklist even though getSeatDeck would answer it", async () => {
+    it("the default preset does NOT feed the human seat's decklist even though getSeatDeck would answer it", async () => {
         // No `storeDifficulty` call — the default preset (`medium`) applies,
         // proving the gate is the DIFFICULTY, not merely `getSeatDeck`
         // answering null for an unowned seat (the other test above already

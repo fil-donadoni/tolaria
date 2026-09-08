@@ -143,6 +143,7 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
     const itersOnly = (n: number) => ({ iterations: n });
     const EASY = itersOnly(DIFFICULTY_BUDGETS.easy.iterations ?? 1);
     const HARD = itersOnly(DIFFICULTY_BUDGETS.hard.iterations ?? 1);
+    const EXPERT = itersOnly(DIFFICULTY_BUDGETS.expert.iterations ?? 1);
 
     const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -157,5 +158,19 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
         // Hard reads the forced response every time; easy misses it often.
         expect(hardHits).toBe(SEEDS.length);
         expect(hardHits).toBeGreaterThan(easyHits);
+    });
+
+    // issue #2790, PRD #2787's explicit risk: `expert`'s per-iteration cost is
+    // higher (an opponent with real cards to enumerate), so under a wall-clock
+    // cap a naively-scaled preset could complete FEWER iterations and end up
+    // weaker than `hard` despite a nominally deeper search. Iteration-only
+    // budgets isolate the raw-strength claim from that wall-clock risk: on
+    // pure iteration count, `expert` must never be weaker than `hard` on this
+    // same forced-tactic position — the gradient the other levels already
+    // assert, extended to the new top of the ladder.
+    it("the expert preset is not weaker than hard on the same forced tactic", () => {
+        const hardHits = SEEDS.filter((s) => survives(HARD, s)).length;
+        const expertHits = SEEDS.filter((s) => survives(EXPERT, s)).length;
+        expect(expertHits).toBeGreaterThanOrEqual(hardHits);
     });
 });
