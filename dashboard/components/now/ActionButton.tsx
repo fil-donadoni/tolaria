@@ -13,11 +13,20 @@ import { requestAction } from "../../lib/confirm";
  * the dialog lives outside this tree and holds no reference back to the button
  * that raised it.
  *
- * `claim.release` with no legible issue number renders NOTHING rather than a
- * button: the server refuses a non-integer issue by design
- * (`ACTION_ALLOW_LIST`, #2628), so a malformed row fails closed here instead
- * of opening a dialog for a request that would 400 (#2636 review round 1,
- * finding 1).
+ * TWO WAYS TO RENDER NOTHING, and both are "fail closed" rather than "guess":
+ *
+ * - `claim.release` with no legible issue number: the server refuses a
+ *   non-integer issue by design (`ACTION_ALLOW_LIST`, #2628), so a malformed
+ *   row fails closed here instead of opening a dialog for a request that would
+ *   400 (#2636 review round 1, finding 1).
+ * - an action this build does not KNOW. `remedyAction` arrives from the
+ *   engine, and an engine that grows a fourth one ships it to a dashboard that
+ *   has no label for it. The vanilla `actionButtonHtml` returned an empty
+ *   string for exactly this case — "unknown must never render as an offered
+ *   action", the same posture `verdictTone`'s `bad` fallback takes for an
+ *   unrecognised state. Without it the button renders with an EMPTY label: an
+ *   affordance that says nothing and, if pressed, raises a dialog that names
+ *   nothing.
  */
 export function ActionButton({
     action,
@@ -30,6 +39,7 @@ export function ActionButton({
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     const coerced = coerceIssue(issue);
+    if (!(action in ACTION_LABEL)) return null;
     if (action === "claim.release" && coerced === undefined) return null;
     const label = action === "claim.release" ? "Release" : ACTION_LABEL[action];
     const description =

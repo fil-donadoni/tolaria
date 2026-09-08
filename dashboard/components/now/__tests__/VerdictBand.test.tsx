@@ -219,7 +219,11 @@ describe("verdict band — the action button is offered only where the engine sa
                     "some-future-action" as LoopVerdict["remedyAction"],
             })
         );
-        expect(screen.queryByRole("button", { name: /driver/i })).toBeNull();
+        // NOT "no button whose name matches /driver/" — that passes against an
+        // implementation that renders a button with an EMPTY label, which is
+        // what this component did before S4's migration reached for the
+        // vanilla case. The band offers NO action at all.
+        expect(screen.queryAllByRole("button")).toEqual([]);
     });
 });
 
