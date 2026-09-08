@@ -84,6 +84,7 @@ import type {
     PermanentView,
     StaticEffect,
     TextChange,
+    ZoneScopedStaticEffect,
 } from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
 
@@ -422,6 +423,39 @@ function carriesLayer2to5State(card: CardInstanceState): boolean {
     );
 }
 
+/** CR 604.3 / 109.2 — is this effect exempt from the battlefield confinement,
+ *  in BOTH directions? See `ZoneScopedStaticEffect` (`cards/types.ts`) for the
+ *  two rules and why the default is closed. */
+function functionsInAllZones(effect: StaticEffect): boolean {
+    return (effect as ZoneScopedStaticEffect).functionsInAllZones === true;
+}
+
+/** The entries an object OUTSIDE the battlefield may be derived against: only
+ *  the all-zone ones.
+ *
+ *  The mirror of the source-side filter in `collectSourceEntries`, needed for
+ *  the same reason from the other end — CR 109.2 rather than CR 604.3.
+ *  `collected.entries` is ONE board-wide list every target is derived against,
+ *  and a `StaticEffect`'s `applies` predicate reads only the target's
+ *  characteristics: it has no idea what zone the object it is being asked about
+ *  is in. Ungated, Opalescence ("each other non-Aura enchantment is a creature")
+ *  turns an enchantment SPELL on the stack into a creature spell, and Titania's
+ *  Song does the same to an artifact spell — which `gre/targetFilters.ts` then
+ *  reads, making "counter target creature spell" legal against them.
+ *
+ *  The instance's OWN ledger rows are not filtered here and must not be: they
+ *  are not board sources, they name this object and nothing else, and
+ *  `finishEffectsFor` unions them per target after this. */
+function allZoneEntriesOf(collected: SourceEntries): SourceEntries {
+    return {
+        entries: collected.entries.filter((entry) => {
+            const template = collected.templates.get(entry.id);
+            return template ? functionsInAllZones(template.effect) : false;
+        }),
+        templates: collected.templates,
+    };
+}
+
 /** Walks the battlefield and the command zone once, building one template entry
  *  per layer-2-to-5 static effect each object declares. */
 function collectSourceEntries(state: LayerStateView): SourceEntries {
@@ -500,6 +534,47 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
             const view = source as unknown as PermanentView;
             pushSourceEffects(view, sourceStaticEffects(view));
         }
+    }
+    // CR 613.1 / 702.103b (ADR 0084) — objects on the STACK generate layer-2-5
+    // effects too. Only ONE shape reaches here today, and it is the shape the
+    // rule is about: a bestowed spell's self-applying layer-4 type change,
+    // which is what makes it an Aura spell rather than a creature spell for the
+    // whole time it sits on the stack.
+    //
+    // Collected through the very same `pushSourceEffects` the battlefield walk
+    // uses — a stack item IS a `CardInstanceState` — so nothing about the entry,
+    // its CR 613.7a timestamp or its `applies` predicate is stack-specific. An
+    // unstamped stack item derives at timestamp 0 ("earliest in the layer"),
+    // which is correct for a self-applying effect and is the same fallback an
+    // unstamped permanent gets.
+    for (const source of state.stack ?? []) {
+        const cardId = (source.card as { id?: string } | undefined)?.id;
+        if (!cardId || !declaresLayer2to5StaticEffect(cardId)) continue;
+        // CR 604.3 — and this is the whole reason the filter is here. A static
+        // ability functions only while its source is a permanent on the
+        // battlefield UNLESS the ability itself says otherwise, and the entries
+        // pushed here land in the same board-wide list every battlefield
+        // permanent is derived against. Without the gate, Conversion's "All
+        // Mountains are Plains" (CR 305.7) would turn every Mountain into a
+        // Plains while the SPELL was still waiting to resolve.
+        //
+        // Fail-closed: an effect that does not declare `functionsInAllZones` is
+        // dropped, so the default for every existing card is exactly the
+        // pre-stack behaviour. Bestow is the one declarer (CR 702.103a).
+        pushSourceEffects(
+            source,
+            sourceStaticEffects(source).filter(functionsInAllZones)
+        );
+        // CR 613.7a — a stack object carries no `staticSeq` (nothing mints one
+        // at cast commit; `beginApplyingStaticEffects` mints on BATTLEFIELD
+        // entry), so its entries derive at timestamp 0, "earliest in the
+        // layer". Deliberately left as the fallback rather than minted here:
+        // the stamp a permanent receives on entry is its ENTRY timestamp, and
+        // minting a second one at cast would have to be reconciled with it.
+        // Unobservable while bestow is the only all-zone declarer — its effect
+        // applies to ITSELF and to nothing else, so no second layer-4 entry can
+        // reach the same stack object to be ordered against. A second all-zone
+        // declarer makes this real and must mint properly.
     }
     // CR 114 — command-zone emblems generate continuous effects like any other
     // object (issue #1221).
@@ -1219,7 +1294,13 @@ export function syncLayers2to5(
     // battlefield arrays the derivation walk above is iterating, and the CR
     // 613.7 answer for every permanent was computed against the board as it
     // stood at the top of this sync (CR 613.1 — one recompute, one board).
-    for (const { card, result } of derived) {
+    for (const { card, result, zone } of derived) {
+        // CR 613.1b layer 2 is about CONTROL OF A PERMANENT (CR 110.2), and its
+        // output is a battlefield PLACEMENT. A stack object has a controller
+        // (CR 400.5 — the spell's controller) but no battlefield slot to be
+        // moved between, so it takes the layer-3-to-5 answer above and nothing
+        // here.
+        if (zone === "stack") continue;
         if (card.controllerId === result.controllerId) continue;
         const previous = card.controllerId;
         card.controllerId = result.controllerId;
@@ -1244,6 +1325,11 @@ export function deriveLayers2to5Board(
     state: GameState,
     opts?: {
         stoppedSourceIds?: ReadonlySet<string>;
+        /** Skip objects on the stack entirely. The wire projection passes it:
+         *  it derives the battlefield from the registry (PRD #2064 S5) but
+         *  ships a stack item's own fields, so a stack derivation it is only
+         *  going to discard is a full per-item walk per projection. */
+        includeStack?: boolean;
         /** Derive EVERY permanent, including the ones the fast path below can
          *  prove are already at their base. The sync skips those because the
          *  fields it would write already hold the answer; a consumer that reads
@@ -1252,7 +1338,15 @@ export function deriveLayers2to5Board(
          *  no projected characteristic is read out of a field `sync*` wrote). */
         deriveAll?: boolean;
     }
-): { card: CardInstanceState; result: Layers2to5Derivation }[] {
+): {
+    card: CardInstanceState;
+    result: Layers2to5Derivation;
+    /** Which zone the derived object was read from — the ONE thing a consumer
+     *  must branch on, because layer 2's output is a battlefield placement and
+     *  a stack object has none (CR 613.1b / 405). Nothing else in the
+     *  derivation is zone-dependent. */
+    zone: "battlefield" | "stack";
+}[] {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
         ? {
@@ -1264,8 +1358,11 @@ export function deriveLayers2to5Board(
           }
         : state) as unknown as LayerStateView;
 
-    const derived: { card: CardInstanceState; result: Layers2to5Derivation }[] =
-        [];
+    const derived: {
+        card: CardInstanceState;
+        result: Layers2to5Derivation;
+        zone: "battlefield" | "stack";
+    }[] = [];
     // ONE board scan for the whole sync (CR 613.1 — one recompute, one board),
     // rather than one per permanent.
     const collected = collectSourceEntries(view);
@@ -1298,8 +1395,52 @@ export function deriveLayers2to5Board(
                     card as unknown as PermanentView,
                     collected
                 ),
+                zone: "battlefield",
             });
         }
+    }
+    // CR 613.1 / 702.103b (ADR 0084) — the same walk over objects on the STACK.
+    // CR 613.1 governs objects, not only permanents, and a bestowed spell has
+    // to read as an Aura spell for the whole time it is on the stack: that is
+    // what makes it illegal for "target creature spell" (`gre/targetFilters.ts`)
+    // and invisible to "whenever you cast a creature spell" (the `spellTypes`
+    // snapshot `emitSpellCastEvent` takes).
+    //
+    // The SAME fast path applies, and it is what keeps this free on the ISMCTS
+    // hot path: the overwhelming majority of stacks carry no layer-2-5 state at
+    // all and are skipped without a derivation.
+    // Collected once, and only if a stack object is actually going to be
+    // derived: on the overwhelming majority of boards this filter never runs.
+    let allZone: SourceEntries | undefined;
+    for (const item of opts?.includeStack === false
+        ? []
+        : (state.stack ?? [])) {
+        const card = item as unknown as CardInstanceState;
+        // FAST PATH first, and the base capture INSIDE it — unlike the
+        // battlefield loop above, which owes every permanent a base whether or
+        // not it derives. `ensureLayer4Base` WRITES, `compactStackItem`
+        // persists what it writes, and the ISMCTS search re-walks the stack at
+        // every node it expands: capturing a base on every spell and ability
+        // that is about to be skipped is pure cost with no answer attached.
+        if (
+            opts?.deriveAll !== true &&
+            noSourceEffects &&
+            !carriesLayer2to5State(card)
+        ) {
+            continue;
+        }
+        ensureLayer4Base(card);
+        // CR 109.2 — the TARGET side of the zone gate. See `allZoneEntriesOf`.
+        allZone ??= allZoneEntriesOf(collected);
+        derived.push({
+            card,
+            result: deriveLayers2to5(
+                view,
+                card as unknown as PermanentView,
+                allZone
+            ),
+            zone: "stack",
+        });
     }
     return derived;
 }
@@ -1418,12 +1559,32 @@ function writeDerivedCharacteristics(
  *  recomposed here over the new base. A SOURCE-provenance effect is re-derived
  *  by the next `syncLayers2to5`, which every real swap path reaches before the
  *  state is read again. */
-export function recomposeLayers2to5ForInstance(card: CardInstanceState): void {
-    const view = {
-        players: [{ id: card.controllerId, battlefield: [card] }],
-    } as unknown as LayerStateView;
+export function recomposeLayers2to5ForInstance(
+    card: CardInstanceState,
+    /** CR 604.3 / 109.2 — which zone the synthetic one-card board puts the
+     *  object in. It matters, and defaulting it to the battlefield silently
+     *  would be the bug: a stack object placed on a synthetic BATTLEFIELD is
+     *  collected as an ordinary battlefield source and derived as an ordinary
+     *  battlefield target, which is exactly the two-sided zone gate the board
+     *  walk enforces. The two derivation paths would then disagree for the
+     *  first card declaring a layer-2-5 static beside a stack-time one. */
+    zone: "battlefield" | "stack" = "battlefield"
+): void {
+    const view = (zone === "stack"
+        ? {
+              players: [{ id: card.controllerId, battlefield: [] }],
+              stack: [card],
+          }
+        : {
+              players: [{ id: card.controllerId, battlefield: [card] }],
+          }) as unknown as LayerStateView;
     ensureLayers2to5Base(card);
-    const result = deriveLayers2to5(view, card as unknown as PermanentView);
+    const collected = collectSourceEntries(view);
+    const result = deriveLayers2to5(
+        view,
+        card as unknown as PermanentView,
+        zone === "stack" ? allZoneEntriesOf(collected) : collected
+    );
     writeDerivedCharacteristics(card, result);
     // Layer 2 is deliberately NOT applied here: the synthetic board holds no
     // source to derive a control change from, and `controllerId` is already

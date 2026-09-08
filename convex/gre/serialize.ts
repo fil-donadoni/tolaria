@@ -53,7 +53,10 @@ import type {
     ManaSubstitutionBreadth,
     TextChange,
 } from "../cards/types";
-import { INDEFINITE_SOURCE_ID } from "./layers2to5";
+import {
+    INDEFINITE_SOURCE_ID,
+    recomposeLayers2to5ForInstance,
+} from "./layers2to5";
 import { migrateLegacyAbilityLossHolds } from "./layer6";
 
 type CompactCard = Record<string, unknown>;
@@ -1099,7 +1102,7 @@ function expandCard(
     // CR 702.103b — restore the Bestow marker, and with it the ONE part of the
     // bestow characteristic change the definition-diff cannot carry. A
     // bestowed object is an Aura enchantment with NO power or toughness
-    // (CR 205.1a), so `compactCard` writes `power: undefined` — and an
+    // (CR 208.3), so `compactCard` writes `power: undefined` — and an
     // explicit `undefined` does not survive JSON, which makes the
     // `"power" in compact` fallback above hand back the printed 1/1 instead.
     // Re-clearing here keeps the round-trip exact.
@@ -1107,6 +1110,10 @@ function expandCard(
         result.bestowed = compact.bestowed as boolean;
         delete result.power;
         delete result.toughness;
+        // The layer-4 half of the pre-slice shape is migrated in
+        // `migrateLegacyBestowTypeLine`, at the END of `expandState` — it needs
+        // the legacy-ledger promotions to have run first, and this function
+        // runs before any of them.
     }
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — restore the "cast off
     // sorcery timing" snapshot.
@@ -2185,7 +2192,57 @@ export function expandState(data: Record<string, unknown>): GameState {
     migrateLegacyInstanceKeywordLedgers(result, data);
     migrateLegacyLayer2to5Ledgers(result, data);
     migrateLegacyAbilityLossLedger(result, data);
+    migrateLegacyBestowTypeLine(result);
     return result;
+}
+
+/** ONE-SHOT MIGRATION (ADR 0084, issue #2073) — a bestowed object whose layer-4
+ *  BASE is the bestowed line rather than the printed one.
+ *
+ *  Bestow's type line used to be STAMPED onto the instance at cast commit
+ *  (PR #2576), and the layer-4 base capture runs at the first derivation, i.e.
+ *  AFTER the stamp — so a state persisted between that PR and this slice froze
+ *  `Enchantment — Aura` into `baseTypes`/`baseSubtypes` as well. The type line
+ *  is a derived layer-4 continuous effect now, so a base that already reads
+ *  `Enchantment` would leave the object an enchantment forever once it ceased
+ *  to be bestowed (CR 702.103f).
+ *
+ *  Re-seating the base to the PRINTED line and recomposing is exact rather than
+ *  approximate: the derivation reapplies the very effect the stamp used to
+ *  write, so a still-bestowed object comes back out of this identical, and one
+ *  that later unattaches has a creature to go back to.
+ *
+ *  TWO things about WHERE this runs, both load-bearing:
+ *
+ *   - **Last, not in `expandCard`.** The recompose reads the instance's layer-4
+ *     ledgers, and `backfillLegacyStaticSeq` / `migrateLegacyLayer2to5Ledgers`
+ *     are what put a pre-S4 state's ledgers into readable shape. Recomposing
+ *     ahead of them would silently drop an un-promoted `animation` or
+ *     `indefiniteSubtypeSet` from the materialised line, and nothing recomposes
+ *     again — `expandState` returns without a sync.
+ *   - **Gated on the stamped SHAPE, not on `bestowed` alone.** This function
+ *     runs on every load, so an unconditional overwrite would clobber a
+ *     legitimate below-layer-4 base (a copy, CR 706; a transform, CR 701.28)
+ *     at each one instead of migrating once. The stamp's signature is exact and
+ *     unreachable after this slice: the printed card is a creature and the
+ *     stored base is not. */
+function migrateLegacyBestowTypeLine(state: GameState): void {
+    const visit = (card: CardInstanceState, zone: "battlefield" | "stack") => {
+        if (!card.bestowed) return;
+        const cardId = (card.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
+        if (!def?.types.includes("Creature")) return;
+        if (card.baseTypes?.includes("Creature")) return;
+        card.baseTypes = [...def.types];
+        card.baseSubtypes = [...(def.subtypes ?? [])];
+        recomposeLayers2to5ForInstance(card, zone);
+    };
+    for (const player of state.players) {
+        for (const card of player.battlefield) visit(card, "battlefield");
+    }
+    for (const item of state.stack) {
+        visit(item as unknown as CardInstanceState, "stack");
+    }
 }
 
 /** One-shot migration for a state persisted BEFORE PRD #2064 S6, when the

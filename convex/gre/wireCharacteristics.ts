@@ -129,6 +129,12 @@ function cloneBoard(state: GameState): GameState {
             ...player,
             battlefield: player.battlefield.map((card) => ({ ...card })),
         })),
+        // CR 613.1 (ADR 0084) — the derivation can walk objects on the STACK,
+        // and its one-shot base capture WRITES to the objects it is given
+        // (`ensureLayer4Base`). This module passes `includeStack: false`, so the
+        // clone is belt-and-braces rather than load-bearing — but a projection
+        // must not be one option away from mutating the state it is projecting.
+        stack: state.stack.map((item) => ({ ...item })),
     } as GameState;
 }
 
@@ -185,8 +191,15 @@ export function deriveWireCharacteristics(
     // that reads the RESULT has nothing to read for a skipped permanent, and
     // falling back to the instance field is precisely what this module exists
     // to stop.
+    // CR 405 — the stack is NOT derived here. `projectStackItem` ships a stack
+    // item's own fields, and the sync has already written this same answer into
+    // them; the registry-over-fields contract this module enforces (PRD #2064
+    // S5 AC 1) is a BATTLEFIELD contract, and extending it to the stack is S5's
+    // to finish, not bestow's. Asking for the derivation and then discarding it
+    // would be a full per-item walk per projection for nothing.
     for (const { card, result } of deriveLayers2to5Board(board, {
         deriveAll: true,
+        includeStack: false,
     })) {
         const fields = layers2to5WireFields(card, result);
         // `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which

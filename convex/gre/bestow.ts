@@ -29,16 +29,25 @@
 //    `affordableAlternativeCosts` alongside the generic `alternativeCosts[]`
 //    array. Nothing about paying a bestow cost is special.
 //
-//  - the CHARACTERISTIC half is this file, and it is what has no precedent.
-//    Type/subtype changes in this engine are DIRECT IN-PLACE MUTATION of
-//    `card.types` / `card.subtypes` (the `transform.ts` / `animateAsCreature`
-//    idiom — `gre/layers.ts` is P/T-only and has no layer-4 machinery), so a
-//    bestow cast mutates the stack item and `revertBestow` splices the
-//    mutation back out. `revertBestow` restores from the CARD DEFINITION
-//    rather than from a saved anchor, exactly as `clearZoneCharacteristics`
-//    does: the printed type line is the only thing bestow overwrote, and
-//    reading it back off the (possibly copy-rewritten) `card.id` keeps a
-//    Clone-style identity swap consistent.
+//  - the CHARACTERISTIC half is a CR 613 layer-4 CONTINUOUS EFFECT and is
+//    declared, not written here: `cards/abilities/bestow.ts` expands the
+//    `bestow` field into two self-applying layer-4 entries
+//    (`BESTOW_STATIC_EFFECTS`) at the `getDefinition` seam, and
+//    `gre/layers2to5.ts` derives them — over objects on the STACK as well as on
+//    the battlefield, because CR 613.1 governs objects and a bestowed spell is
+//    an Aura spell for the whole time it sits on the stack (CR 702.103b).
+//
+//    ADR 0084 is why it is a continuous effect rather than the cheaper stored
+//    rewrite this file used to perform: bestow's type change comes from an
+//    ABILITY (CR 702.103a), so CR 613.1 requires it be recomputed at every
+//    read; it is NOT a change to the object's copiable values, which is what
+//    face-down (ADR 0013) and transform (ADR 0067) change and what makes
+//    storing THEIR characteristics correct.
+//
+//    What is left in this file is therefore only the MARKER and its lifetime.
+//    `applyBestowCharacteristics` sets `bestowed`; `revertBestow` clears it;
+//    the type line follows from the derivation both times, with no
+//    restore-from-definition routine to drift from the printed card.
 
 import type {
     AlternativeCost,
@@ -107,11 +116,23 @@ export function isBestowAlternativeCost(
 export function applyBestowCharacteristics(card: CardInstanceState): void {
     if (card.bestowed) return;
     card.bestowed = true;
-    card.types = ["Enchantment"];
-    card.subtypes = ["Aura"];
+    card.grantedEnchantRestriction = { ...BESTOW_ENCHANT_RESTRICTION };
+    // CR 208.3 — "a noncreature permanent has no power or toughness". The
+    // printed numbers stay on the DEFINITION (CR 702.103e can still make this
+    // object resolve as a creature spell); what is cleared is the instance's
+    // own copy, which is what every P/T reader starts from.
     card.power = undefined;
     card.toughness = undefined;
-    card.grantedEnchantRestriction = { ...BESTOW_ENCHANT_RESTRICTION };
+    // CR 613.1d (ADR 0084) — the type line is DERIVED, not written: the flag
+    // above is the whole input. Materialise it here so the very next reader
+    // sees the Aura — `emitSpellCastEvent` snapshots `item.types` onto the
+    // `SpellCastEvent` at the cast choke point, which is what every "whenever
+    // you cast a creature spell" trigger filter reads, and that snapshot is
+    // taken before any board sync runs. The object is on the STACK at this
+    // point (CR 702.103b — "as a spell cast bestowed is PUT ONTO THE STACK"),
+    // and saying so is what keeps this one-card recompose under the same CR
+    // 604.3 / 109.2 zone gate the board walk applies.
+    recomposeLayers2to5ForInstance(card, "stack");
 }
 
 /** CR 702.103e / 702.103f — the object CEASES to be bestowed: the effect
@@ -129,21 +150,20 @@ export function applyBestowCharacteristics(card: CardInstanceState): void {
  *     stack), `removePermanentTo` (a permanent leaving the battlefield) and
  *     `resetBattlefieldTransientState` (the shared entry-side reset).
  *
- *  Restores from the card DEFINITION, not from a saved anchor — see the file
- *  header. A no-op on an object that is not bestowed, and on one whose card id
- *  no longer resolves (synthetic test fixtures), which is why the marker is
- *  cleared unconditionally first.
+ *  CR 613.1d (ADR 0084) — there is NO type line to restore. Bestow's layer-4
+ *  effect is gated on the `bestowed` flag alone, so clearing the flag ends the
+ *  effect and the next derivation reads the object's own base back. The
+ *  recompose below is what makes "next" mean "now", against the object's own
+ *  ledgers; a SOURCE-provenance effect that is still applying comes back at the
+ *  caller's next `syncLayers2to5` (`gre/sba.ts` runs `stopApplyingStaticEffects`
+ *  right before this, which syncs the whole board).
  *
- *  CR 613.1d — the printed line is the layer-1 BASE, not the answer. On the
- *  CR 702.103f road the object stays on the battlefield, so any layer-4
- *  card-type / subtype effect from a source that is still there still applies
- *  and has to be replayed over the restored base — a bare assignment would
- *  silently drop a `type-add` while leaving its `grantedTypes` origin entry
- *  behind, so the materialized line and its own provenance record would
- *  disagree (and the entry's later unapply would "remove" a type that is no
- *  longer there). Same replay-over-a-new-base shape, and for the same reason,
- *  as `gre/identitySwap.ts`'s `replayLayer4Types` / `replayLayer4Subtypes`
- *  after a copy-identity swap. */
+ *  The printed P/T does still come from the card DEFINITION: CR 208.3 is a
+ *  consequence of the object's type, not a layer-4 effect, and this engine
+ *  materialises P/T on the instance rather than deriving it below layer 7. A
+ *  no-op on an object that is not bestowed, and on one whose card id no longer
+ *  resolves (synthetic test fixtures), which is why the marker is cleared
+ *  unconditionally first. */
 export function revertBestow(card: CardInstanceState): void {
     if (!card.bestowed) return;
     delete card.bestowed;
@@ -151,26 +171,21 @@ export function revertBestow(card: CardInstanceState): void {
     card.attachedTo = undefined;
     const cardId = (card.card as { id?: string } | undefined)?.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (!def) return;
-    card.power = def.power;
-    card.toughness = def.toughness;
-    // CR 613.1a/d (PRD #2064 S4) — the printed line is the layer-4 BASE, not
-    // the answer. Re-seat both bases and let the derivation replay whatever is
-    // still applying over them; the hand-written type and subtype replays this
-    // used to perform were a third copy of the CR 613.7 walk (beside
-    // `gre/identitySwap.ts`'s, now also deleted), and a copy of an ordered walk
-    // is a copy that drifts.
-    card.types = [...def.types];
-    card.baseTypes = [...def.types];
-    const printedSubtypes = [...(def.subtypes ?? [])];
-    card.subtypes = printedSubtypes;
-    card.baseSubtypes = [...printedSubtypes];
-    // The CR 702.103f road leaves the object ON the battlefield, so every
-    // effect applying to it is still applying. Recompose what the INSTANCE
-    // bears immediately; a SOURCE-provenance effect comes back at the caller's
-    // next `syncLayers2to5` (`gre/sba.ts` runs `stopApplyingStaticEffects`
-    // right before this, which syncs the whole board).
-    recomposeLayers2to5ForInstance(card);
+    if (def) {
+        // CR 208.3 — the object is a creature again, so its printed body comes
+        // back. Read off the (possibly copy-rewritten) `card.id`, which keeps a
+        // Clone-style identity swap consistent.
+        card.power = def.power;
+        card.toughness = def.toughness;
+    }
+    // CR 604.3 / 109.2 — the two roads out of bestowed-ness end in different
+    // zones: CR 702.103e reverts a SPELL still on the stack, CR 702.103f a
+    // PERMANENT still on the battlefield. The zone gate is the same one the
+    // board walk applies, so it is read rather than assumed.
+    recomposeLayers2to5ForInstance(
+        card,
+        card.zone === "stack" ? "stack" : "battlefield"
+    );
 }
 
 /** CR 601.2c / 702.103b — is there any creature a bestowed cast could legally
