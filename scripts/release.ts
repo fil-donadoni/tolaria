@@ -29,7 +29,7 @@
 //   bun run release                     # gate origin/<base>, fast-forward <release>
 //   bun run release --dry-run           # print the tips and what would happen
 //   bun run release --no-fix            # today's behaviour: refuse on RED, spawn nothing
-//   bun run release --max-fix-attempts=N  # move the bound (default 3)
+//   bun run release --max-fix-attempts=N  # move the bound (default 3, min 2)
 //
 // Runs from the primary checkout (health-main.ts insists on it: a linked
 // worktree's `.env.local` is absent and the health worktree is created
@@ -111,7 +111,9 @@ export function releaseDecision(
 
 export type LoopDecision =
     | { kind: "release"; sha: string }
-    | { kind: "fix"; sha: string }
+    /** `reason` is the health refusal that sent this round to the fixer — the
+     *  handover names it when the loop later gives up. */
+    | { kind: "fix"; sha: string; reason: string }
     /** The fixer landed: re-read the tip and gate again. */
     | { kind: "retry"; note: string }
     | { kind: "stop"; reason: string };
@@ -191,7 +193,7 @@ export function loopDecision(input: LoopInputs): LoopDecision {
             reason: `${decision.reason} — out of fix rounds (${maxAttempts})`,
         };
     }
-    return { kind: "fix", sha: tip };
+    return { kind: "fix", sha: tip, reason: decision.reason };
 }
 
 export type FixBound = { max: number } | { error: string };
@@ -203,9 +205,13 @@ export function parseFixBound(argv: string[]): FixBound {
     if (flag === undefined) return { max: DEFAULT_FIX_ATTEMPTS };
     const raw = flag.slice("--max-fix-attempts=".length);
     const n = Number(raw);
-    if (!Number.isInteger(n) || n < 1) {
+    // A round is one gate plus at most one fix, and a fix is only worth
+    // starting when a LATER round can re-gate what it landed. So a bound of
+    // one is not "one fix" — it is no fix at all, which is `--no-fix` wearing
+    // a name that promises the opposite.
+    if (!Number.isInteger(n) || n < 2) {
         return {
-            error: `--max-fix-attempts must be a positive integer, got ${JSON.stringify(raw)}`,
+            error: `--max-fix-attempts must be an integer >= 2 (a bound of 1 leaves no round to re-gate a fix — use --no-fix), got ${JSON.stringify(raw)}`,
         };
     }
     return { max: n };
@@ -255,12 +261,23 @@ function runHealthGate(cwd: string): void {
  * whatever happened inside it.
  */
 function runFixer(cwd: string, sha: string): FixVerdict {
-    spawnSync("bun", [HEALTH_FIX], {
+    const r = spawnSync("bun", [HEALTH_FIX], {
         stdio: "inherit",
         cwd,
         env: netEnv(process.env),
     });
-    return parseVerdict(readVerdictFile(cwd), sha);
+    const verdict = parseVerdict(readVerdictFile(cwd), sha);
+    // The exit status is NOT the verdict — that is the whole point of the
+    // file. But a child that refused to spawn at all (its own TTY check, or a
+    // tip that moved under it) leaves no verdict, and reporting that as a
+    // bare "the fixer wrote no verdict file" hides the reason it printed.
+    if (verdict.outcome === "stuck" && r.status !== 0) {
+        return {
+            ...verdict,
+            note: `${verdict.note} (health:fix exited ${r.status ?? "on a signal"} — its refusal is above)`,
+        };
+    }
+    return verdict;
 }
 
 /** The handover: every round's attempt, then today's refusal line verbatim. */
@@ -343,9 +360,7 @@ function main(): void {
             );
         }
 
-        attempts.push(
-            `round ${attempt}: ${decision.kind === "refuse" ? decision.reason : ""} → handed to the fixer`
-        );
+        attempts.push(`round ${attempt}: ${step.reason} → handed to the fixer`);
         const after = loopDecision({
             tip: sha,
             decision,

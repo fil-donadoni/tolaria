@@ -105,7 +105,13 @@ describe("release — loopDecision", () => {
     });
 
     it("hands a RED tip to the fixer when there are rounds left and a terminal", () => {
-        expect(loopDecision(gated(red))).toEqual({ kind: "fix", sha: tip });
+        const decision = releaseDecision(tip, red);
+        expect(loopDecision(gated(red))).toEqual({
+            kind: "fix",
+            sha: tip,
+            // The handover names why this round went to the fixer.
+            reason: decision.kind === "refuse" ? decision.reason : "",
+        });
     });
 
     it("refuses without a terminal, and names the command to run by hand", () => {
@@ -214,7 +220,15 @@ describe("release — parseFixBound", () => {
 
     it("--max-fix-attempts=N moves the bound", () => {
         expect(parseFixBound(["--max-fix-attempts=5"])).toEqual({ max: 5 });
-        expect(parseFixBound(["--max-fix-attempts=1"])).toEqual({ max: 1 });
+        expect(parseFixBound(["--max-fix-attempts=2"])).toEqual({ max: 2 });
+    });
+
+    it("refuses a bound of one, which would be --no-fix under a name promising the opposite", () => {
+        // A round is a gate plus at most one fix, and a fix is only worth
+        // starting when a later round can re-gate what it landed.
+        const d = parseFixBound(["--max-fix-attempts=1"]);
+        expect(d).toHaveProperty("error");
+        expect("error" in d && d.error).toMatch(/--no-fix/);
     });
 
     it("refuses a garbage bound rather than silently defaulting", () => {
