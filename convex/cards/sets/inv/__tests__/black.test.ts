@@ -2116,6 +2116,55 @@ describe("Addle (choose a color; target player reveals hand, you choose a card o
         );
     });
 
+    it("does not reveal the target's hand while the color prompt is pending (issue #2929)", () => {
+        const blackCard = makeInstance(bogInitiate.id, {
+            id: "p2-black-order",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const whiteCard = makeInstance(savannahLions.id, {
+            id: "p2-white-order",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [blackCard, whiteCard] }),
+            ],
+        });
+        pushSpell(state, addle.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on "choose a color"
+        const colorPick = state.pendingChoices![0];
+        expect(colorPick.kind).toBe("option-pick");
+
+        // Oracle order is authoritative: the color choice is blind — the
+        // caster's own view must still null out p2's hand while this prompt
+        // is open.
+        const beforeColor = projectPublicState(state, 1, "p1");
+        expect(beforeColor.players[1].hand.every((c) => c === null)).toBe(true);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: colorPick.stackItemId,
+            step: colorPick.step,
+            choiceId: colorPick.choiceId,
+            cardInstanceIds: ["2"], // black
+        });
+
+        // Once the color is locked in, the reveal fires and the hand
+        // becomes visible for the card pick.
+        const afterColor = projectPublicState(state, 1, "p1");
+        expect(
+            afterColor.players[1].hand.some((c) => c?.id === "p2-black-order")
+        ).toBe(true);
+        expect(
+            afterColor.players[1].hand.some((c) => c?.id === "p2-white-order")
+        ).toBe(true);
+    });
+
     it("the pick is MANDATORY when the hand holds a card of that color — an empty submission is rejected", () => {
         const blackCard = makeInstance(bogInitiate.id, {
             id: "p2-black-mand",
