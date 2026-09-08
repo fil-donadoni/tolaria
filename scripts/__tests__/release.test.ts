@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
     DEFAULT_FIX_ATTEMPTS,
@@ -252,5 +252,33 @@ describe("the AFK loop is NOT authorised to fix (PRD issue #3197, out of scope)"
         expect(sh).toMatch(/stopping rather than stacking work on a red tip/);
         expect(sh).not.toMatch(/bun run release/);
         expect(sh).not.toMatch(/health:fix/);
+    });
+});
+
+describe("the fix loop's dependency cannot vanish silently (PR #3209 deleted it once)", () => {
+    /**
+     * Issue #3199 shipped `scripts/health-fix.ts` and its test in PR #3207.
+     * PR #3209 — a `convex/cards` change that touched neither — landed a
+     * rebase that DELETED both, and the `package.json` entry with them. The
+     * deletion was invisible: the module and the only suite that imported it
+     * went together, so nothing on the base branch was left to fail. It
+     * surfaced two PRs later, as `Cannot find module './health-fix'` in a
+     * `land` rebase.
+     *
+     * The loop in `release.ts` spawns that script. This is the guard that
+     * fails on the base branch the moment it goes missing again, from a suite
+     * that is not the one deleted with it.
+     */
+    const root = join(__dirname, "..", "..");
+
+    it("ships scripts/health-fix.ts", () => {
+        expect(existsSync(join(root, "scripts", "health-fix.ts"))).toBe(true);
+    });
+
+    it("keeps the `health:fix` entry point — the manual path out of a RED marker", () => {
+        const pkg = JSON.parse(
+            readFileSync(join(root, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["health:fix"]).toBe("bun scripts/health-fix.ts");
     });
 });
