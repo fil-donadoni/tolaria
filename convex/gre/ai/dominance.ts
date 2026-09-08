@@ -119,6 +119,7 @@ import { spellHasDelve } from "../payWith";
 // state.ts↔phases.ts cycle is never touched at module-evaluation time.
 import { wasCastOffSorceryTiming } from "../phases";
 import { choiceCandidates } from "./choiceCandidates";
+import { MAX_CHOICE_BRANCH_WORK, MAX_CHOICE_DEPTH } from "./choiceDepth";
 import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
@@ -133,13 +134,26 @@ const MAX_SETTLE_STEPS = 8;
 /** Bound on branches opened per mid-resolution choice. `CHOICE_TOP_K` is 8, so
  *  this admits every choice the search itself would consider. */
 const MAX_CHOICE_BRANCHES = 8;
-/** Bound on nested mid-resolution choices. One level (Vision Charm's "basic
- *  land type of your choice") is the shape that occurs; deeper is unprovable. */
-const MAX_CHOICE_DEPTH = 1;
+// Bound on nested mid-resolution choices: `MAX_CHOICE_DEPTH`, shared with the
+// search's payoff probes (`ai/choiceDepth.ts`). It used to be the local
+// constant `1`, and its own comment named Vision Charm as "the shape that
+// occurs" — but that card's land-type mode takes TWO nested option choices, so
+// the recursion hit the cap on the second one and returned "not provably
+// futile" on precisely the case it was written for (issue #3194). The bound is
+// now MEASURED from the catalogue, and `MAX_CHOICE_BRANCH_WORK` bounds the work
+// separately, so a deeper bound cannot multiply into a `branches ^ depth`
+// probe.
 
 /** Re-entrancy latch. The probe drives real resolution, which can reach code
  *  that enumerates moves; without this a probe could probe itself. */
 let probing = false;
+
+/** Branch expansions left in the CURRENT probe (issue #3194). Reset at each
+ *  probe entry and spent by `branchesAllNoOp`'s recursion, so the work one
+ *  proof may cost is bounded independently of how deep `MAX_CHOICE_DEPTH`
+ *  lets it go. Exhausting it answers "not provably futile" — the same
+ *  fail-open direction the depth cap already took. */
+let branchWorkLeft = 0;
 
 /** Work accounting, for the two things about this module that must stay pinned.
  *
@@ -219,6 +233,7 @@ export function isDominatedNoOpMove(
                 ? applyProbeCast(probe, pid, move)
                 : applyProbeActivation(probe, pid, move);
         if (!applied) return false;
+        branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
         return branchesAllNoOp(probe, baseline, pid, spentCardId, 0);
     } catch {
         // A probe that throws proves nothing. Never let it change legality.
@@ -591,6 +606,11 @@ function branchesAllNoOp(
         const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
         if (candidates.length === 0) return false;
         for (const candidate of candidates) {
+            // The work budget, not the depth cap, is what keeps a deeper bound
+            // affordable (issue #3194): a probe may open at most
+            // `MAX_CHOICE_BRANCH_WORK` branches in total, however they are
+            // distributed across the tree.
+            if (branchWorkLeft-- <= 0) return false;
             stats.choiceBranches++;
             const branch = cloneGameState(probe);
             if (!applyProbeChoice(branch, moverId, candidate.move))

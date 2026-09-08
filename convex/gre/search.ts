@@ -157,6 +157,7 @@ import {
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
+import { MAX_CHOICE_BRANCH_WORK, MAX_CHOICE_DEPTH } from "./ai/choiceDepth";
 import { misdirectedTargetCount } from "./ai/beneficence";
 import { beginDominanceDecision, endDominanceDecision } from "./ai/dominance";
 // Activation-timing discipline (issue #1890): the single authority on whether an
@@ -2659,22 +2660,108 @@ export type DecisionTrace = {
 
 /** Resolve `state`'s stack to a stable point so a one-shot eval breakdown
  *  reflects the position AFTER the bot's spell/ability resolves (not the instant
- *  it hits the stack). Bounded; stops if a mid-resolution choice would need
- *  input the trace can't supply. Mutates `state` (caller owns the clone). */
-function settleStackForBreakdown(state: GameState): void {
+ *  it hits the stack).
+ *
+ *  It used to STOP at a mid-resolution choice, and that is the whole of issue
+ *  #3194: a mode that takes no target and does all its work through
+ *  resolution-time choices then probed on a state where its spell was still on
+ *  the stack, so every caller below — the resolved-payoff term of the
+ *  cast-variant ranking, the extra-turn credit, the wasted-mana hold, the trace
+ *  breakdown — measured the COST of casting and none of the effect, and the
+ *  variant was compared against siblings measured after a full resolution.
+ *
+ *  So a choice the MOVER itself owns is now answered rather than stopped at:
+ *  the branches are the ones the search would consider at that choice node
+ *  (`choiceCandidates`), each is settled recursively, and the one that leaves
+ *  `moverId` with the best material margin is taken — the mover is the player
+ *  who will make that choice, so its best branch is the outcome the
+ *  announcement actually reaches. Bounded twice (`MAX_CHOICE_DEPTH` and the
+ *  shared `MAX_CHOICE_BRANCH_WORK` budget), deterministic (candidate order,
+ *  first-wins on ties), and unchanged for a choice owned by anyone ELSE — the
+ *  opponent's answer is not the mover's to assume.
+ *
+ *  Without `moverId` the old stop-at-any-choice behaviour is kept verbatim.
+ *  Returns the settled state, which may be a BRANCH rather than the argument;
+ *  callers own their clone and must use the return value. */
+function settleStackForBreakdown(
+    state: GameState,
+    moverId?: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    depth = 0,
+    budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK }
+): GameState {
     let guard = 0;
     while (state.stack.length > 0 && guard++ < 16) {
         if (
             state.pendingTarget ||
             state.pendingCast ||
-            state.pendingActivation ||
-            (state.pendingChoices?.length ?? 0) > 0
+            state.pendingActivation
         ) {
             break;
+        }
+        const head = state.pendingChoices?.[0];
+        if (head) {
+            if (
+                !moverId ||
+                head.playerId !== moverId ||
+                depth >= MAX_CHOICE_DEPTH
+            ) {
+                break;
+            }
+            const best = bestBranchThroughChoice(
+                state,
+                moverId,
+                weights,
+                depth,
+                budget
+            );
+            if (!best) break;
+            return best;
         }
         resolveTopOfStack(state);
         checkStateBasedActions(state);
     }
+    return state;
+}
+
+/** The settled branch of the head choice that leaves `moverId` best off, or
+ *  `null` when none could be applied (an unsupported answer kind, a throw, or
+ *  an exhausted work budget) — in which case the caller keeps the un-resolved
+ *  state, exactly as before issue #3194. */
+function bestBranchThroughChoice(
+    state: GameState,
+    moverId: string,
+    weights: EvalWeights,
+    depth: number,
+    budget: { left: number }
+): GameState | null {
+    const head = state.pendingChoices?.[0];
+    if (!head) return null;
+    let best: GameState | null = null;
+    let bestScore = -Infinity;
+    for (const candidate of choiceCandidates(state, head)) {
+        if (budget.left-- <= 0) break;
+        const branch = cloneGameState(state);
+        let settled: GameState;
+        try {
+            applyMoveInSearch(branch, moverId, candidate.move);
+            settled = settleStackForBreakdown(
+                branch,
+                moverId,
+                weights,
+                depth + 1,
+                budget
+            );
+        } catch {
+            continue;
+        }
+        const score = materialMargin(settled, moverId, weights);
+        if (score > bestScore) {
+            bestScore = score;
+            best = settled;
+        }
+    }
+    return best;
 }
 
 /** Build the DecisionTrace from the grown tree. Each candidate's eval breakdown
@@ -2713,7 +2800,7 @@ export function buildTrace(
         try {
             probe = cloneGameState(rootState);
             applyMoveInSearch(probe, botId, move);
-            settleStackForBreakdown(probe);
+            probe = settleStackForBreakdown(probe, botId, weights);
         } catch {
             probe = rootState;
             unavailable = true;
@@ -2867,17 +2954,20 @@ function botExtraTurnGrantDelta(
     if (move.kind !== "cast-spell") return 0;
     const before = (state.extraTurns ?? []).filter((id) => id === botId).length;
     const probe = cloneGameState(state);
+    let settled: GameState;
     // Defensive: this probe runs on EVERY root edge during selection. Casting and
     // resolving an arbitrary spell on the clone can throw (e.g. a targeted spell
     // whose move carries no usable target). A throw means no extra-turn grant was
     // realised — treat it as zero rather than letting it break root selection.
     try {
         applyMoveInSearch(probe, botId, move);
-        settleStackForBreakdown(probe);
+        settled = settleStackForBreakdown(probe, botId);
     } catch {
         return 0;
     }
-    const after = (probe.extraTurns ?? []).filter((id) => id === botId).length;
+    const after = (settled.extraTurns ?? []).filter(
+        (id) => id === botId
+    ).length;
     return after - before;
 }
 
@@ -2985,13 +3075,14 @@ function resolvedMarginDelta(
 ): number {
     const before = materialMargin(state, botId, weights);
     const probe = cloneGameState(state);
+    let settled: GameState;
     try {
         applyMoveInSearch(probe, botId, move);
-        settleStackForBreakdown(probe);
+        settled = settleStackForBreakdown(probe, botId, weights);
     } catch {
         return 0;
     }
-    return materialMargin(probe, botId, weights) - before;
+    return materialMargin(settled, botId, weights) - before;
 }
 
 /** Total floating mana `playerId` holds: the fungible pool plus every
@@ -3027,10 +3118,10 @@ function isWastedManaCast(
 ): boolean {
     if (move.kind !== "cast-spell") return false;
     const before = floatingManaOf(state, botId);
-    const probe = cloneGameState(state);
+    let probe = cloneGameState(state);
     try {
         applyMoveInSearch(probe, botId, move);
-        settleStackForBreakdown(probe);
+        probe = settleStackForBreakdown(probe, botId);
     } catch {
         return false;
     }
@@ -3073,8 +3164,147 @@ function isSelfHarmRemovalCast(
     botId: string,
     weights: EvalWeights
 ): boolean {
-    if (!targetsOnlyOwnPermanents(state, move, botId)) return false;
+    if (
+        !targetsOnlyOwnPermanents(state, move, botId) &&
+        !reachesOnlyOwnSideThroughChoice(state, move, botId)
+    ) {
+        return false;
+    }
     return resolvedMarginDelta(state, move, botId, weights) < 0;
+}
+
+/** The RESOLUTION-TIME twin of `targetsOnlyOwnPermanents` (issue #3194).
+ *
+ *  The precondition above is target-keyed, and that is a blind spot with a
+ *  whole card shape in it: a mode that declares NO target requirement at all
+ *  and reaches permanents through a choice taken while it resolves (Vision
+ *  Charm's "choose a land type and a basic land type") can only ever touch the
+ *  mover's own board — and the guard cannot see it, because there is no target
+ *  to inspect. Observed on turn 1 with the bot's sole Island as the only land
+ *  on either battlefield: the mode could do nothing but re-type the bot's own
+ *  single blue source, and passing was free.
+ *
+ *  So the question is asked of the RESOLUTION instead of the announcement: on
+ *  every branch of the mover-owned choice the resolution suspends on, is the
+ *  OPPONENT's side left exactly as it was? If it is, the whole reach of the
+ *  announcement is the mover's own board, whatever it declared. Paired with the
+ *  caller's margin test — which now probes THROUGH the choice and takes the
+ *  mover's BEST branch — that says: the best this can do for me is still worse
+ *  than not casting it, and it cannot touch my opponent at all.
+ *
+ *  Deliberately narrow in two ways, so the ordinary population is untouched:
+ *  it answers `false` for any resolution that does NOT suspend on a mover-owned
+ *  choice (an ordinary creature or removal cast never reaches this path at
+ *  all), and it answers `false` the moment ONE branch reaches the opponent — a
+ *  Vision Charm aimed at an opponent's Forests is a real play and stays one. */
+function reachesOnlyOwnSideThroughChoice(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+        return false;
+    }
+    const opponentId = state.players.find((p) => p.id !== botId)?.id;
+    if (!opponentId) return false;
+    const beforeOpponent = opponentSideDigest(state, opponentId);
+    let probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, botId, move);
+        probe = settleUntilChoice(probe);
+    } catch {
+        return false;
+    }
+    const head = probe.pendingChoices?.[0];
+    if (!head || head.playerId !== botId) return false;
+    return branchesLeaveOpponentUntouched(
+        probe,
+        botId,
+        opponentId,
+        beforeOpponent,
+        0,
+        { left: MAX_CHOICE_BRANCH_WORK }
+    );
+}
+
+/** Resolve until the stack empties or ANY choice appears — the plain settle,
+ *  with no branch taken. Mutates and returns `state` (caller owns the clone). */
+function settleUntilChoice(state: GameState): GameState {
+    let guard = 0;
+    while (state.stack.length > 0 && guard++ < 16) {
+        if (
+            state.pendingTarget ||
+            state.pendingCast ||
+            state.pendingActivation ||
+            (state.pendingChoices?.length ?? 0) > 0
+        ) {
+            break;
+        }
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+    }
+    return state;
+}
+
+/** Everything about the opponent a resolution could change, as a comparable
+ *  string: their whole player record (both hidden zones included — this is a
+ *  probe over a determinized world the search already holds, never information
+ *  the bot is shown) plus the state-level ledgers keyed on them. A digest
+ *  rather than a field list, so an effect reaching the opponent through a field
+ *  nobody thought of here still registers as REACHING them — the fail-closed
+ *  direction for a predicate whose `true` suppresses a cast. */
+function opponentSideDigest(state: GameState, opponentId: string): string {
+    const player = state.players.find((p) => p.id === opponentId);
+    return JSON.stringify([
+        player,
+        state.extraTurns?.filter((id) => id === opponentId) ?? [],
+        state.monarchId === opponentId,
+    ]);
+}
+
+/** Whether EVERY branch of the mover-owned choice tree leaves the opponent's
+ *  side byte-identical. Fail-closed: an answer that cannot be applied, a branch
+ *  that suspends deeper than the shared bound, or an exhausted work budget all
+ *  answer `false` — "I could not prove the reach is self-confined", never "it
+ *  is". */
+function branchesLeaveOpponentUntouched(
+    state: GameState,
+    botId: string,
+    opponentId: string,
+    before: string,
+    depth: number,
+    budget: { left: number }
+): boolean {
+    const head = state.pendingChoices?.[0];
+    if (!head) {
+        return opponentSideDigest(state, opponentId) === before;
+    }
+    if (head.playerId !== botId || depth >= MAX_CHOICE_DEPTH) return false;
+    const candidates = choiceCandidates(state, head);
+    if (candidates.length === 0) return false;
+    for (const candidate of candidates) {
+        if (budget.left-- <= 0) return false;
+        const branch = cloneGameState(state);
+        try {
+            applyMoveInSearch(branch, botId, candidate.move);
+            settleUntilChoice(branch);
+        } catch {
+            return false;
+        }
+        if (
+            !branchesLeaveOpponentUntouched(
+                branch,
+                botId,
+                opponentId,
+                before,
+                depth + 1,
+                budget
+            )
+        ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // --- Cast-variant ranking (issue #1888, generalises issue #365) -------------
@@ -3119,9 +3349,29 @@ function castVariantScore(
     botId: string,
     weights: EvalWeights
 ): number {
+    const payoff = resolvedMarginDelta(state, move, botId, weights);
+    // Issue #3194 — the third term, and the one the resolved payoff cannot
+    // carry on its own. A variant whose whole reach is the MOVER's own side
+    // (`reachesOnlyOwnSideThroughChoice`) and which cannot improve the mover's
+    // margin on any branch it may choose is worth exactly its cost: it is the
+    // announcement's own "do nothing" option, dressed as a mode. Left unranked
+    // it TIES with a sibling that reaches the opponent — both read as pure cost
+    // whenever the evaluator is blind to what the effect does (a subtype change
+    // moves no material at all) — and the pick falls to rollout noise, which is
+    // how a self-only re-type of the bot's sole mana source got cast on turn 1.
+    // Weighted like a misdirected slot, and for the same reason: among
+    // outcome-equal siblings of ONE announcement, the one that can only act on
+    // the mover's own board loses to the one that can act on the opponent's,
+    // whatever the material noise between them. A variant that reaches the
+    // opponent on even ONE branch is never penalised here, so the same mode
+    // aimed at an opponent's lands stays a live candidate.
+    const selfConfined =
+        payoff <= 0 && reachesOnlyOwnSideThroughChoice(state, move, botId);
     return (
-        resolvedMarginDelta(state, move, botId, weights) -
-        weights.misdirectionWeight * misdirectedTargetCount(state, move, botId)
+        payoff -
+        weights.misdirectionWeight *
+            (misdirectedTargetCount(state, move, botId) +
+                (selfConfined ? 1 : 0))
     );
 }
 
