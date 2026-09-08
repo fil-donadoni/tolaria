@@ -128,8 +128,11 @@ export function applyBestowCharacteristics(card: CardInstanceState): void {
     // sees the Aura — `emitSpellCastEvent` snapshots `item.types` onto the
     // `SpellCastEvent` at the cast choke point, which is what every "whenever
     // you cast a creature spell" trigger filter reads, and that snapshot is
-    // taken before any board sync runs.
-    recomposeLayers2to5ForInstance(card);
+    // taken before any board sync runs. The object is on the STACK at this
+    // point (CR 702.103b — "as a spell cast bestowed is PUT ONTO THE STACK"),
+    // and saying so is what keeps this one-card recompose under the same CR
+    // 604.3 / 109.2 zone gate the board walk applies.
+    recomposeLayers2to5ForInstance(card, "stack");
 }
 
 /** CR 702.103e / 702.103f — the object CEASES to be bestowed: the effect
@@ -175,7 +178,14 @@ export function revertBestow(card: CardInstanceState): void {
         card.power = def.power;
         card.toughness = def.toughness;
     }
-    recomposeLayers2to5ForInstance(card);
+    // CR 604.3 / 109.2 — the two roads out of bestowed-ness end in different
+    // zones: CR 702.103e reverts a SPELL still on the stack, CR 702.103f a
+    // PERMANENT still on the battlefield. The zone gate is the same one the
+    // board walk applies, so it is read rather than assumed.
+    recomposeLayers2to5ForInstance(
+        card,
+        card.zone === "stack" ? "stack" : "battlefield"
+    );
 }
 
 /** CR 601.2c / 702.103b — is there any creature a bestowed cast could legally

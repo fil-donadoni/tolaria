@@ -56,6 +56,9 @@ import { grizzlyBears } from "../../cards/sets/lea";
 import { unstableMutation } from "../../cards/sets/arn/blue";
 import { counterspell } from "../../cards/sets/lea/blue";
 import { conversion } from "../../cards/sets/lea/white";
+import { opalescence } from "../../cards/sets/uds/white";
+import { exclude } from "../../cards/sets/inv/blue";
+import { getLegalTargets } from "../rules";
 import { mountain as mountainCard } from "../../cards/sets/lea/colorless";
 import {
     applyBestowCharacteristics,
@@ -317,22 +320,78 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         expect(item.subtypes).toEqual([...(springheartNantuko.subtypes ?? [])]);
     });
 
-    it("leaves an ordinary spell on the stack untouched", () => {
+    it('is illegal for "target creature spell" while bestowed, and legal again the moment it is not (CR 702.103b / 608.2b)', () => {
+        // The ADR's own stated motivation, asserted through the REAL target
+        // filter rather than by reading `types` off the item: a bestowed spell
+        // is an Aura spell, so `spellTypeFilter: "Creature"` must not see it.
         const { state } = boardWithHost();
-        const bears = makeInstance(BEARS, {
-            id: "bears-spell",
+        const item = castBestowed(state, "host");
+        const requirement = exclude.targetRequirement!;
+        const source = {
+            playerId: "p2",
+            cardInstanceId: "counter-source",
+        } as unknown as Parameters<typeof getLegalTargets>[2];
+
+        expect(
+            getLegalTargets(state, requirement, source, "p2").some(
+                (t) => t.id === item.id
+            )
+        ).toBe(false);
+
+        // Ceasing to be bestowed is the only change, and the filter's answer
+        // flips with it — nothing else touched the type line.
+        delete item.bestowed;
+        syncLayers2to5(state);
+        expect(
+            getLegalTargets(state, requirement, source, "p2").some(
+                (t) => t.id === item.id
+            )
+        ).toBe(true);
+    });
+
+    it("CONTROL — a BATTLEFIELD source's static effect does not reach a spell on the stack (CR 109.2)", () => {
+        // The receiving half of the zone gate, and the direction that is easy
+        // to miss: entries are collected once for the whole board, and an
+        // `applies` predicate reads only the target's characteristics — it has
+        // no idea what zone the object it is asked about is in. CR 109.2 — a
+        // card-type reference with no zone and no "spell" means a PERMANENT ON
+        // THE BATTLEFIELD — so Opalescence's "each other non-Aura enchantment
+        // is a creature" must not turn an enchantment SPELL into a creature
+        // spell (which `spellTypeFilter: "Creature"` would then counter).
+        const opal = makeInstance(opalescence.id, {
+            id: "opal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [opal] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = makeInstance(conversion.id, {
+            id: "conversion-spell",
             controllerId: "p1",
             ownerId: "p1",
             zone: "stack",
         });
-        state.stack.push({ ...bears, castById: "p1" });
-        castBestowed(state, "host");
+        state.stack.push({ ...spell, castById: "p1" });
 
         syncLayers2to5(state);
 
-        const plain = state.stack.find((s) => s.id === "bears-spell")!;
-        expect(plain.types).toEqual([...grizzlyBears.types]);
-        expect(plain.subtypes).toEqual([...(grizzlyBears.subtypes ?? [])]);
+        const onStack = state.stack.find((s) => s.id === "conversion-spell")!;
+        expect(onStack.types).toEqual(["Enchantment"]);
+        expect(
+            getLegalTargets(
+                state,
+                exclude.targetRequirement!,
+                {
+                    playerId: "p2",
+                    cardInstanceId: "counter-source",
+                } as unknown as Parameters<typeof getLegalTargets>[2],
+                "p2"
+            ).some((t) => t.id === onStack.id)
+        ).toBe(false);
     });
 
     it("CONTROL — an ordinary enchantment SPELL does NOT apply its static effect from the stack (CR 604.3)", () => {
