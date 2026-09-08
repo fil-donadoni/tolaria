@@ -38,6 +38,7 @@
 
 import { spawnSync } from "node:child_process";
 import { tryGetCardByName } from "../convex/cards/index";
+import { convexRunErrorMessage } from "./lib/convex-run-error";
 import { buildPresetPayload } from "./lib/preset-deck-seed";
 import { readTier1Decks } from "./lib/tier1-decks";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -123,7 +124,7 @@ function main(): void {
         const out = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim();
         console.error(
             `${RED}seed:preset: the deployment refused the write${RESET}\n` +
-                `${DIM}  ${res.error?.message ?? firstUsefulLine(out)}${RESET}`
+                `${DIM}  ${res.error?.message ?? convexRunErrorMessage(out)}${RESET}`
         );
         process.exit(1);
     }
@@ -138,18 +139,6 @@ function main(): void {
     }
     console.log(
         `${GREEN}✓ ${action}${RESET} ${DIM}→ presetDecks/${slug}${RESET}`
-    );
-}
-
-/** Convex prints a stack around the thrown message; the first line naming the
- *  actual error is what a reader needs. */
-function firstUsefulLine(text: string): string {
-    const lines = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-    return (
-        lines.find((l) => /error|failed|uncaught/i.test(l)) ?? lines[0] ?? ""
     );
 }
 
