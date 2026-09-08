@@ -38,6 +38,7 @@ const CAULDRON_ID = "fixture-exile-set-grant";
 const CAULDRON: CardDefinition = {
     id: CAULDRON_ID,
     name: "Fixture Soul Cauldron",
+    rarity: "rare",
     types: ["Artifact"],
     subtypes: [],
     manaCost: { generic: 2 },
