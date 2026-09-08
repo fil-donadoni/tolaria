@@ -35,6 +35,7 @@
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "gate:who": "bun scripts/gate.ts who",
         "health": "bun scripts/health-main.ts",
+        "health:fix": "bun scripts/health-fix.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "ladder": "bun scripts/ladder.ts",
         "land": "bun scripts/land.ts",
