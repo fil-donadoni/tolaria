@@ -8133,7 +8133,14 @@ export interface ManaSubstitutionScope {
      *  `applies(target, source, ctx)` convention every other scoped static
      *  uses, evaluated live at each payment so it observes the current board.
      *  Agatha's Soul Cauldron reads
-     *  `ctx.isCreature(target) && target.controllerId === source.controllerId`. */
+     *  `ctx.isCreature(target) && target.controllerId === source.controllerId`.
+     *
+     *  CR 110.1 — the ZONE gate is the seam's, not the predicate's: an
+     *  ability's source may sit in a graveyard (Ashen Ghoul) or a hand
+     *  (Cycling, CR 113.6 / 702.29a), and a `PermanentView` carries no `zone`
+     *  for a predicate to test. `manaSubstitutionScopeMatches` rejects a
+     *  non-battlefield source before `applies` is called, so a card never
+     *  writes that check and cannot forget it. */
     applies: (
         target: PermanentView,
         source: PermanentView,

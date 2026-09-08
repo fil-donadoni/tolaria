@@ -22737,6 +22737,17 @@ function manaSubstitutionScopeMatches(
         case "activated-ability": {
             const target = opts?.abilitySource;
             if (!target) return false;
+            // CR 110.1 / 109.2 — an ability's source is NOT always a permanent:
+            // a graveyard-source activation (Ashen Ghoul), a hand-source one
+            // (Cycling, CR 113.6 / 702.29a) and their bot-enumerated twins all
+            // hand this seam a `CardInstanceState` sitting in another zone. The
+            // predicate is handed a `PermanentView`, which carries no `zone`, so
+            // "creatures you control" would read TRUE for a creature card in a
+            // hand or a graveyard and leak the permission onto a Cycling cost.
+            // The zone gate belongs here, not in each card's predicate: an
+            // `activated-ability` scope speaks about a permanent's ability, and
+            // a future arm that means otherwise says so in its own case.
+            if (target.zone !== "battlefield") return false;
             return scope.applies(target, source, STATIC_EFFECT_CTX);
         }
         default:

@@ -42,6 +42,7 @@ import {
 } from "../state";
 import {
     activateAbilityOnState,
+    applyManaAbilityManaCost,
     autoTapForManaAbilityCost,
     tryAutoCommitPendingActivation,
 } from "../../game";
@@ -54,6 +55,7 @@ import { forest } from "../../cards/sets/lea";
 const CAULDRON_ID = "00000000-0000-4000-8000-000029440001";
 const CREATURE_ID = "00000000-0000-4000-8000-000029440002";
 const ARTIFACT_ID = "00000000-0000-4000-8000-000029440003";
+const MANA_CREATURE_ID = "00000000-0000-4000-8000-000029440004";
 
 /** Agatha's Soul Cauldron's second clause, and nothing else — the card itself
  *  is still blocked on ability-copy (`cards/sets/woe/colorless.ts`), so the
@@ -122,6 +124,29 @@ preloadDefinitions([
                 cost: { mana: { R: 1 } as ManaCost },
                 useStack: true,
                 effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ],
+    } as CardDefinition,
+    {
+        // Fire Sprites' shape (`leg/green.ts`, "{G}, {T}: Add {R}") — a CREATURE
+        // whose MANA ability carries a COLOURED cost. It is the only shape that
+        // reaches `applyManaAbilityManaCost`, a payment site with its own
+        // affordability throw and no stack item.
+        id: MANA_CREATURE_ID,
+        name: "Synthetic Cauldron Sprites",
+        rarity: "rare",
+        manaCost: { X: 1 },
+        types: ["Creature"],
+        subtypes: ["Faerie"],
+        power: 1,
+        toughness: 1,
+        activatedAbilities: [
+            {
+                id: "red-for-white",
+                oracleText: "{R}, {T}: Add {W}.",
+                cost: { mana: { R: 1 } as ManaCost, tap: true },
+                useStack: false,
+                manaProduced: { W: 1 } as ManaCost,
             },
         ],
     } as CardDefinition,
@@ -334,6 +359,80 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
         expect(
             player.battlefield.find((c) => c.id === "forest-1")?.isTapped
         ).toBe(false);
+    });
+});
+
+describe("CR 605.1a — a mana ability's OWN cost goes through the same seam", () => {
+    it("auto-tap and the mana-ability payment agree (issue #2944 review)", () => {
+        // The one payment site with its own affordability throw and no stack
+        // item. Before it read the ability seam, `autoTapForManaAbilityCost`
+        // reserved a Forest under the permission and this threw "Not enough
+        // mana to activate this ability" on the very next line.
+        const { state } = board();
+        const player = getPlayer(state, "p1");
+        const sprites = makeInstance(MANA_CREATURE_ID, { id: "sprites-1" });
+        player.battlefield.push(sprites);
+        player.battlefield.push(makeInstance(forest.id, { id: "forest-1" }));
+        const ability = {
+            id: "red-for-white",
+            oracleText: "{R}, {T}: Add {W}.",
+            cost: { mana: { R: 1 } as ManaCost, tap: true },
+            useStack: false,
+            manaProduced: { W: 1 } as ManaCost,
+        };
+
+        autoTapForManaAbilityCost(state, player, sprites, ability as never);
+        expect(
+            player.battlefield.find((c) => c.id === "forest-1")?.isTapped
+        ).toBe(true);
+        expect(() =>
+            applyManaAbilityManaCost(state, player, ability as never, sprites)
+        ).not.toThrow();
+        expect(player.manaPool.G ?? 0).toBe(0);
+    });
+
+    it("still refuses the same cost when the source is outside the scope", () => {
+        const { state } = board({ G: 1 });
+        const player = getPlayer(state, "p1");
+        const rock = makeInstance(ARTIFACT_ID, { id: "rock-1" });
+        player.battlefield.push(rock);
+        expect(() =>
+            applyManaAbilityManaCost(
+                state,
+                player,
+                {
+                    id: "red-for-white",
+                    cost: { mana: { R: 1 } as ManaCost, tap: true },
+                    useStack: false,
+                } as never,
+                rock
+            )
+        ).toThrow("Not enough mana");
+    });
+});
+
+describe("CR 110.1 — a source outside the battlefield is not a permanent", () => {
+    it("withholds the permission from a graveyard- or hand-source ability", () => {
+        // CR 113.6 / 702.29a — Ashen Ghoul's graveyard activation and a Cycling
+        // cost both reach the seam with a `CardInstanceState` in another zone.
+        // `PermanentView` carries no `zone`, so the card's own predicate cannot
+        // see it: the gate is the seam's, and it fails closed.
+        const { state } = board();
+        const inGraveyard = makeInstance(CREATURE_ID, {
+            id: "creature-gy",
+            zone: "graveyard",
+        });
+        const inHand = makeInstance(CREATURE_ID, {
+            id: "creature-hand",
+            zone: "hand",
+        });
+        getPlayer(state, "p1").graveyard.push(inGraveyard);
+        getPlayer(state, "p1").hand.push(inHand);
+
+        expect(getAbilityManaSubstitutions(state, "p1", inGraveyard)).toEqual(
+            []
+        );
+        expect(getAbilityManaSubstitutions(state, "p1", inHand)).toEqual([]);
     });
 });
 
