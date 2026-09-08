@@ -347,7 +347,29 @@ describe("gh-rest-fallback — the REAL fetchers' argv is recognised", () => {
             ],
         ]);
         const out = fetchUnclaimedReadyQueue(withRestFallback(runner, REPO));
-        expect(out).toEqual([{ number: 20 }]);
+        expect(out).toEqual([{ number: 20, parent: null }]);
+    });
+
+    it("fetchUnclaimedReadyQueue carries the sub-issue parent through the fallback (issue #3212)", () => {
+        // REST states the parent as `parent_issue_url`, GraphQL as a `parent`
+        // object. If the translation dropped it, a rate-limited `loop:status`
+        // would quietly report every P0 PRD's children as unprioritized —
+        // the exact number an operator reads to decide the P0 work is done.
+        const { runner } = rateLimitedThen([
+            [
+                issueRow({
+                    number: 20,
+                    parent_issue_url:
+                        "https://api.github.com/repos/fil-donadoni/tolaria/issues/100",
+                }),
+                issueRow({ number: 21, parent_issue_url: null }),
+            ],
+        ]);
+        const out = fetchUnclaimedReadyQueue(withRestFallback(runner, REPO));
+        expect(out).toEqual([
+            { number: 20, parent: { number: 100 } },
+            { number: 21, parent: null },
+        ]);
     });
 
     it("fetchOpenIssueBodies falls back", () => {

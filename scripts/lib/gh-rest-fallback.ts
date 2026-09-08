@@ -74,6 +74,16 @@ function num(v: unknown): number {
     return typeof v === "number" ? v : Number.NaN;
 }
 
+/** REST states the sub-issue parent as `parent_issue_url`, GraphQL as a
+ *  `parent` object — the trailing path segment is the number both mean. A
+ *  malformed or absent url is `null`, which the band treats as "no parent",
+ *  never as a parent numbered `NaN`. */
+function parentFromUrl(v: unknown): { number: number } | null {
+    if (typeof v !== "string") return null;
+    const m = /\/issues\/(\d+)$/.exec(v);
+    return m ? { number: Number(m[1]) } : null;
+}
+
 /** Value of `--flag value`, or `undefined` when the flag is absent. */
 function flagValue(args: string[], flag: string): string | undefined {
     const i = args.indexOf(flag);
@@ -202,14 +212,17 @@ function planIssueList(args: string[], repo: string): RestPlan | null {
         };
     }
 
-    // `number,labels` — the ready-for-agent queue read
+    // `number,labels,parent` — the ready-for-agent queue read
     // (`fetchUnclaimedReadyQueue`, which filters `in-progress` client-side).
-    if (sameFields(args, ["number", "labels"])) {
+    // `parent` is what the depth buckets band a PRD's children by (issue
+    // #3212); REST answers it as `parent_issue_url`, so the fallback keeps
+    // full fidelity rather than degrading every child to its own priority.
+    if (sameFields(args, ["number", "labels", "parent"])) {
         return {
             path: `repos/${repo}/issues`,
             query,
             limit: limitOf(args, 300),
-            what: "issue list (number,labels)",
+            what: "issue list (number,labels,parent)",
             project: (rows) =>
                 rows
                     .filter((r) => !isPullRequestRow(r))
@@ -218,6 +231,7 @@ function planIssueList(args: string[], repo: string): RestPlan | null {
                         labels: (Array.isArray(r.labels) ? r.labels : []).map(
                             (l) => ({ name: str((l as RestRow)?.name) })
                         ),
+                        parent: parentFromUrl(r.parent_issue_url),
                     })),
         };
     }
