@@ -4637,7 +4637,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
     // instead of the CR 701.6a graveyard default.
     counter: {
-        required: { target: isTargetRef },
+        // Issue #3206 — EITHER an announced slot (CR 601.2c, Counterspell) or a
+        // bare `$event` ref (CR 603.2 — Decree of Silence's trigger announces
+        // no target, so there is no slot to name). The ref's FAMILY is checked
+        // by the ordered ref pass, which admits only a `stack-object` field
+        // here; the schema's job is only to admit the two shapes.
+        required: { target: (v) => isTargetRef(v) || isEventRefValue(v) },
         optional: { destination: isCounterDestination },
     },
     // CR 701.6-adjacent (issue #2605) — move the target spell off the stack
@@ -4999,7 +5004,21 @@ interface RefUse {
      *  resolve nothing. The `picks` branch's other rules (bare name, picks or
      *  list family) still apply to a `name` ref that is NOT the reserved
      *  shape — a `nameCard` / `choice` binding, issues #1085 / #1104. */
-    kind: "number" | "player" | "picks" | "boolean" | "object" | "name";
+    kind:
+        | "number"
+        | "player"
+        | "picks"
+        | "boolean"
+        | "object"
+        | "name"
+        /** `counter.target` (issue #3206) — a SPELL on the stack, not a
+         *  battlefield permanent. Its own position because the two are
+         *  resolved by different functions with different presence rechecks
+         *  (`resolveStackObjectRef` vs `resolveObjectRef`), so an `object`
+         *  field appearing here — or a `stack-object` field appearing in an
+         *  ordinary `target` position — would resolve to nothing at runtime
+         *  and silently skip its Op. */
+        | "stack-object";
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
@@ -5051,63 +5070,69 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // position may accept. See `RefUse.kind`.
                         keyHint === "name"
                         ? "name"
-                        : keyHint === "target" ||
-                            keyHint === "to" ||
-                            keyHint === "of" ||
-                            // `choice`'s `candidates[]` (Barrin's Spite) — the
-                            // already-known battlefield objects the pick is
-                            // narrowed to, each an `EffectObjectSelector`
-                            // exactly like `target`.
-                            keyHint === "candidates" ||
-                            // `createTokenCopy`'s `source` (issue #1459) — the
-                            // runtime permanent being copied, an
-                            // `EffectObjectSelector` exactly like `target`
-                            // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
-                            // The only other `source` field in the vocabulary
-                            // (`moveZone`'s zone discriminator) is a string
-                            // literal, never a `{ ref }` object, so it never
-                            // reaches this branch.
-                            keyHint === "source" ||
-                            // `objectMatchesFilter` (issue #1747) — the live
-                            // object under test, an `EffectObjectSelector`
-                            // exactly like `target` (`{ ref: "$source" }` on
-                            // Figure of Destiny's stage gates).
-                            keyHint === "objectMatchesFilter" ||
-                            // `sharesColor` / `with` (issue #1955) — the two
-                            // objects whose live colours the Guard Dogs gate
-                            // intersects, each an `EffectObjectSelector` exactly
-                            // like `target`. No other field in the vocabulary is
-                            // named `with`.
-                            keyHint === "sharesColor" ||
-                            keyHint === "with" ||
-                            // `targetMatchesGraveyardFilter` (issue #2385) — the
-                            // announced graveyard-zone target under test, an
-                            // `EffectObjectSelector` exactly like `target` /
-                            // `objectMatchesFilter`. Review finding: this row
-                            // was missing, so a `{ ref: "$each" }` here mis-tagged
-                            // as "number" and a forEach's `$each` form was
-                            // rejected as a malformed ref even though the predicate
-                            // routes it through the identical object-selector path
-                            // one line below (`collectRefUses(p.
-                            // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
-                            keyHint === "targetMatchesGraveyardFilter" ||
-                            // `addSubtype`'s `enchantRestriction.host` (CR
-                            // 303.4, issue #2471) — the ONE specific object the
-                            // granted enchant clause names ("enchant creature
-                            // put onto the battlefield with Necromancy"), an
-                            // `EffectObjectSelector` exactly like `target` and
-                            // resolved to an instance id at grant time. Same
-                            // omission class as `targetMatchesGraveyardFilter`
-                            // above: the slice that added the field shipped
-                            // with only a `{ target: n }` exerciser, and a
-                            // `{ ref: "$reanimated" }` host — the bound-ref
-                            // form the field's own doc comment describes — was
-                            // mis-tagged "number" and rejected as a malformed
-                            // ref (issue #2392). No other field in the
-                            // vocabulary is named `host`.
-                            keyHint === "host"
-                          ? "object"
-                          : "number",
+                        : // `counter.target` (issue #3206) — routed here under
+                          // a SYNTHETIC key by the per-entry walk, because the
+                          // bare key `target` is shared by a dozen Ops that all
+                          // mean a battlefield object. See its collection site.
+                          keyHint === "counterTarget"
+                          ? "stack-object"
+                          : keyHint === "target" ||
+                              keyHint === "to" ||
+                              keyHint === "of" ||
+                              // `choice`'s `candidates[]` (Barrin's Spite) — the
+                              // already-known battlefield objects the pick is
+                              // narrowed to, each an `EffectObjectSelector`
+                              // exactly like `target`.
+                              keyHint === "candidates" ||
+                              // `createTokenCopy`'s `source` (issue #1459) — the
+                              // runtime permanent being copied, an
+                              // `EffectObjectSelector` exactly like `target`
+                              // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
+                              // The only other `source` field in the vocabulary
+                              // (`moveZone`'s zone discriminator) is a string
+                              // literal, never a `{ ref }` object, so it never
+                              // reaches this branch.
+                              keyHint === "source" ||
+                              // `objectMatchesFilter` (issue #1747) — the live
+                              // object under test, an `EffectObjectSelector`
+                              // exactly like `target` (`{ ref: "$source" }` on
+                              // Figure of Destiny's stage gates).
+                              keyHint === "objectMatchesFilter" ||
+                              // `sharesColor` / `with` (issue #1955) — the two
+                              // objects whose live colours the Guard Dogs gate
+                              // intersects, each an `EffectObjectSelector` exactly
+                              // like `target`. No other field in the vocabulary is
+                              // named `with`.
+                              keyHint === "sharesColor" ||
+                              keyHint === "with" ||
+                              // `targetMatchesGraveyardFilter` (issue #2385) — the
+                              // announced graveyard-zone target under test, an
+                              // `EffectObjectSelector` exactly like `target` /
+                              // `objectMatchesFilter`. Review finding: this row
+                              // was missing, so a `{ ref: "$each" }` here mis-tagged
+                              // as "number" and a forEach's `$each` form was
+                              // rejected as a malformed ref even though the predicate
+                              // routes it through the identical object-selector path
+                              // one line below (`collectRefUses(p.
+                              // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
+                              keyHint === "targetMatchesGraveyardFilter" ||
+                              // `addSubtype`'s `enchantRestriction.host` (CR
+                              // 303.4, issue #2471) — the ONE specific object the
+                              // granted enchant clause names ("enchant creature
+                              // put onto the battlefield with Necromancy"), an
+                              // `EffectObjectSelector` exactly like `target` and
+                              // resolved to an instance id at grant time. Same
+                              // omission class as `targetMatchesGraveyardFilter`
+                              // above: the slice that added the field shipped
+                              // with only a `{ target: n }` exerciser, and a
+                              // `{ ref: "$reanimated" }` host — the bound-ref
+                              // form the field's own doc comment describes — was
+                              // mis-tagged "number" and rejected as a malformed
+                              // ref (issue #2392). No other field in the
+                              // vocabulary is named `host`.
+                              keyHint === "host"
+                            ? "object"
+                            : "number",
         });
         return;
     }
@@ -5379,10 +5404,12 @@ function checkEventRef(
             ? "object"
             : use.kind === "player"
               ? "player"
-              : undefined;
+              : use.kind === "stack-object"
+                ? "stack-object"
+                : undefined;
     if (positionFamily === undefined) {
         errors.push(
-            `${at}: "$event" ref "${use.ref}" appears in a ${use.kind} position — an $event ref reads an object or player id, not a ${use.kind} value`
+            `${at}: "$event" ref "${use.ref}" appears in a ${use.kind} position — an $event ref reads an object, a stack object or a player id, not a ${use.kind} value`
         );
         return;
     }
@@ -5568,8 +5595,17 @@ function checkCaptureSource(
     // site's scheduling scope (a delayedTrigger capture map is resolved at fire
     // time, while the firing event is still live). Site legality and census are
     // checked here; the fire-time re-binding family is decided by
-    // `captureBindingKind`. Either family is fine as a capture SOURCE — both
-    // store a single id string.
+    // `captureBindingKind`. The `"object"` and `"player"` families are both
+    // fine as a capture SOURCE — both store a single id string that
+    // `runDelayedTriggerBody` can re-seed at fire time. `"stack-object"` is
+    // NOT (issue #3206): its id names a STACK ITEM, and the fire-time
+    // re-binding looks the captured id up on the battlefield, then the
+    // graveyard, then exile. A spell still on the stack is found nowhere and
+    // the binding is silently dropped; a spell that RESOLVED into a permanent
+    // binds that permanent, which is a different object the author never
+    // named (CR 400.7 — a resolving spell becomes a new object). Both are
+    // fail-OPEN, which is the failure this census exists to prevent, so the
+    // family is refused here rather than at the one consumer.
     if (ref.startsWith("$event.")) {
         const field = ref.slice(ref.indexOf(".") + 1);
         if (eventScope.inDelayedBody || eventScope.eventType === undefined) {
@@ -5578,9 +5614,16 @@ function checkCaptureSource(
             );
             return;
         }
-        if (!getEventFieldRow(eventScope.eventType, field)) {
+        const row = getEventFieldRow(eventScope.eventType, field);
+        if (!row) {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" — "${field}" is not a censused field for event "${eventScope.eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`
+            );
+            return;
+        }
+        if (row.family === "stack-object") {
+            errors.push(
+                `${at}: capture "${name}" "$event" ref "${ref}" is a stack-object field — a capture is re-bound at FIRE time by looking the id up on the battlefield/graveyard/exile, where a stack item is never found (and a spell that resolved is a different object, CR 400.7). Capture a permanent or player field instead`
             );
         }
         return;
@@ -5793,6 +5836,16 @@ function checkOpListRefs(
                     collectRefUses(token.power, "power", uses);
                     collectRefUses(token.toughness, "toughness", uses);
                 }
+                continue;
+            }
+            // `counter.target` (issue #3206) accepts EITHER an announced slot
+            // (`{ target: n }`, which carries no ref and collects nothing) or
+            // an `$event` STACK-OBJECT ref. Routed under a synthetic key so the
+            // position check can tell it apart from every other `target` — all
+            // of which mean a battlefield object, resolved by a different
+            // function with a different presence recheck.
+            if (entry.op === "counter" && k === "target") {
+                collectRefUses(v, "counterTarget", uses);
                 continue;
             }
             collectRefUses(v, k, uses);

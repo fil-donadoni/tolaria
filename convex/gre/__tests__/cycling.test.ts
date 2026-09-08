@@ -21,6 +21,7 @@ import {
 import { normalizeManaCost, resolveTopOfStack, type GameState } from "../state";
 import { getAllCards, getCardByName, getDefinition } from "../../cards";
 import { raugrinTriome } from "../../cards/sets/iko/colorless";
+import { cyclingAbility } from "../../cards/abilities/cycling";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { trollOfKhazadDum } from "../../cards/sets/ltr/black";
 import { lorienRevealed } from "../../cards/sets/ltr/blue";
@@ -442,5 +443,39 @@ describe("cycling cost marker (CR 702.29c/f)", () => {
             .filter((a) => !isPrintedCyclingAbility(a.ability.oracleText))
             .map((a) => `${a.card} / ${a.ability.id}`);
         expect(notCycling).toEqual([]);
+    });
+});
+
+// CR 107.4 / 202.1 — the reminder-text label prints the cost's mana SYMBOLS.
+// The renderer used to print `{generic}` and nothing else, on the stated
+// grounds that every caller's cycling cost was purely generic. Decree of
+// Silence (`sets/scg/blue.ts`, issue #3206) is the first with a COLOURED one,
+// and "Cycling {4}" is a wrong printed cost — on the ability, in
+// `aggregateOracleText`, and therefore in the search corpus.
+describe("cycling cost label renders coloured pips (CR 107.4 / 202.1)", () => {
+    it("prints generic then coloured pips", () => {
+        expect(cyclingAbility({ U: 2, generic: 4 }).oracleText).toBe(
+            "Cycling {4}{U}{U} ({4}{U}{U}, Discard this card: Draw a card.)"
+        );
+    });
+
+    it("prints a purely generic cost unchanged", () => {
+        expect(cyclingAbility({ generic: 2 }).oracleText).toContain(
+            "Cycling {2} ({2},"
+        );
+    });
+
+    it("prints a purely coloured cost with no leading {0}", () => {
+        expect(cyclingAbility({ U: 1 }).oracleText).toContain(
+            "Cycling {U} ({U},"
+        );
+    });
+
+    it("the shipped Decree of Silence ability carries its real printed cost", () => {
+        const decree = getCardByName("Decree of Silence");
+        const cycling = decree.activatedAbilities?.find(
+            (a) => a.id === "cycling"
+        );
+        expect(cycling?.oracleText).toContain("Cycling {4}{U}{U}");
     });
 });

@@ -641,9 +641,13 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
             EVENT_FIELD_REGISTRY
         )) {
             for (const [field, row] of Object.entries(fields)) {
-                expect(["object", "player"], `${eventType}.${field}`).toContain(
-                    row.family
-                );
+                // issue #3206 — `stack-object` is the third family: a SPELL
+                // on the stack, which is neither a permanent (a battlefield
+                // recheck would reject every one) nor a player.
+                expect(
+                    ["object", "player", "stack-object"],
+                    `${eventType}.${field}`
+                ).toContain(row.family);
                 expect(typeof row.resolve, `${eventType}.${field}`).toBe(
                     "function"
                 );

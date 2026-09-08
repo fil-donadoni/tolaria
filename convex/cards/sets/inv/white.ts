@@ -1180,15 +1180,23 @@ export const glimmeringAngel: CardDefinition = {
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white
 // Reflection creature token, where X is the mana value of that spell."
-// tracked-by: #2066 (umbrella #1329). The dynamic-token-size half of that
-// blocker is now GONE:
+// The dynamic-token-size half of the blocker is now GONE:
 // `EffectTokenSpec.power`/`toughness` take a full `EffectValue` as of issue
 // #2384 (Skyclave Apparition's X/X Illusion), so an X/X token IS expressible
-// via `createToken`. What still blocks this card is reading X off the
-// TRIGGERING SPELL: `EVENT_FIELD_REGISTRY` has no `SPELL_CAST` row exposing the
-// cast spell as an object, so `{ ref: "$event.<spell>.manaValue" }` has nothing
-// to resolve — plus "destroy all Reflections", a subtype-filtered mass destroy.
-// Re-verify against #2066 before quoting the old premise.
+// via `createToken`. Re-verified against HEAD for issue #3206, which DID give
+// `SPELL_CAST` its `EVENT_FIELD_REGISTRY` rows — so the old premise ("no
+// SPELL_CAST row exposing the cast spell") is now wrong and is corrected here
+// rather than left to rot. It still does not graduate the card, for two
+// reasons that are both unchanged:
+//   1. `$event.spell` is a `"stack-object"` ref, and its ONE consumer is the
+//      `counter` Op (`resolveStackObjectRef`). Reading X is a NUMERIC position
+//      — `{ manaValue: { of: <object selector> } }` — which resolves through
+//      `resolveObjectRef` and its BATTLEFIELD-presence recheck, so a spell on
+//      the stack resolves to nothing there. A `manaValue` reader for the
+//      stack-object family is what this half now needs, not a census row.
+//   2. "Destroy all Reflections" is still a subtype-filtered mass destroy with
+//      no expression.
+// tracked-by: #2066 (umbrella #1329).
 
 // Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
 // this creature this turn if able." tracked-by: #1332 (no "must be

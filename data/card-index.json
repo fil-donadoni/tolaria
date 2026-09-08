@@ -7872,6 +7872,14 @@
         "firstPrintSet": "nph"
     },
     {
+        "name": "Decree of Silence",
+        "scryfallId": "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
+        "oracleId": "920684d0-aef3-4408-a66b-a0c9394c58f4",
+        "firstSet": "scg",
+        "firstPrintId": "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
+        "firstPrintSet": "scg"
+    },
+    {
         "name": "Dedicated Martyr",
         "scryfallId": "d1f95b64-858b-4344-84a2-3afa5c7b9ee9",
         "oracleId": "ca39af65-985d-4ab1-874b-9e8d3455c349",

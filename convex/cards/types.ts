@@ -15047,7 +15047,16 @@ export type EffectOp =
      *  is the CR 701.6a default. */
     | {
           op: "counter";
-          target: EffectTargetRef;
+          /** The spell to counter. An announced target slot (`{ target: n }`,
+           *  CR 601.2c) — Counterspell — OR (issue #3206) an `$event`
+           *  STACK-OBJECT ref naming the spell a `SPELL_CAST` trigger fired on
+           *  (`{ ref: "$event.spell" }`, Decree of Silence). The second shape
+           *  exists because a triggered ability that counters the spell that
+           *  triggered it announces NO target (CR 603.2), so there is no slot
+           *  to name. The validator admits only a `stack-object`-family
+           *  `$event` ref here; CR 608.2b's "already left the stack" skip is
+           *  `SpellContext.counter`'s, not this ref's. */
+          target: EffectTargetRef | EffectRef;
           destination?: CounterDestination;
       }
     /** CR 701.6-adjacent (issue #2605) — move the announced target SPELL off

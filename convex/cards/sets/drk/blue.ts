@@ -385,24 +385,25 @@ export const manaVortex: CardDefinition = {
             oracleText:
                 "When you cast this spell, counter it unless you sacrifice a land.",
             scope: "self",
-            // NOT DSL-migratable (ADR 0045, re-assessed): `spellCastTrigger`
-            // DOES have an `effects[]` site now, and `counter` IS a
-            // registered Op — but the target here is THIS SPELL, currently on
-            // the stack, being cast (CR 603.6e). `SPELL_CAST` has no
-            // `EVENT_FIELD_REGISTRY` row (unlike `BLOCKERS_CONFIRMED` /
-            // `PHASE_BEGIN`), so there is no `$event.spellInstanceId` ref to
-            // name the counter target — a genuine census gap. Separately, the
-            // land-sacrifice-or-counter gate needs the SAME raise-time
-            // affordability pre-check gap documented on Yawgmoth Demon
-            // (atq/black.ts): the imperative body checks `lands.length === 0`
+            // NOT DSL-migratable (ADR 0045, re-assessed twice). The FIRST of
+            // the two blockers this marker used to cite is CLOSED: issue #3206
+            // gave `SPELL_CAST` its `EVENT_FIELD_REGISTRY` rows, so
+            // `{ ref: "$event.spell" }` now names the spell being cast — this
+            // trigger's own, since `scope: "self"` — and `counter` accepts it
+            // (Decree of Silence, `sets/scg/blue.ts`, ships on exactly that).
+            //
+            // What still blocks it is the SECOND, unchanged: the
+            // sacrifice-a-land-or-be-countered gate needs the raise-time
+            // affordability pre-check documented on Yawgmoth Demon
+            // (atq/black.ts). The imperative body checks `lands.length === 0`
             // BEFORE prompting, so a landless controller is countered with NO
-            // suspension — the generic `mayPay` Op has no such pre-check.
-            // Stays resolve(). (Mana Vortex's other two triggers — the
-            // each-upkeep land sac and the no-lands self-sac — HAVE been
-            // migrated to `effects[]` below.)
-            // Blocked on: a `SPELL_CAST` `EVENT_FIELD_REGISTRY` row for
-            // `spellInstanceId`, AND a raise-time affordability gate for
-            // `mayPay` (same gap as Yawgmoth Demon).
+            // suspension; the generic `mayPay` Op has no such pre-check and
+            // would prompt a player who cannot pay. Migrating on the counter
+            // half alone would REGRESS that, so it stays `resolve()` whole.
+            // (Mana Vortex's other two triggers — the each-upkeep land sac and
+            // the no-lands self-sac — are already `effects[]` below.)
+            // Blocked on: a raise-time affordability gate for `mayPay` (the
+            // Yawgmoth Demon gap). The SPELL_CAST census gap is closed.
             resolve: (ctx, _event, spell) => {
                 const controller = ctx.controller;
                 const spellRef = {

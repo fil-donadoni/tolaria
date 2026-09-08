@@ -3500,6 +3500,118 @@ describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #
         );
     });
 
+    // issue #3206 — the THIRD family: a SPELL on the stack, whose one legal
+    // position is `counter.target`. Neither direction may fail open.
+    describe("the stack-object family (SPELL_CAST, issue #3206)", () => {
+        it("accepts $event.spell as a counter target at a SPELL_CAST trigger site", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "counter", target: { ref: "$event.spell" } },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors).toEqual([]);
+        });
+
+        it("rejects a stack-object field in an ordinary OBJECT position", () => {
+            // `destroy` resolves through `resolveObjectRef`'s BATTLEFIELD
+            // recheck, which rejects every stack object — so this would
+            // validate cleanly and then silently skip at runtime.
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "destroy", target: { ref: "$event.spell" } },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors.join("\n")).toContain(
+                "stack-object field in a object position"
+            );
+        });
+
+        it("rejects a PLAYER field in the counter-target position", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "counter", target: { ref: "$event.caster" } },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors.join("\n")).toContain(
+                "player field in a stack-object position"
+            );
+        });
+
+        // Review finding — the family must fail closed in the OTHER position
+        // that takes an `$event` ref: a `delayedTrigger` capture. Its fire-time
+        // re-binding looks the captured id up on the battlefield, then the
+        // graveyard, then exile — a stack item is found in none of them, and a
+        // spell that RESOLVED binds a different object (CR 400.7). Both are
+        // silent, so the capture is refused rather than left to its consumer.
+        it("rejects a stack-object field as a delayedTrigger CAPTURE source", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "…",
+                        capture: { $s: { ref: "$event.spell" } },
+                        effects: [{ op: "destroy", target: { ref: "$s" } }],
+                    },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors.join("\n")).toContain("is a stack-object field");
+        });
+
+        it("still accepts a PLAYER field as a capture source", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "…",
+                        capture: { $p: { ref: "$event.caster" } },
+                        effects: [
+                            {
+                                op: "loseLife",
+                                player: { ref: "$p" },
+                                amount: 1,
+                            },
+                        ],
+                    },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors).toEqual([]);
+        });
+
+        it("rejects an uncensused SPELL_CAST field", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "counter", target: { ref: "$event.bogusSpell" } },
+                ]),
+                "Test (id)",
+                "SPELL_CAST"
+            );
+            expect(errors.join("\n")).toContain("not a censused field");
+        });
+
+        it("rejects $event.spell at a NON-SPELL_CAST trigger site", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "counter", target: { ref: "$event.spell" } },
+                ]),
+                "Test (id)",
+                "BLOCKERS_CONFIRMED"
+            );
+            expect(errors.join("\n")).toContain("not a censused field");
+        });
+    });
+
     it("rejects an uncensused $event field", () => {
         const errors = validateAbilityEffectScript(
             abilityHost([{ op: "destroy", target: { ref: "$event.bogusId" } }]),

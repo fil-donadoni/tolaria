@@ -53,13 +53,32 @@ import type {
  *  never prints two cycling abilities, so the id stays unique per card. */
 const CYCLING_ABILITY_ID = "cycling";
 
-/** Renders a generic-only cycling cost as its `{N}` reminder-text label. Every
- *  card in this batch has a purely-generic cycling cost ({1}/{2}/{3}); a
- *  coloured cost would need a fuller mana-symbol renderer, which the callers
- *  don't need yet. */
+/** Renders a cycling cost as its reminder-text label (CR 107.4 / 202.1 — the
+ *  mana symbols of the cost, generic pip first, then coloured pips in WUBRG
+ *  order, which is the printed order for every cycling cost in the pool).
+ *
+ *  It used to print `{${cost.generic ?? 0}}` and nothing else, on the stated
+ *  grounds that every caller had a purely-generic cost. Decree of Silence
+ *  (`sets/scg/blue.ts`) is the first with a COLOURED one — Cycling {4}{U}{U} —
+ *  and the generic-only renderer printed "Cycling {4}", which is a wrong
+ *  printed cost on the card's ability text, in `aggregateOracleText`, and
+ *  therefore in the search corpus. The cost OBJECT was always right; only the
+ *  label was.
+ *
+ *  A zero-generic cost with coloured pips prints just the pips ("Cycling {U}"),
+ *  never a leading "{0}"; a wholly empty cost prints "{0}", the only case where
+ *  a bare zero is the real printed cost. `X` is deliberately not rendered: no
+ *  printed cycling cost is variable, and inventing a `{X}` label for one would
+ *  be a guess. */
 function cyclingCostLabel(cost: ManaCost): string {
+    const parts: string[] = [];
     const generic = cost.generic ?? 0;
-    return `{${generic}}`;
+    if (generic > 0) parts.push(`{${generic}}`);
+    for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
+        const n = cost[color] ?? 0;
+        for (let i = 0; i < n; i++) parts.push(`{${color}}`);
+    }
+    return parts.join("") || "{0}";
 }
 
 /** The activation shell every cycling ability shares (CR 702.29a + 702.29f).
