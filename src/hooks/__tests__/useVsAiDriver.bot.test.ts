@@ -272,7 +272,7 @@ const { getAiDecisions, clearAiDecisions } =
     await import("~/lib/ai/trace-store");
 // Resets the Brain's per-game Worker respawn budget between the issue #3040
 // cases below, which deliberately spend it.
-const { disposeBrain, MAX_BRAIN_WORKER_SPAWNS } =
+const { disposeBrain, MAX_BRAIN_WORKER_FAILURES } =
     await import("~/lib/ai/brain-client");
 
 /** Flush the driver's NORMAL decision path — the think beat, the inline search
@@ -1088,14 +1088,21 @@ describe("useVsAiDriver (issue #110)", () => {
             // The first game must SPEND the budget, or the second one would
             // spawn again whether or not anything reset it.
             currentState = landInHand();
-            const first = renderHook(() => useVsAiDriver(GAME, BOT));
+            const { rerender } = renderHook(
+                ({ gameId }: { gameId: typeof GAME }) =>
+                    useVsAiDriver(gameId, BOT),
+                { initialProps: { gameId: GAME } }
+            );
             await settleDriver();
             const afterFirstGame = constructed;
-            expect(afterFirstGame).toBe(MAX_BRAIN_WORKER_SPAWNS);
+            expect(afterFirstGame).toBe(MAX_BRAIN_WORKER_FAILURES);
 
-            first.unmount();
+            // The REMATCH path, not a remount: Restart Solo swaps `gameId` on
+            // the same hook instance, and in a solo game `botId` is identical
+            // in both games. A hook that only remounted would reset the budget
+            // for free and prove nothing.
             currentState = landInHand();
-            renderHook(() => useVsAiDriver(GAME2, BOT));
+            rerender({ gameId: GAME2 });
             await settleDriver();
             expect(constructed).toBeGreaterThan(afterFirstGame);
         });

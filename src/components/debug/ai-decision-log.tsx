@@ -12,7 +12,11 @@
 // The same rows travel inside a bug report (`collectAiDiagnostics`).
 
 import { useAiDecisions } from "~/hooks/useAiDecisions";
-import { clearAiDecisions, type AiDecisionOutcome } from "~/lib/ai/trace-store";
+import {
+    clearAiDecisions,
+    type AiDecisionOutcome,
+    type AiDecisionRecord,
+} from "~/lib/ai/trace-store";
 
 /** Player-facing wording per outcome, and whether it is a FAILURE. Exhaustive
  *  over the union, so a new outcome is a build error rather than a blank cell. */
@@ -36,11 +40,7 @@ const OUTCOME: Record<AiDecisionOutcome, { label: string; bad: boolean }> = {
  *  all, so it has no expected input, no phase and no seq — and those are left
  *  absent rather than defaulted, because a plausible-looking `#0 …` here would
  *  read as a board version the failure never saw. */
-function windowLabel(d: {
-    seq?: number;
-    phase?: string;
-    expectedKind?: string;
-}): string {
+function windowLabel(d: AiDecisionRecord): string {
     return d.expectedKind
         ? `#${d.seq} ${d.phase} · ${d.expectedKind}`
         : "no window (Brain warm-up)";

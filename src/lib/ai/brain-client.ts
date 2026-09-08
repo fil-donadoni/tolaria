@@ -93,24 +93,30 @@ type InFlight = { resolve: Pending; request: BrainRequest };
  *  cache would be a ~1.4 MB download plus a 3,000 ms search inside 5,000 ms. */
 export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
 
-/** How many Brain Workers ONE GAME may construct (issue #3040).
+/** How many CONSECUTIVE Worker failures give up on the Worker and hand the rest
+ *  of the game to the in-thread fallback (issue #3040).
  *
  *  The respawn has to be bounded — a script that cannot load would otherwise be
  *  re-spawned on every consult for the rest of the game — and the bound is
  *  deliberately tight, because the alternative to spawning again is not
  *  "nothing": it is the in-thread fallback, which answers.
  *
- *  Two spawns means ONE retry, sized against the real sequence: `useVsAiDriver`
- *  calls {@link warmBrain} on mount, so the warm-up spawn is the first of the
- *  two. A game whose Worker script cannot load therefore spends its second (and
- *  last) spawn on the bot's FIRST real consult and reaches the in-thread
- *  fallback inside that same consult — it plays its land instead of passing the
- *  window. A larger cap buys nothing but repetitions of an identical failure,
- *  each paid for with a window the bot passes.
+ *  Two means ONE retry, sized against the real sequence: `useVsAiDriver` calls
+ *  {@link warmBrain} on mount, so the warm-up spawn is the first failure. A game
+ *  whose Worker script cannot load therefore hits the second (and last) failure
+ *  on the bot's FIRST real consult and reaches the in-thread fallback inside
+ *  that same consult — it plays its land instead of passing the window. A larger
+ *  cap buys nothing but repetitions of an identical failure, each paid for with
+ *  a window the bot passes.
  *
- *  Per GAME, not per tab: {@link disposeBrain} resets it, and `useVsAiDriver`
- *  calls that when the bot seat goes away. */
-export const MAX_BRAIN_WORKER_SPAWNS = 2;
+ *  CONSECUTIVE is the load-bearing word: any successful reply resets the count,
+ *  because it proves the script loads and the Worker answers. A lifetime count
+ *  would let two unrelated transient crashes hours apart in one long game pin
+ *  every later decision to the 120-iteration in-thread search, permanently and
+ *  invisibly. Each failure costs exactly one construction — the failed handle is
+ *  replaced once — so the cap is also the ceiling on Workers a broken script can
+ *  build. {@link disposeBrain} resets it too, which is what makes it per GAME. */
+export const MAX_BRAIN_WORKER_FAILURES = 2;
 
 /** The budget the in-thread FALLBACK searches at, once the Worker is out of
  *  respawns (issue #3040).
@@ -146,8 +152,9 @@ export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
 let worker: Worker | null = null;
 let nextId = 1;
 const pending = new Map<number, InFlight>();
-/** Workers constructed for the current game — see {@link MAX_BRAIN_WORKER_SPAWNS}. */
-let spawns = 0;
+/** Worker failures since the last successful reply — see
+ *  {@link MAX_BRAIN_WORKER_FAILURES}. */
+let failures = 0;
 /** Set once the spawn budget is spent: every later consult goes in-thread. */
 let exhausted = false;
 
@@ -159,19 +166,35 @@ function getWorker(): Worker | null {
     // the full consult timeout for nothing.
     if (exhausted) return null;
     if (worker) return worker;
-    spawns += 1;
-    worker = new Worker(new URL("./brain.worker.ts", import.meta.url), {
+    // Held in a local as well as in the module singleton, so both handlers can
+    // ask "am I still the installed Worker?" — see `onerror` below.
+    const spawned = new Worker(new URL("./brain.worker.ts", import.meta.url), {
         type: "module",
     });
-    worker.onmessage = (e: MessageEvent<BrainResponse>) => {
+    worker = spawned;
+    spawned.onmessage = (e: MessageEvent<BrainResponse>) => {
+        // A reply — even one carrying a search `error` — proves the script
+        // loaded and this Worker answers, so the failure count starts over.
+        failures = 0;
         const entry = pending.get(e.data.id);
         if (entry) {
             pending.delete(e.data.id);
             entry.resolve(fromResponse(e.data, "worker"));
         }
     };
-    worker.onerror = handleWorkerFailure;
-    return worker;
+    spawned.onerror = (e) => {
+        // A STALE event must not tear down the healthy Worker that replaced
+        // this one. Two ways it happens: a runtime `error` does not terminate a
+        // Worker (the spec only fires the event), so a crashed-but-alive handle
+        // can fire again after it has been replaced; and React StrictMode's
+        // mount → cleanup → mount makes "the handle that fires is not the
+        // handle that is installed" ordinary rather than exotic. Without this
+        // the late event would null the singleton, terminate the LIVE Worker,
+        // spend a failure and record a breadcrumb for a Worker nobody is using.
+        if (worker !== spawned) return;
+        handleWorkerFailure(e);
+    };
+    return spawned;
 }
 
 /** A Worker `error` event: the handle is dead, and before issue #3040 it stayed
@@ -187,13 +210,16 @@ function handleWorkerFailure(e: unknown): void {
     const dead = worker;
     worker = null;
     // Terminate AFTER dropping the reference: a throw from `terminate()` must
-    // not leave the dead singleton installed.
+    // not leave the dead singleton installed. `onerror` is detached first so a
+    // handle that fires again on its way out cannot re-enter here.
     try {
+        if (dead) dead.onerror = null;
         dead?.terminate();
     } catch {
         // A handle that cannot even be terminated is still gone from here.
     }
-    if (spawns >= MAX_BRAIN_WORKER_SPAWNS) exhausted = true;
+    failures += 1;
+    if (failures >= MAX_BRAIN_WORKER_FAILURES) exhausted = true;
 
     const inFlight = [...pending.values()];
     pending.clear();
@@ -292,10 +318,16 @@ function runInline(request: BrainRequest): BrainResult {
 
 /** Clamp a requested budget down to {@link BRAIN_FALLBACK_BUDGET} for the
  *  in-thread fallback: a ceiling, per field, so a caller already asking for
- *  less keeps its own smaller numbers. */
+ *  less keeps its own smaller numbers.
+ *
+ *  Built field by field rather than by spreading `requested`, because
+ *  `SearchBudget` has two more fields and both would defeat the ceiling: a
+ *  `minIterations` above the clamp overrides it outright (the early-stop floor,
+ *  issue #2685 — unset is what the settle rule wants anyway), and an injected
+ *  `now` is a deterministic test clock that has no business on a real UI
+ *  thread. A ceiling that a spread can carry past is not a ceiling. */
 function clampToFallback(requested: SearchBudget): SearchBudget {
     return {
-        ...requested,
         iterations: Math.min(
             requested.iterations ?? BRAIN_FALLBACK_BUDGET.iterations!,
             BRAIN_FALLBACK_BUDGET.iterations!
@@ -422,10 +454,30 @@ function fromResponse(
  *  an already-dead Brain. */
 export function disposeBrain(): void {
     if (worker) {
+        worker.onerror = null;
         worker.terminate();
         worker = null;
     }
+    // SETTLE what was in flight, do not just forget it. `pending.clear()` alone
+    // leaves the consult's own timeout unable to fire (`pending.delete(id)`
+    // returns false), so its promise never settles at all — and this file's
+    // standing invariant is that a consult ALWAYS settles (issue #2284). That
+    // was unreachable while `disposeBrain` had no caller in the app; wiring it
+    // to the driver's effect cleanup makes a dispose DURING a live consult an
+    // ordinary event (a rematch swaps the game on the same hook instance), and
+    // a promise that never settles there is a latch on the driver's in-flight
+    // guard and a stray mutation aimed at the game the player just left.
+    const inFlight = [...pending.values()];
     pending.clear();
-    spawns = 0;
+    for (const entry of inFlight) {
+        entry.resolve({
+            move: null,
+            trace: null,
+            outcome: "worker-error",
+            via: "worker",
+            message: "Brain disposed — the game was left or swapped",
+        });
+    }
+    failures = 0;
     exhausted = false;
 }

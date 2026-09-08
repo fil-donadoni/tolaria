@@ -186,7 +186,15 @@ export function useVsAiDriver(
         // Worker died would hand the next game an already-exhausted Brain that
         // never even tried to spawn one.
         return () => disposeBrain();
-    }, [botId]);
+        // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
+        // Switch Game swaps `gameId` on the SAME hook instance (the board is
+        // rendered unkeyed — see the `lastGameId` reset below), and in a solo
+        // game the bot's seat id is `${userId}-p2` in both games. Keyed on
+        // `botId` alone this effect never re-ran across a rematch, so the
+        // respawn budget `disposeBrain` resets would never have been reset and
+        // the cap would still be per TAB: game 2 would inherit an exhausted
+        // Brain and never even try to spawn a Worker.
+    }, [gameId, botId]);
 
     const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
     const botOwesInput = !!(

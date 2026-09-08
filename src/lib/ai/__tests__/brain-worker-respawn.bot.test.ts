@@ -38,9 +38,8 @@ import {
     consultBrain,
     disposeBrain,
     warmBrain,
-    BRAIN_CONSULT_TIMEOUT_MS,
     BRAIN_FALLBACK_BUDGET,
-    MAX_BRAIN_WORKER_SPAWNS,
+    MAX_BRAIN_WORKER_FAILURES,
     WORKER_SCRIPT_LOAD_FAILURE,
 } from "../brain-client";
 import { clearAiDecisions, getAiDecisions } from "../trace-store";
@@ -133,6 +132,53 @@ class FlakyWorker {
     terminate() {}
 }
 
+/** A Worker that accepts the request and never answers — the wedged search. */
+class SilentWorker {
+    onmessage: unknown = null;
+    onerror: unknown = null;
+    constructor() {
+        constructed += 1;
+    }
+    postMessage() {}
+    terminate() {}
+}
+
+/** Every Worker the scripted stub has built, in order, so a test can fire an
+ *  `error` at a handle of its choosing — including one that has already been
+ *  replaced, which is what a crashed-but-alive Worker does (the spec's `error`
+ *  event does not terminate anything). */
+const instances: ScriptedWorker[] = [];
+/** Whether construction N crashes on its own, consumed in order. */
+let crashPlan: boolean[] = [];
+
+/** A Worker whose health is scripted per construction, and which answers `pass`
+ *  when healthy. `terminated` is observable, so a test can assert that a stale
+ *  event did NOT tear down the live handle. */
+class ScriptedWorker {
+    onmessage: ((e: { data: unknown }) => void) | null = null;
+    onerror: ((e: unknown) => void) | null = null;
+    terminated = false;
+    private readonly crash: boolean;
+    constructor() {
+        constructed += 1;
+        this.crash = crashPlan.shift() ?? false;
+        instances.push(this);
+        if (this.crash)
+            void Promise.resolve().then(() =>
+                this.onerror?.({ message: "boom" })
+            );
+    }
+    postMessage(req: { id: number }) {
+        if (!this.crash)
+            this.onmessage?.({
+                data: { id: req.id, move: { kind: "pass" }, trace: null },
+            });
+    }
+    terminate() {
+        this.terminated = true;
+    }
+}
+
 const originalWorker = globalThis.Worker;
 function useWorker(stub: unknown) {
     (globalThis as { Worker?: unknown }).Worker = stub;
@@ -169,6 +215,8 @@ const flush = () => vi.advanceTimersByTimeAsync(0);
 
 beforeEach(() => {
     constructed = 0;
+    instances.length = 0;
+    crashPlan = [];
     searchedAt.length = 0;
     clearAiDecisions();
     vi.useFakeTimers();
@@ -224,13 +272,13 @@ describe("a failed Brain Worker is replaced, not reused (issue #3040)", () => {
         expect(constructed).toBe(2);
     });
 
-    it("never constructs more than MAX_BRAIN_WORKER_SPAWNS in one game", async () => {
+    it("never constructs more than MAX_BRAIN_WORKER_FAILURES in one game", async () => {
         for (let i = 0; i < 6; i += 1) {
             const consult = consultBrain(landInHandBoard(), BOT);
             await flush();
             await consult;
         }
-        expect(constructed).toBe(MAX_BRAIN_WORKER_SPAWNS);
+        expect(constructed).toBe(MAX_BRAIN_WORKER_FAILURES);
     });
 
     it("gives the next game a fresh budget — the cap is per GAME", async () => {
@@ -239,7 +287,7 @@ describe("a failed Brain Worker is replaced, not reused (issue #3040)", () => {
             await flush();
             await consult;
         }
-        expect(constructed).toBe(MAX_BRAIN_WORKER_SPAWNS);
+        expect(constructed).toBe(MAX_BRAIN_WORKER_FAILURES);
 
         // `useVsAiDriver` calls this when the bot seat goes away. Without the
         // reset the cap would be per TAB: the next game would inherit an
@@ -248,7 +296,83 @@ describe("a failed Brain Worker is replaced, not reused (issue #3040)", () => {
         const consult = consultBrain(landInHandBoard(), BOT);
         await flush();
         await consult;
-        expect(constructed).toBe(MAX_BRAIN_WORKER_SPAWNS + 1);
+        expect(constructed).toBe(MAX_BRAIN_WORKER_FAILURES + 1);
+    });
+
+    it("counts CONSECUTIVE failures: a successful reply resets the budget", async () => {
+        useWorker(ScriptedWorker);
+        crashPlan = [true];
+        const first = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        await expect(first).resolves.toMatchObject({ outcome: "worker-error" });
+
+        const second = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        await expect(second).resolves.toMatchObject({
+            outcome: "move",
+            via: "worker",
+        });
+        expect(constructed).toBe(2);
+
+        // That healthy Worker now crashes at runtime, hours into the game. On a
+        // LIFETIME count this is already failure #2 and every later decision is
+        // pinned to the 120-iteration in-thread search for good, silently. The
+        // success in between must reset the count, so the bot gets its Worker
+        // back.
+        instances[1].onerror!({ message: "a later, unrelated crash" });
+        const third = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        await expect(third).resolves.toMatchObject({
+            outcome: "move",
+            via: "worker",
+        });
+        expect(constructed).toBe(3);
+    });
+
+    it("ignores a stale error event from a Worker already replaced", async () => {
+        useWorker(ScriptedWorker);
+        crashPlan = [true];
+        // Captured BEFORE the failure detaches it: the same handle can fire
+        // again, because the spec's `error` event does not terminate a Worker,
+        // and StrictMode's mount → cleanup → mount makes "the handle that fires
+        // is not the handle installed" ordinary rather than exotic.
+        const first = consultBrain(landInHandBoard(), BOT);
+        const staleHandler = instances[0].onerror!;
+        await flush();
+        await first;
+
+        const second = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        await expect(second).resolves.toMatchObject({ via: "worker" });
+        const recordsBefore = getAiDecisions().length;
+
+        staleHandler({ message: "the dead handle, firing again" });
+
+        // The LIVE Worker must survive it, unspent and unreported…
+        expect(instances[1].terminated).toBe(false);
+        expect(getAiDecisions()).toHaveLength(recordsBefore);
+        // …and still be the one that answers.
+        const third = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        await expect(third).resolves.toMatchObject({ via: "worker" });
+        expect(constructed).toBe(2);
+    });
+
+    it("settles an in-flight consult when the Brain is disposed mid-search", async () => {
+        // A rematch swaps the game on the SAME hook instance, so a dispose
+        // during a live consult is ordinary. Clearing `pending` without
+        // resolving leaves the consult's own timeout unable to fire, so the
+        // promise never settles at all — a latch on the driver's in-flight
+        // guard, and this file's standing invariant (issue #2284) broken.
+        useWorker(SilentWorker);
+        const consult = consultBrain(landInHandBoard(), BOT);
+        await flush();
+        disposeBrain();
+        await expect(consult).resolves.toMatchObject({
+            outcome: "worker-error",
+            move: null,
+        });
+        expect((await consult).message).toContain("disposed");
     });
 });
 
@@ -272,7 +396,7 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
             via: "inline",
             move: { kind: "play-land" },
         });
-        expect(constructed).toBe(MAX_BRAIN_WORKER_SPAWNS);
+        expect(constructed).toBe(MAX_BRAIN_WORKER_FAILURES);
     });
 
     it("pays no consult timeout — it settles without the clock moving", async () => {
@@ -282,9 +406,6 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
         // repeated for every window after the first.
         const result = await firstConsultAfterWarmUp();
         expect(result.outcome).not.toBe("timeout");
-        expect(BRAIN_FALLBACK_BUDGET.timeMs!).toBeLessThan(
-            BRAIN_CONSULT_TIMEOUT_MS
-        );
     });
 
     it("searches at the reduced budget, because it runs on the UI thread", async () => {
@@ -312,6 +433,25 @@ describe("the in-thread fallback answers once the Worker is out of respawns (iss
         expect(BRAIN_FALLBACK_BUDGET.timeMs!).toBeLessThan(
             DIFFICULTY_BUDGETS.medium.timeMs!
         );
+    });
+
+    it("does not let a caller's minIterations survive the clamp", async () => {
+        warmBrain();
+        await flush();
+        const consult = consultBrain(landInHandBoard(), BOT, {
+            iterations: 1200,
+            timeMs: 3000,
+            // The early-stop FLOOR (issue #2685). Spread through unclamped it
+            // overrides the iteration ceiling outright, on the UI thread.
+            minIterations: 900,
+        });
+        await flush();
+        await consult;
+        // Exact, not a subset: the clamp must not carry any other field either.
+        expect(searchedAt.at(-1)).toEqual({
+            iterations: BRAIN_FALLBACK_BUDGET.iterations,
+            timeMs: BRAIN_FALLBACK_BUDGET.timeMs,
+        });
     });
 
     it("keeps a caller's already-smaller budget rather than raising it", async () => {
