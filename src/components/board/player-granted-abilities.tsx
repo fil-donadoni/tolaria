@@ -15,13 +15,21 @@ import { formatOracleText } from "~/lib/oracle-text";
  *  stack-using grant needs priority AND a clear pendingCast/pendingActivation
  *  slot, exactly like the mutation's `else` branch.
  *
- *  `pendingChoice` blocks BOTH shapes: the mutation calls
- *  `assertNoPendingChoices(state)` with no `allowManaForMayPay` option — unlike
- *  its `tapUntap` / `tapForPayment` siblings, which pass one — so any queued
- *  resolution choice makes it throw, may-pay windows included. Without this the
- *  button would read enabled and the click would reject server-side, since
- *  `computeExpectedInput` (convex/gre/expectedInput.ts) hands the projected
- *  priority to the chooser while a choice is outstanding.
+ *  A queued resolution choice blocks BOTH shapes, with ONE exception the
+ *  mutation now carries (issue #2911): CR 608.2g — "If an effect gives a player
+ *  the option to pay mana, they may activate mana abilities before taking that
+ *  action." So while the HEAD pending choice is a `may-pay` owed to the viewer
+ *  themselves, a `useStack: false` grant stays enabled, exactly as tapping a
+ *  land for the same mana does (`tapUntap` / `tapForPayment` pass
+ *  `allowManaForMayPay`; `activatePlayerAbility` now does too, for its mana
+ *  branch only). Every other pending-choice kind, a may-pay owed to the
+ *  OPPONENT, and a stack-using grant all keep the blanket block — the mutation
+ *  rejects them, and an enabled button whose click rejects server-side is the
+ *  affordance bug this mirror exists to prevent. Priority is not a fallback
+ *  here: `computeExpectedInput` (convex/gre/expectedInput.ts) hands the
+ *  projected priority to the chooser while a choice is outstanding, but
+ *  `priorityPlayerId` on the wire is the raw frozen value, so the may-pay
+ *  window must be its own sufficient condition.
  *
  *  The client never has authority (ADR 0074): this only decides whether the
  *  button reads enabled, and the server re-validates every click. Two gates it
@@ -39,10 +47,20 @@ function canActivateGrant(
         priorityPlayerId?: string;
         pendingCastPlayerId?: string;
         pendingActivationPlayerId?: string;
-        pendingChoice: boolean;
+        /** The HEAD pending choice's kind and chooser, or `undefined` when the
+         *  queue is empty — the mutation's `assertNoPendingChoices` reads the
+         *  head only, so this mirror does too. */
+        pendingChoiceHead?: { kind?: string; playerId?: string };
     }
 ): boolean {
-    if (args.pendingChoice) return false;
+    const isManaGrant = !grant.useStack;
+    // CR 608.2g — the viewer's OWN may-pay window is a mana-payment window for
+    // a mana grant, and nothing else.
+    const isMayPayWindow =
+        isManaGrant &&
+        args.pendingChoiceHead?.kind === "may-pay" &&
+        args.pendingChoiceHead.playerId === args.playerId;
+    if (args.pendingChoiceHead && !isMayPayWindow) return false;
     const hasPriority = args.priorityPlayerId === args.playerId;
     if (grant.useStack) {
         return (
@@ -53,6 +71,7 @@ function canActivateGrant(
     }
     return (
         hasPriority ||
+        isMayPayWindow ||
         args.pendingCastPlayerId === args.playerId ||
         args.pendingActivationPlayerId === args.playerId
     );
@@ -102,7 +121,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
         priorityPlayerId,
         pendingCastPlayerId: pendingCast?.playerId,
         pendingActivationPlayerId: pendingActivation?.playerId,
-        pendingChoice: (pendingChoices?.length ?? 0) > 0,
+        pendingChoiceHead: pendingChoices?.[0],
     };
 
     const affordable = (grant: GrantedAbility) =>

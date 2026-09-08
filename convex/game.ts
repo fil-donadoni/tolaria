@@ -1049,7 +1049,7 @@ export function armDelayedTriggerOnTap(
  *  painless {C} choice carries no damage. Routed through the permanent-source
  *  player-damage pipeline (`dealDamageFromPermanentToPlayer` — CR 614
  *  replacement → CR 615 prevention), never the stack (mana abilities don't use
- *  it, CR 605.3a). No-op when the ability lacks the rider, the source was
+ *  it, CR 605.3b). No-op when the ability lacks the rider, the source was
  *  sacrificed, or the chosen mana is colourless. Shared by both tap-for-mana
  *  paths (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap). */
 export function applyColoredTapSelfDamage(
@@ -1143,7 +1143,7 @@ export function applyManaAbilityDiscardCost(
 
 /** CR 605.1a / 601.2f — the MANA portion of a mana ability's activation cost
  *  (Chromatic Star's "{1}, {T}, Sacrifice this artifact: Add one mana of any
- *  color"). Unlike a spell, a mana ability resolves immediately (CR 605.3a),
+ *  color"). Unlike a spell, a mana ability resolves immediately (CR 605.3b),
  *  but its cost is still paid on activation: the {1} is deducted from the
  *  controller's pool BEFORE the ability's produced mana is added, so the cost
  *  can never be funded by the mana the ability itself makes. Because no
@@ -13138,7 +13138,9 @@ export const submitResolutionChoice = mutation({
     },
 });
 
-/** Submits a yes/no decision to a pending `may-pay` choice (CR 117.3a / 118.4).
+/** Submits a yes/no decision to a pending `may-pay` choice (CR 608.2g — "If an
+ *  effect gives a player the option to pay mana, they may activate mana
+ *  abilities before taking that action").
  *  When `accept` is true and the choice carries a mana cost, the cost is
  *  validated against the player's mana pool and paid; if the pool can't
  *  cover, the call throws (forcing the player to either tap mana abilities
@@ -14633,7 +14635,7 @@ export const tapUntap = mutation({
             expect: "priority",
             allowManaForMayPay: true,
         });
-        // CR 608.2g / 605.3b — while answering a may-pay choice, the player
+        // CR 608.2g / 605.3a — while answering a may-pay choice, the player
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
         // priority and reject mana ability activation.
@@ -14658,7 +14660,7 @@ export const tapUntap = mutation({
             );
         }
 
-        // CR 605.3b: a mana ability can be activated only while the player
+        // CR 605.3a: a mana ability can be activated only while the player
         // has priority (or while paying a mana cost — handled above).
         // Mana payment for an active may-pay choice also qualifies.
         if (
@@ -14740,7 +14742,7 @@ export const tapUntap = mutation({
             // CR 603.2/603.3 — flush what the sacrifice and the mana queued
             // (the source's own dies trigger, a Mana Flare-style watcher).
             // Same flush the tap branches run below; no SBA pass, because a
-            // mana ability resolves without one (CR 605.3a).
+            // mana ability resolves without one (CR 605.3b).
             processPendingActionTriggers(state);
             await saveGameState(
                 ctx,
@@ -15336,7 +15338,7 @@ export function resolveNonTapManaChoice(
  *  never passes priority or runs an SBA pass. `recordActivation` increments the
  *  per-turn activation count BEFORE the resolve runs, so `getActivationCount`
  *  inside `resolve` includes the current activation (CR 602.5). Legal while the
- *  player has priority OR while paying a mana cost (CR 605.3b). */
+ *  player has priority OR while paying a mana cost (CR 605.3a). */
 export const activateManaAbility = mutation({
     args: {
         gameId: v.id("games"),
@@ -15371,7 +15373,7 @@ export const activateManaAbility = mutation({
             allowManaForMayPay: true,
         });
 
-        // CR 608.2g / 605.3b — answering a may-pay choice opens a mana-payment
+        // CR 608.2g / 605.3a — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
         const mayPayHead = state.pendingChoices?.[0];
         const isMayPayPaymentWindow =
@@ -15383,7 +15385,7 @@ export const activateManaAbility = mutation({
 
         const player = getPlayer(state, args.playerId);
 
-        // CR 605.3b — a mana ability is legal while the player has priority or
+        // CR 605.3a — a mana ability is legal while the player has priority or
         // while paying a mana cost (cast/activation/may-pay window).
         const isInPayment =
             state.pendingCast?.playerId === args.playerId ||
@@ -15478,7 +15480,7 @@ export const activateManaAbility = mutation({
             args.manaChoiceIndex
         );
         if (chosen) {
-            // CR 605.3b / 602.1 (issue #2420) — this activation may itself be
+            // CR 605.3a / 602.1 (issue #2420) — this activation may itself be
             // FUNDING a pending cast's or activation's mana cost (Urza's
             // `tapOtherFilter` leg, Farrelite Priest's pure `cost.mana` —
             // both routed through this mutation by the bot's `tapPlan`
@@ -15542,8 +15544,10 @@ export const activateManaAbility = mutation({
 /** Activate an ability that was granted to a player by an effect (e.g.
  *  Channel's "Pay 1 life: Add {C}." — CR 113.1). Mirrors activateAbility
  *  but scoped to player-granted templates rather than battlefield cards.
- *  Mana abilities (useStack:false) resolve immediately; stack abilities
- *  push to the stack. */
+ *  Mana abilities (useStack:false) resolve immediately (CR 605.3b); stack
+ *  abilities push to the stack. A mana grant is also activatable during its
+ *  holder's own may-pay window (CR 608.2g), which is why the grant and its
+ *  template are resolved before the timing gates run. */
 export const activatePlayerAbility = mutation({
     args: {
         gameId: v.id("games"),
@@ -15560,12 +15564,13 @@ export const activatePlayerAbility = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-        assertNoPendingChoices(state);
 
+        // The grant and its template are resolved BEFORE the timing gates: the
+        // CR 605.3a exception below is conditional on the resolved ability's
+        // `useStack`, so the guards cannot run until the ability is in hand.
+        // Nothing here mutates `state` — an unknown or expired instance id, or
+        // a template the source card no longer declares, still throws first and
+        // still writes nothing.
         const player = getPlayer(state, args.playerId);
         const instance = player.grantedAbilities?.find(
             (g) => g.id === args.grantedAbilityInstanceId
@@ -15577,6 +15582,32 @@ export const activatePlayerAbility = mutation({
             (a) => a.id === instance.abilityId
         );
         if (!ability) throw new Error("Ability template not found");
+        const isManaAbility = !ability.useStack;
+
+        // CR 608.2g — "If an effect gives a player the option to pay mana, they
+        // may activate mana abilities before taking that action." A player-level
+        // MANA grant (Channel's "Pay 1 life: Add {C}.") is activatable inside
+        // that window on the same terms as tapping a land for it
+        // (`tapUntap` / `activateManaAbility` already pass these two flags).
+        // A stack-using grant keeps the strict guard: the exception is for mana
+        // abilities only (CR 605.3a).
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+            allowManaForMayPay: isManaAbility,
+        });
+        const mayPayHead = state.pendingChoices?.[0];
+        const isMayPayPaymentWindow =
+            isManaAbility &&
+            mayPayHead?.kind === "may-pay" &&
+            mayPayHead.playerId === args.playerId;
+        assertNoPendingChoices(
+            state,
+            isManaAbility
+                ? { allowManaForMayPay: { playerId: args.playerId } }
+                : {}
+        );
+
         // CR 602.5 — phase-restricted templates are equally illegal when
         // activated via a player-scoped grant.
         if (
@@ -15587,14 +15618,16 @@ export const activatePlayerAbility = mutation({
         }
 
         // CR 605.3a — mana abilities can be activated (a) when the player has
-        // priority, or (b) while paying a mana cost of a spell/ability. Mirror
-        // tapUntap / tapForPayment timing: allow either gate.
+        // priority, (b) while paying a mana cost of a spell/ability, or (c)
+        // "whenever a rule or effect asks for a mana payment", which is the
+        // may-pay window above. Mirror tapUntap / tapForPayment timing: allow
+        // any of the three gates.
         const hasPriority = state.priorityPlayerId === args.playerId;
         const isInPayment =
             state.pendingCast?.playerId === args.playerId ||
             state.pendingActivation?.playerId === args.playerId;
-        if (!ability.useStack) {
-            if (!hasPriority && !isInPayment) {
+        if (isManaAbility) {
+            if (!hasPriority && !isInPayment && !isMayPayPaymentWindow) {
                 throw new Error(
                     "Cannot activate mana ability without priority"
                 );

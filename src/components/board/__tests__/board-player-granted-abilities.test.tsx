@@ -98,6 +98,46 @@ function projectChannelSeat(
     return projected.players[index] as unknown as Player;
 }
 
+/** p1's seat carrying ONE player-level grant whose template USES THE STACK —
+ *  the negative control for the CR 608.2g exception, which is for mana
+ *  abilities only. Kavu Chameleon's "{G}: This creature becomes the color of
+ *  your choice until end of turn." is a real `useStack: true` template; a
+ *  player-scoped grant is just a `{ sourceCardId, abilityId }` pair, so its
+ *  source need not be on the battlefield. Still projected through
+ *  `projectPublicState`, so `PublicGrantedAbility.useStack` is read off the
+ *  wire exactly as the component reads it. */
+function projectStackGrantSeat(): Player {
+    const state = makeState();
+    state.players[0].grantedAbilities = [
+        {
+            id: "grant-stack",
+            sourceCardId: getCardByName("Kavu Chameleon").id,
+            abilityId: "kavu-chameleon-color",
+            duration: { phase: "end-of-turn" },
+            grantedAtTurn: state.turn,
+        },
+    ];
+    const projected = projectPublicState(state, 1, "p1");
+    expect(projected.players[0].grantedAbilities![0].useStack).toBe(true);
+    return projected.players[0] as unknown as Player;
+}
+
+/** A `may-pay` PendingChoice owed to `chooser`, in the wire shape the context
+ *  hands the component (`projectPublicState` ships `pendingChoices` through the
+ *  `...state` spread untouched). */
+function mayPayChoice(chooser: string) {
+    return {
+        stackItemId: "s1",
+        step: 0,
+        choiceId: "$paid",
+        playerId: chooser,
+        kind: "may-pay",
+        count: 1,
+        prompt: "Pay {1}?",
+        cost: { X: 1 },
+    };
+}
+
 type Ctx = React.ContextType<typeof GameContext>;
 
 function makeContext(overrides: Partial<NonNullable<Ctx>> = {}): Ctx {
@@ -181,22 +221,60 @@ describe("player-level granted abilities on the board (issue #2691, CR 605.3a)",
         });
     });
 
-    it("is DISABLED while a resolution choice is queued — the mutation rejects on any pending choice", () => {
-        // `activatePlayerAbility` calls `assertNoPendingChoices(state)` with no
-        // `allowManaForMayPay` option (unlike tapUntap / tapForPayment), so a
-        // queued choice makes it throw even in a may-pay window where the
-        // projected priority sits with the chooser.
+    // CR 608.2g — "If an effect gives a player the option to pay mana, they may
+    // activate mana abilities before taking that action." Issue #2911: the
+    // mutation now opts into `allowManaForMayPay` for its `useStack: false`
+    // branch, so the control must stop blocking blanket on the queue's length
+    // and mirror the narrowed exception instead.
+    it("stays ENABLED in the viewer's OWN may-pay window — the mana grant answers the question (CR 608.2g)", () => {
+        const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
+            // Priority is elsewhere: the may-pay window is the ONLY thing that
+            // can license the click, exactly as in the mutation.
+            priorityPlayerId: "p2",
+            pendingChoices: [mayPayChoice("p1")] as never,
+        });
+        const button = grantButton(container)!;
+        expect(button.disabled).toBe(false);
+        fireEvent.click(button);
+        expect(mutationSpies.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it("is DISABLED when the may-pay is owed to the OPPONENT — not the viewer's payment window", () => {
+        const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
+            pendingChoices: [mayPayChoice("p2")] as never,
+        });
+        const button = grantButton(container);
+        expect(button).not.toBeNull();
+        expect(button!.disabled).toBe(true);
+        fireEvent.click(button!);
+        expect(mutationSpies.activate).not.toHaveBeenCalled();
+    });
+
+    it("is DISABLED for every OTHER pending-choice kind — CR 608.2 freezes priority", () => {
         const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
             pendingChoices: [
                 {
                     stackItemId: "s1",
                     step: 0,
-                    choiceId: "may-pay",
+                    choiceId: "search",
                     playerId: "p1",
-                    kind: "may-pay",
-                    prompt: "Pay {1}?",
+                    kind: "search-library",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library.",
                 },
             ] as never,
+        });
+        const button = grantButton(container);
+        expect(button).not.toBeNull();
+        expect(button!.disabled).toBe(true);
+        fireEvent.click(button!);
+        expect(mutationSpies.activate).not.toHaveBeenCalled();
+    });
+
+    it("is DISABLED for a STACK-using grant in the viewer's own may-pay window", () => {
+        const { container } = renderSeat(projectStackGrantSeat(), {
+            pendingChoices: [mayPayChoice("p1")] as never,
         });
         const button = grantButton(container);
         expect(button).not.toBeNull();
